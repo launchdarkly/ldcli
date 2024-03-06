@@ -3,7 +3,7 @@
 version: 2.1
 
 orbs:
-  go: circleci/golang
+  go: circleci/go@1.11.0
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/jobs-steps/#jobs-overview & https://circleci.com/docs/configuration-reference/#jobs
@@ -21,7 +21,7 @@ jobs:
       - go/load-cache # Load cached Go modules.
       - go/mod-download # Run 'go mod download'.
       - go/save-cache # Save Go modules to cache.
-      - go/test: # Runs 'go test ./...' but includes extensive 
+      - go/test # Runs 'go test ./...' but includes extensive 
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
