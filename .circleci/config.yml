@@ -21,7 +21,12 @@ jobs:
       - go/load-cache # Load cached Go modules.
       - go/mod-download # Run 'go mod download'.
       - go/save-cache # Save Go modules to cache.
-      - go/test # Runs 'go test ./...' but includes extensive 
+      - go/test: # Runs 'go test ./...' but includes extensive 
+          covermode: atomic
+          failfast: true
+          no_output_timeout: 15m
+          race: true
+          timeout: 15m
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
