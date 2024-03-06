@@ -15,7 +15,7 @@ var helloCmd = &cobra.Command{
 	Short: "A hello world command.",
 	Long:  `A hello world command that prints out {"hello": "world"}`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("{\"hello\": \"world\"}")
+		fmt.Fprintf(cmd.OutOrStdout(), "{\"hello\": \"world\"}")
 	},
 }
 
