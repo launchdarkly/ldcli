@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/zeebo/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHelloCmd(t *testing.T) {
