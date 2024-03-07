@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// TODO: we may want to rename this for clarity
 type sessionState int
 
 // list of steps in the wizard
@@ -16,7 +17,8 @@ const (
 	environmentsStep
 )
 
-// high level container model
+// WizardModel is a high level container model that controls the nested models which each
+// represent a step in the setup wizard.
 type WizardModel struct {
 	quitting           bool
 	err                error
@@ -28,12 +30,12 @@ type WizardModel struct {
 }
 
 func NewWizardModel() tea.Model {
-	projStep, _ := NewProject()
-	envStep, _ := NewEnvironment()
-
 	steps := []tea.Model{
-		projStep,
-		envStep,
+		// Since there isn't a model for the initial step, the currStep value will always be one ahead of the step in
+		// this slice. It may be convenient to add a model for the initial step to contain its own view logic and to
+		// prevent this off-by-one issue.
+		NewProject(),
+		NewEnvironment(),
 	}
 
 	return WizardModel{
@@ -46,6 +48,8 @@ func (m WizardModel) Init() tea.Cmd {
 	return nil
 }
 
+// Update controls all the messages passed around and delegates to the relevant nested model depending on which step
+// the user is on.
 func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -54,6 +58,8 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.currStep {
 			case initialStep:
 				projModel, _ := m.steps[m.currStep].Update(fetchProjects{})
+				// we need to cast this to get the data out of it, but maybe we can create our own interface with
+				// common values such as Choice() and Err() so we don't have to cast
 				p, ok := projModel.(projectModel)
 				if ok {
 					if p.err != nil {
@@ -62,7 +68,9 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 
+				// update the nested model
 				m.steps[m.currStep] = projModel
+				// go to the next step
 				m.currStep += 1
 			case projectsStep:
 				projModel, _ := m.steps[m.currStep-1].Update(msg)
@@ -78,11 +86,11 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currEnvironmentKey = p.choice
 					m.currStep += 1
 				}
+				// add additional cases for additional steps
 			default:
 			}
-
-			return m, nil
 		case key.Matches(msg, keys.Back):
+			// only go back if not on the first step
 			if m.currStep > initialStep {
 				m.currStep -= 1
 			}
@@ -115,7 +123,7 @@ func (m WizardModel) View() string {
 		return fmt.Sprintf("envKey is %s, projKey is %s", m.currEnvironmentKey, m.currProjectKey)
 	}
 
-	return "\nstep 1 of x\n" + m.steps[m.currStep-1].View()
+	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep-1].View(), m.currStep, len(m.steps))
 }
 
 type keyMap struct {

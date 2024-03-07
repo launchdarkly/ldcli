@@ -19,26 +19,27 @@ var (
 )
 
 type environment struct {
-	key  string
-	name string
+	Key  string `json:"key"`
+	Name string `json:"name"`
 }
 
 func (p environment) FilterValue() string { return "" }
 
 type environmentModel struct {
-	list   list.Model
 	choice string
+	err    error
+	list   list.Model
 }
 
-func NewEnvironment() (tea.Model, tea.Cmd) {
+func NewEnvironment() tea.Model {
 	environments := []environment{
 		{
-			key:  "env1",
-			name: "environment 1",
+			Key:  "env1",
+			Name: "environment 1",
 		},
 		{
-			key:  "env2",
-			name: "environment 2",
+			Key:  "env2",
+			Name: "environment 2",
 		},
 	}
 
@@ -49,13 +50,14 @@ func NewEnvironment() (tea.Model, tea.Cmd) {
 
 	return environmentModel{
 		list: l,
-	}, nil
+	}
 }
 
 func (p environmentModel) Init() tea.Cmd {
 	return nil
 }
 
+// This method has drifted from the ProjectModel's version, but it should do something similar.
 func (m environmentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
@@ -64,10 +66,9 @@ func (m environmentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Enter):
 			i, ok := m.list.SelectedItem().(environment)
 			if ok {
-				m.choice = i.key
+				m.choice = i.Key
 			}
 		case key.Matches(msg, keys.Quit):
-			// p.quitting = true
 			return m, tea.Quit
 		default:
 			m.list, cmd = m.list.Update(msg)
@@ -78,13 +79,6 @@ func (m environmentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m environmentModel) View() string {
-	// if p.quitting {
-	// 	return ""
-	// }
-	if m.choice != "" {
-		return fmt.Sprintf("You have selected %s", m.choice)
-	}
-
 	return "\n" + m.list.View()
 }
 
@@ -99,7 +93,7 @@ func (d envDelegate) Render(w io.Writer, m list.Model, index int, listItem list.
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, i.name)
+	str := fmt.Sprintf("%d. %s", index+1, i.Name)
 
 	fn := environmentStyle.Render
 	if index == m.Index() {

@@ -31,7 +31,7 @@ type projectModel struct {
 	list   list.Model
 }
 
-func NewProject() (tea.Model, tea.Cmd) {
+func NewProject() tea.Model {
 	l := list.New([]list.Item{}, projectDelegate{}, 30, 14)
 	l.Title = "Select a project"
 	l.SetShowStatusBar(false)
@@ -39,7 +39,7 @@ func NewProject() (tea.Model, tea.Cmd) {
 
 	return projectModel{
 		list: l,
-	}, nil
+	}
 }
 
 func (p projectModel) Init() tea.Cmd {
@@ -74,13 +74,10 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m projectModel) View() string {
-	if m.choice != "" {
-		return fmt.Sprintf("You have selected %s", m.choice)
-	}
-
 	return "\n" + m.list.View()
 }
 
+// projectDelegate is used for display the list and its elements.
 type projectDelegate struct{}
 
 func (d projectDelegate) Height() int                             { return 1 }
