@@ -1,0 +1,44 @@
+name: Publish Artifacts
+description: 'Publish artifacts to Github Release'
+inputs:
+  token:
+    description: 'Token to use for publishing.'
+    required: true
+  dry-run:
+    description: 'Is this a dry run. If so no package will be published.'
+    required: false
+    default: 'true'
+  tag:
+    description: 'Tag to upload artifacts to.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64/v8,linux/arm/v7,linux/386
+    - name: Git clean
+      shell: bash
+      run: git clean -f
+    - name: Login to Docker
+      shell: bash
+      run: |
+        echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
+    - name: Run Goreleaser
+      uses: goreleaser/goreleaser-action@v5
+      with:
+        version: latest
+        args: release --clean ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+
+    - name: Upload Release Artifacts
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        gh release upload ${{ inputs.tag }} ./dist/*.deb ./dist/*.rpm ./dist/*.tar.gz ./dist/*.txt --clobber
