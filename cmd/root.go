@@ -28,7 +28,7 @@ func init() {
 		"baseUri",
 		"u",
 		"http://localhost:3000",
-		`LaunchDarkly base URI. (default "https://app.launchdarkly.com")`,
+		"LaunchDarkly base URI.",
 	)
 	err := viper.BindPFlag("baseUri", rootCmd.PersistentFlags().Lookup("baseUri"))
 	if err != nil {
