@@ -1,0 +1,4883 @@
+swagger: '2.0'
+info:
+  title: LaunchDarkly REST API
+  description: Build custom integrations with the LaunchDarkly REST API
+  termsOfService: 'https://launchdarkly.com/terms'
+  contact:
+    name: LaunchDarkly Support
+    url: 'https://support.launchdarkly.com'
+    email: support@launchdarkly.com
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+  version: 5.3.0
+host: app.launchdarkly.com
+basePath: /api/v2
+schemes:
+  - https
+consumes:
+  - application/json
+produces:
+  - application/json
+securityDefinitions:
+  Token:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: 'https://app.launchdarkly.com/settings#/tokens'
+security:
+  - Token: []
+paths:
+  /projects:
+    get:
+      summary: Returns a list of all projects in the account.
+      operationId: getProjects
+      responses:
+        '200':
+          description: Projects response
+          schema:
+            $ref: '#/definitions/Projects'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Projects
+    post:
+      summary: Create a new project with the given key and name.
+      operationId: postProject
+      parameters:
+        - $ref: '#/parameters/ProjectPostRequest'
+      responses:
+        '201':
+          $ref: '#/responses/Project2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Projects
+  '/projects/{projectKey}':
+    get:
+      summary: Fetch a single project by key.
+      operationId: getProject
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+      responses:
+        '200':
+          $ref: '#/responses/Project2xx'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Projects
+    patch:
+      summary: Modify a project by ID.
+      operationId: patchProject
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/PatchRequest'
+      responses:
+        '200':
+          $ref: '#/responses/Project2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Projects
+    delete:
+      summary: >-
+        Delete a project by key. Caution-- deleting a project will delete all
+        associated environments and feature flags. You cannot delete the last
+        project in an account.
+      operationId: deleteProject
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Projects
+  '/projects/{projectKey}/environments':
+    post:
+      summary: >-
+        Create a new environment in a specified project with a given name, key,
+        and swatch color.
+      operationId: postEnvironment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentPostRequest'
+      responses:
+        '201':
+          $ref: '#/responses/Environment2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Environments
+  '/projects/{projectKey}/environments/{environmentKey}':
+    get:
+      summary: Get an environment given a project and key.
+      operationId: getEnvironment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+      responses:
+        '200':
+          $ref: '#/responses/Environment2xx'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Environments
+    patch:
+      summary: >-
+        Modify an environment by ID. If you try to patch the environment by
+        setting both required and requiredApprovalTags, it will result in an
+        error. Users can specify either required approvals for all flags in an
+        environment or those with specific tags, but not both. Only customers on
+        an Enterprise plan can require approval for flag updates with either
+        mechanism.
+      operationId: patchEnvironment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/PatchRequest'
+      responses:
+        '200':
+          $ref: '#/responses/Environment2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Environments
+    delete:
+      summary: Delete an environment in a specific project.
+      operationId: deleteEnvironment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Environments
+  '/projects/{projectKey}/environments/{environmentKey}/apiKey':
+    post:
+      summary: >-
+        Reset an environment's SDK key with an optional expiry time for the old
+        key.
+      operationId: resetEnvironmentSDKKey
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/EnvironmentSDKKeyExpiry'
+      responses:
+        '200':
+          $ref: '#/responses/Environment2xx'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Environments
+  '/projects/{projectKey}/environments/{environmentKey}/mobileKey':
+    post:
+      summary: >-
+        Reset an environment's mobile key. The optional expiry for the old key
+        is deprecated for this endpoint, so the old key will always expire
+        immediately.
+      operationId: resetEnvironmentMobileKey
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/EnvironmentMobileKeyExpiry'
+      responses:
+        '200':
+          $ref: '#/responses/Environment2xx'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Environments
+  '/flags/{projectKey}':
+    get:
+      summary: Get a list of all features in the given project.
+      operationId: getFeatureFlags
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKeyQuery'
+        - $ref: '#/parameters/SummaryQuery'
+        - $ref: '#/parameters/ArchivedQuery'
+        - $ref: '#/parameters/LimitQuery'
+        - $ref: '#/parameters/OffsetQuery'
+        - $ref: '#/parameters/FilterQuery'
+        - $ref: '#/parameters/SortQuery'
+        - $ref: '#/parameters/Tag'
+      responses:
+        '200':
+          description: Flags response.
+          schema:
+            $ref: '#/definitions/FeatureFlags'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Feature flags
+    post:
+      summary: Creates a new feature flag.
+      operationId: postFeatureFlag
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagPostRequest'
+        - $ref: '#/parameters/CloneFlagKeyQuery'
+      responses:
+        '201':
+          description: Flag response.
+          schema:
+            $ref: '#/definitions/FeatureFlag'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Feature flags
+  '/flags/{projectKey}/{featureFlagKey}':
+    get:
+      summary: Get a single feature flag by key.
+      operationId: getFeatureFlag
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKeyQuery'
+      responses:
+        '200':
+          description: Flag response.
+          schema:
+            $ref: '#/definitions/FeatureFlag'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+    patch:
+      summary: Perform a partial update to a feature.
+      operationId: patchFeatureFlag
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/PatchWithComment'
+      responses:
+        '200':
+          description: Feature flag response.
+          schema:
+            $ref: '#/definitions/FeatureFlag'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Feature flags
+    delete:
+      summary: >-
+        Delete a feature flag in all environments. Be careful-- only delete
+        feature flags that are no longer being used by your application.
+      operationId: deleteFeatureFlag
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+  '/flags/{projectKey}/{featureFlagKey}/copy':
+    post:
+      summary: >-
+        Copies the feature flag configuration from one environment to the same
+        feature flag in another environment.
+      operationId: copyFeatureFlag
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/FeatureFlagCopyBody'
+      responses:
+        '201':
+          description: Flag configuration copy response.
+          schema:
+            $ref: '#/definitions/FeatureFlag'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Feature flags
+  '/flag-statuses/{projectKey}/{environmentKey}':
+    get:
+      summary: >-
+        Get a list of statuses for all feature flags. The status includes the
+        last time the feature flag was requested, as well as the state of the
+        flag.
+      operationId: getFeatureFlagStatuses
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+      responses:
+        '200':
+          description: List of feature flag statuses.
+          schema:
+            $ref: '#/definitions/FeatureFlagStatuses'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Feature flags
+  '/flag-statuses/{projectKey}/{environmentKey}/{featureFlagKey}':
+    get:
+      summary: Get the status for a particular feature flag.
+      operationId: getFeatureFlagStatus
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+      responses:
+        '200':
+          description: Status of the requested feature flag.
+          schema:
+            $ref: '#/definitions/FeatureFlagStatus'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Feature flags
+  '/flag-status/{projectKey}/{featureFlagKey}':
+    get:
+      summary: Get the status for a particular feature flag across environments
+      operationId: getFeatureFlagStatusAcrossEnvironments
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+      responses:
+        '200':
+          description: Status of the requested feature flag across environments
+          schema:
+            $ref: '#/definitions/FeatureFlagStatusAcrossEnvironments'
+        '401':
+          $ref: '#/responses/Standard401'
+        '403':
+          $ref: '#/responses/BetaApi403'
+      tags:
+        - Feature flags
+  '/flags/{projectKey}/{featureFlagKey}/expiring-user-targets/{environmentKey}':
+    get:
+      summary: Get expiring user targets for feature flag
+      operationId: getExpiringUserTargets
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+      responses:
+        '200':
+          description: User targets of the requested feature flag.
+          schema:
+            $ref: '#/definitions/UserTargetingExpirationForFlags'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Feature flags
+    patch:
+      summary: 'Update, add, or delete expiring user targets on feature flag'
+      operationId: patchExpiringUserTargets
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/SemanticPatchWithComment'
+      responses:
+        '200':
+          description: User targeting expirations on feature flag response.
+          schema:
+            $ref: '#/definitions/UserTargetingExpirationForFlags'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Feature flags
+  '/flags/{projectKey}/{featureFlagKey}/dependent-flags':
+    get:
+      summary: >-
+        Get dependent flags across all environments for the flag specified in
+        the path parameters
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+      responses:
+        '200':
+          description: Dependent flags accross all environemnts in the project response
+          schema:
+            $ref: '#/definitions/MultiEnvironmentDependentFlags'
+        '401':
+          $ref: '#/responses/Standard401'
+        '403':
+          $ref: '#/responses/BetaApi403'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+  '/flags/{projectKey}/{environmentKey}/{featureFlagKey}/dependent-flags':
+    get:
+      summary: >-
+        Get dependent flags for the flag in the environment specified in path
+        parameters
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+      responses:
+        '200':
+          description: Dependent flags in a single envrionemnt response
+          schema:
+            $ref: '#/definitions/DependentFlagsByEnvironment'
+        '401':
+          $ref: '#/responses/Standard401'
+        '403':
+          $ref: '#/responses/BetaApi403'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+  '/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes':
+    get:
+      summary: Get all scheduled workflows for a feature flag by key.
+      operationId: getFlagConfigScheduledChanges
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+      responses:
+        '200':
+          schema:
+            $ref: '#/definitions/FeatureFlagScheduledChanges'
+          description: A list of scheduled changes for feature flag response.
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+    post:
+      summary: Creates a new scheduled change for a feature flag.
+      operationId: postFlagConfigScheduledChanges
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FlagConfigScheduledChangesPostBody'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+      responses:
+        '201':
+          description: A scheduled change for feature flag response.
+          schema:
+            $ref: '#/definitions/FeatureFlagScheduledChange'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Feature flags
+  '/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes-conflicts':
+    post:
+      summary: >-
+        Lists conflicts between the given instructions and any existing
+        scheduled changes for the feature flag. The actual HTTP verb should be
+        REPORT, not POST.
+      operationId: getFlagConfigScheduledChangesConflicts
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/FlagConfigScheduledChangesConflictsBody'
+      responses:
+        '200':
+          schema:
+            $ref: '#/definitions/FeatureFlagScheduledChangesConflicts'
+          description: Scheduled changes conflict response
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+  '/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes/{scheduledChangeId}':
+    get:
+      summary: Get a scheduled change on a feature flag by id.
+      operationId: getFlagConfigScheduledChange
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/ScheduledChangeId'
+      responses:
+        '200':
+          schema:
+            $ref: '#/definitions/FeatureFlagScheduledChange'
+          description: A scheduled change for feature flag response.
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+    patch:
+      summary: >-
+        Updates an existing scheduled-change on a feature flag in an
+        environment.
+      operationId: patchFlagConfigScheduledChange
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/FlagConfigScheduledChangesPatchBody'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/ScheduledChangeId'
+      responses:
+        '201':
+          description: A Scheduled change for feature flag response.
+          schema:
+            $ref: '#/definitions/FeatureFlagScheduledChange'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Feature flags
+    delete:
+      summary: Delete a scheduled change on a feature flag in an environment.
+      operationId: deleteFlagConfigScheduledChanges
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/ScheduledChangeId'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+  '/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests':
+    get:
+      operationId: getApprovalRequests
+      summary: Get all approval requests for a feature flag config
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+      responses:
+        '200':
+          schema:
+            $ref: '#/definitions/ApprovalRequests'
+          description: Approval requests response
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+  '/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{approvalRequestId}':
+    get:
+      operationId: getApprovalRequest
+      summary: Get a single approval request for a feature flag config
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/ApprovalRequestId'
+      responses:
+        '200':
+          schema:
+            $ref: '#/definitions/ApprovalRequests'
+          description: Approval request response
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+    post:
+      operationId: postApprovalRequest
+      summary: Create an approval request for a feature flag config
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/ApprovalRequestId'
+        - $ref: '#/parameters/ApprovalRequestPostRequest'
+      responses:
+        '200':
+          schema:
+            $ref: '#/definitions/ApprovalRequest'
+          description: Approval request response
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+    delete:
+      operationId: deleteApprovalRequest
+      summary: Delete an approval request for a feature flag config
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/ApprovalRequestId'
+        - $ref: '#/parameters/ApprovalRequestPostRequest'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+  '/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{approvalRequestId}/apply':
+    post:
+      operationId: postApplyApprovalRequest
+      summary: Apply approval request for a feature flag config
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/ApprovalRequestId'
+        - $ref: '#/parameters/ApprovalRequestApplyPostRequest'
+      responses:
+        '200':
+          schema:
+            $ref: '#/definitions/ApprovalRequests'
+          description: Approval request applied response
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+  '/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{approvalRequestId}/review':
+    post:
+      operationId: postReviewApprovalRequest
+      summary: Review approval request for a feature flag config
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/ApprovalRequestId'
+        - $ref: '#/parameters/ApprovalRequestReviewPostRequest'
+      responses:
+        '200':
+          schema:
+            $ref: '#/definitions/ApprovalRequests'
+          description: Approval request reviewed response
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Feature flags
+  '/segments/{projectKey}/{environmentKey}':
+    get:
+      summary: Get a list of all user segments in the given project.
+      operationId: getUserSegments
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/Tag'
+      responses:
+        '200':
+          description: Segments response.
+          schema:
+            $ref: '#/definitions/UserSegments'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - User segments
+    post:
+      summary: Creates a new user segment.
+      operationId: postUserSegment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserSegmentPostRequest'
+      responses:
+        '201':
+          $ref: '#/responses/UserSegment2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - User segments
+  '/segments/{projectKey}/{environmentKey}/{userSegmentKey}':
+    get:
+      summary: Get a single user segment by key.
+      operationId: getUserSegment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserSegmentKey'
+      responses:
+        '200':
+          $ref: '#/responses/UserSegment2xx'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - User segments
+    patch:
+      summary: Perform a partial update to a user segment.
+      operationId: patchUserSegment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserSegmentKey'
+        - $ref: '#/parameters/PatchOnly'
+      responses:
+        '200':
+          $ref: '#/responses/UserSegment2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - User segments
+    delete:
+      summary: Delete a user segment.
+      operationId: deleteUserSegment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserSegmentKey'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - User segments
+  '/segments/{projectKey}/{userSegmentKey}/expiring-user-targets/{environmentKey}':
+    get:
+      summary: Get expiring user targets for user segment
+      operationId: getExpiringUserTargetsOnSegment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserSegmentKey'
+      responses:
+        '200':
+          description: User targeting expirations on user segment response.
+          schema:
+            $ref: '#/definitions/UserTargetingExpirationForSegment'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - User segments
+    patch:
+      summary: 'Update, add, or delete expiring user targets on user segment'
+      operationId: patchExpiringUserTargetsOnSegment
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserSegmentKey'
+        - $ref: '#/parameters/SemanticPatchWithComment'
+      responses:
+        '200':
+          description: User targeting expirations on user segment response.
+          schema:
+            $ref: '#/definitions/UserTargetingExpirationForSegment'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - User segments
+  '/segments/{projectKey}/{environmentKey}/{userSegmentKey}/users':
+    post:
+      summary: Update targets included or excluded in a big segment
+      operationId: updateBigSegmentTargets
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserSegmentKey'
+        - $ref: '#/parameters/BigSegmentTargetsPostRequest'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - User segments
+  '/users/{projectKey}/{environmentKey}':
+    get:
+      summary: >-
+        List all users in the environment. Includes the total count of users. In
+        each page, there will be up to 'limit' users returned (default 20). This
+        is useful for exporting all users in the system for further analysis.
+        Paginated collections will include a next link containing a URL with the
+        next set of elements in the collection.
+      operationId: getUsers
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/Limit'
+        - $ref: '#/parameters/HMAC'
+        - $ref: '#/parameters/ScrollId'
+      responses:
+        '200':
+          description: Users response.
+          schema:
+            $ref: '#/definitions/Users'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Users
+  '/user-search/{projectKey}/{environmentKey}':
+    get:
+      summary: >-
+        Search users in LaunchDarkly based on their last active date, or a
+        search query. It should not be used to enumerate all users in
+        LaunchDarkly-- use the List users API resource.
+      operationId: getSearchUsers
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/Query'
+        - $ref: '#/parameters/Limit'
+        - $ref: '#/parameters/Offset'
+        - $ref: '#/parameters/After'
+      responses:
+        '200':
+          description: Users response.
+          schema:
+            $ref: '#/definitions/Users'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Users
+  '/users/{projectKey}/{environmentKey}/{userKey}':
+    get:
+      summary: Get a user by key.
+      operationId: getUser
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserKey'
+      responses:
+        '200':
+          description: User response.
+          schema:
+            $ref: '#/definitions/UserRecord'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Users
+    delete:
+      summary: Delete a user by ID.
+      operationId: deleteUser
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserKey'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Users
+  '/users/{projectKey}/{environmentKey}/{userKey}/flags':
+    get:
+      summary: Fetch a single flag setting for a user by key.
+      operationId: getUserFlagSettings
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserKey'
+      responses:
+        '200':
+          description: User flags settings response.
+          schema:
+            $ref: '#/definitions/UserFlagSettings'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - User settings
+  '/users/{projectKey}/{environmentKey}/{userKey}/flags/{featureFlagKey}':
+    get:
+      summary: Fetch a single flag setting for a user by key.
+      operationId: getUserFlagSetting
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+      responses:
+        '200':
+          description: User flag setting response.
+          schema:
+            $ref: '#/definitions/UserFlagSetting'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - User settings
+    put:
+      summary: >-
+        Specifically enable or disable a feature flag for a user based on their
+        key.
+      operationId: putFlagSetting
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserKey'
+        - $ref: '#/parameters/FeatureFlagKey'
+        - $ref: '#/parameters/UserSettingsPutRequest'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - User settings
+  '/users/{projectKey}/{userKey}/expiring-user-targets/{environmentKey}':
+    get:
+      summary: Get expiring dates on flags for user
+      operationId: getExpiringUserTargetsForUser
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserKey'
+      responses:
+        '200':
+          description: User targets of the requested feature flag.
+          schema:
+            $ref: '#/definitions/UserTargetingExpirationOnFlagsForUser'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - User settings
+    patch:
+      summary: >-
+        Update, add, or delete expiring user targets for a single user on all
+        flags
+      operationId: patchExpiringUserTargetsForFlags
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/UserKey'
+        - $ref: '#/parameters/SemanticPatchWithComment'
+      responses:
+        '200':
+          description: User Targeting expiration for single user on all flags response.
+          schema:
+            $ref: '#/definitions/UserTargetingExpirationOnFlagsForUser'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - User settings
+  /auditlog:
+    get:
+      summary: >-
+        Get a list of all audit log entries. The query parameters allow you to
+        restrict the returned results by date ranges, resource specifiers, or a
+        full-text search query.
+      operationId: getAuditLogEntries
+      parameters:
+        - $ref: '#/parameters/Before'
+        - $ref: '#/parameters/After'
+        - $ref: '#/parameters/Q'
+        - $ref: '#/parameters/AuditLimit'
+        - $ref: '#/parameters/Spec'
+      responses:
+        '200':
+          description: Audit log entries response.
+          schema:
+            $ref: '#/definitions/AuditLogEntries'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Audit log
+  '/auditlog/{resourceId}':
+    get:
+      summary: Use this endpoint to fetch a single audit log entry by its resouce ID.
+      operationId: getAuditLogEntry
+      parameters:
+        - $ref: '#/parameters/ResourceId'
+      responses:
+        '200':
+          description: Audit log entry response.
+          schema:
+            $ref: '#/definitions/AuditLogEntry'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Audit log
+  /webhooks:
+    get:
+      summary: Fetch a list of all webhooks.
+      operationId: getWebhooks
+      responses:
+        '200':
+          description: Webhooks response.
+          schema:
+            $ref: '#/definitions/Webhooks'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Webhooks
+    post:
+      summary: Create a webhook.
+      operationId: postWebhook
+      parameters:
+        - $ref: '#/parameters/WebhookPostRequest'
+      responses:
+        '201':
+          $ref: '#/responses/Webhook2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Webhooks
+  '/webhooks/{resourceId}':
+    get:
+      summary: Get a webhook by ID.
+      operationId: getWebhook
+      parameters:
+        - $ref: '#/parameters/ResourceId'
+      responses:
+        '200':
+          $ref: '#/responses/Webhook2xx'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Webhooks
+    patch:
+      summary: Modify a webhook by ID.
+      operationId: patchWebhook
+      parameters:
+        - $ref: '#/parameters/ResourceId'
+        - $ref: '#/parameters/PatchRequest'
+      responses:
+        '200':
+          $ref: '#/responses/Webhook2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Webhooks
+    delete:
+      summary: Delete a webhook by ID.
+      operationId: deleteWebhook
+      parameters:
+        - $ref: '#/parameters/ResourceId'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Webhooks
+  /roles:
+    get:
+      summary: Return a complete list of custom roles.
+      operationId: getCustomRoles
+      responses:
+        '200':
+          description: Custom roles response.
+          schema:
+            $ref: '#/definitions/CustomRoles'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Custom roles
+    post:
+      summary: Create a new custom role.
+      operationId: postCustomRole
+      parameters:
+        - $ref: '#/parameters/CustomRolePostRequest'
+      responses:
+        '201':
+          $ref: '#/responses/CustomRole2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Custom roles
+  '/roles/{customRoleKey}':
+    get:
+      summary: Get one custom role by key.
+      operationId: getCustomRole
+      parameters:
+        - $ref: '#/parameters/CustomRoleKey'
+      responses:
+        '200':
+          $ref: '#/responses/CustomRole2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Custom roles
+    patch:
+      summary: Modify a custom role by key.
+      operationId: patchCustomRole
+      parameters:
+        - $ref: '#/parameters/CustomRoleKey'
+        - $ref: '#/parameters/PatchRequest'
+      responses:
+        '200':
+          $ref: '#/responses/CustomRole2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Custom roles
+    delete:
+      summary: Delete a custom role by key.
+      operationId: deleteCustomRole
+      parameters:
+        - $ref: '#/parameters/CustomRoleKey'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Custom roles
+  /members:
+    get:
+      summary: Returns a list of all members in the account.
+      operationId: getMembers
+      parameters:
+        - $ref: '#/parameters/LimitQuery'
+        - $ref: '#/parameters/OffsetQuery'
+        - $ref: '#/parameters/FilterQuery'
+        - $ref: '#/parameters/SortQuery'
+      responses:
+        '200':
+          description: Members response.
+          schema:
+            $ref: '#/definitions/Members'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Team members
+    post:
+      summary: Invite new members.
+      operationId: postMembers
+      parameters:
+        - $ref: '#/parameters/MembersPostRequest'
+      responses:
+        '201':
+          description: Members response.
+          schema:
+            $ref: '#/definitions/Members'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Team members
+  /members/me:
+    get:
+      summary: Get the current team member associated with the token
+      operationId: getMe
+      responses:
+        '200':
+          $ref: '#/responses/Member2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Team members
+  '/members/{memberId}':
+    get:
+      summary: Get a single team member by ID.
+      operationId: getMember
+      parameters:
+        - $ref: '#/parameters/MemberId'
+      responses:
+        '200':
+          $ref: '#/responses/Member2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Team members
+    patch:
+      summary: Modify a team member by ID.
+      operationId: patchMember
+      parameters:
+        - $ref: '#/parameters/MemberId'
+        - $ref: '#/parameters/PatchRequest'
+      responses:
+        '200':
+          $ref: '#/responses/Member2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Team members
+    delete:
+      summary: Delete a team member by ID.
+      operationId: deleteMember
+      parameters:
+        - $ref: '#/parameters/MemberId'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Team members
+  /destinations:
+    get:
+      summary: Returns a list of all data export destinations.
+      operationId: getDestinations
+      responses:
+        '200':
+          description: Destinations response.
+          schema:
+            $ref: '#/definitions/Destinations'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Data export destinations
+  '/destinations/{projectKey}/{environmentKey}':
+    post:
+      summary: Create a new data export destination
+      operationId: postDestination
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/DestinationPostRequest'
+      responses:
+        '201':
+          $ref: '#/responses/Destination2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Data export destinations
+  '/destinations/{projectKey}/{environmentKey}/{destinationId}':
+    get:
+      summary: Get a single data export destination by ID
+      operationId: getDestination
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/DestinationId'
+      responses:
+        '200':
+          $ref: '#/responses/Destination2xx'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Data export destinations
+    patch:
+      summary: Perform a partial update to a data export destination.
+      operationId: patchDestination
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/DestinationId'
+        - $ref: '#/parameters/PatchOnly'
+      responses:
+        '200':
+          $ref: '#/responses/Destination2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Data export destinations
+    delete:
+      summary: Get a single data export destination by ID
+      operationId: deleteDestination
+      parameters:
+        - $ref: '#/parameters/ProjectKey'
+        - $ref: '#/parameters/EnvironmentKey'
+        - $ref: '#/parameters/DestinationId'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Data export destinations
+  /usage:
+    get:
+      summary: Returns of the usage endpoints available.
+      operationId: getUsage
+      responses:
+        '200':
+          description: Usage endpoints
+          schema:
+            $ref: '#/definitions/Usage'
+        '403':
+          $ref: '#/responses/BetaApi403'
+      tags:
+        - Customer Metrics
+  /usage/streams:
+    get:
+      summary: Returns a list of all streams.
+      operationId: getStreams
+      responses:
+        '200':
+          description: Stream usage endpoints
+          schema:
+            $ref: '#/definitions/Streams'
+        '403':
+          $ref: '#/responses/BetaApi403'
+      tags:
+        - Customer Metrics
+  '/usage/streams/{source}':
+    get:
+      summary: Get a stream endpoint and return timeseries data.
+      operationId: getStream
+      parameters:
+        - $ref: '#/parameters/StreamSource'
+      responses:
+        '200':
+          description: Responds with time series data on stream usage.
+          schema:
+            $ref: '#/definitions/Stream'
+        '403':
+          $ref: '#/responses/BetaApi403'
+        '404':
+          $ref: '#/responses/StreamUsage404'
+      tags:
+        - Customer Metrics
+  '/usage/streams/{source}/bysdkversion':
+    get:
+      summary: Get a stream timeseries data by source show sdk version metadata.
+      operationId: getStreamBySDK
+      parameters:
+        - $ref: '#/parameters/StreamSource'
+      responses:
+        '200':
+          description: Returns timeseries data and metadata on sdk version.
+          schema:
+            $ref: '#/definitions/StreamBySDK'
+        '403':
+          $ref: '#/responses/BetaApi403'
+        '404':
+          $ref: '#/responses/StreamUsage404'
+      tags:
+        - Customer Metrics
+  '/usage/streams/{source}/sdkversions':
+    get:
+      summary: >-
+        Get a stream timeseries data by source and show all sdk version
+        associated.
+      operationId: getStreamSDKVersion
+      parameters:
+        - $ref: '#/parameters/StreamSource'
+      responses:
+        '200':
+          description: Returns timeseries data and all sdk versions.
+          schema:
+            $ref: '#/definitions/StreamSDKVersion'
+        '403':
+          $ref: '#/responses/BetaApi403'
+        '404':
+          $ref: '#/responses/StreamUsage404'
+      tags:
+        - Customer Metrics
+  /usage/mau:
+    get:
+      summary: Get monthly active user data.
+      operationId: getMAU
+      responses:
+        '200':
+          description: Returns timeseries data and all sdk versions.
+          schema:
+            $ref: '#/definitions/MAU'
+        '403':
+          $ref: '#/responses/BetaApi403'
+      tags:
+        - Customer Metrics
+  /usage/mau/bycategory:
+    get:
+      summary: Get monthly active user data by category.
+      operationId: getMAUByCategory
+      responses:
+        '200':
+          description: Returns timeseries data and all sdk versions.
+          schema:
+            $ref: '#/definitions/MAUbyCategory'
+        '403':
+          $ref: '#/responses/BetaApi403'
+      tags:
+        - Customer Metrics
+  /usage/events:
+    get:
+      summary: Get events usage endpoints.
+      operationId: getEvents
+      responses:
+        '200':
+          description: Returns timeseries data and all sdk versions.
+          schema:
+            $ref: '#/definitions/Events'
+        '403':
+          $ref: '#/responses/BetaApi403'
+      tags:
+        - Customer Metrics
+  '/usage/events/{type}':
+    get:
+      summary: Get events usage by event type.
+      operationId: getEvent
+      parameters:
+        - $ref: '#/parameters/EventType'
+      responses:
+        '200':
+          description: Returns timeseries data and all sdk versions.
+          schema:
+            $ref: '#/definitions/StreamSDKVersion'
+        '403':
+          $ref: '#/responses/BetaApi403'
+        '404':
+          $ref: '#/responses/StreamUsage404'
+      tags:
+        - Customer Metrics
+  '/usage/evaluations/{envId}/{flagKey}':
+    get:
+      summary: Get events usage by event id and the feature flag key.
+      operationId: getEvaluations
+      parameters:
+        - $ref: '#/parameters/EvaluationEnvId'
+        - $ref: '#/parameters/EvaluationFlagKey'
+      responses:
+        '200':
+          description: Returns timeseries data and all sdk versions.
+          schema:
+            $ref: '#/definitions/StreamSDKVersion'
+        '403':
+          $ref: '#/responses/BetaApi403'
+        '404':
+          $ref: '#/responses/EvaluationUsage404'
+      tags:
+        - Customer Metrics
+  /tokens:
+    get:
+      summary: Returns a list of tokens in the account.
+      operationId: getTokens
+      parameters:
+        - $ref: '#/parameters/TokenShowAllQuery'
+      responses:
+        '200':
+          description: Tokens response.
+          schema:
+            $ref: '#/definitions/Tokens'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Access tokens
+    post:
+      summary: Create a new token.
+      operationId: postToken
+      parameters:
+        - $ref: '#/parameters/TokensPostRequest'
+      responses:
+        '201':
+          description: Token response.
+          schema:
+            $ref: '#/definitions/Token'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Access tokens
+  '/tokens/{tokenId}':
+    get:
+      summary: Get a single access token by ID.
+      operationId: getToken
+      parameters:
+        - $ref: '#/parameters/TokenId'
+      responses:
+        '200':
+          $ref: '#/responses/Token2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Access tokens
+    patch:
+      summary: Modify an access token by ID.
+      operationId: patchToken
+      parameters:
+        - $ref: '#/parameters/TokenId'
+        - $ref: '#/parameters/PatchRequest'
+      responses:
+        '200':
+          $ref: '#/responses/Token2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Access tokens
+    delete:
+      summary: Delete an access token by ID.
+      operationId: deleteToken
+      parameters:
+        - $ref: '#/parameters/TokenId'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Access tokens
+  '/tokens/{tokenId}/reset':
+    post:
+      summary: >-
+        Reset an access token's secret key with an optional expiry time for the
+        old key.
+      operationId: resetToken
+      parameters:
+        - $ref: '#/parameters/TokenId'
+        - $ref: '#/parameters/TokenExpiry'
+      responses:
+        '200':
+          $ref: '#/responses/Token2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Access tokens
+  /account/relay-auto-configs:
+    get:
+      summary: Returns a list of relay proxy configurations in the account.
+      operationId: getRelayProxyConfigs
+      responses:
+        '200':
+          description: Relay proxy configs response.
+          schema:
+            $ref: '#/definitions/RelayProxyConfigs'
+      tags:
+        - Relay proxy configurations
+    post:
+      summary: Create a new relay proxy config.
+      operationId: postRelayAutoConfig
+      parameters:
+        - $ref: '#/parameters/RelayProxyConfigPostRequest'
+      responses:
+        '201':
+          description: Relay proxy config response.
+          schema:
+            $ref: '#/definitions/RelayProxyConfig'
+        '400':
+          $ref: '#/responses/Standard400'
+        '403':
+          $ref: '#/responses/Standard403'
+      tags:
+        - Relay proxy configurations
+  '/account/relay-auto-configs/{id}':
+    get:
+      summary: Get a single relay proxy configuration by ID.
+      operationId: getRelayProxyConfig
+      parameters:
+        - $ref: '#/parameters/RelayProxyConfigId'
+      responses:
+        '200':
+          $ref: '#/responses/RelayProxyConfig2xx'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Relay proxy configurations
+    patch:
+      summary: Modify a relay proxy configuration by ID.
+      operationId: patchRelayProxyConfig
+      parameters:
+        - $ref: '#/parameters/RelayProxyConfigId'
+        - $ref: '#/parameters/PatchRequest'
+      responses:
+        '200':
+          $ref: '#/responses/RelayProxyConfig2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '404':
+          $ref: '#/responses/Standard404'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Relay proxy configurations
+    delete:
+      summary: Delete a relay proxy configuration by ID.
+      operationId: deleteRelayProxyConfig
+      parameters:
+        - $ref: '#/parameters/RelayProxyConfigId'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '400':
+          $ref: '#/responses/Standard400'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Relay proxy configurations
+  '/account/relay-auto-configs/{id}/reset':
+    post:
+      summary: >-
+        Reset a relay proxy configuration's secret key with an optional expiry
+        time for the old key.
+      operationId: resetRelayProxyConfig
+      parameters:
+        - $ref: '#/parameters/RelayProxyConfigId'
+        - $ref: '#/parameters/RelayProxyConfigsExpiry'
+      responses:
+        '200':
+          $ref: '#/responses/RelayProxyConfig2xx'
+        '400':
+          $ref: '#/responses/Standard400'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Relay proxy configurations
+  /:
+    get:
+      description: >-
+        You can issue a GET request to the root resource to find all of the
+        resource categories supported by the API.
+      operationId: getRoot
+      responses:
+        '200':
+          $ref: '#/responses/Root200'
+        '401':
+          $ref: '#/responses/Standard401'
+      tags:
+        - Root
+  /integrations:
+    get:
+      summary: >-
+        Get a list of all configured audit log event integrations associated
+        with this account.
+      operationId: getIntegrations
+      responses:
+        '200':
+          description: Integrations response.
+          schema:
+            $ref: '#/definitions/Integrations'
+        '403':
+          $ref: '#/responses/BetaApi403'
+      tags:
+        - Integrations
+  '/integrations/{integrationKey}':
+    get:
+      summary: Get a list of all configured integrations of a given kind.
+      operationId: getIntegrationSubscriptions
+      parameters:
+        - $ref: '#/parameters/IntegrationKey'
+      responses:
+        '200':
+          description: Integrations response.
+          schema:
+            $ref: '#/definitions/Integration'
+        '403':
+          $ref: '#/responses/BetaApi403'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Integrations
+    post:
+      summary: Create a new integration subscription of a given kind.
+      operationId: postIntegrationSubscription
+      parameters:
+        - $ref: '#/parameters/IntegrationKey'
+        - $ref: '#/parameters/IntegrationPostRequest'
+      responses:
+        '201':
+          description: Integrations response.
+          schema:
+            $ref: '#/definitions/IntegrationSubscription'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '409':
+          $ref: '#/responses/Standard409'
+      tags:
+        - Integrations
+  '/integrations/{integrationKey}/{integrationId}':
+    get:
+      summary: Get a single integration subscription by ID.
+      operationId: getIntegrationSubscription
+      parameters:
+        - $ref: '#/parameters/IntegrationKey'
+        - $ref: '#/parameters/IntegrationId'
+      responses:
+        '200':
+          description: Integrations response.
+          schema:
+            $ref: '#/definitions/IntegrationSubscription'
+        '403':
+          $ref: '#/responses/BetaApi403'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Integrations
+    patch:
+      summary: Modify an integration subscription by ID.
+      operationId: patchIntegrationSubscription
+      parameters:
+        - $ref: '#/parameters/IntegrationKey'
+        - $ref: '#/parameters/IntegrationId'
+        - $ref: '#/parameters/PatchRequest'
+      responses:
+        '200':
+          description: Integrations response.
+          schema:
+            $ref: '#/definitions/IntegrationSubscription'
+        '400':
+          $ref: '#/responses/Standard400'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Integrations
+    delete:
+      summary: Delete an integration subscription by ID.
+      operationId: deleteIntegrationSubscription
+      parameters:
+        - $ref: '#/parameters/IntegrationKey'
+        - $ref: '#/parameters/IntegrationId'
+      responses:
+        '204':
+          $ref: '#/responses/Standard204'
+        '401':
+          $ref: '#/responses/Standard401'
+        '404':
+          $ref: '#/responses/Standard404'
+      tags:
+        - Integrations
+definitions:
+  Link:
+    type: object
+    properties:
+      href:
+        type: string
+        example: /api/v2/endpoint
+      type:
+        type: string
+        example: application/json
+  Links:
+    type: object
+    properties:
+      self:
+        $ref: '#/definitions/Link'
+      next:
+        $ref: '#/definitions/Link'
+  Site:
+    type: object
+    properties:
+      href:
+        type: string
+        example: /features/sort.order
+      type:
+        type: string
+        example: text/html
+  Webhook:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      url:
+        type: string
+        description: The URL of the remote webhook.
+        example: 'https://example.com/example'
+      secret:
+        type: string
+        description: >-
+          If defined, the webhooks post request will include a X-LD-Signature
+          header whose value will contain an HMAC SHA256 hex digest of the
+          webhook payload, using the secret as the key.
+        example: frobozz
+      'on':
+        type: boolean
+        description: Whether this webhook is enabled or not.
+        example: true
+      name:
+        type: string
+        description: The name of the webhook.
+        example: Example hook
+      statements:
+        type: array
+        items:
+          $ref: '#/definitions/Statement'
+      tags:
+        type: array
+        description: Tags assigned to this webhook.
+        items:
+          type: string
+          example: []
+  Webhooks:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Webhook'
+  FeatureFlag:
+    type: object
+    properties:
+      key:
+        type: string
+        example: test-feature
+      name:
+        type: string
+        description: Name of the feature flag.
+        example: Test Feature
+      description:
+        type: string
+        description: Description of the feature flag.
+        example: This flag controls whether test feature is turned on or not.
+      kind:
+        type: string
+        description: Whether the feature flag is a boolean flag or multivariate.
+        example: boolean
+      creationDate:
+        type: integer
+        format: int64
+        description: >-
+          A unix epoch time in milliseconds specifying the creation time of this
+          flag.
+        example: 1443652232590
+      includeInSnippet:
+        type: boolean
+        example: false
+      temporary:
+        type: boolean
+        description: Whether or not this flag is temporary.
+        example: false
+      maintainerId:
+        type: string
+        description: The ID of the member that should maintain this flag.
+        example: 561c579cd8fd5c2704000001
+      tags:
+        type: array
+        description: An array of tags for this feature flag.
+        items:
+          type: string
+        example: []
+      variations:
+        type: array
+        description: The variations for this feature flag.
+        items:
+          $ref: '#/definitions/Variation'
+        example:
+          - value: a
+          - value: b
+      goalIds:
+        type: array
+        description: An array goals from all environments associated with this feature flag
+        items:
+          type: string
+        example:
+          - d7239405bd89c930e885aa76
+          - 405bc930e88d7239d895aa76
+      _version:
+        type: integer
+        example: 23
+      customProperties:
+        type: object
+        description: A mapping of keys to CustomProperty entries.
+        additionalProperties:
+          $ref: '#/definitions/CustomProperty'
+        example:
+          bugs:
+            name: Issue tracker ids
+            value:
+              - '123'
+              - '456'
+          deprecated:
+            name: Deprecated Date
+            value: []
+      _links:
+        $ref: '#/definitions/Links'
+      _maintainer:
+        $ref: '#/definitions/Member'
+      environments:
+        type: object
+        additionalProperties:
+          $ref: '#/definitions/FeatureFlagConfig'
+      archivedDate:
+        type: integer
+        format: int64
+        description: >-
+          A unix epoch time in milliseconds specifying the archived time of this
+          flag.
+        example: 1443652232590
+      archived:
+        type: boolean
+        description: Whether or not this flag is archived.
+        example: false
+      clientSideAvailability:
+        $ref: '#/definitions/ClientSideAvailability'
+      defaults:
+        $ref: '#/definitions/Defaults'
+  FeatureFlags:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/FeatureFlag'
+      totalCount:
+        type: number
+  Member:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      role:
+        $ref: '#/definitions/Role'
+      email:
+        type: string
+        example: user@launchdarkly.com
+      firstName:
+        type: string
+        example: Alan
+      lastName:
+        type: string
+        example: Turing
+      _verified:
+        type: boolean
+      _pendingInvite:
+        type: boolean
+      isBeta:
+        type: boolean
+      customRoles:
+        type: array
+        items:
+          type: string
+          description: The unique resource id.
+          example: "5a580a01b4ff89217bdf9dc1"
+      _lastSeen:
+        type: integer
+        format: int64
+        example: 1469326565348
+        description: >-
+          A unix epoch time in milliseconds specifying the last time this member
+          was active in LaunchDarkly.
+      _lastSeenMetadata:
+        type: object
+        properties:
+          tokenId:
+            type: string
+            example: 5fd2a1ee05600316d5cb3e96
+            description: >-
+              If the last time this member accessed LaunchDarkly was using the
+              REST API, this value will be set to the ID of the personal access
+              token used.
+  Members:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Member'
+      totalCount:
+        type: number
+  FeatureFlagConfig:
+    type: object
+    properties:
+      'on':
+        type: boolean
+      archived:
+        type: boolean
+      salt:
+        type: string
+        example: YWx0ZXJuYXRlLnBhZ2U=
+      sel:
+        type: string
+        example: 45501b9314dc4641841af774cb038b96
+      lastModified:
+        type: integer
+        format: int64
+        example: 1469326565348
+      version:
+        type: integer
+        example: 65
+      targets:
+        type: array
+        items:
+          $ref: '#/definitions/Target'
+      rules:
+        type: array
+        items:
+          $ref: '#/definitions/Rule'
+      fallthrough:
+        $ref: '#/definitions/Fallthrough'
+      offVariation:
+        type: integer
+      prerequisites:
+        type: array
+        items:
+          $ref: '#/definitions/Prerequisite'
+      trackEvents:
+        type: boolean
+        example: false
+        description: Set to true to send detailed event information for this flag.
+      trackEventsFallthrough:
+        type: boolean
+        example: true
+        description: >-
+          Set to true to send detailed event information when targeting is
+          enabled but no individual targeting rule is matched.
+      _site:
+        $ref: '#/definitions/Site'
+      _environmentName:
+        type: string
+  Target:
+    type: object
+    properties:
+      values:
+        type: array
+        items:
+          type: string
+          example: '"1461797806427-7-115540266", "00142875-a39d-4028-a3b7-987ccd151649"'
+      variation:
+        type: integer
+  Rule:
+    type: object
+    properties:
+      _id:
+        type: string
+      variation:
+        type: integer
+      trackEvents:
+        type: boolean
+      rollout:
+        $ref: '#/definitions/Rollout'
+      clauses:
+        type: array
+        items:
+          $ref: '#/definitions/Clause'
+      description:
+        type: string
+  Fallthrough:
+    type: object
+    properties:
+      variation:
+        type: integer
+      rollout:
+        $ref: '#/definitions/Rollout'
+  Rollout:
+    type: object
+    properties:
+      bucketBy:
+        type: string
+      variations:
+        type: array
+        items:
+          $ref: '#/definitions/WeightedVariation'
+  WeightedVariation:
+    type: object
+    properties:
+      variation:
+        type: integer
+      weight:
+        type: integer
+  Clause:
+    type: object
+    properties:
+      _id:
+        type: string
+      attribute:
+        type: string
+        example: groups
+      op:
+        type: string
+        example: in
+      values:
+        type: array
+        items:
+          type: object
+          example: Top Customers
+      negate:
+        type: boolean
+  Variation:
+    type: object
+    required:
+      - value
+    properties:
+      _id:
+        type: string
+        example: 24b32dd3-0ba6-46ee-86af-230eebf3c7cb
+      name:
+        type: string
+        example: 'True'
+      description:
+        type: string
+        example: The true variation
+      value:
+        type: object
+  Defaults:
+    type: object
+    description: Default values to be used when a new environment is created.
+    required:
+      - onVariation
+      - offVariation
+    properties:
+      onVariation:
+        type: integer
+        description: >-
+          The index of the variation to be served when a flag's targeting is on
+          (default variation).
+      offVariation:
+        type: integer
+        description: The index of the variation to be served when a flag is off.
+  Prerequisite:
+    type: object
+    properties:
+      key:
+        type: string
+      variation:
+        type: integer
+  FeatureFlagScheduledChanges:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/FeatureFlagScheduledChange'
+  FeatureFlagScheduledChange:
+    type: object
+    properties:
+      executionDate:
+        type: integer
+        description: >-
+          A unix epoch time in milliseconds specifying the date the scheduled
+          changes will be applied
+      _version:
+        type: integer
+      _id:
+        type: string
+      instructions:
+        $ref: '#/definitions/SemanticPatchInstruction'
+  FeatureFlagScheduledChangesConflicts:
+    type: object
+    properties:
+      instructions:
+        type: array
+        items:
+          properties:
+            kind:
+              type: string
+              example: removeUserTargets
+              description: >-
+                The name of the modification you would like to perform on a
+                resource.
+            conflicts:
+              type: array
+              items:
+                $ref: '#/definitions/ScheduledChangesFeatureFlagConflict'
+  ScheduledChangesFeatureFlagConflict:
+    type: object
+    properties:
+      _id:
+        type: string
+        description: Feature flag scheduled change id this change will conflict with
+      reason:
+        type: string
+        description: Feature flag scheduled change conflict reason
+  ApprovalRequests:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/ApprovalRequest'
+  ApprovalRequest:
+    type: object
+    properties:
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      _version:
+        type: integer
+      creationDate:
+        type: integer
+        description: >-
+          A unix epoch time in milliseconds specifying the date the approval
+          request was requested
+      requestorId:
+        type: string
+        description: The id of the member that requested the change
+      reviewStatus:
+        $ref: '#/definitions/ApprovalRequestReviewStatus'
+      status:
+        type: string
+        description: >
+          | Name      | Description |
+
+          | ---------:| ----------- |
+
+          | pending   | the approval request has not been applied yet |
+
+          | completed | the approval request has been applied successfully |
+
+          | scheduled | the approval request for a scheduled change has been
+          applied successfully |
+
+          | failed    | the approval request has been applied but the changes
+          were not applied successfully |
+        enum:
+          - pending
+          - completed
+          - scheduled
+          - failed
+      appliedByMemberID:
+        type: string
+        description: The id of the member that applied the approval request
+      appliedDate:
+        type: integer
+        description: >-
+          A unix epoch time in milliseconds specifying the date the approval
+          request was applied
+      allReviews:
+        type: array
+        items:
+          $ref: '#/definitions/ApprovalRequestReview'
+      notifyMemberIds:
+        type: array
+        items:
+          type: string
+        example:
+          - memberId
+          - memberId2
+      instructions:
+        $ref: '#/definitions/SemanticPatchInstruction'
+      executionDate:
+        type: integer
+        format: int64
+        description: Timestamp for when instructions will be executed
+      operatingOnId:
+        type: string
+        description: ID of scheduled change to edit or delete
+  ApprovalRequestReview:
+    type: object
+    properties:
+      creationDate:
+        type: integer
+        description: >-
+          A unix epoch time in milliseconds specifying the date the approval
+          request was reviewed
+      kind:
+        $ref: '#/definitions/ApprovalRequestReviewStatus'
+      memberId:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+  ApprovalRequestReviewStatus:
+    type: string
+    description: >
+      | Name     | Description |
+
+      | --------:| ----------- |
+
+      | pending  | the approval request has not been reviewed yet |
+
+      | approved | the approval request has been approved and can now be applied
+      |
+
+      | declined | the approval request has been declined and cannot be applied
+      |
+    enum:
+      - pending
+      - approved
+      - declined
+  ClientSideAvailability:
+    type: object
+    properties:
+      usingEnvironmentId:
+        type: boolean
+        description: >-
+          When set to true, this flag will be available to SDKs using the
+          client-side id.
+      usingMobileKey:
+        type: boolean
+        description: >-
+          When set to true, this flag will be available to SDKS using a mobile
+          key.
+  FeatureFlagStatus:
+    type: object
+    properties:
+      name:
+        type: string
+        description: >
+          | Name     | Description |
+
+          | --------:| ----------- |
+
+          | new      | the feature flag was created within the last 7 days, and
+          has not been requested yet |
+
+          | active   | the feature flag was requested by your servers or clients
+          within the last 7 days |
+
+          | inactive | the feature flag was created more than 7 days ago, and
+          hasn't been requested by your servers or clients within the past 7
+          days |
+
+          | launched | one variation of the feature flag has been rolled out to
+          all your users for at least 7 days |
+        enum:
+          - new
+          - active
+          - inactive
+          - launched
+      lastRequested:
+        type: string
+        example: '2016-08-16T21:10:11.886Z'
+      default:
+        type: object
+      _links:
+        $ref: '#/definitions/FeatureFlagStatusLinks'
+  FeatureFlagStatuses:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/FeatureFlagStatusLinks'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/FeatureFlagStatus'
+  FeatureFlagStatusForQueriedEnvironment:
+    type: object
+    properties:
+      name:
+        type: string
+        description: >
+          | Name     | Description |
+
+          | --------:| ----------- |
+
+          | new      | the feature flag was created within the last 7 days, and
+          has not been requested yet |
+
+          | active   | the feature flag was requested by your servers or clients
+          within the last 7 days |
+
+          | inactive | the feature flag was created more than 7 days ago, and
+          hasn't been requested by your servers or clients within the past 7
+          days |
+
+          | launched | one variation of the feature flag has been rolled out to
+          all your users for at least 7 days |
+        enum:
+          - new
+          - active
+          - inactive
+          - launched
+      lastRequested:
+        type: string
+        example: '2016-08-16T21:10:11.886Z'
+      default:
+        type: object
+  FeatureFlagStatusAcrossEnvironments:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/FeatureFlagStatusLinks'
+      key:
+        type: string
+      environments:
+        type: object
+        additionalProperties:
+          $ref: '#/definitions/FeatureFlagStatusForQueriedEnvironment'
+  FeatureFlagStatusLinks:
+    type: object
+    properties:
+      parent:
+        $ref: '#/definitions/Link'
+      self:
+        $ref: '#/definitions/Link'
+  DependentFlagsByEnvironment:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/DependentFlag'
+      _links:
+        $ref: '#/definitions/DependentFlagsLinks'
+      _site:
+        $ref: '#/definitions/Site'
+  DependentFlag:
+    type: object
+    properties:
+      name:
+        type: string
+      key:
+        type: string
+      _links:
+        type: object
+        properties:
+          self:
+            $ref: '#/definitions/Link'
+      _site:
+        $ref: '#/definitions/Site'
+  DependentFlagsLinks:
+    type: object
+    properties:
+      parent:
+        $ref: '#/definitions/Link'
+      self:
+        $ref: '#/definitions/Link'
+  MultiEnvironmentDependentFlags:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/MultiEnvironmentDependentFlag'
+      _links:
+        $ref: '#/definitions/DependentFlagsLinks'
+      _site:
+        $ref: '#/definitions/Site'
+  MultiEnvironmentDependentFlag:
+    type: object
+    properties:
+      name:
+        type: string
+      key:
+        type: string
+      environments:
+        type: array
+        items:
+          $ref: '#/definitions/DependentFlagEnvironment'
+      _links:
+        $ref: '#/definitions/DependentFlagsLinks'
+      _site:
+        $ref: '#/definitions/Site'
+  DependentFlagEnvironment:
+    type: object
+    properties:
+      name:
+        type: string
+      key:
+        type: string
+      _links:
+        type: object
+        properties:
+          self:
+            $ref: '#/definitions/Link'
+          flagLink:
+            $ref: '#/definitions/Link'
+      _site:
+        $ref: '#/definitions/Site'
+  UserTargetingExpirationForFlags:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/UserTargetingExpirationForFlag'
+  UserTargetingExpirationOnFlagsForUser:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/UserTargetingExpirationForFlag'
+  UserTargetingExpirationForFlag:
+    type: object
+    properties:
+      expirationDate:
+        type: integer
+        format: int64
+        description: Unix epoch time in milliseconds specifying the expiration date
+        example: 1735689600000
+      variationId:
+        type: string
+        description: the ID of the variation that the user is targeted on a flag
+      userKey:
+        type: string
+        description: Unique identifier for the user
+      _id:
+        type: string
+      _resourceId:
+        $ref: '#/definitions/UserTargetingExpirationResourceIdForFlag'
+      _links:
+        $ref: '#/definitions/Links'
+      _version:
+        type: integer
+  UserTargetingExpirationForSegment:
+    type: object
+    properties:
+      expirationDate:
+        type: integer
+        format: int64
+        description: Unix epoch time in milliseconds specifying the expiration date
+        example: 1735689600000
+      targetType:
+        type: string
+        description: >-
+          either the included or excluded variation that the user is targeted on
+          a segment
+      userKey:
+        type: string
+        description: Unique identifier for the user
+      _id:
+        type: string
+      _resourceId:
+        $ref: '#/definitions/UserTargetingExpirationResourceIdForFlag'
+      _links:
+        $ref: '#/definitions/Links'
+      _version:
+        type: integer
+  UserTargetingExpirationResourceIdForFlag:
+    type: object
+    properties:
+      kind:
+        type: string
+      projectKey:
+        type: string
+      environmentKey:
+        type: string
+      flagKey:
+        type: string
+      key:
+        type: string
+  UserSegment:
+    type: object
+    required:
+      - key
+      - name
+      - creationDate
+    properties:
+      key:
+        type: string
+        description: Unique identifier for the user segment.
+        example: beta-testers
+      name:
+        type: string
+        description: Name of the user segment.
+        example: Beta Testers
+      description:
+        type: string
+        description: Description of the user segment.
+        example: Users in this segment can access beta features.
+      tags:
+        type: array
+        items:
+          type: string
+        example:
+          - dev
+          - ops
+        description: An array of tags for this user segment.
+      creationDate:
+        type: integer
+        format: int64
+        description: >-
+          A unix epoch time in milliseconds specifying the creation time of this
+          flag.
+        example: 1443652232590
+      included:
+        type: array
+        items:
+          type: string
+        description: An array of user keys that are included in this segment.
+      excluded:
+        type: array
+        items:
+          type: string
+        description: >-
+          An array of user keys that should not be included in this segment,
+          unless they are also listed in "included".
+      rules:
+        type: array
+        items:
+          $ref: '#/definitions/UserSegmentRule'
+        description: >-
+          An array of rules that can cause a user to be included in this
+          segment.
+      unbounded:
+        type: boolean
+        example: false
+        description: >-
+          Controls whether this is considered a "big segment" which can support
+          an unlimited numbers of users. Include/exclude lists sent with this
+          payload are not used in big segments. Contact your account manager for
+          early access to this feature.
+      version:
+        type: integer
+      _links:
+        $ref: '#/definitions/Links'
+      _flags:
+        type: array
+        readOnly: true
+        items:
+          $ref: '#/definitions/FlagListItem'
+  UserSegmentRule:
+    type: object
+    properties:
+      clauses:
+        type: array
+        items:
+          $ref: '#/definitions/Clause'
+      weight:
+        type: integer
+      bucketBy:
+        type: string
+  UserSegments:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/UserSegment'
+  BigSegmentTargetChanges:
+    type: object
+    properties:
+      add:
+        type: array
+        example:
+          - user@launchdarkly.com
+        items:
+          type: string
+        description: Users to add to this list of targets
+      remove:
+        type: array
+        example: []
+        items:
+          type: string
+        description: Users to remove from this list of targets
+  Project:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      key:
+        type: string
+        example: zentasks
+      name:
+        type: string
+        example: Zentasks
+      includeInSnippetByDefault:
+        type: boolean
+        example: true
+      environments:
+        type: array
+        items:
+          $ref: '#/definitions/Environment'
+      tags:
+        type: array
+        items:
+          type: string
+        description: An array of tags for this project.
+      defaultClientSideAvailability:
+        $ref: '#/definitions/ClientSideAvailability'
+  Projects:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Project'
+  Destination:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      _id:
+        type: string
+        example: 37ed9aad-de0a-4665-932e-41c35587aeea
+        description: Unique destination ID.
+      name:
+        type: string
+        example: Example Google Pub/Sub Destination
+        description: The destination name
+      kind:
+        type: string
+        example: google-pubsub
+        description: >-
+          Destination type ("google-pubsub", "kinesis", "mparticle", or
+          "segment")
+        enum:
+          - google-pubsub
+          - kinesis
+          - mparticle
+          - segment
+      config:
+        type: object
+        description: destination-specific configuration.
+        example:
+          project: cool-project
+          topic: test
+      'on':
+        type: boolean
+        example: true
+        description: Whether the data export destination is on or not.
+      version:
+        type: integer
+        example: 2
+  Destinations:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Destination'
+  DestinationGooglePubSub:
+    type: object
+    properties:
+      project:
+        type: string
+        example: cool-project
+      topic:
+        type: string
+        example: test
+  DestinationAmazonKinesis:
+    type: object
+    properties:
+      region:
+        type: string
+        example: us-east-1
+      roleArn:
+        type: string
+        example: 'arn:aws:iam::123456789012:role/marketingadmin'
+      streamName:
+        type: string
+        example: cat-stream
+  DestinationMParticle:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        example: apiKeyfromMParticle
+      secret:
+        type: string
+        example: mParticleSecret
+      userIdentity:
+        type: string
+        example: customer_id
+      environment:
+        type: string
+        example: production
+  DestinationSegment:
+    type: object
+    properties:
+      writeKey:
+        type: string
+        example: segmentWriteKey
+  Environment:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      key:
+        type: string
+        example: production
+        description: The key for the environment.
+      name:
+        type: string
+        example: Production
+        description: The name of the environment.
+      apiKey:
+        type: string
+        example: XXX
+        description: The SDK key for backend LaunchDarkly SDKs.
+      mobileKey:
+        type: string
+        example: XXX
+        description: The SDK key for mobile LaunchDarkly SDKs.
+      color:
+        type: string
+        example: '417505'
+        description: The swatch color for the environment.
+      defaultTtl:
+        type: number
+        example: 0
+        description: The default TTL.
+      secureMode:
+        type: boolean
+        example: false
+        description: Determines if this environment is in safe mode.
+      defaultTrackEvents:
+        type: boolean
+        example: false
+        description: Set to true to send detailed event information for new flags.
+      tags:
+        type: array
+        items:
+          type: string
+        description: An array of tags for this environment.
+      requireComments:
+        type: boolean
+        example: false
+        description: >-
+          Determines if this environment requires comments for flag and segment
+          changes.
+      confirmChanges:
+        type: boolean
+        example: false
+        description: >-
+          Determines if this environment requires confirmation for flag and
+          segment changes.
+      approvalSettings:
+        type: object
+        description: >-
+          Approval settings for an environment. Only appears if the approvals
+          feature is enabled.
+        properties:
+          serviceKind:
+            type: string
+            description: The approvals system used.
+            enum:
+              - launchdarkly
+              - service-now
+          required:
+            type: boolean
+            description: >-
+              Whether any changes to flags in this environment will require
+              approval. You may only set required or requiredApprovalTags, not
+              both.
+          canReviewOwnRequest:
+            type: boolean
+            description: >-
+              Whether requesters can approve or decline their own request. They
+              may always comment.
+          minNumApprovals:
+            type: integer
+            format: int64
+            description: >-
+              The number of approvals required before an approval request can be
+              applied.
+            example: 2
+          canApplyDeclinedChanges:
+            type: boolean
+            description: >-
+              Whether changes can be applied as long as minNumApprovals is met,
+              regardless of if any reviewers have declined a request.
+          requiredApprovalTags:
+            type: array
+            items:
+              type: string
+            description: >-
+              An array of tags used to specify which flags with those tags
+              require approval. You may only set requiredApprovalTags or
+              required, not both.
+  EnvironmentPost:
+    type: object
+    properties:
+      name:
+        type: string
+        description: The name of the new environment.
+        example: Development
+      key:
+        type: string
+        description: A project-unique key for the new environment.
+        example: dev
+      color:
+        type: string
+        description: 'A color swatch (as an RGB hex value with no leading ''#'', e.g. C8C8C8).'
+        example: '417505'
+      defaultTtl:
+        type: number
+        description: The default TTL for the new environment.
+        example: 0
+      secureMode:
+        type: boolean
+        description: Determines whether the environment is in secure mode.
+        example: false
+      defaultTrackEvents:
+        type: boolean
+        description: >-
+          Set to true to send detailed event information for newly created
+          flags.
+        example: false
+      tags:
+        type: array
+        description: An array of tags for this environment.
+        items:
+          type: string
+        example:
+          - tag1
+          - tag2
+      requireComments:
+        type: boolean
+        description: >-
+          Determines if this environment requires comments for flag and segment
+          changes.
+        example: false
+      confirmChanges:
+        type: boolean
+        description: >-
+          Determines if this environment requires confirmation for flag and
+          segment changes.
+        example: false
+    required:
+      - name
+      - key
+      - color
+  User:
+    type: object
+    properties:
+      key:
+        type: string
+        example: a00bea
+      secondary:
+        type: string
+      ip:
+        type: string
+      country:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      lastName:
+        type: string
+      avatar:
+        type: string
+      name:
+        type: string
+        example: Bob Loblaw
+      anonymous:
+        type: boolean
+      custom:
+        type: object
+        example:
+          company: example.com
+  UserRecord:
+    type: object
+    properties:
+      lastPing:
+        type: string
+        example: '2015-03-03T02:37:22.492Z'
+      environmentId:
+        type: string
+        example: 54ac2d97de674204ddd61096
+      ownerId:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      user:
+        $ref: '#/definitions/User'
+      avatar:
+        type: string
+        example: 'https://s3.amazonaws.com/uifaces/faces/twitter/shylockjoy/73.jpg'
+  Users:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      totalCount:
+        type: number
+        example: 3
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/UserRecord'
+  AuditLogEntry:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      date:
+        type: integer
+        format: int64
+        example: 1472243938774
+      kind:
+        type: string
+        example: environment
+      name:
+        type: string
+        example: Testing
+      description:
+        type: string
+        example: Changed the name from Test to Testing
+      shortDescription:
+        type: string
+        example: '""'
+      comment:
+        type: string
+        example: This is a comment string
+      member:
+        $ref: '#/definitions/Member'
+      titleVerb:
+        type: string
+        example: changed the name of
+      title:
+        type: string
+        example: >-
+          [Reese Applebaum](mailto:refapp@launchdarkly.com) changed the name of
+          [Testing](https://app.launchdarkly.com/settings#/projects)
+      target:
+        type: object
+        properties:
+          _links:
+            $ref: '#/definitions/Links'
+          name:
+            type: string
+            example: Testing
+          resources:
+            type: array
+            items:
+              type: string
+              example: 'proj/alexis:env/test'
+  AuditLogEntries:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/AuditLogEntry'
+  UserFlagSetting:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      _value:
+        type: boolean
+        description: >-
+          The most important attribute in the response. The _value is the
+          current setting for the user. For a boolean feature toggle, this will
+          be true, false, or null if there is no defined fallthrough value.
+        example: true
+      setting:
+        type: boolean
+        description: >-
+          The setting attribute indicates whether you've explicitly targeted
+          this user to receive a particular variation. For example, if you have
+          explicitly turned off a feature toggle for a user, setting will be
+          false. A setting of null means that you haven't assigned that user to
+          a specific variation.
+        example: null
+  UserFlagSettings:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: object
+        additionalProperties:
+          $ref: '#/definitions/UserFlagSetting'
+        example:
+          sort.order:
+            _links:
+              self:
+                href: /api/v2/users/lacuna/production/Abbie_Braun/flags/sort.order
+                type: application/json
+              _value: true
+              setting: null
+          alternate.page:
+            _links:
+              self:
+                href: >-
+                  /api/v2/users/lacuna/production/Abbie_Braun/flags/alternate.page
+                type: application/json
+            _value: 'false,'
+            setting: null
+  Statement:
+    type: object
+    properties:
+      resources:
+        type: array
+        items:
+          type: string
+          description: A resource specifier string
+          example: 'proj/*:env/*:flag/my-flag'
+      notResources:
+        type: array
+        items:
+          type: string
+          description: A resource specifier string
+          example: 'proj/*:env/*:flag/my-flag'
+        description: >-
+          Targeted resource will be those resources NOT in this list. The
+          "resources`" field must be empty to use this field.
+      actions:
+        type: array
+        items:
+          type: string
+          description: An action to perform on a resource.
+          example: updateOn
+      notActions:
+        type: array
+        items:
+          type: string
+          description: An action to perform on a resource.
+          example: updateOn
+        description: >-
+          Targeted actions will be those actions NOT in this list. The "actions"
+          field must be empty to use this field.
+      effect:
+        type: string
+        enum:
+          - allow
+          - deny
+  Role:
+    type: string
+    enum:
+      - writer
+      - reader
+      - admin
+      - owner
+  CustomRole:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      name:
+        type: string
+        description: Name of the custom role.
+        example: revenue team
+      key:
+        type: string
+        description: The 20-hexdigit id or the key for a custom role.
+        example: revenue-team
+      description:
+        type: string
+        description: Description of the custom role.
+        example: Description of revenue team role here
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      policy:
+        type: array
+        items:
+          $ref: '#/definitions/Policy'
+  CustomRoles:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/CustomRole'
+  Policy:
+    type: object
+    properties:
+      resources:
+        type: array
+        items:
+          type: string
+          description: A resource specifier string
+          example: 'proj/*:env/*:flag/my-flag'
+      notResources:
+        type: array
+        items:
+          type: string
+          description: A resource specifier string
+          example: 'proj/*:env/*:flag/my-flag'
+        description: >-
+          Targeted resource will be those resources NOT in this list. The
+          "resources`" field must be empty to use this field.
+      actions:
+        type: array
+        items:
+          type: string
+          description: An action to perform on a resource.
+          example: updateOn
+      notActions:
+        type: array
+        items:
+          type: string
+          description: An action to perform on a resource.
+          example: updateOn
+        description: >-
+          Targeted actions will be those actions NOT in this list. The "actions"
+          field must be empty to use this field.
+      effect:
+        type: string
+        description: Effect of the policy - allow or deny.
+        example: deny
+  Id:
+    type: string
+    description: The unique resource id.
+    example: 5a580a01b4ff89217bdf9dc1
+  PatchOperation:
+    type: object
+    properties:
+      op:
+        type: string
+        example: replace
+      path:
+        type: string
+        example: /name
+      value:
+        type: object
+        example: My resource name
+    required:
+      - op
+      - path
+      - value
+  SemanticPatchOperation:
+    type: object
+    properties:
+      comment:
+        type: string
+        example: This is a comment string
+      instructions:
+        $ref: '#/definitions/SemanticPatchInstruction'
+    required:
+      - instructions
+  SemanticPatchInstruction:
+    type: array
+    items:
+      properties:
+        kind:
+          type: string
+          example: removeUserTargets
+          description: >-
+            The name of the modification you would like to perform on a
+            resource.
+  CustomProperty:
+    type: object
+    description: A name and value describing a custom property.
+    properties:
+      name:
+        type: string
+        description: The name of the property.
+        example: My property
+      value:
+        type: array
+        description: Values for this property.
+        items:
+          type: string
+          example:
+            - Value 1
+            - Value 2
+    required:
+      - name
+  CustomPropertyValues:
+    type: array
+    description: Values for this property.
+    items:
+      type: string
+    example:
+      - Value 1
+      - Value 2
+  UsageLinks:
+    type: object
+    properties:
+      parent:
+        $ref: '#/definitions/Link'
+      self:
+        $ref: '#/definitions/Link'
+      subseries:
+        type: array
+        description: The following links that are in the response.
+        items:
+          $ref: '#/definitions/Link'
+  StreamLinks:
+    type: object
+    properties:
+      parent:
+        $ref: '#/definitions/Link'
+      self:
+        $ref: '#/definitions/Link'
+      subseries:
+        type: array
+        description: Links to endpoints that are in the request path.
+        items:
+          $ref: '#/definitions/Link'
+  Usage:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/UsageLinks'
+      series:
+        type: array
+        items:
+          $ref: '#/definitions/StreamUsageSeries'
+  UsageError:
+    type: object
+    properties:
+      message:
+        type: string
+        example: >-
+          This is a beta API, you must pass beta in the LD-API-Version header to
+          use it.
+  Streams:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/StreamUsageLinks'
+  Stream:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/StreamUsageLinks'
+      metadata:
+        type: array
+        items:
+          $ref: '#/definitions/StreamUsageMetadata'
+      series:
+        type: array
+        items:
+          $ref: '#/definitions/StreamUsageSeries'
+  StreamUsageLinks:
+    type: object
+    properties:
+      parent:
+        $ref: '#/definitions/Link'
+      self:
+        $ref: '#/definitions/Link'
+      subseries:
+        type: array
+        description: The following links that are in the response.
+        items:
+          $ref: '#/definitions/Link'
+  StreamUsageSeries:
+    type: object
+    properties:
+      '0':
+        type: integer
+        format: int64
+        description: A key corresponding to a time series data point.
+        example: 0
+      time:
+        type: integer
+        format: int64
+        description: >-
+          A unix epoch time in milliseconds specifying the creation time of this
+          flag.
+        example: 1551740400000
+  StreamUsageMetadata:
+    type: object
+    properties:
+      sdk:
+        type: string
+        description: The language of the sdk
+        example: ruby
+      version:
+        type: string
+        description: The version of the SDK
+        example: 5.4.3
+      source:
+        type: string
+        example: server
+  StreamUsageError:
+    type: object
+    properties:
+      code:
+        type: string
+        example: not_found
+      message:
+        type: string
+        example: Stream source not found
+  StreamBySDK:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/StreamBySDKLinks'
+      metadata:
+        type: array
+        items:
+          $ref: '#/definitions/StreamBySDKLinksMetadata'
+      series:
+        type: array
+        items:
+          $ref: '#/definitions/StreamUsageSeries'
+  StreamBySDKLinks:
+    type: object
+    properties:
+      parent:
+        $ref: '#/definitions/Link'
+      self:
+        $ref: '#/definitions/Link'
+  StreamBySDKLinksMetadata:
+    type: object
+    properties:
+      sdk:
+        type: string
+        example: ruby
+      version:
+        type: string
+        example: 5.4.3
+      source:
+        type: string
+        example: server
+  StreamSDKVersion:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/StreamBySDKLinks'
+      sdkVersions:
+        type: array
+        items:
+          $ref: '#/definitions/StreamSDKVersionData'
+  StreamSDKVersionData:
+    type: object
+    properties:
+      sdk:
+        type: string
+        description: The language of the sdk
+        example: ruby
+      version:
+        type: string
+        description: The version of the sdk
+        example: 5.4.3
+  MAU:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/UsageLinks'
+      metadata:
+        type: array
+        items:
+          $ref: '#/definitions/StreamBySDKLinksMetadata'
+      series:
+        type: array
+        items:
+          $ref: '#/definitions/StreamUsageSeries'
+  MAUbyCategory:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/StreamBySDKLinks'
+      metadata:
+        type: array
+        items:
+          $ref: '#/definitions/MAUMetadata'
+      series:
+        type: array
+        items:
+          $ref: '#/definitions/StreamUsageSeries'
+  MAUMetadata:
+    type: object
+  Events:
+    type: object
+    properties:
+      links:
+        $ref: '#/definitions/UsageLinks'
+  EvaluationUsageError:
+    type: object
+    properties:
+      code:
+        type: string
+        example: not_found
+      message:
+        type: string
+        example: unknown environment
+  FeatureFlagCopyObject:
+    type: object
+    properties:
+      key:
+        type: string
+        description: The environment key to be used.
+        example: staging
+      currentVersion:
+        type: integer
+        description: >-
+          If the latest version of the flag matches provided version it will
+          copy, otherwise it will return a conflict.
+        example: 65
+    required:
+      - key
+  CopyActions:
+    type: string
+    example: []
+    enum:
+      - updateOn
+      - updatePrerequisites
+      - updateTargets
+      - updateRules
+      - updateFallthrough
+      - updateOffVariation
+  FlagListItem:
+    type: object
+    properties:
+      name:
+        type: string
+      key:
+        type: string
+      _links:
+        $ref: '#/definitions/Links'
+      _site:
+        $ref: '#/definitions/Site'
+  Tokens:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Token'
+  Token:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/Links'
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      ownerId:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      memberId:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      _member:
+        $ref: '#/definitions/Member'
+      creationDate:
+        type: integer
+        format: int64
+        description: >-
+          A unix epoch time in milliseconds specifying the creation time of this
+          access token.
+        example: 1443652232590
+      lastModified:
+        type: integer
+        format: int64
+        example: 1469326565348
+        description: >-
+          A unix epoch time in milliseconds specifying the last time this access
+          token was modified.
+      lastUsed:
+        type: integer
+        format: int64
+        example: 1469326565348
+        description: >-
+          A unix epoch time in milliseconds specifying the last time this access
+          token was used to authorize access to the LaunchDarkly REST API.
+      token:
+        type: string
+        example: '3243'
+        description: >-
+          The last 4 digits of the unique secret key for this access token. If
+          creating or resetting the token, this will be the full token secret.
+      name:
+        type: string
+        description: A human-friendly name for the access token
+        example: My access token
+      role:
+        type: string
+        description: The name of a built-in role for the token
+        example: writer
+      customRoleIds:
+        type: array
+        items:
+          type: string
+        description: A list of custom role IDs to use as access limits for the access token
+      inlineRole:
+        type: array
+        items:
+          $ref: '#/definitions/Statement'
+      serviceToken:
+        type: boolean
+        description: >-
+          Whether the token will be a service token
+          https://docs.launchdarkly.com/home/account-security/api-access-tokens#service-tokens
+      defaultApiVersion:
+        type: integer
+        description: The default API version for this token
+  RelayProxyConfigs:
+    type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/RelayProxyConfig'
+  RelayProxyConfig:
+    type: object
+    properties:
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      _creator:
+        $ref: '#/definitions/Member'
+      name:
+        type: string
+        description: A human-friendly name for the relay proxy configuration
+        example: My relay proxy config
+      policy:
+        type: array
+        items:
+          $ref: '#/definitions/Policy'
+      fullKey:
+        type: string
+        example: rel-8a3a773d-b75e-48eb-a850-492cda9266eo
+        description: >-
+          Full secret key. Only included if creating or resetting the relay
+          proxy configuration
+      displayKey:
+        type: string
+        example: 66eo
+        description: >-
+          The last 4 digits of the unique secret key for this relay proxy
+          configuration
+      creationDate:
+        type: integer
+        format: int64
+        description: >-
+          A unix epoch time in milliseconds specifying the creation time of this
+          relay proxy configuration
+        example: 1443652232590
+      lastModified:
+        type: integer
+        format: int64
+        example: 1469326565348
+        description: >-
+          A unix epoch time in milliseconds specifying the last time this relay
+          proxy configuration was modified
+    required:
+      - _id
+      - _creator
+      - name
+      - policy
+      - displayKey
+      - creationDate
+      - lastModified
+  HierarchicalLinks:
+    type: object
+    properties:
+      parent:
+        $ref: '#/definitions/Link'
+      self:
+        $ref: '#/definitions/Link'
+  IntegrationSubscription:
+    type: object
+    properties:
+      _links:
+        $ref: '#/definitions/HierarchicalLinks'
+      _id:
+        type: string
+        description: The unique resource id.
+        example: "5a580a01b4ff89217bdf9dc1"
+      kind:
+        type: string
+        description: The type of integration associated with this configuration.
+        example: datadog
+      name:
+        type: string
+        description: The user-defined name associated with this configuration.
+        example: V2
+      config:
+        type: object
+        description: A key-value mapping of configuration fields.
+        example:
+          apiKey: 582**************************116
+          hostURL: 'https://api.datadoghq.com'
+      statements:
+        type: array
+        items:
+          $ref: '#/definitions/Statement'
+      'on':
+        type: boolean
+        description: Whether or not the integration is currently active.
+        example: true
+      tags:
+        type: array
+        items:
+          type: string
+        description: An array of tags for this integration configuration.
+      _status:
+        type: object
+        properties:
+          successCount:
+            type: integer
+            example: 6
+          lastSuccess:
+            type: integer
+            format: int64
+            description: >-
+              A unix epoch time in milliseconds specifying the last time this
+              integration was successfully used.
+            example: 1443652232590
+          errorCount:
+            type: integer
+            example: 2
+  Integration:
+    type: object
+    properties:
+      _links:
+        type: object
+        properties:
+          self:
+            $ref: '#/definitions/Link'
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/IntegrationSubscription'
+  Integrations:
+    type: object
+    properties:
+      _links:
+        type: object
+        description: A mapping of integration types to their respective API endpoints.
+        example:
+          appdynamics:
+            href: /api/v2/integrations/appdynamics
+            type: application/json
+          splunk:
+            href: /api/v2/integrations/splunk
+            type: application/json
+      items:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/IntegrationSubscription'
+responses:
+  Standard201:
+    description: Resource created.
+  Standard204:
+    description: Action completed successfully.
+  Standard400:
+    description: Invalid request body.
+  Standard401:
+    description: Invalid access token.
+  Standard403:
+    description: Access to the requested resource was denied.
+  Standard404:
+    description: Invalid resource specifier.
+  Standard409:
+    description: Status conflict.
+  Root200:
+    description: A list of links to available resources in the API.
+    schema:
+      $ref: '#/definitions/Links'
+  Webhook2xx:
+    description: Webhook response.
+    schema:
+      $ref: '#/definitions/Webhook'
+  UserSegment2xx:
+    description: User segment response.
+    schema:
+      $ref: '#/definitions/UserSegment'
+  Project2xx:
+    description: Successful Project response.
+    schema:
+      $ref: '#/definitions/Project'
+  Member2xx:
+    description: Member response.
+    schema:
+      $ref: '#/definitions/Member'
+  CustomRole2xx:
+    description: Custom role response.
+    schema:
+      $ref: '#/definitions/CustomRole'
+  BetaApi403:
+    description: >-
+      This is a beta API, you must pass beta in the LD-API-Version header to use
+      it.
+    schema:
+      $ref: '#/definitions/UsageError'
+  StreamUsage404:
+    description: The stream source you requested could not be found
+    schema:
+      $ref: '#/definitions/StreamUsageError'
+  EvaluationUsage404:
+    description: The environment or flag you requested could not be found
+    schema:
+      $ref: '#/definitions/EvaluationUsageError'
+  Environment2xx:
+    description: Environment response.
+    schema:
+      $ref: '#/definitions/Environment'
+  Destination2xx:
+    description: Destination response.
+    schema:
+      $ref: '#/definitions/Destination'
+  Token2xx:
+    description: Token response.
+    schema:
+      $ref: '#/definitions/Token'
+  RelayProxyConfig2xx:
+    description: Relay proxy config response.
+    schema:
+      $ref: '#/definitions/RelayProxyConfig'
+parameters:
+  ResourceId:
+    name: resourceId
+    in: path
+    required: true
+    description: The resource ID.
+    type: string
+  WebhookPostRequest:
+    name: webhookBody
+    in: body
+    required: true
+    description: New webhook.
+    schema:
+      type: object
+      properties:
+        url:
+          example: 'https://example.com/example'
+          type: string
+          description: The URL of the remote webhook.
+        secret:
+          example: <password>
+          type: string
+          description: >-
+            If sign is true, and the secret attribute is omitted, LaunchDarkly
+            will automatically generate a secret for you.
+        sign:
+          type: boolean
+          description: >-
+            If sign is false, the webhook will not include a signature header,
+            and the secret can be omitted.
+        'on':
+          type: boolean
+          example: true
+          description: Whether this webhook is enabled or not.
+        name:
+          type: string
+          example: Example hook
+          description: The name of the webhook.
+        statements:
+          type: array
+          items:
+            $ref: '#/definitions/Statement'
+        tags:
+          type: array
+          items:
+            type: string
+          example: []
+          description: Tags for the webhook.
+      required:
+        - url
+        - sign
+        - 'on'
+  FeatureFlagCopyBody:
+    name: featureFlagCopyBody
+    in: body
+    required: true
+    description: Copy feature flag configurations between environments.
+    schema:
+      type: object
+      properties:
+        source:
+          $ref: '#/definitions/FeatureFlagCopyObject'
+        target:
+          $ref: '#/definitions/FeatureFlagCopyObject'
+        comment:
+          type: string
+          description: comment will be included in audit log item for change.
+          example: This is a comment string
+        includedActions:
+          type: array
+          items:
+            $ref: '#/definitions/CopyActions'
+          description: Define the parts of the flag configuration that will be copied.
+        excludedActions:
+          type: array
+          items:
+            $ref: '#/definitions/CopyActions'
+          description: Define the parts of the flag configuration that will not be copied.
+  FeatureFlagPostRequest:
+    name: featureFlagBody
+    in: body
+    required: true
+    description: Create a new feature flag.
+    schema:
+      type: object
+      properties:
+        name:
+          type: string
+          description: >-
+            A human-friendly name for the feature flag. Remember to note if this
+            flag is intended to be temporary or permanent.
+          example: new test flag
+        key:
+          type: string
+          description: A unique key that will be used to reference the flag in your code.
+          example: new-test-flag
+        description:
+          type: string
+          description: A description of the feature flag.
+          example: This flag controls whether test feature is turned on or not.
+        variations:
+          type: array
+          items:
+            $ref: '#/definitions/Variation'
+          description: An array of possible variations for the flag.
+        temporary:
+          type: boolean
+          description: Whether or not the flag is a temporary flag.
+        tags:
+          type: array
+          items:
+            type: string
+            example: []
+          description: Tags for the feature flag.
+        includeInSnippet:
+          type: boolean
+          description: >-
+            Whether or not this flag should be made available to the client-side
+            JavaScript SDK.
+        clientSideAvailability:
+          $ref: '#/definitions/ClientSideAvailability'
+        defaults:
+          $ref: '#/definitions/Defaults'
+      required:
+        - name
+        - key
+        - variations
+  ScheduledChangeId:
+    name: scheduledChangeId
+    in: path
+    required: true
+    description: The id of the scheduled change
+    type: string
+  FlagConfigScheduledChangesConflictsBody:
+    name: flagConfigScheduledChangesConflictsBody
+    in: body
+    required: true
+    description: >-
+      Used to determine if a semantic patch will result in conflicts with
+      scheduled changes on a feature flag.
+    schema:
+      type: object
+      properties:
+        executionDate:
+          type: integer
+          description: >-
+            A unix epoch time in milliseconds specifying the date the scheduled
+            changes will be applied
+        instructions:
+          $ref: '#/definitions/SemanticPatchInstruction'
+  FlagConfigScheduledChangesPostBody:
+    name: flagConfigScheduledChangesPostBody
+    in: body
+    required: true
+    description: Create scheduled changes on a feature flag.
+    schema:
+      type: object
+      properties:
+        comment:
+          type: string
+          description: Used to describe the scheduled changes.
+        executionDate:
+          type: integer
+          description: >-
+            A unix epoch time in milliseconds specifying the date the scheduled
+            changes will be applied
+        instructions:
+          $ref: '#/definitions/SemanticPatchInstruction'
+  FlagConfigScheduledChangesPatchBody:
+    name: flagConfigScheduledChangesPatchBody
+    in: body
+    required: true
+    description: Update scheduled changes on a feature flag.
+    schema:
+      type: object
+      properties:
+        comment:
+          type: string
+          description: Used to describe the scheduled changes.
+        instructions:
+          $ref: '#/definitions/SemanticPatchInstruction'
+  DestinationPostRequest:
+    name: destinationBody
+    in: body
+    required: true
+    description: Create a new data export destination.
+    schema:
+      type: object
+      properties:
+        name:
+          type: string
+          description: A human-readable name for your data export destination.
+          example: Example Google Pub/Sub Destination
+        kind:
+          type: string
+          description: >-
+            The data export destination type. Available choices are kinesis,
+            google-pubsub, mparticle, or segment.
+          example: google-pubsub
+          enum:
+            - google-pubsub
+            - kinesis
+            - mparticle
+            - segment
+        config:
+          type: object
+          description: destination-specific configuration.
+          example:
+            project: cool-project
+            topic: test
+        'on':
+          type: boolean
+          example: true
+          description: Whether the data export destination is on or not.
+      required:
+        - name
+        - kind
+        - config
+  UserSegmentPostRequest:
+    name: userSegmentBody
+    in: body
+    required: true
+    description: Create a new user segment.
+    schema:
+      type: object
+      properties:
+        name:
+          type: string
+          description: A human-friendly name for the user segment.
+          example: new segment
+        key:
+          type: string
+          description: >-
+            A unique key that will be used to reference the user segment in
+            feature flags.
+          example: new-segment
+        description:
+          type: string
+          description: A description for the user segment.
+          example: Users in this segment will have access to beta features.
+        unbounded:
+          type: boolean
+          example: false
+          description: >-
+            Controls whether this is considered a "big segment" which can
+            support an unlimited numbers of users. Include/exclude lists sent
+            with this payload are not used in big segments. Contact your account
+            manager for early access to this feature.
+        tags:
+          type: array
+          items:
+            type: string
+            example: []
+          description: Tags for the user segment.
+      required:
+        - name
+        - key
+  BigSegmentTargetsPostRequest:
+    name: bigSegmentTargetsBody
+    in: body
+    required: true
+    description: >-
+      Add or remove user targets to the included or excluded lists on a big
+      segment. Contact your account manager for early access to this feature.
+    schema:
+      type: object
+      properties:
+        included:
+          $ref: '#/definitions/BigSegmentTargetChanges'
+        excluded:
+          $ref: '#/definitions/BigSegmentTargetChanges'
+  ProjectPostRequest:
+    name: projectBody
+    in: body
+    required: true
+    description: Project keys must be unique within an account.
+    schema:
+      type: object
+      properties:
+        name:
+          type: string
+          example: New Project
+        key:
+          type: string
+          example: new-project
+        includeInSnippetByDefault:
+          type: boolean
+          example: false
+        tags:
+          type: array
+          items:
+            type: string
+          example:
+            - ops
+            - dev
+        environments:
+          type: array
+          items:
+            $ref: '#/definitions/EnvironmentPost'
+          minLength: 1
+        defaultClientSideAvailability:
+          $ref: '#/definitions/ClientSideAvailability'
+      required:
+        - name
+        - key
+  EnvironmentPostRequest:
+    name: environmentBody
+    in: body
+    required: true
+    description: New environment.
+    schema:
+      $ref: '#/definitions/EnvironmentPost'
+  ProjectKey:
+    name: projectKey
+    in: path
+    required: true
+    description: >-
+      The project key, used to tie the flags together under one project so they
+      can be managed together.
+    type: string
+  EnvironmentKey:
+    name: environmentKey
+    in: path
+    required: true
+    description: >-
+      The environment key, used to tie together flag configuration and users
+      under one environment so they can be managed together.
+    type: string
+  EnvironmentKeyQuery:
+    name: env
+    in: query
+    required: false
+    description: >-
+      By default, each feature will include configurations for each environment.
+      You can filter environments with the env query parameter. For example,
+      setting env=["production"] will restrict the returned configurations to
+      just your production environment.
+    type: array
+    items:
+      type: string
+    collectionFormat: multi
+  EnvironmentSDKKeyExpiry:
+    name: expiry
+    in: query
+    required: false
+    type: integer
+    format: int64
+    description: >-
+      An expiration time for the old environment SDK key, expressed as a Unix
+      epoch time in milliseconds. By default, the key will expire immediately.
+  EnvironmentMobileKeyExpiry:
+    name: expiry
+    in: query
+    required: false
+    type: integer
+    format: int64
+    description: >-
+      The expiry parameter is deprecated for this endpoint, so the old mobile
+      key will always expire immediately. This parameter will be removed in an
+      upcoming major API client version.
+  SummaryQuery:
+    name: summary
+    in: query
+    required: false
+    description: >-
+      By default in api version >= 1, flags will _not_ include their list of
+      prerequisites, targets or rules.  Set summary=0 to include these fields
+      for each flag returned.
+    type: boolean
+  ArchivedQuery:
+    name: archived
+    in: query
+    required: false
+    description: >-
+      When set to 1, only archived flags will be included in the list of flags
+      returned.  By default, archived flags are not included in the list of
+      flags.
+    type: boolean
+  LimitQuery:
+    name: limit
+    in: query
+    required: false
+    description: 'The number of objects to return. Defaults to -1, which returns everything.'
+    type: number
+  OffsetQuery:
+    name: offset
+    in: query
+    required: false
+    description: >-
+      Where to start in the list. This is for use with pagination. For example,
+      an offset of 10 would skip the first 10 items and then return the next
+      limit items.
+    type: number
+  FilterQuery:
+    name: filter
+    in: query
+    required: false
+    description: 'A comma-separated list of filters. Each filter is of the form field:value.'
+    type: string
+  SortQuery:
+    name: sort
+    in: query
+    required: false
+    description: >-
+      A comma-separated list of fields to sort by. A field prefixed by a - will
+      be sorted in descending order.
+    type: string
+  FeatureFlagKey:
+    name: featureFlagKey
+    in: path
+    required: true
+    description: The feature flag's key. The key identifies the flag in your code.
+    type: string
+  CloneFlagKeyQuery:
+    name: clone
+    in: query
+    required: false
+    description: >-
+      The key of the feature flag to be cloned. The key identifies the flag in
+      your code.  For example, setting clone=flagKey will copy the full
+      targeting configuration for all environments (including on/off state) from
+      the original flag to the new flag.
+    type: string
+  UserSegmentKey:
+    name: userSegmentKey
+    in: path
+    required: true
+    description: The user segment's key. The key identifies the user segment in your code.
+    type: string
+  DestinationId:
+    name: destinationId
+    in: path
+    required: true
+    description: The data export destination ID.
+    type: string
+  UserKey:
+    name: userKey
+    in: path
+    required: true
+    description: The user's key.
+    type: string
+  Tag:
+    name: tag
+    in: query
+    required: false
+    description: Filter by tag. A tag can be used to group flags across projects.
+    type: string
+  Limit:
+    name: limit
+    in: query
+    required: false
+    description: Pagination limit.
+    type: integer
+  Query:
+    name: q
+    in: query
+    required: false
+    description: Search query.
+    type: string
+  HMAC:
+    name: h
+    in: query
+    required: false
+    description: This parameter is required when following "next" links.
+    type: string
+  ScrollId:
+    name: scrollId
+    in: query
+    required: false
+    description: This parameter is required when following "next" links.
+    type: string
+  Offset:
+    name: offset
+    in: query
+    required: false
+    description: Specifies the first item to return in the collection.
+    type: integer
+  After:
+    name: after
+    in: query
+    required: false
+    description: >-
+      A timestamp filter, expressed as a Unix epoch time in milliseconds. All
+      entries returned will have occurred after this timestamp.
+    format: int64
+    type: integer
+  PatchRequest:
+    name: patchDelta
+    in: body
+    required: true
+    description: >-
+      Requires a JSON Patch representation of the desired changes to the
+      project. 'http://jsonpatch.com/'
+    schema:
+      type: array
+      items:
+        $ref: '#/definitions/PatchOperation'
+  UserSettingsPutRequest:
+    name: userSettingsBody
+    in: body
+    required: true
+    schema:
+      type: object
+      properties:
+        setting:
+          type: boolean
+          description: >
+            The variation value to set for the user. Must match the variation
+            type of the flag.
+  Before:
+    name: before
+    in: query
+    required: false
+    description: >-
+      A timestamp filter, expressed as a Unix epoch time in milliseconds. All
+      entries returned will have before this timestamp.
+    format: int64
+    type: integer
+  Q:
+    name: q
+    in: query
+    required: false
+    description: >-
+      Text to search for. You can search for the full or partial name of the
+      resource involved or full or partial email address of the member who made
+      the change.
+    type: string
+  AuditLimit:
+    name: limit
+    in: query
+    required: false
+    description: >-
+      A limit on the number of audit log entries to be returned, between 1 and
+      20.
+    type: number
+  Spec:
+    name: spec
+    in: query
+    required: false
+    description: >-
+      A resource specifier, allowing you to filter audit log listings by
+      resource.
+    type: string
+  MembersPostRequest:
+    name: membersBody
+    in: body
+    required: true
+    description: New members to invite.
+    schema:
+      type: array
+      items:
+        type: object
+        properties:
+          email:
+            type: string
+            example: exampleuser@email.com
+          firstName:
+            type: string
+            example: Bob
+          lastName:
+            type: string
+            example: Loblaw
+          role:
+            $ref: '#/definitions/Role'
+          customRoles:
+            type: array
+            items:
+              type: string
+              description: The 20-hexdigit id or the key for a custom role.
+              example: revenue-team
+          inlineRole:
+            type: array
+            items:
+              $ref: '#/definitions/Statement'
+        required:
+          - email
+  MemberId:
+    name: memberId
+    in: path
+    required: true
+    description: The member ID.
+    type: string
+  CustomRolePostRequest:
+    name: customRoleBody
+    in: body
+    required: true
+    description: New role or roles to create.
+    schema:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the custom role.
+          example: revenue team
+        description:
+          type: string
+          description: Description of the custom role.
+          example: Description of revenue team role here
+        key:
+          type: string
+          description: The 20-hexdigit id or the key for a custom role.
+          example: revenue-team
+        policy:
+          type: array
+          items:
+            $ref: '#/definitions/Policy'
+      required:
+        - name
+        - key
+        - policy
+  CustomRoleKey:
+    name: customRoleKey
+    in: path
+    required: true
+    description: The custom role key.
+    type: string
+  PatchWithComment:
+    name: patchComment
+    in: body
+    required: true
+    description: >-
+      Requires a JSON Patch representation of the desired changes to the
+      project, and an optional comment. 'http://jsonpatch.com/' Feature flag
+      patches also support JSON Merge Patch format.
+      'https://tools.ietf.org/html/rfc7386' The addition of comments is also
+      supported.
+    schema:
+      type: object
+      properties:
+        comment:
+          type: string
+          example: This is a comment string
+        patch:
+          type: array
+          items:
+            $ref: '#/definitions/PatchOperation'
+  PatchOnly:
+    name: PatchOnly
+    in: body
+    required: true
+    description: >-
+      Requires a JSON Patch representation of the desired changes to the
+      project. 'http://jsonpatch.com/' Feature flag patches also support JSON
+      Merge Patch format. 'https://tools.ietf.org/html/rfc7386' The addition of
+      comments is also supported.
+    schema:
+      type: array
+      items:
+        $ref: '#/definitions/PatchOperation'
+  SemanticPatchWithComment:
+    name: SemanticPatchWithComment
+    in: body
+    required: true
+    description: >-
+      Requires a Semantic Patch representation of the desired changes to the
+      resource.
+      'https://apidocs.launchdarkly.com/reference#updates-via-semantic-patches'.
+      The addition of comments is also supported.
+    schema:
+      type: object
+      items:
+        $ref: '#/definitions/SemanticPatchOperation'
+  StreamSource:
+    name: source
+    in: path
+    required: true
+    description: The source of where the stream comes from.
+    type: string
+  EventType:
+    name: type
+    in: path
+    required: true
+    description: The type of event we would like to track.
+    type: string
+  EvaluationEnvId:
+    name: envId
+    in: path
+    required: true
+    description: The environment id for the flag evaluations in question.
+    type: string
+  EvaluationFlagKey:
+    name: flagKey
+    in: path
+    required: true
+    description: The key of the flag we want metrics for.
+    type: string
+  TokensPostRequest:
+    name: tokenBody
+    in: body
+    required: true
+    description: Create a new access token.
+    schema:
+      type: object
+      properties:
+        name:
+          type: string
+          description: A human-friendly name for the access token
+          example: My access token
+        role:
+          type: string
+          description: The name of a built-in role for the token
+          example: writer
+        customRoleIds:
+          type: array
+          items:
+            type: string
+            example: []
+          description: >-
+            A list of custom role IDs to use as access limits for the access
+            token
+        inlineRole:
+          type: array
+          items:
+            $ref: '#/definitions/Statement'
+        serviceToken:
+          type: boolean
+          description: >-
+            Whether the token will be a service token
+            https://docs.launchdarkly.com/home/account-security/api-access-tokens#service-tokens
+        defaultApiVersion:
+          type: integer
+          description: The default API version for this token
+  TokenId:
+    name: tokenId
+    in: path
+    required: true
+    description: The access token ID.
+    type: string
+  TokenShowAllQuery:
+    name: showAll
+    in: query
+    required: false
+    description: >-
+      If set to true, and the authentication access token has the "Admin" role,
+      personal access tokens for all members will be retrieved.
+    type: boolean
+  TokenExpiry:
+    name: expiry
+    in: query
+    required: false
+    type: integer
+    format: int64
+    description: >-
+      An expiration time for the old token key, expressed as a Unix epoch time
+      in milliseconds. By default, the token will expire immediately.
+  RelayProxyConfigPostRequest:
+    name: relayProxyConfigBody
+    in: body
+    required: true
+    description: Create a new relay proxy configuration
+    schema:
+      type: object
+      properties:
+        name:
+          type: string
+          description: A human-friendly name for the relay proxy configuration
+          example: My relay proxy config
+        policy:
+          type: array
+          items:
+            $ref: '#/definitions/Policy'
+  RelayProxyConfigId:
+    name: id
+    in: path
+    required: true
+    description: The relay proxy configuration ID
+    type: string
+  RelayProxyConfigsExpiry:
+    name: expiry
+    in: query
+    required: false
+    type: integer
+    format: int64
+    description: >-
+      An expiration time for the old relay proxy configuration key, expressed as
+      a Unix epoch time in milliseconds. By default, the relay proxy
+      configuration will expire immediately
+  ApprovalRequestId:
+    name: approvalRequestId
+    in: path
+    required: true
+    description: The approval request ID
+    type: string
+  ApprovalRequestPostRequest:
+    name: approvalRequestConfigBody
+    in: body
+    description: Create a new approval request
+    schema:
+      type: object
+      properties:
+        description:
+          type: string
+          description: >-
+            A name that describes the changes you would like to apply to a
+            feature flag configuration
+        instructions:
+          $ref: '#/definitions/SemanticPatchInstruction'
+        notifyMemberIds:
+          type: array
+          items:
+            type: string
+          example:
+            - memberId
+            - memberId2
+        comment:
+          type: string
+          description: comment will be included in audit log item for change.
+        executionDate:
+          type: integer
+          format: int64
+          description: Timestamp for when instructions will be executed
+        operatingOnId:
+          type: string
+          description: ID of scheduled change to edit or delete
+      required:
+        - description
+        - instructions
+        - notifyMemberIds
+  ApprovalRequestReviewPostRequest:
+    name: approvalRequestReviewConfigBody
+    in: body
+    required: true
+    description: Review an approval request
+    schema:
+      type: object
+      properties:
+        kind:
+          type: string
+          description: 'One of approve, decline, or comment.'
+          enum:
+            - approve
+            - decline
+            - comment
+          example: approve
+        comment:
+          type: string
+          description: comment will be included in audit log item for change.
+          example: This is a comment string
+      required:
+        - kind
+  ApprovalRequestApplyPostRequest:
+    name: approvalRequestApplyConfigBody
+    in: body
+    required: true
+    description: Apply an approval request
+    schema:
+      type: object
+      properties:
+        comment:
+          type: string
+          description: comment will be included in audit log item for change.
+          example: Applying approved changes
+  IntegrationKey:
+    name: integrationKey
+    in: path
+    required: true
+    description: The key used to specify the integration kind.
+    type: string
+  IntegrationId:
+    name: integrationId
+    in: path
+    required: true
+    description: The integration ID.
+    type: string
+  IntegrationPostRequest:
+    name: subscriptionBody
+    in: body
+    required: true
+    description: Create a new integration subscription.
+    schema:
+      type: object
+      properties:
+        name:
+          type: string
+          description: A human-readable name for your subscription configuration.
+          example: Example Datadog Integration
+        statements:
+          type: array
+          items:
+            $ref: '#/definitions/Statement'
+        config:
+          type: object
+          description: Integration-specific configuration fields.
+          example:
+            apiKey: 582**************************116
+            hostURL: 'https://api.datadoghq.com'
+        'on':
+          type: boolean
+          example: true
+          description: Whether the integration subscription is active or not.
+        tags:
+          type: array
+          items:
+            type: string
+          example: []
+          description: Tags for the integration subscription.
+      required:
+        - name
+        - config
+
