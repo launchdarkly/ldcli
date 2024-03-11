@@ -5,16 +5,34 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHelloCmd(t *testing.T) {
-	actual := new(bytes.Buffer)
-	rootCmd.SetOut(actual)
-	rootCmd.SetErr(actual)
-	rootCmd.SetArgs([]string{"hello"})
-	rootCmd.Execute()
+	t.Run("with no options", func(t *testing.T) {
+		expected := `{"hello": "world"}`
+		actual := new(bytes.Buffer)
 
-	expected := "{\"hello\": \"world\"}"
+		rootCmd.SetOut(actual)
+		rootCmd.SetErr(actual)
+		rootCmd.SetArgs([]string{"hello"})
 
-	assert.Equal(t, actual.String(), expected)
+		err := rootCmd.Execute()
+
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, actual.String())
+	})
+
+	t.Run("with the informal option", func(t *testing.T) {
+		expected := `{"hi": "world"}`
+		actual := new(bytes.Buffer)
+		rootCmd.SetOut(actual)
+		rootCmd.SetErr(actual)
+		rootCmd.SetArgs([]string{"hello", "--informal"})
+
+		err := rootCmd.Execute()
+
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, actual.String())
+	})
 }
