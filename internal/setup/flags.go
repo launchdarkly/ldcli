@@ -98,7 +98,7 @@ func (d flagDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	fn := flagStyle.Render
 	if index == m.Index() {
 		fn = func(s ...string) string {
-			return selectedEnvItemStyle.Render("> " + strings.Join(s, " "))
+			return selectedFlagItemStyle.Render("> " + strings.Join(s, " "))
 		}
 	}
 
