@@ -9,8 +9,8 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "ld-cli",
-	Short: "",
-	Long:  "",
+	Short: "LaunchDarkly CLI",
+	Long:  "LaunchDarkly CLI to control your feature flags",
 }
 
 func Execute() {
