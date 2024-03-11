@@ -27,8 +27,7 @@ type WizardModel struct {
 	steps              []tea.Model
 	currProjectKey     string
 	currEnvironmentKey string
-	currentFlagKey     string
-	// currFlagKey        string
+	currFlagKey        string
 }
 
 func NewWizardModel() tea.Model {
@@ -93,7 +92,7 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				model, _ := m.steps[m.currStep-1].Update(msg)
 				f, ok := model.(flagModel)
 				if ok {
-					m.currentFlagKey = f.choice
+					m.currFlagKey = f.choice
 					m.currStep += 1
 				}
 				// add additional cases for additional steps
@@ -130,7 +129,7 @@ func (m WizardModel) View() string {
 	}
 
 	if m.currStep > flagsStep {
-		return fmt.Sprintf("envKey is %s, projKey is %s, flagKey is %s", m.currEnvironmentKey, m.currProjectKey, m.currentFlagKey)
+		return fmt.Sprintf("envKey is %s, projKey is %s, flagKey is %s", m.currEnvironmentKey, m.currProjectKey, m.currFlagKey)
 	}
 
 	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep-1].View(), m.currStep, len(m.steps))
