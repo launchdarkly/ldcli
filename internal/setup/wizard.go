@@ -15,6 +15,7 @@ const (
 	initialStep sessionState = iota
 	projectsStep
 	environmentsStep
+	flagsStep
 )
 
 // WizardModel is a high level container model that controls the nested models which each
@@ -26,6 +27,7 @@ type WizardModel struct {
 	steps              []tea.Model
 	currProjectKey     string
 	currEnvironmentKey string
+	currentFlagKey     string
 	// currFlagKey        string
 }
 
@@ -36,6 +38,7 @@ func NewWizardModel() tea.Model {
 		// prevent this off-by-one issue.
 		NewProject(),
 		NewEnvironment(),
+		Newflag(),
 	}
 
 	return WizardModel{
@@ -86,6 +89,13 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currEnvironmentKey = p.choice
 					m.currStep += 1
 				}
+			case flagsStep:
+				model, _ := m.steps[m.currStep-1].Update(msg)
+				f, ok := model.(flagModel)
+				if ok {
+					m.currentFlagKey = f.choice
+					m.currStep += 1
+				}
 				// add additional cases for additional steps
 			default:
 			}
@@ -119,8 +129,8 @@ func (m WizardModel) View() string {
 		return "welcome"
 	}
 
-	if m.currStep > environmentsStep {
-		return fmt.Sprintf("envKey is %s, projKey is %s", m.currEnvironmentKey, m.currProjectKey)
+	if m.currStep > flagsStep {
+		return fmt.Sprintf("envKey is %s, projKey is %s, flagKey is %s", m.currEnvironmentKey, m.currProjectKey, m.currentFlagKey)
 	}
 
 	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep-1].View(), m.currStep, len(m.steps))
