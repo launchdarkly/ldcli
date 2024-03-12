@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/launchdarkly/ld-cli/compare/v1.1.0...v1.1.1) (2024-03-12)
+
+
+### Bug Fixes
+
+* uncomment conditional in release-please for release-ldcli ([#12](https://github.com/launchdarkly/ld-cli/issues/12)) ([8938c1b](https://github.com/launchdarkly/ld-cli/commit/8938c1b79e36dc5f227f0c8fd020b00053464f39))
+
 ## [1.1.0](https://github.com/launchdarkly/ld-cli/compare/v1.0.0...v1.1.0) (2024-03-12)
 
 
