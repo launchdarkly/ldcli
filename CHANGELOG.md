@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/launchdarkly/ld-cli/compare/v1.1.3...v1.1.4) (2024-03-12)
+
+
+### Bug Fixes
+
+* remove release action since goreleaser publishes for us ([#18](https://github.com/launchdarkly/ld-cli/issues/18)) ([f749e96](https://github.com/launchdarkly/ld-cli/commit/f749e965fc35e39ed2623673b4e46fc4d9e220e6))
+
 ## [1.1.3](https://github.com/launchdarkly/ld-cli/compare/v1.1.2...v1.1.3) (2024-03-12)
 
 
