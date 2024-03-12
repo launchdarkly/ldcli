@@ -6,6 +6,9 @@ on:
       - main
 
 jobs:
+  go-versions:
+    uses: ./.github/workflows/go-versions.yml
+
   release-please:
     runs-on: ubuntu-latest
     outputs:
@@ -18,7 +21,7 @@ jobs:
           token: ${{secrets.GITHUB_TOKEN}}
           release-type: "go"
 
-  goreleaser:
+  release-ldcli:
     permissions:
       id-token: write # Needed to obtain Docker tokens
       contents: write # Needed to upload release artifacts
