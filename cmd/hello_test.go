@@ -10,27 +10,26 @@ import (
 
 func TestHelloCmd(t *testing.T) {
 	t.Run("with no options", func(t *testing.T) {
+		actual := bytes.NewBufferString("")
 		expected := `{"hello": "world"}`
-		actual := new(bytes.Buffer)
+		RootCmd.SetOut(actual)
+		RootCmd.SetErr(actual)
+		RootCmd.SetArgs([]string{"hello"})
 
-		rootCmd.SetOut(actual)
-		rootCmd.SetErr(actual)
-		rootCmd.SetArgs([]string{"hello"})
-
-		err := rootCmd.Execute()
+		err := RootCmd.Execute()
 
 		require.NoError(t, err)
 		assert.JSONEq(t, expected, actual.String())
 	})
 
 	t.Run("with the informal option", func(t *testing.T) {
+		actual := bytes.NewBufferString("")
 		expected := `{"hi": "world"}`
-		actual := new(bytes.Buffer)
-		rootCmd.SetOut(actual)
-		rootCmd.SetErr(actual)
-		rootCmd.SetArgs([]string{"hello", "--informal"})
+		RootCmd.SetOut(actual)
+		RootCmd.SetErr(actual)
+		RootCmd.SetArgs([]string{"hello", "--informal"})
 
-		err := rootCmd.Execute()
+		err := RootCmd.Execute()
 
 		require.NoError(t, err)
 		assert.JSONEq(t, expected, actual.String())

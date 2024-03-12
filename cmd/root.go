@@ -7,48 +7,49 @@ import (
 	"github.com/spf13/viper"
 )
 
-var rootCmd = &cobra.Command{
+var RootCmd = &cobra.Command{
 	Use:   "ld-cli",
 	Short: "LaunchDarkly CLI",
 	Long:  "LaunchDarkly CLI to control your feature flags",
 }
 
 func Execute() {
-	err := rootCmd.Execute()
+	err := RootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
-	var accessToken string
+	var (
+		accessToken string
+		baseURI     string
+	)
 
-	rootCmd.PersistentFlags().StringVarP(
+	RootCmd.PersistentFlags().StringVarP(
 		&accessToken,
+		"accessToken",
+		"t",
+		"",
+		"LaunchDarkly personal access token.",
+	)
+	err := viper.BindPFlag("accessToken", RootCmd.PersistentFlags().Lookup("accessToken"))
+	if err != nil {
+		os.Exit(1)
+	}
+	RootCmd.PersistentFlags().StringVarP(
+		&baseURI,
 		"baseUri",
 		"u",
 		"http://localhost:3000",
 		"LaunchDarkly base URI.",
 	)
-	err := viper.BindPFlag("baseUri", rootCmd.PersistentFlags().Lookup("baseUri"))
-	if err != nil {
-		os.Exit(1)
-	}
-	rootCmd.PersistentFlags().StringVarP(
-		&accessToken,
-		"accessToken",
-		"t",
-		"",
-		"LaunchDarkly personal access token with write-level access.",
-	)
-	err = viper.BindPFlag("accessToken", rootCmd.PersistentFlags().Lookup("accessToken"))
+	err = viper.BindPFlag("baseUri", RootCmd.PersistentFlags().Lookup("baseUri"))
 	if err != nil {
 		os.Exit(1)
 	}
 
-	rootCmd.AddCommand(newHelloCmd())
-	rootCmd.AddCommand(projectsCmd)
-	rootCmd.AddCommand(setupCmd)
-
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	RootCmd.AddCommand(newHelloCmd())
+	RootCmd.AddCommand(NewProjectsCmd())
+	RootCmd.AddCommand(setupCmd)
 }
