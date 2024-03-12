@@ -30,10 +30,4 @@ runs:
         args: release --clean ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
-
-    - name: Upload Release Artifacts
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ inputs.token }}
-      run: |
-        gh release upload ${{ inputs.tag }} ./dist/*.deb ./dist/*.rpm ./dist/*.tar.gz ./dist/*.txt --clobber
+        
