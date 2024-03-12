@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/launchdarkly/ld-cli/compare/v1.1.1...v1.1.2) (2024-03-12)
+
+
+### Bug Fixes
+
+* update dry-run to false in release-please github workflow ([#14](https://github.com/launchdarkly/ld-cli/issues/14)) ([ea3c089](https://github.com/launchdarkly/ld-cli/commit/ea3c089fc4be846bbe341feaa277ce7fd0b25526))
+
 ## [1.1.1](https://github.com/launchdarkly/ld-cli/compare/v1.1.0...v1.1.1) (2024-03-12)
 
 
