@@ -10,7 +10,7 @@ inputs:
     default: 'true'
   tag:
     description: 'Tag to upload artifacts to.'
-    required: false
+    required: true
 
 runs:
   using: composite
