@@ -35,6 +35,6 @@ jobs:
 
       - uses: ./.github/actions/publish
         with:
-          dry-run: 'true'
+          dry-run: 'false'
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ needs.release-please.outputs.tag_name }}
