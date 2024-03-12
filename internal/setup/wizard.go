@@ -13,6 +13,7 @@ type sessionState int
 // list of steps in the wizard
 const (
 	initialStep sessionState = iota
+	forkStep
 	projectsStep
 	environmentsStep
 	flagsStep
@@ -21,13 +22,14 @@ const (
 // WizardModel is a high level container model that controls the nested models which each
 // represent a step in the setup wizard.
 type WizardModel struct {
-	quitting           bool
-	err                error
-	currStep           sessionState
-	steps              []tea.Model
-	currProjectKey     string
-	currEnvironmentKey string
-	currFlagKey        string
+	quitting                bool
+	err                     error
+	currStep                sessionState
+	steps                   []tea.Model
+	useRecommendedResources bool
+	currProjectKey          string
+	currEnvironmentKey      string
+	currFlagKey             string
 }
 
 func NewWizardModel() tea.Model {
@@ -35,9 +37,10 @@ func NewWizardModel() tea.Model {
 		// Since there isn't a model for the initial step, the currStep value will always be one ahead of the step in
 		// this slice. It may be convenient to add a model for the initial step to contain its own view logic and to
 		// prevent this off-by-one issue.
+		NewFork(),
 		NewProject(),
 		NewEnvironment(),
-		Newflag(),
+		NewFlag(),
 	}
 
 	return WizardModel{
@@ -74,6 +77,13 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.steps[m.currStep] = projModel
 				// go to the next step
 				m.currStep += 1
+			case forkStep:
+				model, _ := m.steps[m.currStep-1].Update(msg)
+				f, ok := model.(forkModel)
+				if ok {
+					m.useRecommendedResources = f.choice == "yes"
+					m.currStep += 1
+				}
 			case projectsStep:
 				projModel, _ := m.steps[m.currStep-1].Update(msg)
 				p, ok := projModel.(projectModel)
