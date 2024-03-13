@@ -77,7 +77,6 @@ func init() {
 
 	rootCmd.SetErrPrefix("")
 
-	rootCmd.AddCommand(newHelloCmd())
 	rootCmd.AddCommand(projects.NewProjectsCmd())
 	rootCmd.AddCommand(setupCmd)
 }
