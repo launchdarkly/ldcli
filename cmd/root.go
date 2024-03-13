@@ -5,6 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"ld-cli/cmd/projects"
 )
 
 var rootCmd = &cobra.Command{
@@ -21,31 +23,35 @@ func Execute() {
 }
 
 func init() {
-	var accessToken string
-
-	rootCmd.PersistentFlags().StringVarP(
-		&accessToken,
-		"baseUri",
-		"u",
-		"http://localhost:3000",
-		"LaunchDarkly base URI.",
+	var (
+		accessToken string
+		baseURI     string
 	)
-	err := viper.BindPFlag("baseUri", rootCmd.PersistentFlags().Lookup("baseUri"))
-	if err != nil {
-		os.Exit(1)
-	}
+
 	rootCmd.PersistentFlags().StringVarP(
 		&accessToken,
 		"accessToken",
 		"t",
 		"",
-		"LaunchDarkly personal access token with write-level access.",
+		"LaunchDarkly personal access token",
 	)
-	err = viper.BindPFlag("accessToken", rootCmd.PersistentFlags().Lookup("accessToken"))
+	err := viper.BindPFlag("accessToken", rootCmd.PersistentFlags().Lookup("accessToken"))
+	if err != nil {
+		os.Exit(1)
+	}
+	rootCmd.PersistentFlags().StringVarP(
+		&baseURI,
+		"baseUri",
+		"u",
+		"http://localhost:3000",
+		"LaunchDarkly base URI",
+	)
+	err = viper.BindPFlag("baseUri", rootCmd.PersistentFlags().Lookup("baseUri"))
 	if err != nil {
 		os.Exit(1)
 	}
 
 	rootCmd.AddCommand(newHelloCmd())
+	rootCmd.AddCommand(projects.NewProjectsCmd())
 	rootCmd.AddCommand(setupCmd)
 }

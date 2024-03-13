@@ -12,7 +12,6 @@ func TestHelloCmd(t *testing.T) {
 	t.Run("with no options", func(t *testing.T) {
 		expected := `{"hello": "world"}`
 		actual := new(bytes.Buffer)
-
 		rootCmd.SetOut(actual)
 		rootCmd.SetErr(actual)
 		rootCmd.SetArgs([]string{"hello"})
