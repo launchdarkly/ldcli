@@ -1,48 +1,82 @@
-/*
-Copyright © 2024 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
+	"errors"
+	"fmt"
 	"os"
 
+	errs "ld-cli/internal/errors"
+
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	"ld-cli/cmd/projects"
 )
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "ld-cli",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Use:     "ldcli",
+	Short:   "LaunchDarkly CLI",
+	Long:    "LaunchDarkly CLI to control your feature flags",
+	Version: "0.0.1", // TODO: set this based on release or use `cmd.SetVersionTemplate(s string)`
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	// Handle errors differently based on type.
+	// We don't want to show the usage if the user has the right structure but invalid data such as
+	// the wrong key.
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		os.Exit(1)
+		switch {
+		case errors.Is(err, errs.ErrInvalidBaseURI):
+			fmt.Fprintln(os.Stderr, err.Error())
+		case errors.Is(err, errs.ErrUnauthorized):
+			fmt.Fprintln(os.Stderr, err.Error())
+		default:
+			fmt.Println(rootCmd.ErrPrefix(), err.Error())
+			fmt.Println(rootCmd.UsageString())
+		}
 	}
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
+	var (
+		accessToken string
+		baseURI     string
+	)
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ld-cli.yaml)")
+	rootCmd.PersistentFlags().StringVarP(
+		&accessToken,
+		"accessToken",
+		"t",
+		"",
+		"LaunchDarkly personal access token",
+	)
+	err := rootCmd.MarkPersistentFlagRequired("accessToken")
+	if err != nil {
+		panic(err)
+	}
+	err = viper.BindPFlag("accessToken", rootCmd.PersistentFlags().Lookup("accessToken"))
+	if err != nil {
+		panic(err)
+	}
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
+	rootCmd.PersistentFlags().StringVarP(
+		&baseURI,
+		"baseUri",
+		"u",
+		"https://app.launchdarkly.com",
+		"LaunchDarkly base URI",
+	)
+	err = viper.BindPFlag("baseUri", rootCmd.PersistentFlags().Lookup("baseUri"))
+	if err != nil {
+		panic(err)
+	}
+
+	rootCmd.SetErrPrefix("")
+
+	rootCmd.AddCommand(projects.NewProjectsCmd())
 	rootCmd.AddCommand(setupCmd)
-
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
