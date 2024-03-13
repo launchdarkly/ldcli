@@ -57,9 +57,7 @@ func init() {
 		panic(err)
 	}
 	err = viper.BindPFlag("accessToken", rootCmd.PersistentFlags().Lookup("accessToken"))
-	if err != nil {
-		panic(err)
-	}
+
 	rootCmd.PersistentFlags().StringVarP(
 		&baseURI,
 		"baseUri",

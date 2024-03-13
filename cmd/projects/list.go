@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"ld-cli/internal/projects"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"ld-cli/internal/projects"
 )
 
 func NewListCmd() *cobra.Command {
@@ -36,7 +36,6 @@ func runList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// TODO: should this return response and let caller output or pass in stdout-ish interface?
 	fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 
 	return nil
