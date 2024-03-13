@@ -10,15 +10,16 @@ To run the Github Actions locally, you need to install the `act` tool.
 ```bash
 brew install act
 ```
-
-Then you can run the Github Actions locally by running the following command.
+You will also want to have the `gh` tool installed and authenticated.
 ```bash
-act -s GITHUB_TOKEN="$(gh auth token)"
+brew install gh
+gh auth login
 ```
 
-Note: You need to have the `gh` tool installed and authenticated.
-
-Example of how to run the `release-please` action locally.
+Example of how to run the `release-please` action locally. 
+`-s` flag is to pass in secrets (optional)
+`-j` flag is to specify the job to run (optional)
+`-W` flag is to specify the workflow file to run (optional)
 ```bash
 act -s GITHUB_TOKEN="$(gh auth token)" -j release-please -W ./.github/workflows/release-please.yml
 ```
