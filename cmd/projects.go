@@ -23,6 +23,7 @@ func NewProjectsCmd() *cobra.Command {
 }
 
 func runProjectsGet(cmd *cobra.Command, args []string) error {
+	// TODO: handle missing flags
 	if viper.GetString("accessToken") == "" {
 		return errors.New("accessToken required")
 	}

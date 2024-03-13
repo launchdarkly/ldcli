@@ -39,7 +39,6 @@ func (c ProjectsClient) List(ctx context.Context) (*ldapi.Projects, error) {
 	return projects, nil
 }
 
-// func ListProjects(accessToken string, basePath string) ([]byte, error) {
 func ListProjects(ctx context.Context, client2 Client) ([]byte, error) {
 	projects, err := client2.List(ctx)
 	if err != nil {
