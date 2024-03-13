@@ -30,7 +30,6 @@ func (c ProjectsClient) List(ctx context.Context) (*ldapi.Projects, error) {
 	projects, _, err := c.client.ProjectsApi.
 		GetProjects(ctx).
 		Limit(2).
-		Expand("environments").
 		Execute()
 	if err != nil {
 		// TODO: make this nicer
