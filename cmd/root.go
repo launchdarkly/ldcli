@@ -3,8 +3,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"ld-cli/internal/projects"
 	"os"
+
+	errs "ld-cli/internal/errors"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -16,7 +17,9 @@ var rootCmd = &cobra.Command{
 	Long:    "LaunchDarkly CLI to control your feature flags",
 	Version: "0.0.1", // TODO: set this based on release or use `cmd.SetVersionTemplate(s string)`
 
-	// handle errors differently based on type
+	// Handle errors differently based on type.
+	// We don't want to show the usage if the user has the right structure but invalid data such as
+	// the wrong key.
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
@@ -25,7 +28,7 @@ func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
 		switch {
-		case errors.Is(err, projects.ErrUnauthorized):
+		case errors.Is(err, errs.ErrUnauthorized):
 			fmt.Fprintln(os.Stderr, err.Error())
 		default:
 			fmt.Println(rootCmd.ErrPrefix(), err.Error())
@@ -59,7 +62,7 @@ func init() {
 		&baseURI,
 		"baseUri",
 		"u",
-		"http://localhost:3000",
+		"https://app.launchdarkly.com",
 		"LaunchDarkly base URI.",
 	)
 	err = viper.BindPFlag("baseUri", rootCmd.PersistentFlags().Lookup("baseUri"))

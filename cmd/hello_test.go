@@ -14,7 +14,7 @@ func TestHelloCmd(t *testing.T) {
 		actual := new(bytes.Buffer)
 		rootCmd.SetOut(actual)
 		rootCmd.SetErr(actual)
-		rootCmd.SetArgs([]string{"hello"})
+		rootCmd.SetArgs([]string{"hello", "--accessToken", "test"})
 
 		err := rootCmd.Execute()
 

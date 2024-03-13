@@ -2,13 +2,14 @@ package projects_test
 
 import (
 	"context"
-	"ld-cli/internal/projects"
+	"errors"
 	"testing"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"ld-cli/internal/projects"
 )
 
 func strPtr(s string) *string {
@@ -17,9 +18,15 @@ func strPtr(s string) *string {
 
 type GetProjectsResponse struct{}
 
-type MockClient struct{}
+type MockClient struct {
+	hasUnauthorizedErr bool
+}
 
 func (c MockClient) List(ctx context.Context) (*ldapi.Projects, error) {
+	if c.hasUnauthorizedErr {
+		return nil, errors.New("401 Unauthorized")
+	}
+
 	totalCount := int32(1)
 
 	return &ldapi.Projects{
@@ -85,12 +92,12 @@ func TestListProjects(t *testing.T) {
 	})
 
 	t.Run("with invalid accessToken is forbidden", func(t *testing.T) {
-		mockClient := MockClient{}
+		mockClient := MockClient{
+			hasUnauthorizedErr: true,
+		}
 
 		_, err := projects.ListProjects(context.Background(), mockClient)
 
 		assert.EqualError(t, err, "You are not authorized to make this request.")
 	})
 }
-
-// SilenceErrors

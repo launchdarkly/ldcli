@@ -3,7 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/url"
 
+	"ld-cli/internal/errors"
 	"ld-cli/internal/projects"
 
 	"github.com/spf13/cobra"
@@ -16,20 +18,19 @@ func NewProjectsCmd() *cobra.Command {
 		Short: "Return a list of projects.",
 		Long:  "Return a list of projects.",
 		RunE:  runProjectsGet,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			_, err := url.ParseRequestURI(viper.GetString("baseUri"))
+			if err != nil {
+				return errors.ErrInvalidBaseURI
+			}
+			return nil
+		},
 	}
 
 	return cmd
 }
 
 func runProjectsGet(cmd *cobra.Command, args []string) error {
-	// TODO: handle missing flags
-	// if viper.GetString("accessToken") == "" {
-	// 	return errors.New("accessToken required")
-	// }
-	// if viper.GetString("baseUri") == "" {
-	// 	return errors.New("baseUri required")
-	// }
-
 	client := projects.NewClient(
 		viper.GetString("accessToken"),
 		viper.GetString("baseUri"),
