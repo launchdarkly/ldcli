@@ -10,8 +10,8 @@ import (
 
 func TestHelloCmd(t *testing.T) {
 	t.Run("with no options", func(t *testing.T) {
-		actual := bytes.NewBufferString("")
 		expected := `{"hello": "world"}`
+		actual := new(bytes.Buffer)
 		rootCmd.SetOut(actual)
 		rootCmd.SetErr(actual)
 		rootCmd.SetArgs([]string{"hello"})
@@ -23,8 +23,8 @@ func TestHelloCmd(t *testing.T) {
 	})
 
 	t.Run("with the informal option", func(t *testing.T) {
-		actual := bytes.NewBufferString("")
 		expected := `{"hi": "world"}`
+		actual := new(bytes.Buffer)
 		rootCmd.SetOut(actual)
 		rootCmd.SetErr(actual)
 		rootCmd.SetArgs([]string{"hello", "--informal"})
