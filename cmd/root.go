@@ -51,7 +51,6 @@ func init() {
 		os.Exit(1)
 	}
 
-	rootCmd.AddCommand(newHelloCmd())
 	rootCmd.AddCommand(projects.NewProjectsCmd())
 	rootCmd.AddCommand(setupCmd)
 }
