@@ -107,8 +107,8 @@ func (d envDelegate) Render(w io.Writer, m list.Model, index int, listItem list.
 
 func environmentsToItems(environments []environment) []list.Item {
 	items := make([]list.Item, len(environments))
-	for i, proj := range environments {
-		items[i] = list.Item(proj)
+	for i, e := range environments {
+		items[i] = list.Item(e)
 	}
 
 	return items

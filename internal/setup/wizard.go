@@ -62,9 +62,9 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.currStep {
 			case autoCreateStep:
 				model, _ := m.steps[autoCreateStep].Update(msg)
-				f, ok := model.(autoCreateModel)
+				p, ok := model.(autoCreateModel)
 				if ok {
-					m.useRecommendedResources = f.choice == "Yes"
+					m.useRecommendedResources = p.choice == "yes"
 					if !m.useRecommendedResources {
 						projModel, _ := m.steps[projectsStep].Update(fetchProjects{})
 						// we need to cast this to get the data out of it, but maybe we can create our own interface with

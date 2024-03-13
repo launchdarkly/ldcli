@@ -4,21 +4,55 @@ package setup
 // program after the Bubble Tea has exited.
 
 import (
+	"fmt"
+	"io"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-var choices = []string{"Yes", "No"}
-var title = "Do you want to get started with our recommended project, environment, and flag?"
+var (
+	choiceStyle             = lipgloss.NewStyle().PaddingLeft(4)
+	selectedChoiceItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
+
+	_ list.Item = choice{}
+)
+
+type choice struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+func (p choice) FilterValue() string { return "" }
 
 type autoCreateModel struct {
-	cursor int
 	choice string
+	err    error
+	list   list.Model
 }
 
 func NewAutoCreate() autoCreateModel {
-	return autoCreateModel{}
+	choices := []choice{
+		{
+			Key:  "yes",
+			Name: "Yes",
+		},
+		{
+			Key:  "no",
+			Name: "No",
+		},
+	}
+	l := list.New(choicesToItems(choices), autoCreateDelegate{}, 85, 14)
+	l.Title = "Do you want to get started with our recommended project, environment, and flag?"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+
+	return autoCreateModel{
+		list: l,
+	}
 }
 
 func (m autoCreateModel) Init() tea.Cmd {
@@ -26,48 +60,57 @@ func (m autoCreateModel) Init() tea.Cmd {
 }
 
 func (m autoCreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q", "esc":
-			return m, tea.Quit
-
-		case "enter":
-			// Send the choice on the channel and exit.
-			m.choice = choices[m.cursor]
-			return m, tea.Quit
-
-		case "down", "j":
-			m.cursor++
-			if m.cursor >= len(choices) {
-				m.cursor = 0
+		switch {
+		case key.Matches(msg, keys.Enter):
+			i, ok := m.list.SelectedItem().(choice)
+			if ok {
+				m.choice = i.Key
 			}
-
-		case "up", "k":
-			m.cursor--
-			if m.cursor < 0 {
-				m.cursor = len(choices) - 1
-			}
+		case key.Matches(msg, keys.Quit):
+			return m, tea.Quit
+		default:
+			m.list, cmd = m.list.Update(msg)
 		}
 	}
 
-	return m, nil
+	return m, cmd
 }
 
 func (m autoCreateModel) View() string {
-	s := strings.Builder{}
-	s.WriteString(title + "\n\n")
+	return "\n" + m.list.View()
+}
 
-	for i := 0; i < len(choices); i++ {
-		if m.cursor == i {
-			s.WriteString("(•) ")
-		} else {
-			s.WriteString("( ) ")
-		}
-		s.WriteString(choices[i])
-		s.WriteString("\n")
+type autoCreateDelegate struct{}
+
+func (d autoCreateDelegate) Height() int                             { return 1 }
+func (d autoCreateDelegate) Spacing() int                            { return 0 }
+func (d autoCreateDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d autoCreateDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	i, ok := listItem.(choice)
+	if !ok {
+		return
 	}
-	s.WriteString("\n(press q to quit)\n")
 
-	return s.String()
+	str := i.Name
+
+	fn := choiceStyle.Render
+	if index == m.Index() {
+		fn = func(s ...string) string {
+			return selectedChoiceItemStyle.Render("> " + strings.Join(s, " "))
+		}
+	}
+
+	fmt.Fprint(w, fn(str))
+}
+
+func choicesToItems(choices []choice) []list.Item {
+	items := make([]list.Item, len(choices))
+	for i, c := range choices {
+		items[i] = list.Item(c)
+	}
+
+	return items
 }
