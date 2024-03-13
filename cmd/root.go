@@ -14,7 +14,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "ld-cli",
+	Use:     "ldcli",
 	Short:   "LaunchDarkly CLI",
 	Long:    "LaunchDarkly CLI to control your feature flags",
 	Version: "0.0.1", // TODO: set this based on release or use `cmd.SetVersionTemplate(s string)`
