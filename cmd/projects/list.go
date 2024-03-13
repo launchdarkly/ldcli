@@ -1,28 +1,29 @@
-package cmd
+package projects
 
 import (
 	"context"
 	"errors"
 	"fmt"
-
 	"ld-cli/internal/projects"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-func NewProjectsCmd() *cobra.Command {
+func NewListCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "projects",
-		Short: "Return a list of projects.",
-		Long:  "Return a list of projects.",
-		RunE:  runProjectsGet,
+		Use:   "list",
+		Short: "Return a list of projects",
+		Long:  "Return a list of projects",
+		RunE:  runList,
 	}
+
+	cmd.AddCommand()
 
 	return cmd
 }
 
-func runProjectsGet(cmd *cobra.Command, args []string) error {
+func runList(cmd *cobra.Command, args []string) error {
 	// TODO: handle missing flags
 	if viper.GetString("accessToken") == "" {
 		return errors.New("accessToken required")

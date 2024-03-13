@@ -5,6 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"ld-cli/cmd/projects"
 )
 
 var rootCmd = &cobra.Command{
@@ -31,7 +33,7 @@ func init() {
 		"accessToken",
 		"t",
 		"",
-		"LaunchDarkly personal access token.",
+		"LaunchDarkly personal access token",
 	)
 	err := viper.BindPFlag("accessToken", rootCmd.PersistentFlags().Lookup("accessToken"))
 	if err != nil {
@@ -42,7 +44,7 @@ func init() {
 		"baseUri",
 		"u",
 		"http://localhost:3000",
-		"LaunchDarkly base URI.",
+		"LaunchDarkly base URI",
 	)
 	err = viper.BindPFlag("baseUri", rootCmd.PersistentFlags().Lookup("baseUri"))
 	if err != nil {
@@ -50,6 +52,6 @@ func init() {
 	}
 
 	rootCmd.AddCommand(newHelloCmd())
-	rootCmd.AddCommand(NewProjectsCmd())
+	rootCmd.AddCommand(projects.NewProjectsCmd())
 	rootCmd.AddCommand(setupCmd)
 }
