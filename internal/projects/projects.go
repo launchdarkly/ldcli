@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
+
+	"ld-cli/internal/errors"
 )
 
 type Client interface {
@@ -32,22 +34,19 @@ func (c ProjectsClient) List(ctx context.Context) (*ldapi.Projects, error) {
 		Limit(2).
 		Execute()
 	if err != nil {
-		// TODO: make this nicer
 		return nil, err
 	}
 
 	return projects, nil
 }
 
-func ListProjects(ctx context.Context, client2 Client) ([]byte, error) {
-	projects, err := client2.List(ctx)
+func ListProjects(ctx context.Context, client Client) ([]byte, error) {
+	projects, err := client.List(ctx)
 	if err != nil {
-		// 401 - should return unauthorized type error with body(?)
-		// 404 - should return not found type error with body
-		e, ok := err.(ldapi.GenericOpenAPIError)
-		if ok {
-			return e.Body(), err
+		if err.Error() == "401 Unauthorized" {
+			return nil, errors.ErrUnauthorized
 		}
+
 		return nil, err
 	}
 
