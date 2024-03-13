@@ -10,7 +10,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "ld-cli",
+	Use:   "ldcli",
 	Short: "LaunchDarkly CLI",
 	Long:  "LaunchDarkly CLI to control your feature flags",
 }
