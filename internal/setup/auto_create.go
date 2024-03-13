@@ -22,7 +22,6 @@ var (
 )
 
 type choice struct {
-	Key  string `json:"key"`
 	Name string `json:"name"`
 }
 
@@ -37,11 +36,9 @@ type autoCreateModel struct {
 func NewAutoCreate() autoCreateModel {
 	choices := []choice{
 		{
-			Key:  "yes",
 			Name: "Yes",
 		},
 		{
-			Key:  "no",
 			Name: "No",
 		},
 	}
@@ -67,7 +64,7 @@ func (m autoCreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Enter):
 			i, ok := m.list.SelectedItem().(choice)
 			if ok {
-				m.choice = i.Key
+				m.choice = i.Name
 			}
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit

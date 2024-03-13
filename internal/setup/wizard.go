@@ -64,8 +64,15 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				model, _ := m.steps[autoCreateStep].Update(msg)
 				p, ok := model.(autoCreateModel)
 				if ok {
-					m.useRecommendedResources = p.choice == "yes"
-					if !m.useRecommendedResources {
+					m.useRecommendedResources = p.choice == "Yes"
+					if m.useRecommendedResources {
+						// create project, environment, and flag
+						// go to step after flagsStep
+						m.currProjectKey = "setup-wizard-project"
+						m.currEnvironmentKey = "test"
+						m.currFlagKey = "setup-wizard-flag"
+						m.currStep = flagsStep + 1
+					} else {
 						projModel, _ := m.steps[projectsStep].Update(fetchProjects{})
 						// we need to cast this to get the data out of it, but maybe we can create our own interface with
 						// common values such as Choice() and Err() so we don't have to cast
@@ -80,13 +87,6 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.steps[projectsStep] = projModel
 						// go to the next step
 						m.currStep += 1
-					} else {
-						// create project, environment, and flag
-						// go to step after flagsStep
-						m.currProjectKey = "setup-wizard-project"
-						m.currEnvironmentKey = "test"
-						m.currFlagKey = "setup-wizard-flag"
-						m.currStep = flagsStep + 1
 					}
 				}
 			case projectsStep:
