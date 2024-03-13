@@ -19,10 +19,14 @@ func strPtr(s string) *string {
 type GetProjectsResponse struct{}
 
 type MockClient struct {
+	hasForbiddenErr    bool
 	hasUnauthorizedErr bool
 }
 
 func (c MockClient) List(ctx context.Context) (*ldapi.Projects, error) {
+	if c.hasForbiddenErr {
+		return nil, errors.New("403 Forbidden")
+	}
 	if c.hasUnauthorizedErr {
 		return nil, errors.New("401 Unauthorized")
 	}
@@ -91,13 +95,23 @@ func TestListProjects(t *testing.T) {
 		assert.JSONEq(t, expected, string(response))
 	})
 
-	t.Run("with invalid accessToken is forbidden", func(t *testing.T) {
+	t.Run("without access is forbidden", func(t *testing.T) {
+		mockClient := MockClient{
+			hasForbiddenErr: true,
+		}
+
+		_, err := projects.ListProjects(context.Background(), mockClient)
+
+		assert.EqualError(t, err, "You do not have permission to make this request")
+	})
+
+	t.Run("with invalid accessToken is unauthorized", func(t *testing.T) {
 		mockClient := MockClient{
 			hasUnauthorizedErr: true,
 		}
 
 		_, err := projects.ListProjects(context.Background(), mockClient)
 
-		assert.EqualError(t, err, "You are not authorized to make this request.")
+		assert.EqualError(t, err, "You are not authorized to make this request")
 	})
 }

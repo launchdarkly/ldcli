@@ -43,11 +43,14 @@ func (c ProjectsClient) List(ctx context.Context) (*ldapi.Projects, error) {
 func ListProjects(ctx context.Context, client Client) ([]byte, error) {
 	projects, err := client.List(ctx)
 	if err != nil {
-		if err.Error() == "401 Unauthorized" {
+		switch err.Error() {
+		case "401 Unauthorized":
 			return nil, errors.ErrUnauthorized
+		case "403 Forbidden":
+			return nil, errors.ErrForbidden
+		default:
+			return nil, err
 		}
-
-		return nil, err
 	}
 
 	projectsJSON, err := json.Marshal(projects)
