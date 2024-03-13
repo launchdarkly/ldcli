@@ -4,8 +4,6 @@ package setup
 // program after the Bubble Tea has exited.
 
 import (
-	"fmt"
-	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,20 +12,20 @@ import (
 var choices = []string{"Yes", "No"}
 var title = "Do you want to get started with our recommended project, environment, and flag?"
 
-type forkModel struct {
+type autoCreateModel struct {
 	cursor int
 	choice string
 }
 
-func NewFork() forkModel {
-	return forkModel{}
+func NewAutoCreate() autoCreateModel {
+	return autoCreateModel{}
 }
 
-func (m forkModel) Init() tea.Cmd {
+func (m autoCreateModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m forkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m autoCreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -56,7 +54,7 @@ func (m forkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m forkModel) View() string {
+func (m autoCreateModel) View() string {
 	s := strings.Builder{}
 	s.WriteString(title + "\n\n")
 
@@ -72,20 +70,4 @@ func (m forkModel) View() string {
 	s.WriteString("\n(press q to quit)\n")
 
 	return s.String()
-}
-
-func main() {
-	p := tea.NewProgram(forkModel{})
-
-	// Run returns the model as a tea.Model.
-	m, err := p.Run()
-	if err != nil {
-		fmt.Println("Oh no:", err)
-		os.Exit(1)
-	}
-
-	// Assert the final tea.Model to our local model and print the choice.
-	if m, ok := m.(forkModel); ok && m.choice != "" {
-		fmt.Printf("\n---\nYou chose %s!\n", m.choice)
-	}
 }
