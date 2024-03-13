@@ -30,6 +30,8 @@ func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
 		switch {
+		case errors.Is(err, errs.ErrInvalidBaseURI):
+			fmt.Fprintln(os.Stderr, err.Error())
 		case errors.Is(err, errs.ErrUnauthorized):
 			fmt.Fprintln(os.Stderr, err.Error())
 		default:
@@ -57,6 +59,9 @@ func init() {
 		panic(err)
 	}
 	err = viper.BindPFlag("accessToken", rootCmd.PersistentFlags().Lookup("accessToken"))
+	if err != nil {
+		panic(err)
+	}
 
 	rootCmd.PersistentFlags().StringVarP(
 		&baseURI,
