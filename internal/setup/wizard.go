@@ -12,7 +12,7 @@ type sessionState int
 
 // list of steps in the wizard
 const (
-	initialStep sessionState = iota
+	autoCreateStep sessionState = iota
 	projectsStep
 	environmentsStep
 	flagsStep
@@ -21,13 +21,14 @@ const (
 // WizardModel is a high level container model that controls the nested models which each
 // represent a step in the setup wizard.
 type WizardModel struct {
-	quitting           bool
-	err                error
-	currStep           sessionState
-	steps              []tea.Model
-	currProjectKey     string
-	currEnvironmentKey string
-	currFlagKey        string
+	quitting                bool
+	err                     error
+	currStep                sessionState
+	steps                   []tea.Model
+	useRecommendedResources bool
+	currProjectKey          string
+	currEnvironmentKey      string
+	currFlagKey             string
 }
 
 func NewWizardModel() tea.Model {
@@ -35,13 +36,14 @@ func NewWizardModel() tea.Model {
 		// Since there isn't a model for the initial step, the currStep value will always be one ahead of the step in
 		// this slice. It may be convenient to add a model for the initial step to contain its own view logic and to
 		// prevent this off-by-one issue.
+		NewAutoCreate(),
 		NewProject(),
 		NewEnvironment(),
-		Newflag(),
+		NewFlag(),
 	}
 
 	return WizardModel{
-		currStep: initialStep,
+		currStep: autoCreateStep,
 		steps:    steps,
 	}
 }
@@ -58,38 +60,51 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.Enter):
 			switch m.currStep {
-			case initialStep:
-				projModel, _ := m.steps[m.currStep].Update(fetchProjects{})
-				// we need to cast this to get the data out of it, but maybe we can create our own interface with
-				// common values such as Choice() and Err() so we don't have to cast
-				p, ok := projModel.(projectModel)
+			case autoCreateStep:
+				model, _ := m.steps[autoCreateStep].Update(msg)
+				p, ok := model.(autoCreateModel)
 				if ok {
-					if p.err != nil {
-						m.err = p.err
-						return m, nil
+					m.useRecommendedResources = p.choice == "Yes"
+					if m.useRecommendedResources {
+						// create project, environment, and flag
+						// go to step after flagsStep
+						m.currProjectKey = "setup-wizard-project"
+						m.currEnvironmentKey = "test"
+						m.currFlagKey = "setup-wizard-flag"
+						m.currStep = flagsStep + 1
+					} else {
+						projModel, _ := m.steps[projectsStep].Update(fetchProjects{})
+						// we need to cast this to get the data out of it, but maybe we can create our own interface with
+						// common values such as Choice() and Err() so we don't have to cast
+						p, ok := projModel.(projectModel)
+						if ok {
+							if p.err != nil {
+								m.err = p.err
+								return m, nil
+							}
+						}
+						// update projModel with the fetched projects
+						m.steps[projectsStep] = projModel
+						// go to the next step
+						m.currStep += 1
 					}
 				}
-
-				// update the nested model
-				m.steps[m.currStep] = projModel
-				// go to the next step
-				m.currStep += 1
 			case projectsStep:
-				projModel, _ := m.steps[m.currStep-1].Update(msg)
+				projModel, _ := m.steps[projectsStep].Update(msg)
 				p, ok := projModel.(projectModel)
 				if ok {
 					m.currProjectKey = p.choice
 					m.currStep += 1
 				}
 			case environmentsStep:
-				envModel, _ := m.steps[m.currStep-1].Update(msg)
+				envModel, _ := m.steps[environmentsStep].Update(msg)
 				p, ok := envModel.(environmentModel)
 				if ok {
 					m.currEnvironmentKey = p.choice
 					m.currStep += 1
 				}
 			case flagsStep:
-				model, _ := m.steps[m.currStep-1].Update(msg)
+				model, _ := m.steps[flagsStep].Update(msg)
 				f, ok := model.(flagModel)
 				if ok {
 					m.currFlagKey = f.choice
@@ -100,15 +115,15 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, keys.Back):
 			// only go back if not on the first step
-			if m.currStep > initialStep {
+			if m.currStep > autoCreateStep {
 				m.currStep -= 1
 			}
 		case key.Matches(msg, keys.Quit):
 			m.quitting = true
 			return m, tea.Quit
 		default:
-			updatedModel, _ := m.steps[m.currStep-1].Update(msg)
-			m.steps[m.currStep-1] = updatedModel
+			updatedModel, _ := m.steps[m.currStep].Update(msg)
+			m.steps[m.currStep] = updatedModel
 		}
 	}
 
@@ -124,15 +139,11 @@ func (m WizardModel) View() string {
 		return fmt.Sprintf("ERROR: %s", m.err)
 	}
 
-	if m.currStep == initialStep {
-		return "welcome"
-	}
-
 	if m.currStep > flagsStep {
 		return fmt.Sprintf("envKey is %s, projKey is %s, flagKey is %s", m.currEnvironmentKey, m.currProjectKey, m.currFlagKey)
 	}
 
-	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep-1].View(), m.currStep, len(m.steps))
+	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
 }
 
 type keyMap struct {

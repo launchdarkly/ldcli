@@ -31,7 +31,7 @@ type flagModel struct {
 	list   list.Model
 }
 
-func Newflag() tea.Model {
+func NewFlag() tea.Model {
 	flags := []flag{
 		{
 			Key:  "flag1",
