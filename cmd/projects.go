@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"ld-cli/internal/projects"
@@ -24,12 +23,12 @@ func NewProjectsCmd() *cobra.Command {
 
 func runProjectsGet(cmd *cobra.Command, args []string) error {
 	// TODO: handle missing flags
-	if viper.GetString("accessToken") == "" {
-		return errors.New("accessToken required")
-	}
-	if viper.GetString("baseUri") == "" {
-		return errors.New("baseUri required")
-	}
+	// if viper.GetString("accessToken") == "" {
+	// 	return errors.New("accessToken required")
+	// }
+	// if viper.GetString("baseUri") == "" {
+	// 	return errors.New("baseUri required")
+	// }
 
 	client := projects.NewClient(
 		viper.GetString("accessToken"),

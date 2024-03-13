@@ -85,5 +85,12 @@ func TestListProjects(t *testing.T) {
 	})
 
 	t.Run("with invalid accessToken is forbidden", func(t *testing.T) {
+		mockClient := MockClient{}
+
+		_, err := projects.ListProjects(context.Background(), mockClient)
+
+		assert.EqualError(t, err, "You are not authorized to make this request.")
 	})
 }
+
+// SilenceErrors

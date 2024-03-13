@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"errors"
+	"fmt"
+	"ld-cli/internal/projects"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -8,15 +11,26 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "ld-cli",
-	Short: "LaunchDarkly CLI",
-	Long:  "LaunchDarkly CLI to control your feature flags",
+	Use:     "ld-cli",
+	Short:   "LaunchDarkly CLI",
+	Long:    "LaunchDarkly CLI to control your feature flags",
+	Version: "0.0.1", // TODO: set this based on release or use `cmd.SetVersionTemplate(s string)`
+
+	// handle errors differently based on type
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		os.Exit(1)
+		switch {
+		case errors.Is(err, projects.ErrUnauthorized):
+			fmt.Fprintln(os.Stderr, err.Error())
+		default:
+			fmt.Println(rootCmd.ErrPrefix(), err.Error())
+			fmt.Println(rootCmd.UsageString())
+		}
 	}
 }
 
@@ -33,9 +47,13 @@ func init() {
 		"",
 		"LaunchDarkly personal access token.",
 	)
-	err := viper.BindPFlag("accessToken", rootCmd.PersistentFlags().Lookup("accessToken"))
+	err := rootCmd.MarkPersistentFlagRequired("accessToken")
 	if err != nil {
-		os.Exit(1)
+		panic(err)
+	}
+	err = viper.BindPFlag("accessToken", rootCmd.PersistentFlags().Lookup("accessToken"))
+	if err != nil {
+		panic(err)
 	}
 	rootCmd.PersistentFlags().StringVarP(
 		&baseURI,
@@ -46,8 +64,10 @@ func init() {
 	)
 	err = viper.BindPFlag("baseUri", rootCmd.PersistentFlags().Lookup("baseUri"))
 	if err != nil {
-		os.Exit(1)
+		panic(err)
 	}
+
+	rootCmd.SetErrPrefix("")
 
 	rootCmd.AddCommand(newHelloCmd())
 	rootCmd.AddCommand(NewProjectsCmd())

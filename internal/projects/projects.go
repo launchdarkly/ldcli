@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 )
@@ -39,14 +40,22 @@ func (c ProjectsClient) List(ctx context.Context) (*ldapi.Projects, error) {
 	return projects, nil
 }
 
-func ListProjects(ctx context.Context, client2 Client) ([]byte, error) {
-	projects, err := client2.List(ctx)
+var (
+	ErrUnauthorized = errors.New("You are not authorized to make this request.")
+)
+
+func ListProjects(ctx context.Context, client Client) ([]byte, error) {
+	projects, err := client.List(ctx)
 	if err != nil {
 		// 401 - should return unauthorized type error with body(?)
-		// 404 - should return not found type error with body
-		e, ok := err.(ldapi.GenericOpenAPIError)
+		e, ok := err.(*ldapi.GenericOpenAPIError)
 		if ok {
-			return e.Body(), err
+			switch e.Model().(type) {
+			case ldapi.UnauthorizedErrorRep:
+				return []byte(""), ErrUnauthorized
+			default:
+				return []byte(""), err
+			}
 		}
 		return nil, err
 	}
