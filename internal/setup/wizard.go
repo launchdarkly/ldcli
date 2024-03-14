@@ -12,7 +12,8 @@ type sessionState int
 
 // list of steps in the wizard
 const (
-	autoCreateStep sessionState = iota
+	loginStep sessionState = iota
+	autoCreateStep
 	projectsStep
 	environmentsStep
 	flagsStep
@@ -36,6 +37,7 @@ func NewWizardModel() tea.Model {
 		// Since there isn't a model for the initial step, the currStep value will always be one ahead of the step in
 		// this slice. It may be convenient to add a model for the initial step to contain its own view logic and to
 		// prevent this off-by-one issue.
+		NewLogin(),
 		NewAutoCreate(),
 		NewProject(),
 		NewEnvironment(),
@@ -43,7 +45,7 @@ func NewWizardModel() tea.Model {
 	}
 
 	return WizardModel{
-		currStep: autoCreateStep,
+		currStep: 0,
 		steps:    steps,
 	}
 }
@@ -60,6 +62,12 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.Enter):
 			switch m.currStep {
+			case loginStep:
+				model, _ := m.steps[loginStep].Update(msg)
+				_, ok := model.(loginModel)
+				if ok {
+					m.currStep += 1
+				}
 			case autoCreateStep:
 				model, _ := m.steps[autoCreateStep].Update(msg)
 				p, ok := model.(autoCreateModel)
@@ -115,7 +123,7 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, keys.Back):
 			// only go back if not on the first step
-			if m.currStep > autoCreateStep {
+			if m.currStep > 0 {
 				m.currStep -= 1
 			}
 		case key.Matches(msg, keys.Quit):
