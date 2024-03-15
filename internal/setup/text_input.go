@@ -46,7 +46,7 @@ func (m textInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m textInputModel) View() string {
 	return fmt.Sprintf(
-		"%s?\n\n%s\n\n%s",
+		"%s:\n\n%s\n\n%s",
 		m.title,
 		m.textInput.View(),
 		"(esc to quit)",

@@ -69,24 +69,9 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				model, _ := m.steps[loginStep].Update(msg)
 				l, ok := model.(loginModel)
 				if ok {
+					m.steps[loginStep] = l
 					if l.loggedIn {
 						m.currStep += 1
-					} else {
-						if l.choice == "new-account" {
-							// open browser to create a new account or oauth
-							openbrowser("https://app.launchdarkly.com/signup")
-							successLoginModel, _ := m.steps[loginStep].Update(successfulLogin{})
-							m.steps[loginStep] = successLoginModel
-						} else if l.choice == "oauth" {
-							// open browser to oauth
-							openbrowser("https://app.launchdarkly.com/oauth/authorize?client_id=launchdarkly-cli&response_type=token&redirect_uri=https://app.launchdarkly.com/cli/oauth/callback")
-							successLoginModel, _ := m.steps[loginStep].Update(successfulLogin{})
-							m.steps[loginStep] = successLoginModel
-						} else if l.choice == "access-token" || l.choice == "service-token" {
-							// show tokenTextInput
-							loginModelWithTextInput, _ := m.steps[loginStep].Update(showInput{tokenType: l.choice})
-							m.steps[loginStep] = loginModelWithTextInput
-						}
 					}
 				}
 			case autoCreateStep:
