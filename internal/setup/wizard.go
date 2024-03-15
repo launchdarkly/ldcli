@@ -2,6 +2,8 @@ package setup
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,6 +18,7 @@ const (
 	projectsStep
 	environmentsStep
 	flagsStep
+	sdksStep
 )
 
 // WizardModel is a high level container model that controls the nested models which each
@@ -29,6 +32,7 @@ type WizardModel struct {
 	currProjectKey          string
 	currEnvironmentKey      string
 	currFlagKey             string
+	currSdk                 sdk
 }
 
 func NewWizardModel() tea.Model {
@@ -40,6 +44,7 @@ func NewWizardModel() tea.Model {
 		NewProject(),
 		NewEnvironment(),
 		NewFlag(),
+		NewSdk(),
 	}
 
 	return WizardModel{
@@ -110,10 +115,22 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currFlagKey = f.choice
 					m.currStep += 1
 				}
+			case sdksStep:
+				model, _ := m.steps[sdksStep].Update(msg)
+				f, ok := model.(sdkModel)
+				if ok {
+					m.currSdk = f.choice
+					m.currStep += 1
+				}
 				// add additional cases for additional steps
 			default:
 			}
 		case key.Matches(msg, keys.Back):
+			// if we've opted to use recommended resources but want to go back from the SDK step,
+			// make sure we go back to the right step
+			if m.useRecommendedResources && m.currStep == sdksStep {
+				m.currStep = autoCreateStep
+			}
 			// only go back if not on the first step
 			if m.currStep > autoCreateStep {
 				m.currStep -= 1
@@ -139,8 +156,20 @@ func (m WizardModel) View() string {
 		return fmt.Sprintf("ERROR: %s", m.err)
 	}
 
-	if m.currStep > flagsStep {
-		return fmt.Sprintf("envKey is %s, projKey is %s, flagKey is %s", m.currEnvironmentKey, m.currProjectKey, m.currFlagKey)
+	if m.currStep > sdksStep {
+		content, err := os.ReadFile(m.currSdk.InstructionsFileName)
+		if err != nil {
+			fmt.Println("could not load file:", err)
+			os.Exit(1)
+		}
+		sdkInstructions := strings.ReplaceAll(string(content), "my-flag-key", m.currFlagKey)
+		return fmt.Sprintf(
+			"Selected project:     %s\nSelected environment: %s\n\nSet up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
+			m.currProjectKey,
+			m.currEnvironmentKey,
+			m.currSdk.Name,
+			sdkInstructions,
+		)
 	}
 
 	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
