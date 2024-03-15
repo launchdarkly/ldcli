@@ -1,8 +1,5 @@
 package setup
 
-// A simple example that shows how to retrieve a value from a Bubble Tea
-// program after the Bubble Tea has exited.
-
 import (
 	"fmt"
 	"io"
@@ -10,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -21,13 +19,16 @@ type loginMethod struct {
 func (p loginMethod) FilterValue() string { return "" }
 
 type loginModel struct {
-	choice string
-	err    error
-	list   list.Model
+	choice     string
+	loggedIn   bool
+	showInput  bool
+	err        error
+	list       list.Model
+	tokenInput textInputModel
 }
 
 func NewLogin() loginModel {
-	choices := []loginMethod{
+	loginMethods := []loginMethod{
 		{
 			Label: "Create a new account",
 			Key:   "new-account",
@@ -45,10 +46,11 @@ func NewLogin() loginModel {
 			Key:   "service-token",
 		},
 	}
-	l := list.New(loginMethodsToItems(choices), loginDelegate{}, 30, 14)
+	l := list.New(loginMethodsToItems(loginMethods), loginDelegate{}, 30, 14)
 	l.Title = "Log Into LaunchDarkly"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
+	l.SetShowFilter(false)
 
 	return loginModel{
 		list: l,
@@ -62,6 +64,30 @@ func (m loginModel) Init() tea.Cmd {
 func (m loginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case showInput:
+		ti := textinput.New()
+		ti.Placeholder = "Pikachu"
+		ti.Focus()
+		ti.CharLimit = 156
+		ti.Width = 20
+
+		m.showInput = true
+		m.tokenInput = textInputModel{
+			title:     "Enter your " + msg.tokenType + " token",
+			textInput: ti,
+			err:       nil,
+		}
+	case successfulLogin:
+		m.loggedIn = true
+		success := []loginMethod{
+			{
+				Label: "Logged in!",
+				Key:   "logged-in",
+			},
+		}
+		m.list.SetItems(loginMethodsToItems(success))
+		m.list.FilterInput.SetCursor(0)
+
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Enter):
@@ -80,6 +106,9 @@ func (m loginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m loginModel) View() string {
+	if m.showInput {
+		return "\n" + m.tokenInput.View()
+	}
 	return "\n" + m.list.View()
 }
 
@@ -113,4 +142,10 @@ func loginMethodsToItems(loginMethods []loginMethod) []list.Item {
 	}
 
 	return items
+}
+
+type successfulLogin struct{}
+
+type showInput struct {
+	tokenType string
 }

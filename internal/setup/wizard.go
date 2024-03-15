@@ -2,6 +2,9 @@ package setup
 
 import (
 	"fmt"
+	"log"
+	"os/exec"
+	"runtime"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -64,9 +67,27 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.currStep {
 			case loginStep:
 				model, _ := m.steps[loginStep].Update(msg)
-				_, ok := model.(loginModel)
+				l, ok := model.(loginModel)
 				if ok {
-					m.currStep += 1
+					if l.loggedIn {
+						m.currStep += 1
+					} else {
+						if l.choice == "new-account" {
+							// open browser to create a new account or oauth
+							openbrowser("https://app.launchdarkly.com/signup")
+							successLoginModel, _ := m.steps[loginStep].Update(successfulLogin{})
+							m.steps[loginStep] = successLoginModel
+						} else if l.choice == "oauth" {
+							// open browser to oauth
+							openbrowser("https://app.launchdarkly.com/oauth/authorize?client_id=launchdarkly-cli&response_type=token&redirect_uri=https://app.launchdarkly.com/cli/oauth/callback")
+							successLoginModel, _ := m.steps[loginStep].Update(successfulLogin{})
+							m.steps[loginStep] = successLoginModel
+						} else if l.choice == "access-token" || l.choice == "service-token" {
+							// show tokenTextInput
+							loginModelWithTextInput, _ := m.steps[loginStep].Update(showInput{tokenType: l.choice})
+							m.steps[loginStep] = loginModelWithTextInput
+						}
+					}
 				}
 			case autoCreateStep:
 				model, _ := m.steps[autoCreateStep].Update(msg)
@@ -178,4 +199,23 @@ var keys = keyMap{
 		key.WithKeys("ctrl+c", "q"),
 		key.WithHelp("q", "quit"),
 	),
+}
+
+func openbrowser(url string) {
+	var err error
+
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+
 }
