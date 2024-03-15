@@ -44,7 +44,7 @@ func NewFlag() tea.Model {
 	}
 
 	l := list.New(flagsToItems(flags), flagDelegate{}, 30, 14)
-	l.Title = "Select an flag"
+	l.Title = "Select a flag"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 
