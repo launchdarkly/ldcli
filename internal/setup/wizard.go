@@ -3,9 +3,9 @@ package setup
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"runtime"
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -33,6 +33,8 @@ type WizardModel struct {
 	err                     error
 	currStep                sessionState
 	steps                   []tea.Model
+	inForm                  bool
+	tokenSecret             string
 	useRecommendedResources bool
 	currProjectKey          string
 	currEnvironmentKey      string
@@ -67,6 +69,33 @@ func (m WizardModel) Init() tea.Cmd {
 // Update controls all the messages passed around and delegates to the relevant nested model depending on which step
 // the user is on.
 func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// if we're handling form input, we'll respond to keystrokes differently
+	if m.inForm {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+			case key.Matches(msg, keys.Enter):
+				m.inForm = false
+				switch m.currStep {
+				case loginStep:
+					model, _ := m.steps[m.currStep].Update(msg)
+					l, ok := model.(loginModel)
+					if ok {
+						l.showInput = false
+						m.tokenSecret = l.tokenInput.textInput.Value()
+						m.steps[loginStep] = l
+						m.currStep += 1
+					}
+				}
+			case key.Matches(msg, keys.Back):
+			default:
+				model, _ := m.steps[m.currStep].Update(msg)
+				m.steps[m.currStep] = model
+			}
+			return m, nil
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -81,6 +110,8 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.steps[loginStep] = l
 					if l.loggedIn {
 						m.currStep += 1
+					} else if l.showInput {
+						m.inForm = true
 					}
 				}
 			case autoCreateStep:
