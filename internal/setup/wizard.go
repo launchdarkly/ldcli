@@ -161,6 +161,7 @@ func (m WizardModel) View() string {
 	}
 
 	if m.currStep > sdksStep {
+		// consider moving this to its own view (in a new model?)
 		content, err := os.ReadFile(m.currSdk.InstructionsFileName)
 		if err != nil {
 			fmt.Println("could not load file:", err)
