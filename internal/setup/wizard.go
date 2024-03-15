@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/muesli/reflow/wordwrap"
 )
 
 // TODO: we may want to rename this for clarity
@@ -33,6 +34,7 @@ type WizardModel struct {
 	currEnvironmentKey      string
 	currFlagKey             string
 	currSdk                 sdk
+	width                   int
 }
 
 func NewWizardModel() tea.Model {
@@ -61,6 +63,8 @@ func (m WizardModel) Init() tea.Cmd {
 // the user is on.
 func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Enter):
@@ -163,12 +167,14 @@ func (m WizardModel) View() string {
 			os.Exit(1)
 		}
 		sdkInstructions := strings.ReplaceAll(string(content), "my-flag-key", m.currFlagKey)
-		return fmt.Sprintf(
+		return wordwrap.String(fmt.Sprintf(
 			"Selected project:     %s\nSelected environment: %s\n\nSet up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
 			m.currProjectKey,
 			m.currEnvironmentKey,
 			m.currSdk.Name,
 			sdkInstructions,
+		),
+			m.width,
 		)
 	}
 
