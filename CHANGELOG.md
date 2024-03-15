@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0](https://github.com/launchdarkly/ld-cli/compare/v1.1.4...v1.2.0) (2024-03-15)
+
+
+### Features
+
+* Add auto create step in UI ([#10](https://github.com/launchdarkly/ld-cli/issues/10)) ([fb2fb5c](https://github.com/launchdarkly/ld-cli/commit/fb2fb5cf202af0966c264d217d92958174be250b))
+* add sdk wizard step ([#29](https://github.com/launchdarkly/ld-cli/issues/29)) ([c4dc7d0](https://github.com/launchdarkly/ld-cli/commit/c4dc7d0b4e6b540a14243a399982f7930f067ea8))
+* list projects err handling ([#21](https://github.com/launchdarkly/ld-cli/issues/21)) ([2ab3668](https://github.com/launchdarkly/ld-cli/commit/2ab3668be4a6cf2ef04dfd5fe25a3d14801030e6))
+
 ## [1.1.4](https://github.com/launchdarkly/ld-cli/compare/v1.1.3...v1.1.4) (2024-03-12)
 
 
