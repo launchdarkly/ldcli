@@ -26,13 +26,14 @@ type environment struct {
 func (p environment) FilterValue() string { return "" }
 
 type environmentModel struct {
-	choice string
-	err    error
-	list   list.Model
+	choice    string
+	err       error
+	list      list.Model
+	parentKey string
 }
 
-func NewEnvironment() tea.Model {
-	environments := []environment{
+var environments = map[string][]environment{
+	"proj1": {
 		{
 			Key:  "env1",
 			Name: "environment 1",
@@ -41,9 +42,38 @@ func NewEnvironment() tea.Model {
 			Key:  "env2",
 			Name: "environment 2",
 		},
-	}
+	},
+	"proj2": {
+		{
+			Key:  "env3",
+			Name: "environment 3",
+		},
+		{
+			Key:  "env4",
+			Name: "environment 4",
+		},
+	},
+	"proj3": {
+		{
+			Key:  "env5",
+			Name: "environment 5",
+		},
+		{
+			Key:  "env6",
+			Name: "environment 6",
+		},
+	},
+}
 
-	l := list.New(environmentsToItems(environments), envDelegate{}, 30, 14)
+func getEnvironments(projKey string) ([]environment, error) {
+	envList := environments[projKey]
+	createNewOption := environment{Key: CreateNewResourceKey, Name: "Create a new environment"}
+	envList = append(envList, createNewOption)
+	return envList, nil
+}
+
+func NewEnvironment() tea.Model {
+	l := list.New(nil, envDelegate{}, 30, 14)
 	l.Title = "Select an environment"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
@@ -57,10 +87,16 @@ func (p environmentModel) Init() tea.Cmd {
 	return nil
 }
 
-// This method has drifted from the ProjectModel's version, but it should do something similar.
 func (m environmentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case fetchResources:
+		envs, err := getEnvironments(m.parentKey)
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.list.SetItems(environmentsToItems(envs))
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Enter):
