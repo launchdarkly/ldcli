@@ -26,9 +26,11 @@ type project struct {
 func (p project) FilterValue() string { return "" }
 
 type projectModel struct {
-	choice string
-	err    error
-	list   list.Model
+	choice    string
+	err       error
+	list      list.Model
+	showInput bool
+	textInput tea.Model
 }
 
 func NewProject() tea.Model {
@@ -48,6 +50,26 @@ func (p projectModel) Init() tea.Cmd {
 
 func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	if m.showInput {
+		m.textInput, cmd = m.textInput.Update(msg)
+
+		// catch the enter key here to update the model when a final value is provided
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+			case key.Matches(msg, keys.Enter):
+				iModel, ok := m.textInput.(inputModel)
+				if ok {
+					m.choice = iModel.textInput.Value()
+					m.showInput = false
+				}
+				// TODO: send request to create project
+			}
+		default:
+
+		}
+		return m, cmd
+	}
 	switch msg := msg.(type) {
 	case fetchProjects:
 		projects, err := getProjects()
@@ -59,9 +81,16 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Enter):
+
 			i, ok := m.list.SelectedItem().(project)
 			if ok {
-				m.choice = i.Key
+				if i.Key == "create-new-project" {
+					iModel := newTextInputModel("desired-proj-key", "Enter project name")
+					m.textInput = iModel
+					m.showInput = true
+				} else {
+					m.choice = i.Key
+				}
 			}
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
@@ -74,7 +103,11 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m projectModel) View() string {
-	return "\n" + m.list.View()
+	if m.showInput {
+		return m.textInput.View()
+	}
+
+	return "\n" + fmt.Sprintf("showInput: %t", m.showInput) + m.list.View()
 }
 
 // projectDelegate is used for display the list and its elements.
@@ -129,6 +162,10 @@ func getProjects() ([]project, error) {
 		{
 			Key:  "proj3",
 			Name: "project 3",
+		},
+		{
+			Key:  "create-new-project",
+			Name: "Create a new project",
 		},
 	}, nil
 

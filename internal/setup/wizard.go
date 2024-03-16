@@ -103,7 +103,12 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				p, ok := projModel.(projectModel)
 				if ok {
 					m.currProjectKey = p.choice
-					m.currStep += 1
+					// update projModel with new input model
+					m.steps[projectsStep] = p
+					// only progress if we don't want to show input
+					if !p.showInput {
+						m.currStep += 1
+					}
 				}
 			case environmentsStep:
 				envModel, _ := m.steps[environmentsStep].Update(msg)
