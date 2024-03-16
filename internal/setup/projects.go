@@ -107,7 +107,7 @@ func (m projectModel) View() string {
 		return m.textInput.View()
 	}
 
-	return "\n" + fmt.Sprintf("showInput: %t", m.showInput) + m.list.View()
+	return "\n" + m.list.View()
 }
 
 // projectDelegate is used for display the list and its elements.
