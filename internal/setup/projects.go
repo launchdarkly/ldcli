@@ -73,7 +73,7 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	switch msg := msg.(type) {
-	case fetchProjects:
+	case fetchResources:
 		projects, err := getProjects()
 		if err != nil {
 			m.err = err
@@ -144,8 +144,6 @@ func projectsToItems(projects []project) []list.Item {
 
 	return items
 }
-
-type fetchProjects struct{}
 
 // type projectsResponse struct {
 // 	Items []project `json:"items"`

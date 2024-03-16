@@ -13,6 +13,9 @@ import (
 // TODO: we may want to rename this for clarity
 type sessionState int
 
+// generic message type to pass into each models' Update method when we want to perform a new GET request
+type fetchResources struct{}
+
 // list of steps in the wizard
 const (
 	autoCreateStep sessionState = iota
@@ -82,17 +85,8 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.currFlagKey = "setup-wizard-flag"
 						m.currStep = flagsStep + 1
 					} else {
-						projModel, _ := m.steps[projectsStep].Update(fetchProjects{})
-						p, ok := projModel.(projectModel)
-						if ok {
-							if p.err != nil {
-								m.err = p.err
-								return m, nil
-							}
-						}
-						// update projModel with the fetched projects
-						m.steps[projectsStep] = projModel
-						// go to the next step
+						// pre-load projects
+						m.steps[projectsStep], _ = m.steps[projectsStep].Update(fetchResources{})
 						m.currStep += 1
 					}
 				}
@@ -142,20 +136,8 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// only go back if not on the first step
 			if m.currStep > autoCreateStep {
-				// we'll want to get any newly created resources if we decide to go back a step
-				// we should be able to make the more generic but right now only checking going from env > proj
-				if m.currStep == environmentsStep {
-					projModel, _ := m.steps[projectsStep].Update(fetchProjects{})
-					p, ok := projModel.(projectModel)
-					if ok {
-						if p.err != nil {
-							m.err = p.err
-							return m, nil
-						}
-					}
-					// update projModel with the fetched projects
-					m.steps[projectsStep] = projModel
-				}
+				// fetch resources for the previous step again in case we created new ones
+				m.steps[m.currStep-1], _ = m.steps[m.currStep-1].Update(fetchResources{})
 				m.currStep -= 1
 			}
 		case key.Matches(msg, keys.Quit):
