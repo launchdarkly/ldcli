@@ -83,8 +83,6 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.currStep = flagsStep + 1
 					} else {
 						projModel, _ := m.steps[projectsStep].Update(fetchProjects{})
-						// we need to cast this to get the data out of it, but maybe we can create our own interface with
-						// common values such as Choice() and Err() so we don't have to cast
 						p, ok := projModel.(projectModel)
 						if ok {
 							if p.err != nil {
@@ -100,6 +98,8 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case projectsStep:
 				projModel, _ := m.steps[projectsStep].Update(msg)
+				// we need to cast this to get the data out of it, but maybe we can create our own interface with
+				// common values such as Choice() and Err() so we don't have to cast
 				p, ok := projModel.(projectModel)
 				if ok {
 					m.currProjectKey = p.choice
@@ -142,6 +142,20 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// only go back if not on the first step
 			if m.currStep > autoCreateStep {
+				// we'll want to get any newly created resources if we decide to go back a step
+				// we should be able to make the more generic but right now only checking going from env > proj
+				if m.currStep == environmentsStep {
+					projModel, _ := m.steps[projectsStep].Update(fetchProjects{})
+					p, ok := projModel.(projectModel)
+					if ok {
+						if p.err != nil {
+							m.err = p.err
+							return m, nil
+						}
+					}
+					// update projModel with the fetched projects
+					m.steps[projectsStep] = projModel
+				}
 				m.currStep -= 1
 			}
 		case key.Matches(msg, keys.Quit):
