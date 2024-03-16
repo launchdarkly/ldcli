@@ -7,10 +7,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type (
-	errMsg error
-)
-
 type inputModel struct {
 	textInput textinput.Model
 	done      bool
@@ -49,10 +45,7 @@ func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-	// We handle errors just like any other message
-	case errMsg:
-		m.err = msg
-		return m, nil
+		// TODO: Handle errors
 	}
 
 	m.textInput, cmd = m.textInput.Update(msg)
