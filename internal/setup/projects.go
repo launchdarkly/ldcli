@@ -63,7 +63,9 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.choice = iModel.textInput.Value()
 					m.showInput = false
 				}
-				// TODO: send request to create project
+
+				// TODO: send request to create project, hardcoding for now
+				projects = append(projects, project{Key: m.choice, Name: m.choice})
 			}
 		default:
 
@@ -149,25 +151,26 @@ type fetchProjects struct{}
 // 	Items []project `json:"items"`
 // }
 
+var projects = []project{
+	{
+		Key:  "proj1",
+		Name: "project 1",
+	},
+	{
+		Key:  "proj2",
+		Name: "project 2",
+	},
+	{
+		Key:  "proj3",
+		Name: "project 3",
+	},
+}
+
 func getProjects() ([]project, error) {
-	return []project{
-		{
-			Key:  "proj1",
-			Name: "project 1",
-		},
-		{
-			Key:  "proj2",
-			Name: "project 2",
-		},
-		{
-			Key:  "proj3",
-			Name: "project 3",
-		},
-		{
-			Key:  "create-new-project",
-			Name: "Create a new project",
-		},
-	}, nil
+	projectList := projects
+	createNewOption := project{Key: "create-new-project", Name: "Create a new project"}
+	projectList = append(projectList, createNewOption)
+	return projectList, nil
 
 	// uncomment out below to fetch projects locally after adding an access token to the
 	// Authorization header
