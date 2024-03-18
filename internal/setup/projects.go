@@ -88,7 +88,7 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			i, ok := m.list.SelectedItem().(project)
 			if ok {
 				if i.Key == "create-new-project" {
-					iModel := newTextInputModel("desired-proj-key", "Enter project name")
+					iModel := newTextInputModel("desired-proj-key", "Enter project name", false)
 					m.textInput = iModel
 					m.showInput = true
 				} else {

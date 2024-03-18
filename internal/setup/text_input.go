@@ -14,12 +14,15 @@ type inputModel struct {
 	err       error
 }
 
-func newTextInputModel(placeholder, title string) inputModel {
+func newTextInputModel(placeholder, title string, secret bool) inputModel {
 	ti := textinput.New()
 	ti.Placeholder = placeholder
 	ti.Focus()
 	ti.CharLimit = 156
 	ti.Width = 20
+	if secret {
+		ti.EchoMode = textinput.EchoPassword
+	}
 
 	return inputModel{
 		title:     title,

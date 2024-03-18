@@ -7,7 +7,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -24,7 +23,7 @@ type loginModel struct {
 	inputFocus bool
 	err        error
 	list       list.Model
-	tokenInput textInputModel
+	tokenInput inputModel
 }
 
 func (m loginModel) FormFocus() bool {
@@ -69,7 +68,7 @@ func NewLogin() loginModel {
 
 	return loginModel{
 		list:       l,
-		tokenInput: textInputModel{},
+		tokenInput: inputModel{},
 	}
 }
 
@@ -97,11 +96,11 @@ func (m loginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.loggedIn = true
 				case "access-token":
 					m.tokenInput.title = "Enter your personal access token"
-					m.tokenInput = createNewTokenInput("Enter your personal access token", "access token")
+					m.tokenInput = newTextInputModel("access token", "Enter your personal access token", true)
 					m.inputFocus = true
 				case "service-token":
 					m.tokenInput.title = "Enter your service token"
-					m.tokenInput = createNewTokenInput("Enter your service token", "service token")
+					m.tokenInput = newTextInputModel("service token", "Enter your service token", true)
 					m.inputFocus = true
 				}
 			}
@@ -109,7 +108,7 @@ func (m loginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.FormFocus() {
 				var tm tea.Model
 				tm, cmd = m.tokenInput.Update(msg)
-				m.tokenInput = tm.(textInputModel)
+				m.tokenInput = tm.(inputModel)
 			} else {
 				m.list, cmd = m.list.Update(msg)
 			}
@@ -160,19 +159,4 @@ func loginMethodsToItems(loginMethods []loginMethod) []list.Item {
 
 type setInputFocus struct {
 	enabled bool
-}
-
-func createNewTokenInput(title, placeholder string) textInputModel {
-	ti := textinput.New()
-	ti.Placeholder = placeholder
-	ti.Focus()
-	ti.CharLimit = 156
-	ti.Width = 20
-	ti.EchoMode = textinput.EchoPassword
-
-	return textInputModel{
-		title:     title,
-		textInput: ti,
-		err:       nil,
-	}
 }
