@@ -26,9 +26,11 @@ type project struct {
 func (p project) FilterValue() string { return "" }
 
 type projectModel struct {
-	choice string
-	err    error
-	list   list.Model
+	choice    string
+	err       error
+	list      list.Model
+	showInput bool
+	textInput tea.Model
 }
 
 func NewProject() tea.Model {
@@ -48,8 +50,31 @@ func (p projectModel) Init() tea.Cmd {
 
 func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	// if we've selected the option to create a new project, delegate to the textInput model
+	if m.showInput {
+		m.textInput, cmd = m.textInput.Update(msg)
+
+		// catch the enter key here to update the projectModel when a final value is provided
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+			case key.Matches(msg, keys.Enter):
+				iModel, ok := m.textInput.(inputModel)
+				if ok {
+					m.choice = iModel.textInput.Value()
+					m.showInput = false
+				}
+
+				// TODO: send request to create project, hardcoding for now
+				projects = append(projects, project{Key: m.choice, Name: m.choice})
+			}
+		default:
+
+		}
+		return m, cmd
+	}
 	switch msg := msg.(type) {
-	case fetchProjects:
+	case fetchResources:
 		projects, err := getProjects()
 		if err != nil {
 			m.err = err
@@ -59,9 +84,16 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Enter):
+
 			i, ok := m.list.SelectedItem().(project)
 			if ok {
-				m.choice = i.Key
+				if i.Key == "create-new-project" {
+					iModel := newTextInputModel("desired-proj-key", "Enter project name")
+					m.textInput = iModel
+					m.showInput = true
+				} else {
+					m.choice = i.Key
+				}
 			}
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
@@ -74,6 +106,10 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m projectModel) View() string {
+	if m.showInput {
+		return m.textInput.View()
+	}
+
 	return "\n" + m.list.View()
 }
 
@@ -110,27 +146,30 @@ func projectsToItems(projects []project) []list.Item {
 	return items
 }
 
-type fetchProjects struct{}
-
 // type projectsResponse struct {
 // 	Items []project `json:"items"`
 // }
 
+var projects = []project{
+	{
+		Key:  "proj1",
+		Name: "project 1",
+	},
+	{
+		Key:  "proj2",
+		Name: "project 2",
+	},
+	{
+		Key:  "proj3",
+		Name: "project 3",
+	},
+}
+
 func getProjects() ([]project, error) {
-	return []project{
-		{
-			Key:  "proj1",
-			Name: "project 1",
-		},
-		{
-			Key:  "proj2",
-			Name: "project 2",
-		},
-		{
-			Key:  "proj3",
-			Name: "project 3",
-		},
-	}, nil
+	projectList := projects
+	createNewOption := project{Key: "create-new-project", Name: "Create a new project"}
+	projectList = append(projectList, createNewOption)
+	return projectList, nil
 
 	// uncomment out below to fetch projects locally after adding an access token to the
 	// Authorization header
