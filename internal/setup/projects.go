@@ -11,6 +11,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const CreateNewResourceKey string = "create-new"
+
 var (
 	projectStyle      = lipgloss.NewStyle().PaddingLeft(4)
 	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
@@ -50,14 +52,13 @@ func (p projectModel) Init() tea.Cmd {
 
 func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	// if we've selected the option to create a new project, delegate to the textInput model
 	if m.showInput {
 		m.textInput, cmd = m.textInput.Update(msg)
-
-		// catch the enter key here to update the projectModel when a final value is provided
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch {
+			// catch the enter key here to update the model when a final value is provided
+			// if we've selected the option to create a new project, delegate to the textInput model
 			case key.Matches(msg, keys.Enter):
 				iModel, ok := m.textInput.(inputModel)
 				if ok {
@@ -167,7 +168,7 @@ var projects = []project{
 
 func getProjects() ([]project, error) {
 	projectList := projects
-	createNewOption := project{Key: "create-new-project", Name: "Create a new project"}
+	createNewOption := project{Key: CreateNewResourceKey, Name: "Create a new project"}
 	projectList = append(projectList, createNewOption)
 	return projectList, nil
 

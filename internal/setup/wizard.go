@@ -154,7 +154,14 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.steps[projectsStep] = p
 					// only progress if we don't want to show input
 					if !p.showInput {
-						m.currStep += 1
+						// pre-load environments based on project selected
+						envModel := m.steps[environmentsStep]
+						e, ok := envModel.(environmentModel)
+						if ok {
+							e.parentKey = m.currProjectKey
+							m.steps[environmentsStep], _ = e.Update(fetchResources{})
+							m.currStep += 1
+						}
 					}
 				}
 			case environmentsStep:
@@ -162,7 +169,14 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				p, ok := envModel.(environmentModel)
 				if ok {
 					m.currEnvironmentKey = p.choice
-					m.currStep += 1
+					// pre-load flags based on environment selected
+					fModel := m.steps[flagsStep]
+					f, ok := fModel.(flagModel)
+					if ok {
+						f.parentKey = m.currEnvironmentKey
+						m.steps[flagsStep], _ = f.Update(fetchResources{})
+						m.currStep += 1
+					}
 				}
 			case flagsStep:
 				model, _ := m.steps[flagsStep].Update(msg)
