@@ -17,6 +17,9 @@ import (
 // TODO: we may want to rename this for clarity
 type sessionState int
 
+// generic message type to pass into each models' Update method when we want to perform a new GET request
+type fetchResources struct{}
+
 // list of steps in the wizard
 const (
 	loginStep sessionState = iota
@@ -135,28 +138,24 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.currFlagKey = "setup-wizard-flag"
 						m.currStep = flagsStep + 1
 					} else {
-						projModel, _ := m.steps[projectsStep].Update(fetchProjects{})
-						// we need to cast this to get the data out of it, but maybe we can create our own interface with
-						// common values such as Choice() and Err() so we don't have to cast
-						p, ok := projModel.(projectModel)
-						if ok {
-							if p.err != nil {
-								m.err = p.err
-								return m, nil
-							}
-						}
-						// update projModel with the fetched projects
-						m.steps[projectsStep] = projModel
-						// go to the next step
+						// pre-load projects
+						m.steps[projectsStep], _ = m.steps[projectsStep].Update(fetchResources{})
 						m.currStep += 1
 					}
 				}
 			case projectsStep:
 				projModel, _ := m.steps[projectsStep].Update(msg)
+				// we need to cast this to get the data out of it, but maybe we can create our own interface with
+				// common values such as Choice() and Err() so we don't have to cast
 				p, ok := projModel.(projectModel)
 				if ok {
 					m.currProjectKey = p.choice
-					m.currStep += 1
+					// update projModel with new input model
+					m.steps[projectsStep] = p
+					// only progress if we don't want to show input
+					if !p.showInput {
+						m.currStep += 1
+					}
 				}
 			case environmentsStep:
 				envModel, _ := m.steps[environmentsStep].Update(msg)
@@ -189,7 +188,9 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currStep = autoCreateStep
 			}
 			// only go back if not on the first step
-			if m.currStep > 0 {
+			if m.currStep > autoCreateStep {
+				// fetch resources for the previous step again in case we created new ones
+				m.steps[m.currStep-1], _ = m.steps[m.currStep-1].Update(fetchResources{})
 				m.currStep -= 1
 			}
 		case key.Matches(msg, keys.Quit):

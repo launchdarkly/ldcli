@@ -1,8 +1,5 @@
 package setup
 
-// A simple program demonstrating the text input component from the Bubbles
-// component library.
-
 import (
 	"fmt"
 
@@ -10,43 +7,54 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type (
-	errMsg error
-)
-
-type textInputModel struct {
+type inputModel struct {
+	textInput textinput.Model
+	done      bool
 	title     string
 	err       error
-	textInput textinput.Model
 }
 
-func (m textInputModel) Init() tea.Cmd {
+func newTextInputModel(placeholder, title string) inputModel {
+	ti := textinput.New()
+	ti.Placeholder = placeholder
+	ti.Focus()
+	ti.CharLimit = 156
+	ti.Width = 20
+
+	return inputModel{
+		title:     title,
+		textInput: ti,
+		err:       nil,
+	}
+}
+
+func (m inputModel) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (m textInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyEnter, tea.KeyCtrlC, tea.KeyEsc:
+		case tea.KeyEnter:
+			m.done = true
+			return m, nil
+		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}
 
-	// We handle errors just like any other message
-	case errMsg:
-		m.err = msg
-		return m, nil
+		// TODO: Handle errors
 	}
 
 	m.textInput, cmd = m.textInput.Update(msg)
 	return m, cmd
 }
 
-func (m textInputModel) View() string {
+func (m inputModel) View() string {
 	return fmt.Sprintf(
-		"%s:\n\n%s\n\n%s",
+		"%s\n\n%s\n\n%s",
 		m.title,
 		m.textInput.View(),
 		"(esc to quit)",
