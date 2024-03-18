@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"reflect"
 	"runtime"
 	"strings"
 
@@ -26,6 +27,10 @@ const (
 	sdksStep
 )
 
+type inputs struct {
+	TokenSecret string
+}
+
 // WizardModel is a high level container model that controls the nested models which each
 // represent a step in the setup wizard.
 type WizardModel struct {
@@ -33,8 +38,7 @@ type WizardModel struct {
 	err                     error
 	currStep                sessionState
 	steps                   []tea.Model
-	inForm                  bool
-	tokenSecret             string
+	inputs                  inputs
 	useRecommendedResources bool
 	currProjectKey          string
 	currEnvironmentKey      string
@@ -66,34 +70,40 @@ func (m WizardModel) Init() tea.Cmd {
 	return nil
 }
 
+func (m WizardModel) updateForm(msg tea.Msg, model ViewModelWithTextInput) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Enter):
+			us, _ := model.SetFormFocus(false)
+			usModel, ok := us.(ViewModelWithTextInput)
+			if ok {
+				ov := usModel.InputValue()
+				reflect.ValueOf(&m.inputs).Elem().FieldByName(ov.Key).Set(reflect.ValueOf(ov.Value))
+				m.steps[m.currStep] = usModel
+				m.currStep += 1
+			}
+		case key.Matches(msg, keys.Back):
+			us, _ := model.SetFormFocus(false)
+			usModel, ok := us.(ViewModelWithTextInput)
+			if ok {
+				m.steps[m.currStep] = usModel
+			}
+		default:
+			model, _ := m.steps[m.currStep].Update(msg)
+			m.steps[m.currStep] = model
+		}
+	}
+
+	return m, nil
+}
+
 // Update controls all the messages passed around and delegates to the relevant nested model depending on which step
 // the user is on.
 func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// if we're handling form input, we'll respond to keystrokes differently
-	if m.inForm {
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch {
-			case key.Matches(msg, keys.Enter):
-				m.inForm = false
-				switch m.currStep {
-				case loginStep:
-					model, _ := m.steps[m.currStep].Update(msg)
-					l, ok := model.(loginModel)
-					if ok {
-						l.showInput = false
-						m.tokenSecret = l.tokenInput.textInput.Value()
-						m.steps[loginStep] = l
-						m.currStep += 1
-					}
-				}
-			case key.Matches(msg, keys.Back):
-			default:
-				model, _ := m.steps[m.currStep].Update(msg)
-				m.steps[m.currStep] = model
-			}
-			return m, nil
-		}
+
+	if stepModel, ok := m.steps[m.currStep].(ViewModelWithTextInput); ok && stepModel.FormFocus() {
+		return m.updateForm(msg, stepModel)
 	}
 
 	switch msg := msg.(type) {
@@ -110,8 +120,6 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.steps[loginStep] = l
 					if l.loggedIn {
 						m.currStep += 1
-					} else if l.showInput {
-						m.inForm = true
 					}
 				}
 			case autoCreateStep:

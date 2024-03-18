@@ -21,10 +21,25 @@ func (p loginMethod) FilterValue() string { return "" }
 type loginModel struct {
 	choice     string
 	loggedIn   bool
-	showInput  bool
+	inputFocus bool
 	err        error
 	list       list.Model
 	tokenInput textInputModel
+}
+
+func (m loginModel) FormFocus() bool {
+	return m.inputFocus
+}
+
+func (m loginModel) SetFormFocus(enabled bool) (tea.Model, tea.Cmd) {
+	return m.Update(setInputFocus{enabled})
+}
+
+func (m loginModel) InputValue() OutputValue {
+	return OutputValue{
+		Key:   "TokenSecret", // has to be public field on WizardModel struct
+		Value: m.tokenInput.textInput.Value(),
+	}
 }
 
 func NewLogin() loginModel {
@@ -52,20 +67,9 @@ func NewLogin() loginModel {
 	l.SetFilteringEnabled(false)
 	l.SetShowFilter(false)
 
-	ti := textinput.New()
-	ti.Placeholder = "Pikachu"
-	ti.Focus()
-	ti.CharLimit = 156
-	ti.Width = 20
-	ti.EchoMode = textinput.EchoPassword
-
 	return loginModel{
-		list: l,
-		tokenInput: textInputModel{
-			title:     "Enter your token",
-			textInput: ti,
-			err:       nil,
-		},
+		list:       l,
+		tokenInput: textInputModel{},
 	}
 }
 
@@ -75,15 +79,9 @@ func (m loginModel) Init() tea.Cmd {
 
 func (m loginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-
-	if m.showInput {
-		var tm tea.Model
-		tm, cmd = m.tokenInput.Update(msg)
-		m.tokenInput = tm.(textInputModel)
-		return m, cmd
-	}
-
 	switch msg := msg.(type) {
+	case setInputFocus:
+		m.inputFocus = msg.enabled
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Enter):
@@ -98,15 +96,23 @@ func (m loginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					openbrowser("https://app.launchdarkly.com/oauth/authorize?client_id=launchdarkly-cli&response_type=token&redirect_uri=https://app.launchdarkly.com/cli/oauth/callback")
 					m.loggedIn = true
 				case "access-token":
-					m.showInput = true
+					m.tokenInput.title = "Enter your personal access token"
+					m.tokenInput = createNewTokenInput("Enter your personal access token", "access token")
+					m.inputFocus = true
 				case "service-token":
-					m.showInput = true
+					m.tokenInput.title = "Enter your service token"
+					m.tokenInput = createNewTokenInput("Enter your service token", "service token")
+					m.inputFocus = true
 				}
 			}
-		case key.Matches(msg, keys.Quit):
-			return m, tea.Quit
 		default:
-			m.list, cmd = m.list.Update(msg)
+			if m.FormFocus() {
+				var tm tea.Model
+				tm, cmd = m.tokenInput.Update(msg)
+				m.tokenInput = tm.(textInputModel)
+			} else {
+				m.list, cmd = m.list.Update(msg)
+			}
 		}
 	}
 
@@ -114,7 +120,7 @@ func (m loginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m loginModel) View() string {
-	if m.showInput {
+	if m.FormFocus() {
 		return "\n" + m.tokenInput.View()
 	}
 	return "\n" + m.list.View()
@@ -150,4 +156,23 @@ func loginMethodsToItems(loginMethods []loginMethod) []list.Item {
 	}
 
 	return items
+}
+
+type setInputFocus struct {
+	enabled bool
+}
+
+func createNewTokenInput(title, placeholder string) textInputModel {
+	ti := textinput.New()
+	ti.Placeholder = placeholder
+	ti.Focus()
+	ti.CharLimit = 156
+	ti.Width = 20
+	ti.EchoMode = textinput.EchoPassword
+
+	return textInputModel{
+		title:     title,
+		textInput: ti,
+		err:       nil,
+	}
 }
