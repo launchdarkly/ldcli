@@ -44,9 +44,8 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		viper.GetString("accessToken"),
 		viper.GetString("baseUri"),
 	)
-	response, err := projects.CreateProject(
+	response, err := client.Create(
 		context.Background(),
-		client,
 		"test-proj",
 		"test-proj",
 	)

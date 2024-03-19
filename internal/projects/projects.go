@@ -3,15 +3,14 @@ package projects
 import (
 	"context"
 	"encoding/json"
+	"ld-cli/internal/errors"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
-
-	"ld-cli/internal/errors"
 )
 
 type Client interface {
-	Create(ctx context.Context, name string, key string) (*ldapi.ProjectRep, error)
-	List(ctx context.Context) (*ldapi.Projects, error)
+	Create(ctx context.Context, name string, key string) ([]byte, error)
+	List(ctx context.Context) ([]byte, error)
 }
 
 type ProjectsClient struct {
@@ -29,34 +28,12 @@ func NewClient(accessToken string, baseURI string) ProjectsClient {
 	}
 }
 
-func (c ProjectsClient) Create(ctx context.Context, name string, key string) (*ldapi.ProjectRep, error) {
+func (c ProjectsClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
 	projectPost := ldapi.NewProjectPost(name, key)
 	project, _, err := c.client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
 	if err != nil {
 		return nil, err
 	}
-
-	return project, nil
-}
-
-func (c ProjectsClient) List(ctx context.Context) (*ldapi.Projects, error) {
-	projects, _, err := c.client.ProjectsApi.
-		GetProjects(ctx).
-		Limit(2).
-		Execute()
-	if err != nil {
-		return nil, err
-	}
-
-	return projects, nil
-}
-
-func CreateProject(ctx context.Context, client Client, name string, key string) ([]byte, error) {
-	project, err := client.Create(ctx, name, key)
-	if err != nil {
-		return nil, err
-	}
-
 	projectJSON, err := json.Marshal(project)
 	if err != nil {
 		return nil, err
@@ -65,8 +42,11 @@ func CreateProject(ctx context.Context, client Client, name string, key string) 
 	return projectJSON, nil
 }
 
-func ListProjects(ctx context.Context, client Client) ([]byte, error) {
-	projects, err := client.List(ctx)
+func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
+	projects, _, err := c.client.ProjectsApi.
+		GetProjects(ctx).
+		Limit(2).
+		Execute()
 	if err != nil {
 		switch err.Error() {
 		case "401 Unauthorized":
