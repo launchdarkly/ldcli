@@ -1,8 +1,13 @@
 package projects
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"ld-cli/internal/projects"
 )
 
 func NewCreateCmd() *cobra.Command {
@@ -35,5 +40,21 @@ func NewCreateCmd() *cobra.Command {
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
+	client := projects.NewClient(
+		viper.GetString("accessToken"),
+		viper.GetString("baseUri"),
+	)
+	response, err := projects.CreateProject(
+		context.Background(),
+		client,
+		"test-proj",
+		"test-proj",
+	)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+
 	return nil
 }
