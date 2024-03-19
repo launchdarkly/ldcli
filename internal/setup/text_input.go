@@ -2,7 +2,6 @@ package setup
 
 import (
 	"fmt"
-
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -57,6 +56,6 @@ func (m inputModel) View() string {
 		"%s\n\n%s\n\n%s",
 		m.title,
 		m.textInput.View(),
-		"(esc to quit)",
+		"(enter to continue/esc to quit)",
 	) + "\n"
 }

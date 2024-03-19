@@ -46,7 +46,7 @@ func NewProject() tea.Model {
 	}
 }
 
-func (p projectModel) Init() tea.Cmd {
+func (m projectModel) Init() tea.Cmd {
 	return nil
 }
 
@@ -89,8 +89,7 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			i, ok := m.list.SelectedItem().(project)
 			if ok {
 				if i.Key == CreateNewResourceKey {
-
-					iModel := newTextInputModel("desired-proj-key", "Enter project name")
+					iModel := newTextInputModel("desired-proj-key", "Enter project key")
 					m.textInput = iModel
 					m.showInput = true
 				} else {
