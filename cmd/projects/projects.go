@@ -4,21 +4,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type projectCmd struct {
-	Cmd *cobra.Command
-}
-
-func NewProjectsCmd() projectCmd {
+func NewProjectsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "projects",
 		Short: "Make requests (list, create, etc.) on projects",
 		Long:  "Make requests (list, create, etc.) on projects",
 	}
 
-	cmd.AddCommand(NewCreateCmd().Cmd)
-	cmd.AddCommand(NewListCmd().Cmd)
+	cmd.AddCommand(NewCreateCmd())
+	cmd.AddCommand(NewListCmd())
 
-	return projectCmd{
-		Cmd: cmd,
-	}
+	return cmd
 }

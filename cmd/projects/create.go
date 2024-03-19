@@ -1,15 +1,13 @@
 package projects
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-type createCmd struct {
-	Cmd *cobra.Command
-}
-
-func NewCreateCmd() createCmd {
+func NewCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new project",
@@ -35,12 +33,15 @@ func NewCreateCmd() createCmd {
 		panic(err)
 	}
 
-	return createCmd{
-		Cmd: cmd,
-	}
+	return cmd
 }
 
-// runCreate creates a new project.
 func runCreate(cmd *cobra.Command, args []string) error {
+	fmt.Println(
+		">>> runCreate",
+		viper.GetString("accessToken"),
+		"::",
+		viper.GetString("data"),
+	)
 	return nil
 }
