@@ -30,6 +30,8 @@ type environmentModel struct {
 	err       error
 	list      list.Model
 	parentKey string
+	showInput bool
+	textInput tea.Model
 }
 
 var environments = map[string][]environment{
@@ -89,6 +91,28 @@ func (p environmentModel) Init() tea.Cmd {
 
 func (m environmentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	if m.showInput {
+		m.textInput, cmd = m.textInput.Update(msg)
+		// catch the enter key here to update the model when a final value is provided
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+
+			case key.Matches(msg, keys.Enter):
+				iModel, ok := m.textInput.(inputModel)
+				if ok {
+					m.choice = iModel.textInput.Value()
+					m.showInput = false
+				}
+
+				// TODO: send request to create project, hardcoding for now
+				environments[m.parentKey] = append(environments[m.parentKey], environment{Key: m.choice, Name: m.choice})
+			}
+		default:
+
+		}
+		return m, cmd
+	}
 	switch msg := msg.(type) {
 	case fetchResources:
 		envs, err := getEnvironments(m.parentKey)
@@ -102,6 +126,11 @@ func (m environmentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Enter):
 			i, ok := m.list.SelectedItem().(environment)
 			if ok {
+				if i.Key == CreateNewResourceKey {
+					iModel := newTextInputModel("desired-env-key", "Enter environment key")
+					m.textInput = iModel
+					m.showInput = true
+				}
 				m.choice = i.Key
 			}
 		case key.Matches(msg, keys.Quit):
@@ -115,6 +144,10 @@ func (m environmentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m environmentModel) View() string {
+	if m.showInput {
+		return m.textInput.View()
+	}
+
 	return "\n" + m.list.View()
 }
 
