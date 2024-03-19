@@ -10,7 +10,8 @@ import (
 )
 
 type Client interface {
-	List(context.Context) (*ldapi.Projects, error)
+	Create(ctx context.Context, name string, key string) (*ldapi.ProjectRep, error)
+	List(ctx context.Context) (*ldapi.Projects, error)
 }
 
 type ProjectsClient struct {
@@ -28,6 +29,16 @@ func NewClient(accessToken string, baseURI string) ProjectsClient {
 	}
 }
 
+func (c ProjectsClient) Create(ctx context.Context, name string, key string) (*ldapi.ProjectRep, error) {
+	projectPost := ldapi.NewProjectPost(name, key)
+	project, _, err := c.client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
+	if err != nil {
+		return nil, err
+	}
+
+	return project, nil
+}
+
 func (c ProjectsClient) List(ctx context.Context) (*ldapi.Projects, error) {
 	projects, _, err := c.client.ProjectsApi.
 		GetProjects(ctx).
@@ -38,6 +49,20 @@ func (c ProjectsClient) List(ctx context.Context) (*ldapi.Projects, error) {
 	}
 
 	return projects, nil
+}
+
+func CreateProject(ctx context.Context, client Client, name string, key string) ([]byte, error) {
+	project, err := client.Create(ctx, name, key)
+	if err != nil {
+		return nil, err
+	}
+
+	projectJSON, err := json.Marshal(project)
+	if err != nil {
+		return nil, err
+	}
+
+	return projectJSON, nil
 }
 
 func ListProjects(ctx context.Context, client Client) ([]byte, error) {

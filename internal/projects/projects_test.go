@@ -23,6 +23,14 @@ type MockClient struct {
 	hasUnauthorizedErr bool
 }
 
+func (c MockClient) Create(ctx context.Context, name string, key string) (*ldapi.ProjectRep, error) {
+	return &ldapi.ProjectRep{
+		Id:   "000000000000000000000001",
+		Key:  key,
+		Name: name,
+	}, nil
+}
+
 func (c MockClient) List(ctx context.Context) (*ldapi.Projects, error) {
 	if c.hasForbiddenErr {
 		return nil, errors.New("403 Forbidden")
@@ -56,6 +64,27 @@ func (c MockClient) List(ctx context.Context) (*ldapi.Projects, error) {
 		},
 		TotalCount: &totalCount,
 	}, nil
+}
+
+func TestCreateProject(t *testing.T) {
+	t.Run("return a new project", func(t *testing.T) {
+		expected := `{
+			"_id": "000000000000000000000001",
+			"_links": null,
+			"environments": null,
+			"includeInSnippetByDefault": false,
+			"key": "test-key",
+			"name": "test-name",
+			"tags": null
+		}`
+
+		mockClient := MockClient{}
+
+		response, err := projects.CreateProject(context.Background(), mockClient, "test-name", "test-key")
+
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, string(response))
+	})
 }
 
 func TestListProjects(t *testing.T) {
