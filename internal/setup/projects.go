@@ -89,12 +89,11 @@ func (m projectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			i, ok := m.list.SelectedItem().(project)
 			if ok {
 				if i.Key == CreateNewResourceKey {
-					iModel := newTextInputModel("desired-proj-key", "Enter project name")
+					iModel := newTextInputModel("desired-proj-key", "Enter project key")
 					m.textInput = iModel
 					m.showInput = true
-				} else {
-					m.choice = i.Key
 				}
+				m.choice = i.Key
 			}
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
