@@ -11,6 +11,7 @@ func NewProjectsCmd() *cobra.Command {
 		Long:  "Make requests (list, create, etc.) on projects",
 	}
 
+	cmd.AddCommand(NewCreateCmd())
 	cmd.AddCommand(NewListCmd())
 
 	return cmd
