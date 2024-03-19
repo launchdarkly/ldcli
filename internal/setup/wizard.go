@@ -113,16 +113,19 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case environmentsStep:
 				envModel, _ := m.steps[environmentsStep].Update(msg)
-				p, ok := envModel.(environmentModel)
+				e, ok := envModel.(environmentModel)
 				if ok {
-					m.currEnvironmentKey = p.choice
-					// pre-load flags based on environment selected
-					fModel := m.steps[flagsStep]
-					f, ok := fModel.(flagModel)
-					if ok {
-						f.parentKey = m.currEnvironmentKey
-						m.steps[flagsStep], _ = f.Update(fetchResources{})
-						m.currStep += 1
+					m.currEnvironmentKey = e.choice
+					m.steps[environmentsStep] = e
+					if !e.showInput {
+						// pre-load flags based on environment selected
+						fModel := m.steps[flagsStep]
+						f, ok := fModel.(flagModel)
+						if ok {
+							f.parentKey = m.currEnvironmentKey
+							m.steps[flagsStep], _ = f.Update(fetchResources{})
+							m.currStep += 1
+						}
 					}
 				}
 			case flagsStep:
