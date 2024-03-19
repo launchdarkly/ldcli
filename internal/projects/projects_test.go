@@ -2,6 +2,7 @@ package projects_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,15 +23,18 @@ type MockClient struct {
 }
 
 func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
-	return []byte(`{
+	return []byte(fmt.Sprintf(`{
 			"_id": "000000000000000000000001",
 			"_links": null,
 			"environments": null,
 			"includeInSnippetByDefault": false,
-			"key": "test-key",
-			"name": "test-name",
+			"key": %q,
+			"name": %q,
 			"tags": null
-		}`), nil
+		}`,
+		key,
+		name,
+	)), nil
 }
 
 func (c MockClient) List(ctx context.Context) ([]byte, error) {
