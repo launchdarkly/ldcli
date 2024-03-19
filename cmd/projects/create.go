@@ -2,8 +2,8 @@ package projects
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -39,15 +39,29 @@ func NewCreateCmd() *cobra.Command {
 	return cmd
 }
 
+type inputData struct {
+	Name string `json:"name"`
+	Key  string `json:"key"`
+}
+
 func runCreate(cmd *cobra.Command, args []string) error {
 	client := projects.NewClient(
 		viper.GetString("accessToken"),
 		viper.GetString("baseUri"),
 	)
+
+	dataStr := viper.GetString("data")
+
+	var data inputData
+	err := json.Unmarshal([]byte(dataStr), &data)
+	if err != nil {
+		return err
+	}
+
 	response, err := client.Create(
 		context.Background(),
-		"test-proj",
-		"test-proj",
+		data.Name,
+		data.Key,
 	)
 	if err != nil {
 		return err
