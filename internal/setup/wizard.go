@@ -113,30 +113,36 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case environmentsStep:
 				envModel, _ := m.steps[environmentsStep].Update(msg)
-				p, ok := envModel.(environmentModel)
+				e, ok := envModel.(environmentModel)
 				if ok {
-					m.currEnvironmentKey = p.choice
-					// pre-load flags based on environment selected
-					fModel := m.steps[flagsStep]
-					f, ok := fModel.(flagModel)
-					if ok {
-						f.parentKey = m.currEnvironmentKey
-						m.steps[flagsStep], _ = f.Update(fetchResources{})
-						m.currStep += 1
+					m.currEnvironmentKey = e.choice
+					m.steps[environmentsStep] = e
+					if !e.showInput {
+						// pre-load flags based on environment selected
+						fModel := m.steps[flagsStep]
+						f, ok := fModel.(flagModel)
+						if ok {
+							f.parentKey = m.currEnvironmentKey
+							m.steps[flagsStep], _ = f.Update(fetchResources{})
+							m.currStep += 1
+						}
 					}
 				}
 			case flagsStep:
 				model, _ := m.steps[flagsStep].Update(msg)
 				f, ok := model.(flagModel)
+				m.steps[flagsStep] = f
 				if ok {
 					m.currFlagKey = f.choice
-					m.currStep += 1
+					if !f.showInput {
+						m.currStep += 1
+					}
 				}
 			case sdksStep:
 				model, _ := m.steps[sdksStep].Update(msg)
-				f, ok := model.(sdkModel)
+				s, ok := model.(sdkModel)
 				if ok {
-					m.currSdk = f.choice
+					m.currSdk = s.choice
 					m.currStep += 1
 				}
 				// add additional cases for additional steps
