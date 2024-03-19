@@ -12,7 +12,11 @@ import (
 	"ld-cli/internal/projects"
 )
 
-func NewListCmd() *cobra.Command {
+type listCmd struct {
+	Cmd *cobra.Command
+}
+
+func NewListCmd() (listCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "Return a list of projects",
@@ -21,7 +25,9 @@ func NewListCmd() *cobra.Command {
 		RunE:    runList,
 	}
 
-	return cmd
+	return listCmd{
+		Cmd: cmd,
+	}, nil
 }
 
 // validate ensures the flags are valid before using them.
@@ -36,6 +42,10 @@ func validate(cmd *cobra.Command, args []string) error {
 
 // runList fetches a list of projects.
 func runList(cmd *cobra.Command, args []string) error {
+	fmt.Println(">>> runList")
+	fmt.Println(">>> accessToken", viper.GetString("accessToken"))
+	fmt.Println(">>> baseUri", viper.GetString("baseUri"))
+	fmt.Println(">>> data", viper.GetString("data"))
 	client := projects.NewClient(
 		viper.GetString("accessToken"),
 		viper.GetString("baseUri"),

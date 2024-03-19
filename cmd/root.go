@@ -9,8 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	"ld-cli/cmd/projects"
 )
 
 var rootCmd = &cobra.Command{
@@ -30,6 +28,8 @@ func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
 		switch {
+		case errors.As(err, &errs.Error{}):
+			fmt.Fprintln(os.Stderr, err.Error())
 		case errors.Is(err, errs.ErrInvalidBaseURI):
 			fmt.Fprintln(os.Stderr, err.Error())
 		case errors.Is(err, errs.ErrUnauthorized):
@@ -63,6 +63,16 @@ func init() {
 		panic(err)
 	}
 
+	fmt.Println(">>> root")
+	fmt.Println(
+		">>> accessToken",
+		accessToken,
+		"::",
+		viper.GetString("accessToken"),
+		"::",
+		rootCmd.PersistentFlags().Lookup("accessToken").Value.String(),
+	)
+
 	rootCmd.PersistentFlags().StringVarP(
 		&baseURI,
 		"baseUri",
@@ -77,6 +87,12 @@ func init() {
 
 	rootCmd.SetErrPrefix("")
 
-	rootCmd.AddCommand(projects.NewProjectsCmd())
-	rootCmd.AddCommand(setupCmd)
+	// projectCmd, err := projects.NewProjectsCmd()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// rootCmd.AddCommand(projectCmd.Cmd)
+	// rootCmd.AddCommand(setupCmd)
+
+	// rootCmd.Flags().AddFlagSet(projectCmd.Cmd.Flags())
 }

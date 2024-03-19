@@ -22,6 +22,10 @@ type MockClient struct {
 	hasUnauthorizedErr bool
 }
 
+func (c MockClient) Create(ctx context.Context, name string, key string) (*ldapi.ProjectRep, error) {
+	return nil, nil
+}
+
 func (c MockClient) List(ctx context.Context) (*ldapi.Projects, error) {
 	if c.hasUnauthorizedErr {
 		return nil, errors.New("401 Unauthorized")
@@ -100,4 +104,9 @@ func TestListProjects(t *testing.T) {
 
 		assert.EqualError(t, err, "You are not authorized to make this request.")
 	})
+}
+
+func TestCreateProject(t *testing.T) {
+	t.Run("with valid data creates a project", func(t *testing.T) {})
+	t.Run("with invalid data is an error", func(t *testing.T) {})
 }
