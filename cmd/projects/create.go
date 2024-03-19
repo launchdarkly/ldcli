@@ -1,8 +1,6 @@
 package projects
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -37,11 +35,5 @@ func NewCreateCmd() *cobra.Command {
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
-	fmt.Println(
-		">>> runCreate",
-		viper.GetString("accessToken"),
-		"::",
-		viper.GetString("data"),
-	)
 	return nil
 }
