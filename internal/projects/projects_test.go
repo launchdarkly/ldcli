@@ -2,11 +2,12 @@ package projects_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"ld-cli/internal/errors"
 )
 
 func strPtr(s string) *string {
@@ -23,7 +24,7 @@ type MockClient struct {
 func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
 	return []byte(`{
 			"_id": "000000000000000000000001",
-			"_lnks": null,
+			"_links": null,
 			"environments": null,
 			"includeInSnippetByDefault": false,
 			"key": "test-key",
@@ -34,10 +35,10 @@ func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte
 
 func (c MockClient) List(ctx context.Context) ([]byte, error) {
 	if c.hasForbiddenErr {
-		return nil, errors.New("403 Forbidden")
+		return nil, errors.ErrForbidden
 	}
 	if c.hasUnauthorizedErr {
-		return nil, errors.New("401 Unauthorized")
+		return nil, errors.ErrUnauthorized
 	}
 
 	return []byte(`{
