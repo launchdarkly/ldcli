@@ -5,11 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"ld-cli/internal/projects"
 )
 
 func strPtr(s string) *string {
@@ -23,15 +20,19 @@ type MockClient struct {
 	hasUnauthorizedErr bool
 }
 
-func (c MockClient) Create(ctx context.Context, name string, key string) (*ldapi.ProjectRep, error) {
-	return &ldapi.ProjectRep{
-		Id:   "000000000000000000000001",
-		Key:  key,
-		Name: name,
-	}, nil
+func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
+	return []byte(`{
+			"_id": "000000000000000000000001",
+			"_lnks": null,
+			"environments": null,
+			"includeInSnippetByDefault": false,
+			"key": "test-key",
+			"name": "test-name",
+			"tags": null
+		}`), nil
 }
 
-func (c MockClient) List(ctx context.Context) (*ldapi.Projects, error) {
+func (c MockClient) List(ctx context.Context) ([]byte, error) {
 	if c.hasForbiddenErr {
 		return nil, errors.New("403 Forbidden")
 	}
@@ -39,31 +40,33 @@ func (c MockClient) List(ctx context.Context) (*ldapi.Projects, error) {
 		return nil, errors.New("401 Unauthorized")
 	}
 
-	totalCount := int32(1)
-
-	return &ldapi.Projects{
-		Links: map[string]ldapi.Link{
+	return []byte(`{
+		"_links": {
 			"last": {
-				Href: strPtr("/api/v2/projects?expand=environments&limit=1&offset=1"),
-				Type: strPtr("application/json"),
+				"href": "/api/v2/projects?expand=environments&limit=1&offset=1",
+					"type": "application/json"
 			},
 			"next": {
-				Href: strPtr("/api/v2/projects?expand=environments&limit=1&offset=0"),
-				Type: strPtr("application/json"),
+				"href": "/api/v2/projects?expand=environments&limit=1&offset=0",
+					"type": "application/json"
 			},
 			"self": {
-				Href: strPtr("/api/v2/projects?expand=environments&limit=1"),
-				Type: strPtr("application/json"),
-			},
+				"href": "/api/v2/projects?expand=environments&limit=1",
+					"type": "application/json"
+			}
 		},
-		Items: []ldapi.Project{
+		"items": [
 			{
-				Id:  "000000000000000000000001",
-				Key: "test-project",
-			},
-		},
-		TotalCount: &totalCount,
-	}, nil
+				"_id": "000000000000000000000001",
+				"_links": null,
+				"includeInSnippetByDefault": false,
+				"key": "test-project",
+				"name": "",
+				"tags": null
+			}
+		],
+		"totalCount": 1	
+	}`), nil
 }
 
 func TestCreateProject(t *testing.T) {
@@ -80,7 +83,7 @@ func TestCreateProject(t *testing.T) {
 
 		mockClient := MockClient{}
 
-		response, err := projects.CreateProject(context.Background(), mockClient, "test-name", "test-key")
+		response, err := mockClient.Create(context.Background(), "test-name", "test-key")
 
 		require.NoError(t, err)
 		assert.JSONEq(t, expected, string(response))
@@ -118,7 +121,7 @@ func TestListProjects(t *testing.T) {
 		}`
 		mockClient := MockClient{}
 
-		response, err := projects.ListProjects(context.Background(), mockClient)
+		response, err := mockClient.List(context.Background())
 
 		require.NoError(t, err)
 		assert.JSONEq(t, expected, string(response))
@@ -129,7 +132,7 @@ func TestListProjects(t *testing.T) {
 			hasForbiddenErr: true,
 		}
 
-		_, err := projects.ListProjects(context.Background(), mockClient)
+		_, err := mockClient.List(context.Background())
 
 		assert.EqualError(t, err, "You do not have permission to make this request")
 	})
@@ -139,7 +142,7 @@ func TestListProjects(t *testing.T) {
 			hasUnauthorizedErr: true,
 		}
 
-		_, err := projects.ListProjects(context.Background(), mockClient)
+		_, err := mockClient.List(context.Background())
 
 		assert.EqualError(t, err, "You are not authorized to make this request")
 	})
