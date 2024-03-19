@@ -60,8 +60,6 @@ func newRootCommand() *cobra.Command {
 		panic(err)
 	}
 
-	cmd.SetErrPrefix("")
-
 	cmd.AddCommand(projects.NewProjectsCmd())
 	cmd.AddCommand(setupCmd)
 
@@ -78,7 +76,7 @@ func Execute() {
 			errors.Is(err, errs.ErrUnauthorized):
 			fmt.Fprintln(os.Stderr, err.Error())
 		default:
-			fmt.Println(rootCmd.ErrPrefix(), err.Error())
+			fmt.Println(err.Error())
 			fmt.Println(rootCmd.UsageString())
 		}
 	}
