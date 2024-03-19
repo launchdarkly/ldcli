@@ -91,10 +91,8 @@ func (p environmentModel) Init() tea.Cmd {
 
 func (m environmentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	// if we've selected the option to create a new project, delegate to the textInput model
 	if m.showInput {
 		m.textInput, cmd = m.textInput.Update(msg)
-		// catch the enter key here to update the projectModel when a final value is provided
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch {

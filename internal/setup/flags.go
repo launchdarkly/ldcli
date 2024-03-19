@@ -30,6 +30,8 @@ type flagModel struct {
 	err       error
 	list      list.Model
 	parentKey string
+	showInput bool
+	textInput tea.Model
 }
 
 var flags = map[string][]flag{
@@ -113,6 +115,25 @@ func (p flagModel) Init() tea.Cmd {
 // This method has drifted from the ProjectModel's version, but it should do something similar.
 func (m flagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	if m.showInput {
+		m.textInput, cmd = m.textInput.Update(msg)
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+			case key.Matches(msg, keys.Enter):
+				iModel, ok := m.textInput.(inputModel)
+				if ok {
+					m.choice = iModel.textInput.Value()
+					m.showInput = false
+				}
+
+				flags[m.parentKey] = append(flags[m.parentKey], flag{Key: m.choice, Name: m.choice})
+			}
+		default:
+
+		}
+		return m, cmd
+	}
 	switch msg := msg.(type) {
 	case fetchResources:
 		fs, err := getFlags(m.parentKey)
@@ -126,6 +147,11 @@ func (m flagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Enter):
 			i, ok := m.list.SelectedItem().(flag)
 			if ok {
+				if i.Key == CreateNewResourceKey {
+					iModel := newTextInputModel("desired-flag-key", "Enter flag key")
+					m.textInput = iModel
+					m.showInput = true
+				}
 				m.choice = i.Key
 			}
 		case key.Matches(msg, keys.Quit):
@@ -139,6 +165,10 @@ func (m flagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m flagModel) View() string {
+	if m.showInput {
+		return m.textInput.View()
+	}
+
 	return "\n" + m.list.View()
 }
 

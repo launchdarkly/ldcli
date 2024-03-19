@@ -133,13 +133,16 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				f, ok := model.(flagModel)
 				if ok {
 					m.currFlagKey = f.choice
-					m.currStep += 1
+					m.steps[flagsStep] = f
+					if !f.showInput {
+						m.currStep += 1
+					}
 				}
 			case sdksStep:
 				model, _ := m.steps[sdksStep].Update(msg)
-				f, ok := model.(sdkModel)
+				s, ok := model.(sdkModel)
 				if ok {
-					m.currSdk = f.choice
+					m.currSdk = s.choice
 					m.currStep += 1
 				}
 				// add additional cases for additional steps
