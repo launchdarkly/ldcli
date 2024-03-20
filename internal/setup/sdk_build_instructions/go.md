@@ -13,7 +13,7 @@ This demo requires Go 1.18 or higher.
 ```go
 const sdkKey = "1234567890abcdef"
 
-const featureFlagKey = "my-flag"
+const featureFlagKey = "my-flag-key"
 ```
 
 2. On the command line, run `go build`
