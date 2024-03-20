@@ -8,6 +8,7 @@ import (
 
 type flagToggleModel struct {
 	enabled bool
+	flagKey string
 }
 
 func NewFlagToggle() flagToggleModel {
@@ -31,22 +32,22 @@ func (m flagToggleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m flagToggleModel) View() string {
+	var furtherInstructions string
+	title := "Toggle your feature flag!"
 	toggle := "OFF"
 	bgColor := "#646a73"
-	var furtherInstructions string
+	margin := 1
 	if m.enabled {
 		bgColor = "#3d9c51"
-		toggle = "ON"
 		furtherInstructions = "\n\nCheck your [browser|application logs] to see the change!"
+		margin = 2
+		toggle = "ON"
 	}
 
-	var toggleStyle = lipgloss.NewStyle().
+	toggleStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color(bgColor)).
 		Padding(0, 1).
-		MarginRight(1)
+		MarginRight(margin)
 
-	title := "Toggle your feature flag!"
-	flagKey := "my-flag-key"
-
-	return title + "\n\n" + toggleStyle.Render(toggle) + flagKey + furtherInstructions
+	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions
 }

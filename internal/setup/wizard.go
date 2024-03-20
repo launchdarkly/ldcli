@@ -40,6 +40,7 @@ func NewWizardModel() tea.Model {
 		// prevent this off-by-one issue.
 		NewFlag(),
 		NewSdk(),
+		NewSDKInstructions(),
 		NewFlagToggle(),
 	}
 
@@ -77,6 +78,7 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currSdk = f.choice
 					m.currStep += 1
 
+					// update the sdkInstructionModel so it can show the selected SDK instructions
 					model := m.steps[sdkInstructionsStep]
 					f, ok := model.(sdkInstructionModel)
 					if ok {
@@ -84,6 +86,15 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						f.flagKey = m.currFlagKey
 						f.name = m.currSdk.Name
 						f.width = m.width
+						m.steps[sdkInstructionsStep] = f
+					}
+
+					// update the flagToggleModel so it can show the flag key
+					model = m.steps[flagToggleStep]
+					f2, ok := model.(flagToggleModel)
+					if ok {
+						f2.flagKey = m.currFlagKey
+						m.steps[flagToggleStep] = f2
 					}
 				}
 			case sdkInstructionsStep:
@@ -118,21 +129,6 @@ func (m WizardModel) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("ERROR: %s", m.err)
 	}
-
-	// if m.currStep == flagToggleStep {
-	// 	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
-	// }
-
-	// if m.currStep > sdksStep {
-	// 	return wordwrap.String(
-	// 		fmt.Sprintf(
-	// 			"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
-	// 			m.currSdk.Name,
-	// 			m.renderMarkdown(),
-	// 		),
-	// 		m.width,
-	// 	)
-	// }
 
 	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
 }

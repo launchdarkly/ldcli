@@ -17,6 +17,10 @@ type sdkInstructionModel struct {
 	width    int
 }
 
+func NewSDKInstructions() tea.Model {
+	return sdkInstructionModel{}
+}
+
 func (p sdkInstructionModel) Init() tea.Cmd {
 	return nil
 }
