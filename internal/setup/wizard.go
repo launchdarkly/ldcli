@@ -18,10 +18,7 @@ type fetchResources struct{}
 
 // list of steps in the wizard
 const (
-	autoCreateStep sessionState = iota
-	projectsStep
-	environmentsStep
-	flagsStep
+	flagsStep sessionState = iota
 	sdksStep
 )
 
@@ -45,15 +42,12 @@ func NewWizardModel() tea.Model {
 		// Since there isn't a model for the initial step, the currStep value will always be one ahead of the step in
 		// this slice. It may be convenient to add a model for the initial step to contain its own view logic and to
 		// prevent this off-by-one issue.
-		NewAutoCreate(),
-		NewProject(),
-		NewEnvironment(),
 		NewFlag(),
 		NewSdk(),
 	}
 
 	return WizardModel{
-		currStep: autoCreateStep,
+		currStep: 0,
 		steps:    steps,
 	}
 }
@@ -72,64 +66,11 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.Enter):
 			switch m.currStep {
-			case autoCreateStep:
-				model, _ := m.steps[autoCreateStep].Update(msg)
-				p, ok := model.(autoCreateModel)
-				if ok {
-					m.useRecommendedResources = p.choice == "Yes"
-					if m.useRecommendedResources {
-						// create project, environment, and flag
-						// go to step after flagsStep
-						m.currProjectKey = "setup-wizard-project"
-						m.currEnvironmentKey = "test"
-						m.currFlagKey = "setup-wizard-flag"
-						m.currStep = flagsStep + 1
-					} else {
-						// pre-load projects
-						m.steps[projectsStep], _ = m.steps[projectsStep].Update(fetchResources{})
-						m.currStep += 1
-					}
-				}
-			case projectsStep:
-				projModel, _ := m.steps[projectsStep].Update(msg)
-				// we need to cast this to get the data out of it, but maybe we can create our own interface with
-				// common values such as Choice() and Err() so we don't have to cast
-				p, ok := projModel.(projectModel)
-				if ok {
-					m.currProjectKey = p.choice
-					// update projModel with new input model
-					m.steps[projectsStep] = p
-					// only progress if we don't want to show input
-					if !p.showInput {
-						// pre-load environments based on project selected
-						envModel := m.steps[environmentsStep]
-						e, ok := envModel.(environmentModel)
-						if ok {
-							e.parentKey = m.currProjectKey
-							m.steps[environmentsStep], _ = e.Update(fetchResources{})
-							m.currStep += 1
-						}
-					}
-				}
-			case environmentsStep:
-				envModel, _ := m.steps[environmentsStep].Update(msg)
-				p, ok := envModel.(environmentModel)
-				if ok {
-					m.currEnvironmentKey = p.choice
-					// pre-load flags based on environment selected
-					fModel := m.steps[flagsStep]
-					f, ok := fModel.(flagModel)
-					if ok {
-						f.parentKey = m.currEnvironmentKey
-						m.steps[flagsStep], _ = f.Update(fetchResources{})
-						m.currStep += 1
-					}
-				}
 			case flagsStep:
 				model, _ := m.steps[flagsStep].Update(msg)
 				f, ok := model.(flagModel)
-				if ok {
-					m.currFlagKey = f.choice
+				if ok && f.input != "" {
+					m.currFlagKey = f.input
 					m.currStep += 1
 				}
 			case sdksStep:
@@ -143,15 +84,8 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 			}
 		case key.Matches(msg, keys.Back):
-			// if we've opted to use recommended resources but want to go back from the SDK step,
-			// make sure we go back to the right step
-			if m.useRecommendedResources && m.currStep == sdksStep {
-				m.currStep = autoCreateStep
-			}
 			// only go back if not on the first step
-			if m.currStep > autoCreateStep {
-				// fetch resources for the previous step again in case we created new ones
-				m.steps[m.currStep-1], _ = m.steps[m.currStep-1].Update(fetchResources{})
+			if m.currStep > 0 {
 				m.currStep -= 1
 			}
 		case key.Matches(msg, keys.Quit):
@@ -184,9 +118,7 @@ func (m WizardModel) View() string {
 		}
 		sdkInstructions := strings.ReplaceAll(string(content), "my-flag-key", m.currFlagKey)
 		return wordwrap.String(fmt.Sprintf(
-			"Selected project:     %s\nSelected environment: %s\n\nSet up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
-			m.currProjectKey,
-			m.currEnvironmentKey,
+			"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
 			m.currSdk.Name,
 			sdkInstructions,
 		),
