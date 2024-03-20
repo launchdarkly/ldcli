@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/muesli/reflow/wordwrap"
 )
 
@@ -176,25 +177,53 @@ func (m WizardModel) View() string {
 	}
 
 	if m.currStep > sdksStep {
-		// consider moving this to its own view (in a new model?)
-		content, err := os.ReadFile(m.currSdk.InstructionsFileName)
-		if err != nil {
-			fmt.Println("could not load file:", err)
-			os.Exit(1)
-		}
-		sdkInstructions := strings.ReplaceAll(string(content), "my-flag-key", m.currFlagKey)
-		return wordwrap.String(fmt.Sprintf(
-			"Selected project:     %s\nSelected environment: %s\n\nSet up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
-			m.currProjectKey,
-			m.currEnvironmentKey,
-			m.currSdk.Name,
-			sdkInstructions,
-		),
+		return wordwrap.String(
+			fmt.Sprintf(
+				"Selected project:     %s\nSelected environment: %s\n\nSet up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
+				m.currProjectKey,
+				m.currEnvironmentKey,
+				m.currSdk.Name,
+				m.renderMarkdown(),
+			),
 			m.width,
 		)
 	}
 
 	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
+}
+
+func (m WizardModel) renderMarkdown() string {
+	content, err := os.ReadFile(m.currSdk.InstructionsFileName)
+	if err != nil {
+		fmt.Println("could not load file:", err)
+		os.Exit(1)
+	}
+	sdkInstructions := strings.ReplaceAll(string(content), "my-flag-key", m.currFlagKey)
+
+	gs := glamour.WithEnvironmentConfig()
+	r, err := glamour.NewTermRenderer(
+		gs,
+		glamour.WithWordWrap(int(80)),
+		glamour.WithPreservedNewLines(),
+	)
+	if err != nil {
+		panic(err)
+	}
+	out, err := r.RenderBytes([]byte(sdkInstructions))
+	if err != nil {
+		panic(err)
+	}
+	lines := strings.Split(string(out), "\n")
+	var cb strings.Builder
+	for i, s := range lines {
+		cb.WriteString(strings.TrimSpace(s))
+
+		// don't add an artificial newline after the last split
+		if i+1 < len(lines) {
+			cb.WriteString("\n")
+		}
+	}
+	return cb.String()
 }
 
 type keyMap struct {

@@ -37,6 +37,10 @@ const sdkInstructionsFilePath = "internal/setup/sdk_build_instructions/"
 func NewSdk() tea.Model {
 	sdks := []sdk{
 		{
+			Name:                 "Go",
+			InstructionsFileName: sdkInstructionsFilePath + "go.md",
+		},
+		{
 			Name:                 "JavaScript",
 			InstructionsFileName: sdkInstructionsFilePath + "js.md",
 		},
