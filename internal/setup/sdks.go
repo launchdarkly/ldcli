@@ -37,6 +37,30 @@ const sdkInstructionsFilePath = "internal/setup/sdk_build_instructions/"
 func NewSdk() tea.Model {
 	sdks := []sdk{
 		{
+			Name:                 "Akamai",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "Android",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "Apex",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "C++ (Client)",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "C++ (Server)",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "Cloudflare",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
 			Name:                 "Go",
 			InstructionsFileName: sdkInstructionsFilePath + "go.md",
 		},
@@ -54,6 +78,7 @@ func NewSdk() tea.Model {
 	l.Title = "Select your SDK."
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
+	l.Paginator.PerPage = 5
 
 	return sdkModel{
 		list: l,
