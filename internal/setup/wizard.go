@@ -113,9 +113,7 @@ func (m WizardModel) View() string {
 	if m.currStep > sdksStep {
 		return wordwrap.String(
 			fmt.Sprintf(
-				"Selected project:     %s\nSelected environment: %s\n\nSet up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
-				m.currProjectKey,
-				m.currEnvironmentKey,
+				"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
 				m.currSdk.Name,
 				m.renderMarkdown(),
 			),
