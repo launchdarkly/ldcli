@@ -3,9 +3,11 @@ package projects
 import (
 	"context"
 	"encoding/json"
-	"ld-cli/internal/errors"
+	"fmt"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
+
+	"ld-cli/internal/errors"
 )
 
 type Client interface {
@@ -17,7 +19,17 @@ type ProjectsClient struct {
 	client *ldapi.APIClient
 }
 
-func NewClient(accessToken string, baseURI string) ProjectsClient {
+var _ Client = ProjectsClient{}
+
+type ProjectsClientFn = func(accessToken string, baseUri string) Client
+
+func Foo() ProjectsClientFn {
+	return func(accessToken string, baseURI string) Client {
+		return NewClient(accessToken, baseURI)
+	}
+}
+
+func NewClient(accessToken string, baseURI string) Client {
 	config := ldapi.NewConfiguration()
 	config.AddDefaultHeader("Authorization", accessToken)
 	config.Servers[0].URL = baseURI
@@ -64,4 +76,61 @@ func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
 	}
 
 	return projectsJSON, nil
+}
+
+type MockClient struct {
+	hasForbiddenErr    bool
+	hasUnauthorizedErr bool
+}
+
+func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
+	return []byte(fmt.Sprintf(`{
+			"_id": "000000000000000000000001",
+			"_links": null,
+			"environments": null,
+			"includeInSnippetByDefault": false,
+			"key": %q,
+			"name": %q,
+			"tags": null
+		}`,
+		key,
+		name,
+	)), nil
+}
+
+func (c MockClient) List(ctx context.Context) ([]byte, error) {
+	if c.hasForbiddenErr {
+		return nil, errors.ErrForbidden
+	}
+	if c.hasUnauthorizedErr {
+		return nil, errors.ErrUnauthorized
+	}
+
+	return []byte(`{
+		"_links": {
+			"last": {
+				"href": "/api/v2/projects?expand=environments&limit=1&offset=1",
+					"type": "application/json"
+			},
+			"next": {
+				"href": "/api/v2/projects?expand=environments&limit=1&offset=0",
+					"type": "application/json"
+			},
+			"self": {
+				"href": "/api/v2/projects?expand=environments&limit=1",
+					"type": "application/json"
+			}
+		},
+		"items": [
+			{
+				"_id": "000000000000000000000001",
+				"_links": null,
+				"includeInSnippetByDefault": false,
+				"key": "test-project",
+				"name": "",
+				"tags": null
+			}
+		],
+		"totalCount": 1
+	}`), nil
 }

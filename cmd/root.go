@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	errs "ld-cli/internal/errors"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ld-cli/cmd/projects"
+	projcmd "ld-cli/cmd/projects"
+	errs "ld-cli/internal/errors"
+	"ld-cli/internal/projects"
 )
 
-func newRootCommand() *cobra.Command {
+// func newRootCommand(projectClient projects.Client) *cobra.Command {
+func newRootCommand(projects.ProjectsClientFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -59,15 +60,16 @@ func newRootCommand() *cobra.Command {
 	if err != nil {
 		panic(err)
 	}
+	projectClient := projects.Foo()(accessToken, baseURI)
 
-	cmd.AddCommand(projects.NewProjectsCmd())
+	cmd.AddCommand(projcmd.NewProjectsCmd(projectClient))
 	cmd.AddCommand(setupCmd)
 
 	return cmd
 }
 
 func Execute() {
-	rootCmd := newRootCommand()
+	rootCmd := newRootCommand(projects.NewClient)
 	err := rootCmd.Execute()
 	if err != nil {
 		switch {

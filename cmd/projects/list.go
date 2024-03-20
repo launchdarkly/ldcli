@@ -12,7 +12,12 @@ import (
 	"ld-cli/internal/projects"
 )
 
-func NewListCmd() *cobra.Command {
+type listCmd struct {
+	Cmd    *cobra.Command
+	client projects.Client
+}
+
+func NewListCmd(client projects.Client) (listCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "Return a list of projects",
@@ -21,7 +26,10 @@ func NewListCmd() *cobra.Command {
 		RunE:    runList,
 	}
 
-	return cmd
+	return listCmd{
+		Cmd:    cmd,
+		client: client,
+	}, nil
 }
 
 // validate ensures the flags are valid before using them.

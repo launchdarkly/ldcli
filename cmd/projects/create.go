@@ -4,13 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"ld-cli/internal/projects"
 )
 
-func NewCreateCmd() *cobra.Command {
+type createCmd struct {
+	Cmd    *cobra.Command
+	client projects.Client
+}
+
+func NewCreateCmd(client projects.Client) (createCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new project",
@@ -29,14 +35,17 @@ func NewCreateCmd() *cobra.Command {
 	)
 	err := cmd.MarkFlagRequired("data")
 	if err != nil {
-		panic(err)
+		return createCmd{}, nil
 	}
 	err = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
 	if err != nil {
-		panic(err)
+		return createCmd{}, nil
 	}
 
-	return cmd
+	return createCmd{
+		Cmd:    cmd,
+		client: client,
+	}, nil
 }
 
 type inputData struct {
