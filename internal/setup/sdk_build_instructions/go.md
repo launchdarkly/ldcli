@@ -20,4 +20,4 @@ const featureFlagKey = "my-flag-key"
 
 3. Run `./hello-go`
 
-You should see the message `"Feature flag '<flag key>' is <true/false> for this context"`.
+You should see the message `"Feature flag 'my-flag-key' is <true/false> for this context"`.
