@@ -8,4 +8,4 @@ const flagKey = 'my-flag-key';
 
 2. Open `index.html` in your browser.
 
-You should receive the message "Feature flag key '<flag key>' is <true/false> for this user".
+You should receive the message "Feature flag key 'my-flag-key' is <true/false> for this user".
