@@ -21,21 +21,19 @@ type fetchResources struct{}
 const (
 	flagsStep sessionState = iota
 	sdksStep
+	flagToggleStep
 )
 
 // WizardModel is a high level container model that controls the nested models which each
 // represent a step in the setup wizard.
 type WizardModel struct {
-	quitting                bool
-	err                     error
-	currStep                sessionState
-	steps                   []tea.Model
-	useRecommendedResources bool
-	currProjectKey          string
-	currEnvironmentKey      string
-	currFlagKey             string
-	currSdk                 sdk
-	width                   int
+	quitting    bool
+	err         error
+	currStep    sessionState
+	steps       []tea.Model
+	currFlagKey string
+	currSdk     sdk
+	width       int
 }
 
 func NewWizardModel() tea.Model {
@@ -45,6 +43,7 @@ func NewWizardModel() tea.Model {
 		// prevent this off-by-one issue.
 		NewFlag(),
 		NewSdk(),
+		NewFlagToggle(),
 	}
 
 	return WizardModel{
@@ -81,7 +80,9 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currSdk = f.choice
 					m.currStep += 1
 				}
-				// add additional cases for additional steps
+			case flagToggleStep:
+				updatedModel, _ := m.steps[flagToggleStep].Update(msg)
+				m.steps[flagToggleStep] = updatedModel
 			default:
 			}
 		case key.Matches(msg, keys.Back):
@@ -108,6 +109,10 @@ func (m WizardModel) View() string {
 
 	if m.err != nil {
 		return fmt.Sprintf("ERROR: %s", m.err)
+	}
+
+	if m.currStep == flagToggleStep {
+		return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
 	}
 
 	if m.currStep > sdksStep {
