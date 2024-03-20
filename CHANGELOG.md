@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.0](https://github.com/launchdarkly/ld-cli/compare/v1.1.4...v1.2.0) (2024-03-20)
+
+
+### Features
+
+* Add auto create step in UI ([#10](https://github.com/launchdarkly/ld-cli/issues/10)) ([fb2fb5c](https://github.com/launchdarkly/ld-cli/commit/fb2fb5cf202af0966c264d217d92958174be250b))
+* add new input model, use in projects step ([#30](https://github.com/launchdarkly/ld-cli/issues/30)) ([fbc9d0f](https://github.com/launchdarkly/ld-cli/commit/fbc9d0fe55caf8977fa5279adb6dd250f056819a))
+* Add project create command structure ([#33](https://github.com/launchdarkly/ld-cli/issues/33)) ([f33ebb9](https://github.com/launchdarkly/ld-cli/commit/f33ebb9b60a46cb7cd0710f7e21d29d54cbe6584))
+* add sdk wizard step ([#29](https://github.com/launchdarkly/ld-cli/issues/29)) ([c4dc7d0](https://github.com/launchdarkly/ld-cli/commit/c4dc7d0b4e6b540a14243a399982f7930f067ea8))
+* create flag as first step in wizard ([#42](https://github.com/launchdarkly/ld-cli/issues/42)) ([7f62386](https://github.com/launchdarkly/ld-cli/commit/7f6238627212c4000cab99ad0506e25843fbedbc))
+* list projects err handling ([#21](https://github.com/launchdarkly/ld-cli/issues/21)) ([2ab3668](https://github.com/launchdarkly/ld-cli/commit/2ab3668be4a6cf2ef04dfd5fe25a3d14801030e6))
+* render markdown ([#41](https://github.com/launchdarkly/ld-cli/issues/41)) ([83837ad](https://github.com/launchdarkly/ld-cli/commit/83837adaf884f0d0aaa55420494a6a77b065a5da))
+* select child resources based on parent key ([#31](https://github.com/launchdarkly/ld-cli/issues/31)) ([85c30ee](https://github.com/launchdarkly/ld-cli/commit/85c30eed5ecd2c0346e05163a5b7f805f73c98ce))
+* show list of sdks in setup wizard ([#43](https://github.com/launchdarkly/ld-cli/issues/43)) ([a984580](https://github.com/launchdarkly/ld-cli/commit/a9845803e6d86071dc47a5016f78a9c62e7db335))
+
 ## [1.1.4](https://github.com/launchdarkly/ld-cli/compare/v1.1.3...v1.1.4) (2024-03-12)
 
 
