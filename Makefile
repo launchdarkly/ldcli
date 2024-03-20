@@ -3,6 +3,9 @@
 build:
 	go build -o ldcli
 
+log:
+	tail -f *.log
+
 test:
 	go test ./...
 

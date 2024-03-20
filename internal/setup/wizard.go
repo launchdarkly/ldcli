@@ -2,13 +2,9 @@ package setup
 
 import (
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	"github.com/muesli/reflow/wordwrap"
 )
 
 // TODO: we may want to rename this for clarity
@@ -21,21 +17,20 @@ type fetchResources struct{}
 const (
 	flagsStep sessionState = iota
 	sdksStep
+	sdkInstructionsStep
+	flagToggleStep
 )
 
 // WizardModel is a high level container model that controls the nested models which each
 // represent a step in the setup wizard.
 type WizardModel struct {
-	quitting                bool
-	err                     error
-	currStep                sessionState
-	steps                   []tea.Model
-	useRecommendedResources bool
-	currProjectKey          string
-	currEnvironmentKey      string
-	currFlagKey             string
-	currSdk                 sdk
-	width                   int
+	quitting    bool
+	err         error
+	currStep    sessionState
+	steps       []tea.Model
+	currFlagKey string
+	currSdk     sdk
+	width       int
 }
 
 func NewWizardModel() tea.Model {
@@ -45,6 +40,8 @@ func NewWizardModel() tea.Model {
 		// prevent this off-by-one issue.
 		NewFlag(),
 		NewSdk(),
+		NewSDKInstructions(),
+		NewFlagToggle(),
 	}
 
 	return WizardModel{
@@ -80,8 +77,31 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if ok {
 					m.currSdk = f.choice
 					m.currStep += 1
+
+					// update the sdkInstructionModel so it can show the selected SDK instructions
+					model := m.steps[sdkInstructionsStep]
+					f, ok := model.(sdkInstructionModel)
+					if ok {
+						f.filename = m.currSdk.InstructionsFileName
+						f.flagKey = m.currFlagKey
+						f.name = m.currSdk.Name
+						f.width = m.width
+						m.steps[sdkInstructionsStep] = f
+					}
+
+					// update the flagToggleModel so it can show the flag key
+					model = m.steps[flagToggleStep]
+					f2, ok := model.(flagToggleModel)
+					if ok {
+						f2.flagKey = m.currFlagKey
+						m.steps[flagToggleStep] = f2
+					}
 				}
-				// add additional cases for additional steps
+			case sdkInstructionsStep:
+				m.currStep += 1
+			case flagToggleStep:
+				updatedModel, _ := m.steps[flagToggleStep].Update(msg)
+				m.steps[flagToggleStep] = updatedModel
 			default:
 			}
 		case key.Matches(msg, keys.Back):
@@ -110,52 +130,7 @@ func (m WizardModel) View() string {
 		return fmt.Sprintf("ERROR: %s", m.err)
 	}
 
-	if m.currStep > sdksStep {
-		return wordwrap.String(
-			fmt.Sprintf(
-				"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
-				m.currSdk.Name,
-				m.renderMarkdown(),
-			),
-			m.width,
-		)
-	}
-
 	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
-}
-
-func (m WizardModel) renderMarkdown() string {
-	content, err := os.ReadFile(m.currSdk.InstructionsFileName)
-	if err != nil {
-		fmt.Println("could not load file:", err)
-		os.Exit(1)
-	}
-	sdkInstructions := strings.ReplaceAll(string(content), "my-flag-key", m.currFlagKey)
-
-	gs := glamour.WithEnvironmentConfig()
-	r, err := glamour.NewTermRenderer(
-		gs,
-		glamour.WithWordWrap(int(80)),
-		glamour.WithPreservedNewLines(),
-	)
-	if err != nil {
-		panic(err)
-	}
-	out, err := r.RenderBytes([]byte(sdkInstructions))
-	if err != nil {
-		panic(err)
-	}
-	lines := strings.Split(string(out), "\n")
-	var cb strings.Builder
-	for i, s := range lines {
-		cb.WriteString(strings.TrimSpace(s))
-
-		// don't add an artificial newline after the last split
-		if i+1 < len(lines) {
-			cb.WriteString("\n")
-		}
-	}
-	return cb.String()
 }
 
 type keyMap struct {
