@@ -2,17 +2,14 @@ package setup
 
 import (
 	"fmt"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 var (
-	flagStyle             = lipgloss.NewStyle().PaddingLeft(4)
-	selectedFlagItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
-
 	_ list.Item = flag{}
 )
 
@@ -27,7 +24,6 @@ func (p flag) FilterValue() string { return "" }
 
 type flagModel struct {
 	input     string
-	err       error
 	textInput textinput.Model
 }
 

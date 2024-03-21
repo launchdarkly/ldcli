@@ -1,0 +1,10 @@
+repos:
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.57.1
+    hooks:
+      - id: golangci-lint
+        entry: golangci-lint run
+        exclude: '^(vendor/|.circleci/)'
+        language: golang
+        require_serial: true
+        types: [go]

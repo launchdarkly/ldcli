@@ -26,10 +26,8 @@ type sdk struct {
 func (s sdk) FilterValue() string { return "" }
 
 type sdkModel struct {
-	choice       sdk
-	instructions string
-	err          error
-	list         list.Model
+	choice sdk
+	list   list.Model
 }
 
 const sdkInstructionsFilePath = "internal/setup/sdk_build_instructions/"

@@ -11,10 +11,6 @@ import (
 	"ld-cli/internal/errors"
 )
 
-func strPtr(s string) *string {
-	return &s
-}
-
 type GetProjectsResponse struct{}
 
 type MockClient struct {
@@ -70,7 +66,7 @@ func (c MockClient) List(ctx context.Context) ([]byte, error) {
 				"tags": null
 			}
 		],
-		"totalCount": 1	
+		"totalCount": 1
 	}`), nil
 }
 
