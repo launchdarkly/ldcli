@@ -73,7 +73,7 @@ func NewSdk() tea.Model {
 	}
 
 	l := list.New(sdksToItems(sdks), sdkDelegate{}, 30, 14)
-	l.Title = "Select your SDK\n"
+	l.Title = "Select your SDK:\n"
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
 	l.Styles.TitleBar = lipgloss.NewStyle()
