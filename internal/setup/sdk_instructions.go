@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 )
 
@@ -30,11 +31,13 @@ func (m sdkInstructionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m sdkInstructionModel) View() string {
+	style := lipgloss.NewStyle().Border(lipgloss.NormalBorder())
+
 	return wordwrap.String(
 		fmt.Sprintf(
 			"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code.\n%s",
 			m.name,
-			m.renderMarkdown(),
+			style.Render(m.renderMarkdown()),
 		),
 		m.width,
 	)
