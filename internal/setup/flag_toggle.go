@@ -79,7 +79,7 @@ func (m flagToggleModel) toggleFlag() error {
 		}`, toggleInstruction)
 
 	req, _ := http.NewRequest("PATCH", url, bytes.NewBufferString(body))
-	req.Header.Add("Authorization", "") // add token here
+	req.Header.Add("Authorization", apiToken) // add token here
 	req.Header.Add("Content-type", "application/json; domain-model=launchdarkly.semanticpatch")
 
 	res, err := c.Do(req)

@@ -61,7 +61,7 @@ func (m flagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.input = input
 
 			// uncomment to send POST
-			//m.err = createFlag(input)
+			//m.err = m.createFlag()
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 		default:
@@ -82,6 +82,8 @@ func (m flagModel) View() string {
 	) + "\n"
 }
 
+const apiToken = ""
+
 func (m flagModel) createFlag() error {
 	url := "http://localhost/api/v2/flags/default"
 	c := &http.Client{
@@ -97,7 +99,7 @@ func (m flagModel) createFlag() error {
 	)
 
 	req, _ := http.NewRequest("POST", url, bytes.NewBufferString(body))
-	req.Header.Add("Authorization", "") // add token here
+	req.Header.Add("Authorization", apiToken) // add token here
 	req.Header.Add("Content-type", "application/json")
 
 	res, err := c.Do(req)
