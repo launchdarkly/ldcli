@@ -63,7 +63,7 @@ func (m flagToggleModel) View() string {
 }
 
 func (m flagToggleModel) toggleFlag() error {
-	url := fmt.Sprintf("http://localhost/api/v2/flags/skylab/%s", m.flagKey)
+	url := fmt.Sprintf("http://localhost/api/v2/flags/default/%s", m.flagKey)
 	c := &http.Client{
 		Timeout: 10 * time.Second,
 	}

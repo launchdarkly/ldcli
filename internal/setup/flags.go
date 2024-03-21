@@ -83,7 +83,7 @@ func (m flagModel) View() string {
 }
 
 func (m flagModel) createFlag() error {
-	url := "http://localhost/api/v2/flags/skylab"
+	url := "http://localhost/api/v2/flags/default"
 	c := &http.Client{
 		Timeout: 10 * time.Second,
 	}
