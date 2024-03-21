@@ -105,10 +105,8 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.steps[flagToggleStep] = updatedModel
 				m.currStep += 1
 			default:
-				m.currStep += 1
-				if m.currStep > flagToggleStep+1 {
-					return m, tea.Quit
-				}
+				return m, tea.Quit
+
 			}
 		case key.Matches(msg, keys.Back):
 			// only go back if not on the first step
