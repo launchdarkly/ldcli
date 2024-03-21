@@ -32,7 +32,7 @@ func (m sdkInstructionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m sdkInstructionModel) View() string {
 	return wordwrap.String(
 		fmt.Sprintf(
-			"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
+			"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code.\n%s",
 			m.name,
 			m.renderMarkdown(),
 		),

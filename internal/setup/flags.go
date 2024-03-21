@@ -2,6 +2,7 @@ package setup
 
 import (
 	"fmt"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -27,7 +28,6 @@ func (p flag) FilterValue() string { return "" }
 
 type flagModel struct {
 	input     string
-	err       error
 	textInput textinput.Model
 }
 
@@ -69,9 +69,11 @@ func (m flagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m flagModel) View() string {
+	style := lipgloss.NewStyle().
+		MarginLeft(2)
+
 	return fmt.Sprintf(
-		"Name your first feature flag (enter for default value):\n\n%s\n\n%s",
-		m.textInput.View(),
-		"(esc to quit)",
+		"Name your first feature flag (enter for default value):\n\n%s",
+		style.Render(m.textInput.View()),
 	) + "\n"
 }
