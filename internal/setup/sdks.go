@@ -73,7 +73,11 @@ func NewSdk() tea.Model {
 	}
 
 	l := list.New(sdksToItems(sdks), sdkDelegate{}, 30, 14)
-	l.Title = "Select your SDK."
+	l.Title = "Select your SDK:\n"
+	// reset title styles
+	l.Styles.Title = lipgloss.NewStyle()
+	l.Styles.TitleBar = lipgloss.NewStyle()
+	l.SetShowPagination(true)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.Paginator.PerPage = 5
@@ -109,7 +113,7 @@ func (m sdkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m sdkModel) View() string {
-	return "\n" + m.list.View()
+	return m.list.View()
 }
 
 type sdkDelegate struct{}
