@@ -51,28 +51,11 @@ func (m sdkInstructionModel) renderMarkdown() string {
 	}
 	sdkInstructions := strings.ReplaceAll(string(content), "my-flag-key", m.flagKey)
 
-	gs := glamour.WithEnvironmentConfig()
-	r, err := glamour.NewTermRenderer(
-		gs,
-		glamour.WithWordWrap(int(80)),
-		glamour.WithPreservedNewLines(),
-	)
+	out, err := glamour.Render(sdkInstructions, "auto")
 	if err != nil {
-		panic(err)
+		fmt.Println("could not render markdown:", err)
+		os.Exit(1)
 	}
-	out, err := r.RenderBytes([]byte(sdkInstructions))
-	if err != nil {
-		panic(err)
-	}
-	lines := strings.Split(string(out), "\n")
-	var cb strings.Builder
-	for i, s := range lines {
-		cb.WriteString(strings.TrimSpace(s))
 
-		// don't add an artificial newline after the last split
-		if i+1 < len(lines) {
-			cb.WriteString("\n")
-		}
-	}
-	return cb.String()
+	return out
 }
