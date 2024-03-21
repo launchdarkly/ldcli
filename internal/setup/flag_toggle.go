@@ -23,7 +23,7 @@ func (m flagToggleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+		case key.Matches(msg, keys.Toggle):
 			m.enabled = !m.enabled
 		}
 	}
@@ -33,13 +33,13 @@ func (m flagToggleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m flagToggleModel) View() string {
 	var furtherInstructions string
-	title := "Toggle your feature flag!"
+	title := "Toggle your feature flag (press tab)"
 	toggle := "OFF"
 	bgColor := "#646a73"
 	margin := 1
 	if m.enabled {
 		bgColor = "#3d9c51"
-		furtherInstructions = "\n\nCheck your [browser|application logs] to see the change."
+		furtherInstructions = "\n\nCheck your [browser|application logs] to see the change!"
 		margin = 2
 		toggle = "ON"
 	}

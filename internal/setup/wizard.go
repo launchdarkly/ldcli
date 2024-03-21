@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/muesli/reflow/wordwrap"
 )
 
 // TODO: we may want to rename this for clarity
@@ -102,7 +103,10 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case flagToggleStep:
 				updatedModel, _ := m.steps[flagToggleStep].Update(msg)
 				m.steps[flagToggleStep] = updatedModel
+				m.currStep += 1
 			default:
+				return m, tea.Quit
+
 			}
 		case key.Matches(msg, keys.Back):
 			// only go back if not on the first step
@@ -130,14 +134,19 @@ func (m WizardModel) View() string {
 		return fmt.Sprintf("ERROR: %s", m.err)
 	}
 
+	if m.currStep > flagToggleStep {
+		return wordwrap.String("\nCongratulations! You’ve just used feature flags to control how your application works, without having to rebuild or redeploy your application.\n\nNow that you’re set up with your first feature flag, let’s make it easier to manage your flags collaboratively with your team. <Instructions will go here>", m.width)
+	}
+
 	return fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
 }
 
 type keyMap struct {
-	Back  key.Binding
-	Enter key.Binding
-	Help  key.Binding
-	Quit  key.Binding
+	Back   key.Binding
+	Enter  key.Binding
+	Help   key.Binding
+	Quit   key.Binding
+	Toggle key.Binding
 }
 
 var keys = keyMap{
@@ -156,5 +165,9 @@ var keys = keyMap{
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c", "q"),
 		key.WithHelp("q", "quit"),
+	),
+	Toggle: key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "toggle"),
 	),
 }
