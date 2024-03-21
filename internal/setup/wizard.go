@@ -130,7 +130,7 @@ func (m WizardModel) View() string {
 		return fmt.Sprintf("ERROR: %s", m.err)
 	}
 
-	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
+	return fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))
 }
 
 type keyMap struct {
