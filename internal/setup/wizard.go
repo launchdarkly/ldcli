@@ -94,6 +94,7 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					model = m.steps[flagToggleStep]
 					f2, ok := model.(flagToggleModel)
 					if ok {
+						f2.logType = m.currSdk.LogType
 						f2.flagKey = m.currFlagKey
 						m.steps[flagToggleStep] = f2
 					}
