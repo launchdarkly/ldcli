@@ -11,9 +11,6 @@ import (
 )
 
 var (
-	flagStyle             = lipgloss.NewStyle().PaddingLeft(4)
-	selectedFlagItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
-
 	_ list.Item = flag{}
 )
 
