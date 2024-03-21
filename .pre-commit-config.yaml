@@ -1,0 +1,22 @@
+repos:
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.57.1
+    hooks:
+      - id: golangci-lint
+        entry: golangci-lint run
+        exclude: '^(vendor/|.circleci/)'
+        language: golang
+        require_serial: true
+        types: [go]
+  - repo: git@github.com:launchdarkly/pre-commit-go
+    rev: v0.11.0
+    hooks:
+      - id: compile-go-tests
+        entry: bin/run-script run-on-dirs "go test ./..."
+        exclude: '^vendor/|^.circleci/image/tools'
+        name: run-go-tests
+      - id: discarded-stacktrace
+        exclude: '(^vendor/)'
+      - id: go-mod-tidy
+      - id: go-mod-verify
+      - id: go-mod-vendor-no-change

@@ -26,10 +26,8 @@ type sdk struct {
 func (s sdk) FilterValue() string { return "" }
 
 type sdkModel struct {
-	choice       sdk
-	instructions string
-	err          error
-	list         list.Model
+	choice sdk
+	list   list.Model
 }
 
 const sdkInstructionsFilePath = "internal/setup/sdk_build_instructions/"
@@ -41,15 +39,48 @@ func NewSdk() tea.Model {
 			InstructionsFileName: sdkInstructionsFilePath + "js.md",
 		},
 		{
+			Name:                 "Node.js (server)",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
 			Name:                 "Python",
 			InstructionsFileName: sdkInstructionsFilePath + "python.md",
+		},
+		{
+			Name:                 "Java",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "Android",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "React Native",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "Ruby",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "Flutter",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 ".NET",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
 		},
 	}
 
 	l := list.New(sdksToItems(sdks), sdkDelegate{}, 30, 14)
-	l.Title = "Select your SDK."
+	l.Title = "Select your SDK:\n"
+	// reset title styles
+	l.Styles.Title = lipgloss.NewStyle()
+	l.Styles.TitleBar = lipgloss.NewStyle()
+	l.SetShowPagination(true)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
+	l.Paginator.PerPage = 5
 
 	return sdkModel{
 		list: l,
@@ -82,7 +113,7 @@ func (m sdkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m sdkModel) View() string {
-	return "\n" + m.list.View()
+	return m.list.View()
 }
 
 type sdkDelegate struct{}

@@ -29,7 +29,6 @@ func (p choice) FilterValue() string { return "" }
 
 type autoCreateModel struct {
 	choice string
-	err    error
 	list   list.Model
 }
 
