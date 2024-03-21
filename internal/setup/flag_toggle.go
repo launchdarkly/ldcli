@@ -1,7 +1,11 @@
 package setup
 
 import (
+	"bytes"
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -11,6 +15,7 @@ type flagToggleModel struct {
 	enabled bool
 	flagKey string
 	logType string
+	//err     error
 }
 
 func NewFlagToggle() flagToggleModel {
@@ -27,6 +32,9 @@ func (m flagToggleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.Toggle):
 			m.enabled = !m.enabled
+
+			// uncomment to send PATCH
+			//m.err = m.toggleFlag()
 		}
 	}
 
@@ -52,4 +60,33 @@ func (m flagToggleModel) View() string {
 		MarginRight(margin)
 
 	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions
+}
+
+func (m flagToggleModel) toggleFlag() error {
+	url := fmt.Sprintf("http://localhost/api/v2/flags/skylab/%s", m.flagKey)
+	c := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	toggleInstruction := "turnFlagOn"
+	if !m.enabled {
+		toggleInstruction = "turnFlagOff"
+	}
+
+	body := fmt.Sprintf(`{
+		  "environmentKey": "production",
+		  "instructions": [ { "kind": %q } ]
+		}`, toggleInstruction)
+
+	req, _ := http.NewRequest("PATCH", url, bytes.NewBufferString(body))
+	req.Header.Add("Authorization", "") // add token here
+	req.Header.Add("Content-type", "application/json; domain-model=launchdarkly.semanticpatch")
+
+	res, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	return nil
 }

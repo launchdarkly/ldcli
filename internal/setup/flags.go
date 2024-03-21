@@ -1,7 +1,10 @@
 package setup
 
 import (
+	"bytes"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -26,6 +29,7 @@ func (p flag) FilterValue() string { return "" }
 type flagModel struct {
 	input     string
 	textInput textinput.Model
+	//err       error
 }
 
 func NewFlag() tea.Model {
@@ -55,6 +59,9 @@ func (m flagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				input = defaultFlagKey
 			}
 			m.input = input
+
+			// uncomment to send POST
+			//m.err = createFlag(input)
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 		default:
@@ -73,4 +80,31 @@ func (m flagModel) View() string {
 		"Name your first feature flag (enter for default value):\n\n%s",
 		style.Render(m.textInput.View()),
 	) + "\n"
+}
+
+func (m flagModel) createFlag() error {
+	url := "http://localhost/api/v2/flags/skylab"
+	c := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	body := fmt.Sprintf(`{
+		"name": %q,
+		"key": %q
+	}`,
+		m.input,
+		m.input,
+	)
+
+	req, _ := http.NewRequest("POST", url, bytes.NewBufferString(body))
+	req.Header.Add("Authorization", "") // add token here
+	req.Header.Add("Content-type", "application/json")
+
+	res, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	return nil
 }
