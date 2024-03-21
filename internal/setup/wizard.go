@@ -11,7 +11,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/muesli/reflow/wordwrap"
 )
 
 // TODO: we may want to rename this for clarity
@@ -28,6 +27,8 @@ const (
 	environmentsStep
 	flagsStep
 	sdksStep
+	sdkInstructionsStep
+	flagToggleStep
 )
 
 type inputs struct {
@@ -61,6 +62,8 @@ func NewWizardModel() tea.Model {
 		NewEnvironment(),
 		NewFlag(),
 		NewSdk(),
+		NewSDKInstructions(),
+		NewFlagToggle(),
 	}
 
 	return WizardModel{
@@ -181,8 +184,8 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case flagsStep:
 				model, _ := m.steps[flagsStep].Update(msg)
 				f, ok := model.(flagModel)
-				if ok {
-					m.currFlagKey = f.choice
+				if ok && f.input != "" {
+					m.currFlagKey = f.input
 					m.currStep += 1
 				}
 			case sdksStep:
@@ -191,20 +194,36 @@ func (m WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if ok {
 					m.currSdk = f.choice
 					m.currStep += 1
+
+					// update the sdkInstructionModel so it can show the selected SDK instructions
+					model := m.steps[sdkInstructionsStep]
+					f, ok := model.(sdkInstructionModel)
+					if ok {
+						f.filename = m.currSdk.InstructionsFileName
+						f.flagKey = m.currFlagKey
+						f.name = m.currSdk.Name
+						f.width = m.width
+						m.steps[sdkInstructionsStep] = f
+					}
+
+					// update the flagToggleModel so it can show the flag key
+					model = m.steps[flagToggleStep]
+					f2, ok := model.(flagToggleModel)
+					if ok {
+						f2.flagKey = m.currFlagKey
+						m.steps[flagToggleStep] = f2
+					}
 				}
-				// add additional cases for additional steps
+			case sdkInstructionsStep:
+				m.currStep += 1
+			case flagToggleStep:
+				updatedModel, _ := m.steps[flagToggleStep].Update(msg)
+				m.steps[flagToggleStep] = updatedModel
 			default:
 			}
 		case key.Matches(msg, keys.Back):
-			// if we've opted to use recommended resources but want to go back from the SDK step,
-			// make sure we go back to the right step
-			if m.useRecommendedResources && m.currStep == sdksStep {
-				m.currStep = autoCreateStep
-			}
 			// only go back if not on the first step
-			if m.currStep > autoCreateStep {
-				// fetch resources for the previous step again in case we created new ones
-				m.steps[m.currStep-1], _ = m.steps[m.currStep-1].Update(fetchResources{})
+			if m.currStep > 0 {
 				m.currStep -= 1
 			}
 		case key.Matches(msg, keys.Quit):
@@ -226,25 +245,6 @@ func (m WizardModel) View() string {
 
 	if m.err != nil {
 		return fmt.Sprintf("ERROR: %s", m.err)
-	}
-
-	if m.currStep > sdksStep {
-		// consider moving this to its own view (in a new model?)
-		content, err := os.ReadFile(m.currSdk.InstructionsFileName)
-		if err != nil {
-			fmt.Println("could not load file:", err)
-			os.Exit(1)
-		}
-		sdkInstructions := strings.ReplaceAll(string(content), "my-flag-key", m.currFlagKey)
-		return wordwrap.String(fmt.Sprintf(
-			"Selected project:     %s\nSelected environment: %s\n\nSet up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code. \n\n%s",
-			m.currProjectKey,
-			m.currEnvironmentKey,
-			m.currSdk.Name,
-			sdkInstructions,
-		),
-			m.width,
-		)
 	}
 
 	return fmt.Sprintf("\nstep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))

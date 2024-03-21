@@ -40,10 +40,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		viper.GetString("accessToken"),
 		viper.GetString("baseUri"),
 	)
-	response, err := projects.ListProjects(
-		context.Background(),
-		client,
-	)
+	response, err := client.List(context.Background())
 	if err != nil {
 		return err
 	}
