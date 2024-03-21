@@ -79,8 +79,8 @@ func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
 }
 
 type MockClient struct {
-	hasForbiddenErr    bool
-	hasUnauthorizedErr bool
+	HasForbiddenErr    bool
+	HasUnauthorizedErr bool
 }
 
 func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
@@ -99,10 +99,10 @@ func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte
 }
 
 func (c MockClient) List(ctx context.Context) ([]byte, error) {
-	if c.hasForbiddenErr {
+	if c.HasForbiddenErr {
 		return nil, errors.ErrForbidden
 	}
-	if c.hasUnauthorizedErr {
+	if c.HasUnauthorizedErr {
 		return nil, errors.ErrUnauthorized
 	}
 

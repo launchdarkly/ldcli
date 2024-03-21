@@ -2,74 +2,15 @@ package projects_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"ld-cli/internal/errors"
 	"ld-cli/internal/projects"
 )
 
 type GetProjectsResponse struct{}
-
-type MockClient struct {
-	hasForbiddenErr    bool
-	hasUnauthorizedErr bool
-}
-
-func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
-	return []byte(fmt.Sprintf(`{
-			"_id": "000000000000000000000001",
-			"_links": null,
-			"environments": null,
-			"includeInSnippetByDefault": false,
-			"key": %q,
-			"name": %q,
-			"tags": null
-		}`,
-		key,
-		name,
-	)), nil
-}
-
-func (c MockClient) List(ctx context.Context) ([]byte, error) {
-	if c.hasForbiddenErr {
-		return nil, errors.ErrForbidden
-	}
-	if c.hasUnauthorizedErr {
-		return nil, errors.ErrUnauthorized
-	}
-
-	return []byte(`{
-		"_links": {
-			"last": {
-				"href": "/api/v2/projects?expand=environments&limit=1&offset=1",
-					"type": "application/json"
-			},
-			"next": {
-				"href": "/api/v2/projects?expand=environments&limit=1&offset=0",
-					"type": "application/json"
-			},
-			"self": {
-				"href": "/api/v2/projects?expand=environments&limit=1",
-					"type": "application/json"
-			}
-		},
-		"items": [
-			{
-				"_id": "000000000000000000000001",
-				"_links": null,
-				"includeInSnippetByDefault": false,
-				"key": "test-project",
-				"name": "",
-				"tags": null
-			}
-		],
-		"totalCount": 1
-	}`), nil
-}
 
 func TestCreateProject(t *testing.T) {
 	t.Run("return a new project", func(t *testing.T) {
@@ -121,7 +62,7 @@ func TestListProjects(t *testing.T) {
 			],
 			"totalCount": 1
 		}`
-		mockClient := MockClient{}
+		mockClient := projects.MockClient{}
 
 		response, err := mockClient.List(context.Background())
 
@@ -130,8 +71,8 @@ func TestListProjects(t *testing.T) {
 	})
 
 	t.Run("without access is forbidden", func(t *testing.T) {
-		mockClient := MockClient{
-			hasForbiddenErr: true,
+		mockClient := projects.MockClient{
+			HasForbiddenErr: true,
 		}
 
 		_, err := mockClient.List(context.Background())
@@ -140,8 +81,8 @@ func TestListProjects(t *testing.T) {
 	})
 
 	t.Run("with invalid accessToken is unauthorized", func(t *testing.T) {
-		mockClient := MockClient{
-			hasUnauthorizedErr: true,
+		mockClient := projects.MockClient{
+			HasUnauthorizedErr: true,
 		}
 
 		_, err := mockClient.List(context.Background())
