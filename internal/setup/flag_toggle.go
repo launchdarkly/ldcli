@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"fmt"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -9,6 +10,7 @@ import (
 type flagToggleModel struct {
 	enabled bool
 	flagKey string
+	logType string
 }
 
 func NewFlagToggle() flagToggleModel {
@@ -39,7 +41,7 @@ func (m flagToggleModel) View() string {
 	margin := 1
 	if m.enabled {
 		bgColor = "#3d9c51"
-		furtherInstructions = "\n\nCheck your [browser|application logs] to see the change!"
+		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", m.logType)
 		margin = 2
 		toggle = "ON"
 	}

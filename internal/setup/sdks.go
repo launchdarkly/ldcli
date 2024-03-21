@@ -18,9 +18,15 @@ var (
 	_ list.Item = sdk{}
 )
 
+const (
+	serverSideLogs = "application logs"
+	clientSideLogs = "browser"
+)
+
 type sdk struct {
 	Name                 string `json:"name"`
 	InstructionsFileName string `json:"instructionFile"`
+	LogType              string `json:"logType"`
 }
 
 func (s sdk) FilterValue() string { return "" }
@@ -37,38 +43,47 @@ func NewSdk() tea.Model {
 		{
 			Name:                 "JavaScript",
 			InstructionsFileName: sdkInstructionsFilePath + "js.md",
+			LogType:              clientSideLogs,
 		},
 		{
 			Name:                 "Node.js (server)",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+			LogType:              serverSideLogs,
 		},
 		{
 			Name:                 "Python",
 			InstructionsFileName: sdkInstructionsFilePath + "python.md",
+			LogType:              serverSideLogs,
 		},
 		{
 			Name:                 "Java",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+			LogType:              serverSideLogs,
 		},
 		{
 			Name:                 "Android",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+			LogType:              clientSideLogs,
 		},
 		{
 			Name:                 "React Native",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+			LogType:              clientSideLogs,
 		},
 		{
 			Name:                 "Ruby",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+			LogType:              serverSideLogs,
 		},
 		{
 			Name:                 "Flutter",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+			LogType:              clientSideLogs,
 		},
 		{
 			Name:                 ".NET",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+			LogType:              clientSideLogs,
 		},
 	}
 
