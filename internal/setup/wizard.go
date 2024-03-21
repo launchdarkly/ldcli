@@ -135,7 +135,7 @@ func (m WizardModel) View() string {
 	}
 
 	if m.currStep > flagToggleStep {
-		return wordwrap.String("\nCongratulations! You’ve just used feature flags to control how your application works, without having to rebuild or redeploy your application 🎉", m.width)
+		return wordwrap.String("\nCongratulations! You’ve just used feature flags to control how your application works, without having to rebuild or redeploy your application.", m.width)
 	}
 
 	return fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currStep].View(), m.currStep+1, len(m.steps))

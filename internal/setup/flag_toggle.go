@@ -39,7 +39,7 @@ func (m flagToggleModel) View() string {
 	margin := 1
 	if m.enabled {
 		bgColor = "#3d9c51"
-		furtherInstructions = "\n\nCheck your [browser|application logs] to see the change ✨"
+		furtherInstructions = "\n\nCheck your [browser|application logs] to see the change!"
 		margin = 2
 		toggle = "ON"
 	}
