@@ -35,7 +35,19 @@ const sdkInstructionsFilePath = "internal/setup/sdk_build_instructions/"
 func NewSdk() tea.Model {
 	sdks := []sdk{
 		{
-			Name:                 "Akamai",
+			Name:                 "JavaScript",
+			InstructionsFileName: sdkInstructionsFilePath + "js.md",
+		},
+		{
+			Name:                 "Node.js (server)",
+			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
+		},
+		{
+			Name:                 "Python",
+			InstructionsFileName: sdkInstructionsFilePath + "python.md",
+		},
+		{
+			Name:                 "Java",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
 		},
 		{
@@ -43,32 +55,20 @@ func NewSdk() tea.Model {
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
 		},
 		{
-			Name:                 "Apex",
+			Name:                 "React Native",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
 		},
 		{
-			Name:                 "C++ (Client)",
+			Name:                 "Ruby",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
 		},
 		{
-			Name:                 "C++ (Server)",
+			Name:                 "Flutter",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
 		},
 		{
-			Name:                 "Cloudflare",
+			Name:                 ".NET",
 			InstructionsFileName: sdkInstructionsFilePath + "coming_soon.md",
-		},
-		{
-			Name:                 "Go",
-			InstructionsFileName: sdkInstructionsFilePath + "go.md",
-		},
-		{
-			Name:                 "JavaScript",
-			InstructionsFileName: sdkInstructionsFilePath + "js.md",
-		},
-		{
-			Name:                 "Python",
-			InstructionsFileName: sdkInstructionsFilePath + "python.md",
 		},
 	}
 
