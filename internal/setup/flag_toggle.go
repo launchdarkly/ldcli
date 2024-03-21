@@ -74,7 +74,7 @@ func (m flagToggleModel) toggleFlag() error {
 	}
 
 	body := fmt.Sprintf(`{
-		  "environmentKey": "production",
+		  "environmentKey": "test",
 		  "instructions": [ { "kind": %q } ]
 		}`, toggleInstruction)
 
