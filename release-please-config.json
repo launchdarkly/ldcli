@@ -1,0 +1,10 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "go",
+      "bump-minor-pre-major": true,
+      "versioning": "always-bump-minor",
+      "prerelease": true
+    }
+  }
+}
