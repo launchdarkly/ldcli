@@ -2,7 +2,6 @@ package projects_test
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"testing"
 
@@ -10,55 +9,60 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"ld-cli/cmd"
-	errs "ld-cli/internal/errors"
+	"ld-cli/internal/errors"
 	"ld-cli/internal/projects"
 )
-
-type argOptionFn func() []string
 
 var (
 	validResponse = `{"valid": true}`
 )
 
-func WithValidArgs() argOptionFn {
-	return func() []string {
-		return []string{
-			"projects",
-			"list",
-			"-t",
-			"testAccessToken",
-			"-u",
-			"http://test.com",
-		}
+func ArgsValidCreate() []string {
+	args := append(ArgsCreateCommand(), ArgsAccess()...)
+	args = append(args, ArgsData()...)
+
+	return args
+}
+
+func ArgsValidList() []string {
+	return append(ArgsListCommand(), ArgsAccess()...)
+}
+
+func ArgsData() []string {
+	return []string{
+		"-d",
+		`{"key": "test-key", "name": "test-name"}`,
 	}
 }
 
-func WithNoArgs() argOptionFn {
-	return func() []string {
-		return []string{
-			"projects",
-			"list",
-		}
+func ArgsAccess() []string {
+	return []string{
+		"-t",
+		"testAccessToken",
+		"-u",
+		"http://test.com",
 	}
 }
 
-func callCmd(t *testing.T, client *projects.MockClient, options ...argOptionFn) ([]byte, error) {
+func ArgsCreateCommand() []string {
+	return []string{
+		"projects",
+		"create",
+	}
+}
+
+func ArgsListCommand() []string {
+	return []string{
+		"projects",
+		"list",
+	}
+}
+
+func callCmd(t *testing.T, client *projects.MockClient, args []string) ([]byte, error) {
 	rootCmd, err := cmd.NewRootCmd(client)
 	require.NoError(t, err)
 	b := bytes.NewBufferString("")
 	rootCmd.Cmd.SetOut(b)
-
-	args := make([]string, 0)
-	switch len(options) {
-	case 0:
-		args = WithValidArgs()()
-	case 1:
-		for _, o := range options {
-			args = o()
-		}
-	default:
-		return nil, errors.New("only one slice of arguments is valid")
-	}
 	rootCmd.Cmd.SetArgs(args)
 
 	err = rootCmd.Cmd.Execute()
@@ -72,14 +76,14 @@ func callCmd(t *testing.T, client *projects.MockClient, options ...argOptionFn) 
 	return out, nil
 }
 
-func TestList2(t *testing.T) {
+func TestList(t *testing.T) {
 	t.Run("with valid flags calls projects API", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", "testAccessToken", "http://test.com").
 			Return([]byte(validResponse), nil)
 
-		output, err := callCmd(t, &client)
+		output, err := callCmd(t, &client, ArgsValidList())
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -89,76 +93,9 @@ func TestList2(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", "testAccessToken", "http://test.com").
-			Return([]byte(`{}`), errs.ErrUnauthorized)
+			Return([]byte(`{}`), errors.ErrUnauthorized)
 
-		_, err := callCmd(t, &client)
-
-		require.EqualError(t, err, "You are not authorized to make this request")
-	})
-
-	t.Run("with a forbidden response is an error", func(t *testing.T) {
-		client := projects.MockClient{}
-		client.
-			On("List", "testAccessToken", "http://test.com").
-			Return([]byte(`{}`), errs.ErrForbidden)
-
-		_, err := callCmd(t, &client)
-
-		require.EqualError(t, err, "You do not have permission to make this request")
-	})
-
-	t.Run("with missing required flags is an error", func(t *testing.T) {
-		_, err := callCmd(t, &projects.MockClient{}, WithNoArgs())
-
-		assert.EqualError(t, err, `required flag(s) "accessToken", "baseUri" not set`)
-	})
-}
-
-func TestList(t *testing.T) {
-	t.Run("with valid flags calls projects API", func(t *testing.T) {
-		client := projects.MockClient{}
-		client.
-			On("List", "testAccessToken", "http://test.com").
-			Return([]byte(`{"valid": true}`), nil)
-		rootCmd, err := cmd.NewRootCmd(&client)
-		require.NoError(t, err)
-		b := bytes.NewBufferString("")
-		rootCmd.Cmd.SetOut(b)
-		rootCmd.Cmd.SetArgs([]string{
-			"projects",
-			"list",
-			"-t",
-			"testAccessToken",
-			"-u",
-			"http://test.com",
-		})
-		err = rootCmd.Cmd.Execute()
-
-		require.NoError(t, err)
-		out, err := io.ReadAll(b)
-		require.NoError(t, err)
-
-		assert.JSONEq(t, `{"valid": true}`, string(out))
-	})
-
-	t.Run("with an unauthorized response is an error", func(t *testing.T) {
-		client := projects.MockClient{}
-		client.
-			On("List", "testAccessToken", "http://test.com").
-			Return([]byte(`{}`), errs.ErrUnauthorized)
-		rootCmd, err := cmd.NewRootCmd(&client)
-		require.NoError(t, err)
-		b := bytes.NewBufferString("")
-		rootCmd.Cmd.SetOut(b)
-		rootCmd.Cmd.SetArgs([]string{
-			"projects",
-			"list",
-			"-t",
-			"testAccessToken",
-			"-u",
-			"http://test.com",
-		})
-		err = rootCmd.Cmd.Execute()
+		_, err := callCmd(t, &client, ArgsValidList())
 
 		require.EqualError(t, err, "You are not authorized to make this request")
 	})
@@ -167,34 +104,15 @@ func TestList(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", "testAccessToken", "http://test.com").
-			Return([]byte(`{}`), errs.ErrForbidden)
-		rootCmd, err := cmd.NewRootCmd(&client)
-		require.NoError(t, err)
-		b := bytes.NewBufferString("")
-		rootCmd.Cmd.SetOut(b)
-		rootCmd.Cmd.SetArgs([]string{
-			"projects",
-			"list",
-			"-t",
-			"testAccessToken",
-			"-u",
-			"http://test.com",
-		})
-		err = rootCmd.Cmd.Execute()
+			Return([]byte(`{}`), errors.ErrForbidden)
+
+		_, err := callCmd(t, &client, ArgsValidList())
 
 		require.EqualError(t, err, "You do not have permission to make this request")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
-		rootCmd, err := cmd.NewRootCmd(&projects.MockClient{})
-		require.NoError(t, err)
-		b := bytes.NewBufferString("")
-		rootCmd.Cmd.SetOut(b)
-		rootCmd.Cmd.SetArgs([]string{
-			"projects",
-			"list",
-		})
-		err = rootCmd.Cmd.Execute()
+		_, err := callCmd(t, &projects.MockClient{}, ArgsListCommand())
 
 		assert.EqualError(t, err, `required flag(s) "accessToken", "baseUri" not set`)
 	})
