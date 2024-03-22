@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"ld-cli/internal/setup"
+	"ldcli/internal/setup"
 )
 
 var setupCmd = &cobra.Command{

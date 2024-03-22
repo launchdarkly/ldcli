@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ld-cli/internal/errors"
-	"ld-cli/internal/projects"
+	"ldcli/internal/errors"
+	"ldcli/internal/projects"
 )
 
 func NewListCmd() *cobra.Command {

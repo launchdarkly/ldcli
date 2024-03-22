@@ -3,7 +3,7 @@ package flags
 import (
 	"context"
 	"encoding/json"
-	"ld-cli/internal/errors"
+	"ldcli/internal/errors"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 )

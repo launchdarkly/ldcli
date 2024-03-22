@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ld-cli/internal/flags"
+	"ldcli/internal/flags"
 )
 
 func NewUpdateCmd() *cobra.Command {

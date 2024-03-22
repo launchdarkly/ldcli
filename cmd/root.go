@@ -8,9 +8,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ld-cli/cmd/flags"
-	"ld-cli/cmd/projects"
-	errs "ld-cli/internal/errors"
+	"ldcli/cmd/flags"
+	"ldcli/cmd/projects"
+	errs "ldcli/internal/errors"
 )
 
 func newRootCommand() *cobra.Command {

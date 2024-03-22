@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"ld-cli/internal/errors"
+	"ldcli/internal/errors"
 )
 
 type GetProjectsResponse struct{}
