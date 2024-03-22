@@ -62,7 +62,7 @@ func (m flagToggleModel) View() string {
 	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions
 }
 
-func (m flagToggleModel) toggleFlag() error {
+func (m flagToggleModel) toggleFlag() error { //nolint:unused
 	url := fmt.Sprintf("http://localhost/api/v2/flags/default/%s", m.flagKey)
 	c := &http.Client{
 		Timeout: 10 * time.Second,

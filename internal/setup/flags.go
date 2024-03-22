@@ -82,9 +82,9 @@ func (m flagModel) View() string {
 	) + "\n"
 }
 
-const apiToken = ""
+const apiToken = "" //nolint:unused
 
-func (m flagModel) createFlag() error {
+func (m flagModel) createFlag() error { //nolint:unused
 	url := "http://localhost/api/v2/flags/default"
 	c := &http.Client{
 		Timeout: 10 * time.Second,

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	errs "ld-cli/internal/errors"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ld-cli/cmd/flags"
 	"ld-cli/cmd/projects"
+	errs "ld-cli/internal/errors"
 )
 
 func newRootCommand() *cobra.Command {
@@ -60,6 +60,7 @@ func newRootCommand() *cobra.Command {
 		panic(err)
 	}
 
+	cmd.AddCommand(flags.NewFlagsCmd())
 	cmd.AddCommand(projects.NewProjectsCmd())
 	cmd.AddCommand(setupCmd)
 
