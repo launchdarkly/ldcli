@@ -13,8 +13,7 @@ import (
 )
 
 type listCmd struct {
-	Cmd    *cobra.Command
-	client projects.Client
+	Cmd *cobra.Command
 }
 
 func NewListCmd(client projects.Client) (listCmd, error) {
@@ -23,12 +22,12 @@ func NewListCmd(client projects.Client) (listCmd, error) {
 		Short:   "Return a list of projects",
 		Long:    "Return a list of projects",
 		PreRunE: validate,
-		RunE:    runList,
+		RunE:    runList(client),
 	}
 
+	fmt.Println(">>> NewListCmd", viper.GetString("baseUri"))
 	return listCmd{
-		Cmd:    cmd,
-		client: client,
+		Cmd: cmd,
 	}, nil
 }
 
@@ -42,18 +41,16 @@ func validate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// runList fetches a list of projects.
-func runList(cmd *cobra.Command, args []string) error {
-	client := projects.NewClient(
-		viper.GetString("accessToken"),
-		viper.GetString("baseUri"),
-	)
-	response, err := client.List(context.Background())
-	if err != nil {
-		return err
+func runList(client projects.Client) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		fmt.Println(">>> ListCmd", viper.GetString("baseUri"))
+		response, err := client.List(context.Background())
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+
+		return nil
 	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
-
-	return nil
 }

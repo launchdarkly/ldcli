@@ -19,17 +19,13 @@ type ProjectsClient struct {
 	client *ldapi.APIClient
 }
 
+var _ Client = MockClient{}
 var _ Client = ProjectsClient{}
 
 type ProjectsClientFn = func(accessToken string, baseUri string) Client
 
-func Foo() ProjectsClientFn {
-	return func(accessToken string, baseURI string) Client {
-		return NewClient(accessToken, baseURI)
-	}
-}
-
 func NewClient(accessToken string, baseURI string) Client {
+	fmt.Println(">>> NewClient", baseURI)
 	config := ldapi.NewConfiguration()
 	config.AddDefaultHeader("Authorization", accessToken)
 	config.Servers[0].URL = baseURI
@@ -55,6 +51,9 @@ func (c ProjectsClient) Create(ctx context.Context, name string, key string) ([]
 }
 
 func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
+	// fmt.Println(">>> client config")
+	// spew.Dump(c.client.GetConfig())
+
 	projects, _, err := c.client.ProjectsApi.
 		GetProjects(ctx).
 		Limit(2).
@@ -83,19 +82,26 @@ type MockClient struct {
 	HasUnauthorizedErr bool
 }
 
+func NewMockClient(accessToken string, baseURI string) Client {
+	return MockClient{}
+}
+
 func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
-	return []byte(fmt.Sprintf(`{
-			"_id": "000000000000000000000001",
-			"_links": null,
-			"environments": null,
-			"includeInSnippetByDefault": false,
-			"key": %q,
-			"name": %q,
-			"tags": null
-		}`,
-		key,
-		name,
-	)), nil
+	return []byte(
+		fmt.Sprintf(
+			`{
+				"_id": "000000000000000000000001",
+				"_links": null,
+				"environments": null,
+				"includeInSnippetByDefault": false,
+				"key": %q,
+				"name": %q,
+				"tags": null
+			}`,
+			key,
+			name,
+		),
+	), nil
 }
 
 func (c MockClient) List(ctx context.Context) ([]byte, error) {

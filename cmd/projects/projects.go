@@ -1,17 +1,22 @@
 package projects
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"ld-cli/internal/projects"
 )
 
 func NewProjectsCmd(client projects.Client) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "projects",
-		Short: "Make requests (list, create, etc.) on projects",
-		Long:  "Make requests (list, create, etc.) on projects",
+		Use:              "projects",
+		Short:            "Make requests (list, create, etc.) on projects",
+		Long:             "Make requests (list, create, etc.) on projects",
+		TraverseChildren: true,
 	}
+	fmt.Println(">>> ProjectsCmd", viper.GetString("baseUri"))
 
 	createCmd, err := NewCreateCmd(client)
 	if err != nil {
