@@ -1,8 +1,6 @@
 package flags
 
-import (
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 func NewFlagsCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -12,6 +10,7 @@ func NewFlagsCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(NewUpdateCmd())
+	cmd.AddCommand(NewCreateCmd())
 
 	return cmd
 }
