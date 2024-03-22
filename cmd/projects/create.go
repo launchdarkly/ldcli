@@ -15,7 +15,7 @@ type createCmd struct {
 	Cmd *cobra.Command
 }
 
-func NewCreateCmd(client projects.Client2) (createCmd, error) {
+func NewCreateCmd(client projects.Client) (createCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new project",
@@ -44,7 +44,7 @@ type inputData struct {
 	Key  string `json:"key"`
 }
 
-func runCreate(client projects.Client2) func(*cobra.Command, []string) error {
+func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		var data inputData
 		// TODO: why does viper.GetString("data") not work?
@@ -54,7 +54,7 @@ func runCreate(client projects.Client2) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		response, err := client.Create2(
+		response, err := client.Create(
 			context.Background(),
 			viper.GetString("accessToken"),
 			viper.GetString("baseUri"),

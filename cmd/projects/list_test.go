@@ -17,7 +17,7 @@ func TestList(t *testing.T) {
 	t.Run("with valid flags calls projects API", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("List2", "testAccessToken", "http://test.com").
+			On("List", "testAccessToken", "http://test.com").
 			Return([]byte(`{"valid": true}`), nil)
 		rootCmd, err := cmd.NewRootCmd(&client)
 		require.NoError(t, err)
@@ -43,7 +43,7 @@ func TestList(t *testing.T) {
 	t.Run("with an unauthorized response is an error", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("List2", "testAccessToken", "http://test.com").
+			On("List", "testAccessToken", "http://test.com").
 			Return([]byte(`{}`), errors.ErrUnauthorized)
 		rootCmd, err := cmd.NewRootCmd(&client)
 		require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestList(t *testing.T) {
 	t.Run("with a forbidden response is an error", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("List2", "testAccessToken", "http://test.com").
+			On("List", "testAccessToken", "http://test.com").
 			Return([]byte(`{}`), errors.ErrForbidden)
 		rootCmd, err := cmd.NewRootCmd(&client)
 		require.NoError(t, err)

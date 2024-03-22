@@ -17,7 +17,7 @@ func TestCreate(t *testing.T) {
 	t.Run("with valid flags calls projects API", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("Create2", "testAccessToken", "http://test.com", "test-name", "test-key").
+			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
 			Return([]byte(`{"valid": true}`), nil)
 		rootCmd, err := cmd.NewRootCmd(&client)
 		require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestCreate(t *testing.T) {
 	t.Run("with an unauthorized response is an error", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("Create2", "testAccessToken", "http://test.com", "test-name", "test-key").
+			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
 			Return([]byte(`{}`), errors.ErrUnauthorized)
 		rootCmd, err := cmd.NewRootCmd(&client)
 		require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestCreate(t *testing.T) {
 	t.Run("with a forbidden response is an error", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("Create2", "testAccessToken", "http://test.com", "test-name", "test-key").
+			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
 			Return([]byte(`{}`), errors.ErrForbidden)
 		rootCmd, err := cmd.NewRootCmd(&client)
 		require.NoError(t, err)

@@ -10,32 +10,19 @@ import (
 )
 
 type Client interface {
-	Create(ctx context.Context, name string, key string) ([]byte, error)
-	List(ctx context.Context) ([]byte, error)
-}
-
-type Client2 interface {
-	Create2(ctx context.Context, accessToken, baseURI, name, key string) ([]byte, error)
-	List2(ctx context.Context, accessToken, baseURI string) ([]byte, error)
+	Create(ctx context.Context, accessToken, baseURI, name, key string) ([]byte, error)
+	List(ctx context.Context, accessToken, baseURI string) ([]byte, error)
 }
 
 type ProjectsClient struct{}
 
-var _ Client2 = ProjectsClient{}
+var _ Client = ProjectsClient{}
 
-func NewClient2() Client2 {
+func NewClient() Client {
 	return ProjectsClient{}
 }
 
-func (c ProjectsClient) client(accessToken string, baseURI string) *ldapi.APIClient {
-	config := ldapi.NewConfiguration()
-	config.AddDefaultHeader("Authorization", accessToken)
-	config.Servers[0].URL = baseURI
-
-	return ldapi.NewAPIClient(config)
-}
-
-func (c ProjectsClient) Create2(
+func (c ProjectsClient) Create(
 	ctx context.Context,
 	accessToken,
 	baseURI,
@@ -56,7 +43,7 @@ func (c ProjectsClient) Create2(
 	return projectJSON, nil
 }
 
-func (c ProjectsClient) List2(
+func (c ProjectsClient) List(
 	ctx context.Context,
 	accessToken,
 	baseURI string,
@@ -83,4 +70,15 @@ func (c ProjectsClient) List2(
 	}
 
 	return projectsJSON, nil
+}
+
+// client creates an LD API client. It's not set as a field on the struct because the CLI flags
+// are evaluated when running the command, not when executing the program. That means we don't have
+// the flag values until the command's RunE method is called.
+func (c ProjectsClient) client(accessToken string, baseURI string) *ldapi.APIClient {
+	config := ldapi.NewConfiguration()
+	config.AddDefaultHeader("Authorization", accessToken)
+	config.Servers[0].URL = baseURI
+
+	return ldapi.NewAPIClient(config)
 }

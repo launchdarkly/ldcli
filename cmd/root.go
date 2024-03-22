@@ -19,7 +19,7 @@ type rootCmd struct {
 	Cmd *cobra.Command
 }
 
-func NewRootCmd(client projects.Client2) (rootCmd, error) {
+func NewRootCmd(client projects.Client) (rootCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -79,7 +79,7 @@ func NewRootCmd(client projects.Client2) (rootCmd, error) {
 }
 
 func Execute() {
-	rootCmd, err := NewRootCmd(projects.NewClient2())
+	rootCmd, err := NewRootCmd(projects.NewClient())
 	if err != nil {
 		log.Fatal(err)
 	}

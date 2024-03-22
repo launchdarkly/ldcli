@@ -16,7 +16,7 @@ type listCmd struct {
 	Cmd *cobra.Command
 }
 
-func NewListCmd(client projects.Client2) (listCmd, error) {
+func NewListCmd(client projects.Client) (listCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "Return a list of projects",
@@ -41,9 +41,9 @@ func validate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runList(client projects.Client2) func(*cobra.Command, []string) error {
+func runList(client projects.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		response, err := client.List2(
+		response, err := client.List(
 			context.Background(),
 			viper.GetString("accessToken"),
 			viper.GetString("baseUri"),

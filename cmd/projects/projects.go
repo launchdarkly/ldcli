@@ -10,7 +10,7 @@ type projectsCmd struct {
 	Cmd *cobra.Command
 }
 
-func NewProjectsCmd(client projects.Client2) (projectsCmd, error) {
+func NewProjectsCmd(client projects.Client) (projectsCmd, error) {
 	cmd := &cobra.Command{
 		Use:              "projects",
 		Short:            "Make requests (list, create, etc.) on projects",

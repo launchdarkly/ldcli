@@ -4,23 +4,17 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
-
-	"ld-cli/internal/errors"
 )
 
 type MockClient struct {
 	mock.Mock
-
-	HasForbiddenErr    bool
-	HasUnauthorizedErr bool
-
 	AccessToken string
 	BaseURI     string
 }
 
-var _ Client2 = &MockClient{}
+var _ Client = &MockClient{}
 
-func (c *MockClient) Create2(
+func (c *MockClient) Create(
 	ctx context.Context,
 	accessToken,
 	baseURI,
@@ -32,18 +26,11 @@ func (c *MockClient) Create2(
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (c *MockClient) List2(
+func (c *MockClient) List(
 	ctx context.Context,
 	accessToken,
 	baseURI string,
 ) ([]byte, error) {
-	if c.HasForbiddenErr {
-		return nil, errors.ErrForbidden
-	}
-	if c.HasUnauthorizedErr {
-		return nil, errors.ErrUnauthorized
-	}
-
 	args := c.Called(accessToken, baseURI)
 
 	return args.Get(0).([]byte), args.Error(1)
