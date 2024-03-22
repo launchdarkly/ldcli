@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ld-cli/cmd/flags"
 	projcmd "ld-cli/cmd/projects"
 	errs "ld-cli/internal/errors"
 	"ld-cli/internal/projects"
@@ -19,7 +20,6 @@ type rootCmd struct {
 }
 
 func NewRootCmd(clientFn projects.ProjectsClientFn) (rootCmd, error) {
-	// cobra.OnInitialize(RebindKeys)
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -70,6 +70,7 @@ func NewRootCmd(clientFn projects.ProjectsClientFn) (rootCmd, error) {
 	}
 
 	cmd.AddCommand(projectsCmd.Cmd)
+	cmd.AddCommand(flags.NewFlagsCmd())
 	cmd.AddCommand(setupCmd)
 
 	return rootCmd{

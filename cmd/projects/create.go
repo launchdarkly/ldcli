@@ -24,12 +24,7 @@ func NewCreateCmd(clientFn projects.ProjectsClientFn) (createCmd, error) {
 		RunE:    runCreate(clientFn),
 	}
 
-	cmd.Flags().StringP(
-		"data",
-		"d",
-		"",
-		"Input data in JSON",
-	)
+	cmd.Flags().StringP("data", "d", "", "Input data in JSON")
 	err := cmd.MarkFlagRequired("data")
 	if err != nil {
 		return createCmd{}, nil
@@ -56,10 +51,8 @@ func runCreate(clientFn projects.ProjectsClientFn) func(*cobra.Command, []string
 			viper.GetString("baseUri"),
 		)
 
-		dataStr := viper.GetString("data")
-
 		var data inputData
-		err := json.Unmarshal([]byte(dataStr), &data)
+		err := json.Unmarshal([]byte(viper.GetString("data")), &data)
 		if err != nil {
 			return err
 		}

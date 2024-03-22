@@ -31,6 +31,7 @@ func NewListCmd(clientFn projects.ProjectsClientFn) (listCmd, error) {
 }
 
 // validate ensures the flags are valid before using them.
+// TODO: refactor with flags validate().
 func validate(cmd *cobra.Command, args []string) error {
 	_, err := url.ParseRequestURI(viper.GetString("baseUri"))
 	if err != nil {
