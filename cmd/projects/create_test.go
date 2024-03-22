@@ -49,6 +49,12 @@ func TestCreate(t *testing.T) {
 	t.Run("with missing required flags is an error", func(t *testing.T) {
 		_, err := cmd.CallCmd(t, &projects.MockClient{}, cmd.ArgsCreateCommand())
 
-		assert.EqualError(t, err, `required flag(s) "accessToken", "baseUri", "data" not set`)
+		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`)
+	})
+
+	t.Run("with invalid baseUri is an error", func(t *testing.T) {
+		_, err := cmd.CallCmd(t, &projects.MockClient{}, append(cmd.ArgsCreateCommand(), "--baseUri", "invalid"))
+
+		assert.EqualError(t, err, "baseUri is invalid")
 	})
 }

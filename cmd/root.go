@@ -54,10 +54,6 @@ func NewRootCmd(client projects.Client) (rootCmd, error) {
 		"https://app.launchdarkly.com",
 		"LaunchDarkly base URI",
 	)
-	err = cmd.MarkPersistentFlagRequired("baseUri")
-	if err != nil {
-		return rootCmd{}, err
-	}
 	err = viper.BindPFlag("baseUri", cmd.PersistentFlags().Lookup("baseUri"))
 	if err != nil {
 		return rootCmd{}, err
