@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"ld-cli/cmd"
 	"ld-cli/internal/errors"
 	"ld-cli/internal/projects"
 )
@@ -15,9 +16,9 @@ func TestCreate(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
-			Return([]byte(validResponse), nil)
+			Return([]byte(cmd.ValidResponse), nil)
 
-		output, err := callCmd(t, &client, ArgsValidCreate())
+		output, err := cmd.CallCmd(t, &client, cmd.ArgsValidCreate())
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -29,7 +30,7 @@ func TestCreate(t *testing.T) {
 			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
 			Return([]byte(`{}`), errors.ErrUnauthorized)
 
-		_, err := callCmd(t, &client, ArgsValidCreate())
+		_, err := cmd.CallCmd(t, &client, cmd.ArgsValidCreate())
 
 		require.EqualError(t, err, "You are not authorized to make this request")
 	})
@@ -40,13 +41,13 @@ func TestCreate(t *testing.T) {
 			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
 			Return([]byte(`{}`), errors.ErrForbidden)
 
-		_, err := callCmd(t, &client, ArgsValidCreate())
+		_, err := cmd.CallCmd(t, &client, cmd.ArgsValidCreate())
 
 		require.EqualError(t, err, "You do not have permission to make this request")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
-		_, err := callCmd(t, &projects.MockClient{}, ArgsCreateCommand())
+		_, err := cmd.CallCmd(t, &projects.MockClient{}, cmd.ArgsCreateCommand())
 
 		assert.EqualError(t, err, `required flag(s) "accessToken", "baseUri", "data" not set`)
 	})
