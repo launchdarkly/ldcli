@@ -3,9 +3,7 @@ package flags
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
 	"ld-cli/internal/errors"
@@ -39,8 +37,6 @@ func (c FlagsClient) Create(
 	post := ldapi.NewFeatureFlagBody(name, key)
 	flag, _, err := c.client.FeatureFlagsApi.PostFeatureFlag(ctx, projectKey).FeatureFlagBody(*post).Execute()
 	if err != nil {
-		fmt.Println(">>> err")
-		spew.Dump(err)
 		switch err.Error() {
 		case "401 Unauthorized":
 			return nil, errors.ErrUnauthorized

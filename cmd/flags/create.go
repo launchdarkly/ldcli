@@ -32,7 +32,7 @@ func NewCreateCmd() *cobra.Command {
 		panic(err)
 	}
 
-	cmd.Flags().String("projKey", "", "Input data in JSON")
+	cmd.Flags().String("projKey", "", "Project key")
 	err = cmd.MarkFlagRequired("projKey")
 	if err != nil {
 		panic(err)
