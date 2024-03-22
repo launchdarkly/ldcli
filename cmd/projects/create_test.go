@@ -10,11 +10,12 @@ import (
 
 	"ld-cli/cmd"
 	"ld-cli/internal/errors"
+	"ld-cli/internal/projects"
 )
 
 func TestCreate(t *testing.T) {
 	t.Run("with valid flags calls projects API", func(t *testing.T) {
-		client := MockClient{}
+		client := projects.MockClient{}
 		client.
 			On("Create2", "testAccessToken", "http://test.com", "test-name", "test-key").
 			Return([]byte(`{"valid": true}`), nil)
@@ -42,7 +43,7 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("with an unauthorized response is an error", func(t *testing.T) {
-		client := MockClient{}
+		client := projects.MockClient{}
 		client.
 			On("Create2", "testAccessToken", "http://test.com", "test-name", "test-key").
 			Return([]byte(`{}`), errors.ErrUnauthorized)
@@ -66,7 +67,7 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("with a forbidden response is an error", func(t *testing.T) {
-		client := MockClient{}
+		client := projects.MockClient{}
 		client.
 			On("Create2", "testAccessToken", "http://test.com", "test-name", "test-key").
 			Return([]byte(`{}`), errors.ErrForbidden)
@@ -90,7 +91,7 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
-		rootCmd, err := cmd.NewRootCmd(&MockClient{})
+		rootCmd, err := cmd.NewRootCmd(&projects.MockClient{})
 		require.NoError(t, err)
 		b := bytes.NewBufferString("")
 		rootCmd.Cmd.SetOut(b)
