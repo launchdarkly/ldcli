@@ -1,4 +1,4 @@
-# LD-CLI
+# ldcli
 
 ## Commands
 

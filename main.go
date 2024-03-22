@@ -1,6 +1,6 @@
 package main
 
-import "ld-cli/cmd"
+import "ldcli/cmd"
 
 func main() {
 	cmd.Execute()
