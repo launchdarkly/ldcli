@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0](https://github.com/launchdarkly/ldcli/compare/v0.0.1...v0.1.0) (2024-03-22)
+
+
+### Features
+
+* update flag ([#57](https://github.com/launchdarkly/ldcli/issues/57)) ([6f73a0c](https://github.com/launchdarkly/ldcli/commit/6f73a0cb3df3fb2e6f210f6adf0ab40893c5a3cb))
+
 ## [0.0.1](https://github.com/launchdarkly/ldcli/compare/v1.1.4...v0.0.1) (2024-03-22)
 
 
