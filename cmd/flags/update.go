@@ -14,11 +14,11 @@ import (
 
 func NewUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "update",
-		Short: "Update a new flag",
-		Long:  "Update a new flag",
-		// PreRunE: validate,
-		RunE: runUpdate,
+		Use:     "update",
+		Short:   "Update a flag",
+		Long:    "Update a flag",
+		PreRunE: validate,
+		RunE:    runUpdate,
 	}
 
 	var data string
