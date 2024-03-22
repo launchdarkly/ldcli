@@ -58,7 +58,6 @@ func NewRootCmd(client projects.Client) (rootCmd, error) {
 	if err != nil {
 		return rootCmd{}, err
 	}
-	viper.SetDefault("baseUri", "https://app.launchdarkly.com")
 
 	projectsCmd, err := projcmd.NewProjectsCmd(client)
 	if err != nil {
