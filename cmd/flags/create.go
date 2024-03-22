@@ -4,20 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ld-cli/internal/errors"
 	"ld-cli/internal/flags"
 )
 
 func NewCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create a new flag",
-		Long:  "Create a new flag",
-		// PreRunE: validate,
-		RunE: runCreate,
+		Use:     "create",
+		Short:   "Create a new flag",
+		Long:    "Create a new flag",
+		PreRunE: validate,
+		RunE:    runCreate,
 	}
 
 	cmd.Flags().StringP("data", "d", "", "Input data in JSON")
@@ -73,6 +75,17 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+
+	return nil
+}
+
+// validate ensures the flags are valid before using them.
+// TODO: refactor with projects validate().
+func validate(cmd *cobra.Command, args []string) error {
+	_, err := url.ParseRequestURI(viper.GetString("baseUri"))
+	if err != nil {
+		return errors.ErrInvalidBaseURI
+	}
 
 	return nil
 }
