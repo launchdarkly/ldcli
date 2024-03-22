@@ -1,8 +1,6 @@
 package projects
 
-import (
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 func NewProjectsCmd() *cobra.Command {
 	cmd := &cobra.Command{
