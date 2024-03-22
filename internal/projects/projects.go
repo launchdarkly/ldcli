@@ -25,7 +25,6 @@ var _ Client = ProjectsClient{}
 type ProjectsClientFn = func(accessToken string, baseUri string) Client
 
 func NewClient(accessToken string, baseURI string) Client {
-	fmt.Println(">>> NewClient", baseURI)
 	config := ldapi.NewConfiguration()
 	config.AddDefaultHeader("Authorization", accessToken)
 	config.Servers[0].URL = baseURI
@@ -51,9 +50,6 @@ func (c ProjectsClient) Create(ctx context.Context, name string, key string) ([]
 }
 
 func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
-	// fmt.Println(">>> client config")
-	// spew.Dump(c.client.GetConfig())
-
 	projects, _, err := c.client.ProjectsApi.
 		GetProjects(ctx).
 		Limit(2).

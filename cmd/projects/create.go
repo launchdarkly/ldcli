@@ -12,22 +12,19 @@ import (
 )
 
 type createCmd struct {
-	Cmd    *cobra.Command
-	client projects.Client
+	Cmd *cobra.Command
 }
 
-func NewCreateCmd(client projects.Client) (createCmd, error) {
+func NewCreateCmd(clientFn projects.ProjectsClientFn) (createCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new project",
 		Long:    "Create a new project",
 		PreRunE: validate,
-		RunE:    runCreate,
+		RunE:    runCreate(clientFn),
 	}
 
-	var data string
-	cmd.Flags().StringVarP(
-		&data,
+	cmd.Flags().StringP(
 		"data",
 		"d",
 		"",
@@ -43,8 +40,7 @@ func NewCreateCmd(client projects.Client) (createCmd, error) {
 	}
 
 	return createCmd{
-		Cmd:    cmd,
-		client: client,
+		Cmd: cmd,
 	}, nil
 }
 
@@ -53,30 +49,32 @@ type inputData struct {
 	Key  string `json:"key"`
 }
 
-func runCreate(cmd *cobra.Command, args []string) error {
-	client := projects.NewClient(
-		viper.GetString("accessToken"),
-		viper.GetString("baseUri"),
-	)
+func runCreate(clientFn projects.ProjectsClientFn) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		client := clientFn(
+			viper.GetString("accessToken"),
+			viper.GetString("baseUri"),
+		)
 
-	dataStr := viper.GetString("data")
+		dataStr := viper.GetString("data")
 
-	var data inputData
-	err := json.Unmarshal([]byte(dataStr), &data)
-	if err != nil {
-		return err
+		var data inputData
+		err := json.Unmarshal([]byte(dataStr), &data)
+		if err != nil {
+			return err
+		}
+
+		response, err := client.Create(
+			context.Background(),
+			data.Name,
+			data.Key,
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+
+		return nil
 	}
-
-	response, err := client.Create(
-		context.Background(),
-		data.Name,
-		data.Key,
-	)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
-
-	return nil
 }
