@@ -3,14 +3,14 @@ package flags
 import (
 	"context"
 	"encoding/json"
+	"ld-cli/internal/errors"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
-
-	"ld-cli/internal/errors"
 )
 
 type Client interface {
 	Create(ctx context.Context, name string, key string, projectKey string) ([]byte, error)
+	Update(ctx context.Context, key string, projKey string) ([]byte, error)
 }
 
 type FlagsClient struct {
@@ -46,6 +46,29 @@ func (c FlagsClient) Create(
 			return nil, err
 		}
 	}
+
+	responseJSON, err := json.Marshal(flag)
+	if err != nil {
+		return nil, err
+	}
+
+	return responseJSON, nil
+}
+
+func (c FlagsClient) Update(
+	ctx context.Context,
+	key string,
+	projKey string,
+	patch []ldapi.PatchOperation,
+) ([]byte, error) {
+	flag, _, err := c.client.FeatureFlagsApi.
+		PatchFeatureFlag(ctx, projKey, key).
+		PatchWithComment(*ldapi.NewPatchWithComment(patch)).
+		Execute()
+	if err != nil {
+		return nil, err
+	}
+
 	responseJSON, err := json.Marshal(flag)
 	if err != nil {
 		return nil, err

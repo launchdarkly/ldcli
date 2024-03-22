@@ -9,6 +9,7 @@ func NewFlagsCmd() *cobra.Command {
 		Long:  "Make requests (list, create, etc.) on flags",
 	}
 
+	cmd.AddCommand(NewUpdateCmd())
 	cmd.AddCommand(NewCreateCmd())
 
 	return cmd
