@@ -3,7 +3,7 @@ package projects
 import (
 	"github.com/spf13/cobra"
 
-	"ld-cli/internal/projects"
+	"ldcli/internal/projects"
 )
 
 type projectsCmd struct {

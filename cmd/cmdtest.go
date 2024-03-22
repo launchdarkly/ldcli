@@ -3,10 +3,11 @@ package cmd
 import (
 	"bytes"
 	"io"
-	"ld-cli/internal/projects"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"ldcli/internal/projects"
 )
 
 var ValidResponse = `{"valid": true}`

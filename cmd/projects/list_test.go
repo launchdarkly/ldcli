@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"ld-cli/cmd"
-	"ld-cli/internal/errors"
-	"ld-cli/internal/projects"
+	"ldcli/cmd"
+	"ldcli/internal/errors"
+	"ldcli/internal/projects"
 )
 
 func TestList(t *testing.T) {

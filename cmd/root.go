@@ -9,10 +9,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ld-cli/cmd/flags"
-	projcmd "ld-cli/cmd/projects"
-	errs "ld-cli/internal/errors"
-	"ld-cli/internal/projects"
+	"ldcli/cmd/flags"
+	projcmd "ldcli/cmd/projects"
+	errs "ldcli/internal/errors"
+	"ldcli/internal/projects"
 )
 
 type rootCmd struct {

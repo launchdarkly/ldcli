@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ld-cli/internal/projects"
+	"ldcli/internal/projects"
 )
 
 type createCmd struct {

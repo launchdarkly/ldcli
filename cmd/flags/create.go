@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ld-cli/internal/errors"
-	"ld-cli/internal/flags"
+	"ldcli/internal/errors"
+	"ldcli/internal/flags"
 )
 
 func NewCreateCmd() *cobra.Command {

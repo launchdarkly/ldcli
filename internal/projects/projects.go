@@ -6,7 +6,7 @@ import (
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
-	"ld-cli/internal/errors"
+	"ldcli/internal/errors"
 )
 
 type Client interface {

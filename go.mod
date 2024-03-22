@@ -1,4 +1,4 @@
-module ld-cli
+module ldcli
 
 go 1.20
 
