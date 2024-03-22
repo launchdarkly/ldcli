@@ -15,13 +15,13 @@ type createCmd struct {
 	Cmd *cobra.Command
 }
 
-func NewCreateCmd(clientFn projects.ProjectsClientFn) (createCmd, error) {
+func NewCreateCmd(client projects.Client2) (createCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new project",
 		Long:    "Create a new project",
 		PreRunE: validate,
-		RunE:    runCreate(clientFn),
+		RunE:    runCreate(client),
 	}
 
 	cmd.Flags().StringP("data", "d", "", "Input data in JSON")
@@ -44,21 +44,20 @@ type inputData struct {
 	Key  string `json:"key"`
 }
 
-func runCreate(clientFn projects.ProjectsClientFn) func(*cobra.Command, []string) error {
+func runCreate(client projects.Client2) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		client := clientFn(
-			viper.GetString("accessToken"),
-			viper.GetString("baseUri"),
-		)
-
 		var data inputData
-		err := json.Unmarshal([]byte(viper.GetString("data")), &data)
+		// TODO: why does viper.GetString("data") not work?
+		err := json.Unmarshal([]byte(cmd.Flags().Lookup("data").Value.String()), &data)
 		if err != nil {
+			fmt.Println(">>> err1", err)
 			return err
 		}
 
-		response, err := client.Create(
+		response, err := client.Create2(
 			context.Background(),
+			viper.GetString("accessToken"),
+			viper.GetString("baseUri"),
 			data.Name,
 			data.Key,
 		)

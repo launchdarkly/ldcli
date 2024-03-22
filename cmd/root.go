@@ -19,7 +19,7 @@ type rootCmd struct {
 	Cmd *cobra.Command
 }
 
-func NewRootCmd(clientFn projects.ProjectsClientFn) (rootCmd, error) {
+func NewRootCmd(client projects.Client2) (rootCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -64,7 +64,7 @@ func NewRootCmd(clientFn projects.ProjectsClientFn) (rootCmd, error) {
 	}
 	viper.SetDefault("baseUri", "https://app.launchdarkly.com")
 
-	projectsCmd, err := projcmd.NewProjectsCmd(clientFn)
+	projectsCmd, err := projcmd.NewProjectsCmd(client)
 	if err != nil {
 		return rootCmd{}, err
 	}
@@ -79,7 +79,7 @@ func NewRootCmd(clientFn projects.ProjectsClientFn) (rootCmd, error) {
 }
 
 func Execute() {
-	rootCmd, err := NewRootCmd(projects.NewClient)
+	rootCmd, err := NewRootCmd(projects.NewClient2())
 	if err != nil {
 		log.Fatal(err)
 	}

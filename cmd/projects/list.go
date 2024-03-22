@@ -16,13 +16,13 @@ type listCmd struct {
 	Cmd *cobra.Command
 }
 
-func NewListCmd(clientFn projects.ProjectsClientFn) (listCmd, error) {
+func NewListCmd(client projects.Client2) (listCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "Return a list of projects",
 		Long:    "Return a list of projects",
 		PreRunE: validate,
-		RunE:    runList(clientFn),
+		RunE:    runList(client),
 	}
 
 	return listCmd{
@@ -41,13 +41,13 @@ func validate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runList(clientFn projects.ProjectsClientFn) func(*cobra.Command, []string) error {
+func runList(client projects.Client2) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		client := clientFn(
+		response, err := client.List2(
+			context.Background(),
 			viper.GetString("accessToken"),
 			viper.GetString("baseUri"),
 		)
-		response, err := client.List(context.Background())
 		if err != nil {
 			return err
 		}

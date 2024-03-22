@@ -3,7 +3,6 @@ package projects
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
@@ -15,29 +14,37 @@ type Client interface {
 	List(ctx context.Context) ([]byte, error)
 }
 
-type ProjectsClient struct {
-	client *ldapi.APIClient
+type Client2 interface {
+	Create2(ctx context.Context, accessToken, baseURI, name, key string) ([]byte, error)
+	List2(ctx context.Context, accessToken, baseURI string) ([]byte, error)
 }
 
-var _ Client = MockClient{}
-var _ Client = ProjectsClient{}
+type ProjectsClient struct{}
 
-type ProjectsClientFn = func(accessToken string, baseUri string) Client
+var _ Client2 = ProjectsClient{}
 
-func NewClient(accessToken string, baseURI string) Client {
+func NewClient2() Client2 {
+	return ProjectsClient{}
+}
+
+func (c ProjectsClient) client(accessToken string, baseURI string) *ldapi.APIClient {
 	config := ldapi.NewConfiguration()
 	config.AddDefaultHeader("Authorization", accessToken)
 	config.Servers[0].URL = baseURI
-	client := ldapi.NewAPIClient(config)
 
-	return ProjectsClient{
-		client: client,
-	}
+	return ldapi.NewAPIClient(config)
 }
 
-func (c ProjectsClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
+func (c ProjectsClient) Create2(
+	ctx context.Context,
+	accessToken,
+	baseURI,
+	name,
+	key string,
+) ([]byte, error) {
+	client := c.client(accessToken, baseURI)
 	projectPost := ldapi.NewProjectPost(name, key)
-	project, _, err := c.client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
+	project, _, err := client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +56,13 @@ func (c ProjectsClient) Create(ctx context.Context, name string, key string) ([]
 	return projectJSON, nil
 }
 
-func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
-	projects, _, err := c.client.ProjectsApi.
+func (c ProjectsClient) List2(
+	ctx context.Context,
+	accessToken,
+	baseURI string,
+) ([]byte, error) {
+	client := c.client(accessToken, baseURI)
+	projects, _, err := client.ProjectsApi.
 		GetProjects(ctx).
 		Limit(2).
 		Execute()
@@ -71,68 +83,4 @@ func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
 	}
 
 	return projectsJSON, nil
-}
-
-type MockClient struct {
-	HasForbiddenErr    bool
-	HasUnauthorizedErr bool
-}
-
-func NewMockClient(accessToken string, baseURI string) Client {
-	return MockClient{}
-}
-
-func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
-	return []byte(
-		fmt.Sprintf(
-			`{
-				"_id": "000000000000000000000001",
-				"_links": null,
-				"environments": null,
-				"includeInSnippetByDefault": false,
-				"key": %q,
-				"name": %q,
-				"tags": null
-			}`,
-			key,
-			name,
-		),
-	), nil
-}
-
-func (c MockClient) List(ctx context.Context) ([]byte, error) {
-	if c.HasForbiddenErr {
-		return nil, errors.ErrForbidden
-	}
-	if c.HasUnauthorizedErr {
-		return nil, errors.ErrUnauthorized
-	}
-
-	return []byte(`{
-		"_links": {
-			"last": {
-				"href": "/api/v2/projects?expand=environments&limit=1&offset=1",
-					"type": "application/json"
-			},
-			"next": {
-				"href": "/api/v2/projects?expand=environments&limit=1&offset=0",
-					"type": "application/json"
-			},
-			"self": {
-				"href": "/api/v2/projects?expand=environments&limit=1",
-					"type": "application/json"
-			}
-		},
-		"items": [
-			{
-				"_id": "000000000000000000000001",
-				"_links": null,
-				"includeInSnippetByDefault": false,
-				"key": "test-project",
-				"name": "",
-				"tags": null
-			}
-		],
-		"totalCount": 1
-	}`), nil
 }
