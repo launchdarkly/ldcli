@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"ldcli/cmd/members"
 	"log"
 	"os"
 
@@ -63,8 +64,13 @@ func NewRootCommand(client projects.Client) (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
+	membersCmd, err := members.NewMembersCmd()
+	if err != nil {
+		return nil, err
+	}
 
 	cmd.AddCommand(flagsCmd)
+	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(setupCmd)
 
