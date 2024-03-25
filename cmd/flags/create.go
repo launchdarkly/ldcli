@@ -13,7 +13,7 @@ import (
 	"ldcli/internal/flags"
 )
 
-func NewCreateCmd() *cobra.Command {
+func NewCreateCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new flag",
@@ -25,24 +25,24 @@ func NewCreateCmd() *cobra.Command {
 	cmd.Flags().StringP("data", "d", "", "Input data in JSON")
 	err := cmd.MarkFlagRequired("data")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	err = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	cmd.Flags().String("projKey", "", "Project key")
 	err = cmd.MarkFlagRequired("projKey")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	err = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return cmd
+	return cmd, nil
 }
 
 type inputData struct {

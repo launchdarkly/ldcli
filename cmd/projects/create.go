@@ -11,11 +11,7 @@ import (
 	"ldcli/internal/projects"
 )
 
-type createCmd struct {
-	Cmd *cobra.Command
-}
-
-func NewCreateCmd(client projects.Client) (createCmd, error) {
+func NewCreateCmd(client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new project",
@@ -27,16 +23,14 @@ func NewCreateCmd(client projects.Client) (createCmd, error) {
 	cmd.Flags().StringP("data", "d", "", "Input data in JSON")
 	err := cmd.MarkFlagRequired("data")
 	if err != nil {
-		return createCmd{}, nil
+		return nil, err
 	}
 	err = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
 	if err != nil {
-		return createCmd{}, nil
+		return nil, err
 	}
 
-	return createCmd{
-		Cmd: cmd,
-	}, nil
+	return cmd, nil
 }
 
 type inputData struct {

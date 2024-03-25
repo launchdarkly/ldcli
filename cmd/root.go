@@ -63,9 +63,13 @@ func NewRootCommand(client projects.Client) (rootCmd, error) {
 	if err != nil {
 		return rootCmd{}, err
 	}
+	flagsCmd, err := flags.NewFlagsCmd()
+	if err != nil {
+		return rootCmd{}, err
+	}
 
-	cmd.AddCommand(flags.NewFlagsCmd())
-	cmd.AddCommand(projectsCmd.Cmd)
+	cmd.AddCommand(flagsCmd)
+	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(setupCmd)
 
 	return rootCmd{

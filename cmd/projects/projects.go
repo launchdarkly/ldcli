@@ -6,11 +6,7 @@ import (
 	"ldcli/internal/projects"
 )
 
-type projectsCmd struct {
-	Cmd *cobra.Command
-}
-
-func NewProjectsCmd(client projects.Client) (projectsCmd, error) {
+func NewProjectsCmd(client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "projects",
 		Short: "Make requests (list, create, etc.) on projects",
@@ -19,17 +15,12 @@ func NewProjectsCmd(client projects.Client) (projectsCmd, error) {
 
 	createCmd, err := NewCreateCmd(client)
 	if err != nil {
-		return projectsCmd{}, err
+		return nil, err
 	}
-	listCmd, err := NewListCmd(client)
-	if err != nil {
-		return projectsCmd{}, err
-	}
+	listCmd := NewListCmd(client)
 
-	cmd.AddCommand(createCmd.Cmd)
-	cmd.AddCommand(listCmd.Cmd)
+	cmd.AddCommand(createCmd)
+	cmd.AddCommand(listCmd)
 
-	return projectsCmd{
-		Cmd: cmd,
-	}, nil
+	return cmd, nil
 }
