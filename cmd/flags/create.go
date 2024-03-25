@@ -56,6 +56,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		viper.GetString("baseUri"),
 	)
 
+	// rebind flag to this subcommand
+	viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
+
 	var data inputData
 	err := json.Unmarshal([]byte(cmd.Flags().Lookup("data").Value.String()), &data)
 	// err := json.Unmarshal([]byte(viper.GetString("data")), &data)
