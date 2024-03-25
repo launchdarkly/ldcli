@@ -32,7 +32,7 @@ func (c ProjectsClient) Create(ctx context.Context, name string, key string) ([]
 	projectPost := ldapi.NewProjectPost(name, key)
 	project, _, err := c.client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
 	if err != nil {
-		return nil, err
+		return errors.NewApiError(err)
 	}
 	projectJSON, err := json.Marshal(project)
 	if err != nil {
@@ -48,14 +48,7 @@ func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
 		Limit(2).
 		Execute()
 	if err != nil {
-		switch err.Error() {
-		case "401 Unauthorized":
-			return nil, errors.ErrUnauthorized
-		case "403 Forbidden":
-			return nil, errors.ErrForbidden
-		default:
-			return nil, err
-		}
+		return errors.NewApiError(err)
 	}
 
 	projectsJSON, err := json.Marshal(projects)

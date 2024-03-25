@@ -3,9 +3,8 @@ package flags
 import (
 	"context"
 	"encoding/json"
-	"ldcli/internal/errors"
-
 	ldapi "github.com/launchdarkly/api-client-go/v14"
+	"ldcli/internal/errors"
 )
 
 type Client interface {
@@ -37,14 +36,8 @@ func (c FlagsClient) Create(
 	post := ldapi.NewFeatureFlagBody(name, key)
 	flag, _, err := c.client.FeatureFlagsApi.PostFeatureFlag(ctx, projectKey).FeatureFlagBody(*post).Execute()
 	if err != nil {
-		switch err.Error() {
-		case "401 Unauthorized":
-			return nil, errors.ErrUnauthorized
-		case "403 Forbidden":
-			return nil, errors.ErrForbidden
-		default:
-			return nil, err
-		}
+		return errors.NewApiError(err)
+
 	}
 
 	responseJSON, err := json.Marshal(flag)
@@ -66,7 +59,7 @@ func (c FlagsClient) Update(
 		PatchWithComment(*ldapi.NewPatchWithComment(patch)).
 		Execute()
 	if err != nil {
-		return nil, err
+		return errors.NewApiError(err)
 	}
 
 	responseJSON, err := json.Marshal(flag)
