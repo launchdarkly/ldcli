@@ -35,10 +35,10 @@ func (c MockClient) Create(ctx context.Context, name string, key string) ([]byte
 
 func (c MockClient) List(ctx context.Context) ([]byte, error) {
 	if c.hasForbiddenErr {
-		return nil, errors.ErrForbidden
+		return nil, errors.NewError("You do not have permission to make this request")
 	}
 	if c.hasUnauthorizedErr {
-		return nil, errors.ErrUnauthorized
+		return nil, errors.NewError("You are not authorized to make this request")
 	}
 
 	return []byte(`{

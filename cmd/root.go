@@ -72,9 +72,7 @@ func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
 		switch {
-		case errors.Is(err, errs.ErrForbidden),
-			errors.Is(err, errs.ErrInvalidBaseURI),
-			errors.Is(err, errs.ErrUnauthorized):
+		case errors.Is(err, errs.Error{}):
 			fmt.Fprintln(os.Stderr, err.Error())
 		default:
 			fmt.Println(err.Error())
