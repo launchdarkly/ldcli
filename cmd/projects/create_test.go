@@ -18,7 +18,7 @@ func TestCreate(t *testing.T) {
 			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
 			Return([]byte(cmd.ValidResponse), nil)
 
-		output, err := cmd.CallCmd(t, &client, cmd.ArgsValidCreate())
+		output, err := cmd.CallCmd(t, nil, &client, cmd.ArgsValidProjectsCreate())
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -28,32 +28,21 @@ func TestCreate(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
-			Return([]byte(`{}`), errors.NewError("You are not authorized to make this request"))
+			Return([]byte(`{}`), errors.NewError("An error"))
 
-		_, err := cmd.CallCmd(t, &client, cmd.ArgsValidCreate())
+		_, err := cmd.CallCmd(t, nil, &client, cmd.ArgsValidProjectsCreate())
 
-		require.EqualError(t, err, "You are not authorized to make this request")
-	})
-
-	t.Run("with a forbidden response is an error", func(t *testing.T) {
-		client := projects.MockClient{}
-		client.
-			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
-			Return([]byte(`{}`), errors.NewError("You do not have permission to make this request"))
-
-		_, err := cmd.CallCmd(t, &client, cmd.ArgsValidCreate())
-
-		require.EqualError(t, err, "You do not have permission to make this request")
+		require.EqualError(t, err, "An error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
-		_, err := cmd.CallCmd(t, &projects.MockClient{}, cmd.ArgsCreateCommand())
+		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, cmd.ArgsProjectsCreateCommand())
 
 		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`)
 	})
 
 	t.Run("with invalid baseUri is an error", func(t *testing.T) {
-		_, err := cmd.CallCmd(t, &projects.MockClient{}, append(cmd.ArgsCreateCommand(), "--baseUri", "invalid"))
+		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, append(cmd.ArgsProjectsCreateCommand(), "--baseUri", "invalid"))
 
 		assert.EqualError(t, err, "baseUri is invalid")
 	})

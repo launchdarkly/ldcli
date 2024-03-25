@@ -9,13 +9,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ldcli/cmd/flags"
+	flagscmd "ldcli/cmd/flags"
 	projcmd "ldcli/cmd/projects"
 	errs "ldcli/internal/errors"
+	"ldcli/internal/flags"
 	"ldcli/internal/projects"
 )
 
-func NewRootCommand(client projects.Client) (*cobra.Command, error) {
+func NewRootCommand(flagsClient flags.Client, projectsClient projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -55,11 +56,11 @@ func NewRootCommand(client projects.Client) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	projectsCmd, err := projcmd.NewProjectsCmd(client)
+	projectsCmd, err := projcmd.NewProjectsCmd(projectsClient)
 	if err != nil {
 		return nil, err
 	}
-	flagsCmd, err := flags.NewFlagsCmd()
+	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +73,7 @@ func NewRootCommand(client projects.Client) (*cobra.Command, error) {
 }
 
 func Execute() {
-	rootCmd, err := NewRootCommand(projects.NewClient())
+	rootCmd, err := NewRootCommand(flags.NewClient(), projects.NewClient())
 	if err != nil {
 		log.Fatal(err)
 	}
