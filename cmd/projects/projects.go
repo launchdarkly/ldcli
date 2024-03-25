@@ -1,16 +1,26 @@
 package projects
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
 
-func NewProjectsCmd() *cobra.Command {
+	"ldcli/internal/projects"
+)
+
+func NewProjectsCmd(client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "projects",
 		Short: "Make requests (list, create, etc.) on projects",
 		Long:  "Make requests (list, create, etc.) on projects",
 	}
 
-	cmd.AddCommand(NewCreateCmd())
-	cmd.AddCommand(NewListCmd())
+	createCmd, err := NewCreateCmd(client)
+	if err != nil {
+		return nil, err
+	}
+	listCmd := NewListCmd(client)
 
-	return cmd
+	cmd.AddCommand(createCmd)
+	cmd.AddCommand(listCmd)
+
+	return cmd, nil
 }

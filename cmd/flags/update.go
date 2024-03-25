@@ -12,7 +12,7 @@ import (
 	"ldcli/internal/flags"
 )
 
-func NewUpdateCmd() *cobra.Command {
+func NewUpdateCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "update",
 		Short:   "Update a flag",
@@ -31,34 +31,34 @@ func NewUpdateCmd() *cobra.Command {
 	)
 	err := cmd.MarkFlagRequired("data")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	err = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	cmd.Flags().String("key", "", "Flag key")
 	err = cmd.MarkFlagRequired("key")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	err = viper.BindPFlag("key", cmd.Flags().Lookup("key"))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	cmd.Flags().String("projKey", "", "Project key")
 	err = cmd.MarkFlagRequired("projKey")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	err = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return cmd
+	return cmd, nil
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {

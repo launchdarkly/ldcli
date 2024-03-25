@@ -3,17 +3,19 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/flags"
-	"ldcli/cmd/projects"
+	projcmd "ldcli/cmd/projects"
 	errs "ldcli/internal/errors"
+	"ldcli/internal/projects"
 )
 
-func newRootCommand() *cobra.Command {
+func NewRootCommand(client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -27,13 +29,7 @@ func newRootCommand() *cobra.Command {
 		SilenceErrors: true,
 	}
 
-	var (
-		accessToken string
-		baseURI     string
-	)
-
-	cmd.PersistentFlags().StringVarP(
-		&accessToken,
+	cmd.PersistentFlags().StringP(
 		"accessToken",
 		"t",
 		"",
@@ -41,15 +37,14 @@ func newRootCommand() *cobra.Command {
 	)
 	err := cmd.MarkPersistentFlagRequired("accessToken")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	err = viper.BindPFlag("accessToken", cmd.PersistentFlags().Lookup("accessToken"))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	cmd.PersistentFlags().StringVarP(
-		&baseURI,
+	cmd.PersistentFlags().StringP(
 		"baseUri",
 		"u",
 		"https://app.launchdarkly.com",
@@ -57,19 +52,32 @@ func newRootCommand() *cobra.Command {
 	)
 	err = viper.BindPFlag("baseUri", cmd.PersistentFlags().Lookup("baseUri"))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	cmd.AddCommand(flags.NewFlagsCmd())
-	cmd.AddCommand(projects.NewProjectsCmd())
+	projectsCmd, err := projcmd.NewProjectsCmd(client)
+	if err != nil {
+		return nil, err
+	}
+	flagsCmd, err := flags.NewFlagsCmd()
+	if err != nil {
+		return nil, err
+	}
+
+	cmd.AddCommand(flagsCmd)
+	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(setupCmd)
 
-	return cmd
+	return cmd, nil
 }
 
 func Execute() {
-	rootCmd := newRootCommand()
-	err := rootCmd.Execute()
+	rootCmd, err := NewRootCommand(projects.NewClient())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = rootCmd.Execute()
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.Error{}):
