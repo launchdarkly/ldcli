@@ -4,9 +4,11 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"ldcli/internal/projects"
 )
 
-func NewMembersCmd() (*cobra.Command, error) {
+func NewMembersCmd(client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "members",
 		Short: "Make requests (create/invite) on members",
@@ -15,6 +17,13 @@ func NewMembersCmd() (*cobra.Command, error) {
 			fmt.Println("members called")
 		},
 	}
+
+	createCmd, err := NewCreateCmd(client)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd.AddCommand(createCmd)
 
 	return cmd, nil
 

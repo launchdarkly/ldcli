@@ -64,7 +64,7 @@ func NewRootCommand(client projects.Client) (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	membersCmd, err := members.NewMembersCmd()
+	membersCmd, err := members.NewMembersCmd(client)
 	if err != nil {
 		return nil, err
 	}
