@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.10.0
 	github.com/launchdarkly/api-client-go/v14 v14.0.0
 	github.com/muesli/reflow v0.3.0
+	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
