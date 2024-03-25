@@ -32,7 +32,7 @@ func (c ProjectsClient) Create(ctx context.Context, name string, key string) ([]
 	projectPost := ldapi.NewProjectPost(name, key)
 	project, _, err := c.client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
 	if err != nil {
-		return errors.NewApiError(err)
+		return nil, errors.NewAPIError(err)
 	}
 	projectJSON, err := json.Marshal(project)
 	if err != nil {
@@ -48,7 +48,7 @@ func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
 		Limit(2).
 		Execute()
 	if err != nil {
-		return errors.NewApiError(err)
+		return nil, errors.NewAPIError(err)
 	}
 
 	projectsJSON, err := json.Marshal(projects)

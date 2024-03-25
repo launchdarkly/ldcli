@@ -38,7 +38,7 @@ func (c FlagsClient) Create(
 	post := ldapi.NewFeatureFlagBody(name, key)
 	flag, _, err := c.client.FeatureFlagsApi.PostFeatureFlag(ctx, projectKey).FeatureFlagBody(*post).Execute()
 	if err != nil {
-		return errors.NewApiError(err)
+		return nil, errors.NewAPIError(err)
 
 	}
 
@@ -61,7 +61,7 @@ func (c FlagsClient) Update(
 		PatchWithComment(*ldapi.NewPatchWithComment(patch)).
 		Execute()
 	if err != nil {
-		return errors.NewApiError(err)
+		return nil, errors.NewAPIError(err)
 	}
 
 	responseJSON, err := json.Marshal(flag)

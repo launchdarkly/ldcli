@@ -41,12 +41,12 @@ func NewErrorWrapped(message string, underlying error) error {
 	})
 }
 
-func NewApiError(err error) ([]byte, error) {
+func NewAPIError(err error) error {
 	var ldErr *ldapi.GenericOpenAPIError
 	ok := errors.As(err, &ldErr)
 	if ok {
-		return nil, NewErrorWrapped(string(ldErr.Body()), ldErr)
+		return NewErrorWrapped(string(ldErr.Body()), ldErr)
 	}
 
-	return nil, err
+	return err
 }
