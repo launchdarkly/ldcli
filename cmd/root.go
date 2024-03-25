@@ -3,17 +3,23 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/flags"
-	"ldcli/cmd/projects"
+	projcmd "ldcli/cmd/projects"
 	errs "ldcli/internal/errors"
+	"ldcli/internal/projects"
 )
 
-func newRootCommand() *cobra.Command {
+type rootCmd struct {
+	Cmd *cobra.Command
+}
+
+func NewRootCommand(client projects.Client) (rootCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -27,13 +33,7 @@ func newRootCommand() *cobra.Command {
 		SilenceErrors: true,
 	}
 
-	var (
-		accessToken string
-		baseURI     string
-	)
-
-	cmd.PersistentFlags().StringVarP(
-		&accessToken,
+	cmd.PersistentFlags().StringP(
 		"accessToken",
 		"t",
 		"",
@@ -41,15 +41,14 @@ func newRootCommand() *cobra.Command {
 	)
 	err := cmd.MarkPersistentFlagRequired("accessToken")
 	if err != nil {
-		panic(err)
+		return rootCmd{}, err
 	}
 	err = viper.BindPFlag("accessToken", cmd.PersistentFlags().Lookup("accessToken"))
 	if err != nil {
-		panic(err)
+		return rootCmd{}, err
 	}
 
-	cmd.PersistentFlags().StringVarP(
-		&baseURI,
+	cmd.PersistentFlags().StringP(
 		"baseUri",
 		"u",
 		"https://app.launchdarkly.com",
@@ -57,19 +56,30 @@ func newRootCommand() *cobra.Command {
 	)
 	err = viper.BindPFlag("baseUri", cmd.PersistentFlags().Lookup("baseUri"))
 	if err != nil {
-		panic(err)
+		return rootCmd{}, err
+	}
+
+	projectsCmd, err := projcmd.NewProjectsCmd(client)
+	if err != nil {
+		return rootCmd{}, err
 	}
 
 	cmd.AddCommand(flags.NewFlagsCmd())
-	cmd.AddCommand(projects.NewProjectsCmd())
+	cmd.AddCommand(projectsCmd.Cmd)
 	cmd.AddCommand(setupCmd)
 
-	return cmd
+	return rootCmd{
+		Cmd: cmd,
+	}, nil
 }
 
 func Execute() {
-	rootCmd := newRootCommand()
-	err := rootCmd.Execute()
+	rootCmd, err := NewRootCommand(projects.NewClient())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = rootCmd.Cmd.Execute()
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrForbidden),
@@ -78,7 +88,7 @@ func Execute() {
 			fmt.Fprintln(os.Stderr, err.Error())
 		default:
 			fmt.Println(err.Error())
-			fmt.Println(rootCmd.UsageString())
+			fmt.Println(rootCmd.Cmd.UsageString())
 		}
 	}
 }

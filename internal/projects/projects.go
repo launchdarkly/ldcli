@@ -3,34 +3,35 @@ package projects
 import (
 	"context"
 	"encoding/json"
-	"ldcli/internal/errors"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
+
+	"ldcli/internal/errors"
 )
 
 type Client interface {
-	Create(ctx context.Context, name string, key string) ([]byte, error)
-	List(ctx context.Context) ([]byte, error)
+	Create(ctx context.Context, accessToken, baseURI, name, key string) ([]byte, error)
+	List(ctx context.Context, accessToken, baseURI string) ([]byte, error)
 }
 
-type ProjectsClient struct {
-	client *ldapi.APIClient
+type ProjectsClient struct{}
+
+var _ Client = ProjectsClient{}
+
+func NewClient() Client {
+	return ProjectsClient{}
 }
 
-func NewClient(accessToken string, baseURI string) ProjectsClient {
-	config := ldapi.NewConfiguration()
-	config.AddDefaultHeader("Authorization", accessToken)
-	config.Servers[0].URL = baseURI
-	client := ldapi.NewAPIClient(config)
-
-	return ProjectsClient{
-		client: client,
-	}
-}
-
-func (c ProjectsClient) Create(ctx context.Context, name string, key string) ([]byte, error) {
+func (c ProjectsClient) Create(
+	ctx context.Context,
+	accessToken,
+	baseURI,
+	name,
+	key string,
+) ([]byte, error) {
+	client := c.client(accessToken, baseURI)
 	projectPost := ldapi.NewProjectPost(name, key)
-	project, _, err := c.client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
+	project, _, err := client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
 	if err != nil {
 		return nil, err
 	}
@@ -42,8 +43,13 @@ func (c ProjectsClient) Create(ctx context.Context, name string, key string) ([]
 	return projectJSON, nil
 }
 
-func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
-	projects, _, err := c.client.ProjectsApi.
+func (c ProjectsClient) List(
+	ctx context.Context,
+	accessToken,
+	baseURI string,
+) ([]byte, error) {
+	client := c.client(accessToken, baseURI)
+	projects, _, err := client.ProjectsApi.
 		GetProjects(ctx).
 		Limit(2).
 		Execute()
@@ -64,4 +70,15 @@ func (c ProjectsClient) List(ctx context.Context) ([]byte, error) {
 	}
 
 	return projectsJSON, nil
+}
+
+// client creates an LD API client. It's not set as a field on the struct because the CLI flags
+// are evaluated when running the command, not when executing the program. That means we don't have
+// the flag values until the command's RunE method is called.
+func (c ProjectsClient) client(accessToken string, baseURI string) *ldapi.APIClient {
+	config := ldapi.NewConfiguration()
+	config.AddDefaultHeader("Authorization", accessToken)
+	config.Servers[0].URL = baseURI
+
+	return ldapi.NewAPIClient(config)
 }

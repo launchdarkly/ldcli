@@ -12,16 +12,22 @@ import (
 	"ldcli/internal/projects"
 )
 
-func NewListCmd() *cobra.Command {
+type listCmd struct {
+	Cmd *cobra.Command
+}
+
+func NewListCmd(client projects.Client) (listCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "Return a list of projects",
 		Long:    "Return a list of projects",
 		PreRunE: validate,
-		RunE:    runList,
+		RunE:    runList(client),
 	}
 
-	return cmd
+	return listCmd{
+		Cmd: cmd,
+	}, nil
 }
 
 // validate ensures the flags are valid before using them.
@@ -35,18 +41,19 @@ func validate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// runList fetches a list of projects.
-func runList(cmd *cobra.Command, args []string) error {
-	client := projects.NewClient(
-		viper.GetString("accessToken"),
-		viper.GetString("baseUri"),
-	)
-	response, err := client.List(context.Background())
-	if err != nil {
-		return err
+func runList(client projects.Client) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		response, err := client.List(
+			context.Background(),
+			viper.GetString("accessToken"),
+			viper.GetString("baseUri"),
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+
+		return nil
 	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
-
-	return nil
 }
