@@ -15,11 +15,7 @@ import (
 	"ldcli/internal/projects"
 )
 
-type rootCmd struct {
-	Cmd *cobra.Command
-}
-
-func NewRootCommand(client projects.Client) (rootCmd, error) {
+func NewRootCommand(client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -41,11 +37,11 @@ func NewRootCommand(client projects.Client) (rootCmd, error) {
 	)
 	err := cmd.MarkPersistentFlagRequired("accessToken")
 	if err != nil {
-		return rootCmd{}, err
+		return nil, err
 	}
 	err = viper.BindPFlag("accessToken", cmd.PersistentFlags().Lookup("accessToken"))
 	if err != nil {
-		return rootCmd{}, err
+		return nil, err
 	}
 
 	cmd.PersistentFlags().StringP(
@@ -56,25 +52,23 @@ func NewRootCommand(client projects.Client) (rootCmd, error) {
 	)
 	err = viper.BindPFlag("baseUri", cmd.PersistentFlags().Lookup("baseUri"))
 	if err != nil {
-		return rootCmd{}, err
+		return nil, err
 	}
 
 	projectsCmd, err := projcmd.NewProjectsCmd(client)
 	if err != nil {
-		return rootCmd{}, err
+		return nil, err
 	}
 	flagsCmd, err := flags.NewFlagsCmd()
 	if err != nil {
-		return rootCmd{}, err
+		return nil, err
 	}
 
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(setupCmd)
 
-	return rootCmd{
-		Cmd: cmd,
-	}, nil
+	return cmd, nil
 }
 
 func Execute() {
@@ -83,7 +77,7 @@ func Execute() {
 		log.Fatal(err)
 	}
 
-	err = rootCmd.Cmd.Execute()
+	err = rootCmd.Execute()
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrForbidden),
@@ -92,7 +86,7 @@ func Execute() {
 			fmt.Fprintln(os.Stderr, err.Error())
 		default:
 			fmt.Println(err.Error())
-			fmt.Println(rootCmd.Cmd.UsageString())
+			fmt.Println(rootCmd.UsageString())
 		}
 	}
 }
