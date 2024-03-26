@@ -28,7 +28,7 @@ func TestList(t *testing.T) {
 			"-u", "http://test.com",
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, args)
+		output, err := cmd.CallCmd(t, nil, nil, &client, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -45,7 +45,7 @@ func TestList(t *testing.T) {
 			"-u", "http://test.com",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &client, args)
+		_, err := cmd.CallCmd(t, nil, nil, &client, args)
 
 		require.EqualError(t, err, "an error")
 	})
@@ -55,7 +55,7 @@ func TestList(t *testing.T) {
 			"projects", "list",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "accessToken" not set`+errorHelp)
 	})
@@ -89,7 +89,7 @@ func TestList(t *testing.T) {
 			"-u", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, "baseUri is invalid"+errorHelp)
 	})
