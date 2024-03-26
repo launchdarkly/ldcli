@@ -6,6 +6,7 @@ import (
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
+	"ldcli/internal/client"
 	"ldcli/internal/errors"
 )
 
@@ -37,7 +38,7 @@ func (c FlagsClient) Create(
 	key,
 	projectKey string,
 ) ([]byte, error) {
-	client := c.client(accessToken, baseURI)
+	client := client.New(accessToken, baseURI)
 	post := ldapi.NewFeatureFlagBody(name, key)
 	flag, _, err := client.FeatureFlagsApi.PostFeatureFlag(ctx, projectKey).FeatureFlagBody(*post).Execute()
 	if err != nil {
@@ -61,7 +62,7 @@ func (c FlagsClient) Update(
 	projKey string,
 	patch []ldapi.PatchOperation,
 ) ([]byte, error) {
-	client := c.client(accessToken, baseURI)
+	client := client.New(accessToken, baseURI)
 	flag, _, err := client.FeatureFlagsApi.
 		PatchFeatureFlag(ctx, projKey, key).
 		PatchWithComment(*ldapi.NewPatchWithComment(patch)).
@@ -76,15 +77,4 @@ func (c FlagsClient) Update(
 	}
 
 	return responseJSON, nil
-}
-
-// client creates an LD API client. It's not set as a field on the struct because the CLI flags
-// are evaluated when running the command, not when executing the program. That means we don't have
-// the flag values until the command's RunE method is called.
-func (c FlagsClient) client(accessToken string, baseURI string) *ldapi.APIClient {
-	config := ldapi.NewConfiguration()
-	config.AddDefaultHeader("Authorization", accessToken)
-	config.Servers[0].URL = baseURI
-
-	return ldapi.NewAPIClient(config)
 }
