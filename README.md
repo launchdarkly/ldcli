@@ -35,3 +35,12 @@ Example of how to run the `release-please` action locally.
 ```bash
 act -s GITHUB_TOKEN="$(gh auth token)" -j release-please -W ./.github/workflows/release-please.yml
 ```
+## Submitting bug reports and feature requests
+
+The LaunchDarkly team monitors this repository's [issue tracker](https://github.com/launchdarkly/ldcli/issues). Use the issue tracker to file bug reports and feature requests.
+
+## Submitting pull requests
+
+We encourage pull requests and other contributions from the community.
+
+Before you submit pull requests, make sure that all temporary or unintended code is removed. Don't worry about adding reviewers to the pull request. The LaunchDarkly team will add themselves.
