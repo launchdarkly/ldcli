@@ -1,4 +1,4 @@
-package projects_test
+package members_test
 
 import (
 	"testing"
@@ -8,66 +8,66 @@ import (
 
 	"ldcli/cmd"
 	"ldcli/internal/errors"
-	"ldcli/internal/projects"
+	"ldcli/internal/members"
 )
 
 func TestCreate(t *testing.T) {
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		"test-name",
-		"test-key",
+		"testemail@test.com",
+		"writer",
 	}
-	t.Run("with valid flags calls projects API", func(t *testing.T) {
-		client := projects.MockClient{}
+	t.Run("with valid flags calls members API", func(t *testing.T) {
+		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
-			"projects",
+			"members",
 			"create",
 			"-t",
 			"testAccessToken",
 			"-u",
 			"http://test.com",
 			"-d",
-			`{"key": "test-key", "name": "test-name"}`,
+			`{"email": "testemail@test.com", "role": "writer"}`,
 		}
 
-		output, err := cmd.CallCmd(t, nil, nil, &client, args)
+		output, err := cmd.CallCmd(t, nil, &client, nil, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
-		client := projects.MockClient{}
+		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
 		args := []string{
-			"projects",
+			"members",
 			"create",
 			"-t",
 			"testAccessToken",
 			"-u",
 			"http://test.com",
 			"-d",
-			`{"key": "test-key", "name": "test-name"}`,
+			`{"email": "testemail@test.com", "role": "writer"}`,
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &client, args)
+		_, err := cmd.CallCmd(t, nil, &client, nil, args)
 
 		require.EqualError(t, err, "An error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
 		args := []string{
-			"projects",
+			"members",
 			"create",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
 
 		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`)
 	})
@@ -79,7 +79,7 @@ func TestCreate(t *testing.T) {
 			"--baseUri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
 
 		assert.EqualError(t, err, "baseUri is invalid")
 	})

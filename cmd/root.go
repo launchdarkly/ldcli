@@ -10,13 +10,16 @@ import (
 	"github.com/spf13/viper"
 
 	flagscmd "ldcli/cmd/flags"
+	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
 	errs "ldcli/internal/errors"
 	"ldcli/internal/flags"
+	"ldcli/internal/members"
 	"ldcli/internal/projects"
 )
 
-func NewRootCommand(flagsClient flags.Client, projectsClient projects.Client) (*cobra.Command, error) {
+func NewRootCommand(flagsClient flags.Client, membersClient members.Client, projectsClient projects.Client) (*cobra.Command, error) {
+
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -56,16 +59,21 @@ func NewRootCommand(flagsClient flags.Client, projectsClient projects.Client) (*
 		return nil, err
 	}
 
-	projectsCmd, err := projcmd.NewProjectsCmd(projectsClient)
+	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient)
 	if err != nil {
 		return nil, err
 	}
-	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient)
+	membersCmd, err := mbrscmd.NewMembersCmd(membersClient)
+	if err != nil {
+		return nil, err
+	}
+	projectsCmd, err := projcmd.NewProjectsCmd(projectsClient)
 	if err != nil {
 		return nil, err
 	}
 
 	cmd.AddCommand(flagsCmd)
+	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(setupCmd)
 
@@ -73,7 +81,7 @@ func NewRootCommand(flagsClient flags.Client, projectsClient projects.Client) (*
 }
 
 func Execute() {
-	rootCmd, err := NewRootCommand(flags.NewClient(), projects.NewClient())
+	rootCmd, err := NewRootCommand(flags.NewClient(), members.NewClient(), projects.NewClient())
 	if err != nil {
 		log.Fatal(err)
 	}
