@@ -12,13 +12,13 @@ import (
 	"ldcli/internal/flags"
 )
 
-func NewUpdateCmd() (*cobra.Command, error) {
+func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "update",
 		Short:   "Update a flag",
 		Long:    "Update a flag",
 		PreRunE: validate,
-		RunE:    runUpdate,
+		RunE:    runUpdate(client),
 	}
 
 	var data string
@@ -61,33 +61,32 @@ func NewUpdateCmd() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runUpdate(cmd *cobra.Command, args []string) error {
-	client := flags.NewClient(
-		viper.GetString("accessToken"),
-		viper.GetString("baseUri"),
-	)
+func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		// rebind flags used in other subcommands
+		_ = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
+		_ = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
 
-	// rebind flag to this subcommand
-	viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
+		var patch []ldapi.PatchOperation
+		err := json.Unmarshal([]byte(viper.GetString("data")), &patch)
+		if err != nil {
+			return err
+		}
 
-	var patch []ldapi.PatchOperation
-	// err := json.Unmarshal([]byte(viper.GetString("data")), &patch)
-	err := json.Unmarshal([]byte(cmd.Flags().Lookup("data").Value.String()), &patch)
-	if err != nil {
-		return err
+		response, err := client.Update(
+			context.Background(),
+			viper.GetString("accessToken"),
+			viper.GetString("baseUri"),
+			viper.GetString("key"),
+			viper.GetString("projKey"),
+			patch,
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+
+		return nil
 	}
-
-	response, err := client.Update(
-		context.Background(),
-		viper.GetString("key"),
-		viper.GetString("projKey"),
-		patch,
-	)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
-
-	return nil
 }

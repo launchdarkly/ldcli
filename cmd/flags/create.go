@@ -13,13 +13,13 @@ import (
 	"ldcli/internal/flags"
 )
 
-func NewCreateCmd() (*cobra.Command, error) {
+func NewCreateCmd(client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new flag",
 		Long:    "Create a new flag",
 		PreRunE: validate,
-		RunE:    runCreate,
+		RunE:    runCreate(client),
 	}
 
 	cmd.Flags().StringP("data", "d", "", "Input data in JSON")
@@ -50,36 +50,34 @@ type inputData struct {
 	Key  string `json:"key"`
 }
 
-func runCreate(cmd *cobra.Command, args []string) error {
-	client := flags.NewClient(
-		viper.GetString("accessToken"),
-		viper.GetString("baseUri"),
-	)
+func runCreate(client flags.Client) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		// rebind flags used in other subcommands
+		_ = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
+		_ = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
 
-	// rebind flag to this subcommand
-	viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
+		var data inputData
+		err := json.Unmarshal([]byte(viper.GetString("data")), &data)
+		if err != nil {
+			return err
+		}
 
-	var data inputData
-	err := json.Unmarshal([]byte(cmd.Flags().Lookup("data").Value.String()), &data)
-	// err := json.Unmarshal([]byte(viper.GetString("data")), &data)
-	if err != nil {
-		return err
+		response, err := client.Create(
+			context.Background(),
+			viper.GetString("accessToken"),
+			viper.GetString("baseUri"),
+			data.Name,
+			data.Key,
+			viper.GetString("projKey"),
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+
+		return nil
 	}
-	projKey := viper.GetString("projKey")
-
-	response, err := client.Create(
-		context.Background(),
-		data.Name,
-		data.Key,
-		projKey,
-	)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
-
-	return nil
 }
 
 // validate ensures the flags are valid before using them.
