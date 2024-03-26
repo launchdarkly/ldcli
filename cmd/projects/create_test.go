@@ -34,7 +34,7 @@ func TestCreate(t *testing.T) {
 			`{"key": "test-key", "name": "test-name"}`,
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, args)
+		output, err := cmd.CallCmd(t, nil, nil, &client, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -56,7 +56,7 @@ func TestCreate(t *testing.T) {
 			`{"key": "test-key", "name": "test-name"}`,
 		}
 
-		_, err := cmd.CallCmd(t, nil, &client, args)
+		_, err := cmd.CallCmd(t, nil, nil, &client, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -67,7 +67,7 @@ func TestCreate(t *testing.T) {
 			"create",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`)
 	})
@@ -79,7 +79,7 @@ func TestCreate(t *testing.T) {
 			"--baseUri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, "baseUri is invalid")
 	})
