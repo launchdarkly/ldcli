@@ -1,8 +1,6 @@
 package members
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"ldcli/internal/members"
@@ -13,9 +11,6 @@ func NewMembersCmd(client members.Client) (*cobra.Command, error) {
 		Use:   "members",
 		Short: "Make requests (create/invite) on members",
 		Long:  "Make requests (create/invite) on members",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("members called")
-		},
 	}
 
 	createCmd, err := NewCreateCmd(client)
