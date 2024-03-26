@@ -8,16 +8,17 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ldcli/cmd/validators"
 	"ldcli/internal/projects"
 )
 
 func NewCreateCmd(client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:     "create",
-		Short:   "Create a new project",
-		Long:    "Create a new project",
-		PreRunE: validate,
-		RunE:    runCreate(client),
+		Args:  validators.Validate(),
+		Long:  "Create a new project",
+		RunE:  runCreate(client),
+		Short: "Create a new project",
+		Use:   "create",
 	}
 
 	cmd.Flags().StringP("data", "d", "", "Input data in JSON")

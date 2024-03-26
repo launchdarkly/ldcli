@@ -12,6 +12,7 @@ import (
 )
 
 func TestCreate(t *testing.T) {
+	errorHelp := ". See `ldcli projects create --help` for supported flags and usage."
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
@@ -69,7 +70,29 @@ func TestCreate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
 
-		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`)
+		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`+errorHelp)
+	})
+
+	t.Run("with missing short flag value is an error", func(t *testing.T) {
+		args := []string{
+			"projects", "create",
+			"-d",
+		}
+
+		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+
+		assert.EqualError(t, err, `flag needs an argument: 'd' in -d`)
+	})
+
+	t.Run("with missing long flag value is an error", func(t *testing.T) {
+		args := []string{
+			"projects", "create",
+			"--data",
+		}
+
+		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+
+		assert.EqualError(t, err, `flag needs an argument: --data`)
 	})
 
 	t.Run("with invalid baseUri is an error", func(t *testing.T) {
@@ -81,6 +104,6 @@ func TestCreate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
 
-		assert.EqualError(t, err, "baseUri is invalid")
+		assert.EqualError(t, err, "baseUri is invalid"+errorHelp)
 	})
 }

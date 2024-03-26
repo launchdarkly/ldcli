@@ -9,16 +9,17 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ldcli/cmd/validators"
 	"ldcli/internal/flags"
 )
 
 func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:     "update",
-		Short:   "Update a flag",
-		Long:    "Update a flag",
-		PreRunE: validate,
-		RunE:    runUpdate(client),
+		Args:  validators.Validate(),
+		Long:  "Update a flag",
+		RunE:  runUpdate(client),
+		Short: "Update a flag",
+		Use:   "update",
 	}
 
 	var data string
