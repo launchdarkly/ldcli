@@ -12,10 +12,14 @@ import (
 )
 
 func TestList(t *testing.T) {
+	mockArgs := []interface{}{
+		"testAccessToken",
+		"http://test.com",
+	}
 	t.Run("with valid flags calls projects API", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("List", "testAccessToken", "http://test.com").
+			On("List", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"projects", "list",
@@ -32,7 +36,7 @@ func TestList(t *testing.T) {
 	t.Run("with an error response is an error", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("List", "testAccessToken", "http://test.com").
+			On("List", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("an error"))
 		args := []string{
 			"projects", "list",

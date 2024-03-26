@@ -12,10 +12,16 @@ import (
 )
 
 func TestCreate(t *testing.T) {
+	mockArgs := []interface{}{
+		"testAccessToken",
+		"http://test.com",
+		"test-name",
+		"test-key",
+	}
 	t.Run("with valid flags calls projects API", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
+			On("Create", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"projects",
@@ -37,7 +43,7 @@ func TestCreate(t *testing.T) {
 	t.Run("with an error response is an error", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
-			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key").
+			On("Create", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
 		args := []string{
 			"projects",
