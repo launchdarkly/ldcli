@@ -12,7 +12,6 @@ import (
 type Client interface {
 	Create(ctx context.Context, accessToken, baseURI, name, key string) ([]byte, error)
 	List(ctx context.Context, accessToken, baseURI string) ([]byte, error)
-	CreateMember(ctx context.Context, accessToken, baseURI, email, role string) ([]byte, error)
 }
 
 type ProjectsClient struct{}
@@ -64,21 +63,6 @@ func (c ProjectsClient) List(
 	}
 
 	return projectsJSON, nil
-}
-
-func (c ProjectsClient) CreateMember(ctx context.Context, accessToken, baseURI, email, role string) ([]byte, error) {
-	client := c.client(accessToken, baseURI)
-	memberForm := ldapi.NewMemberForm{Email: email, Role: &role}
-	members, _, err := client.AccountMembersApi.PostMembers(ctx).NewMemberForm([]ldapi.NewMemberForm{memberForm}).Execute()
-	if err != nil {
-		return nil, errors.NewAPIError(err)
-	}
-	memberJson, err := json.Marshal(members.Items[0])
-	if err != nil {
-		return nil, err
-	}
-
-	return memberJson, nil
 }
 
 // client creates an LD API client. It's not set as a field on the struct because the CLI flags

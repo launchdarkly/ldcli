@@ -10,10 +10,10 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/internal/errors"
-	"ldcli/internal/projects"
+	"ldcli/internal/members"
 )
 
-func NewCreateCmd(client projects.Client) (*cobra.Command, error) {
+func NewCreateCmd(client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new member",
@@ -40,7 +40,7 @@ type inputData struct {
 	Role  string `json:"role"`
 }
 
-func runCreate(client projects.Client) func(*cobra.Command, []string) error {
+func runCreate(client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		var data inputData
 		// TODO: why does viper.GetString("data") not work?
@@ -49,7 +49,7 @@ func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		response, err := client.CreateMember(
+		response, err := client.Create(
 			context.Background(),
 			viper.GetString("accessToken"),
 			viper.GetString("baseUri"),

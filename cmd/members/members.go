@@ -5,10 +5,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"ldcli/internal/projects"
+	"ldcli/internal/members"
 )
 
-func NewMembersCmd(client projects.Client) (*cobra.Command, error) {
+func NewMembersCmd(client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "members",
 		Short: "Make requests (create/invite) on members",
