@@ -66,7 +66,7 @@ func TestList(t *testing.T) {
 			"-t",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: 't' in -t`)
 	})
@@ -77,7 +77,7 @@ func TestList(t *testing.T) {
 			"--accessToken",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --accessToken`)
 	})

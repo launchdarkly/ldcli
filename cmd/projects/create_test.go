@@ -79,7 +79,7 @@ func TestCreate(t *testing.T) {
 			"-d",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: 'd' in -d`)
 	})
@@ -90,7 +90,7 @@ func TestCreate(t *testing.T) {
 			"--data",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --data`)
 	})
