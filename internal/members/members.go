@@ -15,8 +15,6 @@ type Client interface {
 
 type MembersClient struct{}
 
-var _ Client = MembersClient{}
-
 func NewClient() Client {
 	return MembersClient{}
 }
