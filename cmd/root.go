@@ -76,6 +76,7 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(setupCmd)
+	cmd.AddCommand(NewQuickStartCmd(flagsClient))
 
 	return cmd, nil
 }
