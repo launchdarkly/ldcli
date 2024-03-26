@@ -15,7 +15,14 @@ func TestCreate(t *testing.T) {
 	t.Run("with valid flags calls projects API", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
-			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key", "test-proj-key").
+			On(
+				"Create",
+				"testAccessToken",
+				"http://test.com",
+				"test-name",
+				"test-key",
+				"test-proj-key",
+			).
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"flags", "create",
@@ -34,7 +41,14 @@ func TestCreate(t *testing.T) {
 	t.Run("with an error response is an error", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
-			On("Create", "testAccessToken", "http://test.com", "test-name", "test-key", "test-proj-key").
+			On(
+				"Create",
+				"testAccessToken",
+				"http://test.com",
+				"test-name",
+				"test-key",
+				"test-proj-key",
+			).
 			Return([]byte(`{}`), errors.NewError("An error"))
 		args := []string{
 			"flags", "create",

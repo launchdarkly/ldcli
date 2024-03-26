@@ -13,61 +13,6 @@ import (
 
 var ValidResponse = `{"valid": true}`
 
-func ArgsValidFlagsCreate() []string {
-	args := append(ArgsFlagsCreateCommand(), ArgsAccess()...)
-	args = append(args, ArgsData()...)
-
-	return args
-}
-
-func ArgsValidProjectsCreate() []string {
-	args := append(ArgsProjectsCreateCommand(), ArgsAccess()...)
-	args = append(args, ArgsData()...)
-
-	return args
-}
-
-func ArgsValidList() []string {
-	return append(ArgsListCommand(), ArgsAccess()...)
-}
-
-func ArgsData() []string {
-	return []string{
-		"-d",
-		`{"key": "test-key", "name": "test-name"}`,
-	}
-}
-
-func ArgsAccess() []string {
-	return []string{
-		"-t",
-		"testAccessToken",
-		"-u",
-		"http://test.com",
-	}
-}
-
-func ArgsFlagsCreateCommand() []string {
-	return []string{
-		"flags",
-		"create",
-	}
-}
-
-func ArgsProjectsCreateCommand() []string {
-	return []string{
-		"projects",
-		"create",
-	}
-}
-
-func ArgsListCommand() []string {
-	return []string{
-		"projects",
-		"list",
-	}
-}
-
 func CallCmd(
 	t *testing.T,
 	flagsClient *flags.MockClient,

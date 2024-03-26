@@ -17,43 +17,52 @@ func TestList(t *testing.T) {
 		client.
 			On("List", "testAccessToken", "http://test.com").
 			Return([]byte(cmd.ValidResponse), nil)
+		args := []string{
+			"projects", "list",
+			"-t", "testAccessToken",
+			"-u", "http://test.com",
+		}
 
-		output, err := cmd.CallCmd(t, nil, &client, cmd.ArgsValidList())
+		output, err := cmd.CallCmd(t, nil, &client, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
 	})
 
-	t.Run("with an unauthorized response is an error", func(t *testing.T) {
+	t.Run("with an error response is an error", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", "testAccessToken", "http://test.com").
-			Return([]byte(`{}`), errors.NewError("You are not authorized to make this request"))
+			Return([]byte(`{}`), errors.NewError("an error"))
+		args := []string{
+			"projects", "list",
+			"-t", "testAccessToken",
+			"-u", "http://test.com",
+		}
 
-		_, err := cmd.CallCmd(t, nil, &client, cmd.ArgsValidList())
+		_, err := cmd.CallCmd(t, nil, &client, args)
 
-		require.EqualError(t, err, "You are not authorized to make this request")
-	})
-
-	t.Run("with a forbidden response is an error", func(t *testing.T) {
-		client := projects.MockClient{}
-		client.
-			On("List", "testAccessToken", "http://test.com").
-			Return([]byte(`{}`), errors.NewError("You do not have permission to make this request"))
-
-		_, err := cmd.CallCmd(t, nil, &client, cmd.ArgsValidList())
-
-		require.EqualError(t, err, "You do not have permission to make this request")
+		require.EqualError(t, err, "an error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, cmd.ArgsListCommand())
+		args := []string{
+			"projects", "list",
+		}
+
+		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "accessToken" not set`)
 	})
 
 	t.Run("with invalid baseUri is an error", func(t *testing.T) {
-		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, append(cmd.ArgsListCommand(), "--baseUri", "invalid"))
+		args := []string{
+			"projects", "list",
+			"-t", "testAccessToken",
+			"-u", "invalid",
+		}
+
+		_, err := cmd.CallCmd(t, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, "baseUri is invalid")
 	})
