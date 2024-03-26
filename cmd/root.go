@@ -71,7 +71,7 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 	if err != nil {
 		return nil, err
 	}
-	
+
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
@@ -81,9 +81,7 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 }
 
 func Execute() {
-
 	rootCmd, err := NewRootCommand(flags.NewClient(), members.NewClient(), projects.NewClient())
-
 	if err != nil {
 		log.Fatal(err)
 	}
