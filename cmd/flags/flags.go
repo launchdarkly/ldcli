@@ -1,25 +1,29 @@
 package flags
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
 
-func NewFlagsCmd() (*cobra.Command, error) {
+	"ldcli/internal/flags"
+)
+
+func NewFlagsCmd(client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "flags",
 		Short: "Make requests (list, create, etc.) on flags",
 		Long:  "Make requests (list, create, etc.) on flags",
 	}
 
-	updateCmd, err := NewUpdateCmd()
+	createCmd, err := NewCreateCmd(client)
 	if err != nil {
 		return nil, err
 	}
-	createCmd, err := NewCreateCmd()
+	updateCmd, err := NewUpdateCmd(client)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd.AddCommand(updateCmd)
 	cmd.AddCommand(createCmd)
+	cmd.AddCommand(updateCmd)
 
 	return cmd, nil
 }
