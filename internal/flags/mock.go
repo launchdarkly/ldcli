@@ -1,7 +1,9 @@
-package projects
+package flags
 
 import (
 	"context"
+
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 
 	"github.com/stretchr/testify/mock"
 )
@@ -17,19 +19,23 @@ func (c *MockClient) Create(
 	accessToken,
 	baseURI,
 	name,
-	key string,
+	key,
+	projKey string,
 ) ([]byte, error) {
-	args := c.Called(accessToken, baseURI, name, key)
+	args := c.Called(accessToken, baseURI, name, key, projKey)
 
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (c *MockClient) List(
+func (c *MockClient) Update(
 	ctx context.Context,
 	accessToken,
-	baseURI string,
+	baseURI,
+	key,
+	projKey string,
+	patch []ldapi.PatchOperation,
 ) ([]byte, error) {
-	args := c.Called(accessToken, baseURI)
+	args := c.Called(accessToken, baseURI, projKey, key, patch)
 
 	return args.Get(0).([]byte), args.Error(1)
 }
