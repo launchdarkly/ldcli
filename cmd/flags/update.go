@@ -31,6 +31,7 @@ func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 		"",
 		"Input data in JSON",
 	)
+
 	err := cmd.MarkFlagRequired("data")
 	if err != nil {
 		return nil, err
@@ -63,6 +64,51 @@ func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 	return cmd, nil
 }
 
+func NewToggleUpdateCmd(client flags.Client) (*cobra.Command, error) {
+	cmd := &cobra.Command{
+		Args:    validators.Validate(),
+		Long:    "Update a flag",
+		RunE:    runUpdate(client),
+		Short:   "Update a flag",
+		Use:     "toggle-on",
+		Aliases: []string{"toggle-off"},
+	}
+
+	var err error
+
+	cmd.Flags().String("envKey", "", "Environment key")
+	err = cmd.MarkFlagRequired("envKey")
+	if err != nil {
+		return nil, err
+	}
+	err = viper.BindPFlag("envKey", cmd.Flags().Lookup("envKey"))
+	if err != nil {
+		return nil, err
+	}
+
+	cmd.Flags().String("key", "", "Flag key")
+	err = cmd.MarkFlagRequired("key")
+	if err != nil {
+		return nil, err
+	}
+	err = viper.BindPFlag("key", cmd.Flags().Lookup("key"))
+	if err != nil {
+		return nil, err
+	}
+
+	cmd.Flags().String("projKey", "", "Project key")
+	err = cmd.MarkFlagRequired("projKey")
+	if err != nil {
+		return nil, err
+	}
+	err = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
+	if err != nil {
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
 func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// rebind flags used in other subcommands
@@ -70,9 +116,17 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
 		var patch []ldapi.PatchOperation
-		err := json.Unmarshal([]byte(viper.GetString("data")), &patch)
-		if err != nil {
-			return err
+		if cmd.CalledAs() == "toggle-on" || cmd.CalledAs() == "toggle-off" {
+			_ = viper.BindPFlag("envKey", cmd.Flags().Lookup("envKey"))
+			err := json.Unmarshal([]byte(buildPatch(viper.GetString("envKey"), cmd.CalledAs() == "toggle-on")), &patch)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := json.Unmarshal([]byte(viper.GetString("data")), &patch)
+			if err != nil {
+				return err
+			}
 		}
 
 		response, err := client.Update(
@@ -91,4 +145,8 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 
 		return nil
 	}
+}
+
+func buildPatch(envKey string, toggleValue bool) string {
+	return fmt.Sprintf(`[{"op": "replace", "path": "/environments/%s/on", "value": %t}]`, envKey, toggleValue)
 }

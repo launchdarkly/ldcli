@@ -22,8 +22,14 @@ func NewFlagsCmd(client flags.Client) (*cobra.Command, error) {
 		return nil, err
 	}
 
+	toggleUpdateCmd, err := NewToggleUpdateCmd(client)
+	if err != nil {
+		return nil, err
+	}
+
 	cmd.AddCommand(createCmd)
 	cmd.AddCommand(updateCmd)
+	cmd.AddCommand(toggleUpdateCmd)
 
 	return cmd, nil
 }
