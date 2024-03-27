@@ -64,6 +64,14 @@ func TestNameToKey(t *testing.T) {
 				name:        "my-Flag",
 				expectedKey: "my-flag",
 			},
+			"allows double dash with capital letter": {
+				name:        "my--Flag",
+				expectedKey: "my--flag",
+			},
+			"allows double dash": {
+				name:        "my--flag",
+				expectedKey: "my--flag",
+			},
 		}
 		for name, tt := range tests {
 			tt := tt

@@ -24,12 +24,19 @@ func NewKeyFromName(name string) (string, error) {
 
 	capitalLettersRegexp := regexp.MustCompile("[A-Z]")
 	spacesRegexp := regexp.MustCompile(`\s+`)
+	dashSpaceRegexp := regexp.MustCompile(`-\s+`)
 
-	key := spacesRegexp.ReplaceAllString(name, "-")
-	key = capitalLettersRegexp.ReplaceAllStringFunc(key, func(match string) string {
-		return "-" + strings.ToLower(match)
+	// change capital letters to lowercase with a prepended space
+	key := capitalLettersRegexp.ReplaceAllStringFunc(name, func(match string) string {
+		return " " + strings.ToLower(match)
 	})
-	key = strings.ReplaceAll(key, "--", "-")
+	// change any "- " to "-" because the previous step added a space that could be preceded by a
+	// valid dash
+	key = dashSpaceRegexp.ReplaceAllString(key, " ")
+	// replace all spaces with a single dash
+	key = spacesRegexp.ReplaceAllString(key, "-")
+	// remove a starting dash that could have been added from converting a capital letter at the
+	// beginning of the string
 	key = strings.TrimPrefix(key, "-")
 
 	return key, nil
