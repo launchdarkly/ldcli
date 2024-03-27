@@ -55,6 +55,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, tea.Quit
 		default:
+			// delegate all other input to the current model
+
 			// TODO: update model once there is at least one
 			// updated, _ := m.steps[m.currentStep].Update(msg)
 			// m.steps[m.currentStep] = updated
