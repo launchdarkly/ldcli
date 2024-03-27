@@ -32,7 +32,9 @@ func NewContainerModel(flagsClient flags.Client) tea.Model {
 	return ContainerModel{
 		currentStep: createFlagStep,
 		flagsClient: flagsClient,
-		steps:       []tea.Model{},
+		steps: []tea.Model{
+			NewCreateFlagModel(flagsClient),
+		},
 	}
 }
 
@@ -47,7 +49,16 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Enter):
 			switch m.currentStep {
 			case createFlagStep:
-				// TODO: add createFlagModel
+				updated, _ := m.steps[createFlagStep].Update(msg)
+				if model, ok := updated.(createFlagModel); ok {
+					if model.err != nil {
+						m.err = model.err
+
+						return m, nil
+					}
+					m.flagKey = model.flagKey
+					m.currentStep += 1
+				}
 			default:
 			}
 		case key.Matches(msg, keys.Quit):
@@ -56,10 +67,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		default:
 			// delegate all other input to the current model
-
-			// TODO: update model once there is at least one
-			// updated, _ := m.steps[m.currentStep].Update(msg)
-			// m.steps[m.currentStep] = updated
+			updated, _ := m.steps[m.currentStep].Update(msg)
+			m.steps[m.currentStep] = updated
 		}
 	default:
 	}
