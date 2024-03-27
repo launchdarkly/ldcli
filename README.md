@@ -12,8 +12,8 @@ go run main.go flags update \
     --api-token {api-token} \
     --base-uri http://localhost:3000 \
     -d '[{"op": "replace", "path": "/environments/production/on", "value": true}]' \
-    --projKey default \
-    --key test-flag
+    --project default \
+    --flag test-flag
 ```
 
 ## Running Github Actions locally
