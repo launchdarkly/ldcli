@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -12,7 +11,6 @@ import (
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
-	errs "ldcli/internal/errors"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
 	"ldcli/internal/projects"
@@ -29,8 +27,8 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 		// Handle errors differently based on type.
 		// We don't want to show the usage if the user has the right structure but invalid data such as
 		// the wrong key.
-		SilenceUsage:  true,
 		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	cmd.PersistentFlags().StringP(
@@ -88,12 +86,6 @@ func Execute() {
 
 	err = rootCmd.Execute()
 	if err != nil {
-		switch {
-		case errors.Is(err, errs.Error{}):
-			fmt.Fprintln(os.Stderr, err.Error())
-		default:
-			fmt.Println(err.Error())
-			fmt.Println(rootCmd.UsageString())
-		}
+		fmt.Fprintln(os.Stderr, err.Error())
 	}
 }
