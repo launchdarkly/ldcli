@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ldcli/cmd/environments"
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
@@ -61,10 +60,6 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 	if err != nil {
 		return nil, err
 	}
-	environmentsCmd, err := environments.NewEnvironmentsCmd()
-	if err != nil {
-		return nil, err
-	}
 	membersCmd, err := mbrscmd.NewMembersCmd(membersClient)
 	if err != nil {
 		return nil, err
@@ -76,7 +71,6 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 
 	cmd.AddCommand(NewQuickStartCmd(flagsClient))
 	cmd.AddCommand(flagsCmd)
-	cmd.AddCommand(environmentsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(setupCmd)
