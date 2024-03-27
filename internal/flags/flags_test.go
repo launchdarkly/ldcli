@@ -68,7 +68,7 @@ func TestNameToKey(t *testing.T) {
 		for name, tt := range tests {
 			tt := tt
 			t.Run(name, func(t *testing.T) {
-				key, err := flags.NameToKey(tt.name)
+				key, err := flags.NewKeyFromName(tt.name)
 
 				errMsg := fmt.Sprintf("name: %s", tt.name)
 				require.NoError(t, err, errMsg)
@@ -99,7 +99,7 @@ func TestNameToKey(t *testing.T) {
 		for name, tt := range tests {
 			tt := tt
 			t.Run(name, func(t *testing.T) {
-				_, err := flags.NameToKey(tt.name)
+				_, err := flags.NewKeyFromName(tt.name)
 
 				assert.EqualError(t, err, tt.expectedErr)
 			})

@@ -50,7 +50,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				input = defaultFlagName
 			}
 			m.flagName = input
-			flagKey, err := flags.NameToKey(m.flagName)
+			flagKey, err := flags.NewKeyFromName(m.flagName)
 			if err != nil {
 				m.err = err
 

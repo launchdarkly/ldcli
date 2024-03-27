@@ -8,7 +8,8 @@ import (
 
 const MaxNameLength = 50
 
-func NameToKey(name string) (string, error) {
+// NewKeyFromName creates a valid key from the name.
+func NewKeyFromName(name string) (string, error) {
 	if len(name) < 1 {
 		return "", errors.NewError("Name must not be empty.")
 	}
