@@ -1,12 +1,16 @@
 package errors
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
+
+	"ldcli/cmd/cliflags"
 )
 
-var ErrInvalidBaseURI = NewError("baseUri is invalid")
+var ErrInvalidBaseURI = NewError(fmt.Sprintf("%s is invalid", cliflags.BaseURIFlag))
 
 type Error struct {
 	err     error
