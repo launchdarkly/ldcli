@@ -12,7 +12,7 @@ import (
 )
 
 var setupCmd = &cobra.Command{
-	Use:   "setup",
+	Use:   "setup-TOREMOVE",
 	Short: "Setup guide to create your first feature flag",
 	Long:  "",
 	RunE:  runSetup,

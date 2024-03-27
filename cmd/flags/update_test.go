@@ -13,6 +13,7 @@ import (
 )
 
 func TestUpdate(t *testing.T) {
+	errorHelp := ". See `ldcli flags update --help` for supported flags and usage."
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
@@ -72,7 +73,7 @@ func TestUpdate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "accessToken", "data", "key", "projKey" not set`)
+		assert.EqualError(t, err, `required flag(s) "accessToken", "data", "key", "projKey" not set`+errorHelp)
 	})
 
 	t.Run("with invalid baseUri is an error", func(t *testing.T) {
@@ -86,6 +87,6 @@ func TestUpdate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
 
-		assert.EqualError(t, err, "baseUri is invalid")
+		assert.EqualError(t, err, "baseUri is invalid"+errorHelp)
 	})
 }
