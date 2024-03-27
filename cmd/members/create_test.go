@@ -12,6 +12,7 @@ import (
 )
 
 func TestCreate(t *testing.T) {
+	errorHelp := ". See `ldcli members create --help` for supported flags and usage."
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
@@ -69,18 +70,18 @@ func TestCreate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`)
+		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`+errorHelp)
 	})
 
 	t.Run("with invalid baseUri is an error", func(t *testing.T) {
 		args := []string{
-			"projects",
+			"members",
 			"create",
 			"--baseUri", "invalid",
 		}
 
 		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
 
-		assert.EqualError(t, err, "baseUri is invalid")
+		assert.EqualError(t, err, "baseUri is invalid"+errorHelp)
 	})
 }
