@@ -31,7 +31,7 @@ func (c MembersClient) Create(ctx context.Context, accessToken string, baseURI s
 	if err != nil {
 		return nil, errors.NewAPIError(err)
 	}
-	memberJson, err := json.Marshal(members.Items[0])
+	memberJson, err := json.Marshal(members.Items)
 	if err != nil {
 		return nil, err
 	}

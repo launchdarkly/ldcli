@@ -18,7 +18,13 @@ func NewMembersCmd(client members.Client) (*cobra.Command, error) {
 		return nil, err
 	}
 
+	inviteCmd, err := NewInviteCmd(client)
+	if err != nil {
+		return nil, err
+	}
+
 	cmd.AddCommand(createCmd)
+	cmd.AddCommand(inviteCmd)
 
 	return cmd, nil
 
