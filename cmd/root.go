@@ -30,28 +30,26 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 		SilenceUsage:  true,
 	}
 
-	cmd.PersistentFlags().StringP(
-		"accessToken",
-		"t",
+	cmd.PersistentFlags().String(
+		"api-token",
 		"",
-		"LaunchDarkly personal access token",
+		"LaunchDarkly API token",
 	)
-	err := cmd.MarkPersistentFlagRequired("accessToken")
+	err := cmd.MarkPersistentFlagRequired("api-token")
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("accessToken", cmd.PersistentFlags().Lookup("accessToken"))
+	err = viper.BindPFlag("api-token", cmd.PersistentFlags().Lookup("api-token"))
 	if err != nil {
 		return nil, err
 	}
 
-	cmd.PersistentFlags().StringP(
-		"baseUri",
-		"u",
+	cmd.PersistentFlags().String(
+		"base-uri",
 		"https://app.launchdarkly.com",
 		"LaunchDarkly base URI",
 	)
-	err = viper.BindPFlag("baseUri", cmd.PersistentFlags().Lookup("baseUri"))
+	err = viper.BindPFlag("base-uri", cmd.PersistentFlags().Lookup("base-uri"))
 	if err != nil {
 		return nil, err
 	}

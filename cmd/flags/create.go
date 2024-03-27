@@ -63,8 +63,8 @@ func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 
 		response, err := client.Create(
 			context.Background(),
-			viper.GetString("accessToken"),
-			viper.GetString("baseUri"),
+			viper.GetString("api-token"),
+			viper.GetString("base-uri"),
 			data.Name,
 			data.Key,
 			viper.GetString("projKey"),

@@ -16,7 +16,7 @@ func Validate() cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		commandPath := getCommandPath(cmd)
 
-		_, err := url.ParseRequestURI(viper.GetString("baseUri"))
+		_, err := url.ParseRequestURI(viper.GetString("base-uri"))
 		if err != nil {
 			errorMessage := fmt.Sprintf(
 				"%s. See `%s --help` for supported flags and usage.",

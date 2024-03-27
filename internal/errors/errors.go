@@ -6,7 +6,7 @@ import (
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 )
 
-var ErrInvalidBaseURI = NewError("baseUri is invalid")
+var ErrInvalidBaseURI = NewError("base-uri is invalid")
 
 type Error struct {
 	err     error
