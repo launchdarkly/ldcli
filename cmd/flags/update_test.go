@@ -38,7 +38,7 @@ func TestUpdate(t *testing.T) {
 			"--base-uri", "http://test.com",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
 			"--key", "test-key",
-			"--projKey", "test-proj-key",
+			"--project", "test-proj-key",
 		}
 
 		output, err := cmd.CallCmd(t, &client, nil, nil, args)
@@ -58,7 +58,7 @@ func TestUpdate(t *testing.T) {
 			"--base-uri", "http://test.com",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
 			"--key", "test-key",
-			"--projKey", "test-proj-key",
+			"--project", "test-proj-key",
 		}
 
 		_, err := cmd.CallCmd(t, &client, nil, nil, args)
@@ -73,7 +73,7 @@ func TestUpdate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token", "data", "key", "projKey" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "api-token", "data", "key", "project" not set`+errorHelp)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestUpdate(t *testing.T) {
 			"--api-token", "testAccessToken",
 			"--base-uri", "invalid",
 			"-d", `{"key": "test-key", "name": "test-name"}`,
-			"--projKey", "test-proj-key",
+			"--project", "test-proj-key",
 		}
 
 		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)

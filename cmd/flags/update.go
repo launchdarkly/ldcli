@@ -50,12 +50,12 @@ func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	cmd.Flags().String("projKey", "", "Project key")
-	err = cmd.MarkFlagRequired("projKey")
+	cmd.Flags().String(cliflags.ProjectFlag, "", "Project key")
+	err = cmd.MarkFlagRequired(cliflags.ProjectFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
+	err = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// rebind flags used in other subcommands
 		_ = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
-		_ = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
+		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
 		var patch []ldapi.PatchOperation
 		err := json.Unmarshal([]byte(viper.GetString("data")), &patch)
@@ -80,7 +80,7 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.APITokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetString("key"),
-			viper.GetString("projKey"),
+			viper.GetString(cliflags.ProjectFlag),
 			patch,
 		)
 		if err != nil {
