@@ -11,8 +11,7 @@ import (
 	errs "ldcli/internal/errors"
 )
 
-// Validate is a validator for commands to print an error when the number provided
-// is different than the arguments passed in
+// Validate is a validator for commands to print an error when the user input is invalid.
 func Validate() cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		commandPath := getCommandPath(cmd)
