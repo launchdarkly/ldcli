@@ -40,12 +40,12 @@ func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	cmd.Flags().String("key", "", "Flag key")
-	err = cmd.MarkFlagRequired("key")
+	cmd.Flags().String(cliflags.FlagFlag, "", "Flag key")
+	err = cmd.MarkFlagRequired(cliflags.FlagFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("key", cmd.Flags().Lookup("key"))
+	err = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 			context.Background(),
 			viper.GetString(cliflags.APITokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
-			viper.GetString("key"),
+			viper.GetString(cliflags.FlagFlag),
 			viper.GetString(cliflags.ProjectFlag),
 			patch,
 		)
