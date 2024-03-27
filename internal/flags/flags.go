@@ -1,80 +1,43 @@
 package flags
 
 import (
-	"context"
-	"encoding/json"
-
-	ldapi "github.com/launchdarkly/api-client-go/v14"
-
-	"ldcli/internal/client"
 	"ldcli/internal/errors"
+	"regexp"
+	"strings"
 )
 
-type Client interface {
-	Create(ctx context.Context, accessToken, baseURI, name, key, projKey string) ([]byte, error)
-	Update(
-		ctx context.Context,
-		accessToken,
-		baseURI,
-		key,
-		projKey string,
-		patch []ldapi.PatchOperation,
-	) ([]byte, error)
-}
+const MaxNameLength = 50
 
-type FlagsClient struct{}
-
-var _ Client = FlagsClient{}
-
-func NewClient() FlagsClient {
-	return FlagsClient{}
-}
-
-func (c FlagsClient) Create(
-	ctx context.Context,
-	accessToken,
-	baseURI,
-	name,
-	key,
-	projectKey string,
-) ([]byte, error) {
-	client := client.New(accessToken, baseURI)
-	post := ldapi.NewFeatureFlagBody(name, key)
-	flag, _, err := client.FeatureFlagsApi.PostFeatureFlag(ctx, projectKey).FeatureFlagBody(*post).Execute()
-	if err != nil {
-		return nil, errors.NewAPIError(err)
-
+// NewKeyFromName creates a valid key from the name.
+func NewKeyFromName(name string) (string, error) {
+	if len(name) < 1 {
+		return "", errors.NewError("Name must not be empty.")
+	}
+	if len(name) > MaxNameLength {
+		return "", errors.NewError("Name must be less than 50 characters.")
 	}
 
-	responseJSON, err := json.Marshal(flag)
-	if err != nil {
-		return nil, err
+	invalid := regexp.MustCompile(`(?i)[^a-z0-9-._\s]+`)
+	if invalidStr := invalid.FindString(name); strings.TrimSpace(invalidStr) != "" {
+		return "", errors.NewError("Name must start with a letter or number and only contain letters, numbers, '.', '_' or '-'.")
 	}
 
-	return responseJSON, nil
-}
+	capitalLettersRegexp := regexp.MustCompile("[A-Z]")
+	spacesRegexp := regexp.MustCompile(`\s+`)
+	dashSpaceRegexp := regexp.MustCompile(`-\s+`)
 
-func (c FlagsClient) Update(
-	ctx context.Context,
-	accessToken,
-	baseURI,
-	key,
-	projKey string,
-	patch []ldapi.PatchOperation,
-) ([]byte, error) {
-	client := client.New(accessToken, baseURI)
-	flag, _, err := client.FeatureFlagsApi.
-		PatchFeatureFlag(ctx, projKey, key).
-		PatchWithComment(*ldapi.NewPatchWithComment(patch)).
-		Execute()
-	if err != nil {
-		return nil, errors.NewAPIError(err)
-	}
+	// change capital letters to lowercase with a prepended space
+	key := capitalLettersRegexp.ReplaceAllStringFunc(name, func(match string) string {
+		return " " + strings.ToLower(match)
+	})
+	// change any "- " to "-" because the previous step added a space that could be preceded by a
+	// valid dash
+	key = dashSpaceRegexp.ReplaceAllString(key, " ")
+	// replace all spaces with a single dash
+	key = spacesRegexp.ReplaceAllString(key, "-")
+	// remove a starting dash that could have been added from converting a capital letter at the
+	// beginning of the string
+	key = strings.TrimPrefix(key, "-")
 
-	responseJSON, err := json.Marshal(flag)
-	if err != nil {
-		return nil, err
-	}
-
-	return responseJSON, nil
+	return key, nil
 }
