@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -18,10 +19,9 @@ import (
 
 func NewRootCommand(flagsClient flags.Client, membersClient members.Client, projectsClient projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Use:     "ldcli",
-		Short:   "LaunchDarkly CLI",
-		Long:    "LaunchDarkly CLI to control your feature flags",
-		Version: "0.0.1", // TODO: set this based on release or use `cmd.SetVersionTemplate(s string)`
+		Use:   "ldcli",
+		Short: "LaunchDarkly CLI",
+		Long:  "LaunchDarkly CLI to control your feature flags",
 
 		// Handle errors differently based on type.
 		// We don't want to show the usage if the user has the right structure but invalid data such as
@@ -30,13 +30,24 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 		SilenceUsage:  true,
 	}
 
+	versionByteValue, err := os.ReadFile(".release-please-manifest.json")
+	if err != nil {
+		return nil, err
+	}
+
+	var rpManifest struct {
+		Version string `json:"."`
+	}
+	json.Unmarshal(versionByteValue, &rpManifest)
+	cmd.Version = rpManifest.Version
+
 	cmd.PersistentFlags().StringP(
 		"accessToken",
 		"t",
 		"",
 		"LaunchDarkly personal access token",
 	)
-	err := cmd.MarkPersistentFlagRequired("accessToken")
+	err = cmd.MarkPersistentFlagRequired("accessToken")
 	if err != nil {
 		return nil, err
 	}
