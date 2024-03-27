@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 **Is this a support request?**
-This issue tracker is maintained by LaunchDarkly SDK developers and is intended for feedback on the SDK code. If you're not sure whether the problem you are having is specifically related to the SDK, or to the LaunchDarkly service overall, it may be more appropriate to contact the LaunchDarkly support team; they can help to investigate the problem and will consult the SDK team if necessary. You can submit a support request by going [here](https://support.launchdarkly.com/) and clicking "submit a request", or by emailing support@launchdarkly.com.
+This issue tracker is maintained by LaunchDarkly developers and is intended for feedback. If you're not sure whether the problem you are having is specifically related to the cli, or to the LaunchDarkly service overall, it may be more appropriate to contact the LaunchDarkly support team; they can help to investigate the problem and will consult the cli team if necessary. You can submit a support request by going [here](https://support.launchdarkly.com/) and clicking "submit a request", or by emailing support@launchdarkly.com.
 
 Note that issues filed on this issue tracker are publicly accessible. Do not provide any private account information on your issues. If your problem is specific to your account, you should submit a support request as described above.
 
@@ -24,14 +24,11 @@ A clear and concise description of what you expected to happen.
 **Logs**
 If applicable, add any log output related to your problem.
 
-**SDK version**
-The version of this SDK that you are using.
-
-**Language version, developer tools**
-For instance, Go 1.11 or Ruby 2.5.3. If you are using a language that requires a separate compiler, such as C, please include the name and version of the compiler too.
+**Cli version**
+The version of this cli that you are using.
 
 **OS/platform**
-For instance, Ubuntu 16.04, Windows 10, or Android 4.0.3. If your code is running in a browser, please also include the browser type and version.
+For instance, Ubuntu 16.04, Windows 10, or macOS 14.4.
 
 **Additional context**
 Add any other context about the problem here.
