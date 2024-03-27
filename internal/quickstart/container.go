@@ -17,8 +17,8 @@ const (
 	createFlagStep step = iota
 )
 
-// ContainerModel is a high level container model that controls the nested models which each
-// represent a step in the quick-start flow.
+// ContainerModel is a high level container model that controls the nested models wher each
+// represents a step in the quick-start flow.
 type ContainerModel struct {
 	currentStep step
 	err         error
