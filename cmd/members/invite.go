@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
 	"ldcli/internal/members"
 )
@@ -40,9 +41,9 @@ func runInvite(client members.Client) func(*cobra.Command, []string) error {
 
 		response, err := client.Create(
 			context.Background(),
-			viper.GetString("accessToken"),
-			viper.GetString("baseUri"),
-			viper.GetStringSlice("emails"),
+			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetStringSlice(cliflags.EmailsFlag),
 			defaultRole,
 		)
 		if err != nil {
