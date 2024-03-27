@@ -50,14 +50,19 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				input = defaultFlagName
 			}
 			m.flagName = input
-			// TODO: validate and parse key
+			flagKey, err := flags.NameToKey(m.flagName)
+			if err != nil {
+				m.err = err
 
-			_, err := m.client.Create(
+				return m, nil
+			}
+
+			_, err = m.client.Create(
 				context.Background(),
 				viper.GetString("accessToken"),
 				viper.GetString("baseUri"),
 				m.flagName,
-				"flagKey", // TODO: use key from name
+				flagKey,
 				"default",
 			)
 			if err != nil {
@@ -65,7 +70,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				return m, nil
 			}
-			m.flagKey = "flagKey"
+			m.flagKey = flagKey
 
 			return m, nil
 		case key.Matches(msg, keys.Quit):
