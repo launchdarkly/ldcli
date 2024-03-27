@@ -19,7 +19,6 @@ import (
 )
 
 func NewRootCommand(flagsClient flags.Client, membersClient members.Client, projectsClient projects.Client) (*cobra.Command, error) {
-
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -72,6 +71,7 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 		return nil, err
 	}
 
+	cmd.AddCommand(NewQuickStartCmd(flagsClient))
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
