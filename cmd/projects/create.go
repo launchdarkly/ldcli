@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
 	"ldcli/internal/projects"
 )
@@ -50,8 +51,8 @@ func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 
 		response, err := client.Create(
 			context.Background(),
-			viper.GetString("api-token"),
-			viper.GetString("base-uri"),
+			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
 			data.Name,
 			data.Key,
 		)

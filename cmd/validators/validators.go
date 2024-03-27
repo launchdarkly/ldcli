@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	errs "ldcli/internal/errors"
 )
 
@@ -16,7 +17,7 @@ func Validate() cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		commandPath := getCommandPath(cmd)
 
-		_, err := url.ParseRequestURI(viper.GetString("base-uri"))
+		_, err := url.ParseRequestURI(viper.GetString(cliflags.BaseURIFlag))
 		if err != nil {
 			errorMessage := fmt.Sprintf(
 				"%s. See `%s --help` for supported flags and usage.",

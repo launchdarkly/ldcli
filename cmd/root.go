@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
@@ -31,25 +32,25 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 	}
 
 	cmd.PersistentFlags().String(
-		"api-token",
+		cliflags.APITokenFlag,
 		"",
 		"LaunchDarkly API token",
 	)
-	err := cmd.MarkPersistentFlagRequired("api-token")
+	err := cmd.MarkPersistentFlagRequired(cliflags.APITokenFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("api-token", cmd.PersistentFlags().Lookup("api-token"))
+	err = viper.BindPFlag(cliflags.APITokenFlag, cmd.PersistentFlags().Lookup(cliflags.APITokenFlag))
 	if err != nil {
 		return nil, err
 	}
 
 	cmd.PersistentFlags().String(
-		"base-uri",
+		cliflags.BaseURIFlag,
 		"https://app.launchdarkly.com",
 		"LaunchDarkly base URI",
 	)
-	err = viper.BindPFlag("base-uri", cmd.PersistentFlags().Lookup("base-uri"))
+	err = viper.BindPFlag(cliflags.BaseURIFlag, cmd.PersistentFlags().Lookup(cliflags.BaseURIFlag))
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
 	"ldcli/internal/flags"
 )
@@ -76,8 +77,8 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 
 		response, err := client.Update(
 			context.Background(),
-			viper.GetString("api-token"),
-			viper.GetString("base-uri"),
+			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetString("key"),
 			viper.GetString("projKey"),
 			patch,
