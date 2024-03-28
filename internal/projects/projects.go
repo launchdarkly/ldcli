@@ -15,12 +15,16 @@ type Client interface {
 	List(ctx context.Context, accessToken, baseURI string) ([]byte, error)
 }
 
-type ProjectsClient struct{}
+type ProjectsClient struct {
+	cliVersion string
+}
 
 var _ Client = ProjectsClient{}
 
-func NewClient() Client {
-	return ProjectsClient{}
+func NewClient(cliVersion string) Client {
+	return ProjectsClient{
+		cliVersion: cliVersion,
+	}
 }
 
 func (c ProjectsClient) Create(
@@ -30,7 +34,7 @@ func (c ProjectsClient) Create(
 	name,
 	key string,
 ) ([]byte, error) {
-	client := client.New(accessToken, baseURI)
+	client := client.New(accessToken, baseURI, c.cliVersion)
 	projectPost := ldapi.NewProjectPost(name, key)
 	project, _, err := client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
 	if err != nil {
@@ -49,7 +53,7 @@ func (c ProjectsClient) List(
 	accessToken,
 	baseURI string,
 ) ([]byte, error) {
-	client := client.New(accessToken, baseURI)
+	client := client.New(accessToken, baseURI, c.cliVersion)
 	projects, _, err := client.ProjectsApi.
 		GetProjects(ctx).
 		Limit(2).

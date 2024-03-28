@@ -78,7 +78,14 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 }
 
 func Execute() {
-	rootCmd, err := NewRootCommand(flags.NewClient(), members.NewClient(), projects.NewClient())
+	// TODO: replace with dynamic version
+	const cliVersion = "0.0.1"
+
+	rootCmd, err := NewRootCommand(
+		flags.NewClient(cliVersion),
+		members.NewClient(cliVersion),
+		projects.NewClient(cliVersion),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}

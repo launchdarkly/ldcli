@@ -14,14 +14,18 @@ type Client interface {
 	Create(ctx context.Context, accessToken, baseURI, email, role string) ([]byte, error)
 }
 
-type MembersClient struct{}
+type MembersClient struct {
+	cliVersion string
+}
 
-func NewClient() Client {
-	return MembersClient{}
+func NewClient(cliVersion string) Client {
+	return MembersClient{
+		cliVersion: cliVersion,
+	}
 }
 
 func (c MembersClient) Create(ctx context.Context, accessToken, baseURI, email, role string) ([]byte, error) {
-	client := client.New(accessToken, baseURI)
+	client := client.New(accessToken, baseURI, c.cliVersion)
 	memberForm := ldapi.NewMemberForm{Email: email, Role: &role}
 	members, _, err := client.AccountMembersApi.PostMembers(ctx).NewMemberForm([]ldapi.NewMemberForm{memberForm}).Execute()
 	if err != nil {
