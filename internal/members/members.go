@@ -25,7 +25,7 @@ func (c MembersClient) Create(ctx context.Context, accessToken, baseURI, email, 
 	memberForm := ldapi.NewMemberForm{Email: email, Role: &role}
 	members, _, err := client.AccountMembersApi.PostMembers(ctx).NewMemberForm([]ldapi.NewMemberForm{memberForm}).Execute()
 	if err != nil {
-		return nil, errors.NewAPIError(err)
+		return nil, errors.NewLDAPIError(err)
 	}
 	memberJson, err := json.Marshal(members.Items[0])
 	if err != nil {

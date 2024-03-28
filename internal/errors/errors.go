@@ -2,8 +2,6 @@ package errors
 
 import (
 	"github.com/pkg/errors"
-
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 )
 
 var ErrInvalidBaseURI = NewError("baseUri is invalid")
@@ -41,11 +39,56 @@ func NewErrorWrapped(message string, underlying error) error {
 	})
 }
 
-func NewAPIError(err error) error {
-	var ldErr *ldapi.GenericOpenAPIError
-	ok := errors.As(err, &ldErr)
+// LDAPIError is an error from the LaunchDarkly API client.
+type LDAPIError interface {
+	Body() []byte
+	Error() string
+	Model() interface{}
+}
+
+type APIError struct {
+	body  []byte
+	err   error
+	model interface{}
+}
+
+func NewAPIError(body []byte, err error, model interface{}) APIError {
+	return APIError{
+		body:  body,
+		err:   err,
+		model: model,
+	}
+}
+
+func (e APIError) Error() string {
+	return e.err.Error()
+}
+
+func (e APIError) Body() []byte {
+	return e.body
+}
+
+func (e APIError) Model() interface{} {
+	return e.model
+}
+
+// NewLDAPIError converts the error returned from API calls to LaunchDarkly to have a
+// consistent Error() JSON structure.
+func NewLDAPIError(err error) error {
+	var apiErr LDAPIError
+	ok := errors.As(err, &apiErr)
 	if ok {
-		return NewErrorWrapped(string(ldErr.Body()), ldErr)
+		// the 401 response does not have a body, so we need to create one for a
+		// consistent response
+		if err.Error() == "401 Unauthorized" {
+			return NewError(`{
+				"code": "unauthorized",
+				"message": "You do not have access to perform this action"
+			}`)
+		}
+
+		// otherwise return the error's body as the message
+		return NewErrorWrapped(string(apiErr.Body()), apiErr)
 	}
 
 	return err
