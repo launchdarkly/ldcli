@@ -15,6 +15,7 @@ type step int
 
 const (
 	createFlagStep step = iota
+	chooseSDKStep
 )
 
 // ContainerModel is a high level container model that controls the nested models wher each
@@ -25,6 +26,7 @@ type ContainerModel struct {
 	flagKey     string
 	flagsClient flags.Client
 	quitting    bool
+	sdk         sdkDetail
 	steps       []tea.Model
 }
 
@@ -34,6 +36,7 @@ func NewContainerModel(flagsClient flags.Client) tea.Model {
 		flagsClient: flagsClient,
 		steps: []tea.Model{
 			NewCreateFlagModel(flagsClient),
+			NewChooseSDKModel(),
 		},
 	}
 }
@@ -57,6 +60,17 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 					m.flagKey = model.flagKey
+					m.currentStep += 1
+				}
+			case chooseSDKStep:
+				updated, _ := m.steps[chooseSDKStep].Update(msg)
+				if model, ok := updated.(chooseSDKModel); ok {
+					if model.err != nil {
+						m.err = model.err
+
+						return m, nil
+					}
+					m.sdk = model.selectedSdk
 					m.currentStep += 1
 				}
 			default:
@@ -90,8 +104,8 @@ func (m ContainerModel) View() string {
 	}
 
 	// TODO: remove after creating more steps
-	if m.currentStep > createFlagStep {
-		return fmt.Sprintf("created flag %s", m.flagKey)
+	if m.currentStep > chooseSDKStep {
+		return fmt.Sprintf("created flag %s\nselected %s SDK", m.flagKey, m.sdk.DisplayName)
 	}
 
 	return fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))
