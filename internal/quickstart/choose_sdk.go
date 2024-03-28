@@ -29,7 +29,7 @@ func NewChooseSDKModel() tea.Model {
 	l.Styles.TitleBar = lipgloss.NewStyle()
 	l.SetShowPagination(true)
 	l.SetShowStatusBar(false)
-	l.SetFilteringEnabled(true) // TODO: try to get filtering working
+	l.SetFilteringEnabled(false) // TODO: try to get filtering working
 	l.Paginator.PerPage = 5
 
 	return chooseSDKModel{
