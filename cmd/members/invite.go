@@ -39,7 +39,7 @@ func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 		cliflags.RoleFlag,
 		"r",
 		"reader",
-		"Built-in role for the member (one of reader, writer, or admin). Default role is reader.",
+		"Built-in role for the member - one of reader, writer, or admin",
 	)
 	err = viper.BindPFlag("role", cmd.Flags().Lookup("role"))
 	if err != nil {
