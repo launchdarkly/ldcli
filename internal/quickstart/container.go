@@ -26,6 +26,7 @@ type ContainerModel struct {
 	flagKey     string
 	flagsClient flags.Client
 	quitting    bool
+	sdk         sdk
 	steps       []tea.Model
 }
 
@@ -62,7 +63,13 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currentStep += 1
 				}
 			case chooseSDKStep:
-				m.currentStep += 1
+				updated, cmd := m.steps[chooseSDKStep].Update(msg)
+				if model, ok := updated.(chooseSDKModel); ok {
+					m.sdk = model.choice
+					m.currentStep += 1
+				}
+
+				return m, cmd
 			default:
 			}
 		case key.Matches(msg, keys.Quit):
@@ -71,8 +78,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		default:
 			// delegate all other input to the current model
-			updated, _ := m.steps[m.currentStep].Update(msg)
+			updated, cmd := m.steps[m.currentStep].Update(msg)
 			m.steps[m.currentStep] = updated
+
+			return m, cmd
 		}
 	default:
 	}
@@ -95,7 +104,7 @@ func (m ContainerModel) View() string {
 
 	// TODO: remove after creating more steps
 	if m.currentStep > chooseSDKStep {
-		return fmt.Sprintf("created flag %s", m.flagKey)
+		return fmt.Sprintf("created flag %s with SDK %s", m.flagKey, m.sdk.name)
 	}
 
 	return fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))
