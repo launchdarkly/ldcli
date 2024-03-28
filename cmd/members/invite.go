@@ -33,15 +33,13 @@ func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	var role string
-	cmd.Flags().StringVarP(
-		&role,
+	cmd.Flags().StringP(
 		cliflags.RoleFlag,
 		"r",
 		"reader",
 		"Built-in role for the member - one of reader, writer, or admin",
 	)
-	err = viper.BindPFlag("role", cmd.Flags().Lookup("role"))
+	err = viper.BindPFlag(cliflags.RoleFlag, cmd.Flags().Lookup(cliflags.RoleFlag))
 	if err != nil {
 		return nil, err
 	}
