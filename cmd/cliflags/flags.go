@@ -5,4 +5,5 @@ const (
 	BaseURIFlag  = "base-uri"
 	FlagFlag     = "flag"
 	ProjectFlag  = "project"
+	EmailsFlag   = "emails"
 )

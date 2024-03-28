@@ -17,12 +17,12 @@ import (
 	"ldcli/internal/projects"
 )
 
-func NewRootCommand(flagsClient flags.Client, membersClient members.Client, projectsClient projects.Client) (*cobra.Command, error) {
+func NewRootCommand(flagsClient flags.Client, membersClient members.Client, projectsClient projects.Client, version string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
 		Long:    "LaunchDarkly CLI to control your feature flags",
-		Version: "0.0.1", // TODO: set this based on release or use `cmd.SetVersionTemplate(s string)`
+		Version: version,
 
 		// Handle errors differently based on type.
 		// We don't want to show the usage if the user has the right structure but invalid data such as
@@ -76,15 +76,13 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 
 	return cmd, nil
 }
-
-func Execute() {
-	// TODO: replace with dynamic version
-	const cliVersion = "0.0.1"
-
+	
+func Execute(version string) {
 	rootCmd, err := NewRootCommand(
-		flags.NewClient(cliVersion),
-		members.NewClient(cliVersion),
-		projects.NewClient(cliVersion),
+		flags.NewClient(version),
+		members.NewClient(version),
+		projects.NewClient(version),
+		version,
 	)
 	if err != nil {
 		log.Fatal(err)
