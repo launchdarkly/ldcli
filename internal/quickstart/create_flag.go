@@ -78,9 +78,15 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Message string `json:"message"`
 				}
 				_ = json.Unmarshal([]byte(m.err.Error()), &e)
-				if e.Code == "unauthorized" || e.Code == "forbidden" {
+				switch {
+				case e.Code == "unauthorized":
 					m.quitting = true
-					m.quitMsg = "Try another api-key or contact your administrator."
+					m.quitMsg = "Your API key is unauthorized. Try another API key or speak to a LaunchDarkly account administrator."
+
+					return m, tea.Quit
+				case e.Code == "forbidden":
+					m.quitting = true
+					m.quitMsg = "You lack access to complete this action. Try authenticating with elevated access or speak to a LaunchDarkly account administrator."
 
 					return m, tea.Quit
 				}
