@@ -1,6 +1,8 @@
 package errors
 
 import (
+	"encoding/json"
+
 	"github.com/pkg/errors"
 )
 
@@ -81,10 +83,19 @@ func NewLDAPIError(err error) error {
 		// the 401 response does not have a body, so we need to create one for a
 		// consistent response
 		if err.Error() == "401 Unauthorized" {
-			return NewError(`{
-				"code": "unauthorized",
-				"message": "You do not have access to perform this action"
-			}`)
+			e := struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}{
+				Code:    "unauthorized",
+				Message: "You do not have access to perform this action",
+			}
+			errMsg, err := json.Marshal(e)
+			if err != nil {
+				return err
+			}
+
+			return NewError(string(errMsg))
 		}
 
 		// otherwise return the error's body as the message
