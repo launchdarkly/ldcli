@@ -34,7 +34,7 @@ func (c ProjectsClient) Create(
 	projectPost := ldapi.NewProjectPost(name, key)
 	project, _, err := client.ProjectsApi.PostProject(ctx).ProjectPost(*projectPost).Execute()
 	if err != nil {
-		return nil, errors.NewAPIError(err)
+		return nil, errors.NewLDAPIError(err)
 	}
 	projectJSON, err := json.Marshal(project)
 	if err != nil {
@@ -55,7 +55,7 @@ func (c ProjectsClient) List(
 		Limit(2).
 		Execute()
 	if err != nil {
-		return nil, errors.NewAPIError(err)
+		return nil, errors.NewLDAPIError(err)
 	}
 
 	projectsJSON, err := json.Marshal(projects)
