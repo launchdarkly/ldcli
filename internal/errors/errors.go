@@ -94,7 +94,6 @@ func NewLDAPIError(err error) error {
 			return NewError(string(errMsg))
 		}
 
-		// otherwise return the error's body as the message
 		return NewErrorWrapped(string(apiErr.Body()), apiErr)
 	}
 

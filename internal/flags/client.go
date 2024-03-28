@@ -7,7 +7,7 @@ import (
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
 	"ldcli/internal/client"
-	errs "ldcli/internal/errors"
+	"ldcli/internal/errors"
 )
 
 type Client interface {
@@ -42,7 +42,7 @@ func (c FlagsClient) Create(
 	post := ldapi.NewFeatureFlagBody(name, key)
 	flag, _, err := client.FeatureFlagsApi.PostFeatureFlag(ctx, projectKey).FeatureFlagBody(*post).Execute()
 	if err != nil {
-		return nil, errs.NewLDAPIError(err)
+		return nil, errors.NewLDAPIError(err)
 
 	}
 
@@ -68,7 +68,7 @@ func (c FlagsClient) Update(
 		PatchWithComment(*ldapi.NewPatchWithComment(patch)).
 		Execute()
 	if err != nil {
-		return nil, errs.NewLDAPIError(err)
+		return nil, errors.NewLDAPIError(err)
 	}
 
 	responseJSON, err := json.Marshal(flag)
