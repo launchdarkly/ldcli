@@ -27,9 +27,9 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"members",
 			"create",
-			"-t",
+			"--api-token",
 			"testAccessToken",
-			"-u",
+			"--base-uri",
 			"http://test.com",
 			"-d",
 			`{"email": "testemail@test.com", "role": "writer"}`,
@@ -49,9 +49,9 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"members",
 			"create",
-			"-t",
+			"--api-token",
 			"testAccessToken",
-			"-u",
+			"--base-uri",
 			"http://test.com",
 			"-d",
 			`{"email": "testemail@test.com", "role": "writer"}`,
@@ -70,18 +70,18 @@ func TestCreate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "api-token", "data" not set`+errorHelp)
 	})
 
-	t.Run("with invalid baseUri is an error", func(t *testing.T) {
+	t.Run("with invalid base-uri is an error", func(t *testing.T) {
 		args := []string{
 			"members",
 			"create",
-			"--baseUri", "invalid",
+			"--base-uri", "invalid",
 		}
 
 		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
 
-		assert.EqualError(t, err, "baseUri is invalid"+errorHelp)
+		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
 }

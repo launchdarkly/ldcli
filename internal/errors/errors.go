@@ -2,11 +2,14 @@ package errors
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/pkg/errors"
+
+	"ldcli/cmd/cliflags"
 )
 
-var ErrInvalidBaseURI = NewError("baseUri is invalid")
+var ErrInvalidBaseURI = NewError(fmt.Sprintf("%s is invalid", cliflags.BaseURIFlag))
 
 type Error struct {
 	err     error

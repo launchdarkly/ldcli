@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
 	"ldcli/internal/flags"
 )
@@ -31,12 +32,12 @@ func NewCreateCmd(client flags.Client) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	cmd.Flags().String("projKey", "", "Project key")
-	err = cmd.MarkFlagRequired("projKey")
+	cmd.Flags().String(cliflags.ProjectFlag, "", "Project key")
+	err = cmd.MarkFlagRequired(cliflags.ProjectFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
+	err = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +54,7 @@ func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// rebind flags used in other subcommands
 		_ = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
-		_ = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
+		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
 		var data inputData
 		err := json.Unmarshal([]byte(viper.GetString("data")), &data)
@@ -63,11 +64,11 @@ func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 
 		response, err := client.Create(
 			context.Background(),
-			viper.GetString("accessToken"),
-			viper.GetString("baseUri"),
+			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
 			data.Name,
 			data.Key,
-			viper.GetString("projKey"),
+			viper.GetString(cliflags.ProjectFlag),
 		)
 		if err != nil {
 			return err

@@ -27,9 +27,9 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"projects",
 			"create",
-			"-t",
+			"--api-token",
 			"testAccessToken",
-			"-u",
+			"--base-uri",
 			"http://test.com",
 			"-d",
 			`{"key": "test-key", "name": "test-name"}`,
@@ -49,9 +49,9 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"projects",
 			"create",
-			"-t",
+			"--api-token",
 			"testAccessToken",
-			"-u",
+			"--base-uri",
 			"http://test.com",
 			"-d",
 			`{"key": "test-key", "name": "test-name"}`,
@@ -70,7 +70,7 @@ func TestCreate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
-		assert.EqualError(t, err, `required flag(s) "accessToken", "data" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "api-token", "data" not set`+errorHelp)
 	})
 
 	t.Run("with missing short flag value is an error", func(t *testing.T) {
@@ -95,15 +95,15 @@ func TestCreate(t *testing.T) {
 		assert.EqualError(t, err, `flag needs an argument: --data`)
 	})
 
-	t.Run("with invalid baseUri is an error", func(t *testing.T) {
+	t.Run("with invalid base-uri is an error", func(t *testing.T) {
 		args := []string{
 			"projects",
 			"create",
-			"--baseUri", "invalid",
+			"--base-uri", "invalid",
 		}
 
 		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
-		assert.EqualError(t, err, "baseUri is invalid"+errorHelp)
+		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
 }
