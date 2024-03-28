@@ -3,13 +3,15 @@ package quickstart
 import (
 	"context"
 	"fmt"
-	"ldcli/internal/flags"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/viper"
+
+	"ldcli/cmd/cliflags"
+	"ldcli/internal/flags"
 )
 
 const defaultFlagName = "my new flag"
@@ -59,8 +61,8 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			_, err = m.client.Create(
 				context.Background(),
-				viper.GetString("accessToken"),
-				viper.GetString("baseUri"),
+				viper.GetString(cliflags.APITokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
 				m.flagName,
 				flagKey,
 				"default",

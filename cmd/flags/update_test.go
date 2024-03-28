@@ -34,11 +34,11 @@ func TestUpdate(t *testing.T) {
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"flags", "update",
-			"-t", "testAccessToken",
-			"-u", "http://test.com",
+			"--api-token", "testAccessToken",
+			"--base-uri", "http://test.com",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
-			"--key", "test-key",
-			"--projKey", "test-proj-key",
+			"--flag", "test-key",
+			"--project", "test-proj-key",
 		}
 
 		output, err := cmd.CallCmd(t, &client, nil, nil, args)
@@ -54,11 +54,11 @@ func TestUpdate(t *testing.T) {
 			Return([]byte(`{}`), errors.NewError("An error"))
 		args := []string{
 			"flags", "update",
-			"-t", "testAccessToken",
-			"-u", "http://test.com",
+			"--api-token", "testAccessToken",
+			"--base-uri", "http://test.com",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
-			"--key", "test-key",
-			"--projKey", "test-proj-key",
+			"--flag", "test-key",
+			"--project", "test-proj-key",
 		}
 
 		_, err := cmd.CallCmd(t, &client, nil, nil, args)
@@ -73,20 +73,20 @@ func TestUpdate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "accessToken", "data", "key", "projKey" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "api-token", "data", "flag", "project" not set`+errorHelp)
 	})
 
-	t.Run("with invalid baseUri is an error", func(t *testing.T) {
+	t.Run("with invalid base-uri is an error", func(t *testing.T) {
 		args := []string{
 			"flags", "update",
-			"-t", "testAccessToken",
-			"-u", "invalid",
+			"--api-token", "testAccessToken",
+			"--base-uri", "invalid",
 			"-d", `{"key": "test-key", "name": "test-name"}`,
-			"--projKey", "test-proj-key",
+			"--project", "test-proj-key",
 		}
 
 		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
 
-		assert.EqualError(t, err, "baseUri is invalid"+errorHelp)
+		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
 }

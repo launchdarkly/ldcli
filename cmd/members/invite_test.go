@@ -11,13 +11,13 @@ import (
 	"ldcli/internal/members"
 )
 
-func TestCreate(t *testing.T) {
-	errorHelp := ". See `ldcli members create --help` for supported flags and usage."
+func TestInvite(t *testing.T) {
+	errorHelp := ". See `ldcli members invite --help` for supported flags and usage."
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		[]string{"testemail@test.com"},
-		"writer",
+		[]string{"testemail1@test.com", "testemail2@test.com"},
+		"reader",
 	}
 	t.Run("with valid flags calls members API", func(t *testing.T) {
 		client := members.MockClient{}
@@ -26,13 +26,13 @@ func TestCreate(t *testing.T) {
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"members",
-			"create",
+			"invite",
 			"--api-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
-			"-d",
-			`{"email": "testemail@test.com", "role": "writer"}`,
+			"-e",
+			`testemail1@test.com,testemail2@test.com`,
 		}
 
 		output, err := cmd.CallCmd(t, nil, &client, nil, args)
@@ -48,13 +48,13 @@ func TestCreate(t *testing.T) {
 			Return([]byte(`{}`), errors.NewError("An error"))
 		args := []string{
 			"members",
-			"create",
+			"invite",
 			"--api-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
-			"-d",
-			`{"email": "testemail@test.com", "role": "writer"}`,
+			"-e",
+			`testemail1@test.com,testemail2@test.com`,
 		}
 
 		_, err := cmd.CallCmd(t, nil, &client, nil, args)
@@ -65,18 +65,18 @@ func TestCreate(t *testing.T) {
 	t.Run("with missing required flags is an error", func(t *testing.T) {
 		args := []string{
 			"members",
-			"create",
+			"invite",
 		}
 
 		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token", "data" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "api-token", "emails" not set`+errorHelp)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
 		args := []string{
 			"members",
-			"create",
+			"invite",
 			"--base-uri", "invalid",
 		}
 
