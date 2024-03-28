@@ -17,7 +17,6 @@ var (
 )
 
 type chooseSDKModel struct {
-	err         error
 	list        list.Model
 	selectedSdk sdkDetail
 }

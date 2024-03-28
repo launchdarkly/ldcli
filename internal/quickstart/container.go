@@ -56,7 +56,6 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if model, ok := updated.(createFlagModel); ok {
 					if model.err != nil {
 						m.err = model.err
-
 						return m, nil
 					}
 					m.flagKey = model.flagKey
@@ -65,11 +64,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case chooseSDKStep:
 				updated, _ := m.steps[chooseSDKStep].Update(msg)
 				if model, ok := updated.(chooseSDKModel); ok {
-					if model.err != nil {
-						m.err = model.err
-
-						return m, nil
-					}
+					// no error state for this step
 					m.sdk = model.selectedSdk
 					m.currentStep += 1
 				}
@@ -105,7 +100,7 @@ func (m ContainerModel) View() string {
 
 	// TODO: remove after creating more steps
 	if m.currentStep > chooseSDKStep {
-		return fmt.Sprintf("created flag %s\nselected %s SDK", m.flagKey, m.sdk.DisplayName)
+		return fmt.Sprintf("created flag %s\nselected the %s SDK", m.flagKey, m.sdk.DisplayName)
 	}
 
 	return fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))
