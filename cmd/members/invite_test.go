@@ -85,3 +85,59 @@ func TestInvite(t *testing.T) {
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
 }
+
+func TestInviteWithOptionalRole(t *testing.T) {
+	mockArgs := []interface{}{
+		"testAccessToken",
+		"http://test.com",
+		[]string{"testemail1@test.com", "testemail2@test.com"},
+		"writer",
+	}
+	t.Run("with valid optional long form flag calls members API", func(t *testing.T) {
+		client := members.MockClient{}
+		client.
+			On("Create", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		args := []string{
+			"members",
+			"invite",
+			"--api-token",
+			"testAccessToken",
+			"--base-uri",
+			"http://test.com",
+			"-e",
+			`testemail1@test.com,testemail2@test.com`,
+			"--role",
+			"writer",
+		}
+
+		output, err := cmd.CallCmd(t, nil, &client, nil, args)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"valid": true}`, string(output))
+	})
+
+	t.Run("with valid optional short form flag calls members API", func(t *testing.T) {
+		client := members.MockClient{}
+		client.
+			On("Create", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		args := []string{
+			"members",
+			"invite",
+			"--api-token",
+			"testAccessToken",
+			"--base-uri",
+			"http://test.com",
+			"-e",
+			`testemail1@test.com,testemail2@test.com`,
+			"-r",
+			"writer",
+		}
+
+		output, err := cmd.CallCmd(t, nil, &client, nil, args)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"valid": true}`, string(output))
+	})
+}

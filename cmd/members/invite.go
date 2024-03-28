@@ -33,6 +33,17 @@ func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 		return nil, err
 	}
 
+	cmd.Flags().StringP(
+		cliflags.RoleFlag,
+		"r",
+		"reader",
+		"Built-in role for the member - one of reader, writer, or admin",
+	)
+	err = viper.BindPFlag(cliflags.RoleFlag, cmd.Flags().Lookup(cliflags.RoleFlag))
+	if err != nil {
+		return nil, err
+	}
+
 	return cmd, nil
 }
 
@@ -44,7 +55,7 @@ func runInvite(client members.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.APITokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetStringSlice(cliflags.EmailsFlag),
-			defaultRole,
+			viper.GetString(cliflags.RoleFlag),
 		)
 		if err != nil {
 			return err
