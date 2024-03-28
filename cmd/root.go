@@ -78,7 +78,12 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 }
 
 func Execute(version string) {
-	rootCmd, err := NewRootCommand(flags.NewClient(), members.NewClient(), projects.NewClient(), version)
+	rootCmd, err := NewRootCommand(
+		flags.NewClient(version),
+		members.NewClient(version),
+		projects.NewClient(version),
+		version,
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
