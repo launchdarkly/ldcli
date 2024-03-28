@@ -76,7 +76,7 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 
 	return cmd, nil
 }
-	
+
 func Execute(version string) {
 	rootCmd, err := NewRootCommand(
 		flags.NewClient(version),
