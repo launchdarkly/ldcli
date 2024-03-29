@@ -23,19 +23,12 @@ func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 		Use:   "update",
 	}
 
-	var data string
-	cmd.Flags().StringVarP(
-		&data,
-		"data",
-		"d",
-		"",
-		"Input data in JSON",
-	)
-	err := cmd.MarkFlagRequired("data")
+	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
+	err := cmd.MarkFlagRequired(cliflags.DataFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
+	err = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -66,11 +59,11 @@ func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// rebind flags used in other subcommands
-		_ = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
+		_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
 		var patch []ldapi.PatchOperation
-		err := json.Unmarshal([]byte(viper.GetString("data")), &patch)
+		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &patch)
 		if err != nil {
 			return err
 		}
