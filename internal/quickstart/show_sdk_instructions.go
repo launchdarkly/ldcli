@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"ldcli/internal/errors"
+	"ldcli/internal/sdks"
 	"net/http"
 	"time"
 
@@ -54,8 +55,10 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, sendErr(errors.NewError(fmt.Sprintf("could not find %s SDK instructions", msg.name)))
 		}
 
+		instructions := sdks.ReplaceFlagKey(string(body), msg.flagKey)
+
 		m.sdk = msg.name
-		m.instructions = string(body)
+		m.instructions = instructions
 	}
 
 	return m, nil

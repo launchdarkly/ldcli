@@ -4,6 +4,7 @@ import tea "github.com/charmbracelet/bubbletea"
 
 type fetchSDKInstructionsMsg struct {
 	canonicalName string
+	flagKey       string
 	name          string
 }
 
