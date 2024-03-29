@@ -18,7 +18,6 @@ const instructionsURL = "https://raw.githubusercontent.com/launchdarkly/hello-%s
 type showSDKInstructionsModel struct {
 	instructions string
 	sdk          string
-	width        int
 }
 
 func NewShowSDKInstructionsModel() tea.Model {
@@ -75,7 +74,7 @@ func (m showSDKInstructionsModel) View() string {
 			m.sdk,
 			style.Render(md),
 		),
-		m.width,
+		0,
 	)
 }
 

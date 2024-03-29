@@ -77,10 +77,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currentStep += 1
 				}
 			case showSDKInstructionsStep:
-				updated, cmd := m.steps[showSDKInstructionsStep].Update(msg)
-				if _, ok := updated.(showSDKInstructionsModel); ok {
-					m.currentStep += 1
-				}
+				_, cmd := m.steps[showSDKInstructionsStep].Update(msg)
+				m.currentStep += 1
 
 				return m, cmd
 			default:
