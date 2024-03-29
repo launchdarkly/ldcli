@@ -71,9 +71,9 @@ func (m chooseSDKModel) View() string {
 }
 
 type sdkDetail struct {
-	CanonicalName string
-	DisplayName   string
-	Type          string
+	canonicalName string
+	displayName   string
+	kind          string
 }
 
 func (s sdkDetail) FilterValue() string { return "" }
@@ -81,29 +81,29 @@ func (s sdkDetail) FilterValue() string { return "" }
 var SDKs = []sdkDetail{
 	// TODO: react is still internal
 	// {CanonicalName: "react", DisplayName: "React", SDKType: clientSideSDK},
-	{CanonicalName: "node-server", DisplayName: "Node.js (server-side)", Type: serverSideSDK},
-	{CanonicalName: "python", DisplayName: "Python", Type: serverSideSDK},
-	{CanonicalName: "java", DisplayName: "Java", Type: serverSideSDK},
-	{CanonicalName: "dotnet-server", DisplayName: ".NET (server-side)", Type: serverSideSDK},
-	{CanonicalName: "js", DisplayName: "JavaScript", Type: clientSideSDK},
-	{CanonicalName: "ios-swift", DisplayName: "iOS", Type: clientSideSDK},
-	{CanonicalName: "go", DisplayName: "Go", Type: serverSideSDK},
-	{CanonicalName: "android", DisplayName: "Android", Type: clientSideSDK},
-	{CanonicalName: "react-native", DisplayName: "React Native", Type: clientSideSDK},
-	{CanonicalName: "ruby", DisplayName: "Ruby", Type: serverSideSDK},
-	{CanonicalName: "flutter", DisplayName: "Flutter", Type: clientSideSDK},
-	{CanonicalName: "dotnet-client", DisplayName: ".NET (client-side)", Type: clientSideSDK},
-	{CanonicalName: "erlang", DisplayName: "Erlang", Type: serverSideSDK},
-	{CanonicalName: "rust", DisplayName: "Rust", Type: serverSideSDK},
-	{CanonicalName: "electron", DisplayName: "Electron", Type: clientSideSDK},
-	{CanonicalName: "c-client", DisplayName: "C/C++ (client-side)", Type: clientSideSDK},
-	{CanonicalName: "roku", DisplayName: "Roku", Type: clientSideSDK},
-	{CanonicalName: "node-client", DisplayName: "Node.js (client-side)", Type: clientSideSDK},
-	{CanonicalName: "c-server", DisplayName: "C/C++ (server-side)", Type: serverSideSDK},
-	{CanonicalName: "lua-server", DisplayName: "Lua", Type: serverSideSDK},
-	{CanonicalName: "haskell-server", DisplayName: "Haskell", Type: serverSideSDK},
-	{CanonicalName: "apex-server", DisplayName: "Apex", Type: serverSideSDK},
-	{CanonicalName: "php", DisplayName: "PHP", Type: serverSideSDK},
+	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
+	{canonicalName: "python", displayName: "Python", kind: serverSideSDK},
+	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},
+	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
+	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK},
+	{canonicalName: "ios-swift", displayName: "iOS", kind: clientSideSDK},
+	{canonicalName: "go", displayName: "Go", kind: serverSideSDK},
+	{canonicalName: "android", displayName: "Android", kind: clientSideSDK},
+	{canonicalName: "react-native", displayName: "React Native", kind: clientSideSDK},
+	{canonicalName: "ruby", displayName: "Ruby", kind: serverSideSDK},
+	{canonicalName: "flutter", displayName: "Flutter", kind: clientSideSDK},
+	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK},
+	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK},
+	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
+	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK},
+	{canonicalName: "c-client", displayName: "C/C++ (client-side)", kind: clientSideSDK},
+	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK},
+	{canonicalName: "node-client", displayName: "Node.js (client-side)", kind: clientSideSDK},
+	{canonicalName: "c-server", displayName: "C/C++ (server-side)", kind: serverSideSDK},
+	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK},
+	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK},
+	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK},
+	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK},
 }
 
 func sdksToItems() []list.Item {
@@ -126,7 +126,7 @@ func (d sdkDelegate) Render(w io.Writer, m list.Model, index int, listItem list.
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, i.DisplayName)
+	str := fmt.Sprintf("%d. %s", index+1, i.displayName)
 
 	fn := sdkStyle.Render
 	if index == m.Index() {

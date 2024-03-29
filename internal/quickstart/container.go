@@ -103,11 +103,11 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.currentStep {
 		case showSDKInstructionsStep:
 			updated, cmd = m.steps[showSDKInstructionsStep].Update(fetchSDKInstructionsMsg{
-				canonicalName: m.sdk.CanonicalName,
-				name:          m.sdk.DisplayName,
+				canonicalName: m.sdk.canonicalName,
+				name:          m.sdk.displayName,
 			})
 			if model, ok := updated.(showSDKInstructionsModel); ok {
-				model.sdk = m.sdk.DisplayName
+				model.sdk = m.sdk.displayName
 				m.steps[showSDKInstructionsStep] = model
 			}
 		default:
@@ -123,7 +123,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m ContainerModel) View() string {
 	// TODO: remove after creating more steps
 	if m.currentStep > showSDKInstructionsStep {
-		return fmt.Sprintf("created flag %s\nselected the %s SDK", m.flagKey, m.sdk.DisplayName)
+		return fmt.Sprintf("created flag %s\nselected the %s SDK", m.flagKey, m.sdk.displayName)
 	}
 
 	out := fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))
