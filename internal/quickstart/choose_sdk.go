@@ -24,28 +24,36 @@ type chooseSDKModel struct {
 func NewChooseSDKModel() tea.Model {
 	sdks := []sdk{
 		{
-			name: "JavaScript",
+			canonicalName: "js",
+			name:          "JavaScript",
 		},
 		{
-			name: "Node.js (server)",
+			canonicalName: "node-server",
+			name:          "Node.js (server)",
 		},
 		{
-			name: "Python",
+			canonicalName: "python",
+			name:          "Python",
 		},
 		{
-			name: "Java",
+			canonicalName: "java",
+			name:          "Java",
 		},
 		{
-			name: "Android",
+			canonicalName: "android",
+			name:          "Android",
 		},
 		{
-			name: "React Native",
+			canonicalName: "react-native",
+			name:          "React Native",
 		},
 		{
-			name: "Ruby",
+			canonicalName: "ruby",
+			name:          "Ruby",
 		},
 		{
-			name: "Flutter",
+			canonicalName: "flutter",
+			name:          "Flutter",
 		},
 	}
 
@@ -65,7 +73,7 @@ func NewChooseSDKModel() tea.Model {
 	}
 }
 
-func (p chooseSDKModel) Init() tea.Cmd {
+func (m chooseSDKModel) Init() tea.Cmd {
 	return nil
 }
 
@@ -94,7 +102,8 @@ func (m chooseSDKModel) View() string {
 }
 
 type sdk struct {
-	name string
+	canonicalName string
+	name          string
 }
 
 func (s sdk) FilterValue() string { return "" }

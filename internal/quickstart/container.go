@@ -16,6 +16,7 @@ type step int
 const (
 	createFlagStep step = iota
 	chooseSDKStep
+	showSDKInstructionsStep
 )
 
 // ContainerModel is a high level container model that controls the nested models wher each
@@ -37,6 +38,7 @@ func NewContainerModel(flagsClient flags.Client) tea.Model {
 		steps: []tea.Model{
 			NewCreateFlagModel(flagsClient),
 			NewChooseSDKModel(),
+			NewShowSDKInstructionsModel(),
 		},
 	}
 }
@@ -46,36 +48,43 @@ func (m ContainerModel) Init() tea.Cmd {
 }
 
 func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		cmd     tea.Cmd
+		updated tea.Model
+	)
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
+		case key.Matches(msg, keys.Quit):
+			m.quitting = true
+
+			return m, tea.Quit
 		case key.Matches(msg, keys.Enter):
 			switch m.currentStep {
 			case createFlagStep:
-				updated, _ := m.steps[createFlagStep].Update(msg)
+				updated, cmd = m.steps[createFlagStep].Update(msg)
 				if model, ok := updated.(createFlagModel); ok {
 					if model.err != nil {
 						m.err = model.err
-
-						return m, nil
 					}
 					m.flagKey = model.flagKey
 					m.currentStep += 1
 				}
 			case chooseSDKStep:
-				updated, cmd := m.steps[chooseSDKStep].Update(msg)
+				updated, cmd = m.steps[chooseSDKStep].Update(msg)
 				if model, ok := updated.(chooseSDKModel); ok {
 					m.sdk = model.choice
+					m.currentStep += 1
+				}
+			case showSDKInstructionsStep:
+				updated, cmd := m.steps[showSDKInstructionsStep].Update(msg)
+				if _, ok := updated.(showSDKInstructionsModel); ok {
 					m.currentStep += 1
 				}
 
 				return m, cmd
 			default:
 			}
-		case key.Matches(msg, keys.Quit):
-			m.quitting = true
-
-			return m, tea.Quit
 		default:
 			// delegate all other input to the current model
 			updated, cmd := m.steps[m.currentStep].Update(msg)
@@ -83,10 +92,24 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, cmd
 		}
+		switch m.currentStep {
+		case showSDKInstructionsStep:
+			updated, cmd = m.steps[showSDKInstructionsStep].Update(fetchSDKInstructionsMsg{
+				canonicalName: m.sdk.canonicalName,
+				name:          m.sdk.name,
+			})
+			if model, ok := updated.(showSDKInstructionsModel); ok {
+				model.sdk = m.sdk.name
+				m.steps[showSDKInstructionsStep] = model
+			}
+		default:
+		}
+	case errMsg:
+		m.err = msg.err
 	default:
 	}
 
-	return m, nil
+	return m, cmd
 }
 
 func (m ContainerModel) View() string {
@@ -103,7 +126,7 @@ func (m ContainerModel) View() string {
 	}
 
 	// TODO: remove after creating more steps
-	if m.currentStep > chooseSDKStep {
+	if m.currentStep > showSDKInstructionsStep {
 		return fmt.Sprintf("created flag %s with SDK %s", m.flagKey, m.sdk.name)
 	}
 
