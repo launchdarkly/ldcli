@@ -73,7 +73,7 @@ func (m chooseSDKModel) View() string {
 type sdkDetail struct {
 	CanonicalName string
 	DisplayName   string
-	SDKType       string
+	Type          string
 }
 
 func (s sdkDetail) FilterValue() string { return "" }
@@ -81,29 +81,29 @@ func (s sdkDetail) FilterValue() string { return "" }
 var SDKs = []sdkDetail{
 	// TODO: react is still internal
 	// {CanonicalName: "react", DisplayName: "React", SDKType: clientSideSDK},
-	{CanonicalName: "node-server", DisplayName: "Node.js (server-side)", SDKType: serverSideSDK},
-	{CanonicalName: "python", DisplayName: "Python", SDKType: serverSideSDK},
-	{CanonicalName: "java", DisplayName: "Java", SDKType: serverSideSDK},
-	{CanonicalName: "dotnet-server", DisplayName: ".NET (server-side)", SDKType: serverSideSDK},
-	{CanonicalName: "js", DisplayName: "JavaScript", SDKType: clientSideSDK},
-	{CanonicalName: "ios-swift", DisplayName: "iOS", SDKType: clientSideSDK},
-	{CanonicalName: "go", DisplayName: "Go", SDKType: serverSideSDK},
-	{CanonicalName: "android", DisplayName: "Android", SDKType: clientSideSDK},
-	{CanonicalName: "react-native", DisplayName: "React Native", SDKType: clientSideSDK},
-	{CanonicalName: "ruby", DisplayName: "Ruby", SDKType: serverSideSDK},
-	{CanonicalName: "flutter", DisplayName: "Flutter", SDKType: clientSideSDK},
-	{CanonicalName: "dotnet-client", DisplayName: ".NET (client-side)", SDKType: clientSideSDK},
-	{CanonicalName: "erlang", DisplayName: "Erlang", SDKType: serverSideSDK},
-	{CanonicalName: "rust", DisplayName: "Rust", SDKType: serverSideSDK},
-	{CanonicalName: "electron", DisplayName: "Electron", SDKType: clientSideSDK},
-	{CanonicalName: "c-client", DisplayName: "C/C++ (client-side)", SDKType: clientSideSDK},
-	{CanonicalName: "roku", DisplayName: "Roku", SDKType: clientSideSDK},
-	{CanonicalName: "node-client", DisplayName: "Node.js (client-side)", SDKType: clientSideSDK},
-	{CanonicalName: "c-server", DisplayName: "C/C++ (server-side)", SDKType: serverSideSDK},
-	{CanonicalName: "lua-server", DisplayName: "Lua", SDKType: serverSideSDK},
-	{CanonicalName: "haskell-server", DisplayName: "Haskell", SDKType: serverSideSDK},
-	{CanonicalName: "apex-server", DisplayName: "Apex", SDKType: serverSideSDK},
-	{CanonicalName: "php", DisplayName: "PHP", SDKType: serverSideSDK},
+	{CanonicalName: "node-server", DisplayName: "Node.js (server-side)", Type: serverSideSDK},
+	{CanonicalName: "python", DisplayName: "Python", Type: serverSideSDK},
+	{CanonicalName: "java", DisplayName: "Java", Type: serverSideSDK},
+	{CanonicalName: "dotnet-server", DisplayName: ".NET (server-side)", Type: serverSideSDK},
+	{CanonicalName: "js", DisplayName: "JavaScript", Type: clientSideSDK},
+	{CanonicalName: "ios-swift", DisplayName: "iOS", Type: clientSideSDK},
+	{CanonicalName: "go", DisplayName: "Go", Type: serverSideSDK},
+	{CanonicalName: "android", DisplayName: "Android", Type: clientSideSDK},
+	{CanonicalName: "react-native", DisplayName: "React Native", Type: clientSideSDK},
+	{CanonicalName: "ruby", DisplayName: "Ruby", Type: serverSideSDK},
+	{CanonicalName: "flutter", DisplayName: "Flutter", Type: clientSideSDK},
+	{CanonicalName: "dotnet-client", DisplayName: ".NET (client-side)", Type: clientSideSDK},
+	{CanonicalName: "erlang", DisplayName: "Erlang", Type: serverSideSDK},
+	{CanonicalName: "rust", DisplayName: "Rust", Type: serverSideSDK},
+	{CanonicalName: "electron", DisplayName: "Electron", Type: clientSideSDK},
+	{CanonicalName: "c-client", DisplayName: "C/C++ (client-side)", Type: clientSideSDK},
+	{CanonicalName: "roku", DisplayName: "Roku", Type: clientSideSDK},
+	{CanonicalName: "node-client", DisplayName: "Node.js (client-side)", Type: clientSideSDK},
+	{CanonicalName: "c-server", DisplayName: "C/C++ (server-side)", Type: serverSideSDK},
+	{CanonicalName: "lua-server", DisplayName: "Lua", Type: serverSideSDK},
+	{CanonicalName: "haskell-server", DisplayName: "Haskell", Type: serverSideSDK},
+	{CanonicalName: "apex-server", DisplayName: "Apex", Type: serverSideSDK},
+	{CanonicalName: "php", DisplayName: "PHP", Type: serverSideSDK},
 }
 
 func sdksToItems() []list.Item {
