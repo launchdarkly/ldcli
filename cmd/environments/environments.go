@@ -1,9 +1,9 @@
 package environments
 
 import (
-	"ldcli/internal/environments"
-
 	"github.com/spf13/cobra"
+
+	"ldcli/internal/environments"
 )
 
 func NewEnvironmentsCmd(client environments.Client) (*cobra.Command, error) {

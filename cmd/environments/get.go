@@ -58,7 +58,6 @@ func runGet(client environments.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.ProjectFlag),
 		)
 		if err != nil {
-			fmt.Println(">>> err1", err)
 			return err
 		}
 
