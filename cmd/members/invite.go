@@ -12,8 +12,6 @@ import (
 	"ldcli/internal/members"
 )
 
-const defaultRole = "reader"
-
 func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
