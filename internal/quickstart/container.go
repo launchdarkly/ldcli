@@ -27,7 +27,7 @@ type ContainerModel struct {
 	flagKey     string
 	flagsClient flags.Client
 	quitting    bool
-	sdk         sdk
+	sdk         sdkDetail
 	steps       []tea.Model
 }
 
@@ -71,9 +71,9 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currentStep += 1
 				}
 			case chooseSDKStep:
-				updated, cmd = m.steps[chooseSDKStep].Update(msg)
+				updated, _ := m.steps[chooseSDKStep].Update(msg)
 				if model, ok := updated.(chooseSDKModel); ok {
-					m.sdk = model.choice
+					m.sdk = model.selectedSDK
 					m.currentStep += 1
 				}
 			case showSDKInstructionsStep:
@@ -95,11 +95,11 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.currentStep {
 		case showSDKInstructionsStep:
 			updated, cmd = m.steps[showSDKInstructionsStep].Update(fetchSDKInstructionsMsg{
-				canonicalName: m.sdk.canonicalName,
-				name:          m.sdk.name,
+				canonicalName: m.sdk.CanonicalName,
+				name:          m.sdk.DisplayName,
 			})
 			if model, ok := updated.(showSDKInstructionsModel); ok {
-				model.sdk = m.sdk.name
+				model.sdk = m.sdk.DisplayName
 				m.steps[showSDKInstructionsStep] = model
 			}
 		default:
@@ -127,7 +127,7 @@ func (m ContainerModel) View() string {
 
 	// TODO: remove after creating more steps
 	if m.currentStep > showSDKInstructionsStep {
-		return fmt.Sprintf("created flag %s with SDK %s", m.flagKey, m.sdk.name)
+		return fmt.Sprintf("created flag %s\nselected the %s SDK", m.flagKey, m.sdk.DisplayName)
 	}
 
 	return fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))

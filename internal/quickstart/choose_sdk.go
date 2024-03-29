@@ -17,55 +17,19 @@ var (
 )
 
 type chooseSDKModel struct {
-	choice sdk
-	list   list.Model
+	selectedSDK sdkDetail
+	list        list.Model
 }
 
 func NewChooseSDKModel() tea.Model {
-	sdks := []sdk{
-		{
-			canonicalName: "js",
-			name:          "JavaScript",
-		},
-		{
-			canonicalName: "node-server",
-			name:          "Node.js (server)",
-		},
-		{
-			canonicalName: "python",
-			name:          "Python",
-		},
-		{
-			canonicalName: "java",
-			name:          "Java",
-		},
-		{
-			canonicalName: "android",
-			name:          "Android",
-		},
-		{
-			canonicalName: "react-native",
-			name:          "React Native",
-		},
-		{
-			canonicalName: "ruby",
-			name:          "Ruby",
-		},
-		{
-			canonicalName: "flutter",
-			name:          "Flutter",
-		},
-	}
-
-	l := list.New(sdksToItems(sdks), sdkDelegate{}, 30, 14)
-	// extra newlines to show pagination
-	l.Title = "Select your SDK:\n\n"
+	l := list.New(sdksToItems(), sdkDelegate{}, 30, 14)
+	l.Title = "Select your SDK:\n\n" // extra newlines to show pagination
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
 	l.Styles.TitleBar = lipgloss.NewStyle()
 	l.SetShowPagination(true)
 	l.SetShowStatusBar(false)
-	l.SetFilteringEnabled(false)
+	l.SetFilteringEnabled(false) // TODO: try to get filtering working
 	l.Paginator.PerPage = 5
 
 	return chooseSDKModel{
@@ -83,9 +47,9 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Enter):
-			i, ok := m.list.SelectedItem().(sdk)
+			i, ok := m.list.SelectedItem().(sdkDetail)
 			if ok {
-				m.choice = i
+				m.selectedSDK = i
 			}
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
@@ -101,12 +65,53 @@ func (m chooseSDKModel) View() string {
 	return m.list.View()
 }
 
-type sdk struct {
-	canonicalName string
-	name          string
+type sdkDetail struct {
+	CanonicalName string `json:"canonicalName"`
+	DisplayName   string `json:"displayName"`
+	SDKType       string `json:"sdkType"`
 }
 
-func (s sdk) FilterValue() string { return "" }
+func (s sdkDetail) FilterValue() string { return "" }
+
+const clientSideSDK = "client"
+const serverSideSDK = "server"
+
+var SDKs = []sdkDetail{
+	{DisplayName: "React", SDKType: clientSideSDK},
+	{DisplayName: "Node.js (server-side)", SDKType: serverSideSDK},
+	{DisplayName: "Python", SDKType: serverSideSDK},
+	{DisplayName: "Java", SDKType: serverSideSDK},
+	{DisplayName: ".NET (server-side)", SDKType: serverSideSDK},
+	{DisplayName: "JavaScript", SDKType: clientSideSDK},
+	{DisplayName: "Vue", SDKType: clientSideSDK},
+	{DisplayName: "iOS", SDKType: clientSideSDK},
+	{DisplayName: "Go", SDKType: serverSideSDK},
+	{DisplayName: "Android", SDKType: clientSideSDK},
+	{DisplayName: "React Native", SDKType: clientSideSDK},
+	{DisplayName: "Ruby", SDKType: serverSideSDK},
+	{DisplayName: "Flutter", SDKType: clientSideSDK},
+	{DisplayName: ".NET (client-side)", SDKType: clientSideSDK},
+	{DisplayName: "Erlang", SDKType: serverSideSDK},
+	{DisplayName: "Rust", SDKType: serverSideSDK},
+	{DisplayName: "Electron", SDKType: clientSideSDK},
+	{DisplayName: "C/C++ (client-side)", SDKType: clientSideSDK},
+	{DisplayName: "Roku", SDKType: clientSideSDK},
+	{DisplayName: "Node.js (client-side)", SDKType: clientSideSDK},
+	{DisplayName: "C/C++ (server-side)", SDKType: serverSideSDK},
+	{DisplayName: "Lua", SDKType: serverSideSDK},
+	{DisplayName: "Haskell", SDKType: serverSideSDK},
+	{DisplayName: "Apex", SDKType: serverSideSDK},
+	{DisplayName: "PHP", SDKType: serverSideSDK},
+}
+
+func sdksToItems() []list.Item {
+	items := make([]list.Item, len(SDKs))
+	for i, sdk := range SDKs {
+		items[i] = list.Item(sdk)
+	}
+
+	return items
+}
 
 type sdkDelegate struct{}
 
@@ -114,12 +119,12 @@ func (d sdkDelegate) Height() int                             { return 1 }
 func (d sdkDelegate) Spacing() int                            { return 0 }
 func (d sdkDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d sdkDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(sdk)
+	i, ok := listItem.(sdkDetail)
 	if !ok {
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, i.name)
+	str := fmt.Sprintf("%d. %s", index+1, i.DisplayName)
 
 	fn := sdkStyle.Render
 	if index == m.Index() {
@@ -129,13 +134,4 @@ func (d sdkDelegate) Render(w io.Writer, m list.Model, index int, listItem list.
 	}
 
 	fmt.Fprint(w, fn(str))
-}
-
-func sdksToItems(sdks []sdk) []list.Item {
-	items := make([]list.Item, len(sdks))
-	for i, sdk := range sdks {
-		items[i] = list.Item(sdk)
-	}
-
-	return items
 }

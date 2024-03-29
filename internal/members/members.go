@@ -14,14 +14,18 @@ type Client interface {
 	Create(ctx context.Context, accessToken string, baseURI string, emails []string, role string) ([]byte, error)
 }
 
-type MembersClient struct{}
+type MembersClient struct {
+	cliVersion string
+}
 
-func NewClient() Client {
-	return MembersClient{}
+func NewClient(cliVersion string) Client {
+	return MembersClient{
+		cliVersion: cliVersion,
+	}
 }
 
 func (c MembersClient) Create(ctx context.Context, accessToken string, baseURI string, emails []string, role string) ([]byte, error) {
-	client := client.New(accessToken, baseURI)
+	client := client.New(accessToken, baseURI, c.cliVersion)
 	memberForms := make([]ldapi.NewMemberForm, 0, len(emails))
 	for _, e := range emails {
 		memberForms = append(memberForms, ldapi.NewMemberForm{Email: e, Role: &role})
