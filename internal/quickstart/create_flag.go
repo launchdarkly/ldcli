@@ -2,6 +2,7 @@ package quickstart
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -17,10 +18,12 @@ import (
 const defaultFlagName = "my new flag"
 
 type createFlagModel struct {
+	client    flags.Client
 	err       error
 	flagKey   string
 	flagName  string
-	client    flags.Client
+	quitMsg   string
+	quitting  bool
 	textInput textinput.Model
 }
 
@@ -69,6 +72,24 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 			if err != nil {
 				m.err = err
+				// TODO: we may want a more robust error type so we don't need to do this
+				var e struct {
+					Code    string `json:"code"`
+					Message string `json:"message"`
+				}
+				_ = json.Unmarshal([]byte(m.err.Error()), &e)
+				switch {
+				case e.Code == "unauthorized":
+					m.quitting = true
+					m.quitMsg = "Your API key is unauthorized. Try another API key or speak to a LaunchDarkly account administrator."
+
+					return m, tea.Quit
+				case e.Code == "forbidden":
+					m.quitting = true
+					m.quitMsg = "You lack access to complete this action. Try authenticating with elevated access or speak to a LaunchDarkly account administrator."
+
+					return m, tea.Quit
+				}
 
 				return m, nil
 			}

@@ -26,6 +26,7 @@ type ContainerModel struct {
 	err         error
 	flagKey     string
 	flagsClient flags.Client
+	quitMsg     string
 	quitting    bool
 	sdk         sdkDetail
 	steps       []tea.Model
@@ -62,11 +63,20 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Enter):
 			switch m.currentStep {
 			case createFlagStep:
-				updated, cmd = m.steps[createFlagStep].Update(msg)
+				updated, cmd := m.steps[createFlagStep].Update(msg)
 				if model, ok := updated.(createFlagModel); ok {
 					if model.err != nil {
 						m.err = model.err
+						if model.quitting {
+							m.quitMsg = model.quitMsg
+							m.quitting = true
+
+							return m, cmd
+						}
+
+						return m, nil
 					}
+
 					m.flagKey = model.flagKey
 					m.currentStep += 1
 				}
@@ -111,24 +121,33 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ContainerModel) View() string {
-	if m.quitting {
-		return ""
-	}
-
-	if m.err != nil {
-		return lipgloss.
-			NewStyle().
-			Foreground(lipgloss.Color("#eb4034")).
-			SetString(m.err.Error()).
-			Render()
-	}
-
 	// TODO: remove after creating more steps
 	if m.currentStep > showSDKInstructionsStep {
 		return fmt.Sprintf("created flag %s\nselected the %s SDK", m.flagKey, m.sdk.DisplayName)
 	}
 
-	return fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))
+	out := fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))
+	if m.err != nil {
+		if m.quitting {
+			out := m.quitMsg + "\n\n"
+			out += m.err.Error()
+
+			return lipgloss.
+				NewStyle().
+				SetString(out).
+				Render() + "\n"
+		}
+
+		// show error and stay on the same step
+		out += "\n" + lipgloss.
+			NewStyle().
+			SetString(m.err.Error()).
+			Render() + "\n"
+
+		return out
+	}
+
+	return out
 }
 
 type keyMap struct {
