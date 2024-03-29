@@ -35,7 +35,7 @@ func TestInvite(t *testing.T) {
 			`testemail1@test.com,testemail2@test.com`,
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, nil, args)
+		output, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -57,7 +57,7 @@ func TestInvite(t *testing.T) {
 			`testemail1@test.com,testemail2@test.com`,
 		}
 
-		_, err := cmd.CallCmd(t, nil, &client, nil, args)
+		_, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -68,7 +68,7 @@ func TestInvite(t *testing.T) {
 			"invite",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
+		_, err := cmd.CallCmd(t, nil, nil, &members.MockClient{}, nil, args)
 
 		assert.EqualError(t, err, `required flag(s) "api-token", "emails" not set`+errorHelp)
 	})
@@ -80,7 +80,7 @@ func TestInvite(t *testing.T) {
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
+		_, err := cmd.CallCmd(t, nil, nil, &members.MockClient{}, nil, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
@@ -111,7 +111,7 @@ func TestInviteWithOptionalRole(t *testing.T) {
 			"writer",
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, nil, args)
+		output, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -135,7 +135,7 @@ func TestInviteWithOptionalRole(t *testing.T) {
 			"writer",
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, nil, args)
+		output, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))

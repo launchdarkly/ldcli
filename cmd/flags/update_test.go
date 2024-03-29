@@ -41,7 +41,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		output, err := cmd.CallCmd(t, &client, nil, nil, args)
+		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -61,7 +61,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, &client, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -71,7 +71,7 @@ func TestUpdate(t *testing.T) {
 			"flags", "update",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
 		assert.EqualError(t, err, `required flag(s) "api-token", "data", "flag", "project" not set`+errorHelp)
 	})
@@ -85,7 +85,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

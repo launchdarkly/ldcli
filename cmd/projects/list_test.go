@@ -28,7 +28,7 @@ func TestList(t *testing.T) {
 			"--base-uri", "http://test.com",
 		}
 
-		output, err := cmd.CallCmd(t, nil, nil, &client, args)
+		output, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -45,7 +45,7 @@ func TestList(t *testing.T) {
 			"--base-uri", "http://test.com",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &client, args)
+		_, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
 
 		require.EqualError(t, err, "an error")
 	})
@@ -55,7 +55,7 @@ func TestList(t *testing.T) {
 			"projects", "list",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "api-token" not set`+errorHelp)
 	})
@@ -66,7 +66,7 @@ func TestList(t *testing.T) {
 			"--api-token",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --api-token`)
 	})
@@ -78,7 +78,7 @@ func TestList(t *testing.T) {
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
