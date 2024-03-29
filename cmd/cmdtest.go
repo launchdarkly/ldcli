@@ -21,7 +21,7 @@ func CallCmd(
 	projectsClient *projects.MockClient,
 	args []string,
 ) ([]byte, error) {
-	rootCmd, err := NewRootCommand(flagsClient, membersClient, projectsClient)
+	rootCmd, err := NewRootCommand(flagsClient, membersClient, projectsClient, "test")
 	require.NoError(t, err)
 	b := bytes.NewBufferString("")
 	rootCmd.SetOut(b)

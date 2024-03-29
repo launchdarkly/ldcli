@@ -16,7 +16,7 @@ func TestCreate(t *testing.T) {
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		"testemail@test.com",
+		[]string{"testemail@test.com"},
 		"writer",
 	}
 	t.Run("with valid flags calls members API", func(t *testing.T) {

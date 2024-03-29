@@ -53,7 +53,7 @@ func runCreate(client members.Client) func(*cobra.Command, []string) error {
 			context.Background(),
 			viper.GetString(cliflags.APITokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
-			data.Email,
+			[]string{data.Email},
 			data.Role,
 		)
 		if err != nil {

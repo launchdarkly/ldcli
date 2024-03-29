@@ -22,12 +22,16 @@ type Client interface {
 	) ([]byte, error)
 }
 
-type FlagsClient struct{}
+type FlagsClient struct {
+	cliVersion string
+}
 
 var _ Client = FlagsClient{}
 
-func NewClient() FlagsClient {
-	return FlagsClient{}
+func NewClient(cliVersion string) FlagsClient {
+	return FlagsClient{
+		cliVersion: cliVersion,
+	}
 }
 
 func (c FlagsClient) Create(
@@ -38,7 +42,7 @@ func (c FlagsClient) Create(
 	key,
 	projectKey string,
 ) ([]byte, error) {
-	client := client.New(accessToken, baseURI)
+	client := client.New(accessToken, baseURI, c.cliVersion)
 	post := ldapi.NewFeatureFlagBody(name, key)
 	flag, _, err := client.FeatureFlagsApi.PostFeatureFlag(ctx, projectKey).FeatureFlagBody(*post).Execute()
 	if err != nil {
@@ -62,7 +66,7 @@ func (c FlagsClient) Update(
 	projKey string,
 	patch []ldapi.PatchOperation,
 ) ([]byte, error) {
-	client := client.New(accessToken, baseURI)
+	client := client.New(accessToken, baseURI, c.cliVersion)
 	flag, _, err := client.FeatureFlagsApi.
 		PatchFeatureFlag(ctx, projKey, key).
 		PatchWithComment(*ldapi.NewPatchWithComment(patch)).
