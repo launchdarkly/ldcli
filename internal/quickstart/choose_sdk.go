@@ -16,9 +16,14 @@ var (
 	selectedSdkItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
 )
 
+const (
+	clientSideSDK = "client"
+	serverSideSDK = "server"
+)
+
 type chooseSDKModel struct {
-	selectedSDK sdkDetail
 	list        list.Model
+	selectedSDK sdkDetail
 }
 
 func NewChooseSDKModel() tea.Model {
@@ -66,15 +71,12 @@ func (m chooseSDKModel) View() string {
 }
 
 type sdkDetail struct {
-	CanonicalName string `json:"canonicalName"`
-	DisplayName   string `json:"displayName"`
-	SDKType       string `json:"sdkType"`
+	CanonicalName string
+	DisplayName   string
+	SDKType       string
 }
 
 func (s sdkDetail) FilterValue() string { return "" }
-
-const clientSideSDK = "client"
-const serverSideSDK = "server"
 
 var SDKs = []sdkDetail{
 	// TODO: react is still internal
