@@ -86,8 +86,7 @@ var SDKs = []sdkDetail{
 	{CanonicalName: "java", DisplayName: "Java", SDKType: serverSideSDK},
 	{CanonicalName: "dotnet-server", DisplayName: ".NET (server-side)", SDKType: serverSideSDK},
 	{CanonicalName: "js", DisplayName: "JavaScript", SDKType: clientSideSDK},
-	{CanonicalName: "vue", DisplayName: "Vue", SDKType: clientSideSDK},
-	{CanonicalName: "ios", DisplayName: "iOS", SDKType: clientSideSDK},
+	{CanonicalName: "ios-swift", DisplayName: "iOS", SDKType: clientSideSDK},
 	{CanonicalName: "go", DisplayName: "Go", SDKType: serverSideSDK},
 	{CanonicalName: "android", DisplayName: "Android", SDKType: clientSideSDK},
 	{CanonicalName: "react-native", DisplayName: "React Native", SDKType: clientSideSDK},
@@ -101,9 +100,9 @@ var SDKs = []sdkDetail{
 	{CanonicalName: "roku", DisplayName: "Roku", SDKType: clientSideSDK},
 	{CanonicalName: "node-client", DisplayName: "Node.js (client-side)", SDKType: clientSideSDK},
 	{CanonicalName: "c-server", DisplayName: "C/C++ (server-side)", SDKType: serverSideSDK},
-	{CanonicalName: "lua", DisplayName: "Lua", SDKType: serverSideSDK},
-	{CanonicalName: "haskell", DisplayName: "Haskell", SDKType: serverSideSDK},
-	{CanonicalName: "apex", DisplayName: "Apex", SDKType: serverSideSDK},
+	{CanonicalName: "lua-server", DisplayName: "Lua", SDKType: serverSideSDK},
+	{CanonicalName: "haskell-server", DisplayName: "Haskell", SDKType: serverSideSDK},
+	{CanonicalName: "apex-server", DisplayName: "Apex", SDKType: serverSideSDK},
 	{CanonicalName: "php", DisplayName: "PHP", SDKType: serverSideSDK},
 }
 
