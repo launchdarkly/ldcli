@@ -3,3 +3,4 @@ dockers:
   - image_templates:
       - "launchdarkly/ldcli:v{{ .Version }}-amd64"
     dockerfile: Dockerfile
+    goarch: amd64
