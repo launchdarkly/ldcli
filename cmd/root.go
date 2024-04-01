@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -13,6 +14,7 @@ import (
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
@@ -20,6 +22,7 @@ import (
 )
 
 func NewRootCommand(
+	client analytics.AnalyticsTracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 	membersClient members.Client,
@@ -96,8 +99,9 @@ func NewRootCommand(
 	return cmd, nil
 }
 
-func Execute(version string) {
+func Execute(client analytics.SegmentioClient, version string) {
 	rootCmd, err := NewRootCommand(
+		client,
 		environments.NewClient(version),
 		flags.NewClient(version),
 		members.NewClient(version),
@@ -106,6 +110,16 @@ func Execute(version string) {
 	)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	err = client.Track(
+		"user-123",
+		map[string]interface{}{
+			"event1": time.Now().String(),
+		},
+	)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 	}
 
 	err = rootCmd.Execute()
