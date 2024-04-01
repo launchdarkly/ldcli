@@ -9,20 +9,34 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	envscmd "ldcli/cmd/environments"
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
+	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
 	"ldcli/internal/projects"
 )
 
-func NewRootCommand(flagsClient flags.Client, membersClient members.Client, projectsClient projects.Client, version string) (*cobra.Command, error) {
+func NewRootCommand(
+	environmentsClient environments.Client,
+	flagsClient flags.Client,
+	membersClient members.Client,
+	projectsClient projects.Client,
+	version string,
+) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// disable required flags when running help as a command, not a flag
+			if cmd.Name() == "help" {
+				cmd.DisableFlagParsing = true
+			}
+		},
 
 		// Handle errors differently based on type.
 		// We don't want to show the usage if the user has the right structure but invalid data such as
@@ -55,6 +69,10 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 		return nil, err
 	}
 
+	environmentsCmd, err := envscmd.NewEnvironmentsCmd(environmentsClient)
+	if err != nil {
+		return nil, err
+	}
 	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient)
 	if err != nil {
 		return nil, err
@@ -68,10 +86,11 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 		return nil, err
 	}
 
-	cmd.AddCommand(NewQuickStartCmd(flagsClient))
+	cmd.AddCommand(environmentsCmd)
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
+	cmd.AddCommand(NewQuickStartCmd(flagsClient))
 	cmd.AddCommand(setupCmd)
 
 	return cmd, nil
@@ -79,6 +98,7 @@ func NewRootCommand(flagsClient flags.Client, membersClient members.Client, proj
 
 func Execute(version string) {
 	rootCmd, err := NewRootCommand(
+		environments.NewClient(version),
 		flags.NewClient(version),
 		members.NewClient(version),
 		projects.NewClient(version),
