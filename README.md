@@ -9,7 +9,7 @@
 Enable a flag with key `test-flag` in project `default` and environment `production`.
 ```
 go run main.go flags update \
-    --api-token {api-token} \
+    --access-token {access-token} \
     --base-uri http://localhost:3000 \
     -d '[{"op": "replace", "path": "/environments/production/on", "value": true}]' \
     --project default \

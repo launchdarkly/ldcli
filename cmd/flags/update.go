@@ -77,7 +77,7 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 
 		response, err := client.Update(
 			context.Background(),
-			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetString(cliflags.FlagFlag),
 			viper.GetString(cliflags.ProjectFlag),
