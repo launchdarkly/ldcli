@@ -3,7 +3,6 @@ package members
 import (
 	"context"
 	"encoding/json"
-
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
 	"ldcli/internal/client"
@@ -11,7 +10,7 @@ import (
 )
 
 type Client interface {
-	Create(ctx context.Context, accessToken string, baseURI string, members []ldapi.NewMemberForm) ([]byte, error)
+	Create(ctx context.Context, accessToken string, baseURI string, memberInputs []MemberInput) ([]byte, error)
 }
 
 type MembersClient struct {
@@ -24,8 +23,17 @@ func NewClient(cliVersion string) Client {
 	}
 }
 
-func (c MembersClient) Create(ctx context.Context, accessToken string, baseURI string, memberForms []ldapi.NewMemberForm) ([]byte, error) {
+type MemberInput struct {
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
+func (c MembersClient) Create(ctx context.Context, accessToken string, baseURI string, memberInputs []MemberInput) ([]byte, error) {
 	client := client.New(accessToken, baseURI, c.cliVersion)
+	memberForms := make([]ldapi.NewMemberForm, 0, len(memberInputs))
+	for _, m := range memberInputs {
+		memberForms = append(memberForms, ldapi.NewMemberForm{Email: m.Email, Role: &m.Role})
+	}
 
 	members, _, err := client.AccountMembersApi.PostMembers(ctx).NewMemberForm(memberForms).Execute()
 	if err != nil {

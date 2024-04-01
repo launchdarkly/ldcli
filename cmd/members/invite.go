@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -49,16 +48,16 @@ func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 func runInvite(client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		emails := viper.GetStringSlice(cliflags.EmailsFlag)
-		members := make([]ldapi.NewMemberForm, 0, len(emails))
+		memberInputs := make([]members.MemberInput, 0, len(emails))
 		for _, e := range emails {
 			role := viper.GetString(cliflags.RoleFlag)
-			members = append(members, ldapi.NewMemberForm{Email: e, Role: &role})
+			memberInputs = append(memberInputs, members.MemberInput{Email: e, Role: role})
 		}
 		response, err := client.Create(
 			context.Background(),
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
-			members,
+			memberInputs,
 		)
 		if err != nil {
 			return err

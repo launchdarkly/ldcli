@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -38,7 +37,7 @@ func NewCreateCmd(client members.Client) (*cobra.Command, error) {
 
 func runCreate(client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		var data []ldapi.NewMemberForm
+		var data []members.MemberInput
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
 		err := json.Unmarshal([]byte(cmd.Flags().Lookup(cliflags.DataFlag).Value.String()), &data)
 		if err != nil {

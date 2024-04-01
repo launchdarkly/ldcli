@@ -3,7 +3,6 @@ package members_test
 import (
 	"testing"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -18,7 +17,7 @@ func TestCreate(t *testing.T) {
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		[]ldapi.NewMemberForm{{Email: "testemail@test.com", Role: &role}},
+		[]members.MemberInput{{Email: "testemail@test.com", Role: role}},
 	}
 	t.Run("with valid flags calls members API", func(t *testing.T) {
 		client := members.MockClient{}
