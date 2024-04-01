@@ -31,6 +31,12 @@ func NewRootCommand(
 		Short:   "LaunchDarkly CLI",
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// disable required flags when running help as a command, not a flag
+			if cmd.Name() == "help" {
+				cmd.DisableFlagParsing = true
+			}
+		},
 
 		// Handle errors differently based on type.
 		// We don't want to show the usage if the user has the right structure but invalid data such as

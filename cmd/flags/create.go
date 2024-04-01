@@ -22,12 +22,12 @@ func NewCreateCmd(client flags.Client) (*cobra.Command, error) {
 		Use:   "create",
 	}
 
-	cmd.Flags().StringP("data", "d", "", "Input data in JSON")
-	err := cmd.MarkFlagRequired("data")
+	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
+	err := cmd.MarkFlagRequired(cliflags.DataFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
+	err = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -53,11 +53,11 @@ type inputData struct {
 func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// rebind flags used in other subcommands
-		_ = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
+		_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
 		var data inputData
-		err := json.Unmarshal([]byte(viper.GetString("data")), &data)
+		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &data)
 		if err != nil {
 			return err
 		}
