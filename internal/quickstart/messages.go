@@ -37,3 +37,13 @@ func sendNoInstructions() tea.Cmd {
 		return noInstructionsMsg{}
 	}
 }
+
+type updateToggleFlagModelMsg struct {
+	flagKey string
+}
+
+func sendUpdateToggleFlagModelMsg() tea.Cmd {
+	return func() tea.Msg {
+		return updateToggleFlagModelMsg{}
+	}
+}

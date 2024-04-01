@@ -91,10 +91,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				}
 			case showSDKInstructionsStep:
-				_, cmd := m.steps[showSDKInstructionsStep].Update(msg)
+				_, cmd = m.steps[showSDKInstructionsStep].Update(msg)
 				m.currentStep += 1
+				cmd = sendUpdateToggleFlagModelMsg()
 
-				return m, cmd
 			default:
 			}
 		default:
@@ -106,6 +106,11 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case errMsg:
 		m.err = msg.err
+	case updateToggleFlagModelMsg:
+		updated, cmd = m.steps[toggleFlagStep].Update(updateToggleFlagModelMsg{flagKey: m.flagKey})
+		if model, ok := updated.(toggleFlagModel); ok {
+			m.steps[toggleFlagStep] = model
+		}
 	case fetchSDKInstructionsMsg:
 		updated, cmd = m.steps[showSDKInstructionsStep].Update(fetchSDKInstructionsMsg{
 			canonicalName: m.sdk.canonicalName,
@@ -116,6 +121,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			model.sdk = m.sdk.displayName
 			m.steps[showSDKInstructionsStep] = model
 		}
+
 	case noInstructionsMsg:
 		m.currentStep += 1
 
@@ -157,8 +163,9 @@ func (m ContainerModel) View() string {
 }
 
 type keyMap struct {
-	Enter key.Binding
-	Quit  key.Binding
+	Enter  key.Binding
+	Quit   key.Binding
+	Toggle key.Binding
 }
 
 var keys = keyMap{
@@ -169,5 +176,9 @@ var keys = keyMap{
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c"),
 		key.WithHelp("q", "quit"),
+	),
+	Toggle: key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "toggle"),
 	),
 }
