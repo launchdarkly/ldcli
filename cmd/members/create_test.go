@@ -3,6 +3,7 @@ package members_test
 import (
 	"testing"
 
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,11 +14,11 @@ import (
 
 func TestCreate(t *testing.T) {
 	errorHelp := ". See `ldcli members create --help` for supported flags and usage."
+	role := "writer"
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		[]string{"testemail@test.com"},
-		"writer",
+		[]ldapi.NewMemberForm{{Email: "testemail@test.com", Role: &role}},
 	}
 	t.Run("with valid flags calls members API", func(t *testing.T) {
 		client := members.MockClient{}
@@ -32,7 +33,7 @@ func TestCreate(t *testing.T) {
 			"--base-uri",
 			"http://test.com",
 			"-d",
-			`{"email": "testemail@test.com", "role": "writer"}`,
+			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
 		output, err := cmd.CallCmd(t, nil, &client, nil, args)
@@ -54,7 +55,7 @@ func TestCreate(t *testing.T) {
 			"--base-uri",
 			"http://test.com",
 			"-d",
-			`{"email": "testemail@test.com", "role": "writer"}`,
+			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
 		_, err := cmd.CallCmd(t, nil, &client, nil, args)

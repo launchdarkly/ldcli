@@ -11,7 +11,7 @@ import (
 )
 
 type Client interface {
-	Create(ctx context.Context, accessToken string, baseURI string, emails []string, role string) ([]byte, error)
+	Create(ctx context.Context, accessToken string, baseURI string, members []ldapi.NewMemberForm) ([]byte, error)
 }
 
 type MembersClient struct {
@@ -24,12 +24,8 @@ func NewClient(cliVersion string) Client {
 	}
 }
 
-func (c MembersClient) Create(ctx context.Context, accessToken string, baseURI string, emails []string, role string) ([]byte, error) {
+func (c MembersClient) Create(ctx context.Context, accessToken string, baseURI string, memberForms []ldapi.NewMemberForm) ([]byte, error) {
 	client := client.New(accessToken, baseURI, c.cliVersion)
-	memberForms := make([]ldapi.NewMemberForm, 0, len(emails))
-	for _, e := range emails {
-		memberForms = append(memberForms, ldapi.NewMemberForm{Email: e, Role: &role})
-	}
 
 	members, _, err := client.AccountMembersApi.PostMembers(ctx).NewMemberForm(memberForms).Execute()
 	if err != nil {

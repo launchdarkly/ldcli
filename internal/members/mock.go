@@ -3,6 +3,7 @@ package members
 import (
 	"context"
 
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -16,10 +17,9 @@ func (c *MockClient) Create(
 	ctx context.Context,
 	accessToken string,
 	baseURI string,
-	emails []string,
-	role string,
+	members []ldapi.NewMemberForm,
 ) ([]byte, error) {
-	args := c.Called(accessToken, baseURI, emails, role)
+	args := c.Called(accessToken, baseURI, members)
 
 	return args.Get(0).([]byte), args.Error(1)
 }
