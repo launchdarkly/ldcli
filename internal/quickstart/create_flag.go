@@ -40,7 +40,7 @@ func NewCreateFlagModel(client flags.Client) tea.Model {
 	}
 }
 
-func (p createFlagModel) Init() tea.Cmd {
+func (m createFlagModel) Init() tea.Cmd {
 	return nil
 }
 
