@@ -90,11 +90,14 @@ func TestInvite(t *testing.T) {
 }
 
 func TestInviteWithOptionalRole(t *testing.T) {
+	writerRole := "writer"
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		[]string{"testemail1@test.com", "testemail2@test.com"},
-		"writer",
+		[]members.MemberInput{
+			{Email: "testemail1@test.com", Role: writerRole},
+			{Email: "testemail2@test.com", Role: writerRole},
+		},
 	}
 	t.Run("with valid optional long form flag calls members API", func(t *testing.T) {
 		client := members.MockClient{}
