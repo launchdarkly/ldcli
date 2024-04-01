@@ -33,7 +33,7 @@ func TestCreate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		output, err := cmd.CallCmd(t, &client, nil, nil, args)
+		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -52,7 +52,7 @@ func TestCreate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, &client, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -62,7 +62,7 @@ func TestCreate(t *testing.T) {
 			"flags", "create",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "data", "project" not set`+errorHelp)
 	})
@@ -73,7 +73,7 @@ func TestCreate(t *testing.T) {
 			"-d",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
 		assert.EqualError(t, err, `flag needs an argument: 'd' in -d`)
 	})
@@ -84,7 +84,7 @@ func TestCreate(t *testing.T) {
 			"--data",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --data`)
 	})
@@ -98,7 +98,7 @@ func TestCreate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
