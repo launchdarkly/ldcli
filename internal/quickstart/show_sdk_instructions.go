@@ -3,7 +3,7 @@ package quickstart
 import (
 	"fmt"
 	"io"
-	"ldcli/internal/errors"
+	"ldcli/internal/sdks"
 	"net/http"
 	"time"
 
@@ -50,12 +50,14 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, sendErr(err)
 		}
 
-		if resp.StatusCode != 200 {
-			return m, sendErr(errors.NewError(fmt.Sprintf("could not find %s SDK instructions", msg.name)))
+		if resp.StatusCode == 404 {
+			m.sdk = msg.name
+
+			return m, sendNoInstructions()
 		}
 
 		m.sdk = msg.name
-		m.instructions = string(body)
+		m.instructions = sdks.ReplaceFlagKey(string(body), msg.flagKey)
 	}
 
 	return m, nil
