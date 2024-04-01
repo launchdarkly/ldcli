@@ -16,7 +16,7 @@ import (
 func NewCreateCmd(client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
-		Long:  "Create a new member",
+		Long:  "Create a new member and send them an invitation email",
 		RunE:  runCreate(client),
 		Short: "Create a new member",
 		Use:   "create",
