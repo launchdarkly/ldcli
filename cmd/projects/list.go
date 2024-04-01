@@ -28,7 +28,7 @@ func runList(client projects.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		response, err := client.List(
 			context.Background(),
-			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 		)
 		if err != nil {

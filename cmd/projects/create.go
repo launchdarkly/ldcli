@@ -51,7 +51,7 @@ func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 
 		response, err := client.Create(
 			context.Background(),
-			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			data.Name,
 			data.Key,

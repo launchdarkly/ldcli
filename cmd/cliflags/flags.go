@@ -1,11 +1,11 @@
 package cliflags
 
 const (
-	APITokenFlag = "api-token"
-	BaseURIFlag  = "base-uri"
-	DataFlag     = "data"
-	FlagFlag     = "flag"
-	ProjectFlag  = "project"
-	EmailsFlag   = "emails"
-	RoleFlag     = "role"
+	AccessTokenFlag = "access-token"
+	BaseURIFlag     = "base-uri"
+	DataFlag        = "data"
+	EmailsFlag      = "emails"
+	FlagFlag        = "flag"
+	ProjectFlag     = "project"
+	RoleFlag        = "role"
 )

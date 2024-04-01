@@ -64,7 +64,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			_, err = m.client.Create(
 				context.Background(),
-				viper.GetString(cliflags.APITokenFlag),
+				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				m.flagName,
 				flagKey,
