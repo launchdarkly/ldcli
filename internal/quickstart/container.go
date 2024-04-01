@@ -63,7 +63,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Enter):
 			switch m.currentStep {
 			case createFlagStep:
-				updated, cmd := m.steps[createFlagStep].Update(msg)
+				updated, cmd = m.steps[createFlagStep].Update(msg)
 				if model, ok := updated.(createFlagModel); ok {
 					if model.err != nil {
 						m.err = model.err
@@ -81,10 +81,12 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currentStep += 1
 				}
 			case chooseSDKStep:
-				updated, _ := m.steps[chooseSDKStep].Update(msg)
+				updated, cmd = m.steps[chooseSDKStep].Update(msg)
 				if model, ok := updated.(chooseSDKModel); ok {
 					m.sdk = model.selectedSDK
 					m.currentStep += 1
+					cmd = sendFetchSDKInstructionsMsg(m.sdk.canonicalName, m.sdk.displayName)
+
 				}
 			case showSDKInstructionsStep:
 				_, cmd := m.steps[showSDKInstructionsStep].Update(msg)
@@ -95,26 +97,23 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		default:
 			// delegate all other input to the current model
-			updated, cmd := m.steps[m.currentStep].Update(msg)
+			updated, cmd = m.steps[m.currentStep].Update(msg)
 			m.steps[m.currentStep] = updated
 
 			return m, cmd
 		}
-		switch m.currentStep {
-		case showSDKInstructionsStep:
-			updated, cmd = m.steps[showSDKInstructionsStep].Update(fetchSDKInstructionsMsg{
-				canonicalName: m.sdk.canonicalName,
-				flagKey:       m.flagKey,
-				name:          m.sdk.displayName,
-			})
-			if model, ok := updated.(showSDKInstructionsModel); ok {
-				model.sdk = m.sdk.displayName
-				m.steps[showSDKInstructionsStep] = model
-			}
-		default:
-		}
 	case errMsg:
 		m.err = msg.err
+	case fetchSDKInstructionsMsg:
+		updated, cmd = m.steps[showSDKInstructionsStep].Update(fetchSDKInstructionsMsg{
+			canonicalName: m.sdk.canonicalName,
+			flagKey:       m.flagKey,
+			name:          m.sdk.displayName,
+		})
+		if model, ok := updated.(showSDKInstructionsModel); ok {
+			model.sdk = m.sdk.displayName
+			m.steps[showSDKInstructionsStep] = model
+		}
 	case noInstructionsMsg:
 		m.currentStep += 1
 
