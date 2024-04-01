@@ -3,6 +3,7 @@ package members_test
 import (
 	"testing"
 
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,11 +14,14 @@ import (
 
 func TestInvite(t *testing.T) {
 	errorHelp := ". See `ldcli members invite --help` for supported flags and usage."
+	readerRole := "reader"
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		[]string{"testemail1@test.com", "testemail2@test.com"},
-		"reader",
+		[]ldapi.NewMemberForm{
+			{Email: "testemail1@test.com", Role: &readerRole},
+			{Email: "testemail2@test.com", Role: &readerRole},
+		},
 	}
 	t.Run("with valid flags calls members API", func(t *testing.T) {
 		client := members.MockClient{}

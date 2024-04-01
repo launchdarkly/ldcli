@@ -22,12 +22,12 @@ func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 		Use:   "invite",
 	}
 
-	cmd.Flags().StringSliceP("emails", "e", []string{}, "A comma separated list of emails")
-	err := cmd.MarkFlagRequired("emails")
+	cmd.Flags().StringSliceP(cliflags.EmailsFlag, "e", []string{}, "A comma separated list of emails")
+	err := cmd.MarkFlagRequired(cliflags.EmailsFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("emails", cmd.Flags().Lookup("emails"))
+	err = viper.BindPFlag(cliflags.EmailsFlag, cmd.Flags().Lookup(cliflags.EmailsFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -47,14 +47,13 @@ func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 }
 
 func runInvite(client members.Client) func(*cobra.Command, []string) error {
-	emails := viper.GetStringSlice(cliflags.EmailsFlag)
-	members := make([]ldapi.NewMemberForm, 0, len(emails))
-	for _, e := range emails {
-		role := viper.GetString(cliflags.RoleFlag)
-		members = append(members, ldapi.NewMemberForm{Email: e, Role: &role})
-	}
-
 	return func(cmd *cobra.Command, args []string) error {
+		emails := viper.GetStringSlice(cliflags.EmailsFlag)
+		members := make([]ldapi.NewMemberForm, 0, len(emails))
+		for _, e := range emails {
+			role := viper.GetString(cliflags.RoleFlag)
+			members = append(members, ldapi.NewMemberForm{Email: e, Role: &role})
+		}
 		response, err := client.Create(
 			context.Background(),
 			viper.GetString(cliflags.AccessTokenFlag),
