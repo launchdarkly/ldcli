@@ -115,6 +115,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case errMsg:
 		m.err = msg.err
+	case noInstructionsMsg:
+		m.currentStep += 1
+
+		return m, cmd
 	default:
 	}
 
