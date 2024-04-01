@@ -3,8 +3,6 @@ package flags
 import (
 	"context"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
-
 	"github.com/stretchr/testify/mock"
 )
 
@@ -33,7 +31,7 @@ func (c *MockClient) Update(
 	baseURI,
 	key,
 	projKey string,
-	patch []ldapi.PatchOperation,
+	patch []UpdateInput,
 ) ([]byte, error) {
 	args := c.Called(accessToken, baseURI, projKey, key, patch)
 
