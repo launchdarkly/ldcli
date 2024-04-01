@@ -16,10 +16,9 @@ func (c *MockClient) Create(
 	ctx context.Context,
 	accessToken string,
 	baseURI string,
-	emails []string,
-	role string,
+	memberInputs []MemberInput,
 ) ([]byte, error) {
-	args := c.Called(accessToken, baseURI, emails, role)
+	args := c.Called(accessToken, baseURI, memberInputs)
 
 	return args.Get(0).([]byte), args.Error(1)
 }

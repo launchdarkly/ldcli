@@ -4,7 +4,6 @@ import (
 	"ldcli/cmd"
 	"testing"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,7 +18,7 @@ func TestUpdate(t *testing.T) {
 		"http://test.com",
 		"test-proj-key",
 		"test-key",
-		[]ldapi.PatchOperation{
+		[]flags.UpdateInput{
 			{
 				Op:    "replace",
 				Path:  "/name",

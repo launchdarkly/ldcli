@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -62,7 +61,7 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 		_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
-		var patch []ldapi.PatchOperation
+		var patch []flags.UpdateInput
 		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &patch)
 		if err != nil {
 			return err
