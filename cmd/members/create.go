@@ -16,18 +16,18 @@ import (
 func NewCreateCmd(client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
-		Long:  "Create a new member",
+		Long:  "Create a new member and send them an invitation email",
 		RunE:  runCreate(client),
 		Short: "Create a new member",
 		Use:   "create",
 	}
 
-	cmd.Flags().StringP("data", "d", "", "Input data in JSON")
-	err := cmd.MarkFlagRequired("data")
+	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
+	err := cmd.MarkFlagRequired(cliflags.DataFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("data", cmd.Flags().Lookup("data"))
+	err = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -43,15 +43,15 @@ type inputData struct {
 func runCreate(client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		var data inputData
-		// TODO: why does viper.GetString("data") not work?
-		err := json.Unmarshal([]byte(cmd.Flags().Lookup("data").Value.String()), &data)
+		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
+		err := json.Unmarshal([]byte(cmd.Flags().Lookup(cliflags.DataFlag).Value.String()), &data)
 		if err != nil {
 			return err
 		}
 
 		response, err := client.Create(
 			context.Background(),
-			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			[]string{data.Email},
 			data.Role,

@@ -15,7 +15,7 @@ import (
 func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
-		Long:  "Invite new members",
+		Long:  "Create new members and send them an invitation email",
 		RunE:  runInvite(client),
 		Short: "Invite new members",
 		Use:   "invite",
@@ -47,10 +47,9 @@ func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 
 func runInvite(client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-
 		response, err := client.Create(
 			context.Background(),
-			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetStringSlice(cliflags.EmailsFlag),
 			viper.GetString(cliflags.RoleFlag),

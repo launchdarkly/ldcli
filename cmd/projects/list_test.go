@@ -24,7 +24,7 @@ func TestList(t *testing.T) {
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"projects", "list",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
 		}
 
@@ -41,7 +41,7 @@ func TestList(t *testing.T) {
 			Return([]byte(`{}`), errors.NewError("an error"))
 		args := []string{
 			"projects", "list",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
 		}
 
@@ -57,24 +57,24 @@ func TestList(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token" not set`+errorHelp)
 	})
 
 	t.Run("with missing long flag value is an error", func(t *testing.T) {
 		args := []string{
 			"projects", "list",
-			"--api-token",
+			"--access-token",
 		}
 
 		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
 
-		assert.EqualError(t, err, `flag needs an argument: --api-token`)
+		assert.EqualError(t, err, `flag needs an argument: --access-token`)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
 		args := []string{
 			"projects", "list",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "invalid",
 		}
 
