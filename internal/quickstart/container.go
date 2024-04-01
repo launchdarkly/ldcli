@@ -17,6 +17,7 @@ const (
 	createFlagStep step = iota
 	chooseSDKStep
 	showSDKInstructionsStep
+	toggleFlagStep
 )
 
 // ContainerModel is a high level container model that controls the nested models wher each
@@ -40,6 +41,7 @@ func NewContainerModel(flagsClient flags.Client) tea.Model {
 			NewCreateFlagModel(flagsClient),
 			NewChooseSDKModel(),
 			NewShowSDKInstructionsModel(),
+			NewToggleFlagModel(),
 		},
 	}
 }
@@ -127,7 +129,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m ContainerModel) View() string {
 	// TODO: remove after creating more steps
-	if m.currentStep > showSDKInstructionsStep {
+	if m.currentStep > toggleFlagStep {
 		return fmt.Sprintf("created flag %s\nselected the %s SDK", m.flagKey, m.sdk.displayName)
 	}
 
