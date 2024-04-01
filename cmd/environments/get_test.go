@@ -26,7 +26,7 @@ func TestGet(t *testing.T) {
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"environments", "get",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}
@@ -44,7 +44,7 @@ func TestGet(t *testing.T) {
 			Return([]byte(`{}`), errors.NewError("An error"))
 		args := []string{
 			"environments", "get",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}
@@ -61,7 +61,7 @@ func TestGet(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, &environments.MockClient{}, nil, nil, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token", "environment", "project" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "project" not set`+errorHelp)
 	})
 
 	t.Run("with missing short flag value is an error", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestGet(t *testing.T) {
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
 		args := []string{
 			"environments", "get",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "invalid",
 			"--environment", "test-env",
 			"--project", "test-proj",

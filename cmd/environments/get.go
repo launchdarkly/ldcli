@@ -52,7 +52,7 @@ func runGet(client environments.Client) func(*cobra.Command, []string) error {
 
 		response, err := client.Get(
 			context.Background(),
-			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetString(cliflags.EnvironmentFlag),
 			viper.GetString(cliflags.ProjectFlag),

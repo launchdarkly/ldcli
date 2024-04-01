@@ -27,7 +27,7 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"projects",
 			"create",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
@@ -49,7 +49,7 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"projects",
 			"create",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
@@ -70,7 +70,7 @@ func TestCreate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token", "data" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "data" not set`+errorHelp)
 	})
 
 	t.Run("with missing short flag value is an error", func(t *testing.T) {

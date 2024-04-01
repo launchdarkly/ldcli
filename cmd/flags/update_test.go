@@ -34,7 +34,7 @@ func TestUpdate(t *testing.T) {
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"flags", "update",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
 			"--flag", "test-key",
@@ -54,7 +54,7 @@ func TestUpdate(t *testing.T) {
 			Return([]byte(`{}`), errors.NewError("An error"))
 		args := []string{
 			"flags", "update",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
 			"--flag", "test-key",
@@ -73,13 +73,13 @@ func TestUpdate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token", "data", "flag", "project" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "data", "flag", "project" not set`+errorHelp)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
 		args := []string{
 			"flags", "update",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "invalid",
 			"-d", `{"key": "test-key", "name": "test-name"}`,
 			"--project", "test-proj-key",

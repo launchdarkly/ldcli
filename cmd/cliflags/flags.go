@@ -1,7 +1,7 @@
 package cliflags
 
 const (
-	APITokenFlag    = "api-token"
+	AccessTokenFlag = "access-token"
 	BaseURIFlag     = "base-uri"
 	EmailsFlag      = "emails"
 	EnvironmentFlag = "environment"

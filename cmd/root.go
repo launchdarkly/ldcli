@@ -40,15 +40,15 @@ func NewRootCommand(
 	}
 
 	cmd.PersistentFlags().String(
-		cliflags.APITokenFlag,
+		cliflags.AccessTokenFlag,
 		"",
 		"LaunchDarkly API token",
 	)
-	err := cmd.MarkPersistentFlagRequired(cliflags.APITokenFlag)
+	err := cmd.MarkPersistentFlagRequired(cliflags.AccessTokenFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag(cliflags.APITokenFlag, cmd.PersistentFlags().Lookup(cliflags.APITokenFlag))
+	err = viper.BindPFlag(cliflags.AccessTokenFlag, cmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag))
 	if err != nil {
 		return nil, err
 	}

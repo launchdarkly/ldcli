@@ -27,7 +27,7 @@ func TestInvite(t *testing.T) {
 		args := []string{
 			"members",
 			"invite",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
@@ -49,7 +49,7 @@ func TestInvite(t *testing.T) {
 		args := []string{
 			"members",
 			"invite",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
@@ -70,7 +70,7 @@ func TestInvite(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, nil, nil, &members.MockClient{}, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token", "emails" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "emails" not set`+errorHelp)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestInviteWithOptionalRole(t *testing.T) {
 		args := []string{
 			"members",
 			"invite",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
@@ -125,7 +125,7 @@ func TestInviteWithOptionalRole(t *testing.T) {
 		args := []string{
 			"members",
 			"invite",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
