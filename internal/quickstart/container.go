@@ -60,7 +60,6 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.Quit):
 			m.quitting = true
-
 			return m, tea.Quit
 		case key.Matches(msg, keys.Enter):
 			switch m.currentStep {
@@ -96,6 +95,21 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmd = sendUpdateToggleFlagModelMsg()
 
 			default:
+			}
+		case key.Matches(msg, keys.Toggle) && m.currentStep == toggleFlagStep:
+			updated, cmd = m.steps[toggleFlagStep].Update(msg)
+			if model, ok := updated.(toggleFlagModel); ok {
+				if model.err != nil {
+					m.err = model.err
+					if model.quitting {
+						m.quitMsg = model.quitMsg
+						m.quitting = true
+
+						return m, cmd
+					}
+					return m, nil
+				}
+				m.steps[toggleFlagStep] = model
 			}
 		default:
 			// delegate all other input to the current model

@@ -3,6 +3,7 @@ package quickstart
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -17,6 +18,7 @@ const defaultProjectKey = "default"
 type toggleFlagModel struct {
 	client   flags.Client
 	enabled  bool
+	on       bool
 	err      error
 	flagKey  string
 	quitMsg  string
@@ -37,7 +39,10 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Toggle):
-			m.enabled = !m.enabled
+			m.on = !m.on
+			if m.on {
+				m.enabled = true
+			}
 			m, cmd = m.patchFlag(context.Background())
 		}
 	case updateToggleFlagModelMsg:
@@ -48,14 +53,19 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m toggleFlagModel) View() string {
+	var furtherInstructions string
 	title := "Toggle your feature flag (press tab)"
 	toggle := "OFF"
 	bgColor := "#646a73"
 	margin := 1
-	if m.enabled {
+	if m.on {
 		bgColor = "#3d9c51"
 		margin = 2
 		toggle = "ON"
+	}
+
+	if m.enabled {
+		furtherInstructions = fmt.Sprintf("\n\nCheck your <LOGS> to see the change!")
 	}
 
 	toggleStyle := lipgloss.NewStyle().
@@ -63,7 +73,7 @@ func (m toggleFlagModel) View() string {
 		Padding(0, 1).
 		MarginRight(margin)
 
-	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey
+	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions
 }
 
 func (m toggleFlagModel) patchFlag(ctx context.Context) (toggleFlagModel, tea.Cmd) {
@@ -73,7 +83,7 @@ func (m toggleFlagModel) patchFlag(ctx context.Context) (toggleFlagModel, tea.Cm
 		viper.GetString(cliflags.BaseURIFlag),
 		m.flagKey,
 		defaultProjectKey,
-		flags.BuildToggleFlagPatch(defaultEnvironmentKey, m.enabled),
+		flags.BuildToggleFlagPatch(defaultEnvironmentKey, m.on),
 	)
 
 	if err != nil {
