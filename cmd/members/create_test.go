@@ -13,11 +13,11 @@ import (
 
 func TestCreate(t *testing.T) {
 	errorHelp := ". See `ldcli members create --help` for supported flags and usage."
+	role := "writer"
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		[]string{"testemail@test.com"},
-		"writer",
+		[]members.MemberInput{{Email: "testemail@test.com", Role: role}},
 	}
 	t.Run("with valid flags calls members API", func(t *testing.T) {
 		client := members.MockClient{}
@@ -32,7 +32,7 @@ func TestCreate(t *testing.T) {
 			"--base-uri",
 			"http://test.com",
 			"-d",
-			`{"email": "testemail@test.com", "role": "writer"}`,
+			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
 		output, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
@@ -54,7 +54,7 @@ func TestCreate(t *testing.T) {
 			"--base-uri",
 			"http://test.com",
 			"-d",
-			`{"email": "testemail@test.com", "role": "writer"}`,
+			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
 		_, err := cmd.CallCmd(t, nil, nil, &client, nil, args)

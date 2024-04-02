@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -121,7 +120,7 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 		_ = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
 
-		var patch []ldapi.PatchOperation
+		var patch []flags.UpdateInput
 		if cmd.CalledAs() == "toggle-on" || cmd.CalledAs() == "toggle-off" {
 			_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
 			err := json.Unmarshal([]byte(buildPatch(viper.GetString(cliflags.EnvironmentFlag), cmd.CalledAs() == "toggle-on")), &patch)

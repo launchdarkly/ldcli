@@ -13,11 +13,14 @@ import (
 
 func TestInvite(t *testing.T) {
 	errorHelp := ". See `ldcli members invite --help` for supported flags and usage."
+	readerRole := "reader"
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		[]string{"testemail1@test.com", "testemail2@test.com"},
-		"reader",
+		[]members.MemberInput{
+			{Email: "testemail1@test.com", Role: readerRole},
+			{Email: "testemail2@test.com", Role: readerRole},
+		},
 	}
 	t.Run("with valid flags calls members API", func(t *testing.T) {
 		client := members.MockClient{}
@@ -87,11 +90,14 @@ func TestInvite(t *testing.T) {
 }
 
 func TestInviteWithOptionalRole(t *testing.T) {
+	writerRole := "writer"
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		[]string{"testemail1@test.com", "testemail2@test.com"},
-		"writer",
+		[]members.MemberInput{
+			{Email: "testemail1@test.com", Role: writerRole},
+			{Email: "testemail2@test.com", Role: writerRole},
+		},
 	}
 	t.Run("with valid optional long form flag calls members API", func(t *testing.T) {
 		client := members.MockClient{}
