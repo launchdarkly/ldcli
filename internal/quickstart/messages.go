@@ -18,13 +18,16 @@ type fetchSDKInstructionsMsg struct {
 	canonicalName string
 	flagKey       string
 	name          string
+	url           string
 }
 
-func sendFetchSDKInstructionsMsg(canonicalName string, displayName string) tea.Cmd {
+func sendFetchSDKInstructionsMsg(sdk sdkDetail, flagKey string) tea.Cmd {
 	return func() tea.Msg {
 		return fetchSDKInstructionsMsg{
-			canonicalName: canonicalName,
-			name:          displayName,
+			canonicalName: sdk.canonicalName,
+			flagKey:       flagKey,
+			name:          sdk.displayName,
+			url:           sdk.url,
 		}
 	}
 }

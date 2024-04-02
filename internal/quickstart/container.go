@@ -85,7 +85,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if model, ok := updated.(chooseSDKModel); ok {
 					m.sdk = model.selectedSDK
 					m.currentStep += 1
-					cmd = sendFetchSDKInstructionsMsg(m.sdk.canonicalName, m.sdk.displayName)
+					cmd = sendFetchSDKInstructionsMsg(m.sdk, m.flagKey)
 
 				}
 			case showSDKInstructionsStep:
@@ -105,11 +105,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.err = msg.err
 	case fetchSDKInstructionsMsg:
-		updated, cmd = m.steps[showSDKInstructionsStep].Update(fetchSDKInstructionsMsg{
-			canonicalName: m.sdk.canonicalName,
-			flagKey:       m.flagKey,
-			name:          m.sdk.displayName,
-		})
+		updated, cmd = m.steps[showSDKInstructionsStep].Update(msg)
 		if model, ok := updated.(showSDKInstructionsModel); ok {
 			model.sdk = m.sdk.displayName
 			m.steps[showSDKInstructionsStep] = model

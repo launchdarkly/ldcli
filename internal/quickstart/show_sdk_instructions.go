@@ -25,7 +25,6 @@ func NewShowSDKInstructionsModel() tea.Model {
 }
 
 func (m showSDKInstructionsModel) Init() tea.Cmd {
-	// send command to make request?
 	return nil
 }
 
@@ -33,6 +32,9 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case fetchSDKInstructionsMsg:
 		url := fmt.Sprintf(instructionsURL, msg.canonicalName)
+		if msg.url != "" {
+			url = msg.url
+		}
 		c := &http.Client{
 			Timeout: 5 * time.Second,
 		}
