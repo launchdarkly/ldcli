@@ -101,12 +101,12 @@ func setToggleCommandFlags(cmd *cobra.Command) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	cmd.Flags().String("projKey", "", "Project key")
-	err = cmd.MarkFlagRequired("projKey")
+	cmd.Flags().String(cliflags.ProjectFlag, "", "Project key")
+	err = cmd.MarkFlagRequired(cliflags.ProjectFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("projKey", cmd.Flags().Lookup("projKey"))
+	err = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -119,11 +119,12 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 		// rebind flags used in other subcommands
 		_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
+		_ = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
 
 		var patch []ldapi.PatchOperation
 		if cmd.CalledAs() == "toggle-on" || cmd.CalledAs() == "toggle-off" {
-			_ = viper.BindPFlag("envKey", cmd.Flags().Lookup("envKey"))
-			err := json.Unmarshal([]byte(buildPatch(viper.GetString("envKey"), cmd.CalledAs() == "toggle-on")), &patch)
+			_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
+			err := json.Unmarshal([]byte(buildPatch(viper.GetString(cliflags.EnvironmentFlag), cmd.CalledAs() == "toggle-on")), &patch)
 			if err != nil {
 				return err
 			}
