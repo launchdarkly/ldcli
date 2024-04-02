@@ -121,7 +121,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.err = msg.err
 	case updateToggleFlagModelMsg:
-		updated, cmd = m.steps[toggleFlagStep].Update(updateToggleFlagModelMsg{flagKey: m.flagKey})
+		updated, cmd = m.steps[toggleFlagStep].Update(updateToggleFlagModelMsg{
+			flagKey: m.flagKey,
+			sdkKind: m.sdk.kind,
+		})
 		if model, ok := updated.(toggleFlagModel); ok {
 			m.steps[toggleFlagStep] = model
 		}

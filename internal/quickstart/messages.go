@@ -40,6 +40,7 @@ func sendNoInstructions() tea.Cmd {
 
 type updateToggleFlagModelMsg struct {
 	flagKey string
+	sdkKind string
 }
 
 func sendUpdateToggleFlagModelMsg() tea.Cmd {

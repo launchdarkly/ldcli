@@ -15,6 +15,11 @@ import (
 const defaultEnvironmentKey = "test"
 const defaultProjectKey = "default"
 
+var logTypeMap = map[string]string{
+	serverSideSDK: "application logs",
+	clientSideSDK: "browser",
+}
+
 type toggleFlagModel struct {
 	client   flags.Client
 	enabled  bool
@@ -23,6 +28,7 @@ type toggleFlagModel struct {
 	flagKey  string
 	quitMsg  string
 	quitting bool
+	sdkKind  string
 }
 
 func NewToggleFlagModel(client flags.Client) toggleFlagModel {
@@ -47,7 +53,7 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case updateToggleFlagModelMsg:
 		m.flagKey = msg.flagKey
-
+		m.sdkKind = msg.sdkKind
 	}
 	return m, cmd
 }
@@ -65,7 +71,7 @@ func (m toggleFlagModel) View() string {
 	}
 
 	if m.enabled {
-		furtherInstructions = fmt.Sprintf("\n\nCheck your <LOGS> to see the change!")
+		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
 	}
 
 	toggleStyle := lipgloss.NewStyle().
