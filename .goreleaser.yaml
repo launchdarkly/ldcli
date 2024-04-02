@@ -23,3 +23,4 @@ brews:
     commit_author:
       name: LaunchDarklyReleaseBot
       email: launchdarklyreleasebot@launchdarkly.com
+      
