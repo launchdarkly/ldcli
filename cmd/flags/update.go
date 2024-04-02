@@ -25,7 +25,6 @@ func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 
 	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
 	err := cmd.MarkFlagRequired(cliflags.DataFlag)
-
 	if err != nil {
 		return nil, err
 	}
@@ -57,34 +56,47 @@ func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func NewToggleUpdateCmd(client flags.Client) (*cobra.Command, error) {
+func NewToggleOnUpdateCmd(client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Args:    validators.Validate(),
-		Long:    "Update a flag",
-		RunE:    runUpdate(client),
-		Short:   "Update a flag",
-		Use:     "toggle-on",
-		Aliases: []string{"toggle-off"},
+		Args:  validators.Validate(),
+		Long:  "Turn a flag on",
+		RunE:  runUpdate(client),
+		Short: "Turn a flag on",
+		Use:   "toggle-on",
 	}
 
-	var err error
+	return setToggleCommandFlags(cmd)
+}
 
-	cmd.Flags().String("envKey", "", "Environment key")
-	err = cmd.MarkFlagRequired("envKey")
+func NewToggleOffUpdateCmd(client flags.Client) (*cobra.Command, error) {
+	cmd := &cobra.Command{
+		Args:  validators.Validate(),
+		Long:  "Turn a flag off",
+		RunE:  runUpdate(client),
+		Short: "Turn a flag off",
+		Use:   "toggle-off",
+	}
+
+	return setToggleCommandFlags(cmd)
+}
+
+func setToggleCommandFlags(cmd *cobra.Command) (*cobra.Command, error) {
+	cmd.Flags().StringP(cliflags.EnvironmentFlag, "e", "", "Environment key")
+	err := cmd.MarkFlagRequired(cliflags.EnvironmentFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("envKey", cmd.Flags().Lookup("envKey"))
+	err = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
 	if err != nil {
 		return nil, err
 	}
 
-	cmd.Flags().String("key", "", "Flag key")
-	err = cmd.MarkFlagRequired("key")
+	cmd.Flags().String(cliflags.FlagFlag, "", "Flag key")
+	err = cmd.MarkFlagRequired(cliflags.FlagFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("key", cmd.Flags().Lookup("key"))
+	err = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
 	if err != nil {
 		return nil, err
 	}
