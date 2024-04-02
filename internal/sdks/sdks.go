@@ -1,6 +1,7 @@
 package sdks
 
 import (
+	"log"
 	"strings"
 )
 
@@ -26,6 +27,7 @@ func ReplaceFlagKey(instructions string, key string) string {
 // ReplaceSDKKey changes the placeholder flag key in the SDK instructions to the flag key from
 // the user.
 func ReplaceSDKKey(instructions string, key string) string {
+	log.Println("ReplaceSDKKey", key)
 	r := strings.NewReplacer(
 		"1234567890abcdef",
 		key,

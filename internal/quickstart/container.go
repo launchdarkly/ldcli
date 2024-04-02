@@ -2,6 +2,7 @@ package quickstart
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,6 +31,8 @@ type ContainerModel struct {
 	quitting    bool
 	sdk         sdkDetail
 	steps       []tea.Model
+
+	currentModel tea.Model
 }
 
 func NewContainerModel(flagsClient flags.Client) tea.Model {
@@ -39,7 +42,7 @@ func NewContainerModel(flagsClient flags.Client) tea.Model {
 		steps: []tea.Model{
 			NewCreateFlagModel(flagsClient),
 			NewChooseSDKModel(),
-			NewShowSDKInstructionsModel(),
+			// NewShowSDKInstructionsModel(),
 		},
 	}
 }
@@ -61,6 +64,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, tea.Quit
 		case key.Matches(msg, keys.Enter):
+			log.Println("container received enter", m.currentStep)
 			switch m.currentStep {
 			case createFlagStep:
 				updated, cmd = m.steps[createFlagStep].Update(msg)
@@ -81,13 +85,12 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currentStep += 1
 				}
 			case chooseSDKStep:
-				updated, cmd = m.steps[chooseSDKStep].Update(msg)
-				if model, ok := updated.(chooseSDKModel); ok {
-					m.sdk = model.selectedSDK
-					m.currentStep += 1
-					cmd = sendFetchSDKInstructionsMsg(m.sdk, m.flagKey)
-
-				}
+				_, cmd = m.steps[chooseSDKStep].Update(msg)
+				// if model, ok := updated.(chooseSDKModel); ok {
+				// 	m.sdk = model.selectedSDK
+				// 	m.currentStep += 1
+				// 	cmd = sendFetchSDKInstructionsMsg(m.sdk, m.flagKey)
+				// }
 			case showSDKInstructionsStep:
 				_, cmd := m.steps[showSDKInstructionsStep].Update(msg)
 				m.currentStep += 1
@@ -105,6 +108,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.err = msg.err
 	case fetchSDKInstructionsMsg:
+		log.Println("container fetchSDKInstructionsMsg")
 		updated, cmd = m.steps[showSDKInstructionsStep].Update(msg)
 		if model, ok := updated.(showSDKInstructionsModel); ok {
 			model.sdk = m.sdk.displayName
@@ -114,7 +118,18 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentStep += 1
 
 		return m, cmd
+	case choseSDKMsg:
+		log.Println("container choseSDKMsg")
+		m.currentModel = NewShowSDKInstructionsModel(msg.canonicalName, msg.url, msg.flagKey)
+		cmd = m.currentModel.Init()
+	case fetchedSDKInstructions, fetchedEnv:
+		// 	log.Println("container fetchedSDKInstructions")
+		// 	m.currentModel, cmd = m.currentModel.Update(msg)
+		// case fetchedEnv:
+		// 	log.Println("container fetchedEnv")
+		m.currentModel, cmd = m.currentModel.Update(msg)
 	default:
+		log.Println("container default", msg)
 	}
 
 	return m, cmd
@@ -127,6 +142,10 @@ func (m ContainerModel) View() string {
 	}
 
 	out := fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))
+	if m.currentModel != nil {
+		out = fmt.Sprintf("\nStep %d of %d\n"+m.currentModel.View(), m.currentStep+1, len(m.steps))
+	}
+
 	if m.err != nil {
 		if m.quitting {
 			out := m.quitMsg + "\n\n"
