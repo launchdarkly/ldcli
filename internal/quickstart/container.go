@@ -41,7 +41,7 @@ func NewContainerModel(flagsClient flags.Client) tea.Model {
 			NewCreateFlagModel(flagsClient),
 			NewChooseSDKModel(),
 			NewShowSDKInstructionsModel(),
-			NewToggleFlagModel(),
+			NewToggleFlagModel(flagsClient),
 		},
 	}
 }
