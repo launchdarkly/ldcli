@@ -21,21 +21,25 @@ type showSDKInstructionsModel struct {
 	flagKey       string
 	url           string
 	sdkKey        string
+	accessToken   string
+	baseUri       string
 }
 
-func NewShowSDKInstructionsModel(canonicalName string, url string, flagKey string) tea.Model {
+func NewShowSDKInstructionsModel(accessToken string, baseUri string, canonicalName string, url string, flagKey string) tea.Model {
 	return showSDKInstructionsModel{
 		canonicalName: canonicalName,
 		url:           url,
 		flagKey:       flagKey,
+		accessToken:   accessToken,
+		baseUri:       baseUri,
 	}
 }
 
 func (m showSDKInstructionsModel) Init() tea.Cmd {
 	log.Println("showSDKInstructionsModel Init")
 	return tea.Sequence(
-		sendFetchSDKInstructionsMsg2(m.url),
-		sendFetchEnv("test", "default"),
+		sendFetchSDKInstructionsMsg(m.url),
+		sendFetchEnv(m.accessToken, m.baseUri, "test", "default"),
 	)
 }
 

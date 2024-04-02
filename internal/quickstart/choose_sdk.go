@@ -59,7 +59,7 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selectedSDK = i
 			}
 
-			return m, sendChoseSDKMsg(i, "my-flag-key") // m.flagKey
+			return m, sendChoseSDKMsg(i)
 		// case key.Matches(msg, keys.Quit):
 		// 	return m, tea.Quit
 		default:

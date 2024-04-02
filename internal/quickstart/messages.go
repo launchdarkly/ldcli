@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"ldcli/internal/environments"
+	"ldcli/internal/flags"
 	"log"
 	"net/http"
 
@@ -24,6 +25,56 @@ func sendErr(err error) tea.Cmd {
 	}
 }
 
+type createFlagMsg struct {
+	flagName string
+	flagKey  string
+	projKey  string
+}
+
+type createdFlagMsg struct {
+	flagKey string
+}
+
+func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flagKey, projKey string) tea.Cmd {
+	return func() tea.Msg {
+		_, _ = client.Create(
+			context.Background(),
+			accessToken,
+			baseUri,
+			flagName,
+			flagKey,
+			"default",
+		)
+		//if err != nil {
+		//	return sendErr(err)
+		//}
+		//if err != nil {
+		//	m.err = err
+		//	// TODO: we may want a more robust error type so we don't need to do this
+		//	var e struct {
+		//		Code    string `json:"code"`
+		//		Message string `json:"message"`
+		//	}
+		//	_ = json.Unmarshal([]byte(m.err.Error()), &e)
+		//	switch {
+		//	case e.Code == "unauthorized":
+		//		m.quitting = true
+		//		m.quitMsg = "Your API key is unauthorized. Try another API key or speak to a LaunchDarkly account administrator."
+		//
+		//		return m, tea.Quit
+		//	case e.Code == "forbidden":
+		//		m.quitting = true
+		//		m.quitMsg = "You lack access to complete this action. Try authenticating with elevated access or speak to a LaunchDarkly account administrator."
+		//
+		//		return m, tea.Quit
+		//	}
+		//
+		//	return m, nil
+
+		return createdFlagMsg{flagKey: flagKey}
+	}
+}
+
 type fetchSDKInstructionsMsg struct {
 	canonicalName string
 	flagKey       string
@@ -38,11 +89,10 @@ type fetchedSDKInstructions struct {
 type choseSDKMsg struct {
 	canonicalName string
 	displayName   string
-	flagKey       string
 	url           string
 }
 
-func sendChoseSDKMsg(sdk sdkDetail, flagKey string) tea.Cmd {
+func sendChoseSDKMsg(sdk sdkDetail) tea.Cmd {
 	return func() tea.Msg {
 		if sdk.url == "" {
 			sdk.url = fmt.Sprintf("https://raw.githubusercontent.com/launchdarkly/hello-%s/main/README.md", sdk.canonicalName)
@@ -51,16 +101,15 @@ func sendChoseSDKMsg(sdk sdkDetail, flagKey string) tea.Cmd {
 		return choseSDKMsg{
 			canonicalName: sdk.canonicalName,
 			displayName:   sdk.displayName,
-			flagKey:       flagKey,
 			url:           sdk.url,
 		}
 	}
 }
 
 // TODO: rename
-func sendFetchSDKInstructionsMsg2(url string) tea.Cmd {
+func sendFetchSDKInstructionsMsg(url string) tea.Cmd {
 	return func() tea.Msg {
-		log.Println("sendFetchSDKInstructionsMsg2")
+		log.Println("sendFetchSDKInstructionsMsg")
 		resp, err := http.Get(url)
 		if err != nil {
 			return errMsg{err: err}
@@ -80,19 +129,14 @@ func sendFetchSDKInstructionsMsg2(url string) tea.Cmd {
 	}
 }
 
-type fetchEnv struct {
-	key     string
-	projKey string
-}
-
 type fetchedEnv struct {
 	sdkKey string
 }
 
-func sendFetchEnv(key string, projKey string) tea.Cmd {
+func sendFetchEnv(accessToken string, baseUri string, key string, projKey string) tea.Cmd {
 	return func() tea.Msg {
 		client := environments.NewClient("0.2.0")
-		response, err := client.Get(context.Background(), "api-1fe1f428-bf2e-453e-9790-4a260fdf3391", "http://localhost:3000", key, projKey)
+		response, err := client.Get(context.Background(), accessToken, baseUri, key, projKey)
 		if err != nil {
 			return errMsg{err: err}
 		}
@@ -106,17 +150,6 @@ func sendFetchEnv(key string, projKey string) tea.Cmd {
 		}
 
 		return fetchedEnv{sdkKey: resp.SDKKey}
-	}
-}
-
-func sendFetchSDKInstructionsMsg(sdk sdkDetail, flagKey string) tea.Cmd {
-	return func() tea.Msg {
-		return fetchSDKInstructionsMsg{
-			canonicalName: sdk.canonicalName,
-			flagKey:       flagKey,
-			name:          sdk.displayName,
-			url:           sdk.url,
-		}
 	}
 }
 
