@@ -3,6 +3,7 @@ package flags
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
@@ -91,4 +92,8 @@ func (c FlagsClient) Update(
 	}
 
 	return responseJSON, nil
+}
+
+func BuildToggleFlagPatch(envKey string, enabled bool) []UpdateInput {
+	return []UpdateInput{{Op: "replace", Path: fmt.Sprintf("/environments/%s/on", envKey), Value: enabled}}
 }

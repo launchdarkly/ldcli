@@ -11,6 +11,9 @@ import (
 	"ldcli/internal/flags"
 )
 
+const defaultEnvironmentKey = "test"
+const defaultProjectKey = "default"
+
 type toggleFlagModel struct {
 	client   flags.Client
 	enabled  bool
@@ -69,13 +72,13 @@ func (m toggleFlagModel) patchFlag(ctx context.Context) (toggleFlagModel, tea.Cm
 		viper.GetString(cliflags.AccessTokenFlag),
 		viper.GetString(cliflags.BaseURIFlag),
 		m.flagKey,
-		"default",
-		m.buildPatch(),
+		defaultProjectKey,
+		flags.BuildToggleFlagPatch(defaultEnvironmentKey, m.enabled),
 	)
 
 	if err != nil {
 		m.err = err
-		// TODO: we may want a more robust error type so we don't need to do this
+		// TODO: refactor with flag create model
 		var e struct {
 			Code    string `json:"code"`
 			Message string `json:"message"`
@@ -94,12 +97,8 @@ func (m toggleFlagModel) patchFlag(ctx context.Context) (toggleFlagModel, tea.Cm
 			return m, tea.Quit
 		}
 
-		return m, nil
+		return m, sendErr(err)
 	}
 
 	return m, nil
-}
-
-func (m toggleFlagModel) buildPatch() []flags.UpdateInput {
-	return []flags.UpdateInput{{Op: "replace", Path: "/environments/test/on", Value: m.enabled}}
 }
