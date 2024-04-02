@@ -1,0 +1,25 @@
+brews:
+  -
+    ids:
+    - ldcli
+    name: ldcli
+
+    description: Job for finding and sending feature flag code references to LaunchDarkly
+
+    homepage: "https://launchdarkly.com"
+
+    repository:
+      owner: launchdarkly
+      name: homebrew-tap
+      token: "{{ .Env.GITHUB_TOKEN }}"
+
+    folder: Formula
+
+    url_template: "https://github.com/launchdarkly/ldcli/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+
+    install: |
+      bin.install "ldcli"
+
+    commit_author:
+      name: LaunchDarklyReleaseBot
+      email: launchdarklyreleasebot@launchdarkly.com
