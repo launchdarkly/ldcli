@@ -93,6 +93,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				_, cmd = m.steps[showSDKInstructionsStep].Update(msg)
 				m.currentStep += 1
 				cmd = sendUpdateToggleFlagModelMsg()
+			case toggleFlagStep:
+				m.currentStep += 1
 
 			default:
 			}
@@ -152,7 +154,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m ContainerModel) View() string {
 	// TODO: remove after creating more steps
 	if m.currentStep > toggleFlagStep {
-		return fmt.Sprintf("created flag %s\nselected the %s SDK", m.flagKey, m.sdk.displayName)
+		return fmt.Sprintf("created flag %s\nselected the %s SDK,\ntoggled the flag", m.flagKey, m.sdk.displayName)
 	}
 
 	out := fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))

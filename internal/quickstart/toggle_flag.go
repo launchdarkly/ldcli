@@ -71,7 +71,7 @@ func (m toggleFlagModel) View() string {
 	}
 
 	if m.enabled {
-		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
+		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!\n\n(press enter to continue)", logTypeMap[m.sdkKind])
 	}
 
 	toggleStyle := lipgloss.NewStyle().
