@@ -4,7 +4,7 @@ brews:
     - ldcli
     name: ldcli
 
-    description: Job for finding and sending feature flag code references to LaunchDarkly
+    description: "LaunchDarkly CLI: feature management in your terminal"
 
     homepage: "https://launchdarkly.com"
 
