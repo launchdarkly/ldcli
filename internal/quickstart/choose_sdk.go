@@ -74,6 +74,7 @@ type sdkDetail struct {
 	canonicalName string
 	displayName   string
 	kind          string
+	url           string // custom URL if it differs from the other SDKs
 }
 
 func (s sdkDetail) FilterValue() string { return "" }
@@ -85,6 +86,12 @@ var SDKs = []sdkDetail{
 	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},
 	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
 	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK},
+	{
+		canonicalName: "vue",
+		displayName:   "Vue",
+		kind:          clientSideSDK,
+		url:           "https://raw.githubusercontent.com/launchdarkly/vue-client-sdk/main/example/README.md",
+	},
 	{canonicalName: "ios-swift", displayName: "iOS", kind: clientSideSDK},
 	{canonicalName: "go", displayName: "Go", kind: serverSideSDK},
 	{canonicalName: "android", displayName: "Android", kind: clientSideSDK},
