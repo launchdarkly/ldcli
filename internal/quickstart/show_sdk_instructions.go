@@ -3,15 +3,13 @@ package quickstart
 import (
 	"fmt"
 	"ldcli/internal/sdks"
-	"log"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 )
-
-const instructionsURL = "https://raw.githubusercontent.com/launchdarkly/hello-%s/main/README.md"
 
 type showSDKInstructionsModel struct {
 	instructions string
@@ -25,18 +23,23 @@ type showSDKInstructionsModel struct {
 	baseUri       string
 }
 
-func NewShowSDKInstructionsModel(accessToken string, baseUri string, canonicalName string, url string, flagKey string) tea.Model {
+func NewShowSDKInstructionsModel(
+	accessToken string,
+	baseUri string,
+	canonicalName string,
+	url string,
+	flagKey string,
+) tea.Model {
 	return showSDKInstructionsModel{
-		canonicalName: canonicalName,
-		url:           url,
-		flagKey:       flagKey,
 		accessToken:   accessToken,
 		baseUri:       baseUri,
+		canonicalName: canonicalName,
+		flagKey:       flagKey,
+		url:           url,
 	}
 }
 
 func (m showSDKInstructionsModel) Init() tea.Cmd {
-	log.Println("showSDKInstructionsModel Init")
 	return tea.Sequence(
 		sendFetchSDKInstructionsMsg(m.url),
 		sendFetchEnv(m.accessToken, m.baseUri, "test", "default"),
@@ -44,22 +47,22 @@ func (m showSDKInstructionsModel) Init() tea.Cmd {
 }
 
 func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Enter):
+			// TODO: only if all data are fetched?
+			cmd = sendShowToggleFlagMsg()
+		}
 	case fetchedSDKInstructions:
-		log.Println("showSDKInstructionsModel received fetchedSDKInstructions")
-		log.Println(string(msg.instructions))
 		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
-
-		// case fetchEnv:
-		// case
 	case fetchedEnv:
 		m.sdkKey = msg.sdkKey
 		m.instructions = sdks.ReplaceSDKKey(string(m.instructions), msg.sdkKey)
-	default:
-		log.Println("showSDKInstructionsModel default", msg)
 	}
 
-	return m, nil
+	return m, cmd
 }
 
 func (m showSDKInstructionsModel) View() string {

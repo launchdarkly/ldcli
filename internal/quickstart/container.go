@@ -11,27 +11,26 @@ import (
 	"ldcli/internal/flags"
 )
 
-// step is an identifier for each step in the quick-start flow.
-type step int
-
 // ContainerModel is a high level container model that controls the nested models wher each
 // represents a step in the quick-start flow.
 type ContainerModel struct {
 	err         error
 	flagKey     string
 	flagsClient flags.Client
-	quitMsg     string
+	quitMsg     string // TODO: set this?
 	quitting    bool
-	sdk         sdkDetail
-	steps       []tea.Model
 
+	accessToken  string
+	baseUri      string
 	currentModel tea.Model
 }
 
-func NewContainerModel(flagsClient flags.Client) tea.Model {
+func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri string) tea.Model {
 	return ContainerModel{
-		flagsClient:  flagsClient,
+		accessToken:  accessToken,
+		baseUri:      baseUri,
 		currentModel: NewCreateFlagModel(flagsClient),
+		flagsClient:  flagsClient,
 	}
 }
 
@@ -48,27 +47,24 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			cmd = tea.Quit
 		default:
-			log.Println("container received enter")
 			// delegate all other input to the current model
 			m.currentModel, cmd = m.currentModel.Update(msg)
 		}
-	case errMsg:
-		m.err = msg.err
+	case choseSDKMsg:
+		m.currentModel = NewShowSDKInstructionsModel(m.accessToken, m.baseUri, msg.canonicalName, msg.url, m.flagKey)
+		cmd = m.currentModel.Init()
 	case createdFlagMsg:
 		m.currentModel = NewChooseSDKModel()
 		m.flagKey = msg.flagKey // TODO: figure out if we maintain state here or pass in another message
+	case errMsg:
+		m.err = msg.err
 	case noInstructionsMsg:
-		// TODO: set as toggle flag model
-	case choseSDKMsg:
-		log.Println("container choseSDKMsg")
-		m.currentModel = NewShowSDKInstructionsModel(msg.canonicalName, msg.url, m.flagKey)
-		cmd = m.currentModel.Init()
+		// TODO: set currentModel to toggle flag model
+		// m.currentModel = NewToggleFlagModel(m.flagsClient, m.flagKey)
 	case fetchedSDKInstructions, fetchedEnv:
-		// 	log.Println("container fetchedSDKInstructions")
-		// 	m.currentModel, cmd = m.currentModel.Update(msg)
-		// case fetchedEnv:
-		// 	log.Println("container fetchedEnv")
 		m.currentModel, cmd = m.currentModel.Update(msg)
+	case showToggleFlagMsg:
+		m.currentModel = NewToggleFlagModel(m.flagKey)
 	default:
 		log.Println("container default - bad", msg)
 	}
@@ -105,6 +101,7 @@ func (m ContainerModel) View() string {
 type keyMap struct {
 	Enter key.Binding
 	Quit  key.Binding
+	Tab   key.Binding
 }
 
 var keys = keyMap{
@@ -115,5 +112,9 @@ var keys = keyMap{
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c"),
 		key.WithHelp("q", "quit"),
+	),
+	Tab: key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "toggle"),
 	),
 }

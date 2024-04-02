@@ -2,22 +2,22 @@ package quickstart
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"ldcli/cmd/cliflags"
+
+	"github.com/spf13/viper"
+
+	"ldcli/internal/flags"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"ldcli/internal/flags"
 )
 
 const defaultFlagName = "my new flag"
 
 type createFlagModel struct {
 	client    flags.Client
-	quitMsg   string
-	quitting  bool
 	textInput textinput.Model
 }
 

@@ -3,7 +3,6 @@ package quickstart
 import (
 	"fmt"
 	"io"
-	"log"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -53,20 +52,15 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Enter):
-			log.Println("chooseSDKModel received enter")
 			i, ok := m.list.SelectedItem().(sdkDetail)
 			if ok {
 				m.selectedSDK = i
 			}
 
 			return m, sendChoseSDKMsg(i)
-		// case key.Matches(msg, keys.Quit):
-		// 	return m, tea.Quit
 		default:
 			m.list, cmd = m.list.Update(msg)
 		}
-	case choseSDKMsg:
-		log.Println("chooseSDKModel choseSDKMsg")
 	}
 
 	return m, cmd

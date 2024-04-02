@@ -7,7 +7,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	"ldcli/internal/flags"
 	"ldcli/internal/quickstart"
 )
@@ -30,7 +32,11 @@ func runQuickStart(client flags.Client) func(*cobra.Command, []string) error {
 		}
 		defer f.Close()
 
-		_, err = tea.NewProgram(quickstart.NewContainerModel(client)).Run()
+		_, err = tea.NewProgram(quickstart.NewContainerModel(
+			client,
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+		)).Run()
 		if err != nil {
 			log.Fatal(err)
 		}

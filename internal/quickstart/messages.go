@@ -7,7 +7,6 @@ import (
 	"io"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
-	"log"
 	"net/http"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -25,11 +24,11 @@ func sendErr(err error) tea.Cmd {
 	}
 }
 
-type createFlagMsg struct {
-	flagName string
-	flagKey  string
-	projKey  string
-}
+// type createFlagMsg struct {
+// 	flagName string
+// 	flagKey  string
+// 	projKey  string
+// }
 
 type createdFlagMsg struct {
 	flagKey string
@@ -43,7 +42,7 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 			baseUri,
 			flagName,
 			flagKey,
-			"default",
+			projKey,
 		)
 		//if err != nil {
 		//	return sendErr(err)
@@ -75,12 +74,12 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 	}
 }
 
-type fetchSDKInstructionsMsg struct {
-	canonicalName string
-	flagKey       string
-	name          string
-	url           string
-}
+// type fetchSDKInstructionsMsg struct {
+// 	canonicalName string
+// 	flagKey       string
+// 	name          string
+// 	url           string
+// }
 
 type fetchedSDKInstructions struct {
 	instructions []byte
@@ -106,10 +105,8 @@ func sendChoseSDKMsg(sdk sdkDetail) tea.Cmd {
 	}
 }
 
-// TODO: rename
 func sendFetchSDKInstructionsMsg(url string) tea.Cmd {
 	return func() tea.Msg {
-		log.Println("sendFetchSDKInstructionsMsg")
 		resp, err := http.Get(url)
 		if err != nil {
 			return errMsg{err: err}
@@ -126,6 +123,14 @@ func sendFetchSDKInstructionsMsg(url string) tea.Cmd {
 		}
 
 		return fetchedSDKInstructions{instructions: body}
+	}
+}
+
+type showToggleFlagMsg struct{}
+
+func sendShowToggleFlagMsg() tea.Cmd {
+	return func() tea.Msg {
+		return showToggleFlagMsg{}
 	}
 }
 
@@ -155,9 +160,3 @@ func sendFetchEnv(accessToken string, baseUri string, key string, projKey string
 
 // noInstructionsMsg is sent when we can't find the SDK instructions repository for the given SDK.
 type noInstructionsMsg struct{}
-
-func sendNoInstructions() tea.Cmd {
-	return func() tea.Msg {
-		return noInstructionsMsg{}
-	}
-}
