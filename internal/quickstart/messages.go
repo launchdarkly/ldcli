@@ -71,10 +71,7 @@ type fetchedSDKInstructions struct {
 }
 
 type choseSDKMsg struct {
-	canonicalName string
-	displayName   string
-	sdkKind       string
-	url           string
+	sdk sdkDetail
 }
 
 func sendChoseSDKMsg(sdk sdkDetail) tea.Cmd {
@@ -84,10 +81,7 @@ func sendChoseSDKMsg(sdk sdkDetail) tea.Cmd {
 		}
 
 		return choseSDKMsg{
-			canonicalName: sdk.canonicalName,
-			displayName:   sdk.displayName,
-			url:           sdk.url,
-			sdkKind:       sdk.kind,
+			sdk: sdk,
 		}
 	}
 }
@@ -147,3 +141,13 @@ func sendFetchEnv(accessToken string, baseUri string, key string, projKey string
 
 // noInstructionsMsg is sent when we can't find the SDK instructions repository for the given SDK.
 type noInstructionsMsg struct{}
+
+type selectedSDKMsg struct {
+	index int
+}
+
+func sendSelectedSDKMsg(index int) tea.Cmd {
+	return func() tea.Msg {
+		return selectedSDKMsg{index: index}
+	}
+}
