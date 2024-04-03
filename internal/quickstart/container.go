@@ -16,6 +16,14 @@ const (
 	defaultEnvKey  = "test"
 )
 
+const (
+	_ = iota
+	stepCreateFlag
+	stepChooseSDK
+	stepShowSDKInstructions
+	stepToggleFlag
+)
+
 // ContainerModel is a high level container model that controls the nested models wher each
 // represents a step in the quick-start flow.
 type ContainerModel struct {
@@ -57,7 +65,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = tea.Quit
 		case key.Matches(msg, keys.Back):
 			// if showing SDK instructions, let the user go back to choose a different SDK
-			if m.currentStep == 3 {
+			if m.currentStep == stepShowSDKInstructions {
 				m.currentStep -= 1
 				m.currentModel = NewChooseSDKModel(m.sdk.index)
 				cmd = m.currentModel.Init()
