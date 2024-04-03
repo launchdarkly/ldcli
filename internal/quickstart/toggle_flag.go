@@ -9,13 +9,13 @@ import (
 )
 
 type toggleFlagModel struct {
-	accessToken string
-	baseUri     string
-	client      flags.Client
-	enabled     bool // whether the flag has ever been toggled on
-	on          bool // whether the flag is currently on/off
-	flagKey     string
-	sdkKind     string
+	accessToken    string
+	baseUri        string
+	client         flags.Client
+	enabled        bool
+	flagKey        string
+	flagWasEnabled bool
+	sdkKind        string
 }
 
 func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
@@ -40,9 +40,9 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, keys.Tab):
-			m.enabled = true
-			m.on = !m.on
-			return m, sendToggleFlagMsg(m.client, m.accessToken, m.baseUri, m.flagKey, m.on)
+			m.flagWasEnabled = true
+			m.enabled = !m.enabled
+			return m, sendToggleFlagMsg(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
 	}
 
@@ -60,13 +60,13 @@ func (m toggleFlagModel) View() string {
 	toggle := "OFF"
 	bgColor := "#646a73"
 	margin := 1
-	if m.on {
+	if m.enabled {
 		bgColor = "#3d9c51"
 		margin = 2
 		toggle = "ON"
 	}
 
-	if m.enabled {
+	if m.flagWasEnabled {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!\n\n(press ctrl + c to quit)", logTypeMap[m.sdkKind])
 	}
 
