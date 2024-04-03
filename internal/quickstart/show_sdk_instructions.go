@@ -42,7 +42,7 @@ func NewShowSDKInstructionsModel(
 func (m showSDKInstructionsModel) Init() tea.Cmd {
 	return tea.Sequence(
 		sendFetchSDKInstructionsMsg(m.url),
-		sendFetchEnv(m.accessToken, m.baseUri, "test", "default"),
+		sendFetchEnv(m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
 	)
 }
 

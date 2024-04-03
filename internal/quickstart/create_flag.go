@@ -2,10 +2,6 @@ package quickstart
 
 import (
 	"fmt"
-	"ldcli/cmd/cliflags"
-
-	"github.com/spf13/viper"
-
 	"ldcli/internal/flags"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -17,11 +13,13 @@ import (
 const defaultFlagName = "my new flag"
 
 type createFlagModel struct {
-	client    flags.Client
-	textInput textinput.Model
+	accessToken string
+	baseUri     string
+	client      flags.Client
+	textInput   textinput.Model
 }
 
-func NewCreateFlagModel(client flags.Client) tea.Model {
+func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Model {
 	ti := textinput.New()
 	ti.Focus()
 	ti.CharLimit = 156
@@ -29,8 +27,10 @@ func NewCreateFlagModel(client flags.Client) tea.Model {
 	ti.Placeholder = defaultFlagName
 
 	return createFlagModel{
-		client:    client,
-		textInput: ti,
+		accessToken: accessToken,
+		baseUri:     baseUri,
+		client:      client,
+		textInput:   ti,
 	}
 }
 
@@ -53,10 +53,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, sendErr(err)
 			}
 
-			accessToken := viper.GetString(cliflags.AccessTokenFlag)
-			baseUri := viper.GetString(cliflags.BaseURIFlag)
-
-			return m, sendCreateFlagMsg(m.client, accessToken, baseUri, input, flagKey, "default")
+			return m, sendCreateFlagMsg(m.client, m.accessToken, m.baseUri, input, flagKey, defaultProjKey)
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 		default:

@@ -11,6 +11,11 @@ import (
 	"ldcli/internal/flags"
 )
 
+const (
+	defaultProjKey = "default"
+	defaultEnvKey  = "test"
+)
+
 // ContainerModel is a high level container model that controls the nested models wher each
 // represents a step in the quick-start flow.
 type ContainerModel struct {
@@ -23,13 +28,14 @@ type ContainerModel struct {
 	accessToken  string
 	baseUri      string
 	currentModel tea.Model
+	sdkKind      string
 }
 
 func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri string) tea.Model {
 	return ContainerModel{
 		accessToken:  accessToken,
 		baseUri:      baseUri,
-		currentModel: NewCreateFlagModel(flagsClient),
+		currentModel: NewCreateFlagModel(flagsClient, accessToken, baseUri),
 		flagsClient:  flagsClient,
 	}
 }
@@ -53,18 +59,19 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case choseSDKMsg:
 		m.currentModel = NewShowSDKInstructionsModel(m.accessToken, m.baseUri, msg.canonicalName, msg.url, m.flagKey)
 		cmd = m.currentModel.Init()
+		m.sdkKind = msg.sdkKind
 	case createdFlagMsg:
 		m.currentModel = NewChooseSDKModel()
 		m.flagKey = msg.flagKey // TODO: figure out if we maintain state here or pass in another message
 	case errMsg:
 		m.err = msg.err
 	case noInstructionsMsg:
-		// TODO: set currentModel to toggle flag model
-		// m.currentModel = NewToggleFlagModel(m.flagsClient, m.flagKey)
-	case fetchedSDKInstructions, fetchedEnv:
+		// skip the ShowSDKInstructionsModel and move along to toggling the flag
+		m.currentModel = NewToggleFlagModel(m.flagsClient, m.accessToken, m.baseUri, m.flagKey, m.sdkKind)
+	case fetchedSDKInstructions, fetchedEnv, toggledFlagMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 	case showToggleFlagMsg:
-		m.currentModel = NewToggleFlagModel(m.flagKey)
+		m.currentModel = NewToggleFlagModel(m.flagsClient, m.accessToken, m.baseUri, m.flagKey, m.sdkKind)
 	default:
 		log.Println("container default - bad", msg)
 	}

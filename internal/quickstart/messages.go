@@ -24,6 +24,25 @@ func sendErr(err error) tea.Cmd {
 	}
 }
 
+type toggledFlagMsg struct{}
+
+func sendToggleFlagMsg(client flags.Client, accessToken, baseUri, flagKey string, enabled bool) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.Update(
+			context.Background(),
+			accessToken,
+			baseUri,
+			flagKey,
+			defaultProjKey,
+			flags.BuildToggleFlagPatch(defaultEnvKey, enabled),
+		)
+		if err != nil {
+			return sendErr(err)
+		}
+		return toggledFlagMsg{}
+	}
+}
+
 type createdFlagMsg struct {
 	flagKey string
 }
@@ -75,6 +94,7 @@ type fetchedSDKInstructions struct {
 type choseSDKMsg struct {
 	canonicalName string
 	displayName   string
+	sdkKind       string
 	url           string
 }
 
@@ -88,6 +108,7 @@ func sendChoseSDKMsg(sdk sdkDetail) tea.Cmd {
 			canonicalName: sdk.canonicalName,
 			displayName:   sdk.displayName,
 			url:           sdk.url,
+			sdkKind:       sdk.kind,
 		}
 	}
 }
