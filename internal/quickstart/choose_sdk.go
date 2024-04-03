@@ -37,10 +37,6 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false) // TODO: try to get filtering working
 	l.Paginator.PerPage = 5
-	// disable these because we've overridden "left" to go back and leaving NextPage without
-	// PrevPage would be confusing
-	l.KeyMap.PrevPage.SetEnabled(false)
-	l.KeyMap.NextPage.SetEnabled(false)
 
 	return chooseSDKModel{
 		list:          l,

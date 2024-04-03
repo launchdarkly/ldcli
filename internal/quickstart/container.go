@@ -92,7 +92,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
-	case fetchedSDKInstructions, fetchedEnv, toggledFlagMsg:
+	case fetchedSDKInstructions, fetchedEnv, selectedSDKMsg, toggledFlagMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 	case showToggleFlagMsg:
 		m.currentModel = NewToggleFlagModel(
@@ -103,8 +103,6 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
-	case selectedSDKMsg:
-		m.currentModel, cmd = m.currentModel.Update(msg)
 	default:
 		log.Printf("container default: %T\n", msg)
 	}
@@ -147,8 +145,8 @@ type keyMap struct {
 
 var keys = keyMap{
 	Back: key.NewBinding(
-		key.WithKeys("left"),
-		key.WithHelp("back", "go back"),
+		key.WithKeys("esc"),
+		key.WithHelp("esc", "go back"),
 	),
 	Enter: key.NewBinding(
 		key.WithKeys("enter"),
