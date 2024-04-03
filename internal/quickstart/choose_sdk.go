@@ -22,11 +22,12 @@ const (
 )
 
 type chooseSDKModel struct {
-	list        list.Model
-	selectedSDK sdkDetail
+	list          list.Model
+	selectedIndex int
+	selectedSDK   sdkDetail
 }
 
-func NewChooseSDKModel() tea.Model {
+func NewChooseSDKModel(selectedIndex int) tea.Model {
 	l := list.New(sdksToItems(), sdkDelegate{}, 30, 14)
 	l.Title = "Select your SDK:\n\n" // extra newlines to show pagination
 	// reset title styles
@@ -36,14 +37,19 @@ func NewChooseSDKModel() tea.Model {
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false) // TODO: try to get filtering working
 	l.Paginator.PerPage = 5
+	// disable these because we've overridden "left" to go back and leaving NextPage without
+	// PrevPage would be confusing
+	l.KeyMap.PrevPage.SetEnabled(false)
+	l.KeyMap.NextPage.SetEnabled(false)
 
 	return chooseSDKModel{
-		list: l,
+		list:          l,
+		selectedIndex: selectedIndex,
 	}
 }
 
 func (m chooseSDKModel) Init() tea.Cmd {
-	return nil
+	return sendSelectedSDKMsg(m.selectedIndex)
 }
 
 func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -55,12 +61,14 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			i, ok := m.list.SelectedItem().(sdkDetail)
 			if ok {
 				m.selectedSDK = i
+				m.selectedSDK.index = m.list.Index()
+				cmd = sendChoseSDKMsg(m.selectedSDK)
 			}
-
-			return m, sendChoseSDKMsg(i)
 		default:
 			m.list, cmd = m.list.Update(msg)
 		}
+	case selectedSDKMsg:
+		m.list.Select(msg.index)
 	}
 
 	return m, cmd
@@ -73,6 +81,7 @@ func (m chooseSDKModel) View() string {
 type sdkDetail struct {
 	canonicalName string
 	displayName   string
+	index         int
 	kind          string
 	url           string // custom URL if it differs from the other SDKs
 }
