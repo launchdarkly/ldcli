@@ -1,7 +1,5 @@
 brews:
   -
-    ids:
-    - ldcli
     name: ldcli
 
     description: "The official command line interface for managing LaunchDarkly feature flags."
