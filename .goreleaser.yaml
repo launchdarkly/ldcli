@@ -1,9 +1,20 @@
 # .goreleaser.yaml
 dockers:
-  - image_templates:
-      - "launchdarkly/ldcli:v{{ .Version }}-amd64"
-    dockerfile: Dockerfile.github
+  -
+    image_templates:
+    - "launchdarkly/ldcli:latest"
+    - "launchdarkly/ldcli:{{ .Version }}"
+
+    dockerfile: Dockerfile
+
+  -
+    goos: linux
+
+    # GOARCH of the built binaries/packages that should be used.
     goarch: amd64
+    ids:
+    - ld-find-code-refs-github-action
+    
 brews:
   -
     ids:
