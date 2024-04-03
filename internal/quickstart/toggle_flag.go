@@ -56,7 +56,7 @@ var logTypeMap = map[string]string{
 
 func (m toggleFlagModel) View() string {
 	var furtherInstructions string
-	title := "Toggle your feature flag (press tab)"
+	title := "Toggle your feature flag in your Test environment (press tab)"
 	toggle := "OFF"
 	bgColor := "#646a73"
 	margin := 1
