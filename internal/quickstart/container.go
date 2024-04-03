@@ -40,7 +40,7 @@ func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri str
 		currentModel: NewCreateFlagModel(flagsClient, accessToken, baseUri),
 		currentStep:  1,
 		flagsClient:  flagsClient,
-		totalSteps:   3,
+		totalSteps:   4,
 	}
 }
 
