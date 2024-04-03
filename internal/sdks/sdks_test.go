@@ -43,3 +43,39 @@ func TestReplaceFlagKey(t *testing.T) {
 		})
 	}
 }
+
+func TestReplaceSDKKey(t *testing.T) {
+	tests := map[string]struct {
+		body     string
+		expected string
+	}{
+		"replaces placeholder 1234567890abcdef": {
+			body:     "# title ```const sdkKey = \"1234567890abcdef\"```",
+			expected: "# title ```const sdkKey = \"real-sdk-key\"```",
+		},
+		"replaces placeholder myClientSideID": {
+			body:     "# title ```const sdkKey = \"myClientSideID\"```",
+			expected: "# title ```const sdkKey = \"real-sdk-key\"```",
+		},
+		"replaces placeholder mobile-key-from-launch-darkly-website": {
+			body:     "# title ```const sdkKey = \"mobile-key-from-launch-darkly-website\"```",
+			expected: "# title ```const sdkKey = \"real-sdk-key\"```",
+		},
+		"replaces placeholder YOUR_SDK_KEY": {
+			body:     "# title ```const sdkKey = \"YOUR_SDK_KEY\"```",
+			expected: "# title ```const sdkKey = \"real-sdk-key\"```",
+		},
+		"replaces placeholder Your LaunchDarkly SDK key": {
+			body:     "# title ```const sdkKey = \"Your LaunchDarkly SDK key\"```",
+			expected: "# title ```const sdkKey = \"real-sdk-key\"```",
+		},
+	}
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			updated := sdks.ReplaceSDKKey(tt.body, "real-sdk-key")
+
+			assert.Equal(t, string(tt.expected), string(updated))
+		})
+	}
+}

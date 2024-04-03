@@ -2,6 +2,7 @@ package quickstart
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,37 +11,26 @@ import (
 	"ldcli/internal/flags"
 )
 
-// step is an identifier for each step in the quick-start flow.
-type step int
-
-const (
-	createFlagStep step = iota
-	chooseSDKStep
-	showSDKInstructionsStep
-)
-
 // ContainerModel is a high level container model that controls the nested models wher each
 // represents a step in the quick-start flow.
 type ContainerModel struct {
-	currentStep step
 	err         error
 	flagKey     string
 	flagsClient flags.Client
-	quitMsg     string
+	quitMsg     string // TODO: set this?
 	quitting    bool
-	sdk         sdkDetail
-	steps       []tea.Model
+
+	accessToken  string
+	baseUri      string
+	currentModel tea.Model
 }
 
-func NewContainerModel(flagsClient flags.Client) tea.Model {
+func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri string) tea.Model {
 	return ContainerModel{
-		currentStep: createFlagStep,
-		flagsClient: flagsClient,
-		steps: []tea.Model{
-			NewCreateFlagModel(flagsClient),
-			NewChooseSDKModel(),
-			NewShowSDKInstructionsModel(),
-		},
+		accessToken:  accessToken,
+		baseUri:      baseUri,
+		currentModel: NewCreateFlagModel(flagsClient),
+		flagsClient:  flagsClient,
 	}
 }
 
@@ -49,84 +39,42 @@ func (m ContainerModel) Init() tea.Cmd {
 }
 
 func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var (
-		cmd     tea.Cmd
-		updated tea.Model
-	)
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Quit):
 			m.quitting = true
-
-			return m, tea.Quit
-		case key.Matches(msg, keys.Enter):
-			switch m.currentStep {
-			case createFlagStep:
-				updated, cmd = m.steps[createFlagStep].Update(msg)
-				if model, ok := updated.(createFlagModel); ok {
-					if model.err != nil {
-						m.err = model.err
-						if model.quitting {
-							m.quitMsg = model.quitMsg
-							m.quitting = true
-
-							return m, cmd
-						}
-
-						return m, nil
-					}
-
-					m.flagKey = model.flagKey
-					m.currentStep += 1
-				}
-			case chooseSDKStep:
-				updated, cmd = m.steps[chooseSDKStep].Update(msg)
-				if model, ok := updated.(chooseSDKModel); ok {
-					m.sdk = model.selectedSDK
-					m.currentStep += 1
-					cmd = sendFetchSDKInstructionsMsg(m.sdk, m.flagKey)
-
-				}
-			case showSDKInstructionsStep:
-				_, cmd := m.steps[showSDKInstructionsStep].Update(msg)
-				m.currentStep += 1
-
-				return m, cmd
-			default:
-			}
+			cmd = tea.Quit
 		default:
 			// delegate all other input to the current model
-			updated, cmd = m.steps[m.currentStep].Update(msg)
-			m.steps[m.currentStep] = updated
-
-			return m, cmd
+			m.currentModel, cmd = m.currentModel.Update(msg)
 		}
+	case choseSDKMsg:
+		m.currentModel = NewShowSDKInstructionsModel(m.accessToken, m.baseUri, msg.canonicalName, msg.url, m.flagKey)
+		cmd = m.currentModel.Init()
+	case createdFlagMsg:
+		m.currentModel = NewChooseSDKModel()
+		m.flagKey = msg.flagKey // TODO: figure out if we maintain state here or pass in another message
 	case errMsg:
 		m.err = msg.err
-	case fetchSDKInstructionsMsg:
-		updated, cmd = m.steps[showSDKInstructionsStep].Update(msg)
-		if model, ok := updated.(showSDKInstructionsModel); ok {
-			model.sdk = m.sdk.displayName
-			m.steps[showSDKInstructionsStep] = model
-		}
 	case noInstructionsMsg:
-		m.currentStep += 1
-
-		return m, cmd
+		// TODO: set currentModel to toggle flag model
+		// m.currentModel = NewToggleFlagModel(m.flagsClient, m.flagKey)
+	case fetchedSDKInstructions, fetchedEnv:
+		m.currentModel, cmd = m.currentModel.Update(msg)
+	case showToggleFlagMsg:
+		m.currentModel = NewToggleFlagModel(m.flagKey)
 	default:
+		log.Println("container default - bad", msg)
 	}
 
 	return m, cmd
 }
 
 func (m ContainerModel) View() string {
-	// TODO: remove after creating more steps
-	if m.currentStep > showSDKInstructionsStep {
-		return fmt.Sprintf("created flag %s\nselected the %s SDK", m.flagKey, m.sdk.displayName)
-	}
+	out := fmt.Sprintf("\nStep %d of %d\n"+m.currentModel.View(), 0, 100)
 
-	out := fmt.Sprintf("\nStep %d of %d\n"+m.steps[m.currentStep].View(), m.currentStep+1, len(m.steps))
 	if m.err != nil {
 		if m.quitting {
 			out := m.quitMsg + "\n\n"
@@ -153,6 +101,7 @@ func (m ContainerModel) View() string {
 type keyMap struct {
 	Enter key.Binding
 	Quit  key.Binding
+	Tab   key.Binding
 }
 
 var keys = keyMap{
@@ -163,5 +112,9 @@ var keys = keyMap{
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c"),
 		key.WithHelp("q", "quit"),
+	),
+	Tab: key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "toggle"),
 	),
 }

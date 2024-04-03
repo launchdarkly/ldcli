@@ -56,8 +56,8 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if ok {
 				m.selectedSDK = i
 			}
-		case key.Matches(msg, keys.Quit):
-			return m, tea.Quit
+
+			return m, sendChoseSDKMsg(i)
 		default:
 			m.list, cmd = m.list.Update(msg)
 		}
@@ -80,7 +80,7 @@ type sdkDetail struct {
 func (s sdkDetail) FilterValue() string { return "" }
 
 var SDKs = []sdkDetail{
-	{canonicalName: "react", displayName: "React", kind: clientSideSDK},
+	// {canonicalName: "react", displayName: "React", kind: clientSideSDK},
 	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
 	{canonicalName: "python", displayName: "Python", kind: serverSideSDK},
 	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},

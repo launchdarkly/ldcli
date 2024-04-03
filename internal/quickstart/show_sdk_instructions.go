@@ -2,67 +2,67 @@ package quickstart
 
 import (
 	"fmt"
-	"io"
 	"ldcli/internal/sdks"
-	"net/http"
-	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 )
 
-const instructionsURL = "https://raw.githubusercontent.com/launchdarkly/hello-%s/main/README.md"
-
 type showSDKInstructionsModel struct {
 	instructions string
 	sdk          string
+
+	canonicalName string
+	flagKey       string
+	url           string
+	sdkKey        string
+	accessToken   string
+	baseUri       string
 }
 
-func NewShowSDKInstructionsModel() tea.Model {
-	return showSDKInstructionsModel{}
+func NewShowSDKInstructionsModel(
+	accessToken string,
+	baseUri string,
+	canonicalName string,
+	url string,
+	flagKey string,
+) tea.Model {
+	return showSDKInstructionsModel{
+		accessToken:   accessToken,
+		baseUri:       baseUri,
+		canonicalName: canonicalName,
+		flagKey:       flagKey,
+		url:           url,
+	}
 }
 
 func (m showSDKInstructionsModel) Init() tea.Cmd {
-	return nil
+	return tea.Sequence(
+		sendFetchSDKInstructionsMsg(m.url),
+		sendFetchEnv(m.accessToken, m.baseUri, "test", "default"),
+	)
 }
 
 func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case fetchSDKInstructionsMsg:
-		url := fmt.Sprintf(instructionsURL, msg.canonicalName)
-		if msg.url != "" {
-			url = msg.url
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Enter):
+			// TODO: only if all data are fetched?
+			cmd = sendShowToggleFlagMsg()
 		}
-		c := &http.Client{
-			Timeout: 5 * time.Second,
-		}
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			return m, sendErr(err)
-		}
-		resp, err := c.Do(req)
-		if err != nil {
-			return m, sendErr(err)
-		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return m, sendErr(err)
-		}
-
-		if resp.StatusCode == 404 {
-			m.sdk = msg.name
-
-			return m, sendNoInstructions()
-		}
-
-		m.sdk = msg.name
-		m.instructions = sdks.ReplaceFlagKey(string(body), msg.flagKey)
+	case fetchedSDKInstructions:
+		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
+	case fetchedEnv:
+		m.sdkKey = msg.sdkKey
+		m.instructions = sdks.ReplaceSDKKey(string(m.instructions), msg.sdkKey)
 	}
 
-	return m, nil
+	return m, cmd
 }
 
 func (m showSDKInstructionsModel) View() string {
@@ -70,6 +70,10 @@ func (m showSDKInstructionsModel) View() string {
 	md, err := m.renderMarkdown()
 	if err != nil {
 		return fmt.Sprintf("error rendering instructions: %s", err)
+	}
+
+	if m.instructions == "" || m.sdkKey == "" {
+		return "show spinner"
 	}
 
 	return wordwrap.String(
