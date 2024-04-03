@@ -79,6 +79,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.accessToken,
 			m.baseUri,
 			msg.sdk.canonicalName,
+			msg.sdk.displayName,
 			msg.sdk.url,
 			m.flagKey,
 		)
