@@ -53,7 +53,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, sendErr(err)
 			}
 
-			return m, sendCreateFlagMsg(m.client, m.accessToken, m.baseUri, input, flagKey, "default")
+			return m, sendCreateFlagMsg(m.client, m.accessToken, m.baseUri, input, flagKey, defaultProjKey)
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 		default:

@@ -11,6 +11,11 @@ import (
 	"ldcli/internal/flags"
 )
 
+const (
+	defaultProjKey = "default"
+	defaultEnvKey  = "test"
+)
+
 // ContainerModel is a high level container model that controls the nested models wher each
 // represents a step in the quick-start flow.
 type ContainerModel struct {

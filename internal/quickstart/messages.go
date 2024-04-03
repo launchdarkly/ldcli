@@ -33,8 +33,8 @@ func sendToggleFlagMsg(client flags.Client, accessToken, baseUri, flagKey string
 			accessToken,
 			baseUri,
 			flagKey,
-			"default",
-			flags.BuildToggleFlagPatch("test", enabled),
+			defaultProjKey,
+			flags.BuildToggleFlagPatch(defaultEnvKey, enabled),
 		)
 		if err != nil {
 			return sendErr(err)
