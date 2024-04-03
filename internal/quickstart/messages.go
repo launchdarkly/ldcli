@@ -37,8 +37,9 @@ func sendToggleFlagMsg(client flags.Client, accessToken, baseUri, flagKey string
 			flags.BuildToggleFlagPatch(defaultEnvKey, enabled),
 		)
 		if err != nil {
-			return sendErr(err)
+			return errMsg{err: err}
 		}
+
 		return toggledFlagMsg{}
 	}
 }
@@ -57,6 +58,7 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 			flagKey,
 			projKey,
 		)
+
 		if err != nil {
 			return sendErr(err)
 		}
