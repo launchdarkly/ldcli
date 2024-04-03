@@ -1,4 +1,4 @@
-package members
+package environments
 
 import (
 	"context"
@@ -12,13 +12,14 @@ type MockClient struct {
 
 var _ Client = &MockClient{}
 
-func (c *MockClient) Create(
+func (c *MockClient) Get(
 	ctx context.Context,
-	accessToken string,
-	baseURI string,
-	memberInputs []MemberInput,
+	accessToken,
+	baseURI,
+	key,
+	projKey string,
 ) ([]byte, error) {
-	args := c.Called(accessToken, baseURI, memberInputs)
+	args := c.Called(accessToken, baseURI, key, projKey)
 
 	return args.Get(0).([]byte), args.Error(1)
 }

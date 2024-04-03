@@ -13,11 +13,11 @@ import (
 
 func TestCreate(t *testing.T) {
 	errorHelp := ". See `ldcli members create --help` for supported flags and usage."
+	role := "writer"
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		[]string{"testemail@test.com"},
-		"writer",
+		[]members.MemberInput{{Email: "testemail@test.com", Role: role}},
 	}
 	t.Run("with valid flags calls members API", func(t *testing.T) {
 		client := members.MockClient{}
@@ -27,15 +27,15 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"members",
 			"create",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
 			"-d",
-			`{"email": "testemail@test.com", "role": "writer"}`,
+			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, nil, args)
+		output, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -49,15 +49,15 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"members",
 			"create",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
 			"-d",
-			`{"email": "testemail@test.com", "role": "writer"}`,
+			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
-		_, err := cmd.CallCmd(t, nil, &client, nil, args)
+		_, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -68,9 +68,9 @@ func TestCreate(t *testing.T) {
 			"create",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
+		_, err := cmd.CallCmd(t, nil, nil, &members.MockClient{}, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token", "data" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "data" not set`+errorHelp)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestCreate(t *testing.T) {
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &members.MockClient{}, nil, args)
+		_, err := cmd.CallCmd(t, nil, nil, &members.MockClient{}, nil, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

@@ -27,13 +27,13 @@ func TestCreate(t *testing.T) {
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"flags", "create",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
 			"-d", `{"key": "test-key", "name": "test-name"}`,
 			"--project", "test-proj-key",
 		}
 
-		output, err := cmd.CallCmd(t, &client, nil, nil, args)
+		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -46,13 +46,13 @@ func TestCreate(t *testing.T) {
 			Return([]byte(`{}`), errors.NewError("An error"))
 		args := []string{
 			"flags", "create",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
 			"-d", `{"key": "test-key", "name": "test-name"}`,
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, &client, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -62,9 +62,9 @@ func TestCreate(t *testing.T) {
 			"flags", "create",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token", "data", "project" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "data", "project" not set`+errorHelp)
 	})
 
 	t.Run("with missing short flag value is an error", func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestCreate(t *testing.T) {
 			"-d",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
 		assert.EqualError(t, err, `flag needs an argument: 'd' in -d`)
 	})
@@ -84,7 +84,7 @@ func TestCreate(t *testing.T) {
 			"--data",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --data`)
 	})
@@ -92,13 +92,13 @@ func TestCreate(t *testing.T) {
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
 		args := []string{
 			"flags", "create",
-			"--api-token", "testAccessToken",
+			"--access-token", "testAccessToken",
 			"--base-uri", "invalid",
 			"-d", `{"key": "test-key", "name": "test-name"}`,
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

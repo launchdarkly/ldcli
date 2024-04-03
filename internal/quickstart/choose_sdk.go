@@ -16,14 +16,20 @@ var (
 	selectedSdkItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
 )
 
+const (
+	clientSideSDK = "client"
+	serverSideSDK = "server"
+)
+
 type chooseSDKModel struct {
-	list        list.Model
-	selectedSdk sdkDetail
+	list          list.Model
+	selectedIndex int
+	selectedSDK   sdkDetail
 }
 
-func NewChooseSDKModel() tea.Model {
+func NewChooseSDKModel(selectedIndex int) tea.Model {
 	l := list.New(sdksToItems(), sdkDelegate{}, 30, 14)
-	l.Title = "Select your SDK:\n"
+	l.Title = "Select your SDK:\n\n" // extra newlines to show pagination
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
 	l.Styles.TitleBar = lipgloss.NewStyle()
@@ -33,11 +39,14 @@ func NewChooseSDKModel() tea.Model {
 	l.Paginator.PerPage = 5
 
 	return chooseSDKModel{
-		list: l,
+		list:          l,
+		selectedIndex: selectedIndex,
 	}
 }
 
-func (m chooseSDKModel) Init() tea.Cmd { return nil }
+func (m chooseSDKModel) Init() tea.Cmd {
+	return sendSelectedSDKMsg(m.selectedIndex)
+}
 
 func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
@@ -47,13 +56,15 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Enter):
 			i, ok := m.list.SelectedItem().(sdkDetail)
 			if ok {
-				m.selectedSdk = i
+				m.selectedSDK = i
+				m.selectedSDK.index = m.list.Index()
+				cmd = sendChoseSDKMsg(m.selectedSDK)
 			}
-		case key.Matches(msg, keys.Quit):
-			return m, tea.Quit
 		default:
 			m.list, cmd = m.list.Update(msg)
 		}
+	case selectedSDKMsg:
+		m.list.Select(msg.index)
 	}
 
 	return m, cmd
@@ -64,41 +75,46 @@ func (m chooseSDKModel) View() string {
 }
 
 type sdkDetail struct {
-	DisplayName string `json:"displayName"`
-	SDKType     string `json:"sdkType"`
+	canonicalName string
+	displayName   string
+	index         int
+	kind          string
+	url           string // custom URL if it differs from the other SDKs
 }
 
 func (s sdkDetail) FilterValue() string { return "" }
 
-const clientSideSDK = "client"
-const serverSideSDK = "server"
-
 var SDKs = []sdkDetail{
-	{DisplayName: "React", SDKType: clientSideSDK},
-	{DisplayName: "Node.js (server-side)", SDKType: serverSideSDK},
-	{DisplayName: "Python", SDKType: serverSideSDK},
-	{DisplayName: "Java", SDKType: serverSideSDK},
-	{DisplayName: ".NET (server-side)", SDKType: serverSideSDK},
-	{DisplayName: "JavaScript", SDKType: clientSideSDK},
-	{DisplayName: "Vue", SDKType: clientSideSDK},
-	{DisplayName: "iOS", SDKType: clientSideSDK},
-	{DisplayName: "Go", SDKType: serverSideSDK},
-	{DisplayName: "Android", SDKType: clientSideSDK},
-	{DisplayName: "React Native", SDKType: clientSideSDK},
-	{DisplayName: "Ruby", SDKType: serverSideSDK},
-	{DisplayName: "Flutter", SDKType: clientSideSDK},
-	{DisplayName: ".NET (client-side)", SDKType: clientSideSDK},
-	{DisplayName: "Erlang", SDKType: serverSideSDK},
-	{DisplayName: "Rust", SDKType: serverSideSDK},
-	{DisplayName: "Electron", SDKType: clientSideSDK},
-	{DisplayName: "C/C++ (client-side)", SDKType: clientSideSDK},
-	{DisplayName: "Roku", SDKType: clientSideSDK},
-	{DisplayName: "Node.js (client-side)", SDKType: clientSideSDK},
-	{DisplayName: "C/C++ (server-side)", SDKType: serverSideSDK},
-	{DisplayName: "Lua", SDKType: serverSideSDK},
-	{DisplayName: "Haskell", SDKType: serverSideSDK},
-	{DisplayName: "Apex", SDKType: serverSideSDK},
-	{DisplayName: "PHP", SDKType: serverSideSDK},
+	// {canonicalName: "react", displayName: "React", kind: clientSideSDK},
+	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
+	{canonicalName: "python", displayName: "Python", kind: serverSideSDK},
+	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},
+	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
+	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK},
+	{
+		canonicalName: "vue",
+		displayName:   "Vue",
+		kind:          clientSideSDK,
+		url:           "https://raw.githubusercontent.com/launchdarkly/vue-client-sdk/main/example/README.md",
+	},
+	{canonicalName: "ios-swift", displayName: "iOS", kind: clientSideSDK},
+	{canonicalName: "go", displayName: "Go", kind: serverSideSDK},
+	{canonicalName: "android", displayName: "Android", kind: clientSideSDK},
+	{canonicalName: "react-native", displayName: "React Native", kind: clientSideSDK},
+	{canonicalName: "ruby", displayName: "Ruby", kind: serverSideSDK},
+	{canonicalName: "flutter", displayName: "Flutter", kind: clientSideSDK},
+	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK},
+	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK},
+	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
+	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK},
+	{canonicalName: "c-client", displayName: "C/C++ (client-side)", kind: clientSideSDK},
+	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK},
+	{canonicalName: "node-client", displayName: "Node.js (client-side)", kind: clientSideSDK},
+	{canonicalName: "c-server", displayName: "C/C++ (server-side)", kind: serverSideSDK},
+	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK},
+	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK},
+	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK},
+	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK},
 }
 
 func sdksToItems() []list.Item {
@@ -121,7 +137,7 @@ func (d sdkDelegate) Render(w io.Writer, m list.Model, index int, listItem list.
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, i.DisplayName)
+	str := fmt.Sprintf("%d. %s", index+1, i.displayName)
 
 	fn := sdkStyle.Render
 	if index == m.Index() {

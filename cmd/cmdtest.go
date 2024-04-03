@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
 	"ldcli/internal/projects"
@@ -16,12 +17,19 @@ var ValidResponse = `{"valid": true}`
 
 func CallCmd(
 	t *testing.T,
+	environmentsClient *environments.MockClient,
 	flagsClient *flags.MockClient,
 	membersClient *members.MockClient,
 	projectsClient *projects.MockClient,
 	args []string,
 ) ([]byte, error) {
-	rootCmd, err := NewRootCommand(flagsClient, membersClient, projectsClient, "test")
+	rootCmd, err := NewRootCommand(
+		environmentsClient,
+		flagsClient,
+		membersClient,
+		projectsClient,
+		"test",
+	)
 	require.NoError(t, err)
 	b := bytes.NewBufferString("")
 	rootCmd.SetOut(b)

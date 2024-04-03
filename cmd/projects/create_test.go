@@ -27,7 +27,7 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"projects",
 			"create",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
@@ -35,7 +35,7 @@ func TestCreate(t *testing.T) {
 			`{"key": "test-key", "name": "test-name"}`,
 		}
 
-		output, err := cmd.CallCmd(t, nil, nil, &client, args)
+		output, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -49,7 +49,7 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"projects",
 			"create",
-			"--api-token",
+			"--access-token",
 			"testAccessToken",
 			"--base-uri",
 			"http://test.com",
@@ -57,7 +57,7 @@ func TestCreate(t *testing.T) {
 			`{"key": "test-key", "name": "test-name"}`,
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &client, args)
+		_, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -68,9 +68,9 @@ func TestCreate(t *testing.T) {
 			"create",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
 
-		assert.EqualError(t, err, `required flag(s) "api-token", "data" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "data" not set`+errorHelp)
 	})
 
 	t.Run("with missing short flag value is an error", func(t *testing.T) {
@@ -79,7 +79,7 @@ func TestCreate(t *testing.T) {
 			"-d",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: 'd' in -d`)
 	})
@@ -90,7 +90,7 @@ func TestCreate(t *testing.T) {
 			"--data",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --data`)
 	})
@@ -102,7 +102,7 @@ func TestCreate(t *testing.T) {
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

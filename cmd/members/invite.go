@@ -15,18 +15,18 @@ import (
 func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
-		Long:  "Invite new members",
+		Long:  "Create new members and send them an invitation email",
 		RunE:  runInvite(client),
 		Short: "Invite new members",
 		Use:   "invite",
 	}
 
-	cmd.Flags().StringSliceP("emails", "e", []string{}, "A comma separated list of emails")
-	err := cmd.MarkFlagRequired("emails")
+	cmd.Flags().StringSliceP(cliflags.EmailsFlag, "e", []string{}, "A comma separated list of emails")
+	err := cmd.MarkFlagRequired(cliflags.EmailsFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag("emails", cmd.Flags().Lookup("emails"))
+	err = viper.BindPFlag(cliflags.EmailsFlag, cmd.Flags().Lookup(cliflags.EmailsFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -47,13 +47,17 @@ func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 
 func runInvite(client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-
+		emails := viper.GetStringSlice(cliflags.EmailsFlag)
+		memberInputs := make([]members.MemberInput, 0, len(emails))
+		for _, e := range emails {
+			role := viper.GetString(cliflags.RoleFlag)
+			memberInputs = append(memberInputs, members.MemberInput{Email: e, Role: role})
+		}
 		response, err := client.Create(
 			context.Background(),
-			viper.GetString(cliflags.APITokenFlag),
+			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
-			viper.GetStringSlice(cliflags.EmailsFlag),
-			viper.GetString(cliflags.RoleFlag),
+			memberInputs,
 		)
 		if err != nil {
 			return err
