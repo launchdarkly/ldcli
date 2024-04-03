@@ -24,19 +24,13 @@ func sendErr(err error) tea.Cmd {
 	}
 }
 
-// type createFlagMsg struct {
-// 	flagName string
-// 	flagKey  string
-// 	projKey  string
-// }
-
 type createdFlagMsg struct {
 	flagKey string
 }
 
 func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flagKey, projKey string) tea.Cmd {
 	return func() tea.Msg {
-		_, _ = client.Create(
+		_, err := client.Create(
 			context.Background(),
 			accessToken,
 			baseUri,
@@ -44,9 +38,9 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 			flagKey,
 			projKey,
 		)
-		//if err != nil {
-		//	return sendErr(err)
-		//}
+		if err != nil {
+			return sendErr(err)
+		}
 		//if err != nil {
 		//	m.err = err
 		//	// TODO: we may want a more robust error type so we don't need to do this
@@ -73,13 +67,6 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 		return createdFlagMsg{flagKey: flagKey}
 	}
 }
-
-// type fetchSDKInstructionsMsg struct {
-// 	canonicalName string
-// 	flagKey       string
-// 	name          string
-// 	url           string
-// }
 
 type fetchedSDKInstructions struct {
 	instructions []byte
