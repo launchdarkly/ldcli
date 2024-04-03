@@ -57,7 +57,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = tea.Quit
 		case key.Matches(msg, keys.Back):
 			// if showing SDK instructions, let the user go back to choose a different SDK
-			if m.currentStep == 2 {
+			if m.currentStep == 3 {
 				m.currentStep -= 1
 				m.currentModel = NewChooseSDKModel(m.sdk.index)
 				cmd = m.currentModel.Init()
@@ -71,6 +71,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.accessToken,
 			m.baseUri,
 			msg.sdk.canonicalName,
+			msg.sdk.displayName,
 			msg.sdk.url,
 			m.flagKey,
 		)

@@ -12,21 +12,21 @@ import (
 )
 
 type showSDKInstructionsModel struct {
-	instructions string
-	sdk          string
-
-	canonicalName string
-	flagKey       string
-	url           string
-	sdkKey        string
 	accessToken   string
 	baseUri       string
+	canonicalName string
+	displayName   string
+	flagKey       string
+	instructions  string
+	sdkKey        string
+	url           string
 }
 
 func NewShowSDKInstructionsModel(
 	accessToken string,
 	baseUri string,
 	canonicalName string,
+	displayName string,
 	url string,
 	flagKey string,
 ) tea.Model {
@@ -34,6 +34,7 @@ func NewShowSDKInstructionsModel(
 		accessToken:   accessToken,
 		baseUri:       baseUri,
 		canonicalName: canonicalName,
+		displayName:   displayName,
 		flagKey:       flagKey,
 		url:           url,
 	}
@@ -79,7 +80,7 @@ func (m showSDKInstructionsModel) View() string {
 	return wordwrap.String(
 		fmt.Sprintf(
 			"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code.\n%s\n\n (press enter to continue)",
-			m.sdk,
+			m.displayName,
 			style.Render(md),
 		),
 		0,
