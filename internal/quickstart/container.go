@@ -29,7 +29,7 @@ func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri str
 	return ContainerModel{
 		accessToken:  accessToken,
 		baseUri:      baseUri,
-		currentModel: NewCreateFlagModel(flagsClient),
+		currentModel: NewCreateFlagModel(flagsClient, accessToken, baseUri),
 		flagsClient:  flagsClient,
 	}
 }
