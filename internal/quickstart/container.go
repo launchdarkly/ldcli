@@ -28,7 +28,9 @@ type ContainerModel struct {
 	accessToken  string
 	baseUri      string
 	currentModel tea.Model
+	currentStep  int
 	sdkKind      string
+	totalSteps   int
 }
 
 func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri string) tea.Model {
@@ -37,6 +39,7 @@ func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri str
 		baseUri:      baseUri,
 		currentModel: NewCreateFlagModel(flagsClient, accessToken, baseUri),
 		flagsClient:  flagsClient,
+		totalSteps:   3,
 	}
 }
 
@@ -60,18 +63,22 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentModel = NewShowSDKInstructionsModel(m.accessToken, m.baseUri, msg.canonicalName, msg.url, m.flagKey)
 		cmd = m.currentModel.Init()
 		m.sdkKind = msg.sdkKind
+		m.currentStep += 1
 	case createdFlagMsg:
 		m.currentModel = NewChooseSDKModel()
 		m.flagKey = msg.flagKey // TODO: figure out if we maintain state here or pass in another message
+		m.currentStep += 1
 	case errMsg:
 		m.err = msg.err
 	case noInstructionsMsg:
 		// skip the ShowSDKInstructionsModel and move along to toggling the flag
 		m.currentModel = NewToggleFlagModel(m.flagsClient, m.accessToken, m.baseUri, m.flagKey, m.sdkKind)
+		m.currentStep += 1
 	case fetchedSDKInstructions, fetchedEnv, toggledFlagMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 	case showToggleFlagMsg:
 		m.currentModel = NewToggleFlagModel(m.flagsClient, m.accessToken, m.baseUri, m.flagKey, m.sdkKind)
+		m.currentStep += 1
 	default:
 		log.Println("container default - bad", msg)
 	}
@@ -80,7 +87,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ContainerModel) View() string {
-	out := fmt.Sprintf("\nStep %d of %d\n"+m.currentModel.View(), 0, 100)
+	out := fmt.Sprintf("\nStep %d of %d\n"+m.currentModel.View(), m.currentStep, m.totalSteps)
 
 	if m.err != nil {
 		if m.quitting {
