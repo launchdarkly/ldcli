@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const defaultFlagName = "my new flag"
+const defaultFlagName = "My New Flag"
 
 type createFlagModel struct {
 	accessToken string
@@ -24,7 +24,6 @@ func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Mo
 	ti.Focus()
 	ti.CharLimit = 156
 	ti.Width = 20
-	ti.Placeholder = defaultFlagName
 
 	return createFlagModel{
 		accessToken: accessToken,
@@ -69,7 +68,8 @@ func (m createFlagModel) View() string {
 		MarginLeft(2)
 
 	return fmt.Sprintf(
-		"Name your first feature flag (enter for default value):\n\n%s",
+		"Name your first feature flag (enter for default value %q):\n\n%s",
+		defaultFlagName,
 		style.Render(m.textInput.View()),
 	) + "\n"
 }
