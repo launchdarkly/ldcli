@@ -123,10 +123,8 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 		var patch []flags.UpdateInput
 		if cmd.CalledAs() == "toggle-on" || cmd.CalledAs() == "toggle-off" {
 			_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
-			err := json.Unmarshal([]byte(buildPatch(viper.GetString(cliflags.EnvironmentFlag), cmd.CalledAs() == "toggle-on")), &patch)
-			if err != nil {
-				return err
-			}
+			envKey := viper.GetString(cliflags.EnvironmentFlag)
+			patch = flags.BuildToggleFlagPatch(envKey, cmd.CalledAs() == "toggle-on")
 		} else {
 			err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &patch)
 			if err != nil {
@@ -150,8 +148,4 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 
 		return nil
 	}
-}
-
-func buildPatch(envKey string, toggleValue bool) string {
-	return fmt.Sprintf(`[{"op": "replace", "path": "/environments/%s/on", "value": %t}]`, envKey, toggleValue)
 }
