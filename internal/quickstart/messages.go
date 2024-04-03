@@ -58,7 +58,6 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 			flagKey,
 			projKey,
 		)
-
 		if err != nil {
 			return sendErr(err)
 		}
