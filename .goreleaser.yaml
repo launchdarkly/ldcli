@@ -4,7 +4,7 @@ brews:
     - ldcli
     name: ldcli
 
-    description: "LaunchDarkly CLI: feature management in your terminal"
+    description: "The official command line interface for managing LaunchDarkly feature flags."
 
     homepage: "https://launchdarkly.com"
 
@@ -23,4 +23,3 @@ brews:
     commit_author:
       name: LaunchDarklyReleaseBot
       email: launchdarklyreleasebot@launchdarkly.com
-      
