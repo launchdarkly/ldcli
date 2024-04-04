@@ -1,17 +1,32 @@
 # .goreleaser.yaml
 dockers:
-  -
-    image_templates:
-    - "launchdarkly/ldcli:latest"
-    - "launchdarkly/ldcli:{{ .Version }}"
-
-    dockerfile: Dockerfile
-
-  -
+  # AMD64
+  - image_templates:
+    - "launchdarkly/ldcli:{{ .Version }}-amd64"
+    - "launchdarkly/ldcli:v{{ .Major }}-amd64"
+    - "launchdarkly/ldcli:latest-amd64"
+    use: buildx
     goos: linux
-    # GOARCH of the built binaries/packages that should be used.
     goarch: amd64
-    
+    dockerfile: Dockerfile.goreleaser
+    skip_push: false
+    build_flag_templates:
+    - "--pull"
+    - "--platform=linux/amd64"
+
+  # ARM64v8
+  - image_templates:
+    - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
+    - "launchdarkly/ldcli:v{{ .Major }}-arm64v8"
+    - "launchdarkly/ldcli:latest-arm64v8"
+    use: buildx
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile.goreleaser
+    skip_push: false
+    build_flag_templates:
+    - "--pull"
+    - "--platform=linux/arm64/v8"
 brews:
   -
     name: ldcli
@@ -25,7 +40,7 @@ brews:
       name: homebrew-tap
       token: "{{ .Env.GITHUB_TOKEN }}"
 
-    folder: Formula
+    directory: Formula
 
     url_template: "https://github.com/launchdarkly/ldcli/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
