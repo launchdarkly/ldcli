@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"ldcli/internal/environments"
-	"ldcli/internal/flags"
 	"net/http"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"ldcli/internal/environments"
+	"ldcli/internal/errors"
+	"ldcli/internal/flags"
 )
 
 // errMsg is sent when there is an error in one of the steps that the container model needs to
@@ -59,7 +61,14 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 			projKey,
 		)
 		if err != nil {
-			return errMsg{err: err}
+			var e struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			_ = json.Unmarshal([]byte(err.Error()), &e)
+			if e.Code != "conflict" {
+				return errMsg{err: errors.NewError(fmt.Sprintf("Error creating flag: %s. Press \"ctrl + c\" to quit.", e.Message))}
+			}
 		}
 
 		return createdFlagMsg{flagKey: flagKey}
