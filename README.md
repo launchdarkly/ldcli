@@ -1,37 +1,69 @@
-# ldcli
+# LaunchDarkly CLI
+
+The LaunchDarkly CLI helps you manage your feature flags wherever you are, whether that's in the webapp, your terminal, or your IDE.
+
+**With the CLI, you can:**
+
+- Evaluate your first feature flag with a guided setup command.
+- Onboard your whole team by inviting new members.
+- Interact with the LaunchDarkly API using resource & CRUD based commands.
+
+![demo](ldcli-setup.gif)
+
+## Installation
+
+The LaunchDarkly CLI will soon be available for macOS, Windows, and Linux.
+
+## Usage
+
+Installing the CLI provides access to the `ldcli` command.
+
+```sh-session
+ldcli [command]
+
+# Run `--help` for detailed information about CLI commands
+ldcli --help
+```
 
 ## Commands
 
-`go run main.go setup` - runs the setup wizard to create a feature flag for a project and environment.
+LaunchDarkly CLI commands
+- `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
 
-### Examples
+### Resource Commands
+Resource commands mirror the LaunchDarkly API and make requests for a given resource. To see a full list of resources supported by the CLI, enter `ldcli --help` into your terminal, and to see the commands available for a given resource
 
-Enable a flag with key `test-flag` in project `default` and environment `production`.
-```
-go run main.go flags update \
-    --access-token {access-token} \
-    --base-uri http://localhost:3000 \
-    -d '[{"op": "replace", "path": "/environments/production/on", "value": true}]' \
-    --project default \
-    --flag test-flag
+To see the commands available for a given resource:
+```sh-session
+ldcli <resource> --help
 ```
 
-## Running Github Actions locally
-
-To run the Github Actions locally, you need to install the `act` tool.
-```bash
-brew install act
-```
-You will also want to have the `gh` tool installed and authenticated.
-```bash
-brew install gh
-gh auth login
+An example command to create a flag:
+```sh-session
+ldcli flags create --access-token <access-token> --project default --data '{"name": "My Test Flag", "key": "my-test-flag"}'
 ```
 
-Example of how to run the `release-please` action locally.
-`-s` flag is to pass in secrets (optional)
-`-j` flag is to specify the job to run (optional)
-`-W` flag is to specify the workflow file to run (optional)
-```bash
-act -s GITHUB_TOKEN="$(gh auth token)" -j release-please -W ./.github/workflows/release-please.yml
-```
+## Documentation
+
+_(coming soon!)_
+
+[//]: # (TODO: add info about how to opt out)
+
+
+## Contributing
+
+We encourage pull requests and other contributions from the community. Check out our [contributing guidelines](CONTRIBUTING.md) for instructions on how to contribute to this project.
+
+## About LaunchDarkly
+
+* LaunchDarkly is a continuous delivery platform that provides feature flags as a service and allows developers to iterate quickly and safely. We allow you to easily flag your features and manage them from the LaunchDarkly dashboard.  With LaunchDarkly, you can:
+    * Roll out a new feature to a subset of your users (like a group of users who opt-in to a beta tester group), gathering feedback and bug reports from real-world use cases.
+    * Gradually roll out a feature to an increasing percentage of users, and track the effect that the feature has on key metrics (for instance, how likely is a user to complete a purchase if they have feature A versus feature B?).
+    * Turn off a feature that you realize is causing performance problems in production, without needing to re-deploy, or even restart the application with a changed configuration file.
+    * Grant access to certain features based on user attributes, like payment plan (eg: users on the ‘gold’ plan get access to more features than users in the ‘silver’ plan). Disable parts of your application to facilitate maintenance, without taking everything offline.
+* LaunchDarkly provides feature flag SDKs for a wide variety of languages and technologies. Read [our documentation](https://docs.launchdarkly.com/sdk) for a complete list.
+* Explore LaunchDarkly
+    * [launchdarkly.com](https://www.launchdarkly.com/ "LaunchDarkly Main Website") for more information
+    * [docs.launchdarkly.com](https://docs.launchdarkly.com/  "LaunchDarkly Documentation") for our documentation and SDK reference guides
+    * [apidocs.launchdarkly.com](https://apidocs.launchdarkly.com/  "LaunchDarkly API Documentation") for our API documentation
+    * [blog.launchdarkly.com](https://blog.launchdarkly.com/  "LaunchDarkly Blog Documentation") for the latest product updates
