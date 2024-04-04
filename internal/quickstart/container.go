@@ -90,6 +90,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentModel = NewChooseSDKModel(0)
 		m.flagKey = msg.flagKey // TODO: figure out if we maintain state here or pass in another message
 		m.currentStep += 1
+		m.err = nil
 	case errMsg:
 		m.err = msg.err
 	case noInstructionsMsg:
@@ -104,6 +105,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentStep += 1
 	case fetchedSDKInstructions, fetchedEnv, selectedSDKMsg, toggledFlagMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
+		m.err = nil
 	case showToggleFlagMsg:
 		m.currentModel = NewToggleFlagModel(
 			m.flagsClient,
