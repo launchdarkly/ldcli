@@ -69,8 +69,7 @@ func (m createFlagModel) View() string {
 		MarginLeft(2)
 
 	return fmt.Sprintf(
-		"Name your first feature flag (enter for default value %q):%s",
-		defaultFlagName,
+		"Name your first feature flag (enter for default value):%s",
 		style.Render(m.textInput.View()),
 	) + "\n"
 }
