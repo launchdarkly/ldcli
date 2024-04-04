@@ -29,7 +29,7 @@ type chooseSDKModel struct {
 
 func NewChooseSDKModel(selectedIndex int) tea.Model {
 	l := list.New(sdksToItems(), sdkDelegate{}, 30, 14)
-	l.Title = "Select your SDK:\n\n" // extra newlines to show pagination
+	l.Title = "Select your SDK:\n"
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
 	l.Styles.TitleBar = lipgloss.NewStyle()

@@ -145,6 +145,10 @@ func (m ContainerModel) View() string {
 		return out
 	}
 
+	if m.quitting {
+		return ""
+	}
+
 	return out
 }
 
