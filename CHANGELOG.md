@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0](https://github.com/launchdarkly/ldcli/compare/v0.2.0...v0.3.0) (2024-04-04)
+
+
+### Features
+
+* Can go back to choose SDK page from show SDK instructions ([#120](https://github.com/launchdarkly/ldcli/issues/120)) ([6900bc6](https://github.com/launchdarkly/ldcli/commit/6900bc6301bf668830ca029867f6d9de4c555d85))
+
+
+### Bug Fixes
+
+* add instructions to continue from show sdk step ([#117](https://github.com/launchdarkly/ldcli/issues/117)) ([4baf2d0](https://github.com/launchdarkly/ldcli/commit/4baf2d0b2850b3979267f1d2ab964b5a295a27e3))
+* fix the step count ([#121](https://github.com/launchdarkly/ldcli/issues/121)) ([1943c45](https://github.com/launchdarkly/ldcli/commit/1943c4590587f0a3b84e60c6a1628a2ed37254b6))
+* remove id from goreleaser homebrew build config ([#125](https://github.com/launchdarkly/ldcli/issues/125)) ([56538cd](https://github.com/launchdarkly/ldcli/commit/56538cd34bb3ea908e4622a110ab6f486c288b86))
+
 ## [0.2.0](https://github.com/launchdarkly/ldcli/compare/v0.1.0...v0.2.0) (2024-04-03)
 
 
