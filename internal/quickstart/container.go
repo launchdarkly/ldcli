@@ -87,9 +87,9 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.currentModel.Init()
 		m.sdk = msg.sdk
 		m.currentStep += 1
-	case createdFlagMsg:
+	case confirmedFlagMsg:
 		m.currentModel = NewChooseSDKModel(0)
-		m.flagKey = msg.flagKey // TODO: figure out if we maintain state here or pass in another message
+		m.flagKey = msg.flagKey
 		m.currentStep += 1
 		m.err = nil
 	case errMsg:
@@ -104,7 +104,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
-	case fetchedSDKInstructions, fetchedEnv, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg:
+	case fetchedSDKInstructions, fetchedEnv, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
 	case showToggleFlagMsg:

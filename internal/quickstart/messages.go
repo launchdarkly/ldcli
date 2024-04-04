@@ -47,11 +47,24 @@ func sendToggleFlagMsg(client flags.Client, accessToken, baseUri, flagKey string
 }
 
 type createdFlagMsg struct {
+	flagKey          string
+	existingFlagUsed bool
+}
+
+type confirmedFlagMsg struct {
 	flagKey string
+}
+
+func sendConfirmedFlagMsg(flagKey string) tea.Cmd {
+	return func() tea.Msg {
+		return confirmedFlagMsg{flagKey: flagKey}
+	}
 }
 
 func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flagKey, projKey string) tea.Cmd {
 	return func() tea.Msg {
+		var existingFlag bool
+
 		_, err := client.Create(
 			context.Background(),
 			accessToken,
@@ -66,12 +79,14 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 				Message string `json:"message"`
 			}
 			_ = json.Unmarshal([]byte(err.Error()), &e)
-			if e.Code != "conflict" {
+			existingFlag = e.Code == "conflict"
+			if !existingFlag {
 				return errMsg{err: errors.NewError(fmt.Sprintf("Error creating flag: %s. Press \"ctrl + c\" to quit.", e.Message))}
 			}
+
 		}
 
-		return createdFlagMsg{flagKey: flagKey}
+		return createdFlagMsg{flagKey: flagKey, existingFlagUsed: existingFlag}
 	}
 }
 

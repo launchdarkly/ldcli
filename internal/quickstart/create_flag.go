@@ -13,10 +13,13 @@ import (
 const defaultFlagName = "My New Flag"
 
 type createFlagModel struct {
-	accessToken string
-	baseUri     string
-	client      flags.Client
-	textInput   textinput.Model
+	accessToken      string
+	baseUri          string
+	client           flags.Client
+	existingFlagUsed bool
+	flagKey          string
+	success          bool
+	textInput        textinput.Model
 }
 
 func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Model {
@@ -58,6 +61,14 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m.textInput, cmd = m.textInput.Update(msg)
 		}
+	case createdFlagMsg:
+		if !m.success {
+			m.success = true
+			m.existingFlagUsed = msg.existingFlagUsed
+			m.flagKey = msg.flagKey
+			return m, cmd
+		}
+		return m, sendConfirmedFlagMsg(msg.flagKey)
 	}
 
 	return m, cmd
@@ -66,6 +77,14 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m createFlagModel) View() string {
 	style := lipgloss.NewStyle().
 		MarginLeft(2)
+
+	if m.success {
+		successMessage := fmt.Sprintf("Flag %q created successfully!", m.flagKey)
+		if m.existingFlagUsed {
+			successMessage = fmt.Sprintf("Using existing existing flag %q for setup.", m.flagKey)
+		}
+		return successMessage + " Press enter to continue."
+	}
 
 	return fmt.Sprintf(
 		"Name your first feature flag (enter for default value %q):\n\n%s",
