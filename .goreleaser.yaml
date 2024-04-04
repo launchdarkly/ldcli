@@ -5,7 +5,6 @@ dockers:
     - "launchdarkly/ldcli:{{ .Version }}-amd64"
     - "launchdarkly/ldcli:v{{ .Major }}-amd64"
     - "launchdarkly/ldcli:latest-amd64"
-    use: buildx
     goos: linux
     goarch: amd64
     dockerfile: Dockerfile.goreleaser
@@ -19,7 +18,6 @@ dockers:
     - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
     - "launchdarkly/ldcli:v{{ .Major }}-arm64v8"
     - "launchdarkly/ldcli:latest-arm64v8"
-    use: buildx
     goos: linux
     goarch: arm64
     dockerfile: Dockerfile.goreleaser
