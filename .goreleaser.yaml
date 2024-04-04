@@ -25,6 +25,24 @@ dockers:
     build_flag_templates:
     - "--pull"
     - "--platform=linux/arm64/v8"
+docker_manifests:
+  - name_template: "launchdarkly/ldcli:{{ .Version}}"
+    skip_push: false
+    image_templates:
+     - "launchdarkly/ldcli:{{ .Version }}-amd64"
+     - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
+
+  - name_template: "launchdarkly/ldcli:v{{ .Major }}"
+    skip_push: false
+    image_templates:
+      - "launchdarkly/ldcli:v{{ .Major }}-amd64"
+      - "launchdarkly/ldcli:v{{ .Major }}-arm64v8"
+
+  - name_template: "launchdarkly/ldcli:latest"
+    skip_push: false
+    image_templates:
+      - "launchdarkly/ldcli:latest-amd64"
+      - "launchdarkly/ldcli:latest-arm64v8"
 brews:
   -
     name: ldcli
