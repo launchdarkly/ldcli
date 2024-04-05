@@ -89,7 +89,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentStep += 1
 	case confirmedFlagMsg:
 		m.currentModel = NewChooseSDKModel(0)
-		m.flagKey = msg.flagKey
+		m.flagKey = msg.flag.key
 		m.currentStep += 1
 		m.err = nil
 	case errMsg:
