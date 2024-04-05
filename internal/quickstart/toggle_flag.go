@@ -2,11 +2,26 @@ package quickstart
 
 import (
 	"fmt"
+	"ldcli/internal/flags"
+
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"ldcli/internal/flags"
 )
+
+func toggleFlagModelKeys() keyMap {
+	return keyMap{
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "back"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+}
 
 type toggleFlagModel struct {
 	accessToken    string
@@ -15,6 +30,7 @@ type toggleFlagModel struct {
 	enabled        bool
 	flagKey        string
 	flagWasEnabled bool
+	help           help.Model
 	sdkKind        string
 }
 
@@ -24,6 +40,7 @@ func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string,
 		baseUri:     baseUri,
 		client:      client,
 		flagKey:     flagKey,
+		help:        help.New(),
 		sdkKind:     sdkKind,
 	}
 }
@@ -65,6 +82,7 @@ func (m toggleFlagModel) View() string {
 		margin = 2
 		toggle = "ON"
 	}
+	helpView := m.help.View(toggleFlagModelKeys())
 
 	if m.flagWasEnabled {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!\n\n(press ctrl + c to quit)", logTypeMap[m.sdkKind])
@@ -75,5 +93,5 @@ func (m toggleFlagModel) View() string {
 		Padding(0, 1).
 		MarginRight(margin)
 
-	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions
+	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions + "\n\n" + helpView
 }

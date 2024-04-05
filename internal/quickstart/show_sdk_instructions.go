@@ -3,6 +3,7 @@ package quickstart
 import (
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,12 +14,42 @@ import (
 	"ldcli/internal/sdks"
 )
 
+func showSDKInstructionsModelKeys() keyMap {
+	return keyMap{
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "back"),
+		),
+		// CursorUp: key.NewBinding(
+		// 	key.WithKeys("up", "k"),
+		// 	key.WithHelp("↑/k", "up"),
+		// ),
+		// CursorDown: key.NewBinding(
+		// 	key.WithKeys("down", "j"),
+		// 	key.WithHelp("↓/j", "down"),
+		// ),
+		// GoToStart: key.NewBinding(
+		// 	key.WithKeys("home", "g"),
+		// 	key.WithHelp("g/home", "go to start"),
+		// ),
+		// GoToEnd: key.NewBinding(
+		// 	key.WithKeys("end", "G"),
+		// 	key.WithHelp("G/end", "go to end"),
+		// ),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+}
+
 type showSDKInstructionsModel struct {
 	accessToken   string
 	baseUri       string
 	canonicalName string
 	displayName   string
 	flagKey       string
+	help          help.Model
 	instructions  string
 	sdkKey        string
 	spinner       spinner.Model
@@ -42,6 +73,7 @@ func NewShowSDKInstructionsModel(
 		canonicalName: canonicalName,
 		displayName:   displayName,
 		flagKey:       flagKey,
+		help:          help.New(),
 		spinner:       s,
 		url:           url,
 	}
@@ -78,6 +110,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m showSDKInstructionsModel) View() string {
 	style := lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true, false)
+	helpView := m.help.View(showSDKInstructionsModelKeys())
 	md, err := m.renderMarkdown()
 	if err != nil {
 		return fmt.Sprintf("error rendering instructions: %s", err)
@@ -94,7 +127,7 @@ func (m showSDKInstructionsModel) View() string {
 			style.Render(md),
 		),
 		0,
-	)
+	) + "\n\n" + helpView
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {

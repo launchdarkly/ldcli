@@ -27,37 +27,6 @@ func createFlagModelKeys() keyMap {
 	}
 }
 
-// var createFlagModelKeys = keyMap{
-// 	CursorUp: key.NewBinding(
-// 		key.WithKeys("up", "k"),
-// 		key.WithHelp("↑/k", "up"),
-// 	),
-// CursorDown: key.NewBinding(
-// 	key.WithKeys("down", "j"),
-// 	key.WithHelp("↓/j", "down"),
-// ),
-// PrevPage: key.NewBinding(
-// 	key.WithKeys("left", "h", "pgup", "b", "u"),
-// 	key.WithHelp("←/h/pgup", "prev page"),
-// ),
-// NextPage: key.NewBinding(
-// 	key.WithKeys("right", "l", "pgdown", "f", "d"),
-// 	key.WithHelp("→/l/pgdn", "next page"),
-// ),
-// GoToStart: key.NewBinding(
-// 	key.WithKeys("home", "g"),
-// 	key.WithHelp("g/home", "go to start"),
-// ),
-// GoToEnd: key.NewBinding(
-// 	key.WithKeys("end", "G"),
-// 	key.WithHelp("G/end", "go to end"),
-// ),
-// 	Quit: key.NewBinding(
-// 		key.WithKeys("ctrl+c"),
-// 		key.WithHelp("ctrl+c", "quit"),
-// 	),
-// }
-
 type createFlagModel struct {
 	accessToken string
 	baseUri     string
