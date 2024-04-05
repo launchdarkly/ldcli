@@ -2,6 +2,7 @@ package quickstart
 
 import "github.com/charmbracelet/bubbles/key"
 
+// keyMap defines all the possible key presses we would respond to
 type keyMap struct {
 	Back          key.Binding
 	CloseFullHelp key.Binding
@@ -28,7 +29,10 @@ func (k keyMap) ShortHelp() []key.Binding {
 	return []key.Binding{k.Back, k.Quit, k.ShowFullHelp}
 }
 
-var keys = keyMap{
+// pressableKeys are the possible key presses we support for all steps.
+// We don't necessarily want to show these in the help text, but we want to handle them when
+// pressed.
+var pressableKeys = keyMap{
 	Back: key.NewBinding(
 		key.WithKeys("esc"),
 		key.WithHelp("esc", "go back"),

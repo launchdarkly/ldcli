@@ -3,7 +3,6 @@ package quickstart
 import (
 	"fmt"
 	"io"
-	"log"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -25,7 +24,7 @@ const (
 
 type chooseSDKModel struct {
 	help          help.Model
-	keys          keyMap
+	helpKeys      keyMap
 	list          list.Model
 	selectedIndex int
 	selectedSDK   sdkDetail
@@ -45,7 +44,7 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 
 	return chooseSDKModel{
 		help: help.New(),
-		keys: keyMap{
+		helpKeys: keyMap{
 			Back: key.NewBinding(
 				key.WithKeys("esc"),
 				key.WithHelp("esc", "back"),
@@ -101,17 +100,15 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+		case key.Matches(msg, pressableKeys.Enter):
 			i, ok := m.list.SelectedItem().(sdkDetail)
 			if ok {
 				m.selectedSDK = i
 				m.selectedSDK.index = m.list.Index()
 				cmd = sendChoseSDKMsg(m.selectedSDK)
 			}
-		case key.Matches(msg, m.keys.CloseFullHelp):
+		case key.Matches(msg, m.helpKeys.CloseFullHelp):
 			m.help.ShowAll = !m.help.ShowAll
-			log.Println("height", lipgloss.Height(m.help.View(m.keys)))
-			// m.updatePagination()
 		default:
 			m.list, cmd = m.list.Update(msg)
 		}
@@ -123,7 +120,7 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m chooseSDKModel) View() string {
-	helpView := m.help.View(m.keys)
+	helpView := m.help.View(m.helpKeys)
 
 	return m.list.View() + "\n\n" + helpView
 }

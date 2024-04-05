@@ -2,12 +2,13 @@ package quickstart
 
 import (
 	"fmt"
-	"ldcli/internal/flags"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"ldcli/internal/flags"
 )
 
 type toggleFlagModel struct {
@@ -18,7 +19,7 @@ type toggleFlagModel struct {
 	flagKey        string
 	flagWasEnabled bool
 	help           help.Model
-	keys           keyMap
+	helpKeys       keyMap
 	sdkKind        string
 }
 
@@ -29,7 +30,7 @@ func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string,
 		client:      client,
 		flagKey:     flagKey,
 		help:        help.New(),
-		keys: keyMap{
+		helpKeys: keyMap{
 			Back: key.NewBinding(
 				key.WithKeys("esc"),
 				key.WithHelp("esc", "back"),
@@ -52,9 +53,9 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Quit):
+		case key.Matches(msg, pressableKeys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, keys.Tab):
+		case key.Matches(msg, pressableKeys.Tab):
 			m.flagWasEnabled = true
 			m.enabled = !m.enabled
 			return m, sendToggleFlagMsg(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
@@ -80,7 +81,7 @@ func (m toggleFlagModel) View() string {
 		margin = 2
 		toggle = "ON"
 	}
-	helpView := m.help.View(m.keys)
+	helpView := m.help.View(m.helpKeys)
 
 	if m.flagWasEnabled {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!\n\n(press ctrl + c to quit)", logTypeMap[m.sdkKind])

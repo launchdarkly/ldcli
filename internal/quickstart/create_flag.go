@@ -19,7 +19,7 @@ type createFlagModel struct {
 	baseUri     string
 	client      flags.Client
 	help        help.Model
-	keys        keyMap
+	helpKeys    keyMap
 	textInput   textinput.Model
 }
 
@@ -34,7 +34,7 @@ func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Mo
 		baseUri:     baseUri,
 		client:      client,
 		help:        help.New(),
-		keys: keyMap{
+		helpKeys: keyMap{
 			Back: key.NewBinding(
 				key.WithKeys("esc"),
 				key.WithHelp("esc", "back"),
@@ -57,7 +57,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+		case key.Matches(msg, pressableKeys.Enter):
 			input := m.textInput.Value()
 			if input == "" {
 				input = defaultFlagName
@@ -79,7 +79,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m createFlagModel) View() string {
 	style := lipgloss.NewStyle().
 		MarginLeft(2)
-	helpView := m.help.View(m.keys)
+	helpView := m.help.View(m.helpKeys)
 
 	return fmt.Sprintf(
 		"Name your first feature flag (enter for default value %q):\n\n%s",

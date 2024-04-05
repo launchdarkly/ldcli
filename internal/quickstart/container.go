@@ -61,10 +61,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Quit):
+		case key.Matches(msg, pressableKeys.Quit):
 			m.quitting = true
 			cmd = tea.Quit
-		case key.Matches(msg, keys.Back):
+		case key.Matches(msg, pressableKeys.Back):
 			// if showing SDK instructions, let the user go back to choose a different SDK
 			if m.currentStep == stepShowSDKInstructions {
 				m.currentStep -= 1
@@ -117,10 +117,6 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
-	case tea.WindowSizeMsg:
-		// TODO: is this needed?
-		log.Println("WindowSizeMsg", msg.Width)
-		// m.help.Width = msg.Width
 	default:
 		log.Printf("container default: %T\n", msg)
 	}

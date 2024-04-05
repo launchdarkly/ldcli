@@ -21,8 +21,8 @@ type showSDKInstructionsModel struct {
 	displayName   string
 	flagKey       string
 	help          help.Model
+	helpKeys      keyMap
 	instructions  string
-	keys          keyMap
 	sdkKey        string
 	spinner       spinner.Model
 	url           string
@@ -46,7 +46,7 @@ func NewShowSDKInstructionsModel(
 		displayName:   displayName,
 		flagKey:       flagKey,
 		help:          help.New(),
-		keys: keyMap{
+		helpKeys: keyMap{
 			Back: key.NewBinding(
 				key.WithKeys("esc"),
 				key.WithHelp("esc", "back"),
@@ -74,7 +74,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+		case key.Matches(msg, pressableKeys.Enter):
 			// TODO: only if all data are fetched?
 			cmd = sendShowToggleFlagMsg()
 		}
@@ -92,7 +92,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m showSDKInstructionsModel) View() string {
 	style := lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true, false)
-	helpView := m.help.View(m.keys)
+	helpView := m.help.View(m.helpKeys)
 	md, err := m.renderMarkdown()
 	if err != nil {
 		return fmt.Sprintf("error rendering instructions: %s", err)
