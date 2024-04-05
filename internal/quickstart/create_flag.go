@@ -23,7 +23,7 @@ type createFlagModel struct {
 	client           flags.Client
 	existingFlagUsed bool
 	flag             flagDetail
-	shouldUpdateFlag bool
+	showSuccessView  bool
 	textInput        textinput.Model
 }
 
@@ -67,13 +67,15 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textInput, cmd = m.textInput.Update(msg)
 		}
 	case createdFlagMsg:
-		if !m.shouldUpdateFlag {
-			m.shouldUpdateFlag = true
-			m.existingFlagUsed = msg.existingFlagUsed
-			m.flag = msg.flag
-			return m, cmd
+		if m.showSuccessView {
+			return m, sendConfirmedFlagMsg(msg.flag)
 		}
-		return m, sendConfirmedFlagMsg(msg.flag)
+
+		m.showSuccessView = true
+		m.existingFlagUsed = msg.existingFlagUsed
+		m.flag = msg.flag
+		return m, cmd
+
 	}
 
 	return m, cmd
@@ -83,7 +85,7 @@ func (m createFlagModel) View() string {
 	style := lipgloss.NewStyle().
 		MarginLeft(2)
 
-	if m.shouldUpdateFlag {
+	if m.showSuccessView {
 		successMessage := fmt.Sprintf("Flag %q created successfully!", m.flag.name)
 		if m.existingFlagUsed {
 			successMessage = fmt.Sprintf("Using existing flag %q for setup.", m.flag.name)
