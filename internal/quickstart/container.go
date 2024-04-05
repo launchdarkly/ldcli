@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/wordwrap"
 
 	"ldcli/internal/flags"
 )
@@ -39,6 +40,7 @@ type ContainerModel struct {
 	quitting     bool
 	sdk          sdkDetail
 	totalSteps   int
+	width        int
 }
 
 func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri string) tea.Model {
@@ -59,6 +61,8 @@ func (m ContainerModel) Init() tea.Cmd {
 func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Quit):
@@ -150,7 +154,7 @@ func (m ContainerModel) View() string {
 		return ""
 	}
 
-	return out
+	return wordwrap.String(out, m.width)
 }
 
 type keyMap struct {
