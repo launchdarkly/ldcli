@@ -2,12 +2,14 @@ package quickstart
 
 import (
 	"fmt"
-	"ldcli/internal/flags"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"ldcli/internal/flags"
 )
 
 const defaultFlagName = "My New Flag"
@@ -16,6 +18,8 @@ type createFlagModel struct {
 	accessToken string
 	baseUri     string
 	client      flags.Client
+	help        help.Model
+	helpKeys    keyMap
 	textInput   textinput.Model
 }
 
@@ -30,7 +34,11 @@ func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Mo
 		accessToken: accessToken,
 		baseUri:     baseUri,
 		client:      client,
-		textInput:   ti,
+		help:        help.New(),
+		helpKeys: keyMap{
+			Quit: BindingQuit,
+		},
+		textInput: ti,
 	}
 }
 
@@ -43,7 +51,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+		case key.Matches(msg, pressableKeys.Enter):
 			input := m.textInput.Value()
 			if input == "" {
 				input = defaultFlagName
@@ -54,8 +62,6 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			return m, sendCreateFlagMsg(m.client, m.accessToken, m.baseUri, input, flagKey, defaultProjKey)
-		case key.Matches(msg, keys.Quit):
-			return m, tea.Quit
 		default:
 			m.textInput, cmd = m.textInput.Update(msg)
 		}
@@ -67,9 +73,10 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m createFlagModel) View() string {
 	style := lipgloss.NewStyle().
 		MarginLeft(2)
+	helpView := m.help.View(m.helpKeys)
 
 	return fmt.Sprintf(
 		"Name your first feature flag (enter for default value):%s",
 		style.Render(m.textInput.View()),
-	) + "\n"
+	) + "\n\n" + helpView
 }

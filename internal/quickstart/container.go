@@ -65,10 +65,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Quit):
+		case key.Matches(msg, pressableKeys.Quit):
 			m.quitting = true
 			cmd = tea.Quit
-		case key.Matches(msg, keys.Back):
+		case key.Matches(msg, pressableKeys.Back):
 			switch m.currentStep {
 			case stepCreateFlag:
 				// can't go back
@@ -171,30 +171,4 @@ func (m ContainerModel) View() string {
 	}
 
 	return wordwrap.String(out, m.width)
-}
-
-type keyMap struct {
-	Back  key.Binding
-	Enter key.Binding
-	Quit  key.Binding
-	Tab   key.Binding
-}
-
-var keys = keyMap{
-	Back: key.NewBinding(
-		key.WithKeys("esc"),
-		key.WithHelp("esc", "go back"),
-	),
-	Enter: key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("enter", "select"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("ctrl+c"),
-		key.WithHelp("q", "quit"),
-	),
-	Tab: key.NewBinding(
-		key.WithKeys("tab"),
-		key.WithHelp("tab", "toggle"),
-	),
 }

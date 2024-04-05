@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,6 +23,8 @@ const (
 )
 
 type chooseSDKModel struct {
+	help          help.Model
+	helpKeys      keyMap
 	list          list.Model
 	selectedIndex int
 	selectedSDK   sdkDetail
@@ -33,12 +36,26 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
 	l.Styles.TitleBar = lipgloss.NewStyle()
+	l.SetShowHelp(false)
 	l.SetShowPagination(true)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false) // TODO: try to get filtering working
 	l.Paginator.PerPage = 5
 
 	return chooseSDKModel{
+		help: help.New(),
+		helpKeys: keyMap{
+			Back:          BindingBack,
+			CursorUp:      BindingCursorUp,
+			CursorDown:    BindingCursorDown,
+			PrevPage:      BindingPrevPage,
+			NextPage:      BindingNextPage,
+			GoToStart:     BindingGoToStart,
+			GoToEnd:       BindingGoToEnd,
+			ShowFullHelp:  BindingShowFullHelp,
+			CloseFullHelp: BindingCloseFullHelp,
+			Quit:          BindingQuit,
+		},
 		list:          l,
 		selectedIndex: selectedIndex,
 	}
@@ -53,13 +70,15 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+		case key.Matches(msg, pressableKeys.Enter):
 			i, ok := m.list.SelectedItem().(sdkDetail)
 			if ok {
 				m.selectedSDK = i
 				m.selectedSDK.index = m.list.Index()
 				cmd = sendChoseSDKMsg(m.selectedSDK)
 			}
+		case key.Matches(msg, m.helpKeys.CloseFullHelp):
+			m.help.ShowAll = !m.help.ShowAll
 		default:
 			m.list, cmd = m.list.Update(msg)
 		}
@@ -71,7 +90,9 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m chooseSDKModel) View() string {
-	return m.list.View()
+	helpView := m.help.View(m.helpKeys)
+
+	return m.list.View() + "\n\n" + helpView
 }
 
 type sdkDetail struct {
