@@ -90,9 +90,7 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m chooseSDKModel) View() string {
-	helpView := m.help.View(m.helpKeys)
-
-	return m.list.View() + "\n\n" + helpView
+	return m.list.View() + footerView(m.help.View(m.helpKeys), nil)
 }
 
 type sdkDetail struct {
@@ -158,8 +156,6 @@ func (d sdkDelegate) Render(w io.Writer, m list.Model, index int, listItem list.
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, i.displayName)
-
 	fn := sdkStyle.Render
 	if index == m.Index() {
 		fn = func(s ...string) string {
@@ -167,5 +163,5 @@ func (d sdkDelegate) Render(w io.Writer, m list.Model, index int, listItem list.
 		}
 	}
 
-	fmt.Fprint(w, fn(str))
+	fmt.Fprint(w, fn(fmt.Sprintf("%d. %s", index+1, i.displayName)))
 }
