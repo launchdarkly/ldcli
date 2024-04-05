@@ -2,47 +2,30 @@ package quickstart
 
 import "github.com/charmbracelet/bubbles/key"
 
-type listKeyMap struct {
+type keyMap struct {
 	Back          key.Binding
 	CloseFullHelp key.Binding
 	CursorDown    key.Binding
 	CursorUp      key.Binding
+	Enter         key.Binding
 	GoToEnd       key.Binding
 	GoToStart     key.Binding
 	NextPage      key.Binding
 	PrevPage      key.Binding
 	Quit          key.Binding
 	ShowFullHelp  key.Binding
+	Tab           key.Binding
 }
 
-func (k listKeyMap) FullHelp() [][]key.Binding {
+func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.CursorUp, k.CursorDown, k.PrevPage, k.NextPage},
 		{k.Back, k.Quit, k.CloseFullHelp},
 	}
 }
 
-func (k listKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Back, k.Quit, k.ShowFullHelp}
-}
-
-type keyMap struct {
-	Back  key.Binding
-	Enter key.Binding
-	Quit  key.Binding
-	Tab   key.Binding
-	// Help  key.Binding
-}
-
-func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		// {k.Up, k.Down, k.Left, k.Right}, // first column
-		// {k.Back, k.Quit}, // second column
-	}
-}
-
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Back, k.Quit}
+	return []key.Binding{k.Back, k.Quit, k.ShowFullHelp}
 }
 
 var keys = keyMap{
@@ -54,10 +37,6 @@ var keys = keyMap{
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "select"),
 	),
-	// Help: key.NewBinding(
-	// 	key.WithKeys("?"),
-	// 	key.WithHelp("?", "help"),
-	// ),
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c"),
 		key.WithHelp("ctrl+c", "quit"),
@@ -81,8 +60,8 @@ func createFlagModelKeys() keyMap {
 	}
 }
 
-func chooseSDKModelKeys() listKeyMap {
-	return listKeyMap{
+func chooseSDKModelKeys() keyMap {
+	return keyMap{
 		Back: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "back"),
