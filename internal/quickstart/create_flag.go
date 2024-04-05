@@ -28,6 +28,7 @@ func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Mo
 	ti.Focus()
 	ti.CharLimit = 156
 	ti.Width = 20
+	ti.Prompt = ""
 
 	return createFlagModel{
 		accessToken: accessToken,
@@ -82,8 +83,7 @@ func (m createFlagModel) View() string {
 	helpView := m.help.View(m.helpKeys)
 
 	return fmt.Sprintf(
-		"Name your first feature flag (enter for default value %q):\n\n%s",
-		defaultFlagName,
+		"Name your first feature flag (enter for default value):%s",
 		style.Render(m.textInput.View()),
 	) + "\n\n" + helpView
 }

@@ -6,7 +6,6 @@ on:
       - main
 
 jobs:
-
   release-please:
     runs-on: ubuntu-latest
     outputs:
@@ -23,18 +22,37 @@ jobs:
     permissions:
       id-token: write # Needed to obtain Docker tokens
       contents: write # Needed to upload release artifacts
-
     needs: [ release-please ]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
+    outputs: 
+      hashes: ${{ steps.publish.outputs.hashes }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        name: Checkout
         with:
           fetch-depth: 0
-
+          
+      - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
+        name: 'Get Docker token'
+        with:
+          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+          ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
+          
       - uses: ./.github/actions/publish
         with:
           dry-run: 'false'
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ needs.release-please.outputs.tag_name }}
+
+  release-ldcli-provenance:
+    needs: ['release-please', 'release-ldcli']
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.10.0
+    with:
+      base64-subjects: "${{ needs.release-ldcli.outputs.hashes }}"
+      upload-assets: true
+      upload-tag-name: ${{ needs.release-please.outputs.tag_name }}

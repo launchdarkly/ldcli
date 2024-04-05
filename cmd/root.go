@@ -48,7 +48,7 @@ func NewRootCommand(
 	cmd.PersistentFlags().String(
 		cliflags.AccessTokenFlag,
 		"",
-		"LaunchDarkly API token",
+		"LaunchDarkly API token with write-level access",
 	)
 	err := cmd.MarkPersistentFlagRequired(cliflags.AccessTokenFlag)
 	if err != nil {

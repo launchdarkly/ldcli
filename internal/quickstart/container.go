@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/wordwrap"
 
 	"ldcli/internal/flags"
 )
@@ -39,6 +40,7 @@ type ContainerModel struct {
 	quitting     bool
 	sdk          sdkDetail
 	totalSteps   int
+	width        int
 }
 
 func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri string) tea.Model {
@@ -59,21 +61,38 @@ func (m ContainerModel) Init() tea.Cmd {
 func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, pressableKeys.Quit):
 			m.quitting = true
 			cmd = tea.Quit
 		case key.Matches(msg, pressableKeys.Back):
-			// if showing SDK instructions, let the user go back to choose a different SDK
-			if m.currentStep == stepShowSDKInstructions {
+			switch m.currentStep {
+			case stepCreateFlag:
+				// can't go back
+			case stepChooseSDK:
+				m.currentStep -= 1
+				m.currentModel = NewCreateFlagModel(m.flagsClient, m.accessToken, m.baseUri)
+			case stepShowSDKInstructions:
 				m.currentStep -= 1
 				m.currentModel = NewChooseSDKModel(m.sdk.index)
+				cmd = m.currentModel.Init()
+			case stepToggleFlag:
+				m.currentStep -= 1
+				m.currentModel = NewShowSDKInstructionsModel(
+					m.accessToken,
+					m.baseUri,
+					m.sdk.canonicalName,
+					m.sdk.displayName,
+					m.sdk.url,
+					m.flagKey,
+				)
 				cmd = m.currentModel.Init()
 			}
 		default:
 			// delegate all other input to the current model
-			log.Printf("container: %T %s", msg, msg)
 			m.currentModel, cmd = m.currentModel.Update(msg)
 		}
 	case choseSDKMsg:
@@ -151,5 +170,5 @@ func (m ContainerModel) View() string {
 		return ""
 	}
 
-	return out
+	return wordwrap.String(out, m.width)
 }

@@ -104,7 +104,7 @@ func (m showSDKInstructionsModel) View() string {
 
 	return wordwrap.String(
 		fmt.Sprintf(
-			"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code.\n%s\n\n (press enter to continue)",
+			"Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n%s\n\n (press enter to continue)",
 			m.displayName,
 			style.Render(md),
 		),
