@@ -14,35 +14,6 @@ import (
 	"ldcli/internal/sdks"
 )
 
-func showSDKInstructionsModelKeys() keyMap {
-	return keyMap{
-		Back: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "back"),
-		),
-		// CursorUp: key.NewBinding(
-		// 	key.WithKeys("up", "k"),
-		// 	key.WithHelp("↑/k", "up"),
-		// ),
-		// CursorDown: key.NewBinding(
-		// 	key.WithKeys("down", "j"),
-		// 	key.WithHelp("↓/j", "down"),
-		// ),
-		// GoToStart: key.NewBinding(
-		// 	key.WithKeys("home", "g"),
-		// 	key.WithHelp("g/home", "go to start"),
-		// ),
-		// GoToEnd: key.NewBinding(
-		// 	key.WithKeys("end", "G"),
-		// 	key.WithHelp("G/end", "go to end"),
-		// ),
-		Quit: key.NewBinding(
-			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "quit"),
-		),
-	}
-}
-
 type showSDKInstructionsModel struct {
 	accessToken   string
 	baseUri       string

@@ -14,19 +14,6 @@ import (
 
 const defaultFlagName = "My New Flag"
 
-func createFlagModelKeys() keyMap {
-	return keyMap{
-		Back: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "back"),
-		),
-		Quit: key.NewBinding(
-			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "quit"),
-		),
-	}
-}
-
 type createFlagModel struct {
 	accessToken string
 	baseUri     string

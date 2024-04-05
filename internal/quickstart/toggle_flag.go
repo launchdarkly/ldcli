@@ -10,19 +10,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func toggleFlagModelKeys() keyMap {
-	return keyMap{
-		Back: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "back"),
-		),
-		Quit: key.NewBinding(
-			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "quit"),
-		),
-	}
-}
-
 type toggleFlagModel struct {
 	accessToken    string
 	baseUri        string
