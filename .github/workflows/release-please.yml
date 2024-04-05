@@ -28,13 +28,18 @@ jobs:
     outputs: 
       hashes: ${{ steps.publish.outputs.hashes }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        name: Checkout
         with:
           fetch-depth: 0
-
-      - id: publish
-        uses: ./.github/actions/publish
+          
+      - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
+        name: 'Get Docker token'
+        with:
+          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+          ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
+          
+      - uses: ./.github/actions/publish
         with:
           dry-run: 'false'
           token: ${{ secrets.GITHUB_TOKEN }}
