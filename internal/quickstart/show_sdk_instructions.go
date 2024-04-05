@@ -22,6 +22,7 @@ type showSDKInstructionsModel struct {
 	flagKey       string
 	help          help.Model
 	instructions  string
+	keys          keyMap
 	sdkKey        string
 	spinner       spinner.Model
 	url           string
@@ -45,8 +46,18 @@ func NewShowSDKInstructionsModel(
 		displayName:   displayName,
 		flagKey:       flagKey,
 		help:          help.New(),
-		spinner:       s,
-		url:           url,
+		keys: keyMap{
+			Back: key.NewBinding(
+				key.WithKeys("esc"),
+				key.WithHelp("esc", "back"),
+			),
+			Quit: key.NewBinding(
+				key.WithKeys("ctrl+c"),
+				key.WithHelp("ctrl+c", "quit"),
+			),
+		},
+		spinner: s,
+		url:     url,
 	}
 }
 
@@ -81,7 +92,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m showSDKInstructionsModel) View() string {
 	style := lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true, false)
-	helpView := m.help.View(showSDKInstructionsModelKeys())
+	helpView := m.help.View(m.keys)
 	md, err := m.renderMarkdown()
 	if err != nil {
 		return fmt.Sprintf("error rendering instructions: %s", err)

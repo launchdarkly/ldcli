@@ -18,6 +18,7 @@ type toggleFlagModel struct {
 	flagKey        string
 	flagWasEnabled bool
 	help           help.Model
+	keys           keyMap
 	sdkKind        string
 }
 
@@ -28,7 +29,17 @@ func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string,
 		client:      client,
 		flagKey:     flagKey,
 		help:        help.New(),
-		sdkKind:     sdkKind,
+		keys: keyMap{
+			Back: key.NewBinding(
+				key.WithKeys("esc"),
+				key.WithHelp("esc", "back"),
+			),
+			Quit: key.NewBinding(
+				key.WithKeys("ctrl+c"),
+				key.WithHelp("ctrl+c", "quit"),
+			),
+		},
+		sdkKind: sdkKind,
 	}
 }
 
@@ -69,7 +80,7 @@ func (m toggleFlagModel) View() string {
 		margin = 2
 		toggle = "ON"
 	}
-	helpView := m.help.View(toggleFlagModelKeys())
+	helpView := m.help.View(m.keys)
 
 	if m.flagWasEnabled {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!\n\n(press ctrl + c to quit)", logTypeMap[m.sdkKind])

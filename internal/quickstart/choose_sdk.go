@@ -25,6 +25,7 @@ const (
 
 type chooseSDKModel struct {
 	help          help.Model
+	keys          keyMap
 	list          list.Model
 	selectedIndex int
 	selectedSDK   sdkDetail
@@ -43,7 +44,49 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	l.Paginator.PerPage = 5
 
 	return chooseSDKModel{
-		help:          help.New(),
+		help: help.New(),
+		keys: keyMap{
+			Back: key.NewBinding(
+				key.WithKeys("esc"),
+				key.WithHelp("esc", "back"),
+			),
+			CursorUp: key.NewBinding(
+				key.WithKeys("up", "k"),
+				key.WithHelp("↑/k", "up"),
+			),
+			CursorDown: key.NewBinding(
+				key.WithKeys("down", "j"),
+				key.WithHelp("↓/j", "down"),
+			),
+			PrevPage: key.NewBinding(
+				key.WithKeys("left", "h", "pgup", "b", "u"),
+				key.WithHelp("←/h/pgup", "prev page"),
+			),
+			NextPage: key.NewBinding(
+				key.WithKeys("right", "l", "pgdown", "f", "d"),
+				key.WithHelp("→/l/pgdn", "next page"),
+			),
+			GoToStart: key.NewBinding(
+				key.WithKeys("home", "g"),
+				key.WithHelp("g/home", "go to start"),
+			),
+			GoToEnd: key.NewBinding(
+				key.WithKeys("end", "G"),
+				key.WithHelp("G/end", "go to end"),
+			),
+			ShowFullHelp: key.NewBinding(
+				key.WithKeys("?"),
+				key.WithHelp("?", "more"),
+			),
+			CloseFullHelp: key.NewBinding(
+				key.WithKeys("?"),
+				key.WithHelp("?", "close help"),
+			),
+			Quit: key.NewBinding(
+				key.WithKeys("ctrl+c"),
+				key.WithHelp("ctrl+c", "quit"),
+			),
+		},
 		list:          l,
 		selectedIndex: selectedIndex,
 	}
@@ -65,9 +108,9 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selectedSDK.index = m.list.Index()
 				cmd = sendChoseSDKMsg(m.selectedSDK)
 			}
-		case key.Matches(msg, chooseSDKModelKeys().CloseFullHelp):
+		case key.Matches(msg, m.keys.CloseFullHelp):
 			m.help.ShowAll = !m.help.ShowAll
-			log.Println("height", lipgloss.Height(m.help.View(chooseSDKModelKeys())))
+			log.Println("height", lipgloss.Height(m.help.View(m.keys)))
 			// m.updatePagination()
 		default:
 			m.list, cmd = m.list.Update(msg)
@@ -80,7 +123,7 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m chooseSDKModel) View() string {
-	helpView := m.help.View(chooseSDKModelKeys())
+	helpView := m.help.View(m.keys)
 
 	return m.list.View() + "\n\n" + helpView
 }
