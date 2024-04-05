@@ -8,6 +8,11 @@ The LaunchDarkly CLI helps you manage your feature flags wherever you are, wheth
 - Onboard your whole team by inviting new members.
 - Interact with the LaunchDarkly API using resource & CRUD based commands.
 
+# 🚫🚫🚫🚫🚫🚫
+
+> [!CAUTION]
+> This package is prerelease and experimental. It should not be used in production and is not supported.
+
 ![demo](ldcli-setup.gif)
 
 ## Installation
