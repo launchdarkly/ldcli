@@ -65,10 +65,26 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			cmd = tea.Quit
 		case key.Matches(msg, keys.Back):
-			// if showing SDK instructions, let the user go back to choose a different SDK
-			if m.currentStep == stepShowSDKInstructions {
+			switch m.currentStep {
+			case stepCreateFlag:
+				// can't go back
+			case stepChooseSDK:
+				m.currentStep -= 1
+				m.currentModel = NewCreateFlagModel(m.flagsClient, m.accessToken, m.baseUri)
+			case stepShowSDKInstructions:
 				m.currentStep -= 1
 				m.currentModel = NewChooseSDKModel(m.sdk.index)
+				cmd = m.currentModel.Init()
+			case stepToggleFlag:
+				m.currentStep -= 1
+				m.currentModel = NewShowSDKInstructionsModel(
+					m.accessToken,
+					m.baseUri,
+					m.sdk.canonicalName,
+					m.sdk.displayName,
+					m.sdk.url,
+					m.flagKey,
+				)
 				cmd = m.currentModel.Init()
 			}
 		default:
