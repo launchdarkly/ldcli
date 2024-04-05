@@ -36,14 +36,7 @@ func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Mo
 		client:      client,
 		help:        help.New(),
 		helpKeys: keyMap{
-			Back: key.NewBinding(
-				key.WithKeys("esc"),
-				key.WithHelp("esc", "back"),
-			),
-			Quit: key.NewBinding(
-				key.WithKeys("ctrl+c"),
-				key.WithHelp("ctrl+c", "quit"),
-			),
+			Quit: BindingQuit,
 		},
 		textInput: ti,
 	}

@@ -47,14 +47,8 @@ func NewShowSDKInstructionsModel(
 		flagKey:       flagKey,
 		help:          help.New(),
 		helpKeys: keyMap{
-			Back: key.NewBinding(
-				key.WithKeys("esc"),
-				key.WithHelp("esc", "back"),
-			),
-			Quit: key.NewBinding(
-				key.WithKeys("ctrl+c"),
-				key.WithHelp("ctrl+c", "quit"),
-			),
+			Back: BindingBack,
+			Quit: BindingQuit,
 		},
 		spinner: s,
 		url:     url,

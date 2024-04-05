@@ -2,6 +2,49 @@ package quickstart
 
 import "github.com/charmbracelet/bubbles/key"
 
+var (
+	BindingBack = key.NewBinding(
+		key.WithKeys("esc"),
+		key.WithHelp("esc", "back"),
+	)
+	BindingCursorUp = key.NewBinding(
+		key.WithKeys("up", "k"),
+		key.WithHelp("↑/k", "up"),
+	)
+	BindingCursorDown = key.NewBinding(
+		key.WithKeys("down", "j"),
+		key.WithHelp("↓/j", "down"),
+	)
+	BindingPrevPage = key.NewBinding(
+		key.WithKeys("left", "h", "pgup", "b", "u"),
+		key.WithHelp("←/h/pgup", "prev page"),
+	)
+	BindingNextPage = key.NewBinding(
+		key.WithKeys("right", "l", "pgdown", "f", "d"),
+		key.WithHelp("→/l/pgdn", "next page"),
+	)
+	BindingGoToStart = key.NewBinding(
+		key.WithKeys("home", "g"),
+		key.WithHelp("g/home", "go to start"),
+	)
+	BindingGoToEnd = key.NewBinding(
+		key.WithKeys("end", "G"),
+		key.WithHelp("G/end", "go to end"),
+	)
+	BindingShowFullHelp = key.NewBinding(
+		key.WithKeys("?"),
+		key.WithHelp("?", "more"),
+	)
+	BindingCloseFullHelp = key.NewBinding(
+		key.WithKeys("?"),
+		key.WithHelp("?", "close help"),
+	)
+	BindingQuit = key.NewBinding(
+		key.WithKeys("ctrl+c"),
+		key.WithHelp("ctrl+c", "quit"),
+	)
+)
+
 // keyMap defines all the possible key presses we would respond to
 type keyMap struct {
 	Back          key.Binding
