@@ -3,8 +3,10 @@ package quickstart
 import (
 	"fmt"
 	"io"
+	"log"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,12 +18,63 @@ var (
 	selectedSdkItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
 )
 
+type listKeyMap struct {
+	Back          key.Binding
+	CloseFullHelp key.Binding
+	CursorDown    key.Binding
+	CursorUp      key.Binding
+	GoToEnd       key.Binding
+	GoToStart     key.Binding
+	NextPage      key.Binding
+	PrevPage      key.Binding
+	Quit          key.Binding
+	ShowFullHelp  key.Binding
+}
+
+func (k listKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.CursorUp, k.CursorDown, k.PrevPage, k.NextPage},
+		{k.Back, k.Quit, k.CloseFullHelp},
+	}
+}
+
+func (k listKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Back, k.Quit, k.ShowFullHelp}
+}
+
+func chooseSDKModelKeys() listKeyMap {
+	return listKeyMap{
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "back"),
+		),
+		CursorUp: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		// TODO: fill in the rest
+		ShowFullHelp: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "more"),
+		),
+		CloseFullHelp: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "close help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+}
+
 const (
 	clientSideSDK = "client"
 	serverSideSDK = "server"
 )
 
 type chooseSDKModel struct {
+	help          help.Model
 	list          list.Model
 	selectedIndex int
 	selectedSDK   sdkDetail
@@ -33,12 +86,14 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
 	l.Styles.TitleBar = lipgloss.NewStyle()
+	l.SetShowHelp(false)
 	l.SetShowPagination(true)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false) // TODO: try to get filtering working
 	l.Paginator.PerPage = 5
 
 	return chooseSDKModel{
+		help:          help.New(),
 		list:          l,
 		selectedIndex: selectedIndex,
 	}
@@ -60,6 +115,10 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selectedSDK.index = m.list.Index()
 				cmd = sendChoseSDKMsg(m.selectedSDK)
 			}
+		case key.Matches(msg, chooseSDKModelKeys().CloseFullHelp):
+			m.help.ShowAll = !m.help.ShowAll
+			log.Println("height", lipgloss.Height(m.help.View(chooseSDKModelKeys())))
+			// m.updatePagination()
 		default:
 			m.list, cmd = m.list.Update(msg)
 		}
@@ -71,7 +130,9 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m chooseSDKModel) View() string {
-	return m.list.View()
+	helpView := m.help.View(chooseSDKModelKeys())
+
+	return m.list.View() + "\n\n" + helpView
 }
 
 type sdkDetail struct {

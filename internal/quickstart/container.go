@@ -73,6 +73,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		default:
 			// delegate all other input to the current model
+			log.Printf("container: %T %s", msg, msg)
 			m.currentModel, cmd = m.currentModel.Update(msg)
 		}
 	case choseSDKMsg:
@@ -116,6 +117,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
+	case tea.WindowSizeMsg:
+		// TODO: is this needed?
+		log.Println("WindowSizeMsg", msg.Width)
+		// m.help.Width = msg.Width
 	default:
 		log.Printf("container default: %T\n", msg)
 	}
@@ -158,6 +163,18 @@ type keyMap struct {
 	Enter key.Binding
 	Quit  key.Binding
 	Tab   key.Binding
+	// Help  key.Binding
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		// {k.Up, k.Down, k.Left, k.Right}, // first column
+		// {k.Back, k.Quit}, // second column
+	}
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Back, k.Quit}
 }
 
 var keys = keyMap{
@@ -169,9 +186,13 @@ var keys = keyMap{
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "select"),
 	),
+	// Help: key.NewBinding(
+	// 	key.WithKeys("?"),
+	// 	key.WithHelp("?", "help"),
+	// ),
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c"),
-		key.WithHelp("q", "quit"),
+		key.WithHelp("ctrl+c", "quit"),
 	),
 	Tab: key.NewBinding(
 		key.WithKeys("tab"),
