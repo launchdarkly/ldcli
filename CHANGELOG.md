@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/launchdarkly/ldcli/compare/v0.4.0...v0.5.0) (2024-04-05)
+
+
+### Features
+
+* show help text ([#138](https://github.com/launchdarkly/ldcli/issues/138)) ([69d7f5e](https://github.com/launchdarkly/ldcli/commit/69d7f5ee03579fc6c3cb34fb00fb6f07ba90bf84))
+
 ## [0.4.0](https://github.com/launchdarkly/ldcli/compare/v0.3.0...v0.4.0) (2024-04-05)
 
 
