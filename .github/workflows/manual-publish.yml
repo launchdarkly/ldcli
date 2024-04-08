@@ -37,6 +37,7 @@ jobs:
         with:
           dry-run: ${{ inputs.dry_run }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOYKEY}}
           tag: ${{ inputs.tag }}
   release-ldcli-provenance:
     needs: ['release-ldcli']
