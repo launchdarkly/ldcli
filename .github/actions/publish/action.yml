@@ -11,23 +11,33 @@ inputs:
   tag:
     description: 'Tag to upload artifacts to.'
     required: true
+outputs:
+  hashes: 
+    description: sha256sum hashes of built artifacts
+    value: ${{ steps.hash.outputs.hashes }}
 
 runs:
   using: composite
   steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
       with:
-        fetch-depth: 0
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: stable
+        platforms: linux/amd64,linux/arm64/v8,linux/arm/v7,linux/386
+    - name: Login to Docker
+      shell: bash
+      run: |
+        echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
     - name: Run Goreleaser
       uses: goreleaser/goreleaser-action@v5
       with:
         version: latest
-        args: release --clean ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
+        args: release ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
-        
+    - name: Hash build artifacts for provenance 
+      id: hash
+      shell: bash
+      run: | 
+        echo "hashes=$(sha256sum dist/* | base64 -w0)" >> "$GITHUB_OUTPUT"

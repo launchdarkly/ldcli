@@ -3,12 +3,19 @@ package flags
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
 	"ldcli/internal/client"
 	"ldcli/internal/errors"
 )
+
+type UpdateInput struct {
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
+	Value interface{} `json:"value"`
+}
 
 type Client interface {
 	Create(ctx context.Context, accessToken, baseURI, name, key, projKey string) ([]byte, error)
@@ -18,7 +25,7 @@ type Client interface {
 		baseURI,
 		key,
 		projKey string,
-		patch []ldapi.PatchOperation,
+		patch []UpdateInput,
 	) ([]byte, error)
 }
 
@@ -64,9 +71,13 @@ func (c FlagsClient) Update(
 	baseURI,
 	key,
 	projKey string,
-	patch []ldapi.PatchOperation,
+	input []UpdateInput,
 ) ([]byte, error) {
 	client := client.New(accessToken, baseURI, c.cliVersion)
+	patch := []ldapi.PatchOperation{}
+	for _, i := range input {
+		patch = append(patch, *ldapi.NewPatchOperation(i.Op, i.Path, i.Value))
+	}
 	flag, _, err := client.FeatureFlagsApi.
 		PatchFeatureFlag(ctx, projKey, key).
 		PatchWithComment(*ldapi.NewPatchWithComment(patch)).
@@ -81,4 +92,8 @@ func (c FlagsClient) Update(
 	}
 
 	return responseJSON, nil
+}
+
+func BuildToggleFlagPatch(envKey string, enabled bool) []UpdateInput {
+	return []UpdateInput{{Op: "replace", Path: fmt.Sprintf("/environments/%s/on", envKey), Value: enabled}}
 }

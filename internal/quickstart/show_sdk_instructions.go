@@ -2,65 +2,86 @@ package quickstart
 
 import (
 	"fmt"
-	"io"
-	"ldcli/internal/sdks"
-	"net/http"
-	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
+
+	"ldcli/internal/sdks"
 )
 
-const instructionsURL = "https://raw.githubusercontent.com/launchdarkly/hello-%s/main/README.md"
-
 type showSDKInstructionsModel struct {
-	instructions string
-	sdk          string
+	accessToken   string
+	baseUri       string
+	canonicalName string
+	displayName   string
+	flagKey       string
+	help          help.Model
+	helpKeys      keyMap
+	instructions  string
+	sdkKey        string
+	spinner       spinner.Model
+	url           string
 }
 
-func NewShowSDKInstructionsModel() tea.Model {
-	return showSDKInstructionsModel{}
+func NewShowSDKInstructionsModel(
+	accessToken string,
+	baseUri string,
+	canonicalName string,
+	displayName string,
+	url string,
+	flagKey string,
+) tea.Model {
+	s := spinner.New()
+	s.Spinner = spinner.Points
+
+	return showSDKInstructionsModel{
+		accessToken:   accessToken,
+		baseUri:       baseUri,
+		canonicalName: canonicalName,
+		displayName:   displayName,
+		flagKey:       flagKey,
+		help:          help.New(),
+		helpKeys: keyMap{
+			Back: BindingBack,
+			Quit: BindingQuit,
+		},
+		spinner: s,
+		url:     url,
+	}
 }
 
 func (m showSDKInstructionsModel) Init() tea.Cmd {
-	// send command to make request?
-	return nil
+	return tea.Sequence(
+		m.spinner.Tick,
+		sendFetchSDKInstructionsMsg(m.url),
+		sendFetchEnv(m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
+	)
 }
 
 func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case fetchSDKInstructionsMsg:
-		url := fmt.Sprintf(instructionsURL, msg.canonicalName)
-		c := &http.Client{
-			Timeout: 5 * time.Second,
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, pressableKeys.Enter):
+			// TODO: only if all data are fetched?
+			cmd = sendShowToggleFlagMsg()
 		}
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			return m, sendErr(err)
-		}
-		resp, err := c.Do(req)
-		if err != nil {
-			return m, sendErr(err)
-		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return m, sendErr(err)
-		}
-
-		if resp.StatusCode == 404 {
-			m.sdk = msg.name
-
-			return m, sendNoInstructions()
-		}
-
-		m.sdk = msg.name
-		m.instructions = sdks.ReplaceFlagKey(string(body), msg.flagKey)
+	case fetchedSDKInstructions:
+		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
+	case fetchedEnv:
+		m.sdkKey = msg.sdkKey
+		m.instructions = sdks.ReplaceSDKKey(string(m.instructions), msg.sdkKey)
+	case spinner.TickMsg:
+		m.spinner, cmd = m.spinner.Update(msg)
 	}
 
-	return m, nil
+	return m, cmd
 }
 
 func (m showSDKInstructionsModel) View() string {
@@ -70,14 +91,18 @@ func (m showSDKInstructionsModel) View() string {
 		return fmt.Sprintf("error rendering instructions: %s", err)
 	}
 
+	if m.instructions == "" || m.sdkKey == "" {
+		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...", m.displayName)
+	}
+
 	return wordwrap.String(
 		fmt.Sprintf(
-			"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code.\n%s",
-			m.sdk,
+			"Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n%s\n\n (press enter to continue)",
+			m.displayName,
 			style.Render(md),
 		),
 		0,
-	)
+	) + footerView(m.help.View(m.helpKeys), nil)
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {

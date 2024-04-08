@@ -1,41 +1,44 @@
 package quickstart
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/viper"
 
-	"ldcli/cmd/cliflags"
 	"ldcli/internal/flags"
 )
 
-const defaultFlagName = "my new flag"
+const defaultFlagName = "My New Flag"
 
 type createFlagModel struct {
-	client    flags.Client
-	err       error
-	flagKey   string
-	flagName  string
-	quitMsg   string
-	quitting  bool
-	textInput textinput.Model
+	accessToken string
+	baseUri     string
+	client      flags.Client
+	err         error
+	help        help.Model
+	helpKeys    keyMap
+	textInput   textinput.Model
 }
 
-func NewCreateFlagModel(client flags.Client) tea.Model {
+func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Model {
 	ti := textinput.New()
 	ti.Focus()
 	ti.CharLimit = 156
 	ti.Width = 20
-	ti.Placeholder = defaultFlagName
+	ti.Prompt = ""
 
 	return createFlagModel{
-		client:    client,
+		accessToken: accessToken,
+		baseUri:     baseUri,
+		client:      client,
+		help:        help.New(),
+		helpKeys: keyMap{
+			Quit: BindingQuit,
+		},
 		textInput: ti,
 	}
 }
@@ -49,58 +52,22 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+		case key.Matches(msg, pressableKeys.Enter):
 			input := m.textInput.Value()
 			if input == "" {
 				input = defaultFlagName
 			}
-			m.flagName = input
-			flagKey, err := flags.NewKeyFromName(m.flagName)
+			flagKey, err := flags.NewKeyFromName(input)
 			if err != nil {
-				m.err = err
-
-				return m, nil
+				return m, sendErr(err)
 			}
 
-			_, err = m.client.Create(
-				context.Background(),
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				m.flagName,
-				flagKey,
-				"default",
-			)
-			if err != nil {
-				m.err = err
-				// TODO: we may want a more robust error type so we don't need to do this
-				var e struct {
-					Code    string `json:"code"`
-					Message string `json:"message"`
-				}
-				_ = json.Unmarshal([]byte(m.err.Error()), &e)
-				switch {
-				case e.Code == "unauthorized":
-					m.quitting = true
-					m.quitMsg = "Your API key is unauthorized. Try another API key or speak to a LaunchDarkly account administrator."
-
-					return m, tea.Quit
-				case e.Code == "forbidden":
-					m.quitting = true
-					m.quitMsg = "You lack access to complete this action. Try authenticating with elevated access or speak to a LaunchDarkly account administrator."
-
-					return m, tea.Quit
-				}
-
-				return m, nil
-			}
-			m.flagKey = flagKey
-
-			return m, nil
-		case key.Matches(msg, keys.Quit):
-			return m, tea.Quit
+			return m, sendCreateFlagMsg(m.client, m.accessToken, m.baseUri, input, flagKey, defaultProjKey)
 		default:
 			m.textInput, cmd = m.textInput.Update(msg)
 		}
+	case errMsg:
+		m.err = msg.err
 	}
 
 	return m, cmd
@@ -111,7 +78,7 @@ func (m createFlagModel) View() string {
 		MarginLeft(2)
 
 	return fmt.Sprintf(
-		"Name your first feature flag (enter for default value):\n\n%s",
+		"Name your first feature flag (enter for default value):%s",
 		style.Render(m.textInput.View()),
-	) + "\n"
+	) + footerView(m.help.View(m.helpKeys), m.err)
 }

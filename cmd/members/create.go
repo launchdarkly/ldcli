@@ -16,9 +16,9 @@ import (
 func NewCreateCmd(client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
-		Long:  "Create a new member and send them an invitation email",
+		Long:  "Create new members and send them an invitation email",
 		RunE:  runCreate(client),
-		Short: "Create a new member",
+		Short: "Create new members",
 		Use:   "create",
 	}
 
@@ -35,14 +35,9 @@ func NewCreateCmd(client members.Client) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-type inputData struct {
-	Email string `json:"email"`
-	Role  string `json:"role"`
-}
-
 func runCreate(client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		var data inputData
+		var data []members.MemberInput
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
 		err := json.Unmarshal([]byte(cmd.Flags().Lookup(cliflags.DataFlag).Value.String()), &data)
 		if err != nil {
@@ -53,8 +48,7 @@ func runCreate(client members.Client) func(*cobra.Command, []string) error {
 			context.Background(),
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
-			[]string{data.Email},
-			data.Role,
+			data,
 		)
 		if err != nil {
 			return err

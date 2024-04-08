@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,28 +23,46 @@ const (
 )
 
 type chooseSDKModel struct {
-	list        list.Model
-	selectedSDK sdkDetail
+	help          help.Model
+	helpKeys      keyMap
+	list          list.Model
+	selectedIndex int
+	selectedSDK   sdkDetail
 }
 
-func NewChooseSDKModel() tea.Model {
+func NewChooseSDKModel(selectedIndex int) tea.Model {
 	l := list.New(sdksToItems(), sdkDelegate{}, 30, 14)
-	l.Title = "Select your SDK:\n\n" // extra newlines to show pagination
+	l.Title = "Select your SDK:\n"
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
 	l.Styles.TitleBar = lipgloss.NewStyle()
+	l.SetShowHelp(false)
 	l.SetShowPagination(true)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false) // TODO: try to get filtering working
 	l.Paginator.PerPage = 5
 
 	return chooseSDKModel{
-		list: l,
+		help: help.New(),
+		helpKeys: keyMap{
+			Back:          BindingBack,
+			CursorUp:      BindingCursorUp,
+			CursorDown:    BindingCursorDown,
+			PrevPage:      BindingPrevPage,
+			NextPage:      BindingNextPage,
+			GoToStart:     BindingGoToStart,
+			GoToEnd:       BindingGoToEnd,
+			ShowFullHelp:  BindingShowFullHelp,
+			CloseFullHelp: BindingCloseFullHelp,
+			Quit:          BindingQuit,
+		},
+		list:          l,
+		selectedIndex: selectedIndex,
 	}
 }
 
 func (m chooseSDKModel) Init() tea.Cmd {
-	return nil
+	return sendSelectedSDKMsg(m.selectedIndex)
 }
 
 func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -51,40 +70,52 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+		case key.Matches(msg, pressableKeys.Enter):
 			i, ok := m.list.SelectedItem().(sdkDetail)
 			if ok {
 				m.selectedSDK = i
+				m.selectedSDK.index = m.list.Index()
+				cmd = sendChoseSDKMsg(m.selectedSDK)
 			}
-		case key.Matches(msg, keys.Quit):
-			return m, tea.Quit
+		case key.Matches(msg, m.helpKeys.CloseFullHelp):
+			m.help.ShowAll = !m.help.ShowAll
 		default:
 			m.list, cmd = m.list.Update(msg)
 		}
+	case selectedSDKMsg:
+		m.list.Select(msg.index)
 	}
 
 	return m, cmd
 }
 
 func (m chooseSDKModel) View() string {
-	return m.list.View()
+	return m.list.View() + footerView(m.help.View(m.helpKeys), nil)
 }
 
 type sdkDetail struct {
 	canonicalName string
 	displayName   string
+	index         int
 	kind          string
+	url           string // custom URL if it differs from the other SDKs
 }
 
 func (s sdkDetail) FilterValue() string { return "" }
 
 var SDKs = []sdkDetail{
-	{canonicalName: "react", displayName: "React", kind: clientSideSDK},
+	// {canonicalName: "react", displayName: "React", kind: clientSideSDK},
 	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
 	{canonicalName: "python", displayName: "Python", kind: serverSideSDK},
 	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},
 	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
 	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK},
+	{
+		canonicalName: "vue",
+		displayName:   "Vue",
+		kind:          clientSideSDK,
+		url:           "https://raw.githubusercontent.com/launchdarkly/vue-client-sdk/main/example/README.md",
+	},
 	{canonicalName: "ios-swift", displayName: "iOS", kind: clientSideSDK},
 	{canonicalName: "go", displayName: "Go", kind: serverSideSDK},
 	{canonicalName: "android", displayName: "Android", kind: clientSideSDK},
@@ -125,8 +156,6 @@ func (d sdkDelegate) Render(w io.Writer, m list.Model, index int, listItem list.
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, i.displayName)
-
 	fn := sdkStyle.Render
 	if index == m.Index() {
 		fn = func(s ...string) string {
@@ -134,5 +163,5 @@ func (d sdkDelegate) Render(w io.Writer, m list.Model, index int, listItem list.
 		}
 	}
 
-	fmt.Fprint(w, fn(str))
+	fmt.Fprint(w, fn(fmt.Sprintf("%d. %s", index+1, i.displayName)))
 }

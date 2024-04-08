@@ -35,8 +35,8 @@ func NewRootCommand(
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// disable required flags when running help as a command, not a flag
-			if cmd.Name() == "help" {
+			// disable required flags when running certain commands, not a flag
+			if cmd.Name() == "help" || cmd.Parent().Name() == "completion" {
 				cmd.DisableFlagParsing = true
 			}
 		},
@@ -51,7 +51,7 @@ func NewRootCommand(
 	cmd.PersistentFlags().String(
 		cliflags.AccessTokenFlag,
 		"",
-		"LaunchDarkly API token",
+		"LaunchDarkly API token with write-level access",
 	)
 	err := cmd.MarkPersistentFlagRequired(cliflags.AccessTokenFlag)
 	if err != nil {
@@ -94,7 +94,6 @@ func NewRootCommand(
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(NewQuickStartCmd(flagsClient))
-	cmd.AddCommand(setupCmd)
 
 	return cmd, nil
 }
