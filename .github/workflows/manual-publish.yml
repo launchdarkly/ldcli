@@ -17,7 +17,6 @@ jobs:
     permissions:
       id-token: write # Needed to obtain Docker tokens
       contents: write # Needed to upload release artifacts
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     outputs: 
       hashes: ${{ steps.publish.outputs.hashes }}
