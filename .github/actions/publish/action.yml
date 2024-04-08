@@ -40,4 +40,4 @@ runs:
       id: hash
       shell: bash
       run: |
-        echo "hashes=$(sha256sum dist/* | base64 -w0)" >> "$GITHUB_OUTPUT"
+        echo "hashes=$(sha256sum dist/*.tar.gz | base64 -w0)" >> "$GITHUB_OUTPUT"
