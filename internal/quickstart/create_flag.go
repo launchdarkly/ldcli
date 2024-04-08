@@ -2,12 +2,13 @@ package quickstart
 
 import (
 	"fmt"
-	"ldcli/internal/flags"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"ldcli/internal/flags"
 )
 
 const defaultFlagName = "My New Flag"
@@ -51,6 +52,10 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Enter):
+			if m.showSuccessView {
+				return m, sendConfirmedFlagMsg(m.flag)
+			}
+
 			input := m.textInput.Value()
 			if input == "" {
 				input = defaultFlagName
@@ -67,15 +72,10 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textInput, cmd = m.textInput.Update(msg)
 		}
 	case createdFlagMsg:
-		if m.showSuccessView {
-			return m, sendConfirmedFlagMsg(msg.flag)
-		}
-
 		m.showSuccessView = true
 		m.existingFlagUsed = msg.existingFlagUsed
 		m.flag = msg.flag
 		return m, cmd
-
 	}
 
 	return m, cmd
