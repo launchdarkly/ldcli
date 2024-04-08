@@ -47,15 +47,15 @@ func sendToggleFlagMsg(client flags.Client, accessToken, baseUri, flagKey string
 }
 
 type createdFlagMsg struct {
-	flag             flagDetail
+	flag             flag
 	existingFlagUsed bool
 }
 
 type confirmedFlagMsg struct {
-	flag flagDetail
+	flag flag
 }
 
-func sendConfirmedFlagMsg(flag flagDetail) tea.Cmd {
+func sendConfirmedFlagMsg(flag flag) tea.Cmd {
 	return func() tea.Msg {
 		return confirmedFlagMsg{flag}
 	}
@@ -86,7 +86,7 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 
 		}
 
-		return createdFlagMsg{flag: flagDetail{
+		return createdFlagMsg{flag: flag{
 			key:  flagKey,
 			name: flagName,
 		}, existingFlagUsed: existingFlag}

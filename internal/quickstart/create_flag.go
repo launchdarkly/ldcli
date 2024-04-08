@@ -14,7 +14,7 @@ import (
 
 const defaultFlagName = "My New Flag"
 
-type flagDetail struct {
+type flag struct {
 	key  string
 	name string
 }
@@ -25,7 +25,7 @@ type createFlagModel struct {
 	client           flags.Client
 	err              error
 	existingFlagUsed bool
-	flag             flagDetail
+	flag             flag
 	help             help.Model
 	helpKeys         keyMap
 	showSuccessView  bool
@@ -86,7 +86,6 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.showSuccessView = true
 		m.existingFlagUsed = msg.existingFlagUsed
 		m.flag = msg.flag
-		return m, cmd
 	case errMsg:
 		m.err = msg.err
 	}
