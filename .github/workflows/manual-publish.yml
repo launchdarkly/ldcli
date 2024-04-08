@@ -36,7 +36,7 @@ jobs:
       - uses: ./.github/actions/publish
         with:
           dry-run: ${{ inputs.dry_run }}
-          token: ${{ var.ldcli_homebrew-tap_deploy_key }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ inputs.tag }}
 
   release-ldcli-provenance:
