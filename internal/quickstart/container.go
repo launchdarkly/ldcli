@@ -7,7 +7,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 
 	"ldcli/internal/flags"
@@ -36,7 +35,6 @@ type ContainerModel struct {
 	err          error
 	flagKey      string
 	flagsClient  flags.Client
-	quitMsg      string // TODO: set this?
 	quitting     bool
 	sdk          sdkDetail
 	totalSteps   int
@@ -113,7 +111,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentStep += 1
 		m.err = nil
 	case errMsg:
-		m.err = msg.err
+		m.currentModel, cmd = m.currentModel.Update(msg)
 	case noInstructionsMsg:
 		// skip the ShowSDKInstructionsModel and move along to toggling the flag
 		m.currentModel = NewToggleFlagModel(
@@ -145,26 +143,6 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m ContainerModel) View() string {
 	out := fmt.Sprintf("\nStep %d of %d\n"+m.currentModel.View(), m.currentStep, m.totalSteps)
-
-	if m.err != nil {
-		if m.quitting {
-			out := m.quitMsg + "\n\n"
-			out += m.err.Error()
-
-			return lipgloss.
-				NewStyle().
-				SetString(out).
-				Render() + "\n"
-		}
-
-		// show error and stay on the same step
-		out += "\n" + lipgloss.
-			NewStyle().
-			SetString(m.err.Error()).
-			Render() + "\n"
-
-		return out
-	}
 
 	if m.quitting {
 		return ""

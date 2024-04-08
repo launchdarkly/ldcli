@@ -86,7 +86,6 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m showSDKInstructionsModel) View() string {
 	style := lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true, false)
-	helpView := m.help.View(m.helpKeys)
 	md, err := m.renderMarkdown()
 	if err != nil {
 		return fmt.Sprintf("error rendering instructions: %s", err)
@@ -103,7 +102,7 @@ func (m showSDKInstructionsModel) View() string {
 			style.Render(md),
 		),
 		0,
-	) + "\n\n" + helpView
+	) + footerView(m.help.View(m.helpKeys), nil)
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {

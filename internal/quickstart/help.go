@@ -1,6 +1,8 @@
 package quickstart
 
-import "github.com/charmbracelet/bubbles/key"
+import (
+	"github.com/charmbracelet/bubbles/key"
+)
 
 var (
 	BindingBack = key.NewBinding(
@@ -92,4 +94,16 @@ var pressableKeys = keyMap{
 		key.WithKeys("tab"),
 		key.WithHelp("tab", "toggle"),
 	),
+}
+
+// footerView shows any error messages and help text.
+func footerView(helpView string, err error) string {
+	var errView string
+	spacer := "\n\n\n"
+	if err != nil {
+		spacer = "\n\n"
+		errView = "\n" + err.Error()
+	}
+
+	return errView + spacer + helpView
 }

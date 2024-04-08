@@ -16,6 +16,7 @@ type toggleFlagModel struct {
 	baseUri        string
 	client         flags.Client
 	enabled        bool
+	err            error
 	flagKey        string
 	flagWasEnabled bool
 	help           help.Model
@@ -54,6 +55,8 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.enabled = !m.enabled
 			return m, sendToggleFlagMsg(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
+	case errMsg:
+		m.err = msg.err
 	}
 
 	return m, cmd
@@ -75,10 +78,9 @@ func (m toggleFlagModel) View() string {
 		margin = 2
 		toggle = "ON"
 	}
-	helpView := m.help.View(m.helpKeys)
 
 	if m.flagWasEnabled {
-		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!\n\n(press ctrl + c to quit)", logTypeMap[m.sdkKind])
+		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
 	}
 
 	toggleStyle := lipgloss.NewStyle().
@@ -86,5 +88,5 @@ func (m toggleFlagModel) View() string {
 		Padding(0, 1).
 		MarginRight(margin)
 
-	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions + "\n\n" + helpView
+	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions + footerView(m.help.View(m.helpKeys), m.err)
 }

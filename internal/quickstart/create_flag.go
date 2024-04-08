@@ -18,6 +18,7 @@ type createFlagModel struct {
 	accessToken string
 	baseUri     string
 	client      flags.Client
+	err         error
 	help        help.Model
 	helpKeys    keyMap
 	textInput   textinput.Model
@@ -65,6 +66,8 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m.textInput, cmd = m.textInput.Update(msg)
 		}
+	case errMsg:
+		m.err = msg.err
 	}
 
 	return m, cmd
@@ -73,10 +76,9 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m createFlagModel) View() string {
 	style := lipgloss.NewStyle().
 		MarginLeft(2)
-	helpView := m.help.View(m.helpKeys)
 
 	return fmt.Sprintf(
 		"Name your first feature flag (enter for default value):%s",
 		style.Render(m.textInput.View()),
-	) + "\n\n" + helpView
+	) + footerView(m.help.View(m.helpKeys), m.err)
 }
