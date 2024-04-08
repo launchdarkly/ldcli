@@ -54,7 +54,7 @@ brews:
     repository:
       owner: launchdarkly
       name: homebrew-tap
-      token: "{{ .Env.GITHUB_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_DEPLOY_KEY }}"
 
     directory: Formula
 
