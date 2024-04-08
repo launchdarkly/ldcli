@@ -60,7 +60,6 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-
 		case key.Matches(msg, pressableKeys.Enter):
 			if m.showSuccessView {
 				return m, sendConfirmedFlagMsg(m.flag)
@@ -76,6 +75,10 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			return m, sendCreateFlagMsg(m.client, m.accessToken, m.baseUri, input, flagKey, defaultProjKey)
+		case key.Matches(msg, pressableKeys.Back):
+			if m.showSuccessView {
+				m.showSuccessView = false
+			}
 		default:
 			m.textInput, cmd = m.textInput.Update(msg)
 		}

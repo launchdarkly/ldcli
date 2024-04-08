@@ -69,7 +69,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, pressableKeys.Back):
 			switch m.currentStep {
 			case stepCreateFlag:
-				// can't go back
+				// can only go back if a flag has been created but not confirmed, so let the model handle the Update
+				m.currentModel, cmd = m.currentModel.Update(msg)
 			case stepChooseSDK:
 				m.currentStep -= 1
 				m.currentModel = NewCreateFlagModel(m.flagsClient, m.accessToken, m.baseUri)
