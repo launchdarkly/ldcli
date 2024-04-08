@@ -12,7 +12,7 @@ inputs:
     description: 'Tag to upload artifacts to.'
     required: true
 outputs:
-  hashes: 
+  hashes:
     description: sha256sum hashes of built artifacts
     value: ${{ steps.hash.outputs.hashes }}
 
@@ -36,8 +36,8 @@ runs:
         args: release ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
-    - name: Hash build artifacts for provenance 
+    - name: Hash build artifacts for provenance
       id: hash
       shell: bash
-      run: | 
+      run: |
         echo "hashes=$(sha256sum dist/* | base64 -w0)" >> "$GITHUB_OUTPUT"

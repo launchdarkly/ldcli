@@ -111,8 +111,9 @@ func Execute(client analytics.SegmentioClient, version string) {
 		log.Fatal(err)
 	}
 
+	fmt.Println(">>> tracking event")
 	err = client.Track(
-		"user-123",
+		"user-234",
 		map[string]interface{}{
 			"event1": time.Now().String(),
 		},

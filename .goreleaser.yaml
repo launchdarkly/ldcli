@@ -1,4 +1,8 @@
 # .goreleaser.yaml
+builds:
+  - ldflags:
+    - -s -w -X main.version={{ .Version }} -X main.segmentWriteKey={{ .Env.SEGMENT_WRITE_KEY }}
+
 dockers:
   # AMD64
   - image_templates:
