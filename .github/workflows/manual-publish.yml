@@ -18,20 +18,26 @@ jobs:
       id-token: write # Needed to obtain Docker tokens
       contents: write # Needed to upload release artifacts
     runs-on: ubuntu-latest
-    outputs: 
+    outputs:
       hashes: ${{ steps.publish.outputs.hashes }}
     steps:
       - uses: actions/checkout@v4
         name: Checkout
         with:
           fetch-depth: 0
-          
+
       - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
         name: 'Get Docker token'
         with:
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
           ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
-          
+
+      - uses: ./actions/release-secrets
+        name: 'Get segment.io token'
+        with:
+          aws_assume_role: ${{ inputs.aws_assume_role }}
+          ssm_parameter_pairs: '/production/common/services/ldcli/segment_write_key = SEGMENT_WRITE_KEY'
+
       - uses: ./.github/actions/publish
         id: publish
         with:
@@ -49,4 +55,3 @@ jobs:
         base64-subjects: "${{ needs.release-ldcli.outputs.hashes }}"
         upload-assets: true
         upload-tag-name: ${{ inputs.tag }}
-            
