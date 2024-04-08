@@ -54,7 +54,10 @@ brews:
     repository:
       owner: launchdarkly
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_DEPLOY_KEY }}"
+      branch: main
+      git:
+        url: git@github.com:launchdarkly/homebrew-dev-tools.git
+        private_key: "{{ .Env.HOMEBREW_DEPLOY_KEY }}"
 
     directory: Formula
 
