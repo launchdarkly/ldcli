@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0](https://github.com/launchdarkly/ldcli/compare/v0.4.0...v0.5.0) (2024-04-05)
+
+
+### Features
+
+* show help text ([#138](https://github.com/launchdarkly/ldcli/issues/138)) ([69d7f5e](https://github.com/launchdarkly/ldcli/commit/69d7f5ee03579fc6c3cb34fb00fb6f07ba90bf84))
+
+## [0.4.0](https://github.com/launchdarkly/ldcli/compare/v0.3.0...v0.4.0) (2024-04-05)
+
+
+### Features
+
+* publish docker image ([#99](https://github.com/launchdarkly/ldcli/issues/99)) ([a294ce0](https://github.com/launchdarkly/ldcli/commit/a294ce063e608a6dbee5ff8a2fb32f329d643083))
+
+
+### Bug Fixes
+
+* create flag prompt should be on the same line as text ([#135](https://github.com/launchdarkly/ldcli/issues/135)) ([52aa92b](https://github.com/launchdarkly/ldcli/commit/52aa92b647710f86f531b69afb3be50baf452a8d))
+
 ## [0.3.0](https://github.com/launchdarkly/ldcli/compare/v0.2.0...v0.3.0) (2024-04-04)
 
 

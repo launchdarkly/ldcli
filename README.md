@@ -8,6 +8,11 @@ The LaunchDarkly CLI helps you manage your feature flags wherever you are, wheth
 - Onboard your whole team by inviting new members.
 - Interact with the LaunchDarkly API using resource & CRUD based commands.
 
+# 🚫🚫🚫🚫🚫🚫
+
+> [!CAUTION]
+> This package is prerelease and experimental. It should not be used in production and is not supported.
+
 ![demo](ldcli-setup.gif)
 
 ## Installation
@@ -53,6 +58,10 @@ _(coming soon!)_
 ## Contributing
 
 We encourage pull requests and other contributions from the community. Check out our [contributing guidelines](CONTRIBUTING.md) for instructions on how to contribute to this project.
+
+## Verifying SDK build provenance with the SLSA framework
+
+LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply-chain Levels for Software Artifacts) to help developers make their supply chain more secure by ensuring the authenticity and build integrity of our published SDK packages. To learn more, see the [provenance guide](./PROVENANCE.md). 
 
 ## About LaunchDarkly
 

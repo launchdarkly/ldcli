@@ -3,6 +3,7 @@ package quickstart
 import (
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,8 +23,11 @@ type createFlagModel struct {
 	accessToken      string
 	baseUri          string
 	client           flags.Client
+	err              error
 	existingFlagUsed bool
 	flag             flagDetail
+	help             help.Model
+	helpKeys         keyMap
 	showSuccessView  bool
 	textInput        textinput.Model
 }
@@ -33,12 +37,17 @@ func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Mo
 	ti.Focus()
 	ti.CharLimit = 156
 	ti.Width = 20
+	ti.Prompt = ""
 
 	return createFlagModel{
 		accessToken: accessToken,
 		baseUri:     baseUri,
 		client:      client,
-		textInput:   ti,
+		help:        help.New(),
+		helpKeys: keyMap{
+			Quit: BindingQuit,
+		},
+		textInput: ti,
 	}
 }
 
@@ -51,7 +60,8 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+
+		case key.Matches(msg, pressableKeys.Enter):
 			if m.showSuccessView {
 				return m, sendConfirmedFlagMsg(m.flag)
 			}
@@ -66,8 +76,6 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			return m, sendCreateFlagMsg(m.client, m.accessToken, m.baseUri, input, flagKey, defaultProjKey)
-		case key.Matches(msg, keys.Quit):
-			return m, tea.Quit
 		default:
 			m.textInput, cmd = m.textInput.Update(msg)
 		}
@@ -76,6 +84,8 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.existingFlagUsed = msg.existingFlagUsed
 		m.flag = msg.flag
 		return m, cmd
+	case errMsg:
+		m.err = msg.err
 	}
 
 	return m, cmd
@@ -94,8 +104,7 @@ func (m createFlagModel) View() string {
 	}
 
 	return fmt.Sprintf(
-		"Name your first feature flag (enter for default value %q):\n\n%s",
-		defaultFlagName,
+		"Name your first feature flag (enter for default value):%s",
 		style.Render(m.textInput.View()),
-	) + "\n"
+	) + footerView(m.help.View(m.helpKeys), m.err)
 }

@@ -3,6 +3,7 @@ package quickstart
 import (
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,6 +20,8 @@ type showSDKInstructionsModel struct {
 	canonicalName string
 	displayName   string
 	flagKey       string
+	help          help.Model
+	helpKeys      keyMap
 	instructions  string
 	sdkKey        string
 	spinner       spinner.Model
@@ -42,8 +45,13 @@ func NewShowSDKInstructionsModel(
 		canonicalName: canonicalName,
 		displayName:   displayName,
 		flagKey:       flagKey,
-		spinner:       s,
-		url:           url,
+		help:          help.New(),
+		helpKeys: keyMap{
+			Back: BindingBack,
+			Quit: BindingQuit,
+		},
+		spinner: s,
+		url:     url,
 	}
 }
 
@@ -60,7 +68,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Enter):
+		case key.Matches(msg, pressableKeys.Enter):
 			// TODO: only if all data are fetched?
 			cmd = sendShowToggleFlagMsg()
 		}
@@ -89,12 +97,12 @@ func (m showSDKInstructionsModel) View() string {
 
 	return wordwrap.String(
 		fmt.Sprintf(
-			"Set up your application. Here are the steps to incorporate the LaunchDarkly %s SDK into your code.\n%s\n\n (press enter to continue)",
+			"Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n%s\n\n (press enter to continue)",
 			m.displayName,
 			style.Render(md),
 		),
 		0,
-	)
+	) + footerView(m.help.View(m.helpKeys), nil)
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {

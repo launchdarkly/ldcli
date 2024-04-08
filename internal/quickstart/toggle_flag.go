@@ -2,9 +2,12 @@ package quickstart
 
 import (
 	"fmt"
+
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"ldcli/internal/flags"
 )
 
@@ -13,8 +16,11 @@ type toggleFlagModel struct {
 	baseUri        string
 	client         flags.Client
 	enabled        bool
+	err            error
 	flagKey        string
 	flagWasEnabled bool
+	help           help.Model
+	helpKeys       keyMap
 	sdkKind        string
 }
 
@@ -24,7 +30,12 @@ func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string,
 		baseUri:     baseUri,
 		client:      client,
 		flagKey:     flagKey,
-		sdkKind:     sdkKind,
+		help:        help.New(),
+		helpKeys: keyMap{
+			Back: BindingBack,
+			Quit: BindingQuit,
+		},
+		sdkKind: sdkKind,
 	}
 }
 
@@ -37,13 +48,15 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Quit):
+		case key.Matches(msg, pressableKeys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, keys.Tab):
+		case key.Matches(msg, pressableKeys.Tab):
 			m.flagWasEnabled = true
 			m.enabled = !m.enabled
 			return m, sendToggleFlagMsg(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
+	case errMsg:
+		m.err = msg.err
 	}
 
 	return m, cmd
@@ -67,7 +80,7 @@ func (m toggleFlagModel) View() string {
 	}
 
 	if m.flagWasEnabled {
-		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!\n\n(press ctrl + c to quit)", logTypeMap[m.sdkKind])
+		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
 	}
 
 	toggleStyle := lipgloss.NewStyle().
@@ -75,5 +88,5 @@ func (m toggleFlagModel) View() string {
 		Padding(0, 1).
 		MarginRight(margin)
 
-	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions
+	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions + footerView(m.help.View(m.helpKeys), m.err)
 }
