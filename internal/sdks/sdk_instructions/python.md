@@ -26,17 +26,18 @@ from ldclient.config import Config
 # Create a helper function for rendering messages.
 def show_message(s):
     print("*** {}".format(s))
+    print()
 
 # Initialize the ldclient with your environment-specific SDK key.
 if __name__ == "__main__":
-ldclient.set_config(Config("1234567890abcdef"))
+    ldclient.set_config(Config("1234567890abcdef"))
 
 # The SDK starts up the first time ldclient.get() is called.
 if ldclient.get().is_initialized():
-show_message("SDK successfully initialized!")
+    show_message("SDK successfully initialized!")
 else:
-show_message("SDK failed to initialize")
-exit()
+    show_message("SDK failed to initialize")
+    exit()
 
 # Set up the evaluation context. This context should appear on your LaunchDarkly contexts
 # dashboard soon after you run the demo.
