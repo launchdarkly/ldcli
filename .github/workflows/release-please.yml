@@ -40,6 +40,7 @@ jobs:
           ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
           
       - uses: ./.github/actions/publish
+        id: publish
         with:
           dry-run: 'false'
           token: ${{ secrets.GITHUB_TOKEN }}
