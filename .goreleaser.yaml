@@ -1,56 +1,53 @@
 # .goreleaser.yaml
-# dockers:
-#   # AMD64
-#   - image_templates:
-#     - "launchdarkly/ldcli:{{ .Version }}-amd64"
-#     - "launchdarkly/ldcli:v{{ .Major }}-amd64"
-#     - "launchdarkly/ldcli:latest-amd64"
-#     goos: linux
-#     goarch: amd64
-#     dockerfile: Dockerfile.goreleaser
-#     skip_push: false
-#     build_flag_templates:
-#     - "--pull"
-#     - "--platform=linux/amd64"
+dockers:
+  # AMD64
+  - image_templates:
+    - "launchdarkly/ldcli:{{ .Version }}-amd64"
+    - "launchdarkly/ldcli:v{{ .Major }}-amd64"
+    - "launchdarkly/ldcli:latest-amd64"
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile.goreleaser
+    skip_push: false
+    build_flag_templates:
+    - "--pull"
+    - "--platform=linux/amd64"
 
-#   # ARM64v8
-#   - image_templates:
-#     - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
-#     - "launchdarkly/ldcli:v{{ .Major }}-arm64v8"
-#     - "launchdarkly/ldcli:latest-arm64v8"
-#     goos: linux
-#     goarch: arm64
-#     dockerfile: Dockerfile.goreleaser
-#     skip_push: false
-#     build_flag_templates:
-#     - "--pull"
-#     - "--platform=linux/arm64/v8"
-# docker_manifests:
-#   - name_template: "launchdarkly/ldcli:{{ .Version}}"
-#     skip_push: false
-#     image_templates:
-#      - "launchdarkly/ldcli:{{ .Version }}-amd64"
-#      - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
+  # ARM64v8
+  - image_templates:
+    - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
+    - "launchdarkly/ldcli:v{{ .Major }}-arm64v8"
+    - "launchdarkly/ldcli:latest-arm64v8"
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile.goreleaser
+    skip_push: false
+    build_flag_templates:
+    - "--pull"
+    - "--platform=linux/arm64/v8"
+docker_manifests:
+  - name_template: "launchdarkly/ldcli:{{ .Version}}"
+    skip_push: false
+    image_templates:
+     - "launchdarkly/ldcli:{{ .Version }}-amd64"
+     - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
 
-#   - name_template: "launchdarkly/ldcli:v{{ .Major }}"
-#     skip_push: false
-#     image_templates:
-#       - "launchdarkly/ldcli:v{{ .Major }}-amd64"
-#       - "launchdarkly/ldcli:v{{ .Major }}-arm64v8"
+  - name_template: "launchdarkly/ldcli:v{{ .Major }}"
+    skip_push: false
+    image_templates:
+      - "launchdarkly/ldcli:v{{ .Major }}-amd64"
+      - "launchdarkly/ldcli:v{{ .Major }}-arm64v8"
 
-#   - name_template: "launchdarkly/ldcli:latest"
-#     skip_push: false
-#     image_templates:
-#       - "launchdarkly/ldcli:latest-amd64"
-#       - "launchdarkly/ldcli:latest-arm64v8"
+  - name_template: "launchdarkly/ldcli:latest"
+    skip_push: false
+    image_templates:
+      - "launchdarkly/ldcli:latest-amd64"
+      - "launchdarkly/ldcli:latest-arm64v8"
 brews:
   -
     name: ldcli
-
     description: "The official command line interface for managing LaunchDarkly feature flags."
-
     homepage: "https://launchdarkly.com"
-
     repository:
       owner: launchdarkly
       name: homebrew-tap
@@ -58,14 +55,10 @@ brews:
       git:
         url: git@github.com:launchdarkly/homebrew-tap.git
         private_key: "{{ .Env.HOMEBREW_DEPLOY_KEY }}"
-
     directory: Formula
-
     url_template: "https://github.com/launchdarkly/ldcli/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-
     install: |
       bin.install "ldcli"
-
     commit_author:
       name: LaunchDarklyReleaseBot
       email: launchdarklyreleasebot@launchdarkly.com
