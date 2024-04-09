@@ -5,7 +5,7 @@ inputs:
     description: 'Token to use for publishing.'
     required: true
   homebrew-gh-secret:
-    description: 'Token to use for publishing to homebrew-tap.'
+    description: 'SSH private key used as a GitHub deploy key for publishing to homebrew-tap.'
     required: true
   dry-run:
     description: 'Is this a dry run. If so no package will be published.'
