@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/launchdarkly/ldcli/compare/v0.5.0...v0.6.0) (2024-04-09)
+
+
+### Features
+
+* make sdk instructions scrollable ([#150](https://github.com/launchdarkly/ldcli/issues/150)) ([8055927](https://github.com/launchdarkly/ldcli/commit/805592776b336b3eb8bf0e99247025ee170d1b30))
+* show success message after creating a flag ([#134](https://github.com/launchdarkly/ldcli/issues/134)) ([f817856](https://github.com/launchdarkly/ldcli/commit/f817856158d8205fbd11952ac2a664137900566c))
+
 ## [0.5.0](https://github.com/launchdarkly/ldcli/compare/v0.4.0...v0.5.0) (2024-04-05)
 
 
