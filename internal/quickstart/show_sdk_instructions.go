@@ -116,9 +116,17 @@ func (m showSDKInstructionsModel) View() string {
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
-	out, err := glamour.Render(m.instructions, "auto")
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(viewportWidth),
+	)
 	if err != nil {
 		return "", err
+	}
+
+	out, err := renderer.Render(m.instructions)
+	if err != nil {
+		return out, err
 	}
 
 	return out, nil
