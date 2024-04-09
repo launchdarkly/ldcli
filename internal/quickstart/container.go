@@ -25,7 +25,7 @@ const (
 	stepToggleFlag
 )
 
-// ContainerModel is a high level container model that controls the nested models wher each
+// ContainerModel is a high level container model that controls the nested models where each
 // represents a step in the quick-start flow.
 type ContainerModel struct {
 	accessToken  string
@@ -69,7 +69,9 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, pressableKeys.Back):
 			switch m.currentStep {
 			case stepCreateFlag:
-				// can't go back
+				// can only go back if a flag has been created but not confirmed,
+				// so let the model handle the Update
+				m.currentModel, cmd = m.currentModel.Update(msg)
 			case stepChooseSDK:
 				m.currentStep -= 1
 				m.currentModel = NewCreateFlagModel(m.flagsClient, m.accessToken, m.baseUri)
@@ -105,9 +107,9 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.currentModel.Init()
 		m.sdk = msg.sdk
 		m.currentStep += 1
-	case createdFlagMsg:
+	case confirmedFlagMsg:
 		m.currentModel = NewChooseSDKModel(0)
-		m.flagKey = msg.flagKey // TODO: figure out if we maintain state here or pass in another message
+		m.flagKey = msg.flag.key
 		m.currentStep += 1
 		m.err = nil
 	case errMsg:
@@ -122,7 +124,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
-	case fetchedSDKInstructions, fetchedEnv, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg:
+	case fetchedSDKInstructions, fetchedEnv, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
 	case showToggleFlagMsg:
