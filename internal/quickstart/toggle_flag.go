@@ -64,6 +64,7 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 var logTypeMap = map[string]string{
 	serverSideSDK: "application logs",
+	mobileSDK:     "application",
 	clientSideSDK: "browser",
 }
 
