@@ -19,6 +19,7 @@ var (
 
 const (
 	clientSideSDK = "client"
+	mobileSDK     = "mobile"
 	serverSideSDK = "server"
 )
 
@@ -116,12 +117,12 @@ var SDKs = []sdkDetail{
 		kind:          clientSideSDK,
 		url:           "https://raw.githubusercontent.com/launchdarkly/vue-client-sdk/main/example/README.md",
 	},
-	{canonicalName: "ios-swift", displayName: "iOS", kind: clientSideSDK},
+	{canonicalName: "ios-swift", displayName: "iOS", kind: mobileSDK},
 	{canonicalName: "go", displayName: "Go", kind: serverSideSDK},
-	{canonicalName: "android", displayName: "Android", kind: clientSideSDK},
-	{canonicalName: "react-native", displayName: "React Native", kind: clientSideSDK},
+	{canonicalName: "android", displayName: "Android", kind: mobileSDK},
+	{canonicalName: "react-native", displayName: "React Native", kind: mobileSDK},
 	{canonicalName: "ruby", displayName: "Ruby", kind: serverSideSDK},
-	{canonicalName: "flutter", displayName: "Flutter", kind: clientSideSDK},
+	{canonicalName: "flutter", displayName: "Flutter", kind: mobileSDK},
 	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK},
 	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK},
 	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
