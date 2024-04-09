@@ -9,12 +9,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/wordwrap"
 	"ldcli/internal/sdks"
 )
 
 const (
-	viewportWidth  = 78
+	viewportWidth  = 80
 	viewportHeight = 30
 )
 
@@ -110,7 +109,7 @@ func (m showSDKInstructionsModel) View() string {
 
 	instructions := fmt.Sprintf("Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n", m.displayName)
 
-	return wordwrap.String(instructions, viewportWidth*1.5) + m.viewport.View() + "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
+	return instructions + m.viewport.View() + "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
