@@ -42,11 +42,15 @@ func (c *Client) SendEvent(
 	body, err := json.Marshal(input)
 	if err != nil { //nolint:staticcheck
 		// TODO: log error
+		c.wg.Done()
+		return
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v2/tracking", baseURI), bytes.NewBuffer(body))
 	if err != nil { //nolint:staticcheck
 		// TODO: log error
+		c.wg.Done()
+		return
 	}
 
 	req.Header.Add("Authorization", accessToken)
