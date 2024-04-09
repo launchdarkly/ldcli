@@ -4,6 +4,9 @@ inputs:
   token:
     description: 'Token to use for publishing.'
     required: true
+  homebrew-gh-secret:
+    description: 'SSH private key used as a GitHub deploy key for publishing to homebrew-tap.'
+    required: true
   dry-run:
     description: 'Is this a dry run. If so no package will be published.'
     required: false
@@ -36,6 +39,7 @@ runs:
         args: release ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
+        HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
     - name: Hash build artifacts for provenance 
       id: hash
       shell: bash
