@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -131,6 +132,17 @@ func sendFetchSDKInstructionsMsg(url string) tea.Cmd {
 		}
 
 		return fetchedSDKInstructions{instructions: body}
+	}
+}
+
+func sendReadSDKInstructionsMsg(filename string) tea.Cmd {
+	return func() tea.Msg {
+		content, err := os.ReadFile(fmt.Sprintf("internal/sdks/sdk_instructions/%s.md", filename))
+		if err != nil {
+			return errMsg{err: err}
+		}
+
+		return fetchedSDKInstructions{instructions: content}
 	}
 }
 

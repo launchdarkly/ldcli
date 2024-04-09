@@ -94,11 +94,12 @@ func (m chooseSDKModel) View() string {
 }
 
 type sdkDetail struct {
-	canonicalName string
-	displayName   string
-	index         int
-	kind          string
-	url           string // custom URL if it differs from the other SDKs
+	canonicalName   string
+	displayName     string
+	index           int
+	kind            string
+	url             string // custom URL if it differs from the other SDKs
+	hasInstructions bool   // to remove when we get all instructions loaded
 }
 
 func (s sdkDetail) FilterValue() string { return "" }
@@ -106,7 +107,7 @@ func (s sdkDetail) FilterValue() string { return "" }
 var SDKs = []sdkDetail{
 	// {canonicalName: "react", displayName: "React", kind: clientSideSDK},
 	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
-	{canonicalName: "python", displayName: "Python", kind: serverSideSDK},
+	{canonicalName: "python", displayName: "Python", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},
 	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
 	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK},
