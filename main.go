@@ -17,7 +17,7 @@ func main() {
 	httpClient := &http.Client{
 		Timeout: time.Second * 3,
 	}
-	analyticsClient := &analytics.AnalyticsClient{HTTPClient: httpClient}
+	analyticsClient := &analytics.Client{HTTPClient: httpClient}
 	cmd.Execute(analyticsClient, version)
 	analyticsClient.Wait()
 }

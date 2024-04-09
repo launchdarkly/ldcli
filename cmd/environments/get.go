@@ -14,7 +14,7 @@ import (
 )
 
 func NewGetCmd(
-	analyticsTracker analytics.AnalyticsTracker,
+	analyticsTracker analytics.Tracker,
 	client environments.Client,
 ) (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -50,7 +50,7 @@ func NewGetCmd(
 }
 
 func runGet(
-	analyticsTracker analytics.AnalyticsTracker,
+	analyticsTracker analytics.Tracker,
 	client environments.Client,
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {

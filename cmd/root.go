@@ -21,7 +21,7 @@ import (
 )
 
 func NewRootCommand(
-	analyticsTracker analytics.AnalyticsTracker,
+	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 	membersClient members.Client,
@@ -97,7 +97,7 @@ func NewRootCommand(
 	return cmd, nil
 }
 
-func Execute(analyticsTracker analytics.AnalyticsTracker, version string) {
+func Execute(analyticsTracker analytics.Tracker, version string) {
 	rootCmd, err := NewRootCommand(
 		analyticsTracker,
 		environments.NewClient(version),

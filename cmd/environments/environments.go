@@ -8,7 +8,7 @@ import (
 )
 
 func NewEnvironmentsCmd(
-	analyticsTracker analytics.AnalyticsTracker,
+	analyticsTracker analytics.Tracker,
 	client environments.Client,
 ) (*cobra.Command, error) {
 	cmd := &cobra.Command{

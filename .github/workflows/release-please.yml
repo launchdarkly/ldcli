@@ -39,12 +39,6 @@ jobs:
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
           ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
 
-      - uses: ./actions/release-secrets
-        name: 'Get segment.io token'
-        with:
-          aws_assume_role: ${{ inputs.aws_assume_role }}
-          ssm_parameter_pairs: '/production/common/services/ldcli/segment_write_key = SEGMENT_WRITE_KEY'
-
       - uses: ./.github/actions/publish
         with:
           dry-run: 'false'

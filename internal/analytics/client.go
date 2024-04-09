@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-type AnalyticsTracker interface {
+type Tracker interface {
 	SendEvent(
 		accessToken string,
 		baseURI string,
@@ -18,13 +18,13 @@ type AnalyticsTracker interface {
 	)
 }
 
-type AnalyticsClient struct {
+type Client struct {
 	HTTPClient *http.Client
 	wg         sync.WaitGroup
 }
 
 // SendEvent makes an async request to track the given event with properties.
-func (c *AnalyticsClient) SendEvent(
+func (c *Client) SendEvent(
 	accessToken string,
 	baseURI string,
 	eventName string,
@@ -70,7 +70,7 @@ func (c *AnalyticsClient) SendEvent(
 	}()
 }
 
-func (a *AnalyticsClient) Wait() {
+func (a *Client) Wait() {
 	a.wg.Wait()
 }
 
