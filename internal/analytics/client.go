@@ -1,6 +1,85 @@
 package analytics
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"sync"
+)
+
 type AnalyticsTracker interface {
-	Track(userID string, traits map[string]interface{}) error
-	Close() error
+	SendEvent(
+		accessToken string,
+		baseURI string,
+		eventName string,
+		properties map[string]interface{},
+	)
+}
+
+type AnalyticsClient struct {
+	HTTPClient *http.Client
+	wg         sync.WaitGroup
+}
+
+// SendEvent makes an async request to track the given event with properties.
+func (c *AnalyticsClient) SendEvent(
+	accessToken string,
+	baseURI string,
+	eventName string,
+	properties map[string]interface{},
+) {
+	input := struct {
+		Event      string                 `json:"event"`
+		Properties map[string]interface{} `json:"properties"`
+	}{
+		Event:      eventName,
+		Properties: properties,
+	}
+
+	c.wg.Add(1)
+	body, err := json.Marshal(input)
+	if err != nil { //nolint:staticcheck
+		// TODO: log error
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v2/tracking", baseURI), bytes.NewBuffer(body))
+	if err != nil { //nolint:staticcheck
+		// TODO: log error
+	}
+
+	req.Header.Add("Authorization", accessToken)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("User-Agent", "launchdarkly-cli/v0.1.1")
+	var resp *http.Response
+	go func() {
+		resp, err = c.HTTPClient.Do(req)
+		if err != nil { //nolint:staticcheck
+			// TODO: log error
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+
+		_, err := io.ReadAll(resp.Body)
+		if err != nil { //nolint:staticcheck
+			// TODO: log error
+		}
+		c.wg.Done()
+	}()
+}
+
+func (a *AnalyticsClient) Wait() {
+	a.wg.Wait()
+}
+
+type NoopClient struct{}
+
+func (c *NoopClient) SendEvent(
+	accessToken string,
+	baseURI string,
+	eventName string,
+	properties map[string]interface{},
+) {
 }

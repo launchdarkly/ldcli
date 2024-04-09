@@ -25,7 +25,7 @@ func CallCmd(
 	args []string,
 ) ([]byte, error) {
 	rootCmd, err := NewRootCommand(
-		analytics.MockClient{},
+		&analytics.NoopClient{},
 		environmentsClient,
 		flagsClient,
 		membersClient,

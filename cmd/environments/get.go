@@ -9,14 +9,18 @@ import (
 
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 )
 
-func NewGetCmd(client environments.Client) (*cobra.Command, error) {
+func NewGetCmd(
+	analyticsTracker analytics.AnalyticsTracker,
+	client environments.Client,
+) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Return an environment",
-		RunE:  runGet(client),
+		RunE:  runGet(analyticsTracker, client),
 		Short: "Return an environment",
 		Use:   "get",
 	}
@@ -45,7 +49,10 @@ func NewGetCmd(client environments.Client) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runGet(client environments.Client) func(*cobra.Command, []string) error {
+func runGet(
+	analyticsTracker analytics.AnalyticsTracker,
+	client environments.Client,
+) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
@@ -60,6 +67,15 @@ func runGet(client environments.Client) func(*cobra.Command, []string) error {
 		if err != nil {
 			return err
 		}
+
+		analyticsTracker.SendEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			"environment_get",
+			map[string]interface{}{
+				"key":        viper.GetString(cliflags.EnvironmentFlag),
+				"projectKey": viper.GetString(cliflags.ProjectFlag),
+			})
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 

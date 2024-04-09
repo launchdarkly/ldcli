@@ -1,9 +1,8 @@
 package main
 
 import (
-	"fmt"
-
-	segmentio "github.com/segmentio/analytics-go/v3"
+	"net/http"
+	"time"
 
 	"ldcli/cmd"
 	"ldcli/internal/analytics"
@@ -11,16 +10,14 @@ import (
 
 // main.version is set at build time via ldflags by go releaser https://goreleaser.com/cookbooks/using-main.version/
 var (
-	version         = "dev"
-	segmentWriteKey = ""
+	version = "dev"
 )
 
 func main() {
-	fmt.Println(">>> segmentWriteKey", segmentWriteKey)
-	client := analytics.NewSegmentioClient(
-		segmentio.New(segmentWriteKey),
-	)
-	defer client.Close()
-
-	cmd.Execute(client, version)
+	httpClient := &http.Client{
+		Timeout: time.Second * 3,
+	}
+	analyticsClient := &analytics.AnalyticsClient{HTTPClient: httpClient}
+	cmd.Execute(analyticsClient, version)
+	analyticsClient.Wait()
 }

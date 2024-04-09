@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -22,7 +21,7 @@ import (
 )
 
 func NewRootCommand(
-	client analytics.AnalyticsTracker,
+	analyticsTracker analytics.AnalyticsTracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 	membersClient members.Client,
@@ -72,7 +71,7 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	environmentsCmd, err := envscmd.NewEnvironmentsCmd(environmentsClient)
+	environmentsCmd, err := envscmd.NewEnvironmentsCmd(analyticsTracker, environmentsClient)
 	if err != nil {
 		return nil, err
 	}
@@ -98,9 +97,9 @@ func NewRootCommand(
 	return cmd, nil
 }
 
-func Execute(client analytics.SegmentioClient, version string) {
+func Execute(analyticsTracker analytics.AnalyticsTracker, version string) {
 	rootCmd, err := NewRootCommand(
-		client,
+		analyticsTracker,
 		environments.NewClient(version),
 		flags.NewClient(version),
 		members.NewClient(version),
@@ -109,17 +108,6 @@ func Execute(client analytics.SegmentioClient, version string) {
 	)
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	fmt.Println(">>> tracking event")
-	err = client.Track(
-		"user-234",
-		map[string]interface{}{
-			"event1": time.Now().String(),
-		},
-	)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
 	}
 
 	err = rootCmd.Execute()
