@@ -31,7 +31,7 @@ type chooseSDKModel struct {
 }
 
 func NewChooseSDKModel(selectedIndex int) tea.Model {
-	l := list.New(sdksToItems(), sdkDelegate{}, 20, 9)
+	l := list.New(sdksToItems(), sdkDelegate{}, 30, 9)
 	l.Title = "Select your SDK:\n"
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
