@@ -18,18 +18,19 @@ const (
 )
 
 type showSDKInstructionsModel struct {
-	accessToken   string
-	baseUri       string
-	canonicalName string
-	displayName   string
-	flagKey       string
-	help          help.Model
-	helpKeys      keyMap
-	instructions  string
-	sdkKey        string
-	spinner       spinner.Model
-	url           string
-	viewport      viewport.Model
+	accessToken         string
+	baseUri             string
+	canonicalName       string
+	displayName         string
+	flagKey             string
+	help                help.Model
+	helpKeys            keyMap
+	instructions        string
+	hasInstructionsFile bool // TODO: remove when we have all instructions saved
+	sdkKey              string
+	spinner             spinner.Model
+	url                 string
+	viewport            viewport.Model
 }
 
 func NewShowSDKInstructionsModel(
@@ -39,6 +40,7 @@ func NewShowSDKInstructionsModel(
 	displayName string,
 	url string,
 	flagKey string,
+	hasInstructionsFile bool,
 ) tea.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Points
@@ -48,7 +50,6 @@ func NewShowSDKInstructionsModel(
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
 		PaddingRight(2)
-	vp.MouseWheelEnabled = true
 
 	return showSDKInstructionsModel{
 		accessToken:   accessToken,
@@ -61,16 +62,23 @@ func NewShowSDKInstructionsModel(
 			Back: BindingBack,
 			Quit: BindingQuit,
 		},
-		spinner:  s,
-		url:      url,
-		viewport: vp,
+		spinner:             s,
+		url:                 url,
+		viewport:            vp,
+		hasInstructionsFile: hasInstructionsFile,
 	}
 }
 
 func (m showSDKInstructionsModel) Init() tea.Cmd {
+	// to remove when we have all instruction files loaded
+	instructionsCmd := sendFetchSDKInstructionsMsg(m.url)
+	if m.hasInstructionsFile {
+		instructionsCmd = sendReadSDKInstructionsMsg(m.canonicalName)
+	}
+
 	return tea.Sequence(
 		m.spinner.Tick,
-		sendFetchSDKInstructionsMsg(m.url),
+		instructionsCmd,
 		sendFetchEnv(m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
 	)
 }
@@ -118,7 +126,6 @@ func (m showSDKInstructionsModel) View() string {
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(viewportWidth),
 	)
 	if err != nil {
 		return "", err
