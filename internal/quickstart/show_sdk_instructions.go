@@ -48,6 +48,7 @@ func NewShowSDKInstructionsModel(
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
 		PaddingRight(2)
+	vp.MouseWheelEnabled = true
 
 	return showSDKInstructionsModel{
 		accessToken:   accessToken,
@@ -85,6 +86,8 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m.viewport, cmd = m.viewport.Update(msg)
 		}
+	case tea.MouseMsg:
+		m.viewport, cmd = m.viewport.Update(msg)
 	case fetchedSDKInstructions:
 		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
 	case fetchedEnv:

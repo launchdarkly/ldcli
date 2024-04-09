@@ -124,6 +124,12 @@ func sendShowToggleFlagMsg() tea.Cmd {
 	}
 }
 
+func sendEnableMouseCellMotionMsg() tea.Cmd {
+	return func() tea.Msg {
+		return tea.EnableMouseCellMotion()
+	}
+}
+
 type fetchedEnv struct {
 	sdkKey string
 }

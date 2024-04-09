@@ -110,6 +110,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flagKey = msg.flagKey // TODO: figure out if we maintain state here or pass in another message
 		m.currentStep += 1
 		m.err = nil
+		cmd = sendEnableMouseCellMotionMsg()
 	case errMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 	case noInstructionsMsg:
@@ -122,7 +123,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
-	case fetchedSDKInstructions, fetchedEnv, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg:
+	case fetchedSDKInstructions, fetchedEnv, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, tea.MouseMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
 	case showToggleFlagMsg:
