@@ -31,7 +31,7 @@ type chooseSDKModel struct {
 }
 
 func NewChooseSDKModel(selectedIndex int) tea.Model {
-	l := list.New(sdksToItems(), sdkDelegate{}, 30, 14)
+	l := list.New(sdksToItems(), sdkDelegate{}, 20, 9)
 	l.Title = "Select your SDK:\n"
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
@@ -40,7 +40,6 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	l.SetShowPagination(true)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false) // TODO: try to get filtering working
-	l.Paginator.PerPage = 5
 
 	return chooseSDKModel{
 		help: help.New(),
