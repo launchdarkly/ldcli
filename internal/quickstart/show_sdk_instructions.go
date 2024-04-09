@@ -2,16 +2,20 @@ package quickstart
 
 import (
 	"fmt"
-
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
-
 	"ldcli/internal/sdks"
+)
+
+const (
+	viewportWidth  = 78
+	viewportHeight = 30
 )
 
 type showSDKInstructionsModel struct {
@@ -26,6 +30,7 @@ type showSDKInstructionsModel struct {
 	sdkKey        string
 	spinner       spinner.Model
 	url           string
+	viewport      viewport.Model
 }
 
 func NewShowSDKInstructionsModel(
@@ -39,6 +44,12 @@ func NewShowSDKInstructionsModel(
 	s := spinner.New()
 	s.Spinner = spinner.Points
 
+	vp := viewport.New(viewportWidth, viewportHeight)
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		PaddingRight(2)
+
 	return showSDKInstructionsModel{
 		accessToken:   accessToken,
 		baseUri:       baseUri,
@@ -50,8 +61,9 @@ func NewShowSDKInstructionsModel(
 			Back: BindingBack,
 			Quit: BindingQuit,
 		},
-		spinner: s,
-		url:     url,
+		spinner:  s,
+		url:      url,
+		viewport: vp,
 	}
 }
 
@@ -71,12 +83,19 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, pressableKeys.Enter):
 			// TODO: only if all data are fetched?
 			cmd = sendShowToggleFlagMsg()
+		default:
+			m.viewport, cmd = m.viewport.Update(msg)
 		}
 	case fetchedSDKInstructions:
 		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
 	case fetchedEnv:
 		m.sdkKey = msg.sdkKey
 		m.instructions = sdks.ReplaceSDKKey(string(m.instructions), msg.sdkKey)
+		md, err := m.renderMarkdown()
+		if err != nil {
+			return m, sendErr(err)
+		}
+		m.viewport.SetContent(md)
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
 	}
@@ -85,24 +104,13 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m showSDKInstructionsModel) View() string {
-	style := lipgloss.NewStyle().Border(lipgloss.NormalBorder(), true, false)
-	md, err := m.renderMarkdown()
-	if err != nil {
-		return fmt.Sprintf("error rendering instructions: %s", err)
-	}
-
 	if m.instructions == "" || m.sdkKey == "" {
 		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...", m.displayName)
 	}
 
-	return wordwrap.String(
-		fmt.Sprintf(
-			"Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n%s\n\n (press enter to continue)",
-			m.displayName,
-			style.Render(md),
-		),
-		0,
-	) + footerView(m.help.View(m.helpKeys), nil)
+	instructions := fmt.Sprintf("Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n", m.displayName)
+
+	return wordwrap.String(instructions, viewportWidth*1.5) + m.viewport.View() + "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
