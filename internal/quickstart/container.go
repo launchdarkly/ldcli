@@ -37,6 +37,7 @@ type ContainerModel struct {
 	err                error
 	flagKey            string
 	flagsClient        flags.Client
+	gettingStarted     bool
 	quitting           bool
 	sdk                sdkDetail
 	totalSteps         int
@@ -56,6 +57,7 @@ func NewContainerModel(
 		currentStep:        1,
 		environmentsClient: environmentsClient,
 		flagsClient:        flagsClient,
+		gettingStarted:     true,
 		totalSteps:         4,
 	}
 }
@@ -137,6 +139,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 		m.currentStep += 1
 	case fetchedSDKInstructionsMsg, fetchedEnvMsg, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
+		m.gettingStarted = false
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
 	case showToggleFlagMsg:
@@ -160,6 +163,10 @@ func (m ContainerModel) View() string {
 
 	if m.quitting {
 		return ""
+	}
+
+	if m.gettingStarted {
+		out = "Within this guided setup flow, you'll be creating a new feature flag and,\nusing the SDK of your choice, building a small sample application to see a\nfeature flag toggle on and off in real time.\n\nLet's get started!\n" + out
 	}
 
 	return wordwrap.String(out, m.width)
