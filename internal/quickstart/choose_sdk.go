@@ -128,7 +128,7 @@ var SDKs = []sdkDetail{
 	{canonicalName: "flutter", displayName: "Flutter", kind: mobileSDK, hasInstructions: true},
 	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK, hasInstructions: true},
 	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
+	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK},
 	{canonicalName: "c-client", displayName: "C/C++ (client-side)", kind: clientSideSDK},
 	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK},
