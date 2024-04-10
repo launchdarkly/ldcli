@@ -1,0 +1,24 @@
+{
+  "name": "ldcli",
+  "version": "0.6.0",
+  "description": "The official command line interface for managing LaunchDarkly feature flags.",
+  "main": "index.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/launchdarkly/ldcli.git"
+  },
+  "keywords": [
+    "cli",
+    "feature-flags",
+    "feature-toggles",
+    "command-line-interface",
+    "launchdarkly-integration"
+  ],
+  "author": "LaunchDarkly <team@launchdarkly.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/launchdarkly/ldcli/issues"
+  },
+  "homepage": "https://github.com/launchdarkly/ldcli#readme"
+}
