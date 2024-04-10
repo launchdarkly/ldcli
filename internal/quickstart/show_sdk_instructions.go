@@ -51,16 +51,21 @@ func NewShowSDKInstructionsModel(
 		BorderForeground(lipgloss.Color("62")).
 		PaddingRight(2)
 
+	h := help.New()
+	h.ShowAll = true
+
 	return showSDKInstructionsModel{
 		accessToken:   accessToken,
 		baseUri:       baseUri,
 		canonicalName: canonicalName,
 		displayName:   displayName,
 		flagKey:       flagKey,
-		help:          help.New(),
+		help:          h,
 		helpKeys: keyMap{
-			Back: BindingBack,
-			Quit: BindingQuit,
+			Back:       BindingBack,
+			CursorDown: BindingCursorDown,
+			CursorUp:   BindingCursorUp,
+			Quit:       BindingQuit,
 		},
 		spinner:             s,
 		url:                 url,
