@@ -47,8 +47,10 @@ func NewShowSDKInstructionsModel(
 
 	vp := viewport.New(viewportWidth, viewportHeight)
 	vp.Style = lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
+		BorderStyle(lipgloss.ThickBorder()).
 		BorderForeground(lipgloss.Color("62")).
+		BorderTop(true).
+		BorderBottom(true).
 		PaddingRight(2)
 
 	h := help.New()
