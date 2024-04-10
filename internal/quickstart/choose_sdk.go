@@ -62,7 +62,7 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 }
 
 func (m chooseSDKModel) Init() tea.Cmd {
-	return sendSelectedSDKMsg(m.selectedIndex)
+	return selectedSDK(m.selectedIndex)
 }
 
 func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -75,7 +75,7 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if ok {
 				m.selectedSDK = i
 				m.selectedSDK.index = m.list.Index()
-				cmd = sendChoseSDKMsg(m.selectedSDK)
+				cmd = chooseSDK(m.selectedSDK)
 			}
 		case key.Matches(msg, m.helpKeys.CloseFullHelp):
 			m.help.ShowAll = !m.help.ShowAll

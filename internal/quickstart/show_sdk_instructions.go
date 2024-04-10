@@ -2,6 +2,8 @@ package quickstart
 
 import (
 	"fmt"
+	"ldcli/internal/sdks"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -9,7 +11,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"ldcli/internal/sdks"
 )
 
 const (
@@ -71,15 +72,15 @@ func NewShowSDKInstructionsModel(
 
 func (m showSDKInstructionsModel) Init() tea.Cmd {
 	// to remove when we have all instruction files loaded
-	instructionsCmd := sendFetchSDKInstructionsMsg(m.url)
+	instructionsCmd := fetchSDKInstructions(m.url)
 	if m.hasInstructionsFile {
-		instructionsCmd = sendReadSDKInstructionsMsg(m.canonicalName)
+		instructionsCmd = readSDKInstructions(m.canonicalName)
 	}
 
 	return tea.Sequence(
 		m.spinner.Tick,
 		instructionsCmd,
-		sendFetchEnv(m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
+		fetchEnv(m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
 	)
 }
 
@@ -90,20 +91,20 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, pressableKeys.Enter):
 			// TODO: only if all data are fetched?
-			cmd = sendShowToggleFlagMsg()
+			cmd = showToggleFlag()
 		default:
 			m.viewport, cmd = m.viewport.Update(msg)
 		}
 	case tea.MouseMsg:
 		m.viewport, cmd = m.viewport.Update(msg)
-	case fetchedSDKInstructions:
+	case fetchedSDKInstructionsMsg:
 		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
-	case fetchedEnv:
+	case fetchedEnvMsg:
 		m.sdkKey = msg.sdkKey
 		m.instructions = sdks.ReplaceSDKKey(string(m.instructions), msg.sdkKey)
 		md, err := m.renderMarkdown()
 		if err != nil {
-			return m, sendErr(err)
+			return m, sendErrMsg(err)
 		}
 		m.viewport.SetContent(md)
 	case spinner.TickMsg:

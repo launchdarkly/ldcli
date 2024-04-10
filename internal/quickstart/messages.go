@@ -21,7 +21,7 @@ type errMsg struct {
 	err error
 }
 
-func sendErr(err error) tea.Cmd {
+func sendErrMsg(err error) tea.Cmd {
 	return func() tea.Msg {
 		return errMsg{err: err}
 	}
@@ -29,7 +29,7 @@ func sendErr(err error) tea.Cmd {
 
 type toggledFlagMsg struct{}
 
-func sendToggleFlagMsg(client flags.Client, accessToken, baseUri, flagKey string, enabled bool) tea.Cmd {
+func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabled bool) tea.Cmd {
 	return func() tea.Msg {
 		_, err := client.Update(
 			context.Background(),
@@ -56,13 +56,13 @@ type confirmedFlagMsg struct {
 	flag flag
 }
 
-func sendConfirmedFlagMsg(flag flag) tea.Cmd {
+func confirmedFlag(flag flag) tea.Cmd {
 	return func() tea.Msg {
 		return confirmedFlagMsg{flag}
 	}
 }
 
-func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flagKey, projKey string) tea.Cmd {
+func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, projKey string) tea.Cmd {
 	return func() tea.Msg {
 		var existingFlag bool
 
@@ -94,7 +94,7 @@ func sendCreateFlagMsg(client flags.Client, accessToken, baseUri, flagName, flag
 	}
 }
 
-type fetchedSDKInstructions struct {
+type fetchedSDKInstructionsMsg struct {
 	instructions []byte
 }
 
@@ -102,7 +102,7 @@ type choseSDKMsg struct {
 	sdk sdkDetail
 }
 
-func sendChoseSDKMsg(sdk sdkDetail) tea.Cmd {
+func chooseSDK(sdk sdkDetail) tea.Cmd {
 	return func() tea.Msg {
 		if sdk.url == "" {
 			sdk.url = fmt.Sprintf("https://raw.githubusercontent.com/launchdarkly/hello-%s/main/README.md", sdk.canonicalName)
@@ -114,7 +114,7 @@ func sendChoseSDKMsg(sdk sdkDetail) tea.Cmd {
 	}
 }
 
-func sendFetchSDKInstructionsMsg(url string) tea.Cmd {
+func fetchSDKInstructions(url string) tea.Cmd {
 	return func() tea.Msg {
 		resp, err := http.Get(url)
 		if err != nil {
@@ -131,40 +131,40 @@ func sendFetchSDKInstructionsMsg(url string) tea.Cmd {
 			return noInstructionsMsg{}
 		}
 
-		return fetchedSDKInstructions{instructions: body}
+		return fetchedSDKInstructionsMsg{instructions: body}
 	}
 }
 
-func sendReadSDKInstructionsMsg(filename string) tea.Cmd {
+func readSDKInstructions(filename string) tea.Cmd {
 	return func() tea.Msg {
 		content, err := os.ReadFile(fmt.Sprintf("internal/sdks/sdk_instructions/%s.md", filename))
 		if err != nil {
 			return errMsg{err: err}
 		}
 
-		return fetchedSDKInstructions{instructions: content}
+		return fetchedSDKInstructionsMsg{instructions: content}
 	}
 }
 
 type showToggleFlagMsg struct{}
 
-func sendShowToggleFlagMsg() tea.Cmd {
+func showToggleFlag() tea.Cmd {
 	return func() tea.Msg {
 		return showToggleFlagMsg{}
 	}
 }
 
-func sendEnableMouseCellMotionMsg() tea.Cmd {
+func enableMouseCellMotion() tea.Cmd {
 	return func() tea.Msg {
 		return tea.EnableMouseCellMotion()
 	}
 }
 
-type fetchedEnv struct {
+type fetchedEnvMsg struct {
 	sdkKey string
 }
 
-func sendFetchEnv(accessToken string, baseUri string, key string, projKey string) tea.Cmd {
+func fetchEnv(accessToken string, baseUri string, key string, projKey string) tea.Cmd {
 	return func() tea.Msg {
 		client := environments.NewClient("0.2.0")
 		response, err := client.Get(context.Background(), accessToken, baseUri, key, projKey)
@@ -180,7 +180,7 @@ func sendFetchEnv(accessToken string, baseUri string, key string, projKey string
 			return errMsg{err: err}
 		}
 
-		return fetchedEnv{sdkKey: resp.SDKKey}
+		return fetchedEnvMsg{sdkKey: resp.SDKKey}
 	}
 }
 
@@ -191,7 +191,7 @@ type selectedSDKMsg struct {
 	index int
 }
 
-func sendSelectedSDKMsg(index int) tea.Cmd {
+func selectedSDK(index int) tea.Cmd {
 	return func() tea.Msg {
 		return selectedSDKMsg{index: index}
 	}
