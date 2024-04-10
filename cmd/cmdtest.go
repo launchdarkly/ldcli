@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
@@ -24,6 +25,7 @@ func CallCmd(
 	args []string,
 ) ([]byte, error) {
 	rootCmd, err := NewRootCommand(
+		&analytics.NoopClient{},
 		environmentsClient,
 		flagsClient,
 		membersClient,

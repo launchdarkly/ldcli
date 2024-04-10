@@ -61,8 +61,10 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	}
 }
 
+// Init sends commands when the model is created that will:
+// * select an SDK if it's already been selected
 func (m chooseSDKModel) Init() tea.Cmd {
-	return sendSelectedSDKMsg(m.selectedIndex)
+	return selectedSDK(m.selectedIndex)
 }
 
 func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -75,7 +77,7 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if ok {
 				m.selectedSDK = i
 				m.selectedSDK.index = m.list.Index()
-				cmd = sendChoseSDKMsg(m.selectedSDK)
+				cmd = chooseSDK(m.selectedSDK)
 			}
 		case key.Matches(msg, m.helpKeys.CloseFullHelp):
 			m.help.ShowAll = !m.help.ShowAll
@@ -105,7 +107,7 @@ type sdkDetail struct {
 func (s sdkDetail) FilterValue() string { return "" }
 
 var SDKs = []sdkDetail{
-	// {canonicalName: "react", displayName: "React", kind: clientSideSDK},
+	{canonicalName: "react", displayName: "React", kind: clientSideSDK, hasInstructions: true},
 	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
 	{canonicalName: "python", displayName: "Python", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},

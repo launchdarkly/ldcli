@@ -1,6 +1,7 @@
 package sdks
 
 import (
+	"regexp"
 	"strings"
 )
 
@@ -10,6 +11,9 @@ func ReplaceFlagKey(instructions string, key string) string {
 	r := strings.NewReplacer(
 		"my-flag-key",
 		key,
+		"myFlagKey",
+		kebabToCamel(key),
+		// remove remaining keys when we add all hardcoded instructions
 		"my-flag",
 		key,
 		"my-boolean-flag",
@@ -23,21 +27,33 @@ func ReplaceFlagKey(instructions string, key string) string {
 	return r.Replace(instructions)
 }
 
-// ReplaceSDKKey changes the placeholder flag key in the SDK instructions to the flag key from
-// the user.
-func ReplaceSDKKey(instructions string, key string) string {
+// ReplaceSDKKeys changes the placeholder SDK key/client side ID in the SDK instructions to the key from
+// the default test environment for the user's account.
+func ReplaceSDKKeys(instructions string, sdkKey, clientSideId string) string {
 	r := strings.NewReplacer(
 		"1234567890abcdef",
-		key,
-		"myClientSideID",
-		key,
+		sdkKey,
+		"myClientSideId",
+		clientSideId,
+		// remove remaining values when we add all hardcoded instructions
 		"mobile-key-from-launch-darkly-website",
-		key,
+		sdkKey,
 		"YOUR_SDK_KEY",
-		key,
+		sdkKey,
 		"Your LaunchDarkly SDK key",
-		key,
+		sdkKey,
+		"myClientSideID",
+		clientSideId,
 	)
 
 	return r.Replace(instructions)
+}
+
+// kebabToCamel converts a kebab-case key string into a camelCase key string, used for the React sdk instructions
+func kebabToCamel(kebabCase string) string {
+	replaceDashRegex := regexp.MustCompile(`-(.)`)
+	camelCase := replaceDashRegex.ReplaceAllStringFunc(kebabCase, func(match string) string {
+		return strings.ToUpper(string(match[1]))
+	})
+	return camelCase
 }

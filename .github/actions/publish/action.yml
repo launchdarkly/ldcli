@@ -15,7 +15,7 @@ inputs:
     description: 'Tag to upload artifacts to.'
     required: true
 outputs:
-  hashes: 
+  hashes:
     description: sha256sum hashes of built artifacts
     value: ${{ steps.hash.outputs.hashes }}
 
@@ -40,8 +40,8 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
-    - name: Hash build artifacts for provenance 
+    - name: Hash build artifacts for provenance
       id: hash
       shell: bash
-      run: | 
+      run: |
         echo "hashes=$(sha256sum dist/*.tar.gz | base64 -w0)" >> "$GITHUB_OUTPUT"
