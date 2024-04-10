@@ -6,7 +6,7 @@ on:
         description: 'Skip publishing to DockerHub and Homebrew'
         type: boolean
         required: false
-        default: true
+        default: false
       tag:
         description: 'Tag to upload binary artifacts to'
         type: string
@@ -81,7 +81,7 @@ jobs:
           workspace_name: ${{ env.WORKSPACE_NAME }}
           workspace_path: ${{ inputs.workspace_path }}
           prerelease: ${{ inputs.prerelease }}
-          # dry_run: ${{ inputs.dry_run }}
+          dry_run: ${{ inputs.dry_run }}
 
       # - id: release-common
       #   name: Full release of packages/shared/common
