@@ -1,0 +1,29 @@
+name: Publish to NPM
+description: Publish a package from the workspace.
+inputs:
+  workspace_name:
+    description: 'The workspace to publish'
+    required: true
+  workspace_path:
+    description: 'Path to the workspace (for npm publish)'
+    required: true
+  prerelease:
+    description: 'Is this a prerelease. If so, then the latest tag will not be updated in npm.'
+    required: true
+  dry_run:
+    description: 'Is this a dry run. If so no package will be published.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Publish
+      shell: bash
+      run: |
+        echo "Publishing: $WORKSPACE"
+        ./scripts/publish-npm.sh
+      env:
+        WORKSPACE: ${{ inputs.workspace_name }}
+        WORKSPACE_PATH: ${{ inputs.workspace_path }}
+        LD_RELEASE_IS_PRERELEASE: ${{ inputs.prerelease }}
+        LD_RELEASE_IS_DRYRUN: ${{ inputs.dry_run }}

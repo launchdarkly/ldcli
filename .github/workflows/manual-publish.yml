@@ -59,13 +59,36 @@ jobs:
       - uses: ./.github/actions/install-npm-version
         with:
           npm_version: 9.5.0
-      - id: release-common
-        name: Full release of packages/shared/common
-        uses: ./.github/actions/full-release
+      - name: 'Set WORKSPACE_NAME variable'
+        run: |
+          WORKSPACE_NAME=$(./scripts/package-name.sh ${{ inputs.workspace_path }})
+          echo "WORKSPACE_NAME=$WORKSPACE_NAME" >> $GITHUB_ENV
+      - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
+        name: 'Get NPM token'
         with:
-          base64-subjects: "${{ needs.release-ldcli.outputs.hashes }}"
-          workspace_path: packages/shared/common
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+          ssm_parameter_pairs: '/production/common/releasing/npm/token = NODE_AUTH_TOKEN'
+      - name: Setup .yarnrc.yml
+        shell: bash
+        run: |
+          yarn config set npmScopes.launchdarkly.npmRegistryServer "https://registry.npmjs.org"
+          yarn config set npmScopes.launchdarkly.npmAlwaysAuth true
+          yarn config set npmScopes.launchdarkly.npmAuthToken $NODE_AUTH_TOKEN
+      - id: publish
+        name: Publish NPM Package
+        uses: ./.github/actions/publish
+        with:
+          workspace_name: ${{ env.WORKSPACE_NAME }}
+          workspace_path: ${{ inputs.workspace_path }}
+          prerelease: ${{ inputs.prerelease }}
+          dry_run: ${{ inputs.dry_run }}
+
+      # - id: release-common
+      #   name: Full release of packages/shared/common
+      #   uses: ./.github/actions/full-release
+      #   with:
+      #     workspace_path: packages/shared/common
+      #     aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
 
   release-ldcli-provenance:
     needs: ['release-ldcli']
