@@ -23,8 +23,7 @@ runs:
     - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
       name: 'Get NPM token'
       with:
-        aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
-        # aws_assume_role: ${{ inputs.aws_assume_role }}
+        aws_assume_role: ${{ inputs.aws_assume_role }}
         ssm_parameter_pairs: '/production/common/releasing/npm/token = NODE_AUTH_TOKEN'
     - name: Setup .yarnrc.yml
       shell: bash
