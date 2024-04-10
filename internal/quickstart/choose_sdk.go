@@ -120,7 +120,7 @@ var SDKs = []sdkDetail{
 	},
 	{canonicalName: "ios-swift", displayName: "iOS", kind: mobileSDK, hasInstructions: true},
 	{canonicalName: "go", displayName: "Go", kind: serverSideSDK},
-	{canonicalName: "android", displayName: "Android", kind: mobileSDK},
+	{canonicalName: "android", displayName: "Android", kind: mobileSDK, hasInstructions: true},
 	{canonicalName: "react-native", displayName: "React Native", kind: mobileSDK},
 	{canonicalName: "ruby", displayName: "Ruby", kind: serverSideSDK},
 	{canonicalName: "flutter", displayName: "Flutter", kind: mobileSDK},
