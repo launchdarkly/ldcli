@@ -94,8 +94,6 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m.viewport, cmd = m.viewport.Update(msg)
 		}
-	case tea.MouseMsg:
-		m.viewport, cmd = m.viewport.Update(msg)
 	case fetchedSDKInstructions:
 		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
 	case fetchedEnv:
@@ -117,9 +115,7 @@ func (m showSDKInstructionsModel) View() string {
 	if m.instructions == "" || m.sdkKey == "" {
 		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...", m.displayName)
 	}
-
 	instructions := fmt.Sprintf("Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n", m.displayName)
-
 	return instructions + m.viewport.View() + "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
 }
 
