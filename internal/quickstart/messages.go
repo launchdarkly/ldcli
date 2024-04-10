@@ -161,7 +161,8 @@ func sendEnableMouseCellMotionMsg() tea.Cmd {
 }
 
 type fetchedEnv struct {
-	sdkKey string
+	clientSideId string
+	sdkKey       string
 }
 
 func sendFetchEnv(accessToken string, baseUri string, key string, projKey string) tea.Cmd {
@@ -173,14 +174,15 @@ func sendFetchEnv(accessToken string, baseUri string, key string, projKey string
 		}
 
 		var resp struct {
-			SDKKey string `json:"apiKey"`
+			SDKKey       string `json:"apiKey"`
+			ClientSideId string `json:"_id"`
 		}
 		err = json.Unmarshal(response, &resp)
 		if err != nil {
 			return errMsg{err: err}
 		}
 
-		return fetchedEnv{sdkKey: resp.SDKKey}
+		return fetchedEnv{clientSideId: resp.ClientSideId, sdkKey: resp.SDKKey}
 	}
 }
 

@@ -33,6 +33,10 @@ func TestReplaceFlagKey(t *testing.T) {
 			body:     "# title ```hello_erlang_server:get(<<\"FLAG_KEY\">>)```",
 			expected: "# title ```hello_erlang_server:get(<<\"real-flag-key\">>)```",
 		},
+		"replaces camelCase <myFlagKey>": {
+			body:     "# title ```const featureFlagKey = \"myFlagKey\"```",
+			expected: "# title ```const featureFlagKey = \"realFlagKey\"```",
+		},
 	}
 	for name, tt := range tests {
 		tt := tt
@@ -53,9 +57,9 @@ func TestReplaceSDKKey(t *testing.T) {
 			body:     "# title ```const sdkKey = \"1234567890abcdef\"```",
 			expected: "# title ```const sdkKey = \"real-sdk-key\"```",
 		},
-		"replaces placeholder myClientSideID": {
-			body:     "# title ```const sdkKey = \"myClientSideID\"```",
-			expected: "# title ```const sdkKey = \"real-sdk-key\"```",
+		"replaces placeholder myClientSideId": {
+			body:     "# title ```const sdkKey = \"myClientSideId\"```",
+			expected: "# title ```const sdkKey = \"real-client-side-id\"```",
 		},
 		"replaces placeholder mobile-key-from-launch-darkly-website": {
 			body:     "# title ```const sdkKey = \"mobile-key-from-launch-darkly-website\"```",
@@ -73,7 +77,7 @@ func TestReplaceSDKKey(t *testing.T) {
 	for name, tt := range tests {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
-			updated := sdks.ReplaceSDKKey(tt.body, "real-sdk-key")
+			updated := sdks.ReplaceSDKKeys(tt.body, "real-sdk-key", "real-client-side-id")
 
 			assert.Equal(t, string(tt.expected), string(updated))
 		})
