@@ -61,6 +61,8 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	}
 }
 
+// Init sends commands when the model is created that will:
+// * select an SDK if it's already been selected
 func (m chooseSDKModel) Init() tea.Cmd {
 	return selectedSDK(m.selectedIndex)
 }

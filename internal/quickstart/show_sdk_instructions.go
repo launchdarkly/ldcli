@@ -70,6 +70,10 @@ func NewShowSDKInstructionsModel(
 	}
 }
 
+// Init sends commands when the model is created that will:
+// show a spinner while SDK instructions are prepared
+// fetch SDK instructions
+// fetch the environment to get values to interpolate into the instructions
 func (m showSDKInstructionsModel) Init() tea.Cmd {
 	// to remove when we have all instruction files loaded
 	instructionsCmd := fetchSDKInstructions(m.url)
