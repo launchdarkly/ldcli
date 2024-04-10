@@ -106,7 +106,7 @@ func (s sdkDetail) FilterValue() string { return "" }
 
 var SDKs = []sdkDetail{
 	{canonicalName: "react", displayName: "React", kind: clientSideSDK, hasInstructions: true},
-	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
+	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "python", displayName: "Python", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},
 	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
