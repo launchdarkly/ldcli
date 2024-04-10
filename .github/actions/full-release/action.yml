@@ -20,10 +20,11 @@ runs:
       with:
         workspace_name: ${{ env.WORKSPACE_NAME }}
         workspace_path: ${{ inputs.workspace_path }}
-    - uses: ./actions/release-secrets
+    - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
       name: 'Get NPM token'
       with:
-        aws_assume_role: ${{ inputs.aws_assume_role }}
+        aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+        # aws_assume_role: ${{ inputs.aws_assume_role }}
         ssm_parameter_pairs: '/production/common/releasing/npm/token = NODE_AUTH_TOKEN'
     - name: Setup .yarnrc.yml
       shell: bash
@@ -31,12 +32,9 @@ runs:
         yarn config set npmScopes.launchdarkly.npmRegistryServer "https://registry.npmjs.org"
         yarn config set npmScopes.launchdarkly.npmAlwaysAuth true
         yarn config set npmScopes.launchdarkly.npmAuthToken $NODE_AUTH_TOKEN
-    - uses: ./actions/publish
+    - uses: ./.github/actions/publish
       with:
         workspace_name: ${{ env.WORKSPACE_NAME }}
         workspace_path: ${{ inputs.workspace_path }}
         prerelease: false
         dry_run: false
-    - uses: ./actions/publish-docs
-      with:
-        workspace_path: ${{ inputs.workspace_path }}

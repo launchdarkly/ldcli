@@ -48,17 +48,20 @@ jobs:
       id-token: write
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        name: Checkout
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v3
         with:
           node-version: 20.x
           registry-url: 'https://registry.npmjs.org'
-      - uses: ./actions/install-npm-version
+      - uses: ./.github/actions/install-npm-version
         with:
           npm_version: 9.5.0
       - id: release-common
         name: Full release of packages/shared/common
-        uses: ./actions/full-release
+        uses: ./.github/actions/full-release
         with:
           base64-subjects: "${{ needs.release-ldcli.outputs.hashes }}"
           workspace_path: packages/shared/common
