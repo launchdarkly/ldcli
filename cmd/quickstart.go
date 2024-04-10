@@ -10,20 +10,27 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/quickstart"
 )
 
-func NewQuickStartCmd(client flags.Client) *cobra.Command {
+func NewQuickStartCmd(
+	environmentsClient environments.Client,
+	flagsClient flags.Client,
+) *cobra.Command {
 	return &cobra.Command{
 		Long:  "",
-		RunE:  runQuickStart(client),
+		RunE:  runQuickStart(environmentsClient, flagsClient),
 		Short: "Setup guide to create your first feature flag",
 		Use:   "setup",
 	}
 }
 
-func runQuickStart(client flags.Client) func(*cobra.Command, []string) error {
+func runQuickStart(
+	environmentsClient environments.Client,
+	flagsClient flags.Client,
+) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		f, err := tea.LogToFile("debug.log", "")
 		if err != nil {
@@ -33,7 +40,8 @@ func runQuickStart(client flags.Client) func(*cobra.Command, []string) error {
 		defer f.Close()
 
 		_, err = tea.NewProgram(quickstart.NewContainerModel(
-			client,
+			environmentsClient,
+			flagsClient,
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 		)).Run()

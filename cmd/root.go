@@ -90,7 +90,7 @@ func NewRootCommand(
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
-	cmd.AddCommand(NewQuickStartCmd(flagsClient))
+	cmd.AddCommand(NewQuickStartCmd(environmentsClient, flagsClient))
 
 	return cmd, nil
 }

@@ -154,20 +154,19 @@ func sendShowToggleFlagMsg() tea.Cmd {
 	}
 }
 
-func sendEnableMouseCellMotionMsg() tea.Cmd {
-	return func() tea.Msg {
-		return tea.EnableMouseCellMotion()
-	}
-}
-
 type fetchedEnv struct {
 	clientSideId string
 	sdkKey       string
 }
 
-func sendFetchEnv(accessToken string, baseUri string, key string, projKey string) tea.Cmd {
+func sendFetchEnv(
+	client environments.Client,
+	accessToken string,
+	baseUri string,
+	key string,
+	projKey string,
+) tea.Cmd {
 	return func() tea.Msg {
-		client := environments.NewClient("0.2.0")
 		response, err := client.Get(context.Background(), accessToken, baseUri, key, projKey)
 		if err != nil {
 			return errMsg{err: err}
