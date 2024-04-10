@@ -26,27 +26,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
-        name: 'Get Docker token'
-        with:
-          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
-          ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
+      # - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
+      #   name: 'Get Docker token'
+      #   with:
+      #     aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+      #     ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
 
-      - uses: ./.github/actions/publish
-        id: publish
-        with:
-          dry-run: ${{ inputs.dry_run }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
-          tag: ${{ inputs.tag }}
+      # - uses: ./.github/actions/publish
+      #   id: publish
+      #   with:
+      #     dry-run: ${{ inputs.dry_run }}
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
+      #     tag: ${{ inputs.tag }}
 
   release-ldcli-npm:
     runs-on: ubuntu-latest
-    needs: ['release-please']
+    needs: ['release-ldcli']
     permissions:
+      actions: read
       id-token: write
       contents: write
-    if: ${{ needs.release-please.outputs.package-common-released == 'true'}}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
@@ -60,6 +60,7 @@ jobs:
         name: Full release of packages/shared/common
         uses: ./actions/full-release
         with:
+          base64-subjects: "${{ needs.release-ldcli.outputs.hashes }}"
           workspace_path: packages/shared/common
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
 
