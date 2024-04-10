@@ -107,7 +107,7 @@ type sdkDetail struct {
 func (s sdkDetail) FilterValue() string { return "" }
 
 var SDKs = []sdkDetail{
-	// {canonicalName: "react", displayName: "React", kind: clientSideSDK},
+	{canonicalName: "react", displayName: "React", kind: clientSideSDK, hasInstructions: true},
 	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
 	{canonicalName: "python", displayName: "Python", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},

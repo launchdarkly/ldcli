@@ -154,14 +154,9 @@ func showToggleFlag() tea.Cmd {
 	}
 }
 
-func enableMouseCellMotion() tea.Cmd {
-	return func() tea.Msg {
-		return tea.EnableMouseCellMotion()
-	}
-}
-
 type fetchedEnvMsg struct {
-	sdkKey string
+	clientSideId string
+	sdkKey       string
 }
 
 func fetchEnv(accessToken string, baseUri string, key string, projKey string) tea.Cmd {
@@ -173,14 +168,15 @@ func fetchEnv(accessToken string, baseUri string, key string, projKey string) te
 		}
 
 		var resp struct {
-			SDKKey string `json:"apiKey"`
+			SDKKey       string `json:"apiKey"`
+			ClientSideId string `json:"_id"`
 		}
 		err = json.Unmarshal(response, &resp)
 		if err != nil {
 			return errMsg{err: err}
 		}
 
-		return fetchedEnvMsg{sdkKey: resp.SDKKey}
+		return fetchedEnvMsg{clientSideId: resp.ClientSideId, sdkKey: resp.SDKKey}
 	}
 }
 
