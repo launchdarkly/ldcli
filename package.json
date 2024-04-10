@@ -3,7 +3,10 @@
   "version": "0.6.0",
   "description": "The official command line interface for managing LaunchDarkly feature flags.",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "postinstall": "go-npm install",
+    "preuninstall": "go-npm uninstall"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/launchdarkly/ldcli.git"
@@ -20,5 +23,13 @@
   "bugs": {
     "url": "https://github.com/launchdarkly/ldcli/issues"
   },
-  "homepage": "https://github.com/launchdarkly/ldcli#readme"
+  "homepage": "https://github.com/launchdarkly/ldcli#readme",
+  "goBinary": {
+    "name": "ldcli",
+    "path": "./bin",
+    "url": "https://github.com/launchdarkly/ldcli/releases/download/v{{version}}/ldcli_{{version}}_{{platform}}_{{arch}}.tar.gz"
+  },
+  "dependencies": {
+    "go-npm": "^0.1.9"
+  }
 }
