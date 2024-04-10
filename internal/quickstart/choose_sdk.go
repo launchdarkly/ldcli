@@ -124,7 +124,7 @@ var SDKs = []sdkDetail{
 	{canonicalName: "react-native", displayName: "React Native", kind: mobileSDK, hasInstructions: true},
 	{canonicalName: "ruby", displayName: "Ruby", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "flutter", displayName: "Flutter", kind: mobileSDK, hasInstructions: true},
-	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK},
+	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK, hasInstructions: true},
 	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK},
 	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
 	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK},
