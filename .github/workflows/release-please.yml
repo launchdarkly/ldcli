@@ -47,6 +47,29 @@ jobs:
           homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
           tag: ${{ needs.release-please.outputs.tag_name }}
 
+  release-ldcli-npm:
+    runs-on: ubuntu-latest
+    needs: ['release-please']
+    permissions:
+      id-token: write
+      contents: write
+    if: ${{ needs.release-please.outputs.package-common-released == 'true'}}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
+          registry-url: 'https://registry.npmjs.org'
+      - uses: ./actions/install-npm-version
+        with:
+          npm_version: 9.5.0
+      - id: release-common
+        name: Full release of packages/shared/common
+        uses: ./actions/full-release
+        with:
+          workspace_path: packages/shared/common
+          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+
   release-ldcli-provenance:
     needs: ['release-please', 'release-ldcli']
     permissions:

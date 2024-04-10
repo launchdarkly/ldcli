@@ -1,0 +1,42 @@
+name: Build, Test, and Publish
+description: 'Execute the full release process for a workspace.'
+inputs:
+  workspace_path:
+    description: 'Path to the workspace being released.'
+    required: true
+  aws_assume_role:
+    description: 'The ARN of an AWS IAM role to assume. Used to auth with AWS to upload results to S3.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: 'Set WORKSPACE_NAME variable'
+      shell: bash
+      run: |
+        WORKSPACE_NAME=$(./scripts/package-name.sh ${{ inputs.workspace_path }})
+        echo "WORKSPACE_NAME=$WORKSPACE_NAME" >> $GITHUB_ENV
+    - uses: ./actions/ci
+      with:
+        workspace_name: ${{ env.WORKSPACE_NAME }}
+        workspace_path: ${{ inputs.workspace_path }}
+    - uses: ./actions/release-secrets
+      name: 'Get NPM token'
+      with:
+        aws_assume_role: ${{ inputs.aws_assume_role }}
+        ssm_parameter_pairs: '/production/common/releasing/npm/token = NODE_AUTH_TOKEN'
+    - name: Setup .yarnrc.yml
+      shell: bash
+      run: |
+        yarn config set npmScopes.launchdarkly.npmRegistryServer "https://registry.npmjs.org"
+        yarn config set npmScopes.launchdarkly.npmAlwaysAuth true
+        yarn config set npmScopes.launchdarkly.npmAuthToken $NODE_AUTH_TOKEN
+    - uses: ./actions/publish
+      with:
+        workspace_name: ${{ env.WORKSPACE_NAME }}
+        workspace_path: ${{ inputs.workspace_path }}
+        prerelease: false
+        dry_run: false
+    - uses: ./actions/publish-docs
+      with:
+        workspace_path: ${{ inputs.workspace_path }}
