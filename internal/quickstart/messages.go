@@ -159,9 +159,14 @@ type fetchedEnvMsg struct {
 	sdkKey       string
 }
 
-func fetchEnv(accessToken string, baseUri string, key string, projKey string) tea.Cmd {
+func fetchEnv(
+	client environments.Client,
+	accessToken string,
+	baseUri string,
+	key string,
+	projKey string,
+) tea.Cmd {
 	return func() tea.Msg {
-		client := environments.NewClient("0.2.0")
 		response, err := client.Get(context.Background(), accessToken, baseUri, key, projKey)
 		if err != nil {
 			return errMsg{err: err}

@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/reflow/wordwrap"
 
+	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 )
 
@@ -28,27 +29,34 @@ const (
 // ContainerModel is a high level container model that controls the nested models where each
 // represents a step in the quick-start flow.
 type ContainerModel struct {
-	accessToken  string
-	baseUri      string
-	currentModel tea.Model
-	currentStep  int
-	err          error
-	flagKey      string
-	flagsClient  flags.Client
-	quitting     bool
-	sdk          sdkDetail
-	totalSteps   int
-	width        int
+	accessToken        string
+	baseUri            string
+	currentModel       tea.Model
+	currentStep        int
+	environmentsClient environments.Client
+	err                error
+	flagKey            string
+	flagsClient        flags.Client
+	quitting           bool
+	sdk                sdkDetail
+	totalSteps         int
+	width              int
 }
 
-func NewContainerModel(flagsClient flags.Client, accessToken string, baseUri string) tea.Model {
+func NewContainerModel(
+	environmentsClient environments.Client,
+	flagsClient flags.Client,
+	accessToken string,
+	baseUri string,
+) tea.Model {
 	return ContainerModel{
-		accessToken:  accessToken,
-		baseUri:      baseUri,
-		currentModel: NewCreateFlagModel(flagsClient, accessToken, baseUri),
-		currentStep:  1,
-		flagsClient:  flagsClient,
-		totalSteps:   4,
+		accessToken:        accessToken,
+		baseUri:            baseUri,
+		currentModel:       NewCreateFlagModel(flagsClient, accessToken, baseUri),
+		currentStep:        1,
+		environmentsClient: environmentsClient,
+		flagsClient:        flagsClient,
+		totalSteps:         4,
 	}
 }
 
@@ -82,6 +90,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case stepToggleFlag:
 				m.currentStep -= 1
 				m.currentModel = NewShowSDKInstructionsModel(
+					m.environmentsClient,
 					m.accessToken,
 					m.baseUri,
 					m.sdk.canonicalName,
@@ -98,6 +107,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case choseSDKMsg:
 		m.currentModel = NewShowSDKInstructionsModel(
+			m.environmentsClient,
 			m.accessToken,
 			m.baseUri,
 			msg.sdk.canonicalName,

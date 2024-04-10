@@ -2,7 +2,6 @@ package quickstart
 
 import (
 	"fmt"
-	"ldcli/internal/sdks"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -11,6 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+
+	"ldcli/internal/environments"
+	"ldcli/internal/sdks"
 )
 
 const (
@@ -23,11 +25,12 @@ type showSDKInstructionsModel struct {
 	baseUri             string
 	canonicalName       string
 	displayName         string
+	environmentsClient  environments.Client
 	flagKey             string
+	hasInstructionsFile bool // TODO: remove when we have all instructions saved
 	help                help.Model
 	helpKeys            keyMap
 	instructions        string
-	hasInstructionsFile bool // TODO: remove when we have all instructions saved
 	sdkKey              string
 	spinner             spinner.Model
 	url                 string
@@ -35,6 +38,7 @@ type showSDKInstructionsModel struct {
 }
 
 func NewShowSDKInstructionsModel(
+	environmentsClient environments.Client,
 	accessToken string,
 	baseUri string,
 	canonicalName string,
@@ -58,12 +62,13 @@ func NewShowSDKInstructionsModel(
 	h.ShowAll = true
 
 	return showSDKInstructionsModel{
-		accessToken:   accessToken,
-		baseUri:       baseUri,
-		canonicalName: canonicalName,
-		displayName:   displayName,
-		flagKey:       flagKey,
-		help:          h,
+		accessToken:        accessToken,
+		baseUri:            baseUri,
+		canonicalName:      canonicalName,
+		displayName:        displayName,
+		environmentsClient: environmentsClient,
+		flagKey:            flagKey,
+		help:               h,
 		helpKeys: keyMap{
 			Back:       BindingBack,
 			CursorDown: BindingCursorDown,
@@ -91,7 +96,7 @@ func (m showSDKInstructionsModel) Init() tea.Cmd {
 	return tea.Sequence(
 		m.spinner.Tick,
 		instructionsCmd,
-		fetchEnv(m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
+		fetchEnv(m.environmentsClient, m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
 	)
 }
 
