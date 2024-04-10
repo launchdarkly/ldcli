@@ -155,7 +155,7 @@ func showToggleFlag() tea.Cmd {
 }
 
 type fetchedEnvMsg struct {
-	clientSideId string
+	clientSideID string
 	sdkKey       string
 }
 
@@ -176,7 +176,7 @@ func fetchEnv(accessToken string, baseUri string, key string, projKey string) te
 			return errMsg{err: err}
 		}
 
-		return fetchedEnvMsg{clientSideId: resp.ClientSideId, sdkKey: resp.SDKKey}
+		return fetchedEnvMsg{clientSideID: resp.ClientSideId, sdkKey: resp.SDKKey}
 	}
 }
 
