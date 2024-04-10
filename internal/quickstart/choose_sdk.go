@@ -109,7 +109,7 @@ var SDKs = []sdkDetail{
 	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "python", displayName: "Python", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "java", displayName: "Java", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
+	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK},
 	{
 		canonicalName: "vue",
