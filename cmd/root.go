@@ -13,6 +13,7 @@ import (
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
@@ -20,6 +21,7 @@ import (
 )
 
 func NewRootCommand(
+	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 	membersClient members.Client,
@@ -69,7 +71,7 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	environmentsCmd, err := envscmd.NewEnvironmentsCmd(environmentsClient)
+	environmentsCmd, err := envscmd.NewEnvironmentsCmd(analyticsTracker, environmentsClient)
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +92,14 @@ func NewRootCommand(
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
-	cmd.AddCommand(NewQuickStartCmd(flagsClient))
+	cmd.AddCommand(NewQuickStartCmd(environmentsClient, flagsClient))
 
 	return cmd, nil
 }
 
-func Execute(version string) {
+func Execute(analyticsTracker analytics.Tracker, version string) {
 	rootCmd, err := NewRootCommand(
+		analyticsTracker,
 		environments.NewClient(version),
 		flags.NewClient(version),
 		members.NewClient(version),

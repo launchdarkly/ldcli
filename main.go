@@ -1,6 +1,12 @@
 package main
 
-import "ldcli/cmd"
+import (
+	"net/http"
+	"time"
+
+	"ldcli/cmd"
+	"ldcli/internal/analytics"
+)
 
 // main.version is set at build time via ldflags by go releaser https://goreleaser.com/cookbooks/using-main.version/
 var (
@@ -8,5 +14,10 @@ var (
 )
 
 func main() {
-	cmd.Execute(version)
+	httpClient := &http.Client{
+		Timeout: time.Second * 3,
+	}
+	analyticsClient := &analytics.Client{HTTPClient: httpClient}
+	cmd.Execute(analyticsClient, version)
+	analyticsClient.Wait()
 }

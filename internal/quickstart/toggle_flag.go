@@ -53,7 +53,7 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, pressableKeys.Tab):
 			m.flagWasEnabled = true
 			m.enabled = !m.enabled
-			return m, sendToggleFlagMsg(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
+			return m, toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
 	case errMsg:
 		m.err = msg.err
