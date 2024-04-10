@@ -44,8 +44,6 @@ github.com/aymanbagabas/go-osc52/v2
 ## explicit
 github.com/aymerick/douceur/css
 github.com/aymerick/douceur/parser
-# github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
-## explicit
 # github.com/charmbracelet/bubbles v0.18.0
 ## explicit; go 1.18
 github.com/charmbracelet/bubbles/cursor
@@ -83,9 +81,6 @@ github.com/fsnotify/fsnotify
 # github.com/golang/protobuf v1.5.3
 ## explicit; go 1.9
 github.com/golang/protobuf/proto
-# github.com/google/uuid v1.4.0
-## explicit
-github.com/google/uuid
 # github.com/gorilla/css v1.0.0
 ## explicit
 github.com/gorilla/css/scanner
@@ -175,12 +170,6 @@ github.com/sagikazarmark/slog-shim
 # github.com/sahilm/fuzzy v0.1.1-0.20230530133925-c48e322e2a8f
 ## explicit
 github.com/sahilm/fuzzy
-# github.com/segmentio/analytics-go/v3 v3.3.0
-## explicit; go 1.17
-github.com/segmentio/analytics-go/v3
-# github.com/segmentio/backo-go v1.0.0
-## explicit
-github.com/segmentio/backo-go
 # github.com/sourcegraph/conc v0.3.0
 ## explicit; go 1.19
 github.com/sourcegraph/conc
