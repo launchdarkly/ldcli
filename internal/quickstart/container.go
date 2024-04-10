@@ -136,7 +136,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
-	case fetchedSDKInstructions, fetchedEnv, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
+	case fetchedSDKInstructionsMsg, fetchedEnvMsg, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
 	case showToggleFlagMsg:
