@@ -21,20 +21,19 @@ const (
 )
 
 type showSDKInstructionsModel struct {
-	accessToken         string
-	baseUri             string
-	canonicalName       string
-	displayName         string
-	environmentsClient  environments.Client
-	flagKey             string
-	hasInstructionsFile bool // TODO: remove when we have all instructions saved
-	help                help.Model
-	helpKeys            keyMap
-	instructions        string
-	sdkKey              string
-	spinner             spinner.Model
-	url                 string
-	viewport            viewport.Model
+	accessToken        string
+	baseUri            string
+	canonicalName      string
+	displayName        string
+	environmentsClient environments.Client
+	flagKey            string
+	help               help.Model
+	helpKeys           keyMap
+	instructions       string
+	sdkKey             string
+	spinner            spinner.Model
+	url                string
+	viewport           viewport.Model
 }
 
 func NewShowSDKInstructionsModel(
@@ -45,7 +44,6 @@ func NewShowSDKInstructionsModel(
 	displayName string,
 	url string,
 	flagKey string,
-	hasInstructionsFile bool,
 ) tea.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Points
@@ -75,10 +73,9 @@ func NewShowSDKInstructionsModel(
 			CursorUp:   BindingCursorUp,
 			Quit:       BindingQuit,
 		},
-		spinner:             s,
-		url:                 url,
-		viewport:            vp,
-		hasInstructionsFile: hasInstructionsFile,
+		spinner:  s,
+		url:      url,
+		viewport: vp,
 	}
 }
 
@@ -87,15 +84,9 @@ func NewShowSDKInstructionsModel(
 // fetch SDK instructions
 // fetch the environment to get values to interpolate into the instructions
 func (m showSDKInstructionsModel) Init() tea.Cmd {
-	// to remove when we have all instruction files loaded
-	instructionsCmd := fetchSDKInstructions(m.url)
-	if m.hasInstructionsFile {
-		instructionsCmd = readSDKInstructions(m.canonicalName)
-	}
-
 	return tea.Sequence(
 		m.spinner.Tick,
-		instructionsCmd,
+		readSDKInstructions(m.canonicalName),
 		fetchEnv(m.environmentsClient, m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
 	)
 }

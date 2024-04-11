@@ -99,7 +99,6 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.sdk.displayName,
 					m.sdk.url,
 					m.flagKey,
-					m.sdk.hasInstructions,
 				)
 				cmd = m.currentModel.Init()
 			}
@@ -116,7 +115,6 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.sdk.displayName,
 			msg.sdk.url,
 			m.flagKey,
-			msg.sdk.hasInstructions,
 		)
 		cmd = m.currentModel.Init()
 		m.sdk = msg.sdk
