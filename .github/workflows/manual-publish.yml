@@ -6,7 +6,7 @@ on:
         description: 'Skip publishing to DockerHub and Homebrew'
         type: boolean
         required: false
-        default: false
+        default: true
       tag:
         description: 'Tag to upload binary artifacts to'
         type: string
