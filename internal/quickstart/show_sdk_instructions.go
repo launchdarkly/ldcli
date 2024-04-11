@@ -26,20 +26,19 @@ type environment struct {
 }
 
 type showSDKInstructionsModel struct {
-	accessToken         string
-	baseUri             string
-	canonicalName       string
-	displayName         string
-	envKeys             *environment
-	environmentsClient  environments.Client
-	flagKey             string
-	hasInstructionsFile bool // TODO: remove when we have all instructions saved
-	help                help.Model
-	helpKeys            keyMap
-	instructions        string
-	spinner             spinner.Model
-	url                 string
-	viewport            viewport.Model
+	accessToken        string
+	baseUri            string
+	canonicalName      string
+	displayName        string
+	environment        *environment
+	environmentsClient environments.Client
+	flagKey            string
+	help               help.Model
+	helpKeys           keyMap
+	instructions       string
+	spinner            spinner.Model
+	url                string
+	viewport           viewport.Model
 }
 
 func NewShowSDKInstructionsModel(
@@ -50,8 +49,7 @@ func NewShowSDKInstructionsModel(
 	displayName string,
 	url string,
 	flagKey string,
-	hasInstructionsFile bool,
-	envKeys *environment,
+	environment *environment,
 ) tea.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Points
@@ -73,7 +71,7 @@ func NewShowSDKInstructionsModel(
 		canonicalName:      canonicalName,
 		displayName:        displayName,
 		environmentsClient: environmentsClient,
-		envKeys:            envKeys,
+		environment:        environment,
 		flagKey:            flagKey,
 		help:               h,
 		helpKeys: keyMap{
@@ -82,10 +80,9 @@ func NewShowSDKInstructionsModel(
 			CursorUp:   BindingCursorUp,
 			Quit:       BindingQuit,
 		},
-		spinner:             s,
-		url:                 url,
-		viewport:            vp,
-		hasInstructionsFile: hasInstructionsFile,
+		spinner:  s,
+		url:      url,
+		viewport: vp,
 	}
 }
 
@@ -94,15 +91,9 @@ func NewShowSDKInstructionsModel(
 // fetch SDK instructions
 // fetch the environment to get values to interpolate into the instructions
 func (m showSDKInstructionsModel) Init() tea.Cmd {
-	// to remove when we have all instruction files loaded
-	instructionsCmd := fetchSDKInstructions(m.url)
-	if m.hasInstructionsFile {
-		instructionsCmd = readSDKInstructions(m.canonicalName)
-	}
+	cmds := []tea.Cmd{m.spinner.Tick, readSDKInstructions(m.canonicalName)}
 
-	cmds := []tea.Cmd{m.spinner.Tick, instructionsCmd}
-
-	if m.envKeys == nil {
+	if m.environment == nil {
 		cmds = append(cmds, fetchEnv(m.environmentsClient, m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey))
 	}
 
@@ -122,7 +113,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case fetchedSDKInstructionsMsg:
 		m.instructions = string(msg.instructions)
-		if m.envKeys != nil {
+		if m.environment != nil {
 			md, err := m.renderMarkdown()
 			if err != nil {
 				return m, sendErrMsg(err)
@@ -130,7 +121,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.SetContent(md)
 		}
 	case fetchedEnvMsg:
-		m.envKeys = &msg.envKeys
+		m.environment = &msg.environment
 		md, err := m.renderMarkdown()
 		if err != nil {
 			return m, sendErrMsg(err)
@@ -144,7 +135,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m showSDKInstructionsModel) View() string {
-	if m.instructions == "" || m.envKeys == nil {
+	if m.instructions == "" || m.environment == nil {
 		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...", m.displayName)
 	}
 	instructions := fmt.Sprintf("Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n", m.displayName)
@@ -153,7 +144,12 @@ func (m showSDKInstructionsModel) View() string {
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
 	instructions := sdks.ReplaceFlagKey(m.instructions, m.flagKey)
-	instructions = sdks.ReplaceSDKKeys(instructions, m.envKeys.sdkKey, m.envKeys.clientSideId)
+	instructions = sdks.ReplaceSDKKeys(
+		instructions,
+		m.environment.sdkKey,
+		m.environment.clientSideId,
+		m.environment.mobileKey,
+	)
 
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),

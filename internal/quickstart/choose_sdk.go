@@ -96,20 +96,19 @@ func (m chooseSDKModel) View() string {
 }
 
 type sdkDetail struct {
-	canonicalName   string
-	displayName     string
-	index           int
-	kind            string
-	url             string // custom URL if it differs from the other SDKs
-	hasInstructions bool   // to remove when we get all instructions loaded
+	canonicalName string
+	displayName   string
+	index         int
+	kind          string
+	url           string // custom URL if it differs from the other SDKs
 }
 
 func (s sdkDetail) FilterValue() string { return "" }
 
 var SDKs = []sdkDetail{
-	{canonicalName: "react", displayName: "React", kind: clientSideSDK, hasInstructions: true},
+	{canonicalName: "react", displayName: "React", kind: clientSideSDK},
 	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
-	{canonicalName: "python", displayName: "Python", kind: serverSideSDK, hasInstructions: true},
+	{canonicalName: "python", displayName: "Python", kind: serverSideSDK},
 	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},
 	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
 	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK},
@@ -128,14 +127,12 @@ var SDKs = []sdkDetail{
 	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK},
 	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK},
 	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
-	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK},
 	{canonicalName: "c-client", displayName: "C/C++ (client-side)", kind: clientSideSDK},
 	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK},
 	{canonicalName: "node-client", displayName: "Node.js (client-side)", kind: clientSideSDK},
 	{canonicalName: "c-server", displayName: "C/C++ (server-side)", kind: serverSideSDK},
 	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK},
 	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK},
-	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK},
 	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK},
 }
 
