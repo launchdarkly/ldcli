@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 
@@ -180,8 +179,6 @@ func fetchEnv(
 		if err != nil {
 			return errMsg{err: err}
 		}
-
-		log.Print("here we are", resp)
 
 		return fetchedEnvMsg{envKeys: envKeys{
 			sdkKey:       resp.SDKKey,
