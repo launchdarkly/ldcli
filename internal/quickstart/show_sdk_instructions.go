@@ -37,7 +37,6 @@ type showSDKInstructionsModel struct {
 	help                help.Model
 	helpKeys            keyMap
 	instructions        string
-	sdkKey              string
 	spinner             spinner.Model
 	url                 string
 	viewport            viewport.Model
