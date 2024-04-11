@@ -49,13 +49,13 @@ jobs:
 
   release-ldcli-npm:
     runs-on: ubuntu-latest
-    needs: ['release-please']
+    needs: ['release-please', 'release-ldcli']
     permissions:
       id-token: write
       contents: write
-    if: ${{ needs.release-please.outputs.package-common-released == 'true'}}
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
         with:
           node-version: 20.x
@@ -63,12 +63,29 @@ jobs:
       - uses: ./actions/install-npm-version
         with:
           npm_version: 9.5.0
-      - id: release-common
-        name: Full release of packages/shared/common
-        uses: ./actions/full-release
+      - name: 'Set WORKSPACE_NAME variable'
+        run: |
+          WORKSPACE_NAME=$(./scripts/package-name.sh ${{ inputs.workspace_path }})
+          echo "WORKSPACE_NAME=$WORKSPACE_NAME" >> $GITHUB_ENV
+      - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
+        name: 'Get NPM token'
         with:
-          workspace_path: packages/shared/common
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
+          ssm_parameter_pairs: '/production/common/releasing/npm/token = NODE_AUTH_TOKEN'
+      - name: Setup .yarnrc.yml
+        shell: bash
+        run: |
+          yarn config set npmScopes.launchdarkly.npmRegistryServer "https://registry.npmjs.org"
+          yarn config set npmScopes.launchdarkly.npmAlwaysAuth true
+          yarn config set npmScopes.launchdarkly.npmAuthToken $NODE_AUTH_TOKEN
+      - id: publish-npm
+        name: Publish NPM Package
+        uses: ./.github/actions/publish-npm
+        with:
+          workspace_name: ${{ env.WORKSPACE_NAME }}
+          workspace_path: ${{ inputs.workspace_path }}
+          prerelease: ${{ inputs.prerelease }}
+          dry_run: ${{ inputs.dry_run }}
 
   release-ldcli-provenance:
     needs: ['release-please', 'release-ldcli']

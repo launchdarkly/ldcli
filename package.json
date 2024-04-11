@@ -1,6 +1,5 @@
 {
   "name": "@launchdarkly/ldcli",
-  "version": "v0.0.1-test",
   "description": "The official command line interface for managing LaunchDarkly feature flags.",
   "main": "index.js",
   "scripts": {
