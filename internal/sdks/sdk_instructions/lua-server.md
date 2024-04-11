@@ -11,7 +11,7 @@ First, ensure the required build dependencies are installed:
 - [Boost 1.81](https://www.boost.org/) or higher
 - [OpenSSL](https://www.openssl.org/)
 
-2. If the C++ Server SDK is already installed or you already obtained [release artifacts](https://github.com/launchdarkly/cpp-sdks/releases?q=%22launchdarkly-cpp-server%22) from LaunchDarkly, skip to (c).
+2. If the C++ Server SDK is already installed or you already obtained [release artifacts](https://github.com/launchdarkly/cpp-sdks/releases?q="launchdarkly-cpp-server") from LaunchDarkly, skip to step 3.
 
 Otherwise, compile and install the C++ Server SDK:
 ```shell

@@ -8,6 +8,7 @@ mkdir hello-roku && cd hello-roku && mkdir components source
 
 2. Download the latest version of the SDK [from the release page](https://github.com/launchdarkly/roku-client-sdk/releases). `PlaceLaunchDarkly.brs` in `source`, and the other two files in `components`.
 
+
 3. Create a basic app `manifest` file.
 ```shell
 title=hello-roku

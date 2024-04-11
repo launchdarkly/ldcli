@@ -38,14 +38,14 @@ rebar3 new app hello_erlang && cd hello_erlang
 -export([start_link/0]).
 -export([get/3]).
 
-% public functions
+%% public functions
 
 start_link() ->
   gen_server:start_link({local, hello_erlang_server}, ?MODULE, [], []).
 
 get(Key, Fallback, ContextKey) -> gen_server:call(?MODULE, {get, Key, Fallback, ContextKey}).
 
-% gen_server callbacks
+%% gen_server callbacks
 
 init(_Args) ->
   ldclient:start_instance("1234567890abcdef", #{

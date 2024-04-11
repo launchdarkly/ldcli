@@ -1,11 +1,4 @@
 # Installation steps
-```markdown
-The following instructions are used to set up a .NET Core application .NET Console
-
-Need instructions for setting up an IOS application? [.NET IOS](https://github.com/launchdarkly/hello-dotnet-client/tree/main/XamarinIOSApp)
-Need instructions for setting up an Android application? [.NET Android](https://github.com/launchdarkly/hello-dotnet-client/tree/main/XamarinAndroidApp)
-```
-
 If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-dotnet-client).
 
 1. Create a new folder for your project:
