@@ -96,48 +96,46 @@ func (m chooseSDKModel) View() string {
 }
 
 type sdkDetail struct {
-	canonicalName   string
-	displayName     string
-	index           int
-	kind            string
-	url             string // custom URL if it differs from the other SDKs
-	hasInstructions bool   // to remove when we get all instructions loaded
+	canonicalName string
+	displayName   string
+	index         int
+	kind          string
+	url           string // custom URL if it differs from the other SDKs
 }
 
 func (s sdkDetail) FilterValue() string { return "" }
 
 var SDKs = []sdkDetail{
-	{canonicalName: "react", displayName: "React", kind: clientSideSDK, hasInstructions: true},
-	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "python", displayName: "Python", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "java", displayName: "Java", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK, hasInstructions: true},
+	{canonicalName: "react", displayName: "React", kind: clientSideSDK},
+	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
+	{canonicalName: "python", displayName: "Python", kind: serverSideSDK},
+	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},
+	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
+	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK},
 	{
-		canonicalName:   "vue",
-		displayName:     "Vue",
-		kind:            clientSideSDK,
-		url:             "https://raw.githubusercontent.com/launchdarkly/vue-client-sdk/main/example/README.md",
-		hasInstructions: true,
+		canonicalName: "vue",
+		displayName:   "Vue",
+		kind:          clientSideSDK,
+		url:           "https://raw.githubusercontent.com/launchdarkly/vue-client-sdk/main/example/README.md",
 	},
-	{canonicalName: "ios-swift", displayName: "iOS", kind: mobileSDK, hasInstructions: true},
-	{canonicalName: "go", displayName: "Go", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "android", displayName: "Android", kind: mobileSDK, hasInstructions: true},
-	{canonicalName: "react-native", displayName: "React Native", kind: mobileSDK, hasInstructions: true},
-	{canonicalName: "ruby", displayName: "Ruby", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "flutter", displayName: "Flutter", kind: mobileSDK, hasInstructions: true},
-	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK, hasInstructions: true},
-	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK, hasInstructions: true},
-	{canonicalName: "c-client", displayName: "C/C++ (client-side)", kind: clientSideSDK, hasInstructions: true},
-	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK, hasInstructions: true},
-	{canonicalName: "node-client", displayName: "Node.js (client-side)", kind: clientSideSDK, hasInstructions: true},
-	{canonicalName: "c-server", displayName: "C/C++ (server-side)", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK, hasInstructions: true},
+	{canonicalName: "ios-swift", displayName: "iOS", kind: mobileSDK},
+	{canonicalName: "go", displayName: "Go", kind: serverSideSDK},
+	{canonicalName: "android", displayName: "Android", kind: mobileSDK},
+	{canonicalName: "react-native", displayName: "React Native", kind: mobileSDK},
+	{canonicalName: "ruby", displayName: "Ruby", kind: serverSideSDK},
+	{canonicalName: "flutter", displayName: "Flutter", kind: mobileSDK},
+	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK},
+	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK},
+	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
+	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK},
+	{canonicalName: "c-client", displayName: "C/C++ (client-side)", kind: clientSideSDK},
+	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK},
+	{canonicalName: "node-client", displayName: "Node.js (client-side)", kind: clientSideSDK},
+	{canonicalName: "c-server", displayName: "C/C++ (server-side)", kind: serverSideSDK},
+	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK},
+	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK},
+	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK},
+	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK},
 }
 
 func sdksToItems() []list.Item {

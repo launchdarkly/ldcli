@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -111,27 +109,6 @@ func chooseSDK(sdk sdkDetail) tea.Cmd {
 		return choseSDKMsg{
 			sdk: sdk,
 		}
-	}
-}
-
-func fetchSDKInstructions(url string) tea.Cmd {
-	return func() tea.Msg {
-		resp, err := http.Get(url)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
-		if resp.StatusCode == 404 {
-			// m.sdk = msg.name
-			return noInstructionsMsg{}
-		}
-
-		return fetchedSDKInstructionsMsg{instructions: body}
 	}
 }
 
