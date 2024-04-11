@@ -8,43 +8,43 @@ To verify SLSA provenance attestations, we recommend using [slsa-verifier](https
 
 <!-- x-release-please-start-version -->
 ```
-# Set the version of the SDK to verify
-SDK_VERSION=0.6.0
+# Set the version of the PACKAGE to verify
+PACKAGE_VERSION=0.6.0
 ```
 <!-- x-release-please-end -->
 
 
 ```
 # Ensure provenance file is downloaded along with packages for your OS
-$ ls /tmp/ldcli_${SDK_VERSION}
-ldcli_${SDK_VERSION}_darwin_amd64.tar.gz              ldcli_${SDK_VERSION}_darwin_arm64.tar.gz              ldcli_${SDK_VERSION}_linux_386.tar.gz                 ldcli_${SDK_VERSION}_linux_amd64.tar.gz               ldcli_${SDK_VERSION}_linux_arm64.tar.gz               ldcli_${SDK_VERSION}_multiple_provenance.intoto.jsonl
+$ ls /tmp/ldcli_${PACKAGE_VERSION}
+ldcli_${PACKAGE_VERSION}_darwin_amd64.tar.gz              ldcli_${PACKAGE_VERSION}_darwin_arm64.tar.gz              ldcli_${PACKAGE_VERSION}_linux_386.tar.gz                 ldcli_${PACKAGE_VERSION}_linux_amd64.tar.gz               ldcli_${PACKAGE_VERSION}_linux_arm64.tar.gz               ldcli_${PACKAGE_VERSION}_multiple_provenance.intoto.jsonl
 
 
 # Run slsa-verifier to verify provenance against package artifacts 
 $ slsa-verifier verify-artifact \
---provenance-path ldcli_${SDK_VERSION}_multiple_provenance.intoto.jsonl \
+--provenance-path ldcli_${PACKAGE_VERSION}_multiple_provenance.intoto.jsonl \
 --source-uri github.com/launchdarkly/ldcli \
-ldcli_${SDK_VERSION}_*.tar.gz
+ldcli_${PACKAGE_VERSION}_*.tar.gz
 
 Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
 Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_${SDK_VERSION}_darwin_amd64.tar.gz: PASSED
+Verifying artifact ldcli_${PACKAGE_VERSION}_darwin_amd64.tar.gz: PASSED
 
 Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
 Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_${SDK_VERSION}_darwin_arm64.tar.gz: PASSED
+Verifying artifact ldcli_${PACKAGE_VERSION}_darwin_arm64.tar.gz: PASSED
 
 Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
 Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_${SDK_VERSION}_linux_386.tar.gz: PASSED
+Verifying artifact ldcli_${PACKAGE_VERSION}_linux_386.tar.gz: PASSED
 
 Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
 Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_${SDK_VERSION}_linux_amd64.tar.gz: PASSED
+Verifying artifact ldcli_${PACKAGE_VERSION}_linux_amd64.tar.gz: PASSED
 
 Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
 Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_${SDK_VERSION}_linux_arm64.tar.gz: PASSED
+Verifying artifact ldcli_${PACKAGE_VERSION}_linux_arm64.tar.gz: PASSED
 
 PASSED: Verified SLSA provenance
 
