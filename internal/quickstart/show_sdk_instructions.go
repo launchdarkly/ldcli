@@ -2,7 +2,6 @@ package quickstart
 
 import (
 	"fmt"
-
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -102,11 +101,13 @@ func (m showSDKInstructionsModel) Init() tea.Cmd {
 		instructionsCmd = readSDKInstructions(m.canonicalName)
 	}
 
-	return tea.Sequence(
-		m.spinner.Tick,
-		instructionsCmd,
-		fetchEnv(m.environmentsClient, m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
-	)
+	cmds := []tea.Cmd{m.spinner.Tick, instructionsCmd}
+
+	if m.envKeys == nil {
+		cmds = append(cmds, fetchEnv(m.environmentsClient, m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey))
+	}
+
+	return tea.Sequence(cmds...)
 }
 
 func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -121,10 +122,16 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport, cmd = m.viewport.Update(msg)
 		}
 	case fetchedSDKInstructionsMsg:
-		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
+		m.instructions = string(msg.instructions)
+		if m.envKeys != nil {
+			md, err := m.renderMarkdown()
+			if err != nil {
+				return m, sendErrMsg(err)
+			}
+			m.viewport.SetContent(md)
+		}
 	case fetchedEnvMsg:
 		m.envKeys = &msg.envKeys
-		m.instructions = sdks.ReplaceSDKKeys(m.instructions, m.envKeys.sdkKey, m.envKeys.clientSideId)
 		md, err := m.renderMarkdown()
 		if err != nil {
 			return m, sendErrMsg(err)
@@ -146,6 +153,9 @@ func (m showSDKInstructionsModel) View() string {
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
+	instructions := sdks.ReplaceFlagKey(m.instructions, m.flagKey)
+	instructions = sdks.ReplaceSDKKeys(instructions, m.envKeys.sdkKey, m.envKeys.clientSideId)
+
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 	)
@@ -153,7 +163,7 @@ func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
 		return "", err
 	}
 
-	out, err := renderer.Render(m.instructions)
+	out, err := renderer.Render(instructions)
 	if err != nil {
 		return out, err
 	}

@@ -119,7 +119,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.sdk.url,
 			m.flagKey,
 			msg.sdk.hasInstructions,
-			nil,
+			m.envKeys,
 		)
 		cmd = m.currentModel.Init()
 		m.sdk = msg.sdk
