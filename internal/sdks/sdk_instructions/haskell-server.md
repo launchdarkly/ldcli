@@ -56,4 +56,5 @@ stack build && stack exec hello-haskell-exe
 ```
 
 You should see:
+
 `Feature flag my-flag-key is FALSE`

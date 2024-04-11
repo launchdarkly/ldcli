@@ -131,12 +131,12 @@ var SDKs = []sdkDetail{
 	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK, hasInstructions: true},
 	{canonicalName: "c-client", displayName: "C/C++ (client-side)", kind: clientSideSDK},
-	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK},
+	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK, hasInstructions: true},
 	{canonicalName: "node-client", displayName: "Node.js (client-side)", kind: clientSideSDK, hasInstructions: true},
 	{canonicalName: "c-server", displayName: "C/C++ (server-side)", kind: serverSideSDK},
 	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK, hasInstructions: true},
-	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK},
+	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK, hasInstructions: true},
 }
 
