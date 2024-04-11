@@ -19,7 +19,7 @@ const (
 	viewportHeight = 30
 )
 
-type envKeys struct {
+type environment struct {
 	sdkKey       string
 	mobileKey    string
 	clientSideId string
@@ -30,7 +30,7 @@ type showSDKInstructionsModel struct {
 	baseUri             string
 	canonicalName       string
 	displayName         string
-	envKeys             *envKeys
+	envKeys             *environment
 	environmentsClient  environments.Client
 	flagKey             string
 	hasInstructionsFile bool // TODO: remove when we have all instructions saved
@@ -51,7 +51,7 @@ func NewShowSDKInstructionsModel(
 	url string,
 	flagKey string,
 	hasInstructionsFile bool,
-	envKeys *envKeys,
+	envKeys *environment,
 ) tea.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Points

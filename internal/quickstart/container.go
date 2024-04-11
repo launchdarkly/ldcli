@@ -33,7 +33,7 @@ type ContainerModel struct {
 	baseUri            string
 	currentModel       tea.Model
 	currentStep        int
-	envKeys            *envKeys
+	envKeys            *environment
 	environmentsClient environments.Client
 	err                error
 	flagKey            string
