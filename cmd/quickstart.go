@@ -20,10 +20,11 @@ func NewQuickStartCmd(
 	flagsClient flags.Client,
 ) *cobra.Command {
 	return &cobra.Command{
-		Long:  "",
-		RunE:  runQuickStart(environmentsClient, flagsClient),
-		Short: "Setup guide to create your first feature flag",
-		Use:   "setup",
+		Long:   "",
+		PreRun: RebindFlags(),
+		RunE:   runQuickStart(environmentsClient, flagsClient),
+		Short:  "Setup guide to create your first feature flag",
+		Use:    "setup",
 	}
 }
 
@@ -38,6 +39,11 @@ func runQuickStart(
 			os.Exit(1)
 		}
 		defer f.Close()
+		fmt.Println(
+			">>> runQuickStart",
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+		)
 
 		_, err = tea.NewProgram(quickstart.NewContainerModel(
 			environmentsClient,

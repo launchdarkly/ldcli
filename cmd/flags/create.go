@@ -13,13 +13,14 @@ import (
 	"ldcli/internal/flags"
 )
 
-func NewCreateCmd(client flags.Client) (*cobra.Command, error) {
+func NewCreateCmd(client flags.Client, rebindFn func() func(*cobra.Command, []string)) (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Args:  validators.Validate(),
-		Long:  "Create a new flag",
-		RunE:  runCreate(client),
-		Short: "Create a new flag",
-		Use:   "create",
+		Args:   validators.Validate(),
+		Long:   "Create a new flag",
+		RunE:   runCreate(client),
+		Short:  "Create a new flag",
+		Use:    "create",
+		PreRun: rebindFn(),
 	}
 
 	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
@@ -52,6 +53,11 @@ type inputData struct {
 
 func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
+		fmt.Println(
+			">>> runCreate",
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+		)
 		// rebind flags used in other subcommands
 		_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))

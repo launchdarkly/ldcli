@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -39,13 +40,17 @@ func NewRootCommand(
 				cmd.DisableFlagParsing = true
 			}
 		},
-
 		// Handle errors differently based on type.
 		// We don't want to show the usage if the user has the right structure but invalid data such as
 		// the wrong key.
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
+
+	viper.SetEnvPrefix("LD")
+	replacer := strings.NewReplacer("-", "_")
+	viper.SetEnvKeyReplacer(replacer)
+	viper.AutomaticEnv()
 
 	cmd.PersistentFlags().String(
 		cliflags.AccessTokenFlag,
@@ -75,7 +80,7 @@ func NewRootCommand(
 	if err != nil {
 		return nil, err
 	}
-	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient)
+	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient, RebindFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -113,5 +118,17 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	err = rootCmd.Execute()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
+	}
+}
+
+func RebindFlags() func(*cobra.Command, []string) {
+	return func(cmd *cobra.Command, args []string) {
+		// fmt.Println(">>> RebindFlags", cmd.Name())
+		// _ = viper.BindPFlags(cmd.Flags())
+		// cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		// 	if viper.IsSet(f.Name) && viper.GetString(f.Name) != "" {
+		// 		_ = cmd.Flags().Set(f.Name, viper.GetString(f.Name))
+		// 	}
+		// })
 	}
 }

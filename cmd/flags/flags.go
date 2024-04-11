@@ -6,14 +6,15 @@ import (
 	"ldcli/internal/flags"
 )
 
-func NewFlagsCmd(client flags.Client) (*cobra.Command, error) {
+func NewFlagsCmd(client flags.Client, rebindFn func() func(*cobra.Command, []string)) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "flags",
 		Short: "Make requests (list, create, etc.) on flags",
 		Long:  "Make requests (list, create, etc.) on flags",
+		// PreRun: rebindFn(),
 	}
 
-	createCmd, err := NewCreateCmd(client)
+	createCmd, err := NewCreateCmd(client, rebindFn)
 	if err != nil {
 		return nil, err
 	}
