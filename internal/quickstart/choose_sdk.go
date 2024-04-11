@@ -134,8 +134,8 @@ var SDKs = []sdkDetail{
 	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK},
 	{canonicalName: "node-client", displayName: "Node.js (client-side)", kind: clientSideSDK, hasInstructions: true},
 	{canonicalName: "c-server", displayName: "C/C++ (server-side)", kind: serverSideSDK},
-	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK},
-	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK},
+	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK, hasInstructions: true},
+	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK},
 	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK},
 }
