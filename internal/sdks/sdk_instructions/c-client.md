@@ -35,7 +35,7 @@ using namespace launchdarkly::client_side;
 
 int main() {
 
-    auto config = ConfigBuilder("mobile-key-from-launch-darkly-website").Build();
+    auto config = ConfigBuilder("myMobileKey").Build();
     if (!config) {
         std::cout << "error: config is invalid: " << config.error() << std::endl;
         return 1;
