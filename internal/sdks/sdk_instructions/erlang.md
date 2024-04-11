@@ -77,7 +77,7 @@ Now that your application is ready, run the application to see what value we get
 rebar3 shell
 ```
 ```shell
-hello_erlang_server:get(<<"my-flag-key">>, "FALSE", <<"user@example.com">>).
+hello_erlang_server:get(<<"my-flag-key">>, "FALLBACK_VALUE", <<"user@example.com">>).
 ```
 
 You should see:
