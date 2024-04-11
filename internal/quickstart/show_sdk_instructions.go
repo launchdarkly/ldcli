@@ -20,11 +20,18 @@ const (
 	viewportHeight = 30
 )
 
+type envKeys struct {
+	sdkKey       string
+	mobileKey    string
+	clientSideId string
+}
+
 type showSDKInstructionsModel struct {
 	accessToken         string
 	baseUri             string
 	canonicalName       string
 	displayName         string
+	envKeys             *envKeys
 	environmentsClient  environments.Client
 	flagKey             string
 	hasInstructionsFile bool // TODO: remove when we have all instructions saved
@@ -46,6 +53,7 @@ func NewShowSDKInstructionsModel(
 	url string,
 	flagKey string,
 	hasInstructionsFile bool,
+	envKeys *envKeys,
 ) tea.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Points
@@ -67,6 +75,7 @@ func NewShowSDKInstructionsModel(
 		canonicalName:      canonicalName,
 		displayName:        displayName,
 		environmentsClient: environmentsClient,
+		envKeys:            envKeys,
 		flagKey:            flagKey,
 		help:               h,
 		helpKeys: keyMap{
@@ -114,8 +123,8 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fetchedSDKInstructionsMsg:
 		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
 	case fetchedEnvMsg:
-		m.sdkKey = msg.sdkKey
-		m.instructions = sdks.ReplaceSDKKeys(string(m.instructions), msg.sdkKey, msg.clientSideID)
+		m.envKeys = &msg.envKeys
+		m.instructions = sdks.ReplaceSDKKeys(m.instructions, m.envKeys.sdkKey, m.envKeys.clientSideId)
 		md, err := m.renderMarkdown()
 		if err != nil {
 			return m, sendErrMsg(err)
@@ -129,7 +138,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m showSDKInstructionsModel) View() string {
-	if m.instructions == "" || m.sdkKey == "" {
+	if m.instructions == "" || m.envKeys == nil {
 		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...", m.displayName)
 	}
 	instructions := fmt.Sprintf("Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n", m.displayName)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 
@@ -155,8 +156,7 @@ func showToggleFlag() tea.Cmd {
 }
 
 type fetchedEnvMsg struct {
-	clientSideID string
-	sdkKey       string
+	envKeys envKeys
 }
 
 func fetchEnv(
@@ -181,7 +181,13 @@ func fetchEnv(
 			return errMsg{err: err}
 		}
 
-		return fetchedEnvMsg{clientSideID: resp.ClientSideId, sdkKey: resp.SDKKey}
+		log.Print("here we are", resp)
+
+		return fetchedEnvMsg{envKeys: envKeys{
+			sdkKey:       resp.SDKKey,
+			mobileKey:    "", //TODO: add in when main merged
+			clientSideId: resp.ClientSideId,
+		}}
 	}
 }
 
