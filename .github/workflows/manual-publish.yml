@@ -32,13 +32,13 @@ jobs:
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
           ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
 
-      - uses: ./.github/actions/publish
-        id: publish
-        with:
-          dry-run: ${{ inputs.dry_run }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
-          tag: ${{ inputs.tag }}
+      # - uses: ./.github/actions/publish
+      #   id: publish
+      #   with:
+      #     dry-run: ${{ inputs.dry_run }}
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
+      #     tag: ${{ inputs.tag }}
 
   release-ldcli-npm:
     runs-on: ubuntu-latest
