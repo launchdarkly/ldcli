@@ -127,14 +127,12 @@ var SDKs = []sdkDetail{
 	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK},
 	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK},
 	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
-	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK},
 	{canonicalName: "c-client", displayName: "C/C++ (client-side)", kind: clientSideSDK},
 	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK},
 	{canonicalName: "node-client", displayName: "Node.js (client-side)", kind: clientSideSDK},
 	{canonicalName: "c-server", displayName: "C/C++ (server-side)", kind: serverSideSDK},
 	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK},
 	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK},
-	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK},
 	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK},
 }
 
