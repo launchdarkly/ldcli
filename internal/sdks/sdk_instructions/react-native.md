@@ -1,4 +1,4 @@
-Installation steps
+# Installation steps
 If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/js-core/tree/main/packages/sdk/react-native/example).
 
 1. Use create-expo-app to create a new Expo application:
