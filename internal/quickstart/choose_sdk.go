@@ -137,7 +137,7 @@ var SDKs = []sdkDetail{
 	{canonicalName: "lua-server", displayName: "Lua", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK, hasInstructions: true},
 	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK},
-	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK},
+	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK, hasInstructions: true},
 }
 
 func sdksToItems() []list.Item {
