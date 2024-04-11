@@ -73,11 +73,15 @@ func TestReplaceSDKKey(t *testing.T) {
 			body:     "# title ```const sdkKey = \"Your LaunchDarkly SDK key\"```",
 			expected: "# title ```const sdkKey = \"real-sdk-key\"```",
 		},
+		"replaces placeholder myMobileKey": {
+			body:     "# title ```const sdkKey = \"myMobileKey\"```",
+			expected: "# title ```const sdkKey = \"real-mobile-key\"```",
+		},
 	}
 	for name, tt := range tests {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
-			updated := sdks.ReplaceSDKKeys(tt.body, "real-sdk-key", "real-client-side-id")
+			updated := sdks.ReplaceSDKKeys(tt.body, "real-sdk-key", "real-client-side-id", "real-mobile-key")
 
 			assert.Equal(t, string(tt.expected), string(updated))
 		})

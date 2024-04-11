@@ -155,7 +155,8 @@ func showToggleFlag() tea.Cmd {
 }
 
 type fetchedEnvMsg struct {
-	clientSideID string
+	clientSideId string
+	mobileKey    string
 	sdkKey       string
 }
 
@@ -175,13 +176,18 @@ func fetchEnv(
 		var resp struct {
 			SDKKey       string `json:"apiKey"`
 			ClientSideId string `json:"_id"`
+			MobileKey    string `json:"mobileKey"`
 		}
 		err = json.Unmarshal(response, &resp)
 		if err != nil {
 			return errMsg{err: err}
 		}
 
-		return fetchedEnvMsg{clientSideID: resp.ClientSideId, sdkKey: resp.SDKKey}
+		return fetchedEnvMsg{
+			clientSideId: resp.ClientSideId,
+			sdkKey:       resp.SDKKey,
+			mobileKey:    resp.MobileKey,
+		}
 	}
 }
 

@@ -115,7 +115,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.instructions = sdks.ReplaceFlagKey(string(msg.instructions), m.flagKey)
 	case fetchedEnvMsg:
 		m.sdkKey = msg.sdkKey
-		m.instructions = sdks.ReplaceSDKKeys(string(m.instructions), msg.sdkKey, msg.clientSideID)
+		m.instructions = sdks.ReplaceSDKKeys(string(m.instructions), msg.sdkKey, msg.clientSideId, msg.mobileKey)
 		md, err := m.renderMarkdown()
 		if err != nil {
 			return m, sendErrMsg(err)
