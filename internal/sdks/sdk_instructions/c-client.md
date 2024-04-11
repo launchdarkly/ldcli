@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-client).
-
 1. First, ensure the required build dependencies are installed:
 - C++ 17
 - CMake 3.19 or higher

@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-java).
-
 1. Create a new project and accept the default options suggested by maven:
 ```shell
 mvn archetype:generate -DgroupId=com.launchdarkly.tutorial -DartifactId=hello-java
