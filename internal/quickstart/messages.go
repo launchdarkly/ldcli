@@ -40,7 +40,12 @@ func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabl
 			flags.BuildToggleFlagPatch(defaultEnvKey, enabled),
 		)
 		if err != nil {
-			return errMsg{err: err}
+			var e struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			_ = json.Unmarshal([]byte(err.Error()), &e)
+			return errMsg{err: errors.NewError(fmt.Sprintf("Error toggling flag: %s. Press \"ctrl + c\" to quit.", e.Message))}
 		}
 
 		return toggledFlagMsg{}
@@ -180,7 +185,12 @@ func fetchEnv(
 		}
 		err = json.Unmarshal(response, &resp)
 		if err != nil {
-			return errMsg{err: err}
+			var e struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			_ = json.Unmarshal([]byte(err.Error()), &e)
+			return errMsg{err: errors.NewError(fmt.Sprintf("Error fetching environment: %s. Press \"ctrl + c\" to quit.", e.Message))}
 		}
 
 		return fetchedEnvMsg{
