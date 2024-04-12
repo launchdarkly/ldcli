@@ -40,11 +40,6 @@ func runQuickStart(
 			os.Exit(1)
 		}
 		defer f.Close()
-		fmt.Println(
-			">>> runQuickStart",
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-		)
 
 		_, err = tea.NewProgram(quickstart.NewContainerModel(
 			environmentsClient,
