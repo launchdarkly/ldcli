@@ -42,13 +42,7 @@ func run() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		switch {
 		case viper.GetBool("list"):
-			var config config
-			data, err := os.ReadFile(viper.ConfigFileUsed())
-			if err != nil {
-				return err
-			}
-
-			err = yaml.Unmarshal([]byte(data), &config)
+			config, err := getConfig()
 			if err != nil {
 				return err
 			}
@@ -64,64 +58,77 @@ func run() func(*cobra.Command, []string) error {
 				return errors.New("odd amount of arguments")
 			}
 
-			newConfigValues := make(map[string]interface{}, 0)
+			config, err := getConfig()
+			if err != nil {
+				return err
+			}
+
+			// add arg pairs to config
+			// where each argument is --set arg1 val1 --set arg2 val2
 			for i, a := range args {
 				if i%2 == 0 {
-					newConfigValues[a] = struct{}{}
+					config[a] = struct{}{}
 				} else {
-					newConfigValues[args[i-1]] = a
+					config[args[i-1]] = a
 				}
 			}
 
-			data, err := os.ReadFile(viper.ConfigFileUsed())
-			if err != nil {
-				return err
-			}
-
-			config := make(map[string]interface{}, 0)
-			err = yaml.Unmarshal([]byte(data), &config)
-			if err != nil {
-				return err
-			}
-			for k, v := range newConfigValues {
-				config[k] = v
-			}
-
-			v := viper.New()
-			v.SetConfigFile(viper.GetViper().ConfigFileUsed())
-			for key, value := range config {
-				v.Set(key, value)
-			}
-			err = v.WriteConfig()
-			if err != nil {
-				return err
-			}
-		case viper.IsSet("unset"):
-			data, err := os.ReadFile(viper.ConfigFileUsed())
-			if err != nil {
-				return err
-			}
-
-			config := make(map[string]interface{}, 0)
-			err = yaml.Unmarshal([]byte(data), &config)
-			if err != nil {
-				return err
-			}
-
-			v := viper.New()
-			v.SetConfigFile(viper.GetViper().ConfigFileUsed())
-			for key, value := range config {
-				if key != viper.GetString("unset") {
+			return writeConfig(
+				config,
+				func(key string, value interface{}, v *viper.Viper) {
 					v.Set(key, value)
-				}
-			}
-			err = v.WriteConfig()
+				},
+			)
+		case viper.IsSet("unset"):
+			config, err := getConfig()
 			if err != nil {
 				return err
 			}
+
+			return writeConfig(
+				config,
+				func(key string, value interface{}, v *viper.Viper) {
+					if key != viper.GetString("unset") {
+						v.Set(key, value)
+					}
+				},
+			)
 		default:
 		}
 
 		return nil
 	}
+}
+
+func getConfig() (map[string]interface{}, error) {
+	data, err := os.ReadFile(viper.ConfigFileUsed())
+	if err != nil {
+		return nil, err
+	}
+
+	config := make(map[string]interface{}, 0)
+	err = yaml.Unmarshal([]byte(data), &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+func writeConfig(
+	config map[string]interface{},
+	fn func(key string, value interface{}, v *viper.Viper),
+) error {
+	v := viper.New()
+	v.SetConfigFile(viper.GetViper().ConfigFileUsed())
+	for key, value := range config {
+		fn(key, value, v)
+	}
+
+	err := v.WriteConfig()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
