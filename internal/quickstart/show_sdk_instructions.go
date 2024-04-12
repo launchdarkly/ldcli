@@ -9,7 +9,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-
 	"ldcli/internal/environments"
 	"ldcli/internal/sdks"
 )
@@ -32,6 +31,7 @@ type showSDKInstructionsModel struct {
 	displayName        string
 	environment        *environment
 	environmentsClient environments.Client
+	err                error
 	flagKey            string
 	help               help.Model
 	helpKeys           keyMap
@@ -129,6 +129,8 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.SetContent(md)
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
+	case errMsg:
+		m.err = msg.err
 	}
 
 	return m, cmd
@@ -136,7 +138,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m showSDKInstructionsModel) View() string {
 	if m.instructions == "" || m.environment == nil {
-		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...", m.displayName)
+		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...\n", m.displayName) + footerView(m.help.View(m.helpKeys), m.err)
 	}
 	instructions := fmt.Sprintf(`
 Here are the steps to set up a test app to see feature flagging in action
