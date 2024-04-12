@@ -13,14 +13,13 @@ import (
 	"ldcli/internal/flags"
 )
 
-func NewCreateCmd(client flags.Client, rebindFn func() func(*cobra.Command, []string)) (*cobra.Command, error) {
+func NewCreateCmd(client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
-		Args:   validators.Validate(),
-		Long:   "Create a new flag",
-		RunE:   runCreate(client),
-		Short:  "Create a new flag",
-		Use:    "create",
-		PreRun: rebindFn(),
+		Args:  validators.Validate(),
+		Long:  "Create a new flag",
+		RunE:  runCreate(client),
+		Short: "Create a new flag",
+		Use:   "create",
 	}
 
 	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")

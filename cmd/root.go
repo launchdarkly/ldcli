@@ -80,7 +80,7 @@ func NewRootCommand(
 	if err != nil {
 		return nil, err
 	}
-	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient, RebindFlags)
+	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient)
 	if err != nil {
 		return nil, err
 	}
@@ -118,17 +118,5 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	err = rootCmd.Execute()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
-	}
-}
-
-func RebindFlags() func(*cobra.Command, []string) {
-	return func(cmd *cobra.Command, args []string) {
-		// fmt.Println(">>> RebindFlags", cmd.Name())
-		// _ = viper.BindPFlags(cmd.Flags())
-		// cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		// 	if viper.IsSet(f.Name) && viper.GetString(f.Name) != "" {
-		// 		_ = cmd.Flags().Set(f.Name, viper.GetString(f.Name))
-		// 	}
-		// })
 	}
 }
