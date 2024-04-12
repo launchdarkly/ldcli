@@ -137,7 +137,6 @@ var SDKs = []sdkDetail{
 	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK},
 	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK},
 	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
-	{canonicalName: "electron", displayName: "Electron", kind: clientSideSDK},
 	{
 		canonicalName: "c-client",
 		displayName:   "C/C++ (client-side)",
@@ -159,7 +158,6 @@ var SDKs = []sdkDetail{
 		url:           "https://github.com/launchdarkly/lua-server-sdk/tree/main/examples/hello-lua-server",
 	},
 	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK},
-	{canonicalName: "apex-server", displayName: "Apex", kind: serverSideSDK},
 	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK},
 }
 
