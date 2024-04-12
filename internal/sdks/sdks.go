@@ -29,12 +29,14 @@ func ReplaceFlagKey(instructions string, key string) string {
 
 // ReplaceSDKKeys changes the placeholder SDK key/client side ID in the SDK instructions to the key from
 // the default test environment for the user's account.
-func ReplaceSDKKeys(instructions string, sdkKey, clientSideId string) string {
+func ReplaceSDKKeys(instructions string, sdkKey, clientSideId, mobileKey string) string {
 	r := strings.NewReplacer(
 		"1234567890abcdef",
 		sdkKey,
 		"myClientSideId",
 		clientSideId,
+		"myMobileKey",
+		mobileKey,
 		// remove remaining values when we add all hardcoded instructions
 		"mobile-key-from-launch-darkly-website",
 		sdkKey,
