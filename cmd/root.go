@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -17,6 +15,7 @@ import (
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
 	"ldcli/internal/analytics"
+	"ldcli/internal/config"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
@@ -61,7 +60,7 @@ func NewRootCommand(
 	}
 
 	if useConfigFile {
-		err := setupFlagsFromConfig()
+		err := setFlagsFromConfig()
 		if err != nil {
 			return nil, err
 		}
@@ -139,20 +138,9 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	}
 }
 
-func setupFlagsFromConfig() error {
-	configPath := os.Getenv("XDG_CONFIG_HOME")
-	if configPath == "" {
-		home, err := homedir.Dir()
-		if err != nil {
-			return err
-		}
-		configPath = filepath.Join(home, ".config")
-	}
-	configPath = filepath.Join(configPath, "ldcli")
-
-	viper.AddConfigPath(configPath)
-	viper.SetConfigName("config")
-	viper.SetConfigType("yml")
+// setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
+func setFlagsFromConfig() error {
+	viper.SetConfigFile(config.SetConfigPath() + "/config.yml")
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// ignore if file not found

@@ -5,37 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
-	"ldcli/cmd/cliflags"
+	"ldcli/internal/config"
 )
-
-// config represents the data stored in the config file.
-type config struct {
-	AccessToken string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
-	BaseURI     string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
-}
-
-func newConfig(rawConfig map[string]interface{}) config {
-	var accessToken string
-	if rawConfig[cliflags.AccessTokenFlag] != nil {
-		accessToken = rawConfig[cliflags.AccessTokenFlag].(string)
-	}
-	var baseURI string
-	if rawConfig[cliflags.BaseURIFlag] != nil {
-		baseURI = rawConfig[cliflags.BaseURIFlag].(string)
-	}
-
-	return config{
-		AccessToken: accessToken,
-		BaseURI:     baseURI,
-	}
-}
 
 func NewConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -75,6 +51,7 @@ func run() func(*cobra.Command, []string) error {
 
 			fmt.Fprint(cmd.OutOrStdout(), string(configJSON)+"\n")
 		case viper.GetBool("set"):
+			// flag needs two arguments: a key and value
 			if len(args)%2 != 0 {
 				return errors.New("flag needs an argument: --set")
 			}
@@ -97,7 +74,7 @@ func run() func(*cobra.Command, []string) error {
 			setKeyFn := func(key string, value interface{}, v *viper.Viper) {
 				v.Set(key, value)
 			}
-			return writeConfig(newConfig(rawConfig), v, setKeyFn)
+			return writeConfig(config.NewConfig(rawConfig), v, setKeyFn)
 		case viper.IsSet("unset"):
 			config, v, err := getConfig()
 			if err != nil {
@@ -138,21 +115,21 @@ func getRawConfig() (map[string]interface{}, *viper.Viper, error) {
 }
 
 // get a struct type of the values in the config file.
-func getConfig() (config, *viper.Viper, error) {
+func getConfig() (config.ConfigFile, *viper.Viper, error) {
 	v, err := getViperWithConfigFile()
 	if err != nil {
-		return config{}, nil, err
+		return config.ConfigFile{}, nil, err
 	}
 
 	data, err := os.ReadFile(v.ConfigFileUsed())
 	if err != nil {
-		return config{}, nil, err
+		return config.ConfigFile{}, nil, err
 	}
 
-	var c config
+	var c config.ConfigFile
 	err = yaml.Unmarshal([]byte(data), &c)
 	if err != nil {
-		return config{}, nil, err
+		return config.ConfigFile{}, nil, err
 	}
 
 	return c, v, nil
@@ -160,7 +137,7 @@ func getConfig() (config, *viper.Viper, error) {
 
 // write the values in config to the config file based on the filter function.
 func writeConfig(
-	config config,
+	conf config.ConfigFile,
 	v *viper.Viper,
 	filterFn func(key string, value interface{}, v *viper.Viper),
 ) error {
@@ -168,14 +145,14 @@ func writeConfig(
 	newViper.SetConfigFile(v.ConfigFileUsed())
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			configPath := setConfigPath()
+			configPath := config.SetConfigPath()
 			newViper.SetConfigFile(configPath + "/config.yml")
 		}
 
 		return err
 	}
 
-	configYAML, err := yaml.Marshal(config)
+	configYAML, err := yaml.Marshal(conf)
 	if err != nil {
 		return err
 	}
@@ -203,7 +180,7 @@ func getViperWithConfigFile() (*viper.Viper, error) {
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			newViper := viper.New()
-			configPath := setConfigPath()
+			configPath := config.SetConfigPath()
 			newViper.SetConfigFile(configPath + "/config.yml")
 			err = newViper.WriteConfigAs(configPath + "/config.yml")
 			if err != nil {
@@ -217,18 +194,4 @@ func getViperWithConfigFile() (*viper.Viper, error) {
 	}
 
 	return v, nil
-}
-
-func setConfigPath() string {
-	configPath := os.Getenv("XDG_CONFIG_HOME")
-	if configPath == "" {
-		home, err := homedir.Dir()
-		if err != nil {
-			return ""
-		}
-		configPath = filepath.Join(home, ".config")
-	}
-	configPath = filepath.Join(configPath, "ldcli")
-
-	return configPath
 }
