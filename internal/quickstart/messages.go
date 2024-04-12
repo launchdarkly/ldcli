@@ -182,12 +182,10 @@ func fetchEnv(
 		}
 		err = json.Unmarshal(response, &resp)
 		if err != nil {
-			var e struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
+			conflict, errorMsg := handleError(err, "Error fetching environment")
+			if !conflict {
+				return errorMsg
 			}
-			_ = json.Unmarshal([]byte(err.Error()), &e)
-			return errMsg{err: errors.NewError(fmt.Sprintf("Error fetching environment: %s. Press \"ctrl + c\" to quit.", e.Message))}
 		}
 
 		return fetchedEnvMsg{
