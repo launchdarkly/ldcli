@@ -15,6 +15,28 @@ import (
 	"ldcli/cmd/cliflags"
 )
 
+// config represents the data stored in the config file.
+type config struct {
+	AccessToken string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
+	BaseURI     string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
+}
+
+func newConfig(rawConfig map[string]interface{}) config {
+	var accessToken string
+	if rawConfig[cliflags.AccessTokenFlag] != nil {
+		accessToken = rawConfig[cliflags.AccessTokenFlag].(string)
+	}
+	var baseURI string
+	if rawConfig[cliflags.BaseURIFlag] != nil {
+		baseURI = rawConfig[cliflags.BaseURIFlag].(string)
+	}
+
+	return config{
+		AccessToken: accessToken,
+		BaseURI:     baseURI,
+	}
+}
+
 func NewConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Long:  "View and modify specific configuration values",
@@ -35,11 +57,6 @@ func NewConfigCmd() *cobra.Command {
 	// TODO: running config should show help
 
 	return cmd
-}
-
-type config struct {
-	AccessToken string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
-	BaseURI     string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
 }
 
 func run() func(*cobra.Command, []string) error {
@@ -77,70 +94,33 @@ func run() func(*cobra.Command, []string) error {
 				}
 			}
 
-			config := newConfig(rawConfig)
-
-			return writeConfig(
-				config,
-				v,
-				func(key string, value interface{}, v *viper.Viper) {
-					v.Set(key, value)
-				},
-			)
+			setKeyFn := func(key string, value interface{}, v *viper.Viper) {
+				v.Set(key, value)
+			}
+			return writeConfig(newConfig(rawConfig), v, setKeyFn)
 		case viper.IsSet("unset"):
 			config, v, err := getConfig()
 			if err != nil {
 				return err
 			}
 
-			return writeConfig(
-				config,
-				v,
-				func(key string, value interface{}, v *viper.Viper) {
-					if key != viper.GetString("unset") {
-						v.Set(key, value)
-					}
-				},
-			)
-		default:
+			unsetKeyFn := func(key string, value interface{}, v *viper.Viper) {
+				if key != viper.GetString("unset") {
+					v.Set(key, value)
+				}
+			}
+			return writeConfig(config, v, unsetKeyFn)
 		}
 
 		return nil
 	}
 }
 
-func newConfig(rawConfig map[string]interface{}) config {
-	var accessToken string
-	if rawConfig[cliflags.AccessTokenFlag] != nil {
-		accessToken = rawConfig[cliflags.AccessTokenFlag].(string)
-	}
-	var baseURI string
-	if rawConfig[cliflags.BaseURIFlag] != nil {
-		baseURI = rawConfig[cliflags.BaseURIFlag].(string)
-	}
-
-	return config{
-		AccessToken: accessToken,
-		BaseURI:     baseURI,
-	}
-}
-
 // get a map of the values in the config file.
 func getRawConfig() (map[string]interface{}, *viper.Viper, error) {
-	v := viper.GetViper()
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			newViper := viper.New()
-			configPath := setupFlagsFromConfig()
-			newViper.AddConfigPath(configPath)
-			newViper.SetConfigName("config")
-			newViper.SetConfigType("yml")
-			newViper.SetConfigFile(configPath + "/config.yml")
-			err = newViper.WriteConfigAs(configPath + "/config.yml")
-			if err != nil {
-				return nil, nil, err
-			}
-			v = newViper
-		}
+	v, err := getViperWithConfigFile()
+	if err != nil {
+		return nil, nil, err
 	}
 
 	data, err := os.ReadFile(v.ConfigFileUsed())
@@ -159,24 +139,12 @@ func getRawConfig() (map[string]interface{}, *viper.Viper, error) {
 
 // get a struct type of the values in the config file.
 func getConfig() (config, *viper.Viper, error) {
-	v := viper.GetViper()
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			newViper := viper.New()
-			configPath := setupFlagsFromConfig()
-			newViper.AddConfigPath(configPath)
-			newViper.SetConfigName("config")
-			newViper.SetConfigType("yml")
-			err = newViper.WriteConfigAs(configPath + "/config.yml")
-			if err != nil {
-				return config{}, nil, err
-			}
-
-			return config{}, newViper, nil
-		}
+	v, err := getViperWithConfigFile()
+	if err != nil {
+		return config{}, nil, err
 	}
 
-	data, err := os.ReadFile(viper.ConfigFileUsed())
+	data, err := os.ReadFile(v.ConfigFileUsed())
 	if err != nil {
 		return config{}, nil, err
 	}
@@ -198,11 +166,13 @@ func writeConfig(
 ) error {
 	newViper := viper.New()
 	newViper.SetConfigFile(v.ConfigFileUsed())
-	if newViper.ConfigFileUsed() == "" {
-		configPath := setupFlagsFromConfig()
-		newViper.AddConfigPath(configPath)
-		newViper.SetConfigName("config")
-		newViper.SetConfigType("yml")
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			configPath := setConfigPath()
+			newViper.SetConfigFile(configPath + "/config.yml")
+		}
+
+		return err
 	}
 
 	configYAML, err := yaml.Marshal(config)
@@ -227,7 +197,29 @@ func writeConfig(
 	return nil
 }
 
-func setupFlagsFromConfig() string {
+// ensures the viper instance has a config file written to the filesystem.
+func getViperWithConfigFile() (*viper.Viper, error) {
+	v := viper.GetViper()
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			newViper := viper.New()
+			configPath := setConfigPath()
+			newViper.SetConfigFile(configPath + "/config.yml")
+			err = newViper.WriteConfigAs(configPath + "/config.yml")
+			if err != nil {
+				return nil, err
+			}
+
+			return newViper, nil
+		}
+
+		return nil, err
+	}
+
+	return v, nil
+}
+
+func setConfigPath() string {
 	configPath := os.Getenv("XDG_CONFIG_HOME")
 	if configPath == "" {
 		home, err := homedir.Dir()
