@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/lua-server-sdk/tree/main/examples/hello-lua-server).
-
 1. Lua is a wrapper SDK that depends on the C++ Server SDK. The following dependencies assume you will build the C++ Server SDK from source. If you already have the C+ Server SDK installed, only LuaRocks is required.
 
 First, ensure the required build dependencies are installed:

@@ -1,8 +1,4 @@
-# Set up your application
-
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-python).
-
-
+# Installation steps
 1. Create a new directory:
 
 ```bash

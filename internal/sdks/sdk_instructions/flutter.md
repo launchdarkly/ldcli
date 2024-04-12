@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-flutter).
-
 1. Use the Flutter tool to create a new project named `hello_flutter`.
 ```shell
 flutter create hello_flutter --platforms android,ios

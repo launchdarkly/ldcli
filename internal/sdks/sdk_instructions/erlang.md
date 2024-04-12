@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-erlang).
-
 1. Create a new project for your application:
 ```
 rebar3 new app hello_erlang && cd hello_erlang

@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-node-server).
-
 1. Create a new directory and create a `package.json` file:
 ```shell
 mkdir hello-node-server && cd hello-node-server && npm init

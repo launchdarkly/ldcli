@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-php).
-
 1. Create a new directory and install [Composer](https://getcomposer.org/):
 ```shell
 mkdir hello-php && cd hello-php && curl -sS https://getcomposer.org/installer | php

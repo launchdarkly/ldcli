@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-rust).
-
 1. Create a new project using [Cargo](https://doc.rust-lang.org/book/ch01-01-installation.html#installation).
 ```shell
 cargo new hello-rust && cd hello-rust

@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/js-core/tree/main/packages/sdk/react-native/example).
-
 1. Use create-expo-app to create a new Expo application:
 ```shell
 npx create-expo-app hello-react-native -t expo-template-blank-typescript && cd hello-react-native
