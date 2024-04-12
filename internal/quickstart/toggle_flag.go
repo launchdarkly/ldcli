@@ -12,16 +12,17 @@ import (
 )
 
 type toggleFlagModel struct {
-	accessToken    string
-	baseUri        string
-	client         flags.Client
-	enabled        bool
-	err            error
-	flagKey        string
-	flagWasEnabled bool
-	help           help.Model
-	helpKeys       keyMap
-	sdkKind        string
+	accessToken       string
+	baseUri           string
+	client            flags.Client
+	enabled           bool
+	err               error
+	flagKey           string
+	flagWasEnabled    bool
+	help              help.Model
+	helpKeys          keyMap
+	sdkKind           string
+	hasToggleConflict bool
 }
 
 func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
@@ -55,6 +56,8 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.enabled = !m.enabled
 			return m, toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
+	case toggledFlagMsg:
+		m.hasToggleConflict = msg.hasToggleConflict
 	case errMsg:
 		m.err = msg.err
 	}
@@ -82,6 +85,9 @@ func (m toggleFlagModel) View() string {
 
 	if m.flagWasEnabled {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
+		if m.hasToggleConflict {
+			furtherInstructions = fmt.Sprintf("\n\nThe flag is already toggled %v.", toggle)
+		}
 	}
 
 	toggleStyle := lipgloss.NewStyle().

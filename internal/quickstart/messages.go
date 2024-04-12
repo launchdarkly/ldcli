@@ -27,9 +27,12 @@ func sendErrMsg(err error) tea.Cmd {
 	}
 }
 
-type toggledFlagMsg struct{}
+type toggledFlagMsg struct {
+	hasToggleConflict bool
+}
 
 func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabled bool) tea.Cmd {
+	var alreadyToggled bool
 	return func() tea.Msg {
 		_, err := client.Update(
 			context.Background(),
@@ -45,10 +48,13 @@ func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabl
 				Message string `json:"message"`
 			}
 			_ = json.Unmarshal([]byte(err.Error()), &e)
-			return errMsg{err: errors.NewError(fmt.Sprintf("Error toggling flag: %s. Press \"ctrl + c\" to quit.", e.Message))}
+			alreadyToggled = e.Code == "conflict"
+			if !alreadyToggled {
+				return errMsg{err: errors.NewError(fmt.Sprintf("Error toggling flag: %s. Press \"ctrl + c\" to quit.", e.Message))}
+			}
 		}
 
-		return toggledFlagMsg{}
+		return toggledFlagMsg{hasToggleConflict: alreadyToggled}
 	}
 }
 
@@ -89,7 +95,6 @@ func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, pr
 			if !existingFlag {
 				return errMsg{err: errors.NewError(fmt.Sprintf("Error creating flag: %s. Press \"ctrl + c\" to quit.", e.Message))}
 			}
-
 		}
 
 		return createdFlagMsg{flag: flag{
