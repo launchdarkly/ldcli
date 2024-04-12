@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -27,6 +29,7 @@ func NewRootCommand(
 	membersClient members.Client,
 	projectsClient projects.Client,
 	version string,
+	useConfigFile bool,
 ) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
@@ -45,6 +48,13 @@ func NewRootCommand(
 		// the wrong key.
 		SilenceErrors: true,
 		SilenceUsage:  true,
+	}
+
+	if useConfigFile {
+		err := setupFlagsFromConfig()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cmd.PersistentFlags().String(
@@ -105,6 +115,7 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		members.NewClient(version),
 		projects.NewClient(version),
 		version,
+		true,
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -114,4 +125,29 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 	}
+}
+
+func setupFlagsFromConfig() error {
+	configPath := os.Getenv("XDG_CONFIG_HOME")
+	if configPath == "" {
+		home, err := homedir.Dir()
+		if err != nil {
+			return err
+		}
+		configPath = filepath.Join(home, ".config")
+	}
+	configPath = filepath.Join(configPath, "ldcli")
+
+	viper.AddConfigPath(configPath)
+	viper.SetConfigName("config")
+	viper.SetConfigType("toml")
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// ignore if file not found
+		} else {
+			return err
+		}
+	}
+
+	return nil
 }

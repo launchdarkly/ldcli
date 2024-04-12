@@ -31,6 +31,7 @@ func CallCmd(
 		membersClient,
 		projectsClient,
 		"test",
+		false,
 	)
 	require.NoError(t, err)
 	b := bytes.NewBufferString("")

@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	"ldcli/cmd/validators"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/quickstart"
@@ -20,6 +21,7 @@ func NewQuickStartCmd(
 	flagsClient flags.Client,
 ) *cobra.Command {
 	return &cobra.Command{
+		Args:  validators.Validate(),
 		Long:  "",
 		RunE:  runQuickStart(environmentsClient, flagsClient),
 		Short: "Setup guide to create your first feature flag",
