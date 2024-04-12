@@ -65,7 +65,6 @@ func NewShowSDKInstructionsModel(
 		PaddingRight(2)
 
 	h := help.New()
-	h.ShowAll = true
 
 	return showSDKInstructionsModel{
 		accessToken:        accessToken,
@@ -140,13 +139,14 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m showSDKInstructionsModel) View() string {
 	if m.err != nil {
-		m.help.ShowAll = false
 		return footerView(m.help.View(m.helpKeys), m.err)
 	}
 
 	if m.instructions == "" || m.environment == nil {
 		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...\n", m.displayName) + footerView(m.help.View(m.helpKeys), nil)
 	}
+
+	m.help.ShowAll = true
 
 	instructions := fmt.Sprintf(`
 Here are the steps to set up a test app to see feature flagging in action
