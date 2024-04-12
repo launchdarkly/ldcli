@@ -21,7 +21,7 @@ func TestCreate(t *testing.T) {
 		"test-proj-key",
 	}
 
-	t.Run("with valid flags calls projects API", func(t *testing.T) {
+	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Create", mockArgs...).
@@ -40,7 +40,7 @@ func TestCreate(t *testing.T) {
 		assert.JSONEq(t, `{"valid": true}`, string(output))
 	})
 
-	t.Run("with valid flags from environment variables calls projects API", func(t *testing.T) {
+	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
 		teardownTest := cmd.SetupTestEnvVars(t)
 		defer teardownTest(t)
 		client := flags.MockClient{}
