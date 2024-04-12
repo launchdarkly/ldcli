@@ -32,7 +32,7 @@ type toggledFlagMsg struct {
 }
 
 func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabled bool) tea.Cmd {
-	var alreadyToggled bool
+	var hasToggleConflict bool
 	return func() tea.Msg {
 		_, err := client.Update(
 			context.Background(),
@@ -43,18 +43,14 @@ func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabl
 			flags.BuildToggleFlagPatch(defaultEnvKey, enabled),
 		)
 		if err != nil {
-			var e struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
-			}
-			_ = json.Unmarshal([]byte(err.Error()), &e)
-			alreadyToggled = e.Code == "conflict"
-			if !alreadyToggled {
-				return errMsg{err: errors.NewError(fmt.Sprintf("Error toggling flag: %s. Press \"ctrl + c\" to quit.", e.Message))}
+			var errorMsg errMsg
+			hasToggleConflict, errorMsg = handleError(err, "Error toggling flag")
+			if !hasToggleConflict {
+				return errorMsg
 			}
 		}
 
-		return toggledFlagMsg{hasToggleConflict: alreadyToggled}
+		return toggledFlagMsg{hasToggleConflict: hasToggleConflict}
 	}
 }
 
@@ -86,14 +82,10 @@ func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, pr
 			projKey,
 		)
 		if err != nil {
-			var e struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
-			}
-			_ = json.Unmarshal([]byte(err.Error()), &e)
-			existingFlag = e.Code == "conflict"
+			var errorMsg errMsg
+			existingFlag, errorMsg = handleError(err, "Error creating flag")
 			if !existingFlag {
-				return errMsg{err: errors.NewError(fmt.Sprintf("Error creating flag: %s. Press \"ctrl + c\" to quit.", e.Message))}
+				return errorMsg
 			}
 		}
 
@@ -217,4 +209,19 @@ func selectedSDK(index int) tea.Cmd {
 	return func() tea.Msg {
 		return selectedSDKMsg{index: index}
 	}
+}
+
+func handleError(err error, message string) (bool, errMsg) {
+	var errorMsg errMsg
+	var e struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	_ = json.Unmarshal([]byte(err.Error()), &e)
+	conflict := e.Code == "conflict"
+	if !conflict {
+		errorMsg = errMsg{err: errors.NewError(fmt.Sprintf("%s: %s. Press \"ctrl + c\" to quit.", message, e.Message))}
+	}
+
+	return conflict, errorMsg
 }
