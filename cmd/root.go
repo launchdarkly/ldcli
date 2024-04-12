@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	configcmd "ldcli/cmd/config"
 	envscmd "ldcli/cmd/environments"
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
@@ -37,9 +38,18 @@ func NewRootCommand(
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// disable required flags when running certain commands, not a flag
-			if cmd.Name() == "help" || cmd.Parent().Name() == "completion" {
-				cmd.DisableFlagParsing = true
+			// disable required flags when running certain commands
+			for _, name := range []string{
+				"completion",
+				"config",
+				"help",
+			} {
+				if cmd.HasParent() && cmd.Parent().Name() == name {
+					cmd.DisableFlagParsing = true
+				}
+				if cmd.Name() == name {
+					cmd.DisableFlagParsing = true
+				}
 			}
 		},
 
@@ -81,6 +91,7 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	configCmd := configcmd.NewConfigCmd()
 	environmentsCmd, err := envscmd.NewEnvironmentsCmd(analyticsTracker, environmentsClient)
 	if err != nil {
 		return nil, err
@@ -98,6 +109,7 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	cmd.AddCommand(configCmd)
 	cmd.AddCommand(environmentsCmd)
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
@@ -140,7 +152,7 @@ func setupFlagsFromConfig() error {
 
 	viper.AddConfigPath(configPath)
 	viper.SetConfigName("config")
-	viper.SetConfigType("toml")
+	viper.SetConfigType("yml")
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// ignore if file not found
