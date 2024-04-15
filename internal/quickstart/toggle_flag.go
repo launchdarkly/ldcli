@@ -13,17 +13,17 @@ import (
 )
 
 type toggleFlagModel struct {
-	accessToken       string
-	baseUri           string
-	client            flags.Client
-	enabled           bool
-	err               error
-	flagKey           string
-	flagWasEnabled    bool
-	help              help.Model
-	helpKeys          keyMap
-	sdkKind           string
-	hasToggleConflict bool
+	accessToken    string
+	baseUri        string
+	client         flags.Client
+	enabled        bool
+	err            error
+	flagKey        string
+	flagWasEnabled bool
+	help           help.Model
+	helpKeys       keyMap
+	sdkKind        string
+	alreadyEnabled bool
 }
 
 func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
@@ -58,6 +58,8 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = nil
 			return m, toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
+	case toggledFlagMsg:
+		m.alreadyEnabled = msg.alreadyEnabled
 	case errMsg:
 		msgRequestErr, err := newMsgRequestError(msg.err.Error())
 		if err != nil {
@@ -95,10 +97,7 @@ func (m toggleFlagModel) View() string {
 
 	if m.flagWasEnabled {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
-		if m.err != nil {
-			furtherInstructions = fmt.Sprintf("\n\n%s", m.err.Error())
-		}
-		if m.hasToggleConflict {
+		if m.alreadyEnabled {
 			furtherInstructions = fmt.Sprintf("\n\nThe flag is already toggled %v.", toggle)
 		}
 	}
