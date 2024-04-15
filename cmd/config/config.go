@@ -80,8 +80,19 @@ func run() func(*cobra.Command, []string) error {
 			}
 
 			return writeConfig(config.NewConfig(rawConfig), v, setKeyFn)
-		case viper.GetBool(UnsetFlag):
-			fmt.Fprintln(cmd.OutOrStdout(), "called --unset flag")
+		case viper.IsSet(UnsetFlag):
+			config, v, err := getConfig()
+			if err != nil {
+				return err
+			}
+
+			unsetKeyFn := func(key string, value interface{}, v *viper.Viper) {
+				if key != viper.GetString("unset") {
+					v.Set(key, value)
+				}
+			}
+
+			return writeConfig(config, v, unsetKeyFn)
 		}
 
 		return nil
