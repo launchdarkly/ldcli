@@ -110,7 +110,7 @@ func (e msgRequestError) IsConflict() bool {
 
 func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, projKey string) tea.Cmd {
 	return func() tea.Msg {
-		var existingFlagUsed bool
+		var existingFlag bool
 
 		_, err := client.Create(
 			context.Background(),
@@ -136,13 +136,13 @@ func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, pr
 					),
 				}
 			}
-			existingFlagUsed = true
+			existingFlag = true
 		}
 
 		return createdFlagMsg{flag: flag{
 			key:  flagKey,
 			name: flagName,
-		}, existingFlagUsed: existingFlagUsed}
+		}, existingFlagUsed: existingFlag}
 	}
 }
 
