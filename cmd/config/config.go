@@ -1,10 +1,15 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
+
+	"ldcli/internal/config"
 )
 
 const (
@@ -37,7 +42,17 @@ func run() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		switch {
 		case viper.GetBool(ListFlag):
-			fmt.Fprintln(cmd.OutOrStdout(), "called --list flag")
+			config, _, err := getConfig()
+			if err != nil {
+				return err
+			}
+
+			configJSON, err := json.Marshal(config)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprint(cmd.OutOrStdout(), string(configJSON)+"\n")
 		case viper.GetBool(SetFlag):
 			fmt.Fprintln(cmd.OutOrStdout(), "called --set flag")
 		case viper.GetBool(UnsetFlag):
@@ -46,4 +61,46 @@ func run() func(*cobra.Command, []string) error {
 
 		return nil
 	}
+}
+
+// get a struct type of the values in the config file.
+func getConfig() (config.ConfigFile, *viper.Viper, error) {
+	v, err := getViperWithConfigFile()
+	if err != nil {
+		return config.ConfigFile{}, nil, err
+	}
+
+	data, err := os.ReadFile(v.ConfigFileUsed())
+	if err != nil {
+		return config.ConfigFile{}, nil, err
+	}
+
+	var c config.ConfigFile
+	err = yaml.Unmarshal([]byte(data), &c)
+	if err != nil {
+		return config.ConfigFile{}, nil, err
+	}
+
+	return c, v, nil
+}
+
+// ensures the viper instance has a config file written to the filesystem.
+func getViperWithConfigFile() (*viper.Viper, error) {
+	v := viper.GetViper()
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			newViper := viper.New()
+			newViper.SetConfigFile(config.GetConfigFile())
+			err = newViper.WriteConfigAs(config.GetConfigFile())
+			if err != nil {
+				return nil, err
+			}
+
+			return newViper, nil
+		}
+
+		return nil, err
+	}
+
+	return v, nil
 }

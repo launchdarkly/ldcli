@@ -16,6 +16,7 @@ import (
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
 	"ldcli/internal/analytics"
+	"ldcli/internal/config"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
@@ -29,6 +30,7 @@ func NewRootCommand(
 	membersClient members.Client,
 	projectsClient projects.Client,
 	version string,
+	useConfigFile bool,
 ) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
@@ -55,6 +57,13 @@ func NewRootCommand(
 		// the wrong key.
 		SilenceErrors: true,
 		SilenceUsage:  true,
+	}
+
+	if useConfigFile {
+		err := setFlagsFromConfig()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	viper.SetEnvPrefix("LD")
@@ -121,6 +130,7 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		members.NewClient(version),
 		projects.NewClient(version),
 		version,
+		true,
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -130,4 +140,18 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 	}
+}
+
+// setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
+func setFlagsFromConfig() error {
+	viper.SetConfigFile(config.GetConfigFile())
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// ignore if file not found
+		} else {
+			return err
+		}
+	}
+
+	return nil
 }
