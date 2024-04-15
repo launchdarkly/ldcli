@@ -63,7 +63,7 @@ func run() func(*cobra.Command, []string) error {
 	}
 }
 
-// get a struct type of the values in the config file.
+// getConfig builds a struct type of the values in the config file.
 func getConfig() (config.ConfigFile, *viper.Viper, error) {
 	v, err := getViperWithConfigFile()
 	if err != nil {
@@ -84,7 +84,8 @@ func getConfig() (config.ConfigFile, *viper.Viper, error) {
 	return c, v, nil
 }
 
-// ensures the viper instance has a config file written to the filesystem.
+// getViperWithConfigFile ensures the viper instance has a config file written to the filesystem.
+// We want to write the file when someone runs a config command.
 func getViperWithConfigFile() (*viper.Viper, error) {
 	v := viper.GetViper()
 	if err := v.ReadInConfig(); err != nil {

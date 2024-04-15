@@ -144,7 +144,10 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
 func setFlagsFromConfig() error {
-	viper.SetConfigFile(config.GetConfigFile())
+	viper.AddConfigPath(config.GetConfigPath())
+	viper.SetConfigType("yml")
+	viper.SetConfigName("config")
+
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// ignore if file not found

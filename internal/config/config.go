@@ -34,9 +34,7 @@ func NewConfig(rawConfig map[string]interface{}) ConfigFile {
 	}
 }
 
-// GetConfigFile gets the full path to the config file.
-// TODO: we should ensure this works on windows, linux, macos.
-func GetConfigFile() string {
+func GetConfigPath() string {
 	configPath := os.Getenv("XDG_CONFIG_HOME")
 	if configPath == "" {
 		home, err := homedir.Dir()
@@ -45,7 +43,11 @@ func GetConfigFile() string {
 		}
 		configPath = filepath.Join(home, ".config")
 	}
-	configPath = filepath.Join(configPath, "ldcli")
+	return filepath.Join(configPath, "ldcli")
+}
 
-	return fmt.Sprintf("%s/%s", configPath, FileName)
+// GetConfigFile gets the full path to the config file.
+// TODO: we should ensure this works on windows, linux, macos.
+func GetConfigFile() string {
+	return fmt.Sprintf("%s/%s", GetConfigPath(), FileName)
 }
