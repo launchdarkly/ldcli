@@ -106,5 +106,5 @@ func (m toggleFlagModel) View() string {
 		Padding(0, 1).
 		MarginRight(margin)
 
-	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions + footerView(m.help.View(m.helpKeys), m.err)
+	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions + footerView(m.help.View(m.helpKeys), nil)
 }
