@@ -98,7 +98,7 @@ func (m toggleFlagModel) View() string {
 	if m.flagWasEnabled {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
 		if m.alreadyEnabled {
-			furtherInstructions = fmt.Sprintf("\n\nThe flag is already toggled %v.", toggle)
+			furtherInstructions = "\n\nFlag was toggled too quickly."
 		}
 	}
 
