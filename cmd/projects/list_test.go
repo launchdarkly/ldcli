@@ -17,7 +17,7 @@ func TestList(t *testing.T) {
 		"testAccessToken",
 		"http://test.com",
 	}
-	t.Run("with valid flags calls projects API", func(t *testing.T) {
+	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", mockArgs...).
@@ -26,6 +26,24 @@ func TestList(t *testing.T) {
 			"projects", "list",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+		}
+
+		output, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"valid": true}`, string(output))
+	})
+
+	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
+		teardownTest := cmd.SetupTestEnvVars(t)
+		defer teardownTest(t)
+		client := projects.MockClient{}
+		client.
+			On("List", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		args := []string{
+			"projects",
+			"list",
 		}
 
 		output, err := cmd.CallCmd(t, nil, nil, nil, &client, args)

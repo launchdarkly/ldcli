@@ -19,6 +19,7 @@ func TestCreate(t *testing.T) {
 		"http://test.com",
 		[]members.MemberInput{{Email: "testemail@test.com", Role: role}},
 	}
+
 	t.Run("with valid flags calls members API", func(t *testing.T) {
 		client := members.MockClient{}
 		client.
@@ -27,10 +28,31 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"members",
 			"create",
-			"--access-token",
-			"testAccessToken",
-			"--base-uri",
-			"http://test.com",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"-d",
+			`[{"email": "testemail@test.com", "role": "writer"}]`,
+		}
+
+		output, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"valid": true}`, string(output))
+	})
+
+	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
+		teardownTest := cmd.SetupTestEnvVars(t)
+		defer teardownTest(t)
+		client := members.MockClient{}
+		client.
+			On("Update", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		client.
+			On("Create", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		args := []string{
+			"members",
+			"create",
 			"-d",
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
@@ -49,10 +71,8 @@ func TestCreate(t *testing.T) {
 		args := []string{
 			"members",
 			"create",
-			"--access-token",
-			"testAccessToken",
-			"--base-uri",
-			"http://test.com",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
 			"-d",
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
