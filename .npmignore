@@ -1,0 +1,9 @@
+cmd/
+internal/
+main.go
+vendor/
+go.mod
+go.sum
+Makefile
+.goreleaser.yaml
+Dockerfile.goreleaser
