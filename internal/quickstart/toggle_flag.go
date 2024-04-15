@@ -58,12 +58,12 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
 	case errMsg:
-		apiErr, err := newAPIError(msg.err.Error())
+		msgRequestErr, err := newMsgRequestError(msg.err.Error())
 		if err != nil {
 			m.err = err
 			return m, cmd
 		}
-		if apiErr.IsConflict() {
+		if msgRequestErr.IsConflict() {
 			m.err = errors.NewError("Error toggling flag: you have toggled too quickly.")
 			return m, cmd
 		}

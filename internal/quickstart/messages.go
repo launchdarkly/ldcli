@@ -60,32 +60,32 @@ func confirmedFlag(flag flag) tea.Cmd {
 	}
 }
 
-type apiError struct {
+type msgRequestError struct {
 	code    string
 	message string
 }
 
-func newAPIError(errStr string) (apiError, error) {
+func newMsgRequestError(errStr string) (msgRequestError, error) {
 	var e struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	}
 	err := json.Unmarshal([]byte(errStr), &e)
 	if err != nil {
-		return apiError{}, err
+		return msgRequestError{}, err
 	}
 
-	return apiError{
+	return msgRequestError{
 		code:    e.Code,
 		message: e.Message,
 	}, nil
 }
 
-func (e apiError) Error() string {
+func (e msgRequestError) Error() string {
 	return e.message
 }
 
-func (e apiError) IsConflict() bool {
+func (e msgRequestError) IsConflict() bool {
 	return e.code == "conflict"
 }
 
@@ -102,17 +102,17 @@ func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, pr
 			projKey,
 		)
 		if err != nil {
-			apiErr, err := newAPIError(err.Error())
+			msgRequestErr, err := newMsgRequestError(err.Error())
 			if err != nil {
 				return errMsg{err: err}
 			}
 
-			if !apiErr.IsConflict() {
+			if !msgRequestErr.IsConflict() {
 				return errMsg{
 					err: errors.NewError(
 						fmt.Sprintf(
 							"Error creating flag: %s. Press \"ctrl + c\" to quit.",
-							apiErr.message,
+							msgRequestErr.message,
 						),
 					),
 				}
