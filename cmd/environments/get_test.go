@@ -15,11 +15,12 @@ func TestGet(t *testing.T) {
 	errorHelp := ". See `ldcli environments get --help` for supported flags and usage."
 	mockArgs := []interface{}{
 		"testAccessToken",
-		"https://app.launchdarkly.com",
+		"http://test.com",
 		"test-env",
 		"test-proj",
 	}
-	t.Run("with valid environments calls projects API", func(t *testing.T) {
+
+	t.Run("with valid environments calls API", func(t *testing.T) {
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
@@ -27,6 +28,26 @@ func TestGet(t *testing.T) {
 		args := []string{
 			"environments", "get",
 			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"--environment", "test-env",
+			"--project", "test-proj",
+		}
+
+		output, err := cmd.CallCmd(t, &client, nil, nil, nil, args)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"valid": true}`, string(output))
+	})
+
+	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
+		teardownTest := cmd.SetupTestEnvVars(t)
+		defer teardownTest(t)
+		client := environments.MockClient{}
+		client.
+			On("Get", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		args := []string{
+			"environments", "get",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}
@@ -45,6 +66,7 @@ func TestGet(t *testing.T) {
 		args := []string{
 			"environments", "get",
 			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}

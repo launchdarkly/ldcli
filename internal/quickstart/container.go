@@ -33,6 +33,7 @@ type ContainerModel struct {
 	baseUri            string
 	currentModel       tea.Model
 	currentStep        int
+	environment        *environment
 	environmentsClient environments.Client
 	err                error
 	flagKey            string
@@ -99,7 +100,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.sdk.displayName,
 					m.sdk.url,
 					m.flagKey,
-					m.sdk.hasInstructions,
+					m.environment,
 				)
 				cmd = m.currentModel.Init()
 			}
@@ -116,7 +117,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.sdk.displayName,
 			msg.sdk.url,
 			m.flagKey,
-			msg.sdk.hasInstructions,
+			m.environment,
 		)
 		cmd = m.currentModel.Init()
 		m.sdk = msg.sdk
@@ -138,7 +139,11 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
-	case fetchedSDKInstructionsMsg, fetchedEnvMsg, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
+	case fetchedEnvMsg:
+		m.environment = &msg.environment
+		m.currentModel, cmd = m.currentModel.Update(msg)
+		m.err = nil
+	case fetchedSDKInstructionsMsg, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
 		m.gettingStarted = false
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil

@@ -1,7 +1,4 @@
 # Installation steps
-
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-ios-swift).
-
 1. Open Xcode and create a new iOS Single View application called `hello-swift`.
 
 

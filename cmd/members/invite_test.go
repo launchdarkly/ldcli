@@ -22,6 +22,7 @@ func TestInvite(t *testing.T) {
 			{Email: "testemail2@test.com", Role: readerRole},
 		},
 	}
+
 	t.Run("with valid flags calls members API", func(t *testing.T) {
 		client := members.MockClient{}
 		client.
@@ -30,10 +31,31 @@ func TestInvite(t *testing.T) {
 		args := []string{
 			"members",
 			"invite",
-			"--access-token",
-			"testAccessToken",
-			"--base-uri",
-			"http://test.com",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"-e",
+			`testemail1@test.com,testemail2@test.com`,
+		}
+
+		output, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"valid": true}`, string(output))
+	})
+
+	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
+		teardownTest := cmd.SetupTestEnvVars(t)
+		defer teardownTest(t)
+		client := members.MockClient{}
+		client.
+			On("Update", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		client.
+			On("Create", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		args := []string{
+			"members",
+			"invite",
 			"-e",
 			`testemail1@test.com,testemail2@test.com`,
 		}
@@ -52,10 +74,8 @@ func TestInvite(t *testing.T) {
 		args := []string{
 			"members",
 			"invite",
-			"--access-token",
-			"testAccessToken",
-			"--base-uri",
-			"http://test.com",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
 			"-e",
 			`testemail1@test.com,testemail2@test.com`,
 		}
@@ -99,6 +119,7 @@ func TestInviteWithOptionalRole(t *testing.T) {
 			{Email: "testemail2@test.com", Role: writerRole},
 		},
 	}
+
 	t.Run("with valid optional long form flag calls members API", func(t *testing.T) {
 		client := members.MockClient{}
 		client.

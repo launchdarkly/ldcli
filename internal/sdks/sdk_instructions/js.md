@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-js).
-
 1. Create a file called `index.html` and add the following code:
 ```html
 <!DOCTYPE html>

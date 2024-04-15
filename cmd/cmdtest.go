@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,4 +47,15 @@ func CallCmd(
 	require.NoError(t, err)
 
 	return out, nil
+}
+
+// SetupTestEnvVars sets up and tears down tests for checking that environment variables are set.
+func SetupTestEnvVars(_ *testing.T) func(t *testing.T) {
+	os.Setenv("LD_ACCESS_TOKEN", "testAccessToken")
+	os.Setenv("LD_BASE_URI", "http://test.com")
+
+	return func(t *testing.T) {
+		os.Unsetenv("LD_ACCESS_TOKEN")
+		os.Unsetenv("LD_BASE_URI")
+	}
 }
