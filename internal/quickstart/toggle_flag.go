@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 )
 
@@ -53,9 +54,20 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, pressableKeys.Tab):
 			m.flagWasEnabled = true
 			m.enabled = !m.enabled
+			m.err = nil
 			return m, toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
 	case errMsg:
+		apiErr, err := newAPIError(msg.err.Error())
+		if err != nil {
+			m.err = err
+			return m, cmd
+		}
+		if apiErr.IsConflict() {
+			m.err = errors.NewError("Error toggling flag: you have toggled too quickly.")
+			return m, cmd
+		}
+
 		m.err = msg.err
 	}
 
