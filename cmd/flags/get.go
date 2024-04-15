@@ -21,7 +21,7 @@ func NewGetCmd(client flags.Client) (*cobra.Command, error) {
 		Use:   "get",
 	}
 
-	cmd.Flags().StringP(cliflags.FlagFlag, "", "", "Flag key")
+	cmd.Flags().String(cliflags.FlagFlag, "", "Flag key")
 	err := cmd.MarkFlagRequired(cliflags.FlagFlag)
 	if err != nil {
 		return nil, err
