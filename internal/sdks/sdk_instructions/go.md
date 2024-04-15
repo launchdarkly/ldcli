@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-go).
-
 1. Create a new directory for your application:
 ```shell
 mkdir hello-go && cd hello-go

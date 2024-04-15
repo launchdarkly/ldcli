@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-dotnet).
-
 1. Open Visual Studio and create a new C# console application.
 
 2. Next, install the LaunchDarkly SDK using NuGet:

@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-haskell-server).
-
 1. Create a new project for your application:
 ```shell
 stack new hello-haskell && cd hello-haskell

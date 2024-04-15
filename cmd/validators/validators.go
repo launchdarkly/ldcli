@@ -16,7 +16,7 @@ import (
 // Validate is a validator for commands to print an error when the user input is invalid.
 func Validate() cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
-		rebindFlags(cmd, args)
+		rebindFlags(cmd, cmd.ValidArgs) // rebind flags before validating them below
 		commandPath := getCommandPath(cmd)
 		_, err := url.ParseRequestURI(viper.GetString(cliflags.BaseURIFlag))
 		if err != nil {

@@ -1,12 +1,12 @@
 package flags_test
 
 import (
-	"ldcli/cmd"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"ldcli/cmd"
 	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 )
@@ -20,7 +20,8 @@ func TestCreate(t *testing.T) {
 		"test-key",
 		"test-proj-key",
 	}
-	t.Run("with valid flags calls projects API", func(t *testing.T) {
+
+	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Create", mockArgs...).
@@ -29,6 +30,25 @@ func TestCreate(t *testing.T) {
 			"flags", "create",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"-d", `{"key": "test-key", "name": "test-name"}`,
+			"--project", "test-proj-key",
+		}
+
+		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"valid": true}`, string(output))
+	})
+
+	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
+		teardownTest := cmd.SetupTestEnvVars(t)
+		defer teardownTest(t)
+		client := flags.MockClient{}
+		client.
+			On("Create", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		args := []string{
+			"flags", "create",
 			"-d", `{"key": "test-key", "name": "test-name"}`,
 			"--project", "test-proj-key",
 		}

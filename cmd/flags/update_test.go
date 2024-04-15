@@ -26,7 +26,7 @@ func TestUpdate(t *testing.T) {
 			},
 		},
 	}
-	t.Run("with valid flags calls projects API", func(t *testing.T) {
+	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
@@ -35,6 +35,26 @@ func TestUpdate(t *testing.T) {
 			"flags", "update",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
+			"--flag", "test-key",
+			"--project", "test-proj-key",
+		}
+
+		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"valid": true}`, string(output))
+	})
+
+	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
+		teardownTest := cmd.SetupTestEnvVars(t)
+		defer teardownTest(t)
+		client := flags.MockClient{}
+		client.
+			On("Update", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		args := []string{
+			"flags", "update",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
 			"--flag", "test-key",
 			"--project", "test-proj-key",
@@ -105,7 +125,7 @@ func TestToggle(t *testing.T) {
 			},
 		},
 	}
-	t.Run("with valid flags calls projects API", func(t *testing.T) {
+	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).

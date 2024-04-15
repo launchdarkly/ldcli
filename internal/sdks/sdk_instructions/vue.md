@@ -1,7 +1,4 @@
 # Installation steps
-
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/vue-client-sdk/tree/main/example).
-
 1. Use create-vue to create a new Vue application:
 ```shell
 npm create vue@latest

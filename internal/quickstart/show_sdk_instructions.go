@@ -138,7 +138,22 @@ func (m showSDKInstructionsModel) View() string {
 	if m.instructions == "" || m.environment == nil {
 		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...", m.displayName)
 	}
-	instructions := fmt.Sprintf("Set up your application in your Default project & Test environment.\n\nHere are the steps to incorporate the LaunchDarkly %s SDK into your code. You should have everything you need to get started, including the flag from the previous step and your SDK key from your Test environment already embedded in the code!\n", m.displayName)
+	instructions := fmt.Sprintf(`
+Here are the steps to set up a test app to see feature flagging in action
+using the %s SDK in your Default project & Test environment.
+
+You should have everything you need to get started, including the flag from
+the previous step and your environmnet key from your Test environment already
+embedded in the code!
+
+Open a new terminal window to get started.
+
+If you want to skip ahead, the final code is available in our GitHub repository:
+%s
+`,
+		m.displayName,
+		m.url,
+	)
 	return instructions + m.viewport.View() + "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
 }
 

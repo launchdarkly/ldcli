@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/hello-android).
-
 1. Open Android Studio and create a new project named `hello-android` with an empty activity.
 
 2. Next, add the LaunchDarkly SDK as a dependency in the `app/build.gradle` file:
