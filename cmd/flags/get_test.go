@@ -88,4 +88,19 @@ func TestGet(t *testing.T) {
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "flag", "project" not set`+errorHelp)
 	})
+
+	t.Run("with invalid base-uri is an error", func(t *testing.T) {
+		args := []string{
+			"flags", "get",
+			"--access-token", "testAccessToken",
+			"--base-uri", "invalid",
+			"--flag", "test-key",
+			"--project", "test-proj-key",
+			"--environment", "test-env-key",
+		}
+
+		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
+
+		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
+	})
 }
