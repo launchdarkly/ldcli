@@ -61,7 +61,8 @@ func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabl
 }
 
 type createdFlagMsg struct {
-	flag flag
+	flag             flag
+	existingFlagUsed bool
 }
 
 type confirmedFlagMsg struct {
@@ -105,6 +106,8 @@ func (e msgRequestError) IsConflict() bool {
 
 func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, projKey string) tea.Cmd {
 	return func() tea.Msg {
+		var existingFlagUsed bool
+
 		_, err := client.Create(
 			context.Background(),
 			accessToken,
@@ -129,12 +132,13 @@ func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, pr
 					),
 				}
 			}
+			existingFlagUsed = true
 		}
 
 		return createdFlagMsg{flag: flag{
 			key:  flagKey,
 			name: flagName,
-		}}
+		}, existingFlagUsed: existingFlagUsed}
 	}
 }
 
