@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -39,13 +40,17 @@ func NewRootCommand(
 				cmd.DisableFlagParsing = true
 			}
 		},
-
 		// Handle errors differently based on type.
 		// We don't want to show the usage if the user has the right structure but invalid data such as
 		// the wrong key.
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
+
+	viper.SetEnvPrefix("LD")
+	replacer := strings.NewReplacer("-", "_")
+	viper.SetEnvKeyReplacer(replacer)
+	viper.AutomaticEnv()
 
 	cmd.PersistentFlags().String(
 		cliflags.AccessTokenFlag,

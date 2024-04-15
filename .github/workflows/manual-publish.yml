@@ -78,3 +78,4 @@ jobs:
         base64-subjects: "${{ needs.release-ldcli.outputs.hashes }}"
         upload-assets: true
         upload-tag-name: ${{ inputs.tag }}
+        provenance-name: ${{ format('ldcli_{0}_multiple_provenance.intoto.jsonl', inputs.tag) }}

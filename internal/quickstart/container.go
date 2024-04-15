@@ -33,10 +33,12 @@ type ContainerModel struct {
 	baseUri            string
 	currentModel       tea.Model
 	currentStep        int
+	environment        *environment
 	environmentsClient environments.Client
 	err                error
 	flagKey            string
 	flagsClient        flags.Client
+	gettingStarted     bool
 	quitting           bool
 	sdk                sdkDetail
 	totalSteps         int
@@ -56,6 +58,7 @@ func NewContainerModel(
 		currentStep:        1,
 		environmentsClient: environmentsClient,
 		flagsClient:        flagsClient,
+		gettingStarted:     true,
 		totalSteps:         4,
 	}
 }
@@ -97,7 +100,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.sdk.displayName,
 					m.sdk.url,
 					m.flagKey,
-					m.sdk.hasInstructions,
+					m.environment,
 				)
 				cmd = m.currentModel.Init()
 			}
@@ -114,7 +117,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.sdk.displayName,
 			msg.sdk.url,
 			m.flagKey,
-			msg.sdk.hasInstructions,
+			m.environment,
 		)
 		cmd = m.currentModel.Init()
 		m.sdk = msg.sdk
@@ -136,7 +139,12 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdk.kind,
 		)
 		m.currentStep += 1
-	case fetchedSDKInstructionsMsg, fetchedEnvMsg, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
+	case fetchedEnvMsg:
+		m.environment = &msg.environment
+		m.currentModel, cmd = m.currentModel.Update(msg)
+		m.err = nil
+	case fetchedSDKInstructionsMsg, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
+		m.gettingStarted = false
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
 	case showToggleFlagMsg:
@@ -160,6 +168,10 @@ func (m ContainerModel) View() string {
 
 	if m.quitting {
 		return ""
+	}
+
+	if m.gettingStarted {
+		out = "Within this guided setup flow, you'll be creating a new feature flag and,\nusing the SDK of your choice, building a small sample application to see a\nfeature flag toggle on and off in real time.\n\nLet's get started!\n" + out
 	}
 
 	return wordwrap.String(out, m.width)

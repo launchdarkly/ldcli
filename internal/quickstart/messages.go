@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -62,6 +60,35 @@ func confirmedFlag(flag flag) tea.Cmd {
 	}
 }
 
+type msgRequestError struct {
+	code    string
+	message string
+}
+
+func newMsgRequestError(errStr string) (msgRequestError, error) {
+	var e struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	err := json.Unmarshal([]byte(errStr), &e)
+	if err != nil {
+		return msgRequestError{}, err
+	}
+
+	return msgRequestError{
+		code:    e.Code,
+		message: e.Message,
+	}, nil
+}
+
+func (e msgRequestError) Error() string {
+	return e.message
+}
+
+func (e msgRequestError) IsConflict() bool {
+	return e.code == "conflict"
+}
+
 func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, projKey string) tea.Cmd {
 	return func() tea.Msg {
 		var existingFlag bool
@@ -75,16 +102,21 @@ func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, pr
 			projKey,
 		)
 		if err != nil {
-			var e struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
-			}
-			_ = json.Unmarshal([]byte(err.Error()), &e)
-			existingFlag = e.Code == "conflict"
-			if !existingFlag {
-				return errMsg{err: errors.NewError(fmt.Sprintf("Error creating flag: %s. Press \"ctrl + c\" to quit.", e.Message))}
+			msgRequestErr, err := newMsgRequestError(err.Error())
+			if err != nil {
+				return errMsg{err: err}
 			}
 
+			if !msgRequestErr.IsConflict() {
+				return errMsg{
+					err: errors.NewError(
+						fmt.Sprintf(
+							"Error creating flag: %s. Press \"ctrl + c\" to quit.",
+							msgRequestErr.message,
+						),
+					),
+				}
+			}
 		}
 
 		return createdFlagMsg{flag: flag{
@@ -105,33 +137,12 @@ type choseSDKMsg struct {
 func chooseSDK(sdk sdkDetail) tea.Cmd {
 	return func() tea.Msg {
 		if sdk.url == "" {
-			sdk.url = fmt.Sprintf("https://raw.githubusercontent.com/launchdarkly/hello-%s/main/README.md", sdk.canonicalName)
+			sdk.url = fmt.Sprintf("https://github.com/launchdarkly/hello-%s", sdk.canonicalName)
 		}
 
 		return choseSDKMsg{
 			sdk: sdk,
 		}
-	}
-}
-
-func fetchSDKInstructions(url string) tea.Cmd {
-	return func() tea.Msg {
-		resp, err := http.Get(url)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
-		if resp.StatusCode == 404 {
-			// m.sdk = msg.name
-			return noInstructionsMsg{}
-		}
-
-		return fetchedSDKInstructionsMsg{instructions: body}
 	}
 }
 
@@ -155,8 +166,7 @@ func showToggleFlag() tea.Cmd {
 }
 
 type fetchedEnvMsg struct {
-	clientSideID string
-	sdkKey       string
+	environment environment
 }
 
 func fetchEnv(
@@ -175,13 +185,19 @@ func fetchEnv(
 		var resp struct {
 			SDKKey       string `json:"apiKey"`
 			ClientSideId string `json:"_id"`
+			MobileKey    string `json:"mobileKey"`
 		}
 		err = json.Unmarshal(response, &resp)
 		if err != nil {
 			return errMsg{err: err}
 		}
 
-		return fetchedEnvMsg{clientSideID: resp.ClientSideId, sdkKey: resp.SDKKey}
+		return fetchedEnvMsg{environment: environment{
+			sdkKey:       resp.SDKKey,
+			mobileKey:    resp.MobileKey,
+			clientSideId: resp.ClientSideId,
+		}}
+
 	}
 }
 

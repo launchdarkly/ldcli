@@ -1,6 +1,4 @@
 # Installation steps
-If you want to skip ahead, the final code is available in our [GitHub repository](https://github.com/launchdarkly/react-client-sdk/tree/main/examples/typescript).
-
 1. Use create-react-app to create a new React application:
 
 ```shell
