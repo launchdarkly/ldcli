@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 )
 
@@ -84,10 +85,19 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case createdFlagMsg:
 		m.showSuccessView = true
-		m.existingFlagUsed = msg.existingFlagUsed
 		m.flag = msg.flag
 	case errMsg:
 		m.err = msg.err
+		msgRequestErr, err := newMsgRequestError(msg.err.Error())
+		if err != nil {
+			m.err = err
+			return m, cmd
+		}
+		if msgRequestErr.IsConflict() {
+			m.existingFlagUsed = true
+			m.err = errors.NewError("Error creating flag: this flag already exists.")
+			return m, cmd
+		}
 	}
 
 	return m, cmd
