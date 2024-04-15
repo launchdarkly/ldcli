@@ -9,7 +9,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"ldcli/internal/environments"
-	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 )
 
@@ -99,21 +98,7 @@ func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, pr
 			projKey,
 		)
 		if err != nil {
-			msgRequestErr, err := newMsgRequestError(err.Error())
-			if err != nil {
-				return errMsg{err: err}
-			}
-
-			if !msgRequestErr.IsConflict() {
-				return errMsg{
-					err: errors.NewError(
-						fmt.Sprintf(
-							"Error creating flag: %s. Press \"ctrl + c\" to quit.",
-							msgRequestErr.message,
-						),
-					),
-				}
-			}
+			return errMsg{err: err}
 		}
 
 		return createdFlagMsg{flag: flag{
