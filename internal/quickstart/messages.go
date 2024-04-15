@@ -239,18 +239,3 @@ func selectedSDK(index int) tea.Cmd {
 		return selectedSDKMsg{index: index}
 	}
 }
-
-func handleError(err error, message string) (bool, errMsg) {
-	var errorMsg errMsg
-	var e struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}
-	_ = json.Unmarshal([]byte(err.Error()), &e)
-	conflict := e.Code == "conflict"
-	if !conflict {
-		errorMsg = errMsg{err: errors.NewError(fmt.Sprintf("%s: %s. Press \"ctrl + c\" to quit.", message, e.Message))}
-	}
-
-	return conflict, errorMsg
-}
