@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	configcmd "ldcli/cmd/config"
 	envscmd "ldcli/cmd/environments"
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
@@ -35,9 +36,18 @@ func NewRootCommand(
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// disable required flags when running certain commands, not a flag
-			if cmd.Name() == "help" || cmd.Parent().Name() == "completion" {
-				cmd.DisableFlagParsing = true
+			// disable required flags when running certain commands
+			for _, name := range []string{
+				"completion",
+				"config",
+				"help",
+			} {
+				if cmd.HasParent() && cmd.Parent().Name() == name {
+					cmd.DisableFlagParsing = true
+				}
+				if cmd.Name() == name {
+					cmd.DisableFlagParsing = true
+				}
 			}
 		},
 		// Handle errors differently based on type.
@@ -93,6 +103,7 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	cmd.AddCommand(configcmd.NewConfigCmd())
 	cmd.AddCommand(environmentsCmd)
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
