@@ -25,7 +25,7 @@ type toggleFlagModel struct {
 	sdkKind        string
 }
 
-func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
+func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, enabled bool, flagKey string, sdkKind string) tea.Model {
 	return toggleFlagModel{
 		accessToken: accessToken,
 		baseUri:     baseUri,

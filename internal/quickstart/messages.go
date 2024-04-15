@@ -157,11 +157,13 @@ func readSDKInstructions(filename string) tea.Cmd {
 	}
 }
 
-type showToggleFlagMsg struct{}
+type showToggleFlagMsg struct {
+	flagStatus bool
+}
 
-func showToggleFlag() tea.Cmd {
+func showToggleFlag(flagStatus bool) tea.Cmd {
 	return func() tea.Msg {
-		return showToggleFlagMsg{}
+		return showToggleFlagMsg{flagStatus: flagStatus}
 	}
 }
 
@@ -198,6 +200,36 @@ func fetchEnv(
 			clientSideId: resp.ClientSideId,
 		}}
 
+	}
+}
+
+type fetchedFlagStatusMsg struct {
+	flagStatus bool
+}
+
+func fetchFlagStatus(
+	client flags.Client,
+	accessToken string,
+	baseUri string,
+	key,
+	envKey,
+	projKey string,
+) tea.Cmd {
+	return func() tea.Msg {
+		response, err := client.Read(context.Background(), accessToken, baseUri, key, projKey, envKey)
+		if err != nil {
+			return errMsg{err: err}
+		}
+
+		var resp struct {
+			Environments map[string]interface{} `json:"environments"`
+		}
+		err = json.Unmarshal(response, &resp)
+		if err != nil {
+			return errMsg{err: err}
+		}
+
+		return fetchedFlagStatusMsg{flagStatus: resp.Environments[envKey].(map[string]interface{})["on"].(bool)}
 	}
 }
 

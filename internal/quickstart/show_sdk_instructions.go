@@ -2,6 +2,7 @@ package quickstart
 
 import (
 	"fmt"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -11,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"ldcli/internal/environments"
+	"ldcli/internal/flags"
 	"ldcli/internal/sdks"
 )
 
@@ -32,7 +34,9 @@ type showSDKInstructionsModel struct {
 	displayName        string
 	environment        *environment
 	environmentsClient environments.Client
+	flagsClient        flags.Client
 	flagKey            string
+	flagStatus         bool
 	help               help.Model
 	helpKeys           keyMap
 	instructions       string
@@ -43,6 +47,7 @@ type showSDKInstructionsModel struct {
 
 func NewShowSDKInstructionsModel(
 	environmentsClient environments.Client,
+	flagsClient flags.Client,
 	accessToken string,
 	baseUri string,
 	canonicalName string,
@@ -72,6 +77,7 @@ func NewShowSDKInstructionsModel(
 		displayName:        displayName,
 		environmentsClient: environmentsClient,
 		environment:        environment,
+		flagsClient:        flagsClient,
 		flagKey:            flagKey,
 		help:               h,
 		helpKeys: keyMap{
@@ -94,7 +100,9 @@ func (m showSDKInstructionsModel) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.spinner.Tick, readSDKInstructions(m.canonicalName)}
 
 	if m.environment == nil {
-		cmds = append(cmds, fetchEnv(m.environmentsClient, m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey))
+		cmds = append(cmds,
+			fetchEnv(m.environmentsClient, m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey),
+			fetchFlagStatus(m.flagsClient, m.accessToken, m.baseUri, m.flagKey, defaultEnvKey, defaultProjKey))
 	}
 
 	return tea.Sequence(cmds...)
@@ -107,7 +115,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, pressableKeys.Enter):
 			// TODO: only if all data are fetched?
-			cmd = showToggleFlag()
+			cmd = showToggleFlag(m.flagStatus)
 		default:
 			m.viewport, cmd = m.viewport.Update(msg)
 		}
@@ -127,6 +135,8 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, sendErrMsg(err)
 		}
 		m.viewport.SetContent(md)
+	case fetchedFlagStatusMsg:
+		m.flagStatus = msg.flagStatus
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
 	}
