@@ -200,21 +200,7 @@ func fetchEnv(
 		}
 		err = json.Unmarshal(response, &resp)
 		if err != nil {
-			msgRequestErr, err := newMsgRequestError(err.Error())
-			if err != nil {
-				return errMsg{err: err}
-			}
-
-			if !msgRequestErr.IsConflict() {
-				return errMsg{
-					err: errors.NewError(
-						fmt.Sprintf(
-							"Error fetching environment: %s. Press \"ctrl + c\" to quit.",
-							msgRequestErr.message,
-						),
-					),
-				}
-			}
+			return errMsg{err: err}
 		}
 
 		return fetchedEnvMsg{environment: environment{
