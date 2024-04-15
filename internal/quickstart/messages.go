@@ -26,11 +26,9 @@ func sendErrMsg(err error) tea.Cmd {
 }
 
 type toggledFlagMsg struct {
-	hasToggleConflict bool
 }
 
 func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabled bool) tea.Cmd {
-	var hasToggleConflict bool
 	return func() tea.Msg {
 		_, err := client.Update(
 			context.Background(),
@@ -41,20 +39,29 @@ func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabl
 			flags.BuildToggleFlagPatch(defaultEnvKey, enabled),
 		)
 		if err != nil {
-			var errorMsg errMsg
-			hasToggleConflict, errorMsg = handleError(err, "Error toggling flag")
-			if !hasToggleConflict {
-				return errorMsg
+			msgRequestErr, err := newMsgRequestError(err.Error())
+			if err != nil {
+				return errMsg{err: err}
+			}
+
+			if !msgRequestErr.IsConflict() {
+				return errMsg{
+					err: errors.NewError(
+						fmt.Sprintf(
+							"Error toggling flag: %s. Press \"ctrl + c\" to quit.",
+							msgRequestErr.message,
+						),
+					),
+				}
 			}
 		}
 
-		return toggledFlagMsg{hasToggleConflict: hasToggleConflict}
+		return toggledFlagMsg{}
 	}
 }
 
 type createdFlagMsg struct {
-	flag             flag
-	existingFlagUsed bool
+	flag flag
 }
 
 type confirmedFlagMsg struct {
@@ -98,8 +105,6 @@ func (e msgRequestError) IsConflict() bool {
 
 func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, projKey string) tea.Cmd {
 	return func() tea.Msg {
-		var existingFlag bool
-
 		_, err := client.Create(
 			context.Background(),
 			accessToken,
@@ -109,17 +114,27 @@ func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, pr
 			projKey,
 		)
 		if err != nil {
-			var errorMsg errMsg
-			existingFlag, errorMsg = handleError(err, "Error creating flag")
-			if !existingFlag {
-				return errorMsg
+			msgRequestErr, err := newMsgRequestError(err.Error())
+			if err != nil {
+				return errMsg{err: err}
+			}
+
+			if !msgRequestErr.IsConflict() {
+				return errMsg{
+					err: errors.NewError(
+						fmt.Sprintf(
+							"Error creating flag: %s. Press \"ctrl + c\" to quit.",
+							msgRequestErr.message,
+						),
+					),
+				}
 			}
 		}
 
 		return createdFlagMsg{flag: flag{
 			key:  flagKey,
 			name: flagName,
-		}, existingFlagUsed: existingFlag}
+		}}
 	}
 }
 
@@ -186,9 +201,20 @@ func fetchEnv(
 		}
 		err = json.Unmarshal(response, &resp)
 		if err != nil {
-			conflict, errorMsg := handleError(err, "Error fetching environment")
-			if !conflict {
-				return errorMsg
+			msgRequestErr, err := newMsgRequestError(err.Error())
+			if err != nil {
+				return errMsg{err: err}
+			}
+
+			if !msgRequestErr.IsConflict() {
+				return errMsg{
+					err: errors.NewError(
+						fmt.Sprintf(
+							"Error fetching environment: %s. Press \"ctrl + c\" to quit.",
+							msgRequestErr.message,
+						),
+					),
+				}
 			}
 		}
 

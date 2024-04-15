@@ -58,8 +58,6 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = nil
 			return m, toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
-	case toggledFlagMsg:
-		m.hasToggleConflict = msg.hasToggleConflict
 	case errMsg:
 		msgRequestErr, err := newMsgRequestError(msg.err.Error())
 		if err != nil {
@@ -97,6 +95,9 @@ func (m toggleFlagModel) View() string {
 
 	if m.flagWasEnabled {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
+		if m.err != nil {
+			furtherInstructions = fmt.Sprintf("\n\n%s", m.err.Error())
+		}
 		if m.hasToggleConflict {
 			furtherInstructions = fmt.Sprintf("\n\nThe flag is already toggled %v.", toggle)
 		}
