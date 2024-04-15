@@ -42,7 +42,7 @@ jobs:
 
   release-ldcli-npm:
     runs-on: ubuntu-latest
-    needs: ['release-please', 'release-ldcli']
+    needs: ['release-ldcli']
     permissions:
       actions: read
       id-token: write
