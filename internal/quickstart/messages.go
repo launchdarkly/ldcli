@@ -25,14 +25,10 @@ func sendErrMsg(err error) tea.Cmd {
 	}
 }
 
-type toggledFlagMsg struct {
-	alreadyEnabled bool
-}
+type toggledFlagMsg struct{}
 
 func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabled bool) tea.Cmd {
 	return func() tea.Msg {
-		var alreadyEnabled bool
-
 		_, err := client.Update(
 			context.Background(),
 			accessToken,
@@ -57,10 +53,9 @@ func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabl
 					),
 				}
 			}
-			alreadyEnabled = true
 		}
 
-		return toggledFlagMsg{alreadyEnabled: alreadyEnabled}
+		return toggledFlagMsg{}
 	}
 }
 
