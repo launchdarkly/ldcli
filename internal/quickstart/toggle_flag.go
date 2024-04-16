@@ -94,11 +94,8 @@ func (m toggleFlagModel) View() string {
 		toggle = "ON"
 	}
 
-	if m.flagWasEnabled {
+	if m.flagWasEnabled && m.err == nil {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
-		if m.alreadyEnabled {
-			furtherInstructions = "\n\nFlag was toggled too quickly."
-		}
 	}
 
 	toggleStyle := lipgloss.NewStyle().
@@ -106,5 +103,5 @@ func (m toggleFlagModel) View() string {
 		Padding(0, 1).
 		MarginRight(margin)
 
-	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions + footerView(m.help.View(m.helpKeys), nil)
+	return title + "\n\n" + toggleStyle.Render(toggle) + m.flagKey + furtherInstructions + footerView(m.help.View(m.helpKeys), m.err)
 }

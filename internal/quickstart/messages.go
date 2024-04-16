@@ -38,21 +38,7 @@ func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabl
 			flags.BuildToggleFlagPatch(defaultEnvKey, enabled),
 		)
 		if err != nil {
-			msgRequestErr, err := newMsgRequestError(err.Error())
-			if err != nil {
-				return errMsg{err: err}
-			}
-
-			if !msgRequestErr.IsConflict() {
-				return errMsg{
-					err: errors.NewError(
-						fmt.Sprintf(
-							"Error toggling flag: %s. Press \"ctrl + c\" to quit.",
-							msgRequestErr.message,
-						),
-					),
-				}
-			}
+			return errMsg{err: err}
 		}
 
 		return toggledFlagMsg{}
