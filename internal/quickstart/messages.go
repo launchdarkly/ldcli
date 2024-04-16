@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"ldcli/internal/environments"
+	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 )
 
@@ -37,7 +38,21 @@ func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabl
 			flags.BuildToggleFlagPatch(defaultEnvKey, enabled),
 		)
 		if err != nil {
-			return errMsg{err: err}
+			msgRequestErr, err := newMsgRequestError(err.Error())
+			if err != nil {
+				return errMsg{err: err}
+			}
+
+			if !msgRequestErr.IsConflict() {
+				return errMsg{
+					err: errors.NewError(
+						fmt.Sprintf(
+							"Error toggling flag: %s. Press \"ctrl + c\" to quit.",
+							msgRequestErr.message,
+						),
+					),
+				}
+			}
 		}
 
 		return toggledFlagMsg{}
@@ -98,7 +113,21 @@ func createFlag(client flags.Client, accessToken, baseUri, flagName, flagKey, pr
 			projKey,
 		)
 		if err != nil {
-			return errMsg{err: err}
+			msgRequestErr, err := newMsgRequestError(err.Error())
+			if err != nil {
+				return errMsg{err: err}
+			}
+
+			if !msgRequestErr.IsConflict() {
+				return errMsg{
+					err: errors.NewError(
+						fmt.Sprintf(
+							"Error creating flag: %s. Press \"ctrl + c\" to quit.",
+							msgRequestErr.message,
+						),
+					),
+				}
+			}
 		}
 
 		return createdFlagMsg{flag: flag{
