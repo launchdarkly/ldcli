@@ -69,8 +69,8 @@ jobs:
         name: Publish NPM Package
         uses: ./.github/actions/publish-npm
         with:
-          prerelease: ${{ inputs.prerelease }}
-          dry_run: ${{ inputs.dry_run }}
+          dry-run: 'false'
+          prerelease: 'false'
 
   release-ldcli-provenance:
     needs: ['release-please', 'release-ldcli']
