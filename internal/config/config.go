@@ -43,6 +43,7 @@ func GetConfigPath() string {
 		}
 		configPath = filepath.Join(home, ".config")
 	}
+
 	return filepath.Join(configPath, "ldcli")
 }
 
