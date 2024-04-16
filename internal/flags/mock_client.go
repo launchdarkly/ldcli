@@ -25,7 +25,7 @@ func (c *MockClient) Create(
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (c *MockClient) Read(
+func (c *MockClient) Get(
 	ctx context.Context,
 	accessToken,
 	baseURI,

@@ -61,7 +61,7 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 		_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
 
-		response, err := client.Read(
+		response, err := client.Get(
 			context.Background(),
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
