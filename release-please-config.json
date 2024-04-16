@@ -7,6 +7,7 @@
       "bootstrap-sha": "f37bd3aee1f117faba005bf96f0d0888f898ee41",
       "prerelease": true,
       "extra-files": [
+        "PROVENANCE.md",
         {
           "type": "json",
           "path": "package.json",

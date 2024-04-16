@@ -10,11 +10,13 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	configcmd "ldcli/cmd/config"
 	envscmd "ldcli/cmd/environments"
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
 	"ldcli/internal/analytics"
+	"ldcli/internal/config"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
@@ -28,6 +30,7 @@ func NewRootCommand(
 	membersClient members.Client,
 	projectsClient projects.Client,
 	version string,
+	useConfigFile bool,
 ) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
@@ -35,9 +38,18 @@ func NewRootCommand(
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// disable required flags when running certain commands, not a flag
-			if cmd.Name() == "help" || cmd.Parent().Name() == "completion" {
-				cmd.DisableFlagParsing = true
+			// disable required flags when running certain commands
+			for _, name := range []string{
+				"completion",
+				"config",
+				"help",
+			} {
+				if cmd.HasParent() && cmd.Parent().Name() == name {
+					cmd.DisableFlagParsing = true
+				}
+				if cmd.Name() == name {
+					cmd.DisableFlagParsing = true
+				}
 			}
 		},
 		// Handle errors differently based on type.
@@ -45,6 +57,13 @@ func NewRootCommand(
 		// the wrong key.
 		SilenceErrors: true,
 		SilenceUsage:  true,
+	}
+
+	if useConfigFile {
+		err := setFlagsFromConfig()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	viper.SetEnvPrefix("LD")
@@ -93,6 +112,7 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	cmd.AddCommand(configcmd.NewConfigCmd())
 	cmd.AddCommand(environmentsCmd)
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
@@ -110,6 +130,7 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		members.NewClient(version),
 		projects.NewClient(version),
 		version,
+		true,
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -119,4 +140,21 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 	}
+}
+
+// setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
+func setFlagsFromConfig() error {
+	viper.AddConfigPath(config.GetConfigPath())
+	viper.SetConfigType("yml")
+	viper.SetConfigName("config")
+
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// ignore if file not found
+		} else {
+			return err
+		}
+	}
+
+	return nil
 }
