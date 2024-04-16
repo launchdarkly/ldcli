@@ -35,6 +35,7 @@ type showSDKInstructionsModel struct {
 	environment        *environment
 	environmentsClient environments.Client
 	flagsClient        flags.Client
+	err                error
 	flagKey            string
 	flagStatus         bool
 	help               help.Model
@@ -68,7 +69,6 @@ func NewShowSDKInstructionsModel(
 		PaddingRight(2)
 
 	h := help.New()
-	h.ShowAll = true
 
 	return showSDKInstructionsModel{
 		accessToken:        accessToken,
@@ -139,15 +139,24 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flagStatus = msg.flagStatus
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
+	case errMsg:
+		m.err = msg.err
 	}
 
 	return m, cmd
 }
 
 func (m showSDKInstructionsModel) View() string {
-	if m.instructions == "" || m.environment == nil {
-		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...", m.displayName)
+	if m.err != nil {
+		return footerView(m.help.View(m.helpKeys), m.err)
 	}
+
+	if m.instructions == "" || m.environment == nil {
+		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...\n", m.displayName) + footerView(m.help.View(m.helpKeys), nil)
+	}
+
+	m.help.ShowAll = true
+
 	instructions := fmt.Sprintf(`
 Here are the steps to set up a test app to see feature flagging in action
 using the %s SDK in your Default project & Test environment.

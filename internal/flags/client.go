@@ -19,7 +19,7 @@ type UpdateInput struct {
 
 type Client interface {
 	Create(ctx context.Context, accessToken, baseURI, name, key, projKey string) ([]byte, error)
-	Read(ctx context.Context, accessToken, baseURI, key, projKey, envKey string) ([]byte, error)
+	Get(ctx context.Context, accessToken, baseURI, key, projKey, envKey string) ([]byte, error)
 	Update(
 		ctx context.Context,
 		accessToken,
@@ -65,7 +65,7 @@ func (c FlagsClient) Create(
 	return responseJSON, nil
 }
 
-func (c FlagsClient) Read(
+func (c FlagsClient) Get(
 	ctx context.Context,
 	accessToken,
 	baseURI,

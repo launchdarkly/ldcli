@@ -23,7 +23,7 @@ func TestGet(t *testing.T) {
 	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
-			On("Read", mockArgs...).
+			On("Get", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"flags", "get",
@@ -45,7 +45,7 @@ func TestGet(t *testing.T) {
 		defer teardownTest(t)
 		client := flags.MockClient{}
 		client.
-			On("Read", mockArgs...).
+			On("Get", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
 		args := []string{
 			"flags", "get",
@@ -63,7 +63,7 @@ func TestGet(t *testing.T) {
 	t.Run("with an error response is an error", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
-			On("Read", mockArgs...).
+			On("Get", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
 		args := []string{
 			"flags", "get",
