@@ -23,7 +23,6 @@ type toggleFlagModel struct {
 	help           help.Model
 	helpKeys       keyMap
 	sdkKind        string
-	alreadyEnabled bool
 }
 
 func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
@@ -65,7 +64,6 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		if msgRequestErr.IsConflict() {
-			m.alreadyEnabled = true
 			m.err = errors.NewError("Error toggling flag: you have toggled too quickly.")
 			return m, cmd
 		}
