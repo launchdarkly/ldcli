@@ -1,0 +1,35 @@
+{
+  "name": "@launchdarkly/ldcli",
+  "description": "The official command line interface for managing LaunchDarkly feature flags.",
+  "version": "0.0.1",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "go-npm install",
+    "preuninstall": "go-npm uninstall"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/launchdarkly/ldcli.git"
+  },
+  "keywords": [
+    "cli",
+    "feature-flags",
+    "feature-toggles",
+    "command-line-interface",
+    "launchdarkly-integration"
+  ],
+  "author": "LaunchDarkly <team@launchdarkly.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/launchdarkly/ldcli/issues"
+  },
+  "homepage": "https://github.com/launchdarkly/ldcli#readme",
+  "goBinary": {
+    "name": "ldcli",
+    "path": "./bin",
+    "url": "https://github.com/launchdarkly/ldcli/releases/download/v{{version}}/ldcli_{{version}}_{{platform}}_{{arch}}.tar.gz"
+  },
+  "dependencies": {
+    "@go-task/go-npm": "^0.2.0"
+  }
+}
