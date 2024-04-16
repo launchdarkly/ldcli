@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.7.0](https://github.com/launchdarkly/ldcli/compare/v0.6.0...v0.7.0) (2024-04-16)
+
+
+### Features
+
+* Add config command ([#175](https://github.com/launchdarkly/ldcli/issues/175)) ([c1feb53](https://github.com/launchdarkly/ldcli/commit/c1feb53e3499af5b8c9d57cd49f76d97205b4429))
+* add remaining SDK instructions ([#164](https://github.com/launchdarkly/ldcli/issues/164)) ([284669d](https://github.com/launchdarkly/ldcli/commit/284669d181e825fa5d0918cdac13ca0bb12ca9ff))
+* change flag toggle success message for mobile sdks ([#156](https://github.com/launchdarkly/ldcli/issues/156)) ([37c2d6d](https://github.com/launchdarkly/ldcli/commit/37c2d6d9c96fb207d56deca4d7906fe5c89b5f6a))
+* publish to npm ([#159](https://github.com/launchdarkly/ldcli/issues/159)) ([461467f](https://github.com/launchdarkly/ldcli/commit/461467f1b0b94037d15e2553a9a08983272ca9ea))
+* support env vars ([#171](https://github.com/launchdarkly/ldcli/issues/171)) ([b0380ca](https://github.com/launchdarkly/ldcli/commit/b0380caafa35579a55420ef29f8e31fb7fcd9105))
+* Use new sdk instructions instead of hello READMEs ([#152](https://github.com/launchdarkly/ldcli/issues/152)) ([6826a5c](https://github.com/launchdarkly/ldcli/commit/6826a5c9b61705f1e8f340bbd22779330cd8ee34))
+
+
+### Bug Fixes
+
+* embed instructions files & show error during show sdk step ([#174](https://github.com/launchdarkly/ldcli/issues/174)) ([ae07b46](https://github.com/launchdarkly/ldcli/commit/ae07b461f93e1f3c797138d0b89cdb7a6d16f297))
+* remove mouse wheel support from show sdk & show scroll options in help view ([#161](https://github.com/launchdarkly/ldcli/issues/161)) ([99015b1](https://github.com/launchdarkly/ldcli/commit/99015b113077a881eb5886e86b5de8b9b82af4d2))
+* remove side borders from show SDK viewport ([#162](https://github.com/launchdarkly/ldcli/issues/162)) ([d111c61](https://github.com/launchdarkly/ldcli/commit/d111c61c1f6792e2d1e88f45646a0828ec72dca6))
+* space above pagination dots and pagination bug ([#155](https://github.com/launchdarkly/ldcli/issues/155)) ([adbc53c](https://github.com/launchdarkly/ldcli/commit/adbc53c0ee39e0f9de6c54e7e8e4111f8665e6aa))
+
 ## [0.6.0](https://github.com/launchdarkly/ldcli/compare/v0.5.0...v0.6.0) (2024-04-09)
 
 

@@ -25,6 +25,19 @@ func (c *MockClient) Create(
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+func (c *MockClient) Get(
+	ctx context.Context,
+	accessToken,
+	baseURI,
+	key,
+	projKey,
+	envKey string,
+) ([]byte, error) {
+	args := c.Called(accessToken, baseURI, key, projKey, envKey)
+
+	return args.Get(0).([]byte), args.Error(1)
+}
+
 func (c *MockClient) Update(
 	ctx context.Context,
 	accessToken,

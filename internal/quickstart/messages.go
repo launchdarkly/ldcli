@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"ldcli/internal/environments"
 	"ldcli/internal/errors"
 	"ldcli/internal/flags"
+	"ldcli/internal/sdks"
 )
 
 // errMsg is sent when there is an error in one of the steps that the container model needs to
@@ -145,7 +145,7 @@ func chooseSDK(sdk sdkDetail) tea.Cmd {
 
 func readSDKInstructions(filename string) tea.Cmd {
 	return func() tea.Msg {
-		content, err := os.ReadFile(fmt.Sprintf("internal/sdks/sdk_instructions/%s.md", filename))
+		content, err := sdks.InstructionFiles.ReadFile(fmt.Sprintf("sdk_instructions/%s.md", filename))
 		if err != nil {
 			return errMsg{err: err}
 		}

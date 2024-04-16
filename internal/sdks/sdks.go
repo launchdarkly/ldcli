@@ -1,9 +1,13 @@
 package sdks
 
 import (
+	"embed"
 	"regexp"
 	"strings"
 )
+
+//go:embed sdk_instructions/*.md
+var InstructionFiles embed.FS
 
 // ReplaceFlagKey changes the placeholder flag key in the SDK instructions to the flag key from
 // the user.

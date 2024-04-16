@@ -19,6 +19,7 @@ type UpdateInput struct {
 
 type Client interface {
 	Create(ctx context.Context, accessToken, baseURI, name, key, projKey string) ([]byte, error)
+	Get(ctx context.Context, accessToken, baseURI, key, projKey, envKey string) ([]byte, error)
 	Update(
 		ctx context.Context,
 		accessToken,
@@ -54,7 +55,28 @@ func (c FlagsClient) Create(
 	flag, _, err := client.FeatureFlagsApi.PostFeatureFlag(ctx, projectKey).FeatureFlagBody(*post).Execute()
 	if err != nil {
 		return nil, errors.NewLDAPIError(err)
+	}
 
+	responseJSON, err := json.Marshal(flag)
+	if err != nil {
+		return nil, err
+	}
+
+	return responseJSON, nil
+}
+
+func (c FlagsClient) Get(
+	ctx context.Context,
+	accessToken,
+	baseURI,
+	key,
+	projectKey,
+	environmentKey string,
+) ([]byte, error) {
+	client := client.New(accessToken, baseURI, c.cliVersion)
+	flag, _, err := client.FeatureFlagsApi.GetFeatureFlag(ctx, projectKey, key).Env(environmentKey).Execute()
+	if err != nil {
+		return nil, errors.NewLDAPIError(err)
 	}
 
 	responseJSON, err := json.Marshal(flag)

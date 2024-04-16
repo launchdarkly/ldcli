@@ -17,6 +17,10 @@ func NewFlagsCmd(client flags.Client) (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
+	getCmd, err := NewGetCmd(client)
+	if err != nil {
+		return nil, err
+	}
 	updateCmd, err := NewUpdateCmd(client)
 	if err != nil {
 		return nil, err
@@ -32,6 +36,7 @@ func NewFlagsCmd(client flags.Client) (*cobra.Command, error) {
 	}
 
 	cmd.AddCommand(createCmd)
+	cmd.AddCommand(getCmd)
 	cmd.AddCommand(updateCmd)
 	cmd.AddCommand(toggleOnUpdateCmd)
 	cmd.AddCommand(toggleOffUpdateCmd)
