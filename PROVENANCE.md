@@ -13,7 +13,7 @@ To verify SLSA provenance attestations, we recommend using [slsa-verifier](https
 <!-- x-release-please-start-version -->
 ```
 # Set the version of the PACKAGE to verify
-PACKAGE_VERSION=0.6.0
+PACKAGE_VERSION=1.0.0
 ```
 <!-- x-release-please-end -->
 
