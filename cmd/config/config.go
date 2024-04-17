@@ -97,6 +97,8 @@ func run() func(*cobra.Command, []string) error {
 			}
 
 			return writeConfig(config, v, unsetKeyFn)
+		default:
+			return cmd.Help()
 		}
 
 		return nil
