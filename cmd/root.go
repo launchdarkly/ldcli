@@ -60,10 +60,7 @@ func NewRootCommand(
 	}
 
 	if useConfigFile {
-		err := setFlagsFromConfig()
-		if err != nil {
-			return nil, err
-		}
+		setFlagsFromConfig()
 	}
 
 	viper.SetEnvPrefix("LD")
@@ -143,18 +140,7 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
-func setFlagsFromConfig() error {
-	viper.AddConfigPath(config.GetConfigPath())
-	viper.SetConfigType("yml")
-	viper.SetConfigName("config")
-
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			// ignore if file not found
-		} else {
-			return err
-		}
-	}
-
-	return nil
+func setFlagsFromConfig() {
+	viper.SetConfigFile(config.GetConfigFile())
+	_ = viper.ReadInConfig()
 }
