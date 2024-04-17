@@ -34,6 +34,7 @@ LaunchDarkly CLI commands
 - `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
 
 ### Resource Commands
+
 Resource commands mirror the LaunchDarkly API and make requests for a given resource. To see a full list of resources supported by the CLI, enter `ldcli --help` into your terminal, and to see the commands available for a given resource
 
 To see the commands available for a given resource:
@@ -52,6 +53,7 @@ _(coming soon!)_
 
 [//]: # (TODO: add info about how to opt out)
 
+Running `ldcli config --set access-token {your access token}` will create a configuration file located at `$HOME/.ldcli-config.yml` with the access token. Further commands will read from this file so you do not need to specify the access token each time.
 
 ## Contributing
 
@@ -59,7 +61,7 @@ We encourage pull requests and other contributions from the community. Check out
 
 ## Verifying build provenance with the SLSA framework
 
-LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply-chain Levels for Software Artifacts) to help developers make their supply chain more secure by ensuring the authenticity and build integrity of our published packages. To learn more, see the [provenance guide](./PROVENANCE.md). 
+LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply-chain Levels for Software Artifacts) to help developers make their supply chain more secure by ensuring the authenticity and build integrity of our published packages. To learn more, see the [provenance guide](./PROVENANCE.md).
 
 ## About LaunchDarkly
 

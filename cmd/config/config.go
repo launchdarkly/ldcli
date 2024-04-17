@@ -53,6 +53,10 @@ func run() func(*cobra.Command, []string) error {
 				return err
 			}
 
+			if string(configJSON) == "{}" {
+				return nil
+			}
+
 			fmt.Fprint(cmd.OutOrStdout(), string(configJSON)+"\n")
 		case viper.GetBool(SetFlag):
 			// flag needs two arguments: a key and value
@@ -146,18 +150,14 @@ func getRawConfig() (map[string]interface{}, *viper.Viper, error) {
 func getViperWithConfigFile() (*viper.Viper, error) {
 	v := viper.GetViper()
 	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			newViper := viper.New()
-			newViper.SetConfigFile(config.GetConfigFile())
-			err = newViper.WriteConfigAs(config.GetConfigFile())
-			if err != nil {
-				return nil, err
-			}
-
-			return newViper, nil
+		newViper := viper.New()
+		newViper.SetConfigFile(config.GetConfigFile())
+		err = newViper.WriteConfig()
+		if err != nil {
+			return nil, err
 		}
 
-		return nil, err
+		return newViper, nil
 	}
 
 	return v, nil
