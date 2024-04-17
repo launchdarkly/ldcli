@@ -21,8 +21,8 @@ type ProjectsClient struct {
 
 var _ Client = ProjectsClient{}
 
-func NewClient(cliVersion string) Client {
-	return ProjectsClient{
+func NewClient(cliVersion string) *ProjectsClient {
+	return &ProjectsClient{
 		cliVersion: cliVersion,
 	}
 }

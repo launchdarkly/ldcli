@@ -36,8 +36,8 @@ type FlagsClient struct {
 
 var _ Client = FlagsClient{}
 
-func NewClient(cliVersion string) FlagsClient {
-	return FlagsClient{
+func NewClient(cliVersion string) *FlagsClient {
+	return &FlagsClient{
 		cliVersion: cliVersion,
 	}
 }

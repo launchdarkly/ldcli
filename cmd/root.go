@@ -23,12 +23,20 @@ import (
 	"ldcli/internal/projects"
 )
 
+type Clients struct {
+	EnvironmentsClient environments.Client
+	FlagsClient        flags.Client
+	MembersClient      members.Client
+	ProjectsClient     projects.Client
+}
+
 func NewRootCommand(
 	analyticsTracker analytics.Tracker,
-	environmentsClient environments.Client,
-	flagsClient flags.Client,
-	membersClient members.Client,
-	projectsClient projects.Client,
+	clients Clients,
+	// environmentsClient environments.Client,
+	// flagsClient flags.Client,
+	// membersClient members.Client,
+	// projectsClient projects.Client,
 	version string,
 	useConfigFile bool,
 ) (*cobra.Command, error) {
@@ -92,19 +100,19 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	environmentsCmd, err := envscmd.NewEnvironmentsCmd(analyticsTracker, environmentsClient)
+	environmentsCmd, err := envscmd.NewEnvironmentsCmd(analyticsTracker, clients.EnvironmentsClient)
 	if err != nil {
 		return nil, err
 	}
-	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient)
+	flagsCmd, err := flagscmd.NewFlagsCmd(clients.FlagsClient)
 	if err != nil {
 		return nil, err
 	}
-	membersCmd, err := mbrscmd.NewMembersCmd(membersClient)
+	membersCmd, err := mbrscmd.NewMembersCmd(clients.MembersClient)
 	if err != nil {
 		return nil, err
 	}
-	projectsCmd, err := projcmd.NewProjectsCmd(projectsClient)
+	projectsCmd, err := projcmd.NewProjectsCmd(clients.ProjectsClient)
 	if err != nil {
 		return nil, err
 	}
@@ -114,18 +122,21 @@ func NewRootCommand(
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
-	cmd.AddCommand(NewQuickStartCmd(environmentsClient, flagsClient))
+	cmd.AddCommand(NewQuickStartCmd(clients.EnvironmentsClient, clients.FlagsClient))
 
 	return cmd, nil
 }
 
 func Execute(analyticsTracker analytics.Tracker, version string) {
+	clients := Clients{
+		EnvironmentsClient: environments.NewClient(version),
+		FlagsClient:        flags.NewClient(version),
+		MembersClient:      members.NewClient(version),
+		ProjectsClient:     projects.NewClient(version),
+	}
 	rootCmd, err := NewRootCommand(
 		analyticsTracker,
-		environments.NewClient(version),
-		flags.NewClient(version),
-		members.NewClient(version),
-		projects.NewClient(version),
+		clients,
 		version,
 		true,
 	)

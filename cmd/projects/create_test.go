@@ -25,6 +25,9 @@ func TestCreate(t *testing.T) {
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.Clients{
+			ProjectsClient: &client,
+		}
 		args := []string{
 			"projects",
 			"create",
@@ -34,7 +37,7 @@ func TestCreate(t *testing.T) {
 			`{"key": "test-key", "name": "test-name"}`,
 		}
 
-		output, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -47,6 +50,9 @@ func TestCreate(t *testing.T) {
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.Clients{
+			ProjectsClient: &client,
+		}
 		args := []string{
 			"projects",
 			"create",
@@ -54,7 +60,7 @@ func TestCreate(t *testing.T) {
 			`{"key": "test-key", "name": "test-name"}`,
 		}
 
-		output, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -65,6 +71,9 @@ func TestCreate(t *testing.T) {
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
+		clients := cmd.Clients{
+			ProjectsClient: &client,
+		}
 		args := []string{
 			"projects",
 			"create",
@@ -76,52 +85,64 @@ func TestCreate(t *testing.T) {
 			`{"key": "test-key", "name": "test-name"}`,
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		require.EqualError(t, err, "An error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
+		clients := cmd.Clients{
+			ProjectsClient: &projects.MockClient{},
+		}
 		args := []string{
 			"projects",
 			"create",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "data" not set`+errorHelp)
 	})
 
 	t.Run("with missing short flag value is an error", func(t *testing.T) {
+		clients := cmd.Clients{
+			ProjectsClient: &projects.MockClient{},
+		}
 		args := []string{
 			"projects", "create",
 			"-d",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, `flag needs an argument: 'd' in -d`)
 	})
 
 	t.Run("with missing long flag value is an error", func(t *testing.T) {
+		clients := cmd.Clients{
+			ProjectsClient: &projects.MockClient{},
+		}
 		args := []string{
 			"projects", "create",
 			"--data",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --data`)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
+		clients := cmd.Clients{
+			ProjectsClient: &projects.MockClient{},
+		}
 		args := []string{
 			"projects",
 			"create",
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

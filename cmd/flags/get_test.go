@@ -25,6 +25,9 @@ func TestGet(t *testing.T) {
 		client.
 			On("Get", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.Clients{
+			FlagsClient: &client,
+		}
 		args := []string{
 			"flags", "get",
 			"--access-token", "testAccessToken",
@@ -34,7 +37,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -47,6 +50,9 @@ func TestGet(t *testing.T) {
 		client.
 			On("Get", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.Clients{
+			FlagsClient: &client,
+		}
 		args := []string{
 			"flags", "get",
 			"--flag", "test-key",
@@ -54,7 +60,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -65,6 +71,9 @@ func TestGet(t *testing.T) {
 		client.
 			On("Get", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
+		clients := cmd.Clients{
+			FlagsClient: &client,
+		}
 		args := []string{
 			"flags", "get",
 			"--access-token", "testAccessToken",
@@ -74,22 +83,28 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		require.EqualError(t, err, "An error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
+		clients := cmd.Clients{
+			FlagsClient: &flags.MockClient{},
+		}
 		args := []string{
 			"flags", "get",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "flag", "project" not set`+errorHelp)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
+		clients := cmd.Clients{
+			FlagsClient: &flags.MockClient{},
+		}
 		args := []string{
 			"flags", "get",
 			"--access-token", "testAccessToken",
@@ -99,7 +114,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

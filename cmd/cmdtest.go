@@ -9,28 +9,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"ldcli/internal/analytics"
-	"ldcli/internal/environments"
-	"ldcli/internal/flags"
-	"ldcli/internal/members"
-	"ldcli/internal/projects"
 )
 
 var ValidResponse = `{"valid": true}`
 
 func CallCmd(
 	t *testing.T,
-	environmentsClient *environments.MockClient,
-	flagsClient *flags.MockClient,
-	membersClient *members.MockClient,
-	projectsClient *projects.MockClient,
+	clients Clients,
 	args []string,
 ) ([]byte, error) {
 	rootCmd, err := NewRootCommand(
 		&analytics.NoopClient{},
-		environmentsClient,
-		flagsClient,
-		membersClient,
-		projectsClient,
+		clients,
 		"test",
 		false,
 	)
