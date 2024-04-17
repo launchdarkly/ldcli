@@ -48,7 +48,10 @@ func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string,
 }
 
 func (m toggleFlagModel) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.spinner.Tick, fetchFlagStatus(m.client, m.accessToken, m.baseUri, m.flagKey, defaultEnvKey, defaultProjKey)}
+	cmds := []tea.Cmd{
+		m.spinner.Tick,
+		fetchFlagStatus(m.client, m.accessToken, m.baseUri, m.flagKey, defaultEnvKey, defaultProjKey),
+	}
 
 	return tea.Sequence(cmds...)
 }
@@ -109,8 +112,6 @@ func (m toggleFlagModel) View() string {
 		toggle = "ON"
 	}
 	if !m.flagWasFetched {
-		title = "Toggle your feature flag in your Test environment"
-		bgColor = "#dcea5a"
 		margin = 1
 		toggle = m.spinner.View()
 	}
