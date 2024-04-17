@@ -15,7 +15,7 @@ var ValidResponse = `{"valid": true}`
 
 func CallCmd(
 	t *testing.T,
-	clients Clients,
+	clients APIClients,
 	args []string,
 ) ([]byte, error) {
 	rootCmd, err := NewRootCommand(

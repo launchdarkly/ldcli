@@ -25,7 +25,7 @@ func TestCreate(t *testing.T) {
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			ProjectsClient: &client,
 		}
 		args := []string{
@@ -50,7 +50,7 @@ func TestCreate(t *testing.T) {
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			ProjectsClient: &client,
 		}
 		args := []string{
@@ -71,7 +71,7 @@ func TestCreate(t *testing.T) {
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			ProjectsClient: &client,
 		}
 		args := []string{
@@ -91,7 +91,7 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			ProjectsClient: &projects.MockClient{},
 		}
 		args := []string{
@@ -105,7 +105,7 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("with missing short flag value is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			ProjectsClient: &projects.MockClient{},
 		}
 		args := []string{
@@ -119,7 +119,7 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("with missing long flag value is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			ProjectsClient: &projects.MockClient{},
 		}
 		args := []string{
@@ -133,7 +133,7 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			ProjectsClient: &projects.MockClient{},
 		}
 		args := []string{

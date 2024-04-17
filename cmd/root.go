@@ -23,7 +23,7 @@ import (
 	"ldcli/internal/projects"
 )
 
-type Clients struct {
+type APIClients struct {
 	EnvironmentsClient environments.Client
 	FlagsClient        flags.Client
 	MembersClient      members.Client
@@ -32,7 +32,7 @@ type Clients struct {
 
 func NewRootCommand(
 	analyticsTracker analytics.Tracker,
-	clients Clients,
+	clients APIClients,
 	// environmentsClient environments.Client,
 	// flagsClient flags.Client,
 	// membersClient members.Client,
@@ -128,7 +128,7 @@ func NewRootCommand(
 }
 
 func Execute(analyticsTracker analytics.Tracker, version string) {
-	clients := Clients{
+	clients := APIClients{
 		EnvironmentsClient: environments.NewClient(version),
 		FlagsClient:        flags.NewClient(version),
 		MembersClient:      members.NewClient(version),

@@ -25,7 +25,7 @@ func TestGet(t *testing.T) {
 		client.
 			On("Get", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			EnvironmentsClient: &client,
 		}
 		args := []string{
@@ -49,7 +49,7 @@ func TestGet(t *testing.T) {
 		client.
 			On("Get", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			EnvironmentsClient: &client,
 		}
 		args := []string{
@@ -69,7 +69,7 @@ func TestGet(t *testing.T) {
 		client.
 			On("Get", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			EnvironmentsClient: &client,
 		}
 		args := []string{
@@ -86,7 +86,7 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("with missing required environments is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			EnvironmentsClient: &environments.MockClient{},
 		}
 		args := []string{
@@ -99,7 +99,7 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("with missing short flag value is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			EnvironmentsClient: &environments.MockClient{},
 		}
 		args := []string{
@@ -113,7 +113,7 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("with missing long flag value is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			EnvironmentsClient: &environments.MockClient{},
 		}
 		args := []string{
@@ -127,7 +127,7 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			EnvironmentsClient: &environments.MockClient{},
 		}
 		args := []string{

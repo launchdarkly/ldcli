@@ -25,7 +25,7 @@ func TestGet(t *testing.T) {
 		client.
 			On("Get", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
 		args := []string{
@@ -50,7 +50,7 @@ func TestGet(t *testing.T) {
 		client.
 			On("Get", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
 		args := []string{
@@ -71,7 +71,7 @@ func TestGet(t *testing.T) {
 		client.
 			On("Get", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
 		args := []string{
@@ -89,7 +89,7 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			FlagsClient: &flags.MockClient{},
 		}
 		args := []string{
@@ -102,7 +102,7 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
-		clients := cmd.Clients{
+		clients := cmd.APIClients{
 			FlagsClient: &flags.MockClient{},
 		}
 		args := []string{
