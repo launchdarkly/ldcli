@@ -61,6 +61,9 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, pressableKeys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, pressableKeys.Tab):
+			if !m.flagWasFetched {
+				return m, nil
+			}
 			m.flagWasEnabled = true
 			m.enabled = !m.enabled
 			m.err = nil
@@ -106,6 +109,7 @@ func (m toggleFlagModel) View() string {
 		toggle = "ON"
 	}
 	if !m.flagWasFetched {
+		title = "Toggle your feature flag in your Test environment"
 		bgColor = "#dcea5a"
 		margin = 1
 		toggle = m.spinner.View()
