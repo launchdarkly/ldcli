@@ -20,8 +20,8 @@ type MembersClient struct {
 
 var _ Client = MembersClient{}
 
-func NewClient(cliVersion string) *MembersClient {
-	return &MembersClient{
+func NewClient(cliVersion string) MembersClient {
+	return MembersClient{
 		cliVersion: cliVersion,
 	}
 }

@@ -33,10 +33,6 @@ type APIClients struct {
 func NewRootCommand(
 	analyticsTracker analytics.Tracker,
 	clients APIClients,
-	// environmentsClient environments.Client,
-	// flagsClient flags.Client,
-	// membersClient members.Client,
-	// projectsClient projects.Client,
 	version string,
 	useConfigFile bool,
 ) (*cobra.Command, error) {

@@ -18,8 +18,8 @@ type EnvironmentsClient struct {
 
 var _ Client = EnvironmentsClient{}
 
-func NewClient(cliVersion string) *EnvironmentsClient {
-	return &EnvironmentsClient{
+func NewClient(cliVersion string) EnvironmentsClient {
+	return EnvironmentsClient{
 		cliVersion: cliVersion,
 	}
 }
