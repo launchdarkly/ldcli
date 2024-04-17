@@ -13,8 +13,6 @@ The LaunchDarkly CLI helps you manage your feature flags wherever you are, wheth
 > [!CAUTION]
 > This package is prerelease and experimental. It should not be used in production and is not supported.
 
-![demo](ldcli-setup.gif)
-
 ## Installation
 
 The LaunchDarkly CLI will soon be available for macOS, Windows, and Linux.
