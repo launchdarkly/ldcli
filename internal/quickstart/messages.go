@@ -157,13 +157,11 @@ func readSDKInstructions(filename string) tea.Cmd {
 	}
 }
 
-type showToggleFlagMsg struct {
-	flagStatus bool
-}
+type showToggleFlagMsg struct{}
 
-func showToggleFlag(flagStatus bool) tea.Cmd {
+func showToggleFlag() tea.Cmd {
 	return func() tea.Msg {
-		return showToggleFlagMsg{flagStatus: flagStatus}
+		return showToggleFlagMsg{}
 	}
 }
 
@@ -204,7 +202,7 @@ func fetchEnv(
 }
 
 type fetchedFlagStatusMsg struct {
-	flagStatus bool
+	enabled bool
 }
 
 func fetchFlagStatus(
@@ -216,7 +214,7 @@ func fetchFlagStatus(
 	projKey string,
 ) tea.Cmd {
 	return func() tea.Msg {
-		response, err := client.Read(context.Background(), accessToken, baseUri, key, projKey, envKey)
+		response, err := client.Get(context.Background(), accessToken, baseUri, key, projKey, envKey)
 		if err != nil {
 			return errMsg{err: err}
 		}
@@ -228,8 +226,7 @@ func fetchFlagStatus(
 		if err != nil {
 			return errMsg{err: err}
 		}
-
-		return fetchedFlagStatusMsg{flagStatus: resp.Environments[envKey].(map[string]interface{})["on"].(bool)}
+		return fetchedFlagStatusMsg{enabled: resp.Environments[envKey].(map[string]interface{})["on"].(bool)}
 	}
 }
 

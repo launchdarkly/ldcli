@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -20,12 +21,17 @@ type toggleFlagModel struct {
 	err            error
 	flagKey        string
 	flagWasEnabled bool
+	flagWasFetched bool
 	help           help.Model
 	helpKeys       keyMap
 	sdkKind        string
+	spinner        spinner.Model
 }
 
-func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, enabled bool, flagKey string, sdkKind string) tea.Model {
+func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
+	s := spinner.New()
+	s.Spinner = spinner.Points
+
 	return toggleFlagModel{
 		accessToken: accessToken,
 		baseUri:     baseUri,
@@ -37,11 +43,14 @@ func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string,
 			Quit: BindingQuit,
 		},
 		sdkKind: sdkKind,
+		spinner: s,
 	}
 }
 
 func (m toggleFlagModel) Init() tea.Cmd {
-	return nil
+	cmds := []tea.Cmd{m.spinner.Tick, fetchFlagStatus(m.client, m.accessToken, m.baseUri, m.flagKey, defaultEnvKey, defaultProjKey)}
+
+	return tea.Sequence(cmds...)
 }
 
 func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -57,6 +66,11 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = nil
 			return m, toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
+	case fetchedFlagStatusMsg:
+		m.enabled = msg.enabled
+		m.flagWasFetched = true
+	case spinner.TickMsg:
+		m.spinner, cmd = m.spinner.Update(msg)
 	case errMsg:
 		msgRequestErr, err := newMsgRequestError(msg.err.Error())
 		if err != nil {
@@ -90,6 +104,11 @@ func (m toggleFlagModel) View() string {
 		bgColor = "#3d9c51"
 		margin = 2
 		toggle = "ON"
+	}
+	if !m.flagWasFetched {
+		bgColor = "#dcea5a"
+		margin = 1
+		toggle = m.spinner.View()
 	}
 
 	if m.flagWasEnabled {

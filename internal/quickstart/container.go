@@ -94,7 +94,6 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentStep -= 1
 				m.currentModel = NewShowSDKInstructionsModel(
 					m.environmentsClient,
-					m.flagsClient,
 					m.accessToken,
 					m.baseUri,
 					m.sdk.canonicalName,
@@ -112,7 +111,6 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case choseSDKMsg:
 		m.currentModel = NewShowSDKInstructionsModel(
 			m.environmentsClient,
-			m.flagsClient,
 			m.accessToken,
 			m.baseUri,
 			msg.sdk.canonicalName,
@@ -137,13 +135,16 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flagsClient,
 			m.accessToken,
 			m.baseUri,
-			false,
 			m.flagKey,
 			m.sdk.kind,
 		)
+		cmd = m.currentModel.Init()
 		m.currentStep += 1
 	case fetchedEnvMsg:
 		m.environment = &msg.environment
+		m.currentModel, cmd = m.currentModel.Update(msg)
+		m.err = nil
+	case fetchedFlagStatusMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
 	case fetchedSDKInstructionsMsg, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
@@ -155,10 +156,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flagsClient,
 			m.accessToken,
 			m.baseUri,
-			msg.flagStatus,
 			m.flagKey,
 			m.sdk.kind,
 		)
+		cmd = m.currentModel.Init()
 		m.currentStep += 1
 	default:
 		log.Printf("container default: %T\n", msg)
