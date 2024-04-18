@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/bubbletea v0.25.0
 	github.com/charmbracelet/glamour v0.6.0
 	github.com/charmbracelet/lipgloss v0.10.0
+	github.com/google/uuid v1.6.0
 	github.com/launchdarkly/api-client-go/v14 v14.0.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/muesli/reflow v0.3.0
