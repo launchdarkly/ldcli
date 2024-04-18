@@ -84,8 +84,8 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case createdFlagMsg:
 		m.showSuccessView = true
-		m.existingFlagUsed = msg.existingFlagUsed
 		m.flag = msg.flag
+		m.existingFlagUsed = msg.existingFlag
 	case errMsg:
 		m.err = msg.err
 	}

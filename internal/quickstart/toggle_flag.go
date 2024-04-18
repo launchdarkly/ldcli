@@ -92,7 +92,7 @@ func (m toggleFlagModel) View() string {
 		toggle = "ON"
 	}
 
-	if m.flagWasEnabled {
+	if m.flagWasEnabled && m.err == nil {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
 	}
 
