@@ -70,27 +70,30 @@ func runGet(
 			return err
 		}
 
-		id := uuid.New()
-		baseURI := viper.GetString(cliflags.BaseURIFlag)
-		properties := map[string]interface{}{
-			"name":   "environment",
-			"action": "get",
-			"flags":  []string{cliflags.EnvironmentFlag, cliflags.ProjectFlag},
-			"id":     id.String(),
-		}
-		if baseURI != "https://app.launchdarkly.com" {
-			properties["baseURI"] = baseURI
-		}
-
 		analyticsTracker.SendEvent(
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			"CLI Command Run",
-			properties,
+			buildProperties("environment", "get", []string{cliflags.EnvironmentFlag, cliflags.ProjectFlag}),
 		)
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 
 		return nil
 	}
+}
+
+func buildProperties(name string, action string, flags []string) map[string]interface{} {
+	id := uuid.New()
+	baseURI := viper.GetString(cliflags.BaseURIFlag)
+	properties := map[string]interface{}{
+		"name":   name,
+		"action": action,
+		"flags":  flags,
+		"id":     id.String(),
+	}
+	if baseURI != "https://app.launchdarkly.com" {
+		properties["baseURI"] = baseURI
+	}
+	return properties
 }
