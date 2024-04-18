@@ -8,15 +8,17 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	"ldcli/cmd/utils"
 	"ldcli/cmd/validators"
+	"ldcli/internal/analytics"
 	"ldcli/internal/members"
 )
 
-func NewInviteCmd(client members.Client) (*cobra.Command, error) {
+func NewInviteCmd(analyticsTracker analytics.Tracker, client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Create new members and send them an invitation email",
-		RunE:  runInvite(client),
+		RunE:  runInvite(analyticsTracker, client),
 		Short: "Invite new members",
 		Use:   "invite",
 	}
@@ -45,7 +47,7 @@ func NewInviteCmd(client members.Client) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runInvite(client members.Client) func(*cobra.Command, []string) error {
+func runInvite(analyticsTracker analytics.Tracker, client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		emails := viper.GetStringSlice(cliflags.EmailsFlag)
 		memberInputs := make([]members.MemberInput, 0, len(emails))
@@ -64,6 +66,13 @@ func runInvite(client members.Client) func(*cobra.Command, []string) error {
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+
+		analyticsTracker.SendEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			"CLI Command Run",
+			utils.BuildCommandRunProperties("members", cmd.CalledAs(), []string{cliflags.EmailsFlag}),
+		)
 
 		return nil
 	}

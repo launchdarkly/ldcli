@@ -104,7 +104,7 @@ func NewRootCommand(
 	if err != nil {
 		return nil, err
 	}
-	membersCmd, err := mbrscmd.NewMembersCmd(clients.MembersClient)
+	membersCmd, err := mbrscmd.NewMembersCmd(analyticsTracker, clients.MembersClient)
 	if err != nil {
 		return nil, err
 	}

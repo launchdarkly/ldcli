@@ -3,22 +3,23 @@ package members
 import (
 	"github.com/spf13/cobra"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/members"
 )
 
-func NewMembersCmd(client members.Client) (*cobra.Command, error) {
+func NewMembersCmd(analyticsTracker analytics.Tracker, client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "members",
 		Short: "Make requests (list, create, etc.) on members",
 		Long:  "Make requests (list, create, etc.) on members",
 	}
 
-	createCmd, err := NewCreateCmd(client)
+	createCmd, err := NewCreateCmd(analyticsTracker, client)
 	if err != nil {
 		return nil, err
 	}
 
-	inviteCmd, err := NewInviteCmd(client)
+	inviteCmd, err := NewInviteCmd(analyticsTracker, client)
 	if err != nil {
 		return nil, err
 	}

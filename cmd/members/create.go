@@ -9,15 +9,17 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	"ldcli/cmd/utils"
 	"ldcli/cmd/validators"
+	"ldcli/internal/analytics"
 	"ldcli/internal/members"
 )
 
-func NewCreateCmd(client members.Client) (*cobra.Command, error) {
+func NewCreateCmd(analyticsTracker analytics.Tracker, client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Create new members and send them an invitation email",
-		RunE:  runCreate(client),
+		RunE:  runCreate(analyticsTracker, client),
 		Short: "Create new members",
 		Use:   "create",
 	}
@@ -35,7 +37,7 @@ func NewCreateCmd(client members.Client) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runCreate(client members.Client) func(*cobra.Command, []string) error {
+func runCreate(analyticsTracker analytics.Tracker, client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		var data []members.MemberInput
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
@@ -53,6 +55,13 @@ func runCreate(client members.Client) func(*cobra.Command, []string) error {
 		if err != nil {
 			return err
 		}
+
+		analyticsTracker.SendEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			"CLI Command Run",
+			utils.BuildCommandRunProperties("members", cmd.CalledAs(), []string{cliflags.DataFlag}),
+		)
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 
