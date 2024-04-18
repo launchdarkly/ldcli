@@ -1,0 +1,14 @@
+View and modify specific configuration values
+
+Usage:
+  ldcli config [flags]
+
+Flags:
+  -h, --help           help for config
+      --list           List configs
+      --set            Set a config field to a value
+      --unset string   Unset a config field
+
+Global Flags:
+      --access-token string   LaunchDarkly API token with write-level access
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")

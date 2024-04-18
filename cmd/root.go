@@ -23,12 +23,16 @@ import (
 	"ldcli/internal/projects"
 )
 
+type APIClients struct {
+	EnvironmentsClient environments.Client
+	FlagsClient        flags.Client
+	MembersClient      members.Client
+	ProjectsClient     projects.Client
+}
+
 func NewRootCommand(
 	analyticsTracker analytics.Tracker,
-	environmentsClient environments.Client,
-	flagsClient flags.Client,
-	membersClient members.Client,
-	projectsClient projects.Client,
+	clients APIClients,
 	version string,
 	useConfigFile bool,
 ) (*cobra.Command, error) {
@@ -60,10 +64,7 @@ func NewRootCommand(
 	}
 
 	if useConfigFile {
-		err := setFlagsFromConfig()
-		if err != nil {
-			return nil, err
-		}
+		setFlagsFromConfig()
 	}
 
 	viper.SetEnvPrefix("LD")
@@ -95,19 +96,19 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	environmentsCmd, err := envscmd.NewEnvironmentsCmd(analyticsTracker, environmentsClient)
+	environmentsCmd, err := envscmd.NewEnvironmentsCmd(analyticsTracker, clients.EnvironmentsClient)
 	if err != nil {
 		return nil, err
 	}
-	flagsCmd, err := flagscmd.NewFlagsCmd(flagsClient)
+	flagsCmd, err := flagscmd.NewFlagsCmd(clients.FlagsClient)
 	if err != nil {
 		return nil, err
 	}
-	membersCmd, err := mbrscmd.NewMembersCmd(membersClient)
+	membersCmd, err := mbrscmd.NewMembersCmd(clients.MembersClient)
 	if err != nil {
 		return nil, err
 	}
-	projectsCmd, err := projcmd.NewProjectsCmd(projectsClient)
+	projectsCmd, err := projcmd.NewProjectsCmd(clients.ProjectsClient)
 	if err != nil {
 		return nil, err
 	}
@@ -117,18 +118,21 @@ func NewRootCommand(
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
-	cmd.AddCommand(NewQuickStartCmd(environmentsClient, flagsClient))
+	cmd.AddCommand(NewQuickStartCmd(clients.EnvironmentsClient, clients.FlagsClient))
 
 	return cmd, nil
 }
 
 func Execute(analyticsTracker analytics.Tracker, version string) {
+	clients := APIClients{
+		EnvironmentsClient: environments.NewClient(version),
+		FlagsClient:        flags.NewClient(version),
+		MembersClient:      members.NewClient(version),
+		ProjectsClient:     projects.NewClient(version),
+	}
 	rootCmd, err := NewRootCommand(
 		analyticsTracker,
-		environments.NewClient(version),
-		flags.NewClient(version),
-		members.NewClient(version),
-		projects.NewClient(version),
+		clients,
 		version,
 		true,
 	)
@@ -143,18 +147,7 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
-func setFlagsFromConfig() error {
-	viper.AddConfigPath(config.GetConfigPath())
-	viper.SetConfigType("yml")
-	viper.SetConfigName("config")
-
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			// ignore if file not found
-		} else {
-			return err
-		}
-	}
-
-	return nil
+func setFlagsFromConfig() {
+	viper.SetConfigFile(config.GetConfigFile())
+	_ = viper.ReadInConfig()
 }

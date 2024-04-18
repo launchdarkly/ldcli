@@ -2,15 +2,13 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/mitchellh/go-homedir"
 
 	"ldcli/cmd/cliflags"
 )
 
-const FileName = "config.yml"
+const Filename = ".ldcli-config.yml"
 
 // ConfigFile represents the data stored in the config file.
 type ConfigFile struct {
@@ -35,20 +33,15 @@ func NewConfig(rawConfig map[string]interface{}) ConfigFile {
 }
 
 func GetConfigPath() string {
-	configPath := os.Getenv("XDG_CONFIG_HOME")
-	if configPath == "" {
-		home, err := homedir.Dir()
-		if err != nil {
-			return ""
-		}
-		configPath = filepath.Join(home, ".config")
+	home, err := homedir.Dir()
+	if err != nil {
+		return ""
 	}
 
-	return filepath.Join(configPath, "ldcli")
+	return home
 }
 
 // GetConfigFile gets the full path to the config file.
-// TODO: we should ensure this works on windows, linux, macos.
 func GetConfigFile() string {
-	return fmt.Sprintf("%s/%s", GetConfigPath(), FileName)
+	return fmt.Sprintf("%s/%s", GetConfigPath(), Filename)
 }

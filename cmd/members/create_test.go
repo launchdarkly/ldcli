@@ -25,6 +25,9 @@ func TestCreate(t *testing.T) {
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			MembersClient: &client,
+		}
 		args := []string{
 			"members",
 			"create",
@@ -34,7 +37,7 @@ func TestCreate(t *testing.T) {
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
-		output, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -50,6 +53,9 @@ func TestCreate(t *testing.T) {
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			MembersClient: &client,
+		}
 		args := []string{
 			"members",
 			"create",
@@ -57,7 +63,7 @@ func TestCreate(t *testing.T) {
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
-		output, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -68,6 +74,9 @@ func TestCreate(t *testing.T) {
 		client.
 			On("Create", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
+		clients := cmd.APIClients{
+			MembersClient: &client,
+		}
 		args := []string{
 			"members",
 			"create",
@@ -77,30 +86,36 @@ func TestCreate(t *testing.T) {
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &client, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		require.EqualError(t, err, "An error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			MembersClient: &members.MockClient{},
+		}
 		args := []string{
 			"members",
 			"create",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &members.MockClient{}, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "data" not set`+errorHelp)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			MembersClient: &members.MockClient{},
+		}
 		args := []string{
 			"members",
 			"create",
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, &members.MockClient{}, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

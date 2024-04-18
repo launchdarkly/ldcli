@@ -17,18 +17,22 @@ func TestList(t *testing.T) {
 		"testAccessToken",
 		"http://test.com",
 	}
+
 	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			ProjectsClient: &client,
+		}
 		args := []string{
 			"projects", "list",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
 		}
 
-		output, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -41,12 +45,15 @@ func TestList(t *testing.T) {
 		client.
 			On("List", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			ProjectsClient: &client,
+		}
 		args := []string{
 			"projects",
 			"list",
 		}
 
-		output, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -57,46 +64,58 @@ func TestList(t *testing.T) {
 		client.
 			On("List", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("an error"))
+		clients := cmd.APIClients{
+			ProjectsClient: &client,
+		}
 		args := []string{
 			"projects", "list",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, nil, &client, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		require.EqualError(t, err, "an error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			ProjectsClient: &projects.MockClient{},
+		}
 		args := []string{
 			"projects", "list",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token" not set`+errorHelp)
 	})
 
 	t.Run("with missing long flag value is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			ProjectsClient: &projects.MockClient{},
+		}
 		args := []string{
 			"projects", "list",
 			"--access-token",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --access-token`)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			ProjectsClient: &projects.MockClient{},
+		}
 		args := []string{
 			"projects", "list",
 			"--access-token", "testAccessToken",
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, nil, nil, nil, &projects.MockClient{}, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
