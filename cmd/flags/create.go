@@ -9,15 +9,17 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	"ldcli/cmd/utils"
 	"ldcli/cmd/validators"
+	"ldcli/internal/analytics"
 	"ldcli/internal/flags"
 )
 
-func NewCreateCmd(client flags.Client) (*cobra.Command, error) {
+func NewCreateCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Create a new flag",
-		RunE:  runCreate(client),
+		RunE:  runCreate(analyticsTracker, client),
 		Short: "Create a new flag",
 		Use:   "create",
 	}
@@ -50,7 +52,7 @@ type inputData struct {
 	Key  string `json:"key"`
 }
 
-func runCreate(client flags.Client) func(*cobra.Command, []string) error {
+func runCreate(analyticsTracker analytics.Tracker, client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// rebind flags used in other subcommands
 		_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
@@ -73,6 +75,13 @@ func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 		if err != nil {
 			return err
 		}
+
+		analyticsTracker.SendEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			"CLI Command Run",
+			utils.BuildCommandRunProperties("flags", cmd.CalledAs(), []string{cliflags.DataFlag, cliflags.ProjectFlag}),
+		)
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 

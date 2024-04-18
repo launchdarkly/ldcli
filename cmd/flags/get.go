@@ -8,15 +8,17 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	"ldcli/cmd/utils"
 	"ldcli/cmd/validators"
+	"ldcli/internal/analytics"
 	"ldcli/internal/flags"
 )
 
-func NewGetCmd(client flags.Client) (*cobra.Command, error) {
+func NewGetCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Get a flag to check its details",
-		RunE:  runGet(client),
+		RunE:  runGet(analyticsTracker, client),
 		Short: "Get a flag",
 		Use:   "get",
 	}
@@ -54,7 +56,7 @@ func NewGetCmd(client flags.Client) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runGet(client flags.Client) func(*cobra.Command, []string) error {
+func runGet(analyticsTracker analytics.Tracker, client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// rebind flags used in other subcommands
 		_ = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
@@ -72,6 +74,13 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 		if err != nil {
 			return err
 		}
+
+		analyticsTracker.SendEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			"CLI Command Run",
+			utils.BuildCommandRunProperties("flags", cmd.CalledAs(), []string{cliflags.FlagFlag, cliflags.ProjectFlag, cliflags.EnvironmentFlag}),
+		)
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 

@@ -100,7 +100,7 @@ func NewRootCommand(
 	if err != nil {
 		return nil, err
 	}
-	flagsCmd, err := flagscmd.NewFlagsCmd(clients.FlagsClient)
+	flagsCmd, err := flagscmd.NewFlagsCmd(analyticsTracker, clients.FlagsClient)
 	if err != nil {
 		return nil, err
 	}
