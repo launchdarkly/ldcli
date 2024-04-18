@@ -3,10 +3,10 @@ description: Publish an npm package.
 inputs:
   prerelease:
     description: 'Is this a prerelease. If so, then the latest tag will not be updated in npm.'
-    required: true
-  dry_run:
+    required: false
+  dry-run:
     description: 'Is this a dry run. If so no package will be published.'
-    required: true
+    required: false
 
 runs:
   using: composite
@@ -17,4 +17,4 @@ runs:
         ./scripts/publish-npm.sh
       env:
         LD_RELEASE_IS_PRERELEASE: ${{ inputs.prerelease }}
-        LD_RELEASE_IS_DRYRUN: ${{ inputs.dry_run }}
+        LD_RELEASE_IS_DRYRUN: ${{ inputs.dry-run }}
