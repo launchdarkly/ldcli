@@ -129,18 +129,11 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = nil
 	case errMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
-	case noInstructionsMsg:
-		// skip the ShowSDKInstructionsModel and move along to toggling the flag
-		m.currentModel = NewToggleFlagModel(
-			m.flagsClient,
-			m.accessToken,
-			m.baseUri,
-			m.flagKey,
-			m.sdk.kind,
-		)
-		m.currentStep += 1
 	case fetchedEnvMsg:
 		m.environment = &msg.environment
+		m.currentModel, cmd = m.currentModel.Update(msg)
+		m.err = nil
+	case fetchedFlagStatusMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
 	case fetchedSDKInstructionsMsg, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
@@ -155,6 +148,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flagKey,
 			m.sdk.kind,
 		)
+		cmd = m.currentModel.Init()
 		m.currentStep += 1
 	default:
 		log.Printf("container default: %T\n", msg)

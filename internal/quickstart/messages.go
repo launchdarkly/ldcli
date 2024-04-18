@@ -202,6 +202,35 @@ func fetchEnv(
 	}
 }
 
+type fetchedFlagStatusMsg struct {
+	enabled bool
+}
+
+func fetchFlagStatus(
+	client flags.Client,
+	accessToken string,
+	baseUri string,
+	key,
+	envKey,
+	projKey string,
+) tea.Cmd {
+	return func() tea.Msg {
+		response, err := client.Get(context.Background(), accessToken, baseUri, key, projKey, envKey)
+		if err != nil {
+			return errMsg{err: err}
+		}
+
+		var resp struct {
+			Environments map[string]interface{} `json:"environments"`
+		}
+		err = json.Unmarshal(response, &resp)
+		if err != nil {
+			return errMsg{err: err}
+		}
+		return fetchedFlagStatusMsg{enabled: resp.Environments[envKey].(map[string]interface{})["on"].(bool)}
+	}
+}
+
 // noInstructionsMsg is sent when we can't find the SDK instructions repository for the given SDK.
 type noInstructionsMsg struct{}
 
