@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/launchdarkly/ldcli/compare/v0.7.0...v0.8.0) (2024-04-18)
+
+
+### Features
+
+* add get subcommand to flag ([#180](https://github.com/launchdarkly/ldcli/issues/180)) ([19443ab](https://github.com/launchdarkly/ldcli/commit/19443ab96420cd93af277ece0a9f069d11bbd375))
+* display current flag state on toggle flag page ([#183](https://github.com/launchdarkly/ldcli/issues/183)) ([cfb3c1f](https://github.com/launchdarkly/ldcli/commit/cfb3c1fb206e7838ef4237167e242e8785a8a08e))
+
+
+### Bug Fixes
+
+* Change config file location ([#185](https://github.com/launchdarkly/ldcli/issues/185)) ([cc987c4](https://github.com/launchdarkly/ldcli/commit/cc987c46c4550a0fba2800470fd0961901ba1a61))
+* remove gif and reference from readme ([#184](https://github.com/launchdarkly/ldcli/issues/184)) ([db6f378](https://github.com/launchdarkly/ldcli/commit/db6f378fc7bf1db6a1b7dc5979ec9064ac4030b8))
+* Show help when running `ldcli config` ([#186](https://github.com/launchdarkly/ldcli/issues/186)) ([92a3e51](https://github.com/launchdarkly/ldcli/commit/92a3e51d96d25e02162f79235f0a82a0db67da98))
+
 ## [0.7.0](https://github.com/launchdarkly/ldcli/compare/v0.6.0...v0.7.0) (2024-04-16)
 
 
