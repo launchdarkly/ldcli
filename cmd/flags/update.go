@@ -19,9 +19,15 @@ func NewUpdateCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cob
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Update a flag",
-		RunE:  runUpdate(analyticsTracker, client),
+		RunE:  runUpdate(client),
 		Short: "Update a flag",
 		Use:   "update",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			commandRunEvent := utils.CommandRunEventType{
+				EventName: "flags",
+			}
+			commandRunEvent.SendEvents(analyticsTracker, cmd)
+		},
 	}
 
 	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
@@ -61,9 +67,15 @@ func NewToggleOnUpdateCmd(analyticsTracker analytics.Tracker, client flags.Clien
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Turn a flag on",
-		RunE:  runUpdate(analyticsTracker, client),
+		RunE:  runUpdate(client),
 		Short: "Turn a flag on",
 		Use:   "toggle-on",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			commandRunEvent := utils.CommandRunEventType{
+				EventName: "flags",
+			}
+			commandRunEvent.SendEvents(analyticsTracker, cmd)
+		},
 	}
 
 	return setToggleCommandFlags(cmd)
@@ -73,9 +85,15 @@ func NewToggleOffUpdateCmd(analyticsTracker analytics.Tracker, client flags.Clie
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Turn a flag off",
-		RunE:  runUpdate(analyticsTracker, client),
+		RunE:  runUpdate(client),
 		Short: "Turn a flag off",
 		Use:   "toggle-off",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			commandRunEvent := utils.CommandRunEventType{
+				EventName: "flags",
+			}
+			commandRunEvent.SendEvents(analyticsTracker, cmd)
+		},
 	}
 
 	return setToggleCommandFlags(cmd)
@@ -115,7 +133,7 @@ func setToggleCommandFlags(cmd *cobra.Command) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runUpdate(analyticsTracker analytics.Tracker, client flags.Client) func(*cobra.Command, []string) error {
+func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// rebind flags used in other subcommands
 		_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
@@ -145,13 +163,6 @@ func runUpdate(analyticsTracker analytics.Tracker, client flags.Client) func(*co
 		if err != nil {
 			return err
 		}
-
-		analyticsTracker.SendEvent(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			"CLI Command Run",
-			utils.BuildCommandRunProperties("flags", cmd.CalledAs(), []string{cliflags.DataFlag, cliflags.ProjectFlag, cliflags.FlagFlag}),
-		)
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 

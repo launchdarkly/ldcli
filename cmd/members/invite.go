@@ -18,9 +18,15 @@ func NewInviteCmd(analyticsTracker analytics.Tracker, client members.Client) (*c
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Create new members and send them an invitation email",
-		RunE:  runInvite(analyticsTracker, client),
+		RunE:  runInvite(client),
 		Short: "Invite new members",
 		Use:   "invite",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			commandRunEvent := utils.CommandRunEventType{
+				EventName: "members",
+			}
+			commandRunEvent.SendEvents(analyticsTracker, cmd)
+		},
 	}
 
 	cmd.Flags().StringSliceP(cliflags.EmailsFlag, "e", []string{}, "A comma separated list of emails")
@@ -47,7 +53,7 @@ func NewInviteCmd(analyticsTracker analytics.Tracker, client members.Client) (*c
 	return cmd, nil
 }
 
-func runInvite(analyticsTracker analytics.Tracker, client members.Client) func(*cobra.Command, []string) error {
+func runInvite(client members.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		emails := viper.GetStringSlice(cliflags.EmailsFlag)
 		memberInputs := make([]members.MemberInput, 0, len(emails))
@@ -66,13 +72,6 @@ func runInvite(analyticsTracker analytics.Tracker, client members.Client) func(*
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
-
-		analyticsTracker.SendEvent(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			"CLI Command Run",
-			utils.BuildCommandRunProperties("members", cmd.CalledAs(), []string{cliflags.EmailsFlag}),
-		)
 
 		return nil
 	}

@@ -19,9 +19,15 @@ func NewCreateCmd(analyticsTracker analytics.Tracker, client projects.Client) (*
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Create a new project",
-		RunE:  runCreate(analyticsTracker, client),
+		RunE:  runCreate(client),
 		Short: "Create a new project",
 		Use:   "create",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			commandRunEvent := utils.CommandRunEventType{
+				EventName: "projects",
+			}
+			commandRunEvent.SendEvents(analyticsTracker, cmd)
+		},
 	}
 
 	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
@@ -42,7 +48,7 @@ type inputData struct {
 	Key  string `json:"key"`
 }
 
-func runCreate(analyticsTracker analytics.Tracker, client projects.Client) func(*cobra.Command, []string) error {
+func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		var data inputData
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
@@ -63,13 +69,6 @@ func runCreate(analyticsTracker analytics.Tracker, client projects.Client) func(
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
-
-		analyticsTracker.SendEvent(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			"CLI Command Run",
-			utils.BuildCommandRunProperties("projects", cmd.CalledAs(), []string{cliflags.DataFlag}),
-		)
 
 		return nil
 	}

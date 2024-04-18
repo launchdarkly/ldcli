@@ -18,15 +18,21 @@ func NewListCmd(analyticsTracker analytics.Tracker, client projects.Client) *cob
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Return a list of projects",
-		RunE:  runList(analyticsTracker, client),
+		RunE:  runList(client),
 		Short: "Return a list of projects",
 		Use:   "list",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			commandRunEvent := utils.CommandRunEventType{
+				EventName: "projects",
+			}
+			commandRunEvent.SendEvents(analyticsTracker, cmd)
+		},
 	}
 
 	return cmd
 }
 
-func runList(analyticsTracker analytics.Tracker, client projects.Client) func(*cobra.Command, []string) error {
+func runList(client projects.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		response, err := client.List(
 			context.Background(),
@@ -38,13 +44,6 @@ func runList(analyticsTracker analytics.Tracker, client projects.Client) func(*c
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
-
-		analyticsTracker.SendEvent(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			"CLI Command Run",
-			utils.BuildCommandRunProperties("projects", cmd.CalledAs(), []string{cliflags.AccessTokenFlag}),
-		)
 
 		return nil
 	}

@@ -21,9 +21,15 @@ func NewGetCmd(
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Return an environment",
-		RunE:  runGet(analyticsTracker, client),
+		RunE:  runGet(client),
 		Short: "Return an environment",
 		Use:   "get",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			commandRunEvent := utils.CommandRunEventType{
+				EventName: "environments",
+			}
+			commandRunEvent.SendEvents(analyticsTracker, cmd)
+		},
 	}
 
 	cmd.Flags().StringP(cliflags.EnvironmentFlag, "e", "", "Environment key")
@@ -51,7 +57,6 @@ func NewGetCmd(
 }
 
 func runGet(
-	analyticsTracker analytics.Tracker,
 	client environments.Client,
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
@@ -68,13 +73,6 @@ func runGet(
 		if err != nil {
 			return err
 		}
-
-		analyticsTracker.SendEvent(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			"CLI Command Run",
-			utils.BuildCommandRunProperties("environment", "get", []string{cliflags.EnvironmentFlag, cliflags.ProjectFlag}),
-		)
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 

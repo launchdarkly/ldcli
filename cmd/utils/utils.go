@@ -2,17 +2,41 @@ package utils
 
 import (
 	"ldcli/cmd/cliflags"
+	"ldcli/internal/analytics"
 
 	"github.com/google/uuid"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
-func BuildCommandRunProperties(name string, action string, flags []string) map[string]interface{} {
+type CommandRunEventType struct {
+	EventName string
+}
+
+func (c CommandRunEventType) SendEvents(analyticsTracker analytics.Tracker, cmd *cobra.Command) {
+	analyticsTracker.SendEvent(
+		viper.GetString(cliflags.AccessTokenFlag),
+		viper.GetString(cliflags.BaseURIFlag),
+		"CLI Command Run",
+		c.buildProperties(cmd),
+	)
+}
+
+func (c CommandRunEventType) buildProperties(cmd *cobra.Command) map[string]interface{} {
 	id := uuid.New()
 	baseURI := viper.GetString(cliflags.BaseURIFlag)
+	var flags []string
+	if cmd.HasFlags() {
+		flagSet := cmd.Flags()
+		flagSet.Visit(func(f *pflag.Flag) {
+			flags = append(flags, f.Name)
+		})
+	}
+
 	properties := map[string]interface{}{
-		"name":   name,
-		"action": action,
+		"name":   c.EventName,
+		"action": cmd.CalledAs(),
 		"flags":  flags,
 		"id":     id.String(),
 	}
