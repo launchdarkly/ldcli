@@ -9,15 +9,17 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	"ldcli/cmd/utils"
 	"ldcli/cmd/validators"
+	"ldcli/internal/analytics"
 	"ldcli/internal/projects"
 )
 
-func NewCreateCmd(client projects.Client) (*cobra.Command, error) {
+func NewCreateCmd(analyticsTracker analytics.Tracker, client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Create a new project",
-		RunE:  runCreate(client),
+		RunE:  runCreate(analyticsTracker, client),
 		Short: "Create a new project",
 		Use:   "create",
 	}
@@ -40,7 +42,7 @@ type inputData struct {
 	Key  string `json:"key"`
 }
 
-func runCreate(client projects.Client) func(*cobra.Command, []string) error {
+func runCreate(analyticsTracker analytics.Tracker, client projects.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		var data inputData
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
@@ -61,6 +63,13 @@ func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+
+		analyticsTracker.SendEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			"CLI Command Run",
+			utils.BuildCommandRunProperties("projects", cmd.CalledAs(), []string{cliflags.DataFlag}),
+		)
 
 		return nil
 	}

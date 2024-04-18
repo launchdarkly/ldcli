@@ -108,7 +108,7 @@ func NewRootCommand(
 	if err != nil {
 		return nil, err
 	}
-	projectsCmd, err := projcmd.NewProjectsCmd(clients.ProjectsClient)
+	projectsCmd, err := projcmd.NewProjectsCmd(analyticsTracker, clients.ProjectsClient)
 	if err != nil {
 		return nil, err
 	}
