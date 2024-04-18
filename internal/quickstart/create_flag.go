@@ -85,6 +85,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case createdFlagMsg:
 		m.showSuccessView = true
 		m.flag = msg.flag
+		m.existingFlagUsed = msg.existingFlag
 	case errMsg:
 		m.err = msg.err
 	}
@@ -97,7 +98,11 @@ func (m createFlagModel) View() string {
 		MarginLeft(2)
 
 	if m.showSuccessView {
-		return fmt.Sprintf("Flag %q created successfully! Press enter to continue.", m.flag.name)
+		successMessage := fmt.Sprintf("Flag %q created successfully!", m.flag.name)
+		if m.existingFlagUsed {
+			successMessage = fmt.Sprintf("Using existing flag %q for setup.", m.flag.name)
+		}
+		return successMessage + " Press enter to continue."
 	}
 
 	return fmt.Sprintf(
