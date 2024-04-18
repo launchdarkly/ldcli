@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	"ldcli/cmd/utils"
 	"ldcli/cmd/validators"
 	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
@@ -74,26 +73,11 @@ func runGet(
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			"CLI Command Run",
-			buildProperties("environment", "get", []string{cliflags.EnvironmentFlag, cliflags.ProjectFlag}),
+			utils.BuildCommandRunProperties("environment", "get", []string{cliflags.EnvironmentFlag, cliflags.ProjectFlag}),
 		)
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 
 		return nil
 	}
-}
-
-func buildProperties(name string, action string, flags []string) map[string]interface{} {
-	id := uuid.New()
-	baseURI := viper.GetString(cliflags.BaseURIFlag)
-	properties := map[string]interface{}{
-		"name":   name,
-		"action": action,
-		"flags":  flags,
-		"id":     id.String(),
-	}
-	if baseURI != "https://app.launchdarkly.com" {
-		properties["baseURI"] = baseURI
-	}
-	return properties
 }
