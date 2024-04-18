@@ -2,7 +2,7 @@ name: Manually Publish Images and Artifacts
 on:
   workflow_dispatch:
     inputs:
-      dry_run:
+      dry-run:
         description: 'Skip publishing to DockerHub and Homebrew'
         type: boolean
         required: false
@@ -35,7 +35,7 @@ jobs:
       - uses: ./.github/actions/publish
         id: publish
         with:
-          dry-run: ${{ inputs.dry_run }}
+          dry-run: ${{ inputs.dry-run }}
           token: ${{ secrets.GITHUB_TOKEN }}
           homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
           tag: ${{ inputs.tag }}
@@ -65,6 +65,7 @@ jobs:
         name: Publish NPM Package
         uses: ./.github/actions/publish-npm
         with:
+          dry-run: ${{ inputs.dry-run }}
           prerelease: ${{ inputs.prerelease }}
 
   release-ldcli-provenance:
