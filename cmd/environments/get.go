@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -68,14 +70,24 @@ func runGet(
 			return err
 		}
 
+		id := uuid.New()
+		baseURI := viper.GetString(cliflags.BaseURIFlag)
+		properties := map[string]interface{}{
+			"name":   "environment",
+			"action": "get",
+			"flags":  []string{cliflags.EnvironmentFlag, cliflags.ProjectFlag},
+			"id":     id.String(),
+		}
+		if baseURI != "https://app.launchdarkly.com" {
+			properties["baseURI"] = baseURI
+		}
+
 		analyticsTracker.SendEvent(
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
-			"environment_get",
-			map[string]interface{}{
-				"key":        viper.GetString(cliflags.EnvironmentFlag),
-				"projectKey": viper.GetString(cliflags.ProjectFlag),
-			})
+			"CLI Command Run",
+			properties,
+		)
 
 		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
 
