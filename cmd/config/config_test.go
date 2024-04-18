@@ -16,7 +16,7 @@ func TestNoFlag(t *testing.T) {
 		"config",
 	}
 
-	output, err := cmd.CallCmd(t, nil, nil, nil, nil, args)
+	output, err := cmd.CallCmd(t, cmd.APIClients{}, args)
 
 	require.NoError(t, err)
 

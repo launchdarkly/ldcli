@@ -26,11 +26,15 @@ func TestUpdate(t *testing.T) {
 			},
 		},
 	}
+
 	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
 		args := []string{
 			"flags", "update",
 			"--access-token", "testAccessToken",
@@ -40,7 +44,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -53,6 +57,9 @@ func TestUpdate(t *testing.T) {
 		client.
 			On("Update", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
 		args := []string{
 			"flags", "update",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
@@ -60,7 +67,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -71,6 +78,9 @@ func TestUpdate(t *testing.T) {
 		client.
 			On("Update", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
 		args := []string{
 			"flags", "update",
 			"--access-token", "testAccessToken",
@@ -80,22 +90,28 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		require.EqualError(t, err, "An error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			FlagsClient: &flags.MockClient{},
+		}
 		args := []string{
 			"flags", "update",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "data", "flag", "project" not set`+errorHelp)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			FlagsClient: &flags.MockClient{},
+		}
 		args := []string{
 			"flags", "update",
 			"--access-token", "testAccessToken",
@@ -104,7 +120,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
@@ -125,11 +141,15 @@ func TestToggle(t *testing.T) {
 			},
 		},
 	}
+
 	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
 			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
 		args := []string{
 			"flags", "toggle-on",
 			"--access-token", "testAccessToken",
@@ -139,7 +159,7 @@ func TestToggle(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		output, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -150,6 +170,9 @@ func TestToggle(t *testing.T) {
 		client.
 			On("Update", mockArgs...).
 			Return([]byte(`{}`), errors.NewError("An error"))
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
 		args := []string{
 			"flags", "toggle-on",
 			"--access-token", "testAccessToken",
@@ -159,22 +182,28 @@ func TestToggle(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &client, nil, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		require.EqualError(t, err, "An error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			FlagsClient: &flags.MockClient{},
+		}
 		args := []string{
 			"flags", "toggle-on",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "flag", "project" not set`+errorHelp)
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			FlagsClient: &flags.MockClient{},
+		}
 		args := []string{
 			"flags", "toggle-on",
 			"--access-token", "testAccessToken",
@@ -184,7 +213,7 @@ func TestToggle(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, nil, &flags.MockClient{}, nil, nil, args)
+		_, err := cmd.CallCmd(t, clients, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

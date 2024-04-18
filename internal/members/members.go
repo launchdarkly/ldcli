@@ -3,6 +3,7 @@ package members
 import (
 	"context"
 	"encoding/json"
+
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
 	"ldcli/internal/client"
@@ -17,7 +18,9 @@ type MembersClient struct {
 	cliVersion string
 }
 
-func NewClient(cliVersion string) Client {
+var _ Client = MembersClient{}
+
+func NewClient(cliVersion string) MembersClient {
 	return MembersClient{
 		cliVersion: cliVersion,
 	}
