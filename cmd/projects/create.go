@@ -9,25 +9,17 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
-	"ldcli/cmd/utils"
 	"ldcli/cmd/validators"
-	"ldcli/internal/analytics"
 	"ldcli/internal/projects"
 )
 
-func NewCreateCmd(analyticsTracker analytics.Tracker, client projects.Client) (*cobra.Command, error) {
+func NewCreateCmd(client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Create a new project",
 		RunE:  runCreate(client),
 		Short: "Create a new project",
 		Use:   "create",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			commandRunEvent := utils.CommandRunEventType{
-				EventName: "projects",
-			}
-			commandRunEvent.SendEvents(analyticsTracker, cmd)
-		},
 	}
 
 	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
