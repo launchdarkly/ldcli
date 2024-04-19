@@ -113,7 +113,7 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	cmd.AddCommand(configcmd.NewConfigCmd())
+	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
 	cmd.AddCommand(environmentsCmd)
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)

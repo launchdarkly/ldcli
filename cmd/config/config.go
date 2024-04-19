@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
+	"ldcli/cmd/cliflags"
+	"ldcli/internal/analytics"
 	"ldcli/internal/config"
 )
 
@@ -19,7 +21,7 @@ const (
 	UnsetFlag = "unset"
 )
 
-func NewConfigCmd() *cobra.Command {
+func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 	cmd := &cobra.Command{
 		Long:  "View and modify specific configuration values",
 		RunE:  run(),
@@ -35,6 +37,15 @@ func NewConfigCmd() *cobra.Command {
 	_ = viper.BindPFlag(UnsetFlag, cmd.Flags().Lookup(UnsetFlag))
 
 	// TODO: running config should show help
+
+	cmd.PreRun = func(cmd *cobra.Command, args []string) {
+		analyticsTracker.SendEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			"CLI Command Run",
+			analytics.CmdRunEventProperties(cmd, "config"),
+		)
+	}
 
 	return cmd
 }
