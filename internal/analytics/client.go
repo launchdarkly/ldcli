@@ -62,11 +62,13 @@ func (c *Client) SendEvent(
 		if err != nil { //nolint:staticcheck
 			// TODO: log error
 		}
-		if resp != nil {
-			resp.Body.Close()
+		if resp == nil {
+			c.wg.Done()
+			return
 		}
+		resp.Body.Close()
 
-		_, err := io.ReadAll(resp.Body)
+		_, err = io.ReadAll(resp.Body)
 		if err != nil { //nolint:staticcheck
 			// TODO: log error
 		}
