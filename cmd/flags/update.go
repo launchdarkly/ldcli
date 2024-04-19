@@ -9,25 +9,17 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
-	"ldcli/cmd/utils"
 	"ldcli/cmd/validators"
-	"ldcli/internal/analytics"
 	"ldcli/internal/flags"
 )
 
-func NewUpdateCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobra.Command, error) {
+func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Update a flag",
 		RunE:  runUpdate(client),
 		Short: "Update a flag",
 		Use:   "update",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			commandRunEvent := utils.CommandRunEventType{
-				EventName: "flags",
-			}
-			commandRunEvent.SendEvents(analyticsTracker, cmd)
-		},
 	}
 
 	cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
@@ -63,37 +55,25 @@ func NewUpdateCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cob
 	return cmd, nil
 }
 
-func NewToggleOnUpdateCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobra.Command, error) {
+func NewToggleOnUpdateCmd(client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Turn a flag on",
 		RunE:  runUpdate(client),
 		Short: "Turn a flag on",
 		Use:   "toggle-on",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			commandRunEvent := utils.CommandRunEventType{
-				EventName: "flags",
-			}
-			commandRunEvent.SendEvents(analyticsTracker, cmd)
-		},
 	}
 
 	return setToggleCommandFlags(cmd)
 }
 
-func NewToggleOffUpdateCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobra.Command, error) {
+func NewToggleOffUpdateCmd(client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Turn a flag off",
 		RunE:  runUpdate(client),
 		Short: "Turn a flag off",
 		Use:   "toggle-off",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			commandRunEvent := utils.CommandRunEventType{
-				EventName: "flags",
-			}
-			commandRunEvent.SendEvents(analyticsTracker, cmd)
-		},
 	}
 
 	return setToggleCommandFlags(cmd)
