@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"ldcli/cmd"
+	"ldcli/internal/analytics"
 	"ldcli/internal/errors"
 	"ldcli/internal/members"
 )
@@ -37,7 +38,7 @@ func TestCreate(t *testing.T) {
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -63,7 +64,7 @@ func TestCreate(t *testing.T) {
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -86,7 +87,7 @@ func TestCreate(t *testing.T) {
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -100,7 +101,7 @@ func TestCreate(t *testing.T) {
 			"create",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "data" not set`+errorHelp)
 	})
@@ -115,7 +116,7 @@ func TestCreate(t *testing.T) {
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

@@ -2,6 +2,7 @@ package flags_test
 
 import (
 	"ldcli/cmd"
+	"ldcli/internal/analytics"
 	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 	"testing"
@@ -37,7 +38,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -60,7 +61,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -83,7 +84,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -96,7 +97,7 @@ func TestGet(t *testing.T) {
 			"flags", "get",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "flag", "project" not set`+errorHelp)
 	})
@@ -114,7 +115,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"ldcli/cmd"
+	"ldcli/internal/analytics"
 	"ldcli/internal/errors"
 	"ldcli/internal/projects"
 )
@@ -32,7 +33,7 @@ func TestList(t *testing.T) {
 			"--base-uri", "http://test.com",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -53,7 +54,7 @@ func TestList(t *testing.T) {
 			"list",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -73,7 +74,7 @@ func TestList(t *testing.T) {
 			"--base-uri", "http://test.com",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.EqualError(t, err, "an error")
 	})
@@ -86,7 +87,7 @@ func TestList(t *testing.T) {
 			"projects", "list",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token" not set`+errorHelp)
 	})
@@ -100,7 +101,7 @@ func TestList(t *testing.T) {
 			"--access-token",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --access-token`)
 	})
@@ -115,7 +116,7 @@ func TestList(t *testing.T) {
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})

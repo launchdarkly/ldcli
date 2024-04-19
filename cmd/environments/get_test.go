@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/errors"
 )
@@ -36,7 +37,7 @@ func TestGet(t *testing.T) {
 			"--project", "test-proj",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -58,7 +59,7 @@ func TestGet(t *testing.T) {
 			"--project", "test-proj",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -80,7 +81,7 @@ func TestGet(t *testing.T) {
 			"--project", "test-proj",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -93,7 +94,7 @@ func TestGet(t *testing.T) {
 			"environments", "get",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "project" not set`+errorHelp)
 	})
@@ -107,7 +108,7 @@ func TestGet(t *testing.T) {
 			"-e",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: 'e' in -e`)
 	})
@@ -121,7 +122,7 @@ func TestGet(t *testing.T) {
 			"--environment",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `flag needs an argument: --environment`)
 	})
@@ -138,8 +139,25 @@ func TestGet(t *testing.T) {
 			"--project", "test-proj",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
+	})
+
+	t.Run("will track analytics for 'CLI Command Run' event", func(t *testing.T) {
+		clients := cmd.APIClients{
+			EnvironmentsClient: &environments.MockClient{},
+		}
+		tracker := &analytics.MockTracker{}
+
+		args := []string{
+			"environments", "get",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"--environment", "test-env",
+			"--project", "test-proj",
+		}
+		_, err := cmd.CallCmd(t, clients, tracker, args)
+		require.NoError(t, err)
 	})
 }
