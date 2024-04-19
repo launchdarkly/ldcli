@@ -120,4 +120,42 @@ func TestCreate(t *testing.T) {
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
+
+	t.Run("will track analytics for 'CLI Command Run' event", func(t *testing.T) {
+		id := "test-id"
+		mockedTrackingArgs := []interface{}{
+			"testAccessToken",
+			"http://test.com",
+			"CLI Command Run",
+			map[string]interface{}{
+				"name":    "members",
+				"action":  "create",
+				"baseURI": "http://test.com",
+				"id":      id,
+				"flags":   []string{"access-token", "base-uri", "data"},
+			},
+		}
+		tracker := analytics.MockTracker{ID: id}
+		tracker.On("SendEvent", mockedTrackingArgs...)
+
+		client := members.MockClient{}
+		client.
+			On("Create", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			MembersClient: &client,
+		}
+		args := []string{
+			"members",
+			"create",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"-d",
+			`[{"email": "testemail@test.com", "role": "writer"}]`,
+		}
+
+		_, err := cmd.CallCmd(t, clients, &tracker, args)
+		tracker.AssertCalled(t, "SendEvent", mockedTrackingArgs...)
+		require.NoError(t, err)
+	})
 }

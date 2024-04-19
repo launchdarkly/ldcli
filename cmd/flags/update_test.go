@@ -125,6 +125,44 @@ func TestUpdate(t *testing.T) {
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
+
+	t.Run("will track analytics for 'CLI Command Run' event", func(t *testing.T) {
+		id := "test-id"
+		mockedTrackingArgs := []interface{}{
+			"testAccessToken",
+			"http://test.com",
+			"CLI Command Run",
+			map[string]interface{}{
+				"name":    "flags",
+				"action":  "update",
+				"baseURI": "http://test.com",
+				"id":      id,
+				"flags":   []string{"access-token", "base-uri", "data", "flag", "project"},
+			},
+		}
+		tracker := analytics.MockTracker{ID: id}
+		tracker.On("SendEvent", mockedTrackingArgs...)
+
+		client := flags.MockClient{}
+		client.
+			On("Update", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
+		args := []string{
+			"flags", "update",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
+			"--flag", "test-key",
+			"--project", "test-proj-key",
+		}
+
+		_, err := cmd.CallCmd(t, clients, &tracker, args)
+		tracker.AssertCalled(t, "SendEvent", mockedTrackingArgs...)
+		require.NoError(t, err)
+	})
 }
 
 func TestToggle(t *testing.T) {
@@ -217,5 +255,43 @@ func TestToggle(t *testing.T) {
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
+	})
+
+	t.Run("will track analytics for 'CLI Command Run' event", func(t *testing.T) {
+		id := "test-id"
+		mockedTrackingArgs := []interface{}{
+			"testAccessToken",
+			"http://test.com",
+			"CLI Command Run",
+			map[string]interface{}{
+				"name":    "flags",
+				"action":  "toggle-on",
+				"baseURI": "http://test.com",
+				"id":      id,
+				"flags":   []string{"access-token", "base-uri", "environment", "flag", "project"},
+			},
+		}
+		tracker := analytics.MockTracker{ID: id}
+		tracker.On("SendEvent", mockedTrackingArgs...)
+
+		client := flags.MockClient{}
+		client.
+			On("Update", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
+		args := []string{
+			"flags", "toggle-on",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"--flag", "test-flag-key",
+			"--project", "test-proj-key",
+			"--environment", "test-env-key",
+		}
+
+		_, err := cmd.CallCmd(t, clients, &tracker, args)
+		tracker.AssertCalled(t, "SendEvent", mockedTrackingArgs...)
+		require.NoError(t, err)
 	})
 }
