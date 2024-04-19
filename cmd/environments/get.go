@@ -8,14 +8,11 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
-	"ldcli/cmd/utils"
 	"ldcli/cmd/validators"
-	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 )
 
 func NewGetCmd(
-	analyticsTracker analytics.Tracker,
 	client environments.Client,
 ) (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -24,12 +21,6 @@ func NewGetCmd(
 		RunE:  runGet(client),
 		Short: "Return an environment",
 		Use:   "get",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			commandRunEvent := utils.CommandRunEventType{
-				EventName: "environments",
-			}
-			commandRunEvent.SendEvents(analyticsTracker, cmd)
-		},
 	}
 
 	cmd.Flags().StringP(cliflags.EnvironmentFlag, "e", "", "Environment key")

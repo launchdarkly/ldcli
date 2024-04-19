@@ -11,7 +11,6 @@ import (
 
 	"ldcli/cmd/cliflags"
 	configcmd "ldcli/cmd/config"
-	"ldcli/cmd/constants"
 	envscmd "ldcli/cmd/environments"
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
@@ -89,7 +88,7 @@ func NewRootCommand(
 
 	cmd.PersistentFlags().String(
 		cliflags.BaseURIFlag,
-		constants.LaunchDarklyBaseURI,
+		cliflags.BaseURIDefault,
 		"LaunchDarkly base URI",
 	)
 	err = viper.BindPFlag(cliflags.BaseURIFlag, cmd.PersistentFlags().Lookup(cliflags.BaseURIFlag))
