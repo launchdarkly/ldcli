@@ -92,6 +92,7 @@ func (c *NoopClient) SendEvent(
 
 type MockTracker struct {
 	mock.Mock
+	ID string
 }
 
 func (m *MockTracker) SendEvent(
@@ -100,4 +101,6 @@ func (m *MockTracker) SendEvent(
 	eventName string,
 	properties map[string]interface{},
 ) {
+	properties["id"] = m.ID
+	m.Called(accessToken, baseURI, eventName, properties)
 }
