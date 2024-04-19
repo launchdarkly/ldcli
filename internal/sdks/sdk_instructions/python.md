@@ -51,3 +51,13 @@ show_message("Feature flag 'my-flag-key' is {} for this user".format(flag_value)
 # delivered automatically in the background.
 ldclient.get().close()
 ```
+
+Now that your application is ready, run the application to see what value we get.
+
+```shell
+python test.py
+```
+
+You should see:
+
+`Feature flag my-flag-key is false`
