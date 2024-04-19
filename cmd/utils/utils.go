@@ -2,6 +2,7 @@ package utils
 
 import (
 	"ldcli/cmd/cliflags"
+	"ldcli/cmd/constants"
 	"ldcli/internal/analytics"
 
 	"github.com/google/uuid"
@@ -27,12 +28,9 @@ func (c CommandRunEventType) buildProperties(cmd *cobra.Command) map[string]inte
 	id := uuid.New()
 	baseURI := viper.GetString(cliflags.BaseURIFlag)
 	var flags []string
-	if cmd.HasFlags() {
-		flagSet := cmd.Flags()
-		flagSet.Visit(func(f *pflag.Flag) {
-			flags = append(flags, f.Name)
-		})
-	}
+	cmd.Flags().Visit(func(f *pflag.Flag) {
+		flags = append(flags, f.Name)
+	})
 
 	properties := map[string]interface{}{
 		"name":   c.EventName,
@@ -40,7 +38,7 @@ func (c CommandRunEventType) buildProperties(cmd *cobra.Command) map[string]inte
 		"flags":  flags,
 		"id":     id.String(),
 	}
-	if baseURI != "https://app.launchdarkly.com" {
+	if baseURI != constants.LaunchDarklyBaseURI {
 		properties["baseURI"] = baseURI
 	}
 	return properties
