@@ -231,9 +231,6 @@ func fetchFlagStatus(
 	}
 }
 
-// noInstructionsMsg is sent when we can't find the SDK instructions repository for the given SDK.
-type noInstructionsMsg struct{}
-
 type selectedSDKMsg struct {
 	index int
 }
