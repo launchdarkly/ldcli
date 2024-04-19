@@ -22,8 +22,6 @@ func ReplaceFlagKey(instructions string, key string) string {
 		key,
 		"my-boolean-flag",
 		key,
-		"FLAG_KEY",
-		key,
 		"<flag key>",
 		key,
 	)
