@@ -2,7 +2,10 @@ package environments
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+	"strings"
+
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 
 	"ldcli/internal/client"
 	"ldcli/internal/errors"
@@ -38,10 +41,24 @@ func (c EnvironmentsClient) Get(
 
 	}
 
-	responseJSON, err := json.Marshal(environment)
-	if err != nil {
-		return nil, err
+	fnPlaintext := func(p *ldapi.Environment) string {
+		return fmt.Sprintf("%s (%s)", p.Name, p.Key)
+	}
+	return foo([]*ldapi.Environment{environment}, fnPlaintext), nil
+
+	// responseJSON, err := json.Marshal(environment)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// return responseJSON, nil
+}
+
+func foo[T any](coll []T, fn func(T) string) []byte {
+	lst := make([]string, 0, len(coll))
+	for _, c := range coll {
+		lst = append(lst, fn(c))
 	}
 
-	return responseJSON, nil
+	return []byte(strings.Join(lst, "\n"))
 }

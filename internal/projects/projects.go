@@ -3,6 +3,8 @@ package projects
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
@@ -62,10 +64,52 @@ func (c ProjectsClient) List(
 		return nil, errors.NewLDAPIError(err)
 	}
 
+	fnPlaintext := func(p ldapi.Project) string {
+		return fmt.Sprintf("* %s (%s)", p.Name, p.Key)
+	}
+	return foo(projects.Items, fnPlaintext), nil
+
 	projectsJSON, err := json.Marshal(projects)
 	if err != nil {
 		return nil, err
 	}
 
 	return projectsJSON, nil
+
+	/*
+		return outputter.Bytes(projects.Items)
+	*/
+}
+
+func foo[T any](coll []T, fn func(T) string) []byte {
+	lst := make([]string, 0, len(coll))
+	for _, c := range coll {
+		lst = append(lst, fn(c))
+	}
+
+	return []byte(strings.Join(lst, "\n"))
+}
+
+// TODO: return string instead of []byte?
+type ResourceOutputter interface {
+	Bytes(t any) ([]byte, error)
+}
+
+type PlaintextOutput struct {
+	fn func(t any) string
+}
+
+func (o PlaintextOutput) Bytes(t []any) ([]byte, error) {
+	return foo(t, o.fn), nil
+}
+
+type JSONOutput struct{}
+
+func (o JSONOutput) Bytes(t any) ([]byte, error) {
+	bytes, err := json.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes, nil
 }
