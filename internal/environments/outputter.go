@@ -4,34 +4,35 @@ import (
 	"encoding/json"
 	"fmt"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
-
 	"ldcli/internal/output"
 )
 
+// resource is the subset of data we need to display a command's plain text response.
+type resource struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
 type EnvironmentOutputter struct {
-	environment *ldapi.Environment
+	resourceJSON []byte
 }
 
 func (o EnvironmentOutputter) JSON() (string, error) {
-	responseJSON, err := json.Marshal(o.environment)
-	if err != nil {
-		return "", err
-	}
-
-	return string(responseJSON), nil
+	return string(o.resourceJSON), nil
 }
 
 func (o EnvironmentOutputter) String() string {
-	fnPlaintext := func(p *ldapi.Environment) string {
+	var r resource
+	_ = json.Unmarshal(o.resourceJSON, &r)
+	fnPlaintext := func(p resource) string {
 		return fmt.Sprintf("%s (%s)", p.Name, p.Key)
 	}
 
-	return output.FormatColl([]*ldapi.Environment{o.environment}, fnPlaintext)
+	return output.FormatColl([]resource{r}, fnPlaintext)
 }
 
-func NewEnvironmentOutputter(environment *ldapi.Environment) EnvironmentOutputter {
+func NewEnvironmentOutputter(resourceJSON []byte) EnvironmentOutputter {
 	return EnvironmentOutputter{
-		environment: environment,
+		resourceJSON: resourceJSON,
 	}
 }

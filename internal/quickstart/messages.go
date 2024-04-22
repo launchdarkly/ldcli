@@ -178,7 +178,7 @@ func fetchEnv(
 	projKey string,
 ) tea.Cmd {
 	return func() tea.Msg {
-		response, err := client.Get(context.Background(), accessToken, baseUri, "json", key, projKey)
+		response, err := client.Get(context.Background(), accessToken, baseUri, key, projKey)
 		if err != nil {
 			return errMsg{err: err}
 		}

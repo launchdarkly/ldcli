@@ -16,16 +16,16 @@ func TestGet(t *testing.T) {
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
-		"json",
 		"test-env",
 		"test-proj",
 	}
+	stubbedResponse := `{"key": "test-key", "name": "test-name"}`
 
 	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(stubbedResponse), nil)
 		clients := cmd.APIClients{
 			EnvironmentsClient: &client,
 		}
@@ -41,7 +41,7 @@ func TestGet(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, stubbedResponse, string(output))
 	})
 
 	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
@@ -50,7 +50,7 @@ func TestGet(t *testing.T) {
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(stubbedResponse), nil)
 		clients := cmd.APIClients{
 			EnvironmentsClient: &client,
 		}
@@ -64,7 +64,7 @@ func TestGet(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, stubbedResponse, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
