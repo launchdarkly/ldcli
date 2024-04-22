@@ -127,21 +127,16 @@ func TestUpdate(t *testing.T) {
 	})
 
 	t.Run("will track analytics for 'CLI Command Run' event", func(t *testing.T) {
-		id := "test-id"
-		mockedTrackingArgs := []interface{}{
-			"testAccessToken",
-			"http://test.com",
-			"CLI Command Run",
-			map[string]interface{}{
-				"name":    "flags",
-				"action":  "update",
-				"baseURI": "http://test.com",
-				"id":      id,
-				"flags":   []string{"access-token", "base-uri", "data", "flag", "project"},
-			},
-		}
-		tracker := analytics.MockTracker{ID: id}
-		tracker.On("SendEvent", mockedTrackingArgs...)
+		tracker, mockedTrackingArgs := analytics.MockedTracker(
+			"flags",
+			"update",
+			[]string{
+				"access-token",
+				"base-uri",
+				"data",
+				"flag",
+				"project",
+			})
 
 		client := flags.MockClient{}
 		client.
@@ -159,7 +154,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, clients, &tracker, args)
+		_, err := cmd.CallCmd(t, clients, tracker, args)
 		tracker.AssertCalled(t, "SendEvent", mockedTrackingArgs...)
 		require.NoError(t, err)
 	})
