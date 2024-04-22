@@ -125,21 +125,14 @@ func TestInvite(t *testing.T) {
 	})
 
 	t.Run("will track analytics for 'CLI Command Run' event", func(t *testing.T) {
-		id := "test-id"
-		mockedTrackingArgs := []interface{}{
-			"testAccessToken",
-			"http://test.com",
-			"CLI Command Run",
-			map[string]interface{}{
-				"name":    "members",
-				"action":  "invite",
-				"baseURI": "http://test.com",
-				"id":      id,
-				"flags":   []string{"access-token", "base-uri", "emails"},
-			},
-		}
-		tracker := analytics.MockTracker{ID: id}
-		tracker.On("SendEvent", mockedTrackingArgs...)
+		tracker, mockedTrackingArgs := analytics.MockedTracker(
+			"members",
+			"invite",
+			[]string{
+				"access-token",
+				"base-uri",
+				"emails",
+			})
 
 		client := members.MockClient{}
 		client.
@@ -157,7 +150,7 @@ func TestInvite(t *testing.T) {
 			`testemail1@test.com,testemail2@test.com`,
 		}
 
-		_, err := cmd.CallCmd(t, clients, &tracker, args)
+		_, err := cmd.CallCmd(t, clients, tracker, args)
 		tracker.AssertCalled(t, "SendEvent", mockedTrackingArgs...)
 		require.NoError(t, err)
 	})
