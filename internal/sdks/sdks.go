@@ -17,15 +17,6 @@ func ReplaceFlagKey(instructions string, key string) string {
 		key,
 		"myFlagKey",
 		kebabToCamel(key),
-		// remove remaining keys when we add all hardcoded instructions
-		"my-flag",
-		key,
-		"my-boolean-flag",
-		key,
-		"FLAG_KEY",
-		key,
-		"<flag key>",
-		key,
 	)
 
 	return r.Replace(instructions)
