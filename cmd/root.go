@@ -88,7 +88,7 @@ func NewRootCommand(
 
 	cmd.PersistentFlags().String(
 		cliflags.BaseURIFlag,
-		"https://app.launchdarkly.com",
+		cliflags.BaseURIDefault,
 		"LaunchDarkly base URI",
 	)
 	err = viper.BindPFlag(cliflags.BaseURIFlag, cmd.PersistentFlags().Lookup(cliflags.BaseURIFlag))
@@ -100,20 +100,20 @@ func NewRootCommand(
 	if err != nil {
 		return nil, err
 	}
-	flagsCmd, err := flagscmd.NewFlagsCmd(clients.FlagsClient)
+	flagsCmd, err := flagscmd.NewFlagsCmd(analyticsTracker, clients.FlagsClient)
 	if err != nil {
 		return nil, err
 	}
-	membersCmd, err := mbrscmd.NewMembersCmd(clients.MembersClient)
+	membersCmd, err := mbrscmd.NewMembersCmd(analyticsTracker, clients.MembersClient)
 	if err != nil {
 		return nil, err
 	}
-	projectsCmd, err := projcmd.NewProjectsCmd(clients.ProjectsClient)
+	projectsCmd, err := projcmd.NewProjectsCmd(analyticsTracker, clients.ProjectsClient)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd.AddCommand(configcmd.NewConfigCmd())
+	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
 	cmd.AddCommand(environmentsCmd)
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)

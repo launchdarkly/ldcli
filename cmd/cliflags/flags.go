@@ -1,6 +1,8 @@
 package cliflags
 
 const (
+	BaseURIDefault = "https://app.launchdarkly.com"
+
 	AccessTokenFlag = "access-token"
 	BaseURIFlag     = "base-uri"
 	DataFlag        = "data"

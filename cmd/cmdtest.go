@@ -16,10 +16,11 @@ var ValidResponse = `{"valid": true}`
 func CallCmd(
 	t *testing.T,
 	clients APIClients,
+	tracker analytics.Tracker,
 	args []string,
 ) ([]byte, error) {
 	rootCmd, err := NewRootCommand(
-		&analytics.NoopClient{},
+		tracker,
 		clients,
 		"test",
 		false,
