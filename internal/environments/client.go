@@ -41,6 +41,17 @@ func (c EnvironmentsClient) Get(
 
 	}
 
+	// outputType := NewOutputType(viper.GetString("output"))
+	// output, err := CmdOutput(outputType, EnvironmentOutputter{
+	// 	environment: environment,
+	// })
+	// if err != nil {
+	// 	return nil, errors.NewLDAPIError(err)
+
+	// }
+
+	// return output
+
 	fnPlaintext := func(p *ldapi.Environment) string {
 		return fmt.Sprintf("%s (%s)", p.Name, p.Key)
 	}

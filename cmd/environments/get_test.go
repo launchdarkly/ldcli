@@ -1,9 +1,13 @@
 package environments_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"ldcli/cmd"
+	"strings"
 	"testing"
 
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -142,4 +146,109 @@ func TestGet(t *testing.T) {
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
+}
+
+func TestOutputFlagGet(t *testing.T) {
+	environment := &ldapi.Environment{
+		Key:  "test-key",
+		Name: "test-name",
+	}
+
+	t.Run("when flag is json it returns a JSON version of the environment", func(t *testing.T) {
+		outputFlag := "json"
+		expected := `{
+			"_id": "",
+			"_links": null,
+			"apiKey": "",
+			"color": "",
+			"confirmChanges": false,
+			"defaultTrackEvents": false,
+			"defaultTtl": 0,
+			"key": "test-key",
+			"mobileKey": "",
+			"name": "test-name",
+			"requireComments": false,
+			"secureMode": false,
+			"tags": null
+		}`
+
+		output, err := CmdOutput(outputFlag, EnvironmentOutputter{
+			environment: environment,
+		})
+
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, output)
+	})
+
+	t.Run("when flag is plaintext it outputs a plaintext version of the environment", func(t *testing.T) {
+		outputFlag := "plaintext"
+		expected := "test-name (test-key)"
+
+		output, err := CmdOutput(outputFlag, EnvironmentOutputter{
+			environment: environment,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, expected, output)
+	})
+
+	t.Run("when flag is not set defaults to plaintext", func(t *testing.T) {
+		outputFlag := ""
+		expected := "test-name (test-key)"
+
+		output, err := CmdOutput(outputFlag, EnvironmentOutputter{
+			environment: environment,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, expected, output)
+	})
+
+	t.Run("when flag is invalid", func(t *testing.T) {})
+}
+
+type Outputter interface {
+	JSON() (string, error)
+	String() string
+}
+
+type EnvironmentOutputter struct {
+	environment *ldapi.Environment
+}
+
+func (o EnvironmentOutputter) JSON() (string, error) {
+	responseJSON, err := json.Marshal(o.environment)
+	if err != nil {
+		return "", err
+	}
+
+	return string(responseJSON), nil
+}
+
+func (o EnvironmentOutputter) String() string {
+	fnPlaintext := func(p *ldapi.Environment) string {
+		return fmt.Sprintf("%s (%s)", p.Name, p.Key)
+	}
+
+	return formatColl([]*ldapi.Environment{o.environment}, fnPlaintext)
+}
+
+func CmdOutput(outputKind string, outputter Outputter) (string, error) {
+	switch outputKind {
+	case "json":
+		return outputter.JSON()
+	case "plaintext":
+		return outputter.String(), nil
+	default:
+		return outputter.String(), nil
+	}
+}
+
+func formatColl[T any](coll []T, fn func(T) string) string {
+	lst := make([]string, 0, len(coll))
+	for _, c := range coll {
+		lst = append(lst, fn(c))
+	}
+
+	return strings.Join(lst, "\n")
 }

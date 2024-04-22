@@ -57,6 +57,16 @@ func runGet(
 		_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
 		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
+		// if plaintext
+		//   use plaintext strategy
+		outputFlag := "plaintext"
+		switch outputFlag {
+		case "json":
+		case "plaintext":
+		case "web":
+		default:
+		}
+
 		response, err := client.Get(
 			context.Background(),
 			viper.GetString(cliflags.AccessTokenFlag),
