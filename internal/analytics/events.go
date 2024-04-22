@@ -29,7 +29,7 @@ func CmdRunEventProperties(cmd *cobra.Command, name string) map[string]interface
 	return properties
 }
 
-func MockedTracker(name string, action string, flags []string) (*MockTracker, []interface{}) {
+func MockedTracker(name string, action string, flags []string) *MockTracker {
 	id := "test-id"
 	mockedTrackingArgs := []interface{}{
 		"testAccessToken",
@@ -45,5 +45,5 @@ func MockedTracker(name string, action string, flags []string) (*MockTracker, []
 	}
 	tracker := MockTracker{ID: id}
 	tracker.On("SendEvent", mockedTrackingArgs...)
-	return &tracker, mockedTrackingArgs
+	return &tracker
 }

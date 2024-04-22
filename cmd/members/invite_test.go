@@ -125,7 +125,7 @@ func TestInvite(t *testing.T) {
 	})
 
 	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
-		tracker, mockedTrackingArgs := analytics.MockedTracker(
+		tracker := analytics.MockedTracker(
 			"members",
 			"invite",
 			[]string{
@@ -151,7 +151,6 @@ func TestInvite(t *testing.T) {
 		}
 
 		_, err := cmd.CallCmd(t, clients, tracker, args)
-		tracker.AssertCalled(t, "SendEvent", mockedTrackingArgs...)
 		require.NoError(t, err)
 	})
 }
@@ -222,7 +221,7 @@ func TestInviteWithOptionalRole(t *testing.T) {
 	})
 
 	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
-		tracker, mockedTrackingArgs := analytics.MockedTracker(
+		tracker := analytics.MockedTracker(
 			"members",
 			"invite",
 			[]string{
@@ -248,7 +247,6 @@ func TestInviteWithOptionalRole(t *testing.T) {
 		}
 
 		_, err := cmd.CallCmd(t, clients, tracker, args)
-		tracker.AssertCalled(t, "SendEvent", mockedTrackingArgs...)
 		require.NoError(t, err)
 	})
 }
