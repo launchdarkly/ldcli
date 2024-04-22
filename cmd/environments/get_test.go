@@ -142,4 +142,21 @@ func TestGet(t *testing.T) {
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
+
+	t.Run("with invalid output is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			EnvironmentsClient: &environments.MockClient{},
+		}
+		args := []string{
+			"environments", "get",
+			"--access-token", "testAccessToken",
+			"--output", "invalid",
+			"--environment", "test-env",
+			"--project", "test-proj",
+		}
+
+		_, err := cmd.CallCmd(t, clients, args)
+
+		assert.EqualError(t, err, "output is invalid"+errorHelp)
+	})
 }

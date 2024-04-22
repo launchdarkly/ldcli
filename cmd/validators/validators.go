@@ -21,27 +21,31 @@ func Validate() cobra.PositionalArgs {
 
 		_, err := url.ParseRequestURI(viper.GetString(cliflags.BaseURIFlag))
 		if err != nil {
-			errorMessage := fmt.Sprintf(
-				"%s. See `%s --help` for supported flags and usage.",
-				errs.ErrInvalidBaseURI,
-				commandPath,
-			)
-			return errors.New(errorMessage)
+			return CmdError(errs.ErrInvalidBaseURI, commandPath)
 		}
 
 		err = cmd.ValidateRequiredFlags()
 		if err != nil {
-			errorMessage := fmt.Sprintf(
-				"%s. See `%s --help` for supported flags and usage.",
-				err.Error(),
-				commandPath,
-			)
+			return CmdError(err, commandPath)
+		}
 
-			return errors.New(errorMessage)
+		err = validateOutput(viper.GetString(cliflags.OutputFlag))
+		if err != nil {
+			return CmdError(err, commandPath)
 		}
 
 		return nil
 	}
+}
+
+func CmdError(err error, commandPath string) error {
+	errorMessage := fmt.Sprintf(
+		"%s. See `%s --help` for supported flags and usage.",
+		err.Error(),
+		commandPath,
+	)
+
+	return errors.New(errorMessage)
 }
 
 func getCommandPath(cmd *cobra.Command) string {
@@ -53,6 +57,19 @@ func getCommandPath(cmd *cobra.Command) string {
 	}
 
 	return commandPath
+}
+
+func validateOutput(outputFlag string) error {
+	validKinds := map[string]struct{}{
+		"json":      {},
+		"plaintext": {},
+	}
+	_, ok := validKinds[outputFlag]
+	if !ok {
+		return errors.New("output is invalid")
+	}
+
+	return nil
 }
 
 // rebindFlags sets the command's flags based on the values stored in viper because they may not
