@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
+	"ldcli/cmd/output"
 	"ldcli/internal/client"
 	"ldcli/internal/errors"
 )
@@ -64,52 +64,38 @@ func (c ProjectsClient) List(
 		return nil, errors.NewLDAPIError(err)
 	}
 
+	output, err := output.CmdOutput("json", NewProjectOutputter(projects))
+	if err != nil {
+		return nil, errors.NewLDAPIError(err)
+
+	}
+
+	return []byte(output), nil
+}
+
+type ProjectOutputter struct {
+	projects *ldapi.Projects
+}
+
+func (o ProjectOutputter) JSON() (string, error) {
+	responseJSON, err := json.Marshal(o.projects)
+	if err != nil {
+		return "", err
+	}
+
+	return string(responseJSON), nil
+}
+
+func (o ProjectOutputter) String() string {
 	fnPlaintext := func(p ldapi.Project) string {
 		return fmt.Sprintf("* %s (%s)", p.Name, p.Key)
 	}
-	return foo(projects.Items, fnPlaintext), nil
 
-	projectsJSON, err := json.Marshal(projects)
-	if err != nil {
-		return nil, err
+	return output.FormatColl(o.projects.Items, fnPlaintext)
+}
+
+func NewProjectOutputter(projects *ldapi.Projects) ProjectOutputter {
+	return ProjectOutputter{
+		projects: projects,
 	}
-
-	return projectsJSON, nil
-
-	/*
-		return outputter.Bytes(projects.Items)
-	*/
-}
-
-func foo[T any](coll []T, fn func(T) string) []byte {
-	lst := make([]string, 0, len(coll))
-	for _, c := range coll {
-		lst = append(lst, fn(c))
-	}
-
-	return []byte(strings.Join(lst, "\n"))
-}
-
-// TODO: return string instead of []byte?
-type ResourceOutputter interface {
-	Bytes(t any) ([]byte, error)
-}
-
-type PlaintextOutput struct {
-	fn func(t any) string
-}
-
-func (o PlaintextOutput) Bytes(t []any) ([]byte, error) {
-	return foo(t, o.fn), nil
-}
-
-type JSONOutput struct{}
-
-func (o JSONOutput) Bytes(t any) ([]byte, error) {
-	bytes, err := json.Marshal(t)
-	if err != nil {
-		return nil, err
-	}
-
-	return bytes, nil
 }
