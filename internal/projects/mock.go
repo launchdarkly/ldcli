@@ -27,7 +27,8 @@ func (c *MockClient) Create(
 func (c *MockClient) List(
 	ctx context.Context,
 	accessToken,
-	baseURI string,
+	baseURI,
+	outputKind string,
 ) ([]byte, error) {
 	args := c.Called(accessToken, baseURI)
 

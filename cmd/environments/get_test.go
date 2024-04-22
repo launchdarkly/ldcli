@@ -195,6 +195,4 @@ func TestOutputFlagGet(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, expected, output)
 	})
-
-	t.Run("when flag is invalid", func(t *testing.T) {})
 }

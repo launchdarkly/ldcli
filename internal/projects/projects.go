@@ -14,7 +14,7 @@ import (
 
 type Client interface {
 	Create(ctx context.Context, accessToken, baseURI, name, key string) ([]byte, error)
-	List(ctx context.Context, accessToken, baseURI string) ([]byte, error)
+	List(ctx context.Context, accessToken, baseURI, outputKind string) ([]byte, error)
 }
 
 type ProjectsClient struct {
@@ -54,6 +54,7 @@ func (c ProjectsClient) List(
 	ctx context.Context,
 	accessToken,
 	baseURI string,
+	outputKind string,
 ) ([]byte, error) {
 	client := client.New(accessToken, baseURI, c.cliVersion)
 	projects, _, err := client.ProjectsApi.
@@ -64,7 +65,7 @@ func (c ProjectsClient) List(
 		return nil, errors.NewLDAPIError(err)
 	}
 
-	output, err := output.CmdOutput("json", NewProjectOutputter(projects))
+	output, err := output.CmdOutput(outputKind, NewProjectOutputter(projects))
 	if err != nil {
 		return nil, errors.NewLDAPIError(err)
 
