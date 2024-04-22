@@ -121,7 +121,7 @@ func TestCreate(t *testing.T) {
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
 
-	t.Run("will track analytics for 'CLI Command Run' event", func(t *testing.T) {
+	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
 		tracker, mockedTrackingArgs := analytics.MockedTracker(
 			"members",
 			"create",

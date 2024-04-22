@@ -126,7 +126,7 @@ func TestUpdate(t *testing.T) {
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
 
-	t.Run("will track analytics for 'CLI Command Run' event", func(t *testing.T) {
+	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
 		tracker, mockedTrackingArgs := analytics.MockedTracker(
 			"flags",
 			"update",
@@ -252,7 +252,7 @@ func TestToggle(t *testing.T) {
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
 
-	t.Run("will track analytics for 'CLI Command Run' event", func(t *testing.T) {
+	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
 		tracker, mockedTrackingArgs := analytics.MockedTracker(
 			"flags",
 			"update",
