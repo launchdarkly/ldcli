@@ -15,6 +15,19 @@ const (
 
 var ErrInvalidOutputKind = errors.NewError("invalid output")
 
+func NewOutputKind(k string) (OutputKind, error) {
+	switch k {
+	case "json":
+		return OutputKindJSON, nil
+	case "plaintext":
+		return OutputKindPlaintext, nil
+	case "":
+		return OutputKindPlaintext, nil
+	default:
+		return OutputKindNone, ErrInvalidOutputKind
+	}
+}
+
 // Outputter defines the different ways a command's response can be formatted. Every command will
 // need to implement its own type based on its data's representation.
 type Outputter interface {
@@ -29,7 +42,6 @@ func CmdOutput(rawOutputKind string, outputter Outputter) (string, error) {
 		return "", err
 	}
 
-	// return outputter.Output(outputKind)
 	switch outputKind {
 	case OutputKindJSON:
 		return outputter.JSON()
@@ -49,17 +61,4 @@ func FormatColl[T any](coll []T, formatFn func(T) string) string {
 	}
 
 	return strings.Join(lst, "\n")
-}
-
-func NewOutputKind(k string) (OutputKind, error) {
-	switch k {
-	case "json":
-		return OutputKindJSON, nil
-	case "plaintext":
-		return OutputKindPlaintext, nil
-	case "":
-		return OutputKindPlaintext, nil
-	default:
-		return OutputKindNone, ErrInvalidOutputKind
-	}
 }

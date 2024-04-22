@@ -30,7 +30,7 @@ func runList(client projects.Client) func(*cobra.Command, []string) error {
 			context.Background(),
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
-			viper.GetString(cliflags.OutputFlag),
+			viper.GetString(cliflags.OutputFlag), // TODO: implement
 		)
 		if err != nil {
 			return err
