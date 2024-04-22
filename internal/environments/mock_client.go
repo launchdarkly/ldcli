@@ -16,10 +16,11 @@ func (c *MockClient) Get(
 	ctx context.Context,
 	accessToken,
 	baseURI,
+	outputKind,
 	key,
 	projKey string,
 ) ([]byte, error) {
-	args := c.Called(accessToken, baseURI, key, projKey)
+	args := c.Called(accessToken, baseURI, outputKind, key, projKey)
 
 	return args.Get(0).([]byte), args.Error(1)
 }

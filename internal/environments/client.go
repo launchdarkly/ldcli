@@ -2,14 +2,14 @@ package environments
 
 import (
 	"context"
-	"encoding/json"
 
 	"ldcli/internal/client"
 	"ldcli/internal/errors"
+	"ldcli/internal/output"
 )
 
 type Client interface {
-	Get(ctx context.Context, accessToken, baseURI, key, projKey string) ([]byte, error)
+	Get(ctx context.Context, accessToken, baseURI, outputKind, key, projKey string) ([]byte, error)
 }
 
 type EnvironmentsClient struct {
@@ -28,6 +28,7 @@ func (c EnvironmentsClient) Get(
 	ctx context.Context,
 	accessToken,
 	baseURI,
+	outputKind,
 	key,
 	projectKey string,
 ) ([]byte, error) {
@@ -38,10 +39,11 @@ func (c EnvironmentsClient) Get(
 
 	}
 
-	responseJSON, err := json.Marshal(environment)
+	output, err := output.CmdOutput(outputKind, NewEnvironmentOutputter(environment))
 	if err != nil {
-		return nil, err
+		return nil, errors.NewLDAPIError(err)
+
 	}
 
-	return responseJSON, nil
+	return []byte(output), nil
 }

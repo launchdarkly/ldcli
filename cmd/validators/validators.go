@@ -11,6 +11,7 @@ import (
 
 	"ldcli/cmd/cliflags"
 	errs "ldcli/internal/errors"
+	"ldcli/internal/output"
 )
 
 // Validate is a validator for commands to print an error when the user input is invalid.
@@ -66,7 +67,7 @@ func validateOutput(outputFlag string) error {
 	}
 	_, ok := validKinds[outputFlag]
 	if !ok {
-		return errors.New("output is invalid")
+		return output.ErrInvalidOutputKind
 	}
 
 	return nil

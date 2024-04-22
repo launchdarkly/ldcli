@@ -16,11 +16,12 @@ func TestGet(t *testing.T) {
 	mockArgs := []interface{}{
 		"testAccessToken",
 		"http://test.com",
+		"json",
 		"test-env",
 		"test-proj",
 	}
 
-	t.Run("with valid environments calls API", func(t *testing.T) {
+	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
@@ -32,6 +33,7 @@ func TestGet(t *testing.T) {
 			"environments", "get",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}
@@ -54,6 +56,7 @@ func TestGet(t *testing.T) {
 		}
 		args := []string{
 			"environments", "get",
+			"--output", "json",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}
@@ -76,6 +79,7 @@ func TestGet(t *testing.T) {
 			"environments", "get",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}
