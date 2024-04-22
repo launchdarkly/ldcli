@@ -1,5 +1,6 @@
 package cliflags
 
+// Flags used by the CLI
 const (
 	AccessTokenFlag = "access-token"
 	BaseURIFlag     = "base-uri"
@@ -10,3 +11,5 @@ const (
 	ProjectFlag     = "project"
 	RoleFlag        = "role"
 )
+
+const BaseURIDefault = "https://app.launchdarkly.com"
