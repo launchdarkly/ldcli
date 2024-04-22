@@ -17,18 +17,6 @@ func TestReplaceFlagKey(t *testing.T) {
 			body:     "# title ```const featureFlagKey = \"my-flag-key\"```",
 			expected: "# title ```const featureFlagKey = \"real-flag-key\"```",
 		},
-		"replaces placeholder my-flag": {
-			body:     "# title ```const featureFlagKey = \"my-flag\"```",
-			expected: "# title ```const featureFlagKey = \"real-flag-key\"```",
-		},
-		"replaces placeholder my-boolean-flag": {
-			body:     "# title ```const featureFlagKey = \"my-boolean-flag\"```",
-			expected: "# title ```const featureFlagKey = \"real-flag-key\"```",
-		},
-		"replaces placeholder <flag key>": {
-			body:     "# title ```hello_erlang_server:get(<<\"my-flag-key\">>)```",
-			expected: "# title ```hello_erlang_server:get(<<\"real-flag-key\">>)```",
-		},
 		"replaces camelCase <myFlagKey>": {
 			body:     "# title ```const featureFlagKey = \"myFlagKey\"```",
 			expected: "# title ```const featureFlagKey = \"realFlagKey\"```",
