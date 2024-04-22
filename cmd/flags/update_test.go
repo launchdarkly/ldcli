@@ -254,13 +254,13 @@ func TestToggle(t *testing.T) {
 	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
 		tracker := analytics.MockedTracker(
 			"flags",
-			"update",
+			"toggle-on",
 			[]string{
 				"access-token",
 				"base-uri",
+				"environment",
 				"flag",
 				"project",
-				"environment",
 			})
 
 		client := flags.MockClient{}
