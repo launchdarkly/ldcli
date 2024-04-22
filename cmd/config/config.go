@@ -27,6 +27,14 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 		RunE:  run(),
 		Short: "View and modify specific configuration values",
 		Use:   "config",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			analyticsTracker.SendEvent(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				"CLI Command Run",
+				analytics.CmdRunEventProperties(cmd, "config"),
+			)
+		},
 	}
 
 	cmd.Flags().Bool(ListFlag, false, "List configs")
@@ -37,15 +45,6 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 	_ = viper.BindPFlag(UnsetFlag, cmd.Flags().Lookup(UnsetFlag))
 
 	// TODO: running config should show help
-
-	cmd.PreRun = func(cmd *cobra.Command, args []string) {
-		analyticsTracker.SendEvent(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			"CLI Command Run",
-			analytics.CmdRunEventProperties(cmd, "config"),
-		)
-	}
 
 	return cmd
 }

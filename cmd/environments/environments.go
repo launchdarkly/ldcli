@@ -17,6 +17,14 @@ func NewEnvironmentsCmd(
 		Use:   "environments",
 		Short: "Make requests (list, create, etc.) on environments",
 		Long:  "Make requests (list, create, etc.) on environments",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			analyticsTracker.SendEvent(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				"CLI Command Run",
+				analytics.CmdRunEventProperties(cmd, "environments"),
+			)
+		},
 	}
 
 	getCmd, err := NewGetCmd(client)
@@ -24,15 +32,6 @@ func NewEnvironmentsCmd(
 		return nil, err
 	}
 	cmd.AddCommand(getCmd)
-
-	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		analyticsTracker.SendEvent(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			"CLI Command Run",
-			analytics.CmdRunEventProperties(cmd, "environments"),
-		)
-	}
 
 	return cmd, nil
 }
