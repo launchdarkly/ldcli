@@ -28,3 +28,22 @@ func CmdRunEventProperties(cmd *cobra.Command, name string) map[string]interface
 	}
 	return properties
 }
+
+func MockedTracker(name string, action string, flags []string) (*MockTracker, []interface{}) {
+	id := "test-id"
+	mockedTrackingArgs := []interface{}{
+		"testAccessToken",
+		"http://test.com",
+		"CLI Command Run",
+		map[string]interface{}{
+			"action":  action,
+			"baseURI": "http://test.com",
+			"flags":   flags,
+			"id":      id,
+			"name":    name,
+		},
+	}
+	tracker := MockTracker{ID: id}
+	tracker.On("SendEvent", mockedTrackingArgs...)
+	return &tracker, mockedTrackingArgs
+}
