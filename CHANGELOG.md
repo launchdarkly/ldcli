@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/launchdarkly/ldcli/compare/v0.8.0...v0.8.1) (2024-04-22)
+
+
+### Bug Fixes
+
+* Don't find/replace FLAG_KEY in SDK instructions ([#193](https://github.com/launchdarkly/ldcli/issues/193)) ([39ea1ce](https://github.com/launchdarkly/ldcli/commit/39ea1ce37e25619ad7059a6dccd54837fdb6c7b3))
+
 ## [0.8.0](https://github.com/launchdarkly/ldcli/compare/v0.7.0...v0.8.0) (2024-04-18)
 
 
