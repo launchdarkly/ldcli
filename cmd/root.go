@@ -3,8 +3,10 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -28,6 +30,7 @@ type APIClients struct {
 	FlagsClient        flags.Client
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
+	GenericClient      *http.Client
 }
 
 func NewRootCommand(
@@ -36,7 +39,7 @@ func NewRootCommand(
 	version string,
 	useConfigFile bool,
 ) (*cobra.Command, error) {
-	cmd := &cobra.Command{
+	rootCmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
 		Long:    "LaunchDarkly CLI to control your feature flags",
@@ -72,26 +75,26 @@ func NewRootCommand(
 	viper.SetEnvKeyReplacer(replacer)
 	viper.AutomaticEnv()
 
-	cmd.PersistentFlags().String(
+	rootCmd.PersistentFlags().String(
 		cliflags.AccessTokenFlag,
 		"",
 		"LaunchDarkly API token with write-level access",
 	)
-	err := cmd.MarkPersistentFlagRequired(cliflags.AccessTokenFlag)
+	err := rootCmd.MarkPersistentFlagRequired(cliflags.AccessTokenFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag(cliflags.AccessTokenFlag, cmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag))
+	err = viper.BindPFlag(cliflags.AccessTokenFlag, rootCmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag))
 	if err != nil {
 		return nil, err
 	}
 
-	cmd.PersistentFlags().String(
+	rootCmd.PersistentFlags().String(
 		cliflags.BaseURIFlag,
 		cliflags.BaseURIDefault,
 		"LaunchDarkly base URI",
 	)
-	err = viper.BindPFlag(cliflags.BaseURIFlag, cmd.PersistentFlags().Lookup(cliflags.BaseURIFlag))
+	err = viper.BindPFlag(cliflags.BaseURIFlag, rootCmd.PersistentFlags().Lookup(cliflags.BaseURIFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -113,14 +116,16 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
-	cmd.AddCommand(environmentsCmd)
-	cmd.AddCommand(flagsCmd)
-	cmd.AddCommand(membersCmd)
-	cmd.AddCommand(projectsCmd)
-	cmd.AddCommand(NewQuickStartCmd(clients.EnvironmentsClient, clients.FlagsClient))
+	rootCmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
+	rootCmd.AddCommand(environmentsCmd)
+	rootCmd.AddCommand(flagsCmd)
+	rootCmd.AddCommand(membersCmd)
+	rootCmd.AddCommand(projectsCmd)
+	rootCmd.AddCommand(NewQuickStartCmd(clients.EnvironmentsClient, clients.FlagsClient))
 
-	return cmd, nil
+	addAllResourceCmds(rootCmd, clients.GenericClient)
+
+	return rootCmd, nil
 }
 
 func Execute(analyticsTracker analytics.Tracker, version string) {
@@ -129,6 +134,7 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		FlagsClient:        flags.NewClient(version),
 		MembersClient:      members.NewClient(version),
 		ProjectsClient:     projects.NewClient(version),
+		GenericClient:      &http.Client{Timeout: time.Second * 3},
 	}
 	rootCmd, err := NewRootCommand(
 		analyticsTracker,
