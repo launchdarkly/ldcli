@@ -32,6 +32,12 @@ type resource struct {
 	Name string `json:"name"`
 }
 
+// resources is the subset of data we need to display a command's plain text response for a list
+// of resources.
+type resources struct {
+	Items []resource `json:"items"`
+}
+
 // CmdOutput returns a command's response as a string formatted based on the user's requested type.
 func CmdOutput(outputKind string, outputter OutputterFn) (string, error) {
 	o, err := outputter.New()

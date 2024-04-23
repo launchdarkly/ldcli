@@ -9,7 +9,7 @@ import (
 	"ldcli/internal/output"
 )
 
-func TestOutputter_JSON(t *testing.T) {
+func TestSingularOutputter_JSON(t *testing.T) {
 	input := []byte(`{
 		"key": "test-key",
 		"name": "test-name",
@@ -24,7 +24,7 @@ func TestOutputter_JSON(t *testing.T) {
 	assert.JSONEq(t, output, string(input))
 }
 
-func TestOutputter_String(t *testing.T) {
+func TestSingularOutputter_String(t *testing.T) {
 	input := []byte(`{
 		"key": "test-key",
 		"name": "test-name",

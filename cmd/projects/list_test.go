@@ -17,12 +17,20 @@ func TestList(t *testing.T) {
 		"testAccessToken",
 		"http://test.com",
 	}
+	stubbedResponse := `{
+		"items": [
+			{
+				"key": "test-key",
+				"name": "test-name"
+			}
+		]
+	}`
 
 	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(stubbedResponse), nil)
 		clients := cmd.APIClients{
 			ProjectsClient: &client,
 		}
@@ -30,12 +38,13 @@ func TestList(t *testing.T) {
 			"projects", "list",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 		}
 
 		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, stubbedResponse, string(output))
 	})
 
 	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
@@ -44,19 +53,20 @@ func TestList(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(stubbedResponse), nil)
 		clients := cmd.APIClients{
 			ProjectsClient: &client,
 		}
 		args := []string{
 			"projects",
 			"list",
+			"--output", "json",
 		}
 
 		output, err := cmd.CallCmd(t, clients, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, stubbedResponse, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
