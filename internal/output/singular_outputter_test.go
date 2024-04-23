@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"ldcli/internal/environments"
 	"ldcli/internal/output"
 )
 
@@ -17,7 +16,7 @@ func TestOutputter_JSON(t *testing.T) {
 	}`)
 	output := output.CmdOutput(
 		"json",
-		environments.NewEnvironmentOutputter(input),
+		output.NewSingularOutputter(input),
 	)
 
 	assert.JSONEq(t, output, string(input))
@@ -32,7 +31,7 @@ func TestOutputter_String(t *testing.T) {
 	expected := "test-name (test-key)"
 	output := output.CmdOutput(
 		"plaintext",
-		environments.NewEnvironmentOutputter(input),
+		output.NewSingularOutputter(input),
 	)
 
 	assert.Equal(t, expected, output)

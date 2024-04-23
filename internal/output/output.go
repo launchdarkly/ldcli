@@ -29,7 +29,7 @@ func CmdOutput(outputKind string, outputter Outputter) string {
 
 // FormatColl applies a formatting function to every element in the collection and returns it as a
 // string.
-func FormatColl[T any](coll []T, formatFn func(T) string) string {
+func formatColl[T any](coll []T, formatFn func(T) string) string {
 	lst := make([]string, 0, len(coll))
 	for _, c := range coll {
 		lst = append(lst, formatFn(c))

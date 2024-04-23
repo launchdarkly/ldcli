@@ -71,7 +71,7 @@ func runGet(
 
 		output := output.CmdOutput(
 			viper.GetString(cliflags.OutputFlag),
-			environments.NewEnvironmentOutputter(response),
+			output.NewSingularOutputter(response),
 		)
 
 		analyticsTracker.SendEvent(
