@@ -11,48 +11,54 @@ import (
 
 	"ldcli/cmd/cliflags"
 	errs "ldcli/internal/errors"
+	"ldcli/internal/output"
 )
 
 // Validate is a validator for commands to print an error when the user input is invalid.
 func Validate() cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		rebindFlags(cmd, cmd.ValidArgs) // rebind flags before validating them below
-		commandPath := getCommandPath(cmd)
 
 		_, err := url.ParseRequestURI(viper.GetString(cliflags.BaseURIFlag))
 		if err != nil {
-			errorMessage := fmt.Sprintf(
-				"%s. See `%s --help` for supported flags and usage.",
-				errs.ErrInvalidBaseURI,
-				commandPath,
-			)
-			return errors.New(errorMessage)
+			return CmdError(errs.ErrInvalidBaseURI, cmd.CommandPath())
 		}
 
 		err = cmd.ValidateRequiredFlags()
 		if err != nil {
-			errorMessage := fmt.Sprintf(
-				"%s. See `%s --help` for supported flags and usage.",
-				err.Error(),
-				commandPath,
-			)
+			return CmdError(err, cmd.CommandPath())
+		}
 
-			return errors.New(errorMessage)
+		err = validateOutput(viper.GetString(cliflags.OutputFlag))
+		if err != nil {
+			return CmdError(err, cmd.CommandPath())
 		}
 
 		return nil
 	}
 }
 
-func getCommandPath(cmd *cobra.Command) string {
-	var commandPath string
-	if cmd.Annotations["scope"] == "plugin" {
-		commandPath = fmt.Sprintf("stripe %s", cmd.CommandPath())
-	} else {
-		commandPath = cmd.CommandPath()
+func CmdError(err error, commandPath string) error {
+	errorMessage := fmt.Sprintf(
+		"%s. See `%s --help` for supported flags and usage.",
+		err.Error(),
+		commandPath,
+	)
+
+	return errors.New(errorMessage)
+}
+
+func validateOutput(outputFlag string) error {
+	validKinds := map[string]struct{}{
+		"json":      {},
+		"plaintext": {},
+	}
+	_, ok := validKinds[outputFlag]
+	if !ok {
+		return output.ErrInvalidOutputKind
 	}
 
-	return commandPath
+	return nil
 }
 
 // rebindFlags sets the command's flags based on the values stored in viper because they may not

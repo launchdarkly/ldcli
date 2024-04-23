@@ -20,12 +20,13 @@ func TestGet(t *testing.T) {
 		"test-env",
 		"test-proj",
 	}
+	stubbedResponse := `{"key": "test-key", "name": "test-name"}`
 
-	t.Run("with valid environments calls API", func(t *testing.T) {
+	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(stubbedResponse), nil)
 		clients := cmd.APIClients{
 			EnvironmentsClient: &client,
 		}
@@ -33,6 +34,7 @@ func TestGet(t *testing.T) {
 			"environments", "get",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}
@@ -40,7 +42,7 @@ func TestGet(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, stubbedResponse, string(output))
 	})
 
 	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
@@ -49,12 +51,13 @@ func TestGet(t *testing.T) {
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(stubbedResponse), nil)
 		clients := cmd.APIClients{
 			EnvironmentsClient: &client,
 		}
 		args := []string{
 			"environments", "get",
+			"--output", "json",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}
@@ -62,7 +65,7 @@ func TestGet(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, stubbedResponse, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
@@ -77,6 +80,7 @@ func TestGet(t *testing.T) {
 			"environments", "get",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}
@@ -144,6 +148,23 @@ func TestGet(t *testing.T) {
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
 
+	t.Run("with invalid output is an error", func(t *testing.T) {
+		clients := cmd.APIClients{
+			EnvironmentsClient: &environments.MockClient{},
+		}
+		args := []string{
+			"environments", "get",
+			"--access-token", "testAccessToken",
+			"--output", "invalid",
+			"--environment", "test-env",
+			"--project", "test-proj",
+		}
+
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
+
+		assert.EqualError(t, err, "output is invalid"+errorHelp)
+	})
+
 	t.Run("will track analytics for CLI Command Run and Completed events", func(t *testing.T) {
 		tracker := analytics.MockedTracker(
 			"environments",
@@ -154,7 +175,6 @@ func TestGet(t *testing.T) {
 				"environment",
 				"project",
 			})
-
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
@@ -172,6 +192,7 @@ func TestGet(t *testing.T) {
 		}
 
 		_, err := cmd.CallCmd(t, clients, tracker, args)
+
 		require.NoError(t, err)
 	})
 }

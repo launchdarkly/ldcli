@@ -9,6 +9,7 @@ const (
 	EmailsFlag      = "emails"
 	EnvironmentFlag = "environment"
 	FlagFlag        = "flag"
+	OutputFlag      = "output"
 	ProjectFlag     = "project"
 	RoleFlag        = "role"
 )
