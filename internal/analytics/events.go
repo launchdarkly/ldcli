@@ -61,3 +61,16 @@ func MockedTracker(name string, action string, flags []string) *MockTracker {
 	}...)
 	return &tracker
 }
+
+func Outcome(cmd *cobra.Command) string {
+	outcome := SUCCESS
+
+	if _, hasErr := cmd.Annotations["err"]; hasErr {
+		outcome = ERROR
+	}
+	if cmd.HasHelpSubCommands() {
+		outcome = HELP
+	}
+
+	return outcome
+}
