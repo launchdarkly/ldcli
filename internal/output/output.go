@@ -8,23 +8,53 @@ import (
 
 var ErrInvalidOutputKind = errors.NewError("output is invalid")
 
-// Outputter defines the different ways a command's response can be formatted. Every command will
-// need to implement its own type based on its data's representation.
-type Outputter interface {
-	JSON() string
-	String() string
+// Outputter defines the different ways a command's response can be formatted based on
+// user input.
+type Outputter struct {
+	outputFn     PlaintextOutputFn
+	resource     resource
+	resourceJSON []byte
+}
+
+func (o Outputter) JSON() string {
+	return string(o.resourceJSON)
+}
+
+func (o Outputter) String() string {
+	return formatColl([]resource{o.resource}, o.outputFn)
+}
+
+// PlaintextOutputFn represents the various ways to output a resource or resources.
+type PlaintextOutputFn func(resource) string
+
+// OutputterFn is a factory to build the right outputter. By adding an layer of abstraction,
+// it lets us push back the error handling from where a caller provides the input to where
+// the caller builds the outputter.
+type OutputterFn interface {
+	New() (Outputter, error)
+}
+
+// resource is the subset of data we need to display a command's plain text response.
+type resource struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
 }
 
 // CmdOutput returns a command's response as a string formatted based on the user's requested type.
-func CmdOutput(outputKind string, outputter Outputter) string {
-	switch outputKind {
-	case "json":
-		return outputter.JSON()
-	case "plaintext":
-		return outputter.String()
+func CmdOutput(outputKind string, outputter OutputterFn) (string, error) {
+	o, err := outputter.New()
+	if err != nil {
+		return "", err
 	}
 
-	return ""
+	switch outputKind {
+	case "json":
+		return o.JSON(), nil
+	case "plaintext":
+		return o.String(), nil
+	}
+
+	return "", ErrInvalidOutputKind
 }
 
 // FormatColl applies a formatting function to every element in the collection and returns it as a

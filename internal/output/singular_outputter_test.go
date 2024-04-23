@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"ldcli/internal/output"
 )
@@ -14,11 +15,12 @@ func TestOutputter_JSON(t *testing.T) {
 		"name": "test-name",
 		"other": "another-value"
 	}`)
-	output := output.CmdOutput(
+	output, err := output.CmdOutput(
 		"json",
-		output.NewSingularOutputter(input),
+		output.SingularOutput(input),
 	)
 
+	require.NoError(t, err)
 	assert.JSONEq(t, output, string(input))
 }
 
@@ -29,10 +31,11 @@ func TestOutputter_String(t *testing.T) {
 		"other": "another-value"
 	}`)
 	expected := "test-name (test-key)"
-	output := output.CmdOutput(
+	output, err := output.CmdOutput(
 		"plaintext",
-		output.NewSingularOutputter(input),
+		output.SingularOutput(input),
 	)
 
+	require.NoError(t, err)
 	assert.Equal(t, expected, output)
 }

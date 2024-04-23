@@ -69,10 +69,13 @@ func runGet(
 			return err
 		}
 
-		output := output.CmdOutput(
+		output, err := output.CmdOutput(
 			viper.GetString(cliflags.OutputFlag),
-			output.NewSingularOutputter(response),
+			output.SingularOutput(response),
 		)
+		if err != nil {
+			return err
+		}
 
 		analyticsTracker.SendEvent(
 			viper.GetString(cliflags.AccessTokenFlag),

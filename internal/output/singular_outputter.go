@@ -5,32 +5,30 @@ import (
 	"fmt"
 )
 
-// resource is the subset of data we need to display a command's plain text response.
-type resource struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
+var singularPlaintextOutputFn = func(r resource) string {
+	return fmt.Sprintf("%s (%s)", r.Name, r.Key)
 }
 
-type SingularOutputter struct {
-	resourceJSON []byte
+func SingularOutput(input []byte) OutputterFn {
+	return singularOutputterFn{
+		input: input,
+	}
 }
 
-func (o SingularOutputter) JSON() string {
-	return string(o.resourceJSON)
+type singularOutputterFn struct {
+	input []byte
 }
 
-func (o SingularOutputter) String() string {
+func (o singularOutputterFn) New() (Outputter, error) {
 	var r resource
-	_ = json.Unmarshal(o.resourceJSON, &r)
-	fnPlaintext := func(p resource) string {
-		return fmt.Sprintf("%s (%s)", p.Name, p.Key)
+	err := json.Unmarshal(o.input, &r)
+	if err != nil {
+		return Outputter{}, err
 	}
 
-	return formatColl([]resource{r}, fnPlaintext)
-}
-
-func NewSingularOutputter(resourceJSON []byte) SingularOutputter {
-	return SingularOutputter{
-		resourceJSON: resourceJSON,
-	}
+	return Outputter{
+		outputFn:     singularPlaintextOutputFn,
+		resource:     r,
+		resourceJSON: o.input,
+	}, nil
 }
