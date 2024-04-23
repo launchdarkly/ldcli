@@ -35,6 +35,16 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 				analytics.CmdRunEventProperties(cmd, "config"),
 			)
 		},
+		PostRun: func(cmd *cobra.Command, args []string) {
+			analyticsTracker.SendEvent(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				"CLI Command Completed",
+				map[string]interface{}{
+					"outcome": analytics.Outcome(cmd),
+				},
+			)
+		},
 	}
 
 	cmd.Flags().Bool(ListFlag, false, "List configs")
