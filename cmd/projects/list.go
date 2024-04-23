@@ -38,7 +38,7 @@ func runList(client projects.Client) func(*cobra.Command, []string) error {
 
 		output, err := output.CmdOutput(
 			viper.GetString(cliflags.OutputFlag),
-			output.NewMultipleOutputterFn(response),
+			output.NewMultipleOutput(response),
 		)
 		if err != nil {
 			return err

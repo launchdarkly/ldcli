@@ -26,7 +26,7 @@ func TestMultipleOutputter_JSON(t *testing.T) {
 	}`)
 	output, err := output.CmdOutput(
 		"json",
-		output.NewMultipleOutputterFn(input),
+		output.NewMultipleOutput(input),
 	)
 
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestMultipleOutputter_String(t *testing.T) {
 	expected := "* test-name1 (test-key1)\n* test-name2 (test-key2)"
 	output, err := output.CmdOutput(
 		"plaintext",
-		output.NewMultipleOutputterFn(input),
+		output.NewMultipleOutput(input),
 	)
 
 	require.NoError(t, err)

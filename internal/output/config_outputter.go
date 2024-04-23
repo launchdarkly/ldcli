@@ -22,12 +22,6 @@ var configPlaintextOutputFn = func(r resource) string {
 	return strings.Join(lst, "\n")
 }
 
-func NewConfigOutputterFn(input []byte) configOutputterFn {
-	return configOutputterFn{
-		input: input,
-	}
-}
-
 type configOutputterFn struct {
 	input []byte
 }
@@ -44,6 +38,12 @@ func (o configOutputterFn) New() (Outputter, error) {
 		resource:     r,
 		resourceJSON: o.input,
 	}, nil
+}
+
+func NewConfigOutput(input []byte) configOutputterFn {
+	return configOutputterFn{
+		input: input,
+	}
 }
 
 type ConfigOutputter struct {

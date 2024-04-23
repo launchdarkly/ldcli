@@ -16,7 +16,7 @@ func TestConfigOutputter_JSON(t *testing.T) {
 	}`)
 	output, err := output.CmdOutput(
 		"json",
-		output.NewConfigOutputterFn(input),
+		output.NewConfigOutput(input),
 	)
 
 	require.NoError(t, err)
@@ -31,7 +31,7 @@ func TestConfigOutputter_String(t *testing.T) {
 	expected := "access-token: test-access-token\nbase-uri: test-base-uri"
 	output, err := output.CmdOutput(
 		"plaintext",
-		output.NewConfigOutputterFn(input),
+		output.NewConfigOutput(input),
 	)
 
 	require.NoError(t, err)

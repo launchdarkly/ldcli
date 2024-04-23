@@ -9,13 +9,6 @@ var multiplePlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("* %s (%s)", r["name"], r["key"])
 }
 
-// TODO: rename this to be "cleaner"? -- NewMultipleOutput()
-func NewMultipleOutputterFn(input []byte) multipleOutputterFn {
-	return multipleOutputterFn{
-		input: input,
-	}
-}
-
 type multipleOutputterFn struct {
 	input []byte
 }
@@ -32,6 +25,12 @@ func (o multipleOutputterFn) New() (Outputter, error) {
 		resources:    r,
 		resourceJSON: o.input,
 	}, nil
+}
+
+func NewMultipleOutput(input []byte) multipleOutputterFn {
+	return multipleOutputterFn{
+		input: input,
+	}
 }
 
 type MultipleOutputter struct {

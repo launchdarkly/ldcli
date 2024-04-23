@@ -66,7 +66,7 @@ func runInvite(client members.Client) func(*cobra.Command, []string) error {
 
 		output, err := output.CmdOutput(
 			viper.GetString(cliflags.OutputFlag),
-			output.NewSingularOutputterFn(response),
+			output.NewSingularOutput(response),
 		)
 		if err != nil {
 			return err
