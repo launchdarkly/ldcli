@@ -73,7 +73,7 @@ func TestGet(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -89,7 +89,7 @@ func TestGet(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
-		require.EqualError(t, err, "An error")
+		require.EqualError(t, err, `{"message": "An error"}`)
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {

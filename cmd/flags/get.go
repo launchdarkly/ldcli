@@ -9,6 +9,7 @@ import (
 
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 	"ldcli/internal/output"
 )
@@ -71,7 +72,15 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.EnvironmentFlag),
 		)
 		if err != nil {
-			return err
+			output, err := output.CmdOutput(
+				viper.GetString(cliflags.OutputFlag),
+				output.NewErrorOutput([]byte(err.Error())),
+			)
+			if err != nil {
+				return err
+			}
+
+			return errors.NewError(output)
 		}
 
 		output, err := output.CmdOutput(
