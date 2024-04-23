@@ -35,7 +35,7 @@ func (o singularOutputterFn) New() (Outputter, error) {
 }
 
 type SingularOutputter struct {
-	outputFn     PlaintextOutputFn
+	outputFn     PlaintextOutputFn[resource]
 	resource     resource
 	resourceJSON []byte
 }

@@ -23,7 +23,7 @@ type OutputterFn interface {
 }
 
 // PlaintextOutputFn represents the various ways to output a resource or resources.
-type PlaintextOutputFn func(resource) string
+type PlaintextOutputFn[T any] func(t T) string
 
 // resource is the subset of data we need to display a command's plain text response for a single
 // resource.
@@ -37,6 +37,8 @@ type resource struct {
 type resources struct {
 	Items []resource `json:"items"`
 }
+
+type configResource map[string]string
 
 // CmdOutput returns a command's response as a string formatted based on the user's requested type.
 func CmdOutput(outputKind string, outputter OutputterFn) (string, error) {

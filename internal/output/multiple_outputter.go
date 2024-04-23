@@ -35,7 +35,7 @@ func (o multipleOutputterFn) New() (Outputter, error) {
 }
 
 type MultipleOutputter struct {
-	outputFn     PlaintextOutputFn
+	outputFn     PlaintextOutputFn[resource]
 	resources    resources
 	resourceJSON []byte
 }

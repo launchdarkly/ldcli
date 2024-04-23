@@ -13,6 +13,7 @@ import (
 	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/config"
+	"ldcli/internal/output"
 )
 
 const (
@@ -63,11 +64,15 @@ func run() func(*cobra.Command, []string) error {
 				return err
 			}
 
-			if string(configJSON) == "{}" {
-				return nil
+			output, err := output.CmdOutput(
+				viper.GetString(cliflags.OutputFlag),
+				output.NewConfigOutputterFn(configJSON),
+			)
+			if err != nil {
+				return err
 			}
 
-			fmt.Fprint(cmd.OutOrStdout(), string(configJSON)+"\n")
+			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 		case viper.GetBool(SetFlag):
 			// flag needs two arguments: a key and value
 			if len(args)%2 != 0 {
