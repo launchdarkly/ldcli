@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// configPlaintextOutputFn converts the resource to plain text specifically for data from the
+// config file.
 var configPlaintextOutputFn = func(r resource) string {
 	keys := make([]string, 0)
 	for k := range r {
@@ -26,14 +28,15 @@ type configOutputterFn struct {
 	input []byte
 }
 
+// New unmarshals a single config resource and wires up a particular plain text output function.
 func (o configOutputterFn) New() (Outputter, error) {
 	var r resource
 	err := json.Unmarshal(o.input, &r)
 	if err != nil {
-		return ConfigOutputter{}, err
+		return SingularOutputter{}, err
 	}
 
-	return ConfigOutputter{
+	return SingularOutputter{
 		outputFn:     configPlaintextOutputFn,
 		resource:     r,
 		resourceJSON: o.input,
@@ -44,18 +47,4 @@ func NewConfigOutput(input []byte) configOutputterFn {
 	return configOutputterFn{
 		input: input,
 	}
-}
-
-type ConfigOutputter struct {
-	outputFn     PlaintextOutputFn[resource]
-	resource     resource
-	resourceJSON []byte
-}
-
-func (o ConfigOutputter) JSON() string {
-	return string(o.resourceJSON)
-}
-
-func (o ConfigOutputter) String() string {
-	return formatColl([]resource{o.resource}, o.outputFn)
 }

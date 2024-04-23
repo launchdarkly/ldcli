@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// singularPlaintextOutputFn converts the resource to plain text based on its name and key.
 var singularPlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("%s (%s)", r["name"], r["key"])
 }
@@ -13,6 +14,7 @@ type singularOutputterFn struct {
 	input []byte
 }
 
+// New unmarshals a single resource and wires up a particular plain text output function.
 func (o singularOutputterFn) New() (Outputter, error) {
 	var r resource
 	err := json.Unmarshal(o.input, &r)

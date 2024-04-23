@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// multiplePlaintextOutputFn converts the resource to plain text based on its name and key in a list.
 var multiplePlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("* %s (%s)", r["name"], r["key"])
 }
@@ -13,6 +14,7 @@ type multipleOutputterFn struct {
 	input []byte
 }
 
+// New unmarshals multiple resources and wires up a particular plain text output function.
 func (o multipleOutputterFn) New() (Outputter, error) {
 	var r resources
 	err := json.Unmarshal(o.input, &r)

@@ -27,6 +27,7 @@ type PlaintextOutputFn[T any] func(t T) string
 
 // resource is the subset of data we need to display a command's plain text response for a single
 // resource.
+// We're trading off type safety for easy of use instead of defining a type for each expected resource.
 type resource map[string]interface{}
 
 // resources is the subset of data we need to display a command's plain text response for a list
