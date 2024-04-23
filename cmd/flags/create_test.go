@@ -161,7 +161,7 @@ func TestCreate(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}

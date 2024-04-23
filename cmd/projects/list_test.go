@@ -143,7 +143,7 @@ func TestList(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			ProjectsClient: &client,
 		}

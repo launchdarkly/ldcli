@@ -178,7 +178,7 @@ func TestGet(t *testing.T) {
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			EnvironmentsClient: &client,
 		}

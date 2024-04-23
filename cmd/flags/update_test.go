@@ -144,7 +144,7 @@ func TestUpdate(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -272,7 +272,7 @@ func TestToggle(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
