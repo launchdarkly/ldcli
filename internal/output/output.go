@@ -11,20 +11,20 @@ var ErrInvalidOutputKind = errors.NewError("output is invalid")
 // Outputter defines the different ways a command's response can be formatted. Every command will
 // need to implement its own type based on its data's representation.
 type Outputter interface {
-	JSON() (string, error)
+	JSON() string
 	String() string
 }
 
 // CmdOutput returns a command's response as a string formatted based on the user's requested type.
-func CmdOutput(outputKind string, outputter Outputter) (string, error) {
+func CmdOutput(outputKind string, outputter Outputter) string {
 	switch outputKind {
 	case "json":
 		return outputter.JSON()
 	case "plaintext":
-		return outputter.String(), nil
+		return outputter.String()
 	}
 
-	return "", ErrInvalidOutputKind
+	return ""
 }
 
 // FormatColl applies a formatting function to every element in the collection and returns it as a

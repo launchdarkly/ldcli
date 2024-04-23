@@ -17,8 +17,8 @@ type EnvironmentOutputter struct {
 	resourceJSON []byte
 }
 
-func (o EnvironmentOutputter) JSON() (string, error) {
-	return string(o.resourceJSON), nil
+func (o EnvironmentOutputter) JSON() string {
+	return string(o.resourceJSON)
 }
 
 func (o EnvironmentOutputter) String() string {
