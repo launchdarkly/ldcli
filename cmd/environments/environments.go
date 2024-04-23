@@ -25,16 +25,6 @@ func NewEnvironmentsCmd(
 				analytics.CmdRunEventProperties(cmd, "environments"),
 			)
 		},
-		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			analyticsTracker.SendEvent(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				"CLI Command Completed",
-				map[string]interface{}{
-					"outcome": analytics.Outcome(cmd),
-				},
-			)
-		},
 	}
 
 	getCmd, err := NewGetCmd(client)

@@ -195,4 +195,34 @@ func TestGet(t *testing.T) {
 
 		require.NoError(t, err)
 	})
+
+	t.Run("will track analytics for api error", func(t *testing.T) {
+		tracker := analytics.MockedTracker(
+			"environments",
+			"get",
+			[]string{
+				"access-token",
+				"base-uri",
+				"environment",
+				"project",
+			})
+		client := environments.MockClient{}
+		client.
+			On("Get", mockArgs...).
+			Return([]byte(`{}`), errors.NewError("An error"))
+		clients := cmd.APIClients{
+			EnvironmentsClient: &client,
+		}
+
+		args := []string{
+			"environments", "get",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"--environment", "test-env",
+			"--project", "test-proj",
+		}
+
+		_, err := cmd.CallCmd(t, clients, tracker, args)
+		require.EqualError(t, err, "An error")
+	})
 }

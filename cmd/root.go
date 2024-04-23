@@ -152,9 +152,20 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	}
 
 	err = rootCmd.Execute()
+	outcome := analytics.SUCCESS
 	if err != nil {
+		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
 	}
+
+	analyticsTracker.SendEvent(
+		viper.GetString(cliflags.AccessTokenFlag),
+		viper.GetString(cliflags.BaseURIFlag),
+		"CLI Command Completed",
+		map[string]interface{}{
+			"outcome": outcome,
+		},
+	)
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
