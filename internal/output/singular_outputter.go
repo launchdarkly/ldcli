@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-var singularPlaintextOutputFn = func(r configResource) string {
+var singularPlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("%s (%s)", r["name"], r["key"])
 }
 
@@ -21,7 +21,7 @@ type singularOutputterFn struct {
 }
 
 func (o singularOutputterFn) New() (Outputter, error) {
-	var r configResource
+	var r resource
 	err := json.Unmarshal(o.input, &r)
 	if err != nil {
 		return SingularOutputter{}, err
@@ -35,8 +35,8 @@ func (o singularOutputterFn) New() (Outputter, error) {
 }
 
 type SingularOutputter struct {
-	outputFn     PlaintextOutputFn[configResource]
-	resource     configResource
+	outputFn     PlaintextOutputFn[resource]
+	resource     resource
 	resourceJSON []byte
 }
 
@@ -45,5 +45,5 @@ func (o SingularOutputter) JSON() string {
 }
 
 func (o SingularOutputter) String() string {
-	return formatColl([]configResource{o.resource}, o.outputFn)
+	return formatColl([]resource{o.resource}, o.outputFn)
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-var configPlaintextOutputFn = func(r configResource) string {
+var configPlaintextOutputFn = func(r resource) string {
 	keys := make([]string, 0)
 	for k := range r {
 		keys = append(keys, k)
@@ -33,7 +33,7 @@ type configOutputterFn struct {
 }
 
 func (o configOutputterFn) New() (Outputter, error) {
-	var r configResource
+	var r resource
 	err := json.Unmarshal(o.input, &r)
 	if err != nil {
 		return ConfigOutputter{}, err
@@ -47,8 +47,8 @@ func (o configOutputterFn) New() (Outputter, error) {
 }
 
 type ConfigOutputter struct {
-	outputFn     PlaintextOutputFn[configResource]
-	resource     configResource
+	outputFn     PlaintextOutputFn[resource]
+	resource     resource
 	resourceJSON []byte
 }
 
@@ -57,5 +57,5 @@ func (o ConfigOutputter) JSON() string {
 }
 
 func (o ConfigOutputter) String() string {
-	return formatColl([]configResource{o.resource}, o.outputFn)
+	return formatColl([]resource{o.resource}, o.outputFn)
 }

@@ -6,7 +6,7 @@ import (
 )
 
 var multiplePlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("* %s (%s)", r.Name, r.Key)
+	return fmt.Sprintf("* %s (%s)", r["name"], r["key"])
 }
 
 // TODO: rename this to be "cleaner"? -- NewMultipleOutput()

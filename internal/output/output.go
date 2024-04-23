@@ -27,18 +27,13 @@ type PlaintextOutputFn[T any] func(t T) string
 
 // resource is the subset of data we need to display a command's plain text response for a single
 // resource.
-type resource struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
-}
+type resource map[string]interface{}
 
 // resources is the subset of data we need to display a command's plain text response for a list
 // of resources.
 type resources struct {
 	Items []resource `json:"items"`
 }
-
-type configResource map[string]interface{}
 
 // CmdOutput returns a command's response as a string formatted based on the user's requested type.
 func CmdOutput(outputKind string, outputter OutputterFn) (string, error) {
