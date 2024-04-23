@@ -21,16 +21,12 @@ func TestCreate(t *testing.T) {
 		"test-key",
 		"test-proj-key",
 	}
-	stubbedSuccessResponse := `{
-		"key": "test-key",
-		"name": "test-name"
-	}`
 
 	t.Run("with valid flags calls API", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(stubbedSuccessResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -46,7 +42,7 @@ func TestCreate(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, stubbedSuccessResponse, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
@@ -55,7 +51,7 @@ func TestCreate(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(stubbedSuccessResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -69,7 +65,7 @@ func TestCreate(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, stubbedSuccessResponse, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
