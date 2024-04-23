@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 )
@@ -44,7 +45,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -67,7 +68,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -90,7 +91,7 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -103,7 +104,7 @@ func TestUpdate(t *testing.T) {
 			"flags", "update",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "data", "flag", "project" not set`+errorHelp)
 	})
@@ -120,9 +121,41 @@ func TestUpdate(t *testing.T) {
 			"--project", "test-proj-key",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
+	})
+
+	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
+		tracker := analytics.MockedTracker(
+			"flags",
+			"update",
+			[]string{
+				"access-token",
+				"base-uri",
+				"data",
+				"flag",
+				"project",
+			})
+
+		client := flags.MockClient{}
+		client.
+			On("Update", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
+		args := []string{
+			"flags", "update",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
+			"--flag", "test-key",
+			"--project", "test-proj-key",
+		}
+
+		_, err := cmd.CallCmd(t, clients, tracker, args)
+		require.NoError(t, err)
 	})
 }
 
@@ -159,7 +192,7 @@ func TestToggle(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -182,7 +215,7 @@ func TestToggle(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -195,7 +228,7 @@ func TestToggle(t *testing.T) {
 			"flags", "toggle-on",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "flag", "project" not set`+errorHelp)
 	})
@@ -213,8 +246,40 @@ func TestToggle(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
+	})
+
+	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
+		tracker := analytics.MockedTracker(
+			"flags",
+			"toggle-on",
+			[]string{
+				"access-token",
+				"base-uri",
+				"environment",
+				"flag",
+				"project",
+			})
+
+		client := flags.MockClient{}
+		client.
+			On("Update", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
+		args := []string{
+			"flags", "toggle-on",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"--flag", "test-flag-key",
+			"--project", "test-proj-key",
+			"--environment", "test-env-key",
+		}
+
+		_, err := cmd.CallCmd(t, clients, tracker, args)
+		require.NoError(t, err)
 	})
 }

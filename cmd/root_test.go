@@ -2,6 +2,7 @@ package cmd_test
 
 import (
 	"ldcli/cmd"
+	"ldcli/internal/analytics"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ func TestCreate(t *testing.T) {
 			"--version",
 		}
 
-		output, err := cmd.CallCmd(t, cmd.APIClients{}, args)
+		output, err := cmd.CallCmd(t, cmd.APIClients{}, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.Contains(t, string(output), `ldcli version test`)

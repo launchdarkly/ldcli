@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"ldcli/cmd"
+	"ldcli/internal/analytics"
 	"os"
 	"testing"
 
@@ -16,7 +17,7 @@ func TestNoFlag(t *testing.T) {
 		"config",
 	}
 
-	output, err := cmd.CallCmd(t, cmd.APIClients{}, args)
+	output, err := cmd.CallCmd(t, cmd.APIClients{}, &analytics.NoopClient{}, args)
 
 	require.NoError(t, err)
 

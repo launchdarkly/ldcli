@@ -2,15 +2,26 @@ package projects
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
+	"ldcli/internal/analytics"
 	"ldcli/internal/projects"
 )
 
-func NewProjectsCmd(client projects.Client) (*cobra.Command, error) {
+func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "projects",
 		Short: "Make requests (list, create, etc.) on projects",
 		Long:  "Make requests (list, create, etc.) on projects",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			analyticsTracker.SendEvent(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				"CLI Command Run",
+				analytics.CmdRunEventProperties(cmd, "projects"),
+			)
+		},
 	}
 
 	createCmd, err := NewCreateCmd(client)

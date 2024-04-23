@@ -2,6 +2,7 @@ package flags_test
 
 import (
 	"ldcli/cmd"
+	"ldcli/internal/analytics"
 	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 	"testing"
@@ -37,7 +38,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -60,7 +61,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		output, err := cmd.CallCmd(t, clients, args)
+		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"valid": true}`, string(output))
@@ -83,7 +84,7 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -96,7 +97,7 @@ func TestGet(t *testing.T) {
 			"flags", "get",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "flag", "project" not set`+errorHelp)
 	})
@@ -114,8 +115,41 @@ func TestGet(t *testing.T) {
 			"--environment", "test-env-key",
 		}
 
-		_, err := cmd.CallCmd(t, clients, args)
+		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
+	})
+
+	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
+		tracker := analytics.MockedTracker(
+			"flags",
+			"get",
+			[]string{
+				"access-token",
+				"base-uri",
+				"environment",
+				"flag",
+				"project",
+			})
+
+		client := flags.MockClient{}
+		client.
+			On("Get", mockArgs...).
+			Return([]byte(cmd.ValidResponse), nil)
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
+
+		args := []string{
+			"flags", "get",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"--flag", "test-key",
+			"--project", "test-proj-key",
+			"--environment", "test-env-key",
+		}
+
+		_, err := cmd.CallCmd(t, clients, tracker, args)
+		require.NoError(t, err)
 	})
 }

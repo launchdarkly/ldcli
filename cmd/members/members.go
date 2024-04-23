@@ -2,15 +2,26 @@ package members
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
+	"ldcli/internal/analytics"
 	"ldcli/internal/members"
 )
 
-func NewMembersCmd(client members.Client) (*cobra.Command, error) {
+func NewMembersCmd(analyticsTracker analytics.Tracker, client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "members",
 		Short: "Make requests (list, create, etc.) on members",
 		Long:  "Make requests (list, create, etc.) on members",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			analyticsTracker.SendEvent(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				"CLI Command Run",
+				analytics.CmdRunEventProperties(cmd, "members"),
+			)
+		},
 	}
 
 	createCmd, err := NewCreateCmd(client)

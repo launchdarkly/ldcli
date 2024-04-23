@@ -2,15 +2,26 @@ package flags
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
+	"ldcli/internal/analytics"
 	"ldcli/internal/flags"
 )
 
-func NewFlagsCmd(client flags.Client) (*cobra.Command, error) {
+func NewFlagsCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "flags",
 		Short: "Make requests (list, create, etc.) on flags",
 		Long:  "Make requests (list, create, etc.) on flags",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			analyticsTracker.SendEvent(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				"CLI Command Run",
+				analytics.CmdRunEventProperties(cmd, "flags"),
+			)
+		},
 	}
 
 	createCmd, err := NewCreateCmd(client)

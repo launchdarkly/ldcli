@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"sync"
+
+	"github.com/stretchr/testify/mock"
 )
 
 type Tracker interface {
@@ -88,4 +90,19 @@ func (c *NoopClient) SendEvent(
 	eventName string,
 	properties map[string]interface{},
 ) {
+}
+
+type MockTracker struct {
+	mock.Mock
+	ID string
+}
+
+func (m *MockTracker) SendEvent(
+	accessToken string,
+	baseURI string,
+	eventName string,
+	properties map[string]interface{},
+) {
+	properties["id"] = m.ID
+	m.Called(accessToken, baseURI, eventName, properties)
 }
