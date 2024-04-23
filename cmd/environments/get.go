@@ -71,7 +71,7 @@ func runGet(
 
 		output, err := output.CmdOutput(
 			viper.GetString(cliflags.OutputFlag),
-			output.SingularOutput(response),
+			output.NewSingularOutputterFn(response),
 		)
 		if err != nil {
 			return err

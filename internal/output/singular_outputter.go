@@ -9,7 +9,8 @@ var singularPlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("%s (%s)", r.Name, r.Key)
 }
 
-func SingularOutput(input []byte) OutputterFn {
+// TODO: rename this to be "cleaner"? -- NewSingularOutput()
+func NewSingularOutputterFn(input []byte) singularOutputterFn {
 	return singularOutputterFn{
 		input: input,
 	}
@@ -23,12 +24,26 @@ func (o singularOutputterFn) New() (Outputter, error) {
 	var r resource
 	err := json.Unmarshal(o.input, &r)
 	if err != nil {
-		return Outputter{}, err
+		return SingularOutputter{}, err
 	}
 
-	return Outputter{
+	return SingularOutputter{
 		outputFn:     singularPlaintextOutputFn,
 		resource:     r,
 		resourceJSON: o.input,
 	}, nil
+}
+
+type SingularOutputter struct {
+	outputFn     PlaintextOutputFn
+	resource     resource
+	resourceJSON []byte
+}
+
+func (o SingularOutputter) JSON() string {
+	return string(o.resourceJSON)
+}
+
+func (o SingularOutputter) String() string {
+	return formatColl([]resource{o.resource}, o.outputFn)
 }

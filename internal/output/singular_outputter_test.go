@@ -17,7 +17,7 @@ func TestOutputter_JSON(t *testing.T) {
 	}`)
 	output, err := output.CmdOutput(
 		"json",
-		output.SingularOutput(input),
+		output.NewSingularOutputterFn(input),
 	)
 
 	require.NoError(t, err)
@@ -33,7 +33,7 @@ func TestOutputter_String(t *testing.T) {
 	expected := "test-name (test-key)"
 	output, err := output.CmdOutput(
 		"plaintext",
-		output.SingularOutput(input),
+		output.NewSingularOutputterFn(input),
 	)
 
 	require.NoError(t, err)

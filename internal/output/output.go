@@ -10,22 +10,10 @@ var ErrInvalidOutputKind = errors.NewError("output is invalid")
 
 // Outputter defines the different ways a command's response can be formatted based on
 // user input.
-type Outputter struct {
-	outputFn     PlaintextOutputFn
-	resource     resource
-	resourceJSON []byte
+type Outputter interface {
+	JSON() string
+	String() string
 }
-
-func (o Outputter) JSON() string {
-	return string(o.resourceJSON)
-}
-
-func (o Outputter) String() string {
-	return formatColl([]resource{o.resource}, o.outputFn)
-}
-
-// PlaintextOutputFn represents the various ways to output a resource or resources.
-type PlaintextOutputFn func(resource) string
 
 // OutputterFn is a factory to build the right outputter. By adding an layer of abstraction,
 // it lets us push back the error handling from where a caller provides the input to where
@@ -34,7 +22,11 @@ type OutputterFn interface {
 	New() (Outputter, error)
 }
 
-// resource is the subset of data we need to display a command's plain text response.
+// PlaintextOutputFn represents the various ways to output a resource or resources.
+type PlaintextOutputFn func(resource) string
+
+// resource is the subset of data we need to display a command's plain text response for a single
+// resource.
 type resource struct {
 	Key  string `json:"key"`
 	Name string `json:"name"`
