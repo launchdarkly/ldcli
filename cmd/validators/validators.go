@@ -11,27 +11,27 @@ import (
 
 	"ldcli/cmd/cliflags"
 	errs "ldcli/internal/errors"
+	"ldcli/internal/output"
 )
 
 // Validate is a validator for commands to print an error when the user input is invalid.
 func Validate() cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		rebindFlags(cmd, cmd.ValidArgs) // rebind flags before validating them below
-		commandPath := getCommandPath(cmd)
 
 		_, err := url.ParseRequestURI(viper.GetString(cliflags.BaseURIFlag))
 		if err != nil {
-			return CmdError(errs.ErrInvalidBaseURI, commandPath)
+			return CmdError(errs.ErrInvalidBaseURI, cmd.CommandPath())
 		}
 
 		err = cmd.ValidateRequiredFlags()
 		if err != nil {
-			return CmdError(err, commandPath)
+			return CmdError(err, cmd.CommandPath())
 		}
 
 		err = validateOutput(viper.GetString(cliflags.OutputFlag))
 		if err != nil {
-			return CmdError(err, commandPath)
+			return CmdError(err, cmd.CommandPath())
 		}
 
 		return nil
@@ -48,17 +48,6 @@ func CmdError(err error, commandPath string) error {
 	return errors.New(errorMessage)
 }
 
-func getCommandPath(cmd *cobra.Command) string {
-	var commandPath string
-	if cmd.Annotations["scope"] == "plugin" {
-		commandPath = fmt.Sprintf("stripe %s", cmd.CommandPath())
-	} else {
-		commandPath = cmd.CommandPath()
-	}
-
-	return commandPath
-}
-
 func validateOutput(outputFlag string) error {
 	validKinds := map[string]struct{}{
 		"json":      {},
@@ -66,7 +55,7 @@ func validateOutput(outputFlag string) error {
 	}
 	_, ok := validKinds[outputFlag]
 	if !ok {
-		return errors.New("output is invalid")
+		return output.ErrInvalidOutputKind
 	}
 
 	return nil

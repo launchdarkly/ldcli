@@ -11,6 +11,7 @@ import (
 	"ldcli/cmd/validators"
 	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
+	"ldcli/internal/output"
 )
 
 func NewGetCmd(
@@ -68,6 +69,14 @@ func runGet(
 			return err
 		}
 
+		output, err := output.CmdOutput(
+			viper.GetString(cliflags.OutputFlag),
+			output.NewSingularOutputterFn(response),
+		)
+		if err != nil {
+			return err
+		}
+
 		analyticsTracker.SendEvent(
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
@@ -77,7 +86,7 @@ func runGet(
 				"projectKey": viper.GetString(cliflags.ProjectFlag),
 			})
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+		fmt.Fprintf(cmd.OutOrStdout(), string(output)+"\n")
 
 		return nil
 	}
