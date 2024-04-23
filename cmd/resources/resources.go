@@ -27,18 +27,18 @@ func NewResourceCmd(parentCmd *cobra.Command, resourceName, shortDescription, lo
 }
 
 type OperationData struct {
-	Short        string  // summary
-	Long         string  // description
-	Use          string  // method -> use
-	Params       []Param // parameters
-	HTTPMethod   string  // method
-	RequiresBody bool    // requestBody > required
-	Path         string  // path
+	Short        string
+	Long         string
+	Use          string
+	Params       []Param
+	HTTPMethod   string
+	RequiresBody bool
+	Path         string
 }
 
 type Param struct {
 	Name        string
-	In          string // query or path
+	In          string
 	Description string
 	Type        string
 }
@@ -89,7 +89,7 @@ func (op *OperationCmd) initFlags() error {
 }
 
 func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
-	params := map[string]interface{}{}
+	paramVals := map[string]interface{}{}
 
 	if op.RequiresBody {
 		var data interface{}
@@ -98,7 +98,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		params[cliflags.DataFlag] = data
+		paramVals[cliflags.DataFlag] = data
 	}
 
 	for _, p := range op.Params {
@@ -113,11 +113,11 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		}
 
 		if val != nil {
-			params[p.Name] = val
+			paramVals[p.Name] = val
 		}
 	}
 
-	log.Printf("would be making a request to %s here, with args: %s", op.Path, params)
+	log.Printf("would be making a request to %s here, with args: %s", op.Path, paramVals)
 	return nil
 }
 
