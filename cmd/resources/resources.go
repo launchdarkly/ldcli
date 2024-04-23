@@ -102,7 +102,19 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, p := range op.Params {
-		params[p.Name] = viper.GetString(p.Name)
+		var val interface{}
+		switch p.Type {
+		case "string":
+			val = viper.GetString(p.Name)
+		case "boolean":
+			val = viper.GetBool(p.Name)
+		case "int":
+			val = viper.GetInt(p.Name)
+		}
+
+		if val != nil {
+			params[p.Name] = val
+		}
 	}
 
 	log.Printf("would be making a request to %s here, with args: %s", op.Path, params)
