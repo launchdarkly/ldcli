@@ -74,7 +74,7 @@ func runGet(
 			return err
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(output)+"\n")
+		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 		return nil
 	}

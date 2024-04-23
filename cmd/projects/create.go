@@ -69,7 +69,7 @@ func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(output)+"\n")
+		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 		return nil
 	}
