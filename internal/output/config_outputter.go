@@ -3,13 +3,20 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
 var configPlaintextOutputFn = func(r configResource) string {
+	keys := make([]string, 0)
+	for k := range r {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	lst := make([]string, 0)
-	for k, v := range r {
-		lst = append(lst, fmt.Sprintf("%s: %s", k, v))
+	for _, k := range keys {
+		lst = append(lst, fmt.Sprintf("%s: %s", k, r[k]))
 	}
 
 	return strings.Join(lst, "\n")

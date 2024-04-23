@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-var singularPlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("%s (%s)", r.Name, r.Key)
+var singularPlaintextOutputFn = func(r configResource) string {
+	return fmt.Sprintf("%s (%s)", r["name"], r["key"])
 }
 
 // TODO: rename this to be "cleaner"? -- NewSingularOutput()
@@ -21,7 +21,7 @@ type singularOutputterFn struct {
 }
 
 func (o singularOutputterFn) New() (Outputter, error) {
-	var r resource
+	var r configResource
 	err := json.Unmarshal(o.input, &r)
 	if err != nil {
 		return SingularOutputter{}, err
@@ -35,8 +35,8 @@ func (o singularOutputterFn) New() (Outputter, error) {
 }
 
 type SingularOutputter struct {
-	outputFn     PlaintextOutputFn[resource]
-	resource     resource
+	outputFn     PlaintextOutputFn[configResource]
+	resource     configResource
 	resourceJSON []byte
 }
 
@@ -45,5 +45,5 @@ func (o SingularOutputter) JSON() string {
 }
 
 func (o SingularOutputter) String() string {
-	return formatColl([]resource{o.resource}, o.outputFn)
+	return formatColl([]configResource{o.resource}, o.outputFn)
 }

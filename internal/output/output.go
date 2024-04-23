@@ -38,7 +38,7 @@ type resources struct {
 	Items []resource `json:"items"`
 }
 
-type configResource map[string]string
+type configResource map[string]interface{}
 
 // CmdOutput returns a command's response as a string formatted based on the user's requested type.
 func CmdOutput(outputKind string, outputter OutputterFn) (string, error) {
