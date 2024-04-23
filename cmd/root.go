@@ -39,7 +39,7 @@ func NewRootCommand(
 	version string,
 	useConfigFile bool,
 ) (*cobra.Command, error) {
-	rootCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
 		Long:    "LaunchDarkly CLI to control your feature flags",
@@ -75,26 +75,26 @@ func NewRootCommand(
 	viper.SetEnvKeyReplacer(replacer)
 	viper.AutomaticEnv()
 
-	rootCmd.PersistentFlags().String(
+	cmd.PersistentFlags().String(
 		cliflags.AccessTokenFlag,
 		"",
 		"LaunchDarkly API token with write-level access",
 	)
-	err := rootCmd.MarkPersistentFlagRequired(cliflags.AccessTokenFlag)
+	err := cmd.MarkPersistentFlagRequired(cliflags.AccessTokenFlag)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.BindPFlag(cliflags.AccessTokenFlag, rootCmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag))
+	err = viper.BindPFlag(cliflags.AccessTokenFlag, cmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag))
 	if err != nil {
 		return nil, err
 	}
 
-	rootCmd.PersistentFlags().String(
+	cmd.PersistentFlags().String(
 		cliflags.BaseURIFlag,
 		cliflags.BaseURIDefault,
 		"LaunchDarkly base URI",
 	)
-	err = viper.BindPFlag(cliflags.BaseURIFlag, rootCmd.PersistentFlags().Lookup(cliflags.BaseURIFlag))
+	err = viper.BindPFlag(cliflags.BaseURIFlag, cmd.PersistentFlags().Lookup(cliflags.BaseURIFlag))
 	if err != nil {
 		return nil, err
 	}
@@ -116,16 +116,16 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	rootCmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
-	rootCmd.AddCommand(environmentsCmd)
-	rootCmd.AddCommand(flagsCmd)
-	rootCmd.AddCommand(membersCmd)
-	rootCmd.AddCommand(projectsCmd)
-	rootCmd.AddCommand(NewQuickStartCmd(clients.EnvironmentsClient, clients.FlagsClient))
+	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
+	cmd.AddCommand(environmentsCmd)
+	cmd.AddCommand(flagsCmd)
+	cmd.AddCommand(membersCmd)
+	cmd.AddCommand(projectsCmd)
+	cmd.AddCommand(NewQuickStartCmd(clients.EnvironmentsClient, clients.FlagsClient))
 
-	addAllResourceCmds(rootCmd, clients.GenericClient)
+	addAllResourceCmds(cmd, clients.GenericClient)
 
-	return rootCmd, nil
+	return cmd, nil
 }
 
 func Execute(analyticsTracker analytics.Tracker, version string) {
