@@ -10,6 +10,7 @@ import (
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
 	"ldcli/internal/flags"
+	"ldcli/internal/output"
 )
 
 func NewGetCmd(client flags.Client) (*cobra.Command, error) {
@@ -73,7 +74,15 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+		output, err := output.CmdOutput(
+			viper.GetString(cliflags.OutputFlag),
+			output.NewSingularOutputterFn(response),
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 		return nil
 	}
