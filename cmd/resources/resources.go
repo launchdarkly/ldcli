@@ -3,7 +3,6 @@ package resources
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/spf13/cobra"
@@ -117,7 +116,8 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	log.Printf("would be making a request to %s here, with args: %s", op.Path, paramVals)
+	fmt.Fprintf(cmd.OutOrStdout(), fmt.Sprintf("would be making a request to %s here, with args: %s\n", op.Path, paramVals))
+
 	return nil
 }
 
