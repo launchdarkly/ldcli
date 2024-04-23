@@ -10,6 +10,7 @@ import (
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
 	"ldcli/internal/environments"
+	"ldcli/internal/output"
 )
 
 func NewGetCmd(
@@ -65,7 +66,15 @@ func runGet(
 			return err
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+		output, err := output.CmdOutput(
+			viper.GetString(cliflags.OutputFlag),
+			output.NewSingularOutputterFn(response),
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), string(output)+"\n")
 
 		return nil
 	}

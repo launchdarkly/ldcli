@@ -96,6 +96,17 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	cmd.PersistentFlags().StringP(
+		cliflags.OutputFlag,
+		"o",
+		"plaintext",
+		"Command response output format in either JSON or plain text",
+	)
+	err = viper.BindPFlag(cliflags.OutputFlag, cmd.PersistentFlags().Lookup(cliflags.OutputFlag))
+	if err != nil {
+		return nil, err
+	}
+
 	environmentsCmd, err := envscmd.NewEnvironmentsCmd(analyticsTracker, clients.EnvironmentsClient)
 	if err != nil {
 		return nil, err

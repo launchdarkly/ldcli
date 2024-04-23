@@ -38,10 +38,11 @@ func (c EnvironmentsClient) Get(
 
 	}
 
-	responseJSON, err := json.Marshal(environment)
+	output, err := json.Marshal(environment)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewLDAPIError(err)
+
 	}
 
-	return responseJSON, nil
+	return output, nil
 }
