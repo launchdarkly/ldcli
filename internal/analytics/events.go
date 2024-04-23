@@ -29,6 +29,12 @@ func CmdRunEventProperties(cmd *cobra.Command, name string) map[string]interface
 	return properties
 }
 
+const (
+	SUCCESS = "success"
+	ERROR   = "error"
+	HELP    = "help"
+)
+
 func MockedTracker(name string, action string, flags []string) *MockTracker {
 	id := "test-id"
 	mockedTrackingArgs := []interface{}{

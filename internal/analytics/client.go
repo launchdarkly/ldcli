@@ -21,6 +21,7 @@ type Tracker interface {
 }
 
 type Client struct {
+	ID         string
 	HTTPClient *http.Client
 	wg         sync.WaitGroup
 }
@@ -32,6 +33,7 @@ func (c *Client) SendEvent(
 	eventName string,
 	properties map[string]interface{},
 ) {
+	properties["id"] = c.ID
 	input := struct {
 		Event      string                 `json:"event"`
 		Properties map[string]interface{} `json:"properties"`
