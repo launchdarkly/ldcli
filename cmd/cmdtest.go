@@ -40,7 +40,7 @@ func CallCmd(
 		tracker.SendCommandCompletedEvent(
 			analytics.ERROR,
 			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIDefault),
+			viper.GetString(cliflags.BaseURIFlag),
 		)
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func CallCmd(
 	tracker.SendCommandCompletedEvent(
 		analytics.SUCCESS,
 		viper.GetString(cliflags.AccessTokenFlag),
-		viper.GetString(cliflags.BaseURIDefault),
+		viper.GetString(cliflags.BaseURIFlag),
 	)
 
 	out, err := io.ReadAll(b)
