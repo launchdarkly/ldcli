@@ -28,12 +28,10 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 		Short: "View and modify specific configuration values",
 		Use:   "config",
 		PreRun: func(cmd *cobra.Command, args []string) {
-			if viper.GetBool(cliflags.AnalyticsOptOut) {
-				return
-			}
 			analyticsTracker.SendEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
 				"CLI Command Run",
 				analytics.CmdRunEventProperties(cmd, "config"),
 			)

@@ -15,12 +15,10 @@ func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) 
 		Short: "Make requests (list, create, etc.) on projects",
 		Long:  "Make requests (list, create, etc.) on projects",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if viper.GetBool(cliflags.AnalyticsOptOut) {
-				return
-			}
 			analyticsTracker.SendEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
 				"CLI Command Run",
 				analytics.CmdRunEventProperties(cmd, "projects"),
 			)

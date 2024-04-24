@@ -15,12 +15,10 @@ func NewMembersCmd(analyticsTracker analytics.Tracker, client members.Client) (*
 		Short: "Make requests (list, create, etc.) on members",
 		Long:  "Make requests (list, create, etc.) on members",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if viper.GetBool(cliflags.AnalyticsOptOut) {
-				return
-			}
 			analyticsTracker.SendEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
 				"CLI Command Run",
 				analytics.CmdRunEventProperties(cmd, "members"),
 			)
