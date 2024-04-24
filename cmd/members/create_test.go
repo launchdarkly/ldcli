@@ -25,7 +25,7 @@ func TestCreate(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
@@ -34,6 +34,7 @@ func TestCreate(t *testing.T) {
 			"create",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"-d",
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
@@ -41,7 +42,7 @@ func TestCreate(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
@@ -50,16 +51,17 @@ func TestCreate(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
 		args := []string{
 			"members",
 			"create",
+			"--output", "json",
 			"-d",
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}
@@ -67,14 +69,14 @@ func TestCreate(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
@@ -129,12 +131,13 @@ func TestCreate(t *testing.T) {
 				"access-token",
 				"base-uri",
 				"data",
+				"output",
 			})
 
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
@@ -143,6 +146,7 @@ func TestCreate(t *testing.T) {
 			"create",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"-d",
 			`[{"email": "testemail@test.com", "role": "writer"}]`,
 		}

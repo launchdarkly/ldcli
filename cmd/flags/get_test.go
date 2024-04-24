@@ -25,7 +25,7 @@ func TestGet(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -33,6 +33,7 @@ func TestGet(t *testing.T) {
 			"flags", "get",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"--flag", "test-key",
 			"--project", "test-proj-key",
 			"--environment", "test-env-key",
@@ -41,7 +42,7 @@ func TestGet(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
@@ -50,13 +51,14 @@ func TestGet(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
 		args := []string{
 			"flags", "get",
 			"--flag", "test-key",
+			"--output", "json",
 			"--project", "test-proj-key",
 			"--environment", "test-env-key",
 		}
@@ -64,14 +66,14 @@ func TestGet(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -129,13 +131,14 @@ func TestGet(t *testing.T) {
 				"base-uri",
 				"environment",
 				"flag",
+				"output",
 				"project",
 			})
 
 		client := flags.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -144,6 +147,7 @@ func TestGet(t *testing.T) {
 			"flags", "get",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"--flag", "test-key",
 			"--project", "test-proj-key",
 			"--environment", "test-env-key",

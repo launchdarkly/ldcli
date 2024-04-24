@@ -10,7 +10,9 @@ import (
 
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/errors"
 	"ldcli/internal/flags"
+	"ldcli/internal/output"
 )
 
 func NewUpdateCmd(client flags.Client) (*cobra.Command, error) {
@@ -115,11 +117,6 @@ func setToggleCommandFlags(cmd *cobra.Command) (*cobra.Command, error) {
 
 func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		// rebind flags used in other subcommands
-		_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
-		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
-		_ = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
-
 		var patch []flags.UpdateInput
 		if cmd.CalledAs() == "toggle-on" || cmd.CalledAs() == "toggle-off" {
 			_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
@@ -141,10 +138,28 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 			patch,
 		)
 		if err != nil {
-			return err
+			output, err := output.CmdOutputSingular(
+				viper.GetString(cliflags.OutputFlag),
+				[]byte(err.Error()),
+				output.ErrorPlaintextOutputFn,
+			)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+
+			return errors.NewError(output)
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+		output, err := output.CmdOutputSingular(
+			viper.GetString(cliflags.OutputFlag),
+			response,
+			output.SingularPlaintextOutputFn,
+		)
+		if err != nil {
+			return errors.NewError(err.Error())
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 		return nil
 	}
