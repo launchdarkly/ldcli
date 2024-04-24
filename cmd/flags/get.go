@@ -58,11 +58,6 @@ func NewGetCmd(client flags.Client) (*cobra.Command, error) {
 
 func runGet(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		// rebind flags used in other subcommands
-		_ = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
-		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
-		_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
-
 		response, err := client.Get(
 			context.Background(),
 			viper.GetString(cliflags.AccessTokenFlag),
@@ -78,7 +73,7 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 				output.ErrorPlaintextOutputFn,
 			)
 			if err != nil {
-				return err
+				return errors.NewError(output)
 			}
 
 			return errors.NewError(output)
