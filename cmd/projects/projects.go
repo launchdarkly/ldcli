@@ -13,7 +13,7 @@ func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) 
 		Short: "Make requests (list, create, etc.) on projects",
 		Long:  "Make requests (list, create, etc.) on projects",
 		PersistentPreRun: func(c *cobra.Command, args []string) {
-			analytics.SendCommandRunEvent("members", c, analyticsTracker)
+			analytics.SendCommandRunEvent("projects", c, analyticsTracker)
 		},
 	}
 
@@ -28,7 +28,7 @@ func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) 
 
 	for _, c := range cmd.Commands() {
 		c.SetHelpFunc(func(c *cobra.Command, args []string) {
-			analytics.SendCommandRunEvent("members", c, analyticsTracker)
+			analytics.SendCommandRunEvent("projects", c, analyticsTracker)
 			c.Root().Annotations = map[string]string{"help": "true"}
 		})
 	}
