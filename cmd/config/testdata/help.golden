@@ -11,5 +11,6 @@ Flags:
 
 Global Flags:
       --access-token string   LaunchDarkly API token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
       --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
   -o, --output string         Command response output format in either JSON or plain text (default "plaintext")

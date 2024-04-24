@@ -15,6 +15,7 @@ type Tracker interface {
 	SendEvent(
 		accessToken string,
 		baseURI string,
+		optOut bool,
 		eventName string,
 		properties map[string]interface{},
 	)
@@ -29,9 +30,13 @@ type Client struct {
 func (c *Client) SendEvent(
 	accessToken string,
 	baseURI string,
+	optOut bool,
 	eventName string,
 	properties map[string]interface{},
 ) {
+	if optOut {
+		return
+	}
 	input := struct {
 		Event      string                 `json:"event"`
 		Properties map[string]interface{} `json:"properties"`
@@ -87,6 +92,7 @@ type NoopClient struct{}
 func (c *NoopClient) SendEvent(
 	accessToken string,
 	baseURI string,
+	optOut bool,
 	eventName string,
 	properties map[string]interface{},
 ) {
@@ -100,6 +106,7 @@ type MockTracker struct {
 func (m *MockTracker) SendEvent(
 	accessToken string,
 	baseURI string,
+	optOut bool,
 	eventName string,
 	properties map[string]interface{},
 ) {
