@@ -2,7 +2,6 @@ package output
 
 import (
 	"encoding/json"
-	"strings"
 
 	"ldcli/internal/errors"
 )
@@ -63,16 +62,18 @@ func CmdOutputResource(outputKind string, input []byte, fn PlaintextOutputFn) (s
 
 	return "", ErrInvalidOutputKind
 }
+
 func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
 	var r resources
 	err := json.Unmarshal(input, &r)
 	if err != nil {
-		var r2 resourcesBare
-		err := json.Unmarshal(input, &r2)
+		// sometimes a response doesn't include each item in an "items" property
+		var rr resourcesBare
+		err := json.Unmarshal(input, &rr)
 		if err != nil {
 			return "", err
 		}
-		r.Items = r2
+		r.Items = rr
 	}
 
 	o := MultipleOutputter{
@@ -89,15 +90,4 @@ func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn) (
 	}
 
 	return "", ErrInvalidOutputKind
-}
-
-// FormatColl applies a formatting function to every element in the collection and returns it as a
-// string.
-func formatColl[T any](coll []T, formatFn func(T) string) string {
-	lst := make([]string, 0, len(coll))
-	for _, c := range coll {
-		lst = append(lst, formatFn(c))
-	}
-
-	return strings.Join(lst, "\n")
 }
