@@ -18,6 +18,9 @@ func NewEnvironmentsCmd(
 		Short: "Make requests (list, create, etc.) on environments",
 		Long:  "Make requests (list, create, etc.) on environments",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if viper.GetBool(cliflags.AnalyticsOptOut) {
+				return
+			}
 			analyticsTracker.SendEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
