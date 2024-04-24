@@ -3,8 +3,10 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -28,6 +30,7 @@ type APIClients struct {
 	FlagsClient        flags.Client
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
+	GenericClient      *http.Client
 }
 
 func NewRootCommand(
@@ -131,6 +134,8 @@ func NewRootCommand(
 	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(NewQuickStartCmd(clients.EnvironmentsClient, clients.FlagsClient))
 
+	addAllResourceCmds(cmd, clients.GenericClient)
+
 	return cmd, nil
 }
 
@@ -140,6 +145,7 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		FlagsClient:        flags.NewClient(version),
 		MembersClient:      members.NewClient(version),
 		ProjectsClient:     projects.NewClient(version),
+		GenericClient:      &http.Client{Timeout: time.Second * 3},
 	}
 	rootCmd, err := NewRootCommand(
 		analyticsTracker,

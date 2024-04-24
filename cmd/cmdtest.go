@@ -13,7 +13,10 @@ import (
 	"ldcli/internal/analytics"
 )
 
-var ValidResponse = `{"valid": true}`
+var StubbedSuccessResponse = `{
+	"key": "test-key",
+	"name": "test-name"
+}`
 
 func CallCmd(
 	t *testing.T,

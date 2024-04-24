@@ -10,6 +10,7 @@ import (
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
 	"ldcli/internal/environments"
+	"ldcli/internal/errors"
 	"ldcli/internal/output"
 )
 
@@ -63,18 +64,28 @@ func runGet(
 			viper.GetString(cliflags.ProjectFlag),
 		)
 		if err != nil {
-			return err
+			output, err := output.CmdOutputSingular(
+				viper.GetString(cliflags.OutputFlag),
+				[]byte(err.Error()),
+				output.ErrorPlaintextOutputFn,
+			)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+
+			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutput(
+		output, err := output.CmdOutputSingular(
 			viper.GetString(cliflags.OutputFlag),
-			output.NewSingularOutputterFn(response),
+			response,
+			output.SingularPlaintextOutputFn,
 		)
 		if err != nil {
-			return err
+			return errors.NewError(err.Error())
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(output)+"\n")
+		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 		return nil
 	}

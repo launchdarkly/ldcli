@@ -9,7 +9,9 @@ import (
 
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/errors"
 	"ldcli/internal/flags"
+	"ldcli/internal/output"
 )
 
 func NewGetCmd(client flags.Client) (*cobra.Command, error) {
@@ -56,11 +58,6 @@ func NewGetCmd(client flags.Client) (*cobra.Command, error) {
 
 func runGet(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		// rebind flags used in other subcommands
-		_ = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
-		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
-		_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
-
 		response, err := client.Get(
 			context.Background(),
 			viper.GetString(cliflags.AccessTokenFlag),
@@ -70,10 +67,28 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.EnvironmentFlag),
 		)
 		if err != nil {
-			return err
+			output, err := output.CmdOutputSingular(
+				viper.GetString(cliflags.OutputFlag),
+				[]byte(err.Error()),
+				output.ErrorPlaintextOutputFn,
+			)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+
+			return errors.NewError(output)
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+		output, err := output.CmdOutputSingular(
+			viper.GetString(cliflags.OutputFlag),
+			response,
+			output.SingularPlaintextOutputFn,
+		)
+		if err != nil {
+			return errors.NewError(err.Error())
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 		return nil
 	}

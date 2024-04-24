@@ -32,7 +32,7 @@ func TestUpdate(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -40,6 +40,7 @@ func TestUpdate(t *testing.T) {
 			"flags", "update",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
 			"--flag", "test-key",
 			"--project", "test-proj-key",
@@ -48,7 +49,7 @@ func TestUpdate(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
@@ -57,12 +58,13 @@ func TestUpdate(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
 		args := []string{
 			"flags", "update",
+			"--output", "json",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
 			"--flag", "test-key",
 			"--project", "test-proj-key",
@@ -71,14 +73,14 @@ func TestUpdate(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -135,13 +137,14 @@ func TestUpdate(t *testing.T) {
 				"base-uri",
 				"data",
 				"flag",
+				"output",
 				"project",
 			}, analytics.SUCCESS)
 
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -149,6 +152,7 @@ func TestUpdate(t *testing.T) {
 			"flags", "update",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
 			"--flag", "test-key",
 			"--project", "test-proj-key",
@@ -211,7 +215,7 @@ func TestToggle(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -219,6 +223,7 @@ func TestToggle(t *testing.T) {
 			"flags", "toggle-on",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"--flag", "test-flag-key",
 			"--project", "test-proj-key",
 			"--environment", "test-env-key",
@@ -227,14 +232,14 @@ func TestToggle(t *testing.T) {
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -292,13 +297,14 @@ func TestToggle(t *testing.T) {
 				"base-uri",
 				"environment",
 				"flag",
+				"output",
 				"project",
 			}, analytics.SUCCESS)
 
 		client := flags.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -306,6 +312,7 @@ func TestToggle(t *testing.T) {
 			"flags", "toggle-on",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"--flag", "test-flag-key",
 			"--project", "test-proj-key",
 			"--environment", "test-env-key",

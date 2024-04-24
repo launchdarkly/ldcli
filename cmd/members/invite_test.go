@@ -28,7 +28,7 @@ func TestInvite(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
@@ -37,14 +37,14 @@ func TestInvite(t *testing.T) {
 			"invite",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
-			"-e",
-			`testemail1@test.com,testemail2@test.com`,
+			"--output", "json",
+			"-e", `testemail1@test.com,testemail2@test.com`,
 		}
 
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with valid flags from environment variables calls API", func(t *testing.T) {
@@ -53,31 +53,31 @@ func TestInvite(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Update", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
 		args := []string{
 			"members",
 			"invite",
-			"-e",
-			`testemail1@test.com,testemail2@test.com`,
+			"--output", "json",
+			"-e", `testemail1@test.com,testemail2@test.com`,
 		}
 
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with an error response is an error", func(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
@@ -86,8 +86,7 @@ func TestInvite(t *testing.T) {
 			"invite",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
-			"-e",
-			`testemail1@test.com,testemail2@test.com`,
+			"-e", `testemail1@test.com,testemail2@test.com`,
 		}
 
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
@@ -132,12 +131,13 @@ func TestInvite(t *testing.T) {
 				"access-token",
 				"base-uri",
 				"emails",
+        "output",
 			}, analytics.SUCCESS)
 
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
@@ -146,6 +146,7 @@ func TestInvite(t *testing.T) {
 			"invite",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"-e",
 			`testemail1@test.com,testemail2@test.com`,
 		}
@@ -170,54 +171,48 @@ func TestInviteWithOptionalRole(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
 		args := []string{
 			"members",
 			"invite",
-			"--access-token",
-			"testAccessToken",
-			"--base-uri",
-			"http://test.com",
-			"-e",
-			`testemail1@test.com,testemail2@test.com`,
-			"--role",
-			"writer",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"--output", "json",
+			"-e", `testemail1@test.com,testemail2@test.com`,
+			"--role", "writer",
 		}
 
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("with valid optional short form flag calls members API", func(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
 		args := []string{
 			"members",
 			"invite",
-			"--access-token",
-			"testAccessToken",
-			"--base-uri",
-			"http://test.com",
-			"-e",
-			`testemail1@test.com,testemail2@test.com`,
-			"-r",
-			"writer",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"--output", "json",
+			"-e", `testemail1@test.com,testemail2@test.com`,
+			"-r", "writer",
 		}
 
 		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"valid": true}`, string(output))
+		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
@@ -228,13 +223,14 @@ func TestInviteWithOptionalRole(t *testing.T) {
 				"access-token",
 				"base-uri",
 				"emails",
+				"output",
 				"role",
 			}, analytics.SUCCESS)
 
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(cmd.ValidResponse), nil)
+			Return([]byte(cmd.StubbedSuccessResponse), nil)
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
@@ -242,6 +238,7 @@ func TestInviteWithOptionalRole(t *testing.T) {
 			"members", "invite",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
+			"--output", "json",
 			"-e", `testemail1@test.com,testemail2@test.com`,
 			"--role", "writer",
 		}

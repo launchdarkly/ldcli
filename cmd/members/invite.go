@@ -9,7 +9,9 @@ import (
 
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/errors"
 	"ldcli/internal/members"
+	"ldcli/internal/output"
 )
 
 func NewInviteCmd(client members.Client) (*cobra.Command, error) {
@@ -60,10 +62,28 @@ func runInvite(client members.Client) func(*cobra.Command, []string) error {
 			memberInputs,
 		)
 		if err != nil {
-			return err
+			output, err := output.CmdOutputSingular(
+				viper.GetString(cliflags.OutputFlag),
+				[]byte(err.Error()),
+				output.ErrorPlaintextOutputFn,
+			)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+
+			return errors.NewError(output)
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(response)+"\n")
+		output, err := output.CmdOutputMultiple(
+			viper.GetString(cliflags.OutputFlag),
+			response,
+			output.MultipleEmailPlaintextOutputFn,
+		)
+		if err != nil {
+			return errors.NewError(err.Error())
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 		return nil
 	}
