@@ -30,13 +30,6 @@ func NewMembersCmd(analyticsTracker analytics.Tracker, client members.Client) (*
 	cmd.AddCommand(createCmd)
 	cmd.AddCommand(inviteCmd)
 
-	for _, c := range cmd.Commands() {
-		c.SetHelpFunc(func(c *cobra.Command, args []string) {
-			analytics.SendCommandRunEvent("members", c, analyticsTracker)
-			c.Root().Annotations = map[string]string{"help": "true"}
-		})
-	}
-
 	return cmd, nil
 
 }

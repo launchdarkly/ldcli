@@ -26,12 +26,5 @@ func NewEnvironmentsCmd(
 	}
 	cmd.AddCommand(getCmd)
 
-	for _, c := range cmd.Commands() {
-		c.SetHelpFunc(func(c *cobra.Command, args []string) {
-			analytics.SendCommandRunEvent("environments", c, analyticsTracker)
-			c.Root().Annotations = map[string]string{"help": "true"}
-		})
-	}
-
 	return cmd, nil
 }

@@ -26,12 +26,5 @@ func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) 
 	cmd.AddCommand(createCmd)
 	cmd.AddCommand(listCmd)
 
-	for _, c := range cmd.Commands() {
-		c.SetHelpFunc(func(c *cobra.Command, args []string) {
-			analytics.SendCommandRunEvent("projects", c, analyticsTracker)
-			c.Root().Annotations = map[string]string{"help": "true"}
-		})
-	}
-
 	return cmd, nil
 }
