@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// multiplePlaintextOutputFn converts the resource to plain text based on its name and key in a list.
-var multiplePlaintextOutputFn = func(r resource) string {
+// MultiplePlaintextOutputFn converts the resource to plain text based on its name and key in a list.
+var MultiplePlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("* %s (%s)", r["name"], r["key"])
 }
 
@@ -23,7 +23,7 @@ func (o multipleOutputterFn) New() (Outputter, error) {
 	}
 
 	return MultipleOutputter{
-		outputFn:     multiplePlaintextOutputFn,
+		outputFn:     MultiplePlaintextOutputFn,
 		resources:    r,
 		resourceJSON: o.input,
 	}, nil

@@ -10,6 +10,7 @@ import (
 
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/errors"
 	"ldcli/internal/members"
 	"ldcli/internal/output"
 )
@@ -42,7 +43,7 @@ func runCreate(client members.Client) func(*cobra.Command, []string) error {
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
 		err := json.Unmarshal([]byte(cmd.Flags().Lookup(cliflags.DataFlag).Value.String()), &data)
 		if err != nil {
-			return err
+			return errors.NewError(err.Error())
 		}
 
 		response, err := client.Create(
@@ -52,15 +53,25 @@ func runCreate(client members.Client) func(*cobra.Command, []string) error {
 			data,
 		)
 		if err != nil {
-			return err
+			output, err := output.CmdOutputResource(
+				viper.GetString(cliflags.OutputFlag),
+				[]byte(err.Error()),
+				output.ErrorPlaintextOutputFn,
+			)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+
+			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutput(
+		output, err := output.CmdOutputResource(
 			viper.GetString(cliflags.OutputFlag),
-			output.NewSingularOutput(response),
+			response,
+			output.SingularPlaintextOutputFn,
 		)
 		if err != nil {
-			return err
+			return errors.NewError(err.Error())
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")

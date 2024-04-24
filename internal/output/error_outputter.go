@@ -8,7 +8,16 @@ import (
 // ErrorPlaintextOutputFn converts the resource to plain text specifically for data from the
 // error file.
 var ErrorPlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("%s (code: %s)", r["message"], r["code"])
+	switch {
+	case r["code"] == nil && r["message"] == "":
+		return "unknown error occurred"
+	case r["code"] == nil:
+		return r["message"].(string)
+	case r["message"] == "":
+		return fmt.Sprintf("an error occurred (code: %s)", r["code"])
+	default:
+		return fmt.Sprintf("%s (code: %s)", r["message"], r["code"])
+	}
 }
 
 type errorOutputterFn struct {
@@ -34,4 +43,8 @@ func NewErrorOutput(input []byte) errorOutputterFn {
 	return errorOutputterFn{
 		input: input,
 	}
+}
+
+var MultipleEmailPlaintextOutputFn = func(r resource) string {
+	return fmt.Sprintf("* %s (%s)", r["email"], r["_id"])
 }

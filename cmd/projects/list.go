@@ -9,6 +9,7 @@ import (
 
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/errors"
 	"ldcli/internal/output"
 	"ldcli/internal/projects"
 )
@@ -33,15 +34,25 @@ func runList(client projects.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.BaseURIFlag),
 		)
 		if err != nil {
-			return err
+			output, err := output.CmdOutputResource(
+				viper.GetString(cliflags.OutputFlag),
+				[]byte(err.Error()),
+				output.ErrorPlaintextOutputFn,
+			)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+
+			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutput(
+		output, err := output.CmdOutputResources(
 			viper.GetString(cliflags.OutputFlag),
-			output.NewMultipleOutput(response),
+			response,
+			output.MultiplePlaintextOutputFn,
 		)
 		if err != nil {
-			return err
+			return errors.NewError(err.Error())
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")

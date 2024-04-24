@@ -73,7 +73,7 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 				output.ErrorPlaintextOutputFn,
 			)
 			if err != nil {
-				return errors.NewError(output)
+				return errors.NewError(err.Error())
 			}
 
 			return errors.NewError(output)
@@ -85,7 +85,7 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 			output.SingularPlaintextOutputFn,
 		)
 		if err != nil {
-			return err
+			return errors.NewError(err.Error())
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")

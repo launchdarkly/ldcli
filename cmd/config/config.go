@@ -64,9 +64,10 @@ func run() func(*cobra.Command, []string) error {
 				return err
 			}
 
-			output, err := output.CmdOutput(
+			output, err := output.CmdOutputResource(
 				viper.GetString(cliflags.OutputFlag),
-				output.NewConfigOutput(configJSON),
+				configJSON,
+				output.ConfigPlaintextOutputFn,
 			)
 			if err != nil {
 				return err

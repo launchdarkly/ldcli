@@ -39,6 +39,10 @@ type resources struct {
 	Items []resource `json:"items"`
 }
 
+// resourcesBare is for responses that return a list of resources at the top level of the response,
+// not as a value of an "items" property.
+type resourcesBare []resource
+
 // TODO: replace CmdOutput with this
 func CmdOutputResource(outputKind string, input []byte, fn PlaintextOutputFn2) (string, error) {
 	var r resource
@@ -66,7 +70,12 @@ func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn2) 
 	var r resources
 	err := json.Unmarshal(input, &r)
 	if err != nil {
-		return "", err
+		var r2 resourcesBare
+		err := json.Unmarshal(input, &r2)
+		if err != nil {
+			return "", err
+		}
+		r.Items = r2
 	}
 
 	o := MultipleOutputter2{

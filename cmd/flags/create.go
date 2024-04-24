@@ -10,6 +10,7 @@ import (
 
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 	"ldcli/internal/output"
 )
@@ -53,10 +54,6 @@ type inputData struct {
 
 func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		// rebind flags used in other subcommands
-		_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
-		_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
-
 		var data inputData
 		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &data)
 		if err != nil {
@@ -72,15 +69,25 @@ func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.ProjectFlag),
 		)
 		if err != nil {
-			return err
+			output, err := output.CmdOutputResource(
+				viper.GetString(cliflags.OutputFlag),
+				[]byte(err.Error()),
+				output.ErrorPlaintextOutputFn,
+			)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+
+			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutput(
+		output, err := output.CmdOutputResource(
 			viper.GetString(cliflags.OutputFlag),
-			output.NewSingularOutput(response),
+			response,
+			output.SingularPlaintextOutputFn,
 		)
 		if err != nil {
-			return err
+			return errors.NewError(err.Error())
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")

@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// configPlaintextOutputFn converts the resource to plain text specifically for data from the
+// ConfigPlaintextOutputFn converts the resource to plain text specifically for data from the
 // config file.
-var configPlaintextOutputFn = func(r resource) string {
+var ConfigPlaintextOutputFn = func(r resource) string {
 	keys := make([]string, 0)
 	for k := range r {
 		keys = append(keys, k)
@@ -37,7 +37,7 @@ func (o configOutputterFn) New() (Outputter, error) {
 	}
 
 	return SingularOutputter{
-		outputFn:     configPlaintextOutputFn,
+		outputFn:     ConfigPlaintextOutputFn,
 		resource:     r,
 		resourceJSON: o.input,
 	}, nil

@@ -10,27 +10,29 @@ import (
 )
 
 func TestMultipleOutputter_JSON(t *testing.T) {
-	input := []byte(`{
-		"items": [
-			{
-				"key": "test-key1",
-				"name": "test-name1",
-				"other": "another-value2"
-			},
-			{
-				"key": "test-key2",
-				"name": "test-name2",
-				"other": "another-value2"
-			}
-		]
-	}`)
-	output, err := output.CmdOutput(
-		"json",
-		output.NewMultipleOutput(input),
-	)
+	t.Run("when response has items array", func(t *testing.T) {
+		input := []byte(`{
+			"items": [
+				{
+					"key": "test-key1",
+					"name": "test-name1",
+					"other": "another-value2"
+				},
+				{
+					"key": "test-key2",
+					"name": "test-name2",
+					"other": "another-value2"
+				}
+			]
+		}`)
+		output, err := output.CmdOutput(
+			"json",
+			output.NewMultipleOutput(input),
+		)
 
-	require.NoError(t, err)
-	assert.JSONEq(t, output, string(input))
+		require.NoError(t, err)
+		assert.JSONEq(t, output, string(input))
+	})
 }
 
 func TestMultipleOutputter_String(t *testing.T) {
