@@ -18,12 +18,12 @@ func NewEnvironmentsCmd(
 		Use:   "environments",
 		Short: "Make requests (list, create, etc.) on environments",
 		Long:  "Make requests (list, create, etc.) on environments",
-		PersistentPreRun: func(c *cobra.Command, args []string) {
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			analyticsTracker.SendCommandRunEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(c, "environments"),
+				cmdAnalytics.CmdRunEventProperties(cmd, "environments"),
 			)
 		},
 	}
