@@ -175,4 +175,32 @@ func TestCreate(t *testing.T) {
 		_, err := cmd.CallCmd(t, clients, tracker, args)
 		require.NoError(t, err)
 	})
+
+	t.Run("will track analytics for api error", func(t *testing.T) {
+		tracker := analytics.MockedTracker(
+			"projects",
+			"create",
+			[]string{
+				"access-token",
+				"base-uri",
+				"data",
+			}, analytics.ERROR)
+		client := projects.MockClient{}
+		client.
+			On("Create", mockArgs...).
+			Return([]byte(`{}`), errors.NewError("An error"))
+		clients := cmd.APIClients{
+			ProjectsClient: &client,
+		}
+
+		args := []string{
+			"projects", "create",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"-d", `{"key": "test-key", "name": "test-name"}`,
+		}
+
+		_, err := cmd.CallCmd(t, clients, tracker, args)
+		require.EqualError(t, err, "An error")
+	})
 }
