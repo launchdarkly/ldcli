@@ -99,6 +99,16 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	cmd.PersistentFlags().Bool(
+		cliflags.AnalyticsOptOut,
+		false,
+		"Opt out of analytics tracking",
+	)
+	err = viper.BindPFlag(cliflags.AnalyticsOptOut, cmd.PersistentFlags().Lookup(cliflags.AnalyticsOptOut))
+	if err != nil {
+		return nil, err
+	}
+
 	cmd.PersistentFlags().StringP(
 		cliflags.OutputFlag,
 		"o",

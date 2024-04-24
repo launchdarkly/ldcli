@@ -4,6 +4,7 @@ const (
 	BaseURIDefault = "https://app.launchdarkly.com"
 
 	AccessTokenFlag = "access-token"
+	AnalyticsOptOut = "analytics-opt-out"
 	BaseURIFlag     = "base-uri"
 	DataFlag        = "data"
 	EmailsFlag      = "emails"

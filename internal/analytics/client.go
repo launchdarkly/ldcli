@@ -15,6 +15,7 @@ type Tracker interface {
 	SendEvent(
 		accessToken string,
 		baseURI string,
+		optOut bool,
 		eventName string,
 		properties map[string]interface{},
 	)
@@ -40,10 +41,14 @@ type Client struct {
 func (c *Client) SendEvent(
 	accessToken string,
 	baseURI string,
+	optOut bool,
 	eventName string,
 	properties map[string]interface{},
 ) {
-	properties["id"] = c.ID
+	if optOut {
+		return
+	}
+  properties["id"] = c.ID
 	input := struct {
 		Event      string                 `json:"event"`
 		Properties map[string]interface{} `json:"properties"`
@@ -98,6 +103,7 @@ func (c *Client) SendCommandRunEvent(
 	c.SendEvent(
 		accessToken,
 		baseURI,
+    false,
 		"CLI Command Run",
 		properties,
 	)
@@ -107,6 +113,7 @@ func (c *Client) SendCommandCompletedEvent(outcome, accessToken, baseURI string)
 	c.SendEvent(
 		accessToken,
 		baseURI,
+    false,
 		"CLI Command Completed",
 		map[string]interface{}{
 			"outcome": outcome,
@@ -123,6 +130,7 @@ type NoopClient struct{}
 func (c *NoopClient) SendEvent(
 	accessToken string,
 	baseURI string,
+	optOut bool,
 	eventName string,
 	properties map[string]interface{},
 ) {
@@ -146,6 +154,7 @@ type MockTracker struct {
 func (m *MockTracker) SendEvent(
 	accessToken string,
 	baseURI string,
+	optOut bool,
 	eventName string,
 	properties map[string]interface{},
 ) {
@@ -161,6 +170,7 @@ func (m *MockTracker) SendCommandRunEvent(
 	m.SendEvent(
 		accessToken,
 		baseURI,
+    false,
 		"CLI Command Run",
 		properties,
 	)
@@ -170,6 +180,7 @@ func (m *MockTracker) SendCommandCompletedEvent(outcome, accessToken, baseURI st
 	m.SendEvent(
 		accessToken,
 		baseURI,
+    false,
 		"CLI Command Completed",
 		map[string]interface{}{
 			"outcome": outcome,

@@ -22,6 +22,7 @@ func NewEnvironmentsCmd(
 			analyticsTracker.SendCommandRunEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
 				cmdAnalytics.CmdRunEventProperties(c, "environments"),
 			)
 		},
