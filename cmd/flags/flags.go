@@ -39,18 +39,18 @@ func NewFlagsCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobr
 		return nil, err
 	}
 
+	cmd.AddCommand(createCmd)
+	cmd.AddCommand(getCmd)
+	cmd.AddCommand(updateCmd)
+	cmd.AddCommand(toggleOnUpdateCmd)
+	cmd.AddCommand(toggleOffUpdateCmd)
+
 	for _, c := range cmd.Commands() {
 		c.SetHelpFunc(func(c *cobra.Command, args []string) {
 			analytics.SendCommandRunEvent("flags", c, analyticsTracker)
 			c.Root().Annotations = map[string]string{"help": "true"}
 		})
 	}
-
-	cmd.AddCommand(createCmd)
-	cmd.AddCommand(getCmd)
-	cmd.AddCommand(updateCmd)
-	cmd.AddCommand(toggleOnUpdateCmd)
-	cmd.AddCommand(toggleOffUpdateCmd)
 
 	return cmd, nil
 }
