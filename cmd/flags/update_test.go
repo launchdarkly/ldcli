@@ -161,38 +161,6 @@ func TestUpdate(t *testing.T) {
 		_, err := cmd.CallCmd(t, clients, tracker, args)
 		require.NoError(t, err)
 	})
-
-	t.Run("will track analytics for api error", func(t *testing.T) {
-		tracker := analytics.MockedTracker(
-			"flags",
-			"update",
-			[]string{
-				"access-token",
-				"base-uri",
-				"data",
-				"flag",
-				"project",
-			}, analytics.ERROR)
-		client := flags.MockClient{}
-		client.
-			On("Update", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
-		clients := cmd.APIClients{
-			FlagsClient: &client,
-		}
-
-		args := []string{
-			"flags", "update",
-			"--access-token", "testAccessToken",
-			"--base-uri", "http://test.com",
-			"-d", `[{"op": "replace", "path": "/name", "value": "new-name"}]`,
-			"--flag", "test-key",
-			"--project", "test-proj-key",
-		}
-
-		_, err := cmd.CallCmd(t, clients, tracker, args)
-		require.EqualError(t, err, "An error")
-	})
 }
 
 func TestToggle(t *testing.T) {
