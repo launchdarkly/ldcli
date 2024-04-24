@@ -72,9 +72,10 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.EnvironmentFlag),
 		)
 		if err != nil {
-			output, err := output.CmdOutput(
+			output, err := output.CmdOutputResource(
 				viper.GetString(cliflags.OutputFlag),
-				output.NewErrorOutput([]byte(err.Error())),
+				[]byte(err.Error()),
+				output.ErrorPlaintextOutputFn,
 			)
 			if err != nil {
 				return err
@@ -83,9 +84,10 @@ func runGet(client flags.Client) func(*cobra.Command, []string) error {
 			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutput(
+		output, err := output.CmdOutputResource(
 			viper.GetString(cliflags.OutputFlag),
-			output.NewSingularOutput(response),
+			response,
+			output.SingularPlaintextOutputFn,
 		)
 		if err != nil {
 			return err

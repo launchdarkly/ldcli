@@ -48,3 +48,17 @@ func (o MultipleOutputter) JSON() string {
 func (o MultipleOutputter) String() string {
 	return formatColl(o.resources.Items, o.outputFn)
 }
+
+type MultipleOutputter2 struct {
+	outputFn     PlaintextOutputFn2
+	resources    resources
+	resourceJSON []byte
+}
+
+func (o MultipleOutputter2) JSON() string {
+	return string(o.resourceJSON)
+}
+
+func (o MultipleOutputter2) String() string {
+	return formatColl(o.resources.Items, o.outputFn)
+}

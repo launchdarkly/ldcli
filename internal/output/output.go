@@ -1,6 +1,7 @@
 package output
 
 import (
+	"encoding/json"
 	"strings"
 
 	"ldcli/internal/errors"
@@ -25,6 +26,8 @@ type OutputterFn interface {
 // PlaintextOutputFn represents the various ways to output a resource or resources.
 type PlaintextOutputFn[T any] func(t T) string
 
+type PlaintextOutputFn2 func(resource) string
+
 // resource is the subset of data we need to display a command's plain text response for a single
 // resource.
 // We're trading off type safety for easy of use instead of defining a type for each expected resource.
@@ -34,6 +37,52 @@ type resource map[string]interface{}
 // of resources.
 type resources struct {
 	Items []resource `json:"items"`
+}
+
+// TODO: replace CmdOutput with this
+func CmdOutputResource(outputKind string, input []byte, fn PlaintextOutputFn2) (string, error) {
+	var r resource
+	err := json.Unmarshal(input, &r)
+	if err != nil {
+		return "", err
+	}
+
+	o := SingularOutputter2{
+		outputFn:     fn,
+		resource:     r,
+		resourceJSON: input,
+	}
+
+	switch outputKind {
+	case "json":
+		return o.JSON(), nil
+	case "plaintext":
+		return o.String(), nil
+	}
+
+	return "", ErrInvalidOutputKind
+}
+func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn2) (string, error) {
+	var r resources
+	err := json.Unmarshal(input, &r)
+	if err != nil {
+		return "", err
+	}
+
+	o := MultipleOutputter2{
+		outputFn:     fn,
+		resources:    r,
+		resourceJSON: input,
+	}
+
+	switch outputKind {
+	case "json":
+		return o.JSON(), nil
+	case "plaintext":
+		return o.String(), nil
+	}
+
+	return "", ErrInvalidOutputKind
 }
 
 // CmdOutput returns a command's response as a string formatted based on the user's requested type.

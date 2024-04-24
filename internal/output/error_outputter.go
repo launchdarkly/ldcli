@@ -5,9 +5,9 @@ import (
 	"fmt"
 )
 
-// errorPlaintextOutputFn converts the resource to plain text specifically for data from the
+// ErrorPlaintextOutputFn converts the resource to plain text specifically for data from the
 // error file.
-var errorPlaintextOutputFn = func(r resource) string {
+var ErrorPlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("%s (code: %s)", r["message"], r["code"])
 }
 
@@ -24,7 +24,7 @@ func (o errorOutputterFn) New() (Outputter, error) {
 	}
 
 	return SingularOutputter{
-		outputFn:     errorPlaintextOutputFn,
+		outputFn:     ErrorPlaintextOutputFn,
 		resource:     r,
 		resourceJSON: o.input,
 	}, nil

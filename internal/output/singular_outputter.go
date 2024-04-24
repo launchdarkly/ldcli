@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// singularPlaintextOutputFn converts the resource to plain text based on its name and key.
-var singularPlaintextOutputFn = func(r resource) string {
+// SingularPlaintextOutputFn converts the resource to plain text based on its name and key.
+var SingularPlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("%s (%s)", r["name"], r["key"])
 }
 
@@ -23,7 +23,7 @@ func (o singularOutputterFn) New() (Outputter, error) {
 	}
 
 	return SingularOutputter{
-		outputFn:     singularPlaintextOutputFn,
+		outputFn:     SingularPlaintextOutputFn,
 		resource:     r,
 		resourceJSON: o.input,
 	}, nil
@@ -46,5 +46,19 @@ func (o SingularOutputter) JSON() string {
 }
 
 func (o SingularOutputter) String() string {
+	return formatColl([]resource{o.resource}, o.outputFn)
+}
+
+type SingularOutputter2 struct {
+	outputFn     PlaintextOutputFn2
+	resource     resource
+	resourceJSON []byte
+}
+
+func (o SingularOutputter2) JSON() string {
+	return string(o.resourceJSON)
+}
+
+func (o SingularOutputter2) String() string {
 	return formatColl([]resource{o.resource}, o.outputFn)
 }
