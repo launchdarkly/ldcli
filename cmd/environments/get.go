@@ -27,25 +27,21 @@ func NewGetCmd(
 	cmd.Flags().StringP(cliflags.EnvironmentFlag, "e", "", "Environment key")
 	err := cmd.MarkFlagRequired(cliflags.EnvironmentFlag)
 	if err != nil {
-		cmd.Annotations = map[string]string{"err": "true"}
 		return nil, err
 	}
 
 	err = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
 	if err != nil {
-		cmd.Annotations = map[string]string{"err": "true"}
 		return nil, err
 	}
 
 	cmd.Flags().StringP(cliflags.ProjectFlag, "p", "", "Project key")
 	err = cmd.MarkFlagRequired(cliflags.ProjectFlag)
 	if err != nil {
-		cmd.Annotations = map[string]string{"err": "true"}
 		return nil, err
 	}
 	err = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 	if err != nil {
-		cmd.Annotations = map[string]string{"err": "true"}
 		return nil, err
 	}
 
@@ -67,7 +63,6 @@ func runGet(
 			viper.GetString(cliflags.ProjectFlag),
 		)
 		if err != nil {
-			cmd.Annotations = map[string]string{"err": "true"}
 			return err
 		}
 
