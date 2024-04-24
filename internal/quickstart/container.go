@@ -105,6 +105,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case stepToggleFlag:
 				m.currentStep -= 1
 				m.currentModel = NewShowSDKInstructionsModel(
+					m.analyticsTracker,
 					m.environmentsClient,
 					m.accessToken,
 					m.baseUri,
