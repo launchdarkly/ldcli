@@ -116,7 +116,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), fmt.Sprintf("would be making a request to %s here, with args: %s\n", op.Path, paramVals))
+	fmt.Fprintf(cmd.OutOrStdout(), "would be making a request to %s here, with args: %s\n", op.Path, paramVals)
 
 	return nil
 }
@@ -128,7 +128,7 @@ func NewOperationCmd(parentCmd *cobra.Command, client *http.Client, op Operation
 	}
 
 	cmd := &cobra.Command{
-		Args:  validators.Validate(), // tbd on this validator
+		Args:  validators.Validate(),
 		Long:  op.Long,
 		RunE:  opCmd.makeRequest,
 		Short: op.Short,
