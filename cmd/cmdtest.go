@@ -19,9 +19,6 @@ func CallCmd(
 	tracker analytics.Tracker,
 	args []string,
 ) ([]byte, error) {
-	outcome := analytics.SUCCESS
-	defer analytics.SendCommandCompletedEvent(&outcome, tracker)
-
 	rootCmd, err := NewRootCommand(
 		tracker,
 		clients,
@@ -34,6 +31,10 @@ func CallCmd(
 	rootCmd.SetArgs(args)
 
 	err = rootCmd.Execute()
+	outcome := analytics.SUCCESS
+	if _, tracking := rootCmd.Annotations["tracking"]; tracking {
+		defer analytics.SendCommandCompletedEvent(&outcome, tracker)
+	}
 	if err != nil {
 		outcome = analytics.ERROR
 		return nil, err
