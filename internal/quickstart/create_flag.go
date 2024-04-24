@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/flags"
 )
 
@@ -21,6 +22,7 @@ type flag struct {
 
 type createFlagModel struct {
 	accessToken      string
+	analyticsTracker analytics.Tracker
 	baseUri          string
 	client           flags.Client
 	err              error
@@ -32,7 +34,7 @@ type createFlagModel struct {
 	textInput        textinput.Model
 }
 
-func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Model {
+func NewCreateFlagModel(analyticsTracker analytics.Tracker, client flags.Client, accessToken, baseUri string) tea.Model {
 	ti := textinput.New()
 	ti.Focus()
 	ti.CharLimit = 156
@@ -40,10 +42,11 @@ func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Mo
 	ti.Prompt = ""
 
 	return createFlagModel{
-		accessToken: accessToken,
-		baseUri:     baseUri,
-		client:      client,
-		help:        help.New(),
+		analyticsTracker: analyticsTracker,
+		accessToken:      accessToken,
+		baseUri:          baseUri,
+		client:           client,
+		help:             help.New(),
 		helpKeys: keyMap{
 			Quit: BindingQuit,
 		},
@@ -52,6 +55,15 @@ func NewCreateFlagModel(client flags.Client, accessToken, baseUri string) tea.Mo
 }
 
 func (m createFlagModel) Init() tea.Cmd {
+	m.analyticsTracker.SendEvent(
+		m.accessToken,
+		m.baseUri,
+		"CLI Setup Started",
+		map[string]interface{}{
+			"step": "1 - feature flag name",
+		},
+	)
+
 	return nil
 }
 

@@ -16,6 +16,7 @@ import (
 
 type toggleFlagModel struct {
 	accessToken      string
+	analyticsTracker analytics.Tracker
 	baseUri          string
 	client           flags.Client
 	enabled          bool
@@ -27,7 +28,7 @@ type toggleFlagModel struct {
 	helpKeys         keyMap
 	sdkKind          string
 	spinner          spinner.Model
-	analyticsTracker analytics.Tracker
+	toggleCount      int
 }
 
 func NewToggleFlagModel(analyticsTracker analytics.Tracker, client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
@@ -51,6 +52,15 @@ func NewToggleFlagModel(analyticsTracker analytics.Tracker, client flags.Client,
 }
 
 func (m toggleFlagModel) Init() tea.Cmd {
+	m.analyticsTracker.SendEvent(
+		m.accessToken,
+		m.baseUri,
+		"CLI Setup Started",
+		map[string]interface{}{
+			"step": "4 - flag toggle",
+		},
+	)
+
 	cmds := []tea.Cmd{
 		m.spinner.Tick,
 		fetchFlagStatus(m.client, m.accessToken, m.baseUri, m.flagKey, defaultEnvKey, defaultProjKey),
@@ -78,12 +88,14 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fetchedFlagStatusMsg:
 		m.enabled = msg.enabled
 		m.flagWasFetched = true
+		m.toggleCount++
 		m.analyticsTracker.SendEvent(
 			m.accessToken,
 			m.baseUri,
 			"CLI Setup Flag Toggled",
 			map[string]interface{}{
-				"on": m.enabled,
+				"on":    m.enabled,
+				"count": m.toggleCount,
 			},
 		)
 	case spinner.TickMsg:

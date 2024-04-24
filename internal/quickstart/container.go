@@ -31,6 +31,7 @@ const (
 // represents a step in the quick-start flow.
 type ContainerModel struct {
 	accessToken        string
+	analyticsTracker   analytics.Tracker
 	baseUri            string
 	currentModel       tea.Model
 	currentStep        int
@@ -44,7 +45,6 @@ type ContainerModel struct {
 	sdk                sdkDetail
 	totalSteps         int
 	width              int
-	analyticsTracker   analytics.Tracker
 }
 
 func NewContainerModel(
@@ -58,7 +58,7 @@ func NewContainerModel(
 		analyticsTracker:   analyticsTracker,
 		accessToken:        accessToken,
 		baseUri:            baseUri,
-		currentModel:       NewCreateFlagModel(flagsClient, accessToken, baseUri),
+		currentModel:       NewCreateFlagModel(analyticsTracker, flagsClient, accessToken, baseUri),
 		currentStep:        1,
 		environmentsClient: environmentsClient,
 		flagsClient:        flagsClient,
@@ -68,14 +68,7 @@ func NewContainerModel(
 }
 
 func (m ContainerModel) Init() tea.Cmd {
-	m.analyticsTracker.SendEvent(
-		m.accessToken,
-		m.baseUri,
-		"CLI Setup Started",
-		map[string]interface{}{
-			"step": "0",
-		},
-	)
+	m.currentModel.Init()
 	return nil
 }
 
@@ -97,10 +90,11 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentModel, cmd = m.currentModel.Update(msg)
 			case stepChooseSDK:
 				m.currentStep -= 1
-				m.currentModel = NewCreateFlagModel(m.flagsClient, m.accessToken, m.baseUri)
+				m.currentModel = NewCreateFlagModel(m.analyticsTracker, m.flagsClient, m.accessToken, m.baseUri)
+				cmd = m.currentModel.Init()
 			case stepShowSDKInstructions:
 				m.currentStep -= 1
-				m.currentModel = NewChooseSDKModel(m.sdk.index)
+				m.currentModel = NewChooseSDKModel(m.analyticsTracker, m.accessToken, m.baseUri, m.sdk.index)
 				cmd = m.currentModel.Init()
 			case stepToggleFlag:
 				m.currentStep -= 1
@@ -137,7 +131,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sdk = msg.sdk
 		m.currentStep += 1
 	case confirmedFlagMsg:
-		m.currentModel = NewChooseSDKModel(0)
+		m.currentModel = NewChooseSDKModel(m.analyticsTracker, m.accessToken, m.baseUri, 0)
+		cmd = m.currentModel.Init()
 		m.flagKey = msg.flag.key
 		m.currentStep += 1
 		m.err = nil

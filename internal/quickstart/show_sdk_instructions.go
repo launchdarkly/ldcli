@@ -29,6 +29,7 @@ type environment struct {
 
 type showSDKInstructionsModel struct {
 	accessToken        string
+	analyticsTracker   analytics.Tracker
 	baseUri            string
 	canonicalName      string
 	displayName        string
@@ -42,7 +43,6 @@ type showSDKInstructionsModel struct {
 	spinner            spinner.Model
 	url                string
 	viewport           viewport.Model
-	analyticsTracker   analytics.Tracker
 }
 
 func NewShowSDKInstructionsModel(
@@ -96,6 +96,14 @@ func NewShowSDKInstructionsModel(
 // fetch SDK instructions
 // fetch the environment to get values to interpolate into the instructions
 func (m showSDKInstructionsModel) Init() tea.Cmd {
+	m.analyticsTracker.SendEvent(
+		m.accessToken,
+		m.baseUri,
+		"CLI Setup Started",
+		map[string]interface{}{
+			"step": "3 - sdk installation",
+		},
+	)
 	m.analyticsTracker.SendEvent(
 		m.accessToken,
 		m.baseUri,

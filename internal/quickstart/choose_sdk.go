@@ -3,6 +3,7 @@ package quickstart
 import (
 	"fmt"
 	"io"
+	"ldcli/internal/analytics"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -24,14 +25,17 @@ const (
 )
 
 type chooseSDKModel struct {
-	help          help.Model
-	helpKeys      keyMap
-	list          list.Model
-	selectedIndex int
-	selectedSDK   sdkDetail
+	accessToken      string
+	analyticsTracker analytics.Tracker
+	baseUri          string
+	help             help.Model
+	helpKeys         keyMap
+	list             list.Model
+	selectedIndex    int
+	selectedSDK      sdkDetail
 }
 
-func NewChooseSDKModel(selectedIndex int) tea.Model {
+func NewChooseSDKModel(analyticsTracker analytics.Tracker, accessToken, baseUri string, selectedIndex int) tea.Model {
 	l := list.New(sdksToItems(), sdkDelegate{}, 30, 9)
 	l.Title = "Select your SDK:\n"
 	// reset title styles
@@ -43,7 +47,10 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	l.SetFilteringEnabled(false) // TODO: try to get filtering working
 
 	return chooseSDKModel{
-		help: help.New(),
+		analyticsTracker: analyticsTracker,
+		accessToken:      accessToken,
+		baseUri:          baseUri,
+		help:             help.New(),
 		helpKeys: keyMap{
 			Back:          BindingBack,
 			CursorUp:      BindingCursorUp,
@@ -64,6 +71,14 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 // Init sends commands when the model is created that will:
 // * select an SDK if it's already been selected
 func (m chooseSDKModel) Init() tea.Cmd {
+	m.analyticsTracker.SendEvent(
+		m.accessToken,
+		m.baseUri,
+		"CLI Setup Started",
+		map[string]interface{}{
+			"step": "2 - sdk selection",
+		},
+	)
 	return selectedSDK(m.selectedIndex)
 }
 
