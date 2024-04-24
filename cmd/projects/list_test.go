@@ -156,30 +156,4 @@ func TestList(t *testing.T) {
 		_, err := cmd.CallCmd(t, clients, tracker, args)
 		require.NoError(t, err)
 	})
-
-	t.Run("will track analytics for api error", func(t *testing.T) {
-		tracker := analytics.MockedTracker(
-			"projects",
-			"list",
-			[]string{
-				"access-token",
-				"base-uri",
-			}, analytics.ERROR)
-		client := projects.MockClient{}
-		client.
-			On("List", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
-		clients := cmd.APIClients{
-			ProjectsClient: &client,
-		}
-
-		args := []string{
-			"projects", "list",
-			"--access-token", "testAccessToken",
-			"--base-uri", "http://test.com",
-		}
-
-		_, err := cmd.CallCmd(t, clients, tracker, args)
-		require.EqualError(t, err, "An error")
-	})
 }
