@@ -18,6 +18,17 @@ type Tracker interface {
 		eventName string,
 		properties map[string]interface{},
 	)
+	SendCommandRunEvent(
+		name,
+		accessToken,
+		baseURI string,
+		properties map[string]interface{},
+	)
+	SendCommandCompletedEvent(
+		outcome,
+		accessToken,
+		baseURI string,
+	)
 }
 
 type Client struct {
@@ -80,6 +91,31 @@ func (c *Client) SendEvent(
 	}()
 }
 
+func (c *Client) SendCommandRunEvent(
+	name,
+	accessToken,
+	baseURI string,
+	properties map[string]interface{},
+) {
+	c.SendEvent(
+		accessToken,
+		baseURI,
+		"CLI Command Run",
+		properties,
+	)
+}
+
+func (c *Client) SendCommandCompletedEvent(outcome, accessToken, baseURI string) {
+	c.SendEvent(
+		accessToken,
+		baseURI,
+		"CLI Command Completed",
+		map[string]interface{}{
+			"outcome": outcome,
+		},
+	)
+}
+
 func (a *Client) Wait() {
 	a.wg.Wait()
 }
@@ -92,6 +128,16 @@ func (c *NoopClient) SendEvent(
 	eventName string,
 	properties map[string]interface{},
 ) {
+}
+
+func (c *NoopClient) SendCommandRunEvent(name,
+	accessToken,
+	baseURI string,
+	properties map[string]interface{},
+) {
+}
+
+func (c *NoopClient) SendCommandCompletedEvent(outcome, accessToken, baseURI string) {
 }
 
 type MockTracker struct {
@@ -107,4 +153,28 @@ func (m *MockTracker) SendEvent(
 ) {
 	properties["id"] = m.ID
 	m.Called(accessToken, baseURI, eventName, properties)
+}
+
+func (m *MockTracker) SendCommandRunEvent(name,
+	accessToken,
+	baseURI string,
+	properties map[string]interface{},
+) {
+	m.SendEvent(
+		accessToken,
+		baseURI,
+		"CLI Command Run",
+		properties,
+	)
+}
+
+func (m *MockTracker) SendCommandCompletedEvent(outcome, accessToken, baseURI string) {
+	m.SendEvent(
+		accessToken,
+		baseURI,
+		"CLI Command Completed",
+		map[string]interface{}{
+			"outcome": outcome,
+		},
+	)
 }

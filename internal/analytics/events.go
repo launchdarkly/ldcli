@@ -1,31 +1,5 @@
 package analytics
 
-import (
-	"ldcli/cmd/cliflags"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
-)
-
-func CmdRunEventProperties(cmd *cobra.Command, name string) map[string]interface{} {
-	baseURI := viper.GetString(cliflags.BaseURIFlag)
-	var flags []string
-	cmd.Flags().Visit(func(f *pflag.Flag) {
-		flags = append(flags, f.Name)
-	})
-
-	properties := map[string]interface{}{
-		"name":   name,
-		"action": cmd.CalledAs(),
-		"flags":  flags,
-	}
-	if baseURI != cliflags.BaseURIDefault {
-		properties["baseURI"] = baseURI
-	}
-	return properties
-}
-
 const (
 	SUCCESS = "success"
 	ERROR   = "error"
@@ -56,25 +30,4 @@ func MockedTracker(name string, action string, flags []string, outcome string) *
 		},
 	}...)
 	return &tracker
-}
-
-func SendCommandRunEvent(name string, cmd *cobra.Command, analyticsTracker Tracker) {
-	cmd.Root().Annotations = map[string]string{"tracking": "true"}
-	analyticsTracker.SendEvent(
-		viper.GetString(cliflags.AccessTokenFlag),
-		viper.GetString(cliflags.BaseURIFlag),
-		"CLI Command Run",
-		CmdRunEventProperties(cmd, name),
-	)
-}
-
-func SendCommandCompletedEvent(outcome *string, analyticsTracker Tracker) {
-	analyticsTracker.SendEvent(
-		viper.GetString(cliflags.AccessTokenFlag),
-		viper.GetString(cliflags.BaseURIFlag),
-		"CLI Command Completed",
-		map[string]interface{}{
-			"outcome": *outcome,
-		},
-	)
 }

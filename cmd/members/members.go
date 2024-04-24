@@ -2,7 +2,10 @@ package members
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
+	cmdAnalytics "ldcli/cmd/analytics"
+	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/members"
 )
@@ -13,7 +16,12 @@ func NewMembersCmd(analyticsTracker analytics.Tracker, client members.Client) (*
 		Short: "Make requests (list, create, etc.) on members",
 		Long:  "Make requests (list, create, etc.) on members",
 		PersistentPreRun: func(c *cobra.Command, args []string) {
-			analytics.SendCommandRunEvent("members", c, analyticsTracker)
+			analyticsTracker.SendCommandRunEvent(
+				"members",
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				cmdAnalytics.CmdRunEventProperties(c, "projects"),
+			)
 		},
 	}
 

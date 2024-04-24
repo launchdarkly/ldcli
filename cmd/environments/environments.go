@@ -2,7 +2,10 @@ package environments
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
+	cmdAnalytics "ldcli/cmd/analytics"
+	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 )
@@ -16,7 +19,12 @@ func NewEnvironmentsCmd(
 		Short: "Make requests (list, create, etc.) on environments",
 		Long:  "Make requests (list, create, etc.) on environments",
 		PersistentPreRun: func(c *cobra.Command, args []string) {
-			analytics.SendCommandRunEvent("environments", c, analyticsTracker)
+			analyticsTracker.SendCommandRunEvent(
+				"environments",
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				cmdAnalytics.CmdRunEventProperties(c, "projects"),
+			)
 		},
 	}
 
