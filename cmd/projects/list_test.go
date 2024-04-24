@@ -74,7 +74,7 @@ func TestList(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("List", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("an error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			ProjectsClient: &client,
 		}
@@ -86,7 +86,7 @@ func TestList(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
-		require.EqualError(t, err, "an error")
+		require.EqualError(t, err, "An error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {
