@@ -40,7 +40,9 @@ type resources struct {
 // not as a value of an "items" property.
 type resourcesBare []resource
 
-func CmdOutputResource(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
+// CmdOutputSingular builds a command response based on the flag the user provided and the shape of
+// the input. The expected shape is a single JSON object.
+func CmdOutputSingular(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
 	var r resource
 	err := json.Unmarshal(input, &r)
 	if err != nil {
@@ -54,7 +56,9 @@ func CmdOutputResource(outputKind string, input []byte, fn PlaintextOutputFn) (s
 	})
 }
 
-func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
+// CmdOutputMultiple builds a command response based on the flag the user provided and the shape of
+// the input. The expected shape is a list of JSON objects.
+func CmdOutputMultiple(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
 	var r resources
 	err := json.Unmarshal(input, &r)
 	if err != nil {

@@ -64,7 +64,7 @@ func run() func(*cobra.Command, []string) error {
 				return err
 			}
 
-			output, err := output.CmdOutputResource(
+			output, err := output.CmdOutputSingular(
 				viper.GetString(cliflags.OutputFlag),
 				configJSON,
 				output.ConfigPlaintextOutputFn,

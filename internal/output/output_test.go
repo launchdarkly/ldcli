@@ -53,7 +53,7 @@ func TestCmdOutputResource(t *testing.T) {
 	for name, tt := range tests {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
-			output, err := output.CmdOutputResource(
+			output, err := output.CmdOutputSingular(
 				"plaintext",
 				[]byte(tt.input),
 				tt.fn,
@@ -85,7 +85,7 @@ func TestCmdOutputResources(t *testing.T) {
 	for name, tt := range tests {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
-			output, err := output.CmdOutputResources(
+			output, err := output.CmdOutputMultiple(
 				"plaintext",
 				[]byte(tt.input),
 				tt.fn,

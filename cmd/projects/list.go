@@ -34,7 +34,7 @@ func runList(client projects.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.BaseURIFlag),
 		)
 		if err != nil {
-			output, err := output.CmdOutputResource(
+			output, err := output.CmdOutputSingular(
 				viper.GetString(cliflags.OutputFlag),
 				[]byte(err.Error()),
 				output.ErrorPlaintextOutputFn,
@@ -46,7 +46,7 @@ func runList(client projects.Client) func(*cobra.Command, []string) error {
 			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutputResources(
+		output, err := output.CmdOutputMultiple(
 			viper.GetString(cliflags.OutputFlag),
 			response,
 			output.MultiplePlaintextOutputFn,
