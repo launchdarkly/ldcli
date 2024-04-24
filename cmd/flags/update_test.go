@@ -145,7 +145,6 @@ func TestUpdate(t *testing.T) {
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
-
 		args := []string{
 			"flags", "update",
 			"--access-token", "testAccessToken",
