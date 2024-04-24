@@ -132,7 +132,7 @@ func TestInvite(t *testing.T) {
 				"access-token",
 				"base-uri",
 				"emails",
-			})
+			}, analytics.SUCCESS)
 
 		client := members.MockClient{}
 		client.
@@ -229,7 +229,7 @@ func TestInviteWithOptionalRole(t *testing.T) {
 				"base-uri",
 				"emails",
 				"role",
-			})
+			}, analytics.SUCCESS)
 
 		client := members.MockClient{}
 		client.

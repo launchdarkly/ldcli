@@ -174,7 +174,7 @@ func TestGet(t *testing.T) {
 				"base-uri",
 				"environment",
 				"project",
-			})
+			}, analytics.SUCCESS)
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
@@ -205,7 +205,7 @@ func TestGet(t *testing.T) {
 				"base-uri",
 				"environment",
 				"project",
-			})
+			}, analytics.ERROR)
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).

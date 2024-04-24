@@ -130,7 +130,7 @@ func TestGet(t *testing.T) {
 				"environment",
 				"flag",
 				"project",
-			})
+			}, analytics.SUCCESS)
 
 		client := flags.MockClient{}
 		client.

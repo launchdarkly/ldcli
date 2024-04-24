@@ -129,7 +129,7 @@ func TestCreate(t *testing.T) {
 				"access-token",
 				"base-uri",
 				"data",
-			})
+			}, analytics.SUCCESS)
 
 		client := members.MockClient{}
 		client.

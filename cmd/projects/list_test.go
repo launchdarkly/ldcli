@@ -138,7 +138,7 @@ func TestList(t *testing.T) {
 			[]string{
 				"access-token",
 				"base-uri",
-			})
+			}, analytics.SUCCESS)
 
 		client := projects.MockClient{}
 		client.

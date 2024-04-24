@@ -35,7 +35,7 @@ const (
 	HELP    = "help"
 )
 
-func MockedTracker(name string, action string, flags []string) *MockTracker {
+func MockedTracker(name string, action string, flags []string, outcome string) *MockTracker {
 	id := "test-id"
 	tracker := MockTracker{ID: id}
 	tracker.On("SendEvent", []interface{}{
@@ -56,7 +56,7 @@ func MockedTracker(name string, action string, flags []string) *MockTracker {
 		"CLI Command Completed",
 		map[string]interface{}{
 			"id":      id,
-			"outcome": SUCCESS,
+			"outcome": outcome,
 		},
 	}...)
 	return &tracker
