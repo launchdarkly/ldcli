@@ -8,7 +8,7 @@ const (
 func MockedTracker(name string, action string, flags []string, outcome string) *MockTracker {
 	id := "test-id"
 	tracker := MockTracker{ID: id}
-	tracker.On("SendEvent", []interface{}{
+	tracker.On("sendEvent", []interface{}{
 		"testAccessToken",
 		"http://test.com",
 		"CLI Command Run",
@@ -20,7 +20,7 @@ func MockedTracker(name string, action string, flags []string, outcome string) *
 			"name":    name,
 		},
 	}...)
-	tracker.On("SendEvent", []interface{}{
+	tracker.On("sendEvent", []interface{}{
 		"testAccessToken",
 		"http://test.com",
 		"CLI Command Completed",

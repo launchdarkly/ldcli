@@ -175,9 +175,10 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	}
 
 	analyticsTracker.SendCommandCompletedEvent(
-		outcome,
 		viper.GetString(cliflags.AccessTokenFlag),
 		viper.GetString(cliflags.BaseURIDefault),
+		viper.GetBool(cliflags.AnalyticsOptOut),
+		outcome,
 	)
 }
 

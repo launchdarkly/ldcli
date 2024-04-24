@@ -19,7 +19,7 @@ func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) 
 			analyticsTracker.SendCommandRunEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
-        viper.GetBool(cliflags.AnalyticsOptOut),
+				viper.GetBool(cliflags.AnalyticsOptOut),
 				cmdAnalytics.CmdRunEventProperties(c, "projects"),
 			)
 		},

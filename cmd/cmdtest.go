@@ -38,17 +38,19 @@ func CallCmd(
 	err = rootCmd.Execute()
 	if err != nil {
 		tracker.SendCommandCompletedEvent(
-			analytics.ERROR,
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetBool(cliflags.AnalyticsOptOut),
+			analytics.ERROR,
 		)
 		return nil, err
 	}
 
 	tracker.SendCommandCompletedEvent(
-		analytics.SUCCESS,
 		viper.GetString(cliflags.AccessTokenFlag),
 		viper.GetString(cliflags.BaseURIFlag),
+		viper.GetBool(cliflags.AnalyticsOptOut),
+		analytics.SUCCESS,
 	)
 
 	out, err := io.ReadAll(b)
