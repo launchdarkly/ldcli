@@ -47,20 +47,11 @@ func CmdOutputResource(outputKind string, input []byte, fn PlaintextOutputFn) (s
 		return "", err
 	}
 
-	o := SingularOutputter{
+	return outputFromKind(outputKind, SingularOutputter{
 		outputFn:     fn,
 		resource:     r,
 		resourceJSON: input,
-	}
-
-	switch outputKind {
-	case "json":
-		return o.JSON(), nil
-	case "plaintext":
-		return o.String(), nil
-	}
-
-	return "", ErrInvalidOutputKind
+	})
 }
 
 func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
@@ -76,12 +67,14 @@ func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn) (
 		r.Items = rr
 	}
 
-	o := MultipleOutputter{
+	return outputFromKind(outputKind, MultipleOutputter{
 		outputFn:     fn,
 		resources:    r,
 		resourceJSON: input,
-	}
+	})
+}
 
+func outputFromKind(outputKind string, o Outputter) (string, error) {
 	switch outputKind {
 	case "json":
 		return o.JSON(), nil
