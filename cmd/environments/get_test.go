@@ -72,7 +72,7 @@ func TestGet(t *testing.T) {
 		client := environments.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			EnvironmentsClient: &client,
 		}
@@ -80,7 +80,6 @@ func TestGet(t *testing.T) {
 			"environments", "get",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
-			"--output", "json",
 			"--environment", "test-env",
 			"--project", "test-proj",
 		}

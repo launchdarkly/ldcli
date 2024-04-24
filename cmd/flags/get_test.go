@@ -73,7 +73,7 @@ func TestGet(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Get", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}
@@ -81,7 +81,6 @@ func TestGet(t *testing.T) {
 			"flags", "get",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
-			"--output", "json",
 			"--flag", "test-key",
 			"--project", "test-proj-key",
 			"--environment", "test-env-key",

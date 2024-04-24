@@ -77,7 +77,7 @@ func TestInvite(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
@@ -86,7 +86,6 @@ func TestInvite(t *testing.T) {
 			"invite",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
-			"--output", "json",
 			"-e", `testemail1@test.com,testemail2@test.com`,
 		}
 

@@ -1,7 +1,7 @@
 package output
 
 import (
-	"strings"
+	"encoding/json"
 
 	"ldcli/internal/errors"
 )
@@ -23,7 +23,7 @@ type OutputterFn interface {
 }
 
 // PlaintextOutputFn represents the various ways to output a resource or resources.
-type PlaintextOutputFn[T any] func(t T) string
+type PlaintextOutputFn func(resource) string
 
 // resource is the subset of data we need to display a command's plain text response for a single
 // resource.
@@ -36,13 +36,49 @@ type resources struct {
 	Items []resource `json:"items"`
 }
 
-// CmdOutput returns a command's response as a string formatted based on the user's requested type.
-func CmdOutput(outputKind string, outputter OutputterFn) (string, error) {
-	o, err := outputter.New()
+// resourcesBare is for responses that return a list of resources at the top level of the response,
+// not as a value of an "items" property.
+type resourcesBare []resource
+
+// CmdOutputSingular builds a command response based on the flag the user provided and the shape of
+// the input. The expected shape is a single JSON object.
+func CmdOutputSingular(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
+	var r resource
+	err := json.Unmarshal(input, &r)
 	if err != nil {
 		return "", err
 	}
 
+	return outputFromKind(outputKind, SingularOutputter{
+		outputFn:     fn,
+		resource:     r,
+		resourceJSON: input,
+	})
+}
+
+// CmdOutputMultiple builds a command response based on the flag the user provided and the shape of
+// the input. The expected shape is a list of JSON objects.
+func CmdOutputMultiple(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
+	var r resources
+	err := json.Unmarshal(input, &r)
+	if err != nil {
+		// sometimes a response doesn't include each item in an "items" property
+		var rr resourcesBare
+		err := json.Unmarshal(input, &rr)
+		if err != nil {
+			return "", err
+		}
+		r.Items = rr
+	}
+
+	return outputFromKind(outputKind, MultipleOutputter{
+		outputFn:     fn,
+		resources:    r,
+		resourceJSON: input,
+	})
+}
+
+func outputFromKind(outputKind string, o Outputter) (string, error) {
 	switch outputKind {
 	case "json":
 		return o.JSON(), nil
@@ -51,15 +87,4 @@ func CmdOutput(outputKind string, outputter OutputterFn) (string, error) {
 	}
 
 	return "", ErrInvalidOutputKind
-}
-
-// FormatColl applies a formatting function to every element in the collection and returns it as a
-// string.
-func formatColl[T any](coll []T, formatFn func(T) string) string {
-	lst := make([]string, 0, len(coll))
-	for _, c := range coll {
-		lst = append(lst, formatFn(c))
-	}
-
-	return strings.Join(lst, "\n")
 }
