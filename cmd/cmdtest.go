@@ -37,8 +37,6 @@ func CallCmd(
 	if err != nil {
 		outcome = analytics.ERROR
 		return nil, err
-	} else if _, isHelp := rootCmd.Annotations["help"]; isHelp {
-		outcome = analytics.HELP
 	}
 
 	out, err := io.ReadAll(b)

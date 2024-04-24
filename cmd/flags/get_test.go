@@ -184,4 +184,34 @@ func TestGet(t *testing.T) {
 		_, err := cmd.CallCmd(t, clients, tracker, args)
 		require.EqualError(t, err, "An error")
 	})
+
+	t.Run("will track analytics help flag", func(t *testing.T) {
+		tracker := analytics.MockedTracker(
+			"flags",
+			"get",
+			[]string{
+				"access-token",
+				"base-uri",
+				"environment",
+				"flag",
+				"project",
+			}, analytics.ERROR)
+		client := flags.MockClient{}
+		client.
+			On("Get", mockArgs...).
+			Return([]byte(`{}`), errors.NewError("An error"))
+		clients := cmd.APIClients{
+			FlagsClient: &client,
+		}
+
+		args := []string{
+			"flags", "get",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"--help",
+		}
+
+		_, err := cmd.CallCmd(t, clients, tracker, args)
+		require.EqualError(t, err, "An error")
+	})
 }
