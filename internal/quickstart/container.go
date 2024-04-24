@@ -155,6 +155,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = nil
 	case showToggleFlagMsg:
 		m.currentModel = NewToggleFlagModel(
+			m.analyticsTracker,
 			m.flagsClient,
 			m.accessToken,
 			m.baseUri,
