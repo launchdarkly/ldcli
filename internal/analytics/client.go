@@ -27,9 +27,10 @@ type Tracker interface {
 }
 
 type Client struct {
-	ID         string
-	HTTPClient *http.Client
-	wg         sync.WaitGroup
+	ID           string
+	HTTPClient   *http.Client
+	sentRunEvent bool
+	wg           sync.WaitGroup
 }
 
 // SendEvent makes an async request to track the given event with properties.
@@ -103,6 +104,9 @@ func (c *Client) SendCommandRunEvent(
 		"CLI Command Run",
 		properties,
 	)
+	if !optOut {
+		c.sentRunEvent = true
+	}
 }
 
 func (c *Client) SendCommandCompletedEvent(
@@ -111,15 +115,17 @@ func (c *Client) SendCommandCompletedEvent(
 	optOut bool,
 	outcome string,
 ) {
-	c.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
-		"CLI Command Completed",
-		map[string]interface{}{
-			"outcome": outcome,
-		},
-	)
+	if c.sentRunEvent {
+		c.sendEvent(
+			accessToken,
+			baseURI,
+			optOut,
+			"CLI Command Completed",
+			map[string]interface{}{
+				"outcome": outcome,
+			},
+		)
+	}
 }
 
 func (a *Client) Wait() {
