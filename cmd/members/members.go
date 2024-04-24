@@ -15,12 +15,12 @@ func NewMembersCmd(analyticsTracker analytics.Tracker, client members.Client) (*
 		Use:   "members",
 		Short: "Make requests (list, create, etc.) on members",
 		Long:  "Make requests (list, create, etc.) on members",
-		PersistentPreRun: func(c *cobra.Command, args []string) {
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			analyticsTracker.SendCommandRunEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(c, "members"),
+				cmdAnalytics.CmdRunEventProperties(cmd, "members"),
 			)
 		},
 	}

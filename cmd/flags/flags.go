@@ -15,12 +15,12 @@ func NewFlagsCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobr
 		Use:   "flags",
 		Short: "Make requests (list, create, etc.) on flags",
 		Long:  "Make requests (list, create, etc.) on flags",
-		PersistentPreRun: func(c *cobra.Command, args []string) {
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			analyticsTracker.SendCommandRunEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(c, "flags"),
+				cmdAnalytics.CmdRunEventProperties(cmd, "flags"),
 			)
 		},
 	}

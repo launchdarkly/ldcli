@@ -29,12 +29,12 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 		RunE:  run(),
 		Short: "View and modify specific configuration values",
 		Use:   "config",
-		PreRun: func(c *cobra.Command, args []string) {
+		PreRun: func(cmd *cobra.Command, args []string) {
 			analyticsTracker.SendCommandRunEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(c, "config"),
+				cmdAnalytics.CmdRunEventProperties(cmd, "config"),
 			)
 		},
 	}
