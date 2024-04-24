@@ -41,7 +41,7 @@ func NewEnvironmentsCmd(
 				"CLI Command Run",
 				analytics.CmdRunEventProperties(c, "environments"),
 			)
-			c.Root().Annotations = map[string]string{"help": "environments get"}
+			c.Root().Annotations = map[string]string{"help": "true"}
 		})
 	}
 
