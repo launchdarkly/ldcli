@@ -72,7 +72,7 @@ func TestCreate(t *testing.T) {
 		client := flags.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			FlagsClient: &client,
 		}

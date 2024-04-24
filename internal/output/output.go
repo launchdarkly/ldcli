@@ -24,9 +24,7 @@ type OutputterFn interface {
 }
 
 // PlaintextOutputFn represents the various ways to output a resource or resources.
-type PlaintextOutputFn[T any] func(t T) string
-
-type PlaintextOutputFn2 func(resource) string
+type PlaintextOutputFn func(resource) string
 
 // resource is the subset of data we need to display a command's plain text response for a single
 // resource.
@@ -43,15 +41,14 @@ type resources struct {
 // not as a value of an "items" property.
 type resourcesBare []resource
 
-// TODO: replace CmdOutput with this
-func CmdOutputResource(outputKind string, input []byte, fn PlaintextOutputFn2) (string, error) {
+func CmdOutputResource(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
 	var r resource
 	err := json.Unmarshal(input, &r)
 	if err != nil {
 		return "", err
 	}
 
-	o := SingularOutputter2{
+	o := SingularOutputter{
 		outputFn:     fn,
 		resource:     r,
 		resourceJSON: input,
@@ -66,7 +63,7 @@ func CmdOutputResource(outputKind string, input []byte, fn PlaintextOutputFn2) (
 
 	return "", ErrInvalidOutputKind
 }
-func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn2) (string, error) {
+func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
 	var r resources
 	err := json.Unmarshal(input, &r)
 	if err != nil {
@@ -78,27 +75,10 @@ func CmdOutputResources(outputKind string, input []byte, fn PlaintextOutputFn2) 
 		r.Items = r2
 	}
 
-	o := MultipleOutputter2{
+	o := MultipleOutputter{
 		outputFn:     fn,
 		resources:    r,
 		resourceJSON: input,
-	}
-
-	switch outputKind {
-	case "json":
-		return o.JSON(), nil
-	case "plaintext":
-		return o.String(), nil
-	}
-
-	return "", ErrInvalidOutputKind
-}
-
-// CmdOutput returns a command's response as a string formatted based on the user's requested type.
-func CmdOutput(outputKind string, outputter OutputterFn) (string, error) {
-	o, err := outputter.New()
-	if err != nil {
-		return "", err
 	}
 
 	switch outputKind {

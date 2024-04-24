@@ -81,7 +81,6 @@ func TestGet(t *testing.T) {
 			"flags", "get",
 			"--access-token", "testAccessToken",
 			"--base-uri", "http://test.com",
-			"--output", "json",
 			"--flag", "test-key",
 			"--project", "test-proj-key",
 			"--environment", "test-env-key",
@@ -89,7 +88,7 @@ func TestGet(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
-		require.EqualError(t, err, `{"message": "An error"}`)
+		require.EqualError(t, err, "An error")
 	})
 
 	t.Run("with missing required flags is an error", func(t *testing.T) {

@@ -77,19 +77,15 @@ func TestCreate(t *testing.T) {
 		client := projects.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			ProjectsClient: &client,
 		}
 		args := []string{
-			"projects",
-			"create",
-			"--access-token",
-			"testAccessToken",
-			"--base-uri",
-			"http://test.com",
-			"-d",
-			`{"key": "test-key", "name": "test-name"}`,
+			"projects", "create",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"-d", `{"key": "test-key", "name": "test-name"}`,
 		}
 
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)

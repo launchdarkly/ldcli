@@ -76,7 +76,7 @@ func TestCreate(t *testing.T) {
 		client := members.MockClient{}
 		client.
 			On("Create", mockArgs...).
-			Return([]byte(`{}`), errors.NewError("An error"))
+			Return([]byte(`{}`), errors.NewError(`{"message": "An error"}`))
 		clients := cmd.APIClients{
 			MembersClient: &client,
 		}
