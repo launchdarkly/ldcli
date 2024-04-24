@@ -143,7 +143,6 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 			patch,
 		)
 		if err != nil {
-			fmt.Println(">>> err", err)
 			output, err := output.CmdOutputResource(
 				viper.GetString(cliflags.OutputFlag),
 				[]byte(err.Error()),

@@ -25,9 +25,11 @@ var ConfigPlaintextOutputFn = func(r resource) string {
 
 // ErrorPlaintextOutputFn converts the resource to plain text specifically for data from the
 // error file.
+// An error response could have a code and message or just a message. It's also possible that
+// there isn't either property.
 var ErrorPlaintextOutputFn = func(r resource) string {
 	switch {
-	case r["code"] == nil && r["message"] == "":
+	case r["code"] == nil && (r["message"] == "" || r["message"] == nil):
 		return "unknown error occurred"
 	case r["code"] == nil:
 		return r["message"].(string)
@@ -38,6 +40,11 @@ var ErrorPlaintextOutputFn = func(r resource) string {
 	}
 }
 
+// MultipleEmailPlaintextOutputFn converts the resource to plain text specifically for member data.
+var MultipleEmailPlaintextOutputFn = func(r resource) string {
+	return fmt.Sprintf("* %s (%s)", r["email"], r["_id"])
+}
+
 // MultiplePlaintextOutputFn converts the resource to plain text based on its name and key in a list.
 var MultiplePlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("* %s (%s)", r["name"], r["key"])
@@ -46,9 +53,4 @@ var MultiplePlaintextOutputFn = func(r resource) string {
 // SingularPlaintextOutputFn converts the resource to plain text based on its name and key.
 var SingularPlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("%s (%s)", r["name"], r["key"])
-}
-
-// ConfigPlaintextOutputFn converts the resource to plain text specifically for member data.
-var MultipleEmailPlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("* %s (%s)", r["email"], r["_id"])
 }
