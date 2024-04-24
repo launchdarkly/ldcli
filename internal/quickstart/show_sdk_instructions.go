@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/sdks"
 )
@@ -41,9 +42,11 @@ type showSDKInstructionsModel struct {
 	spinner            spinner.Model
 	url                string
 	viewport           viewport.Model
+	analyticsTracker   analytics.Tracker
 }
 
 func NewShowSDKInstructionsModel(
+	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	accessToken string,
 	baseUri string,
@@ -67,6 +70,7 @@ func NewShowSDKInstructionsModel(
 	h := help.New()
 
 	return showSDKInstructionsModel{
+		analyticsTracker:   analyticsTracker,
 		accessToken:        accessToken,
 		baseUri:            baseUri,
 		canonicalName:      canonicalName,
@@ -92,6 +96,15 @@ func NewShowSDKInstructionsModel(
 // fetch SDK instructions
 // fetch the environment to get values to interpolate into the instructions
 func (m showSDKInstructionsModel) Init() tea.Cmd {
+	m.analyticsTracker.SendEvent(
+		m.accessToken,
+		m.baseUri,
+		"CLI Setup SDK Selected",
+		map[string]interface{}{
+			"sdk": m.canonicalName,
+		},
+	)
+
 	cmds := []tea.Cmd{m.spinner.Tick, readSDKInstructions(m.canonicalName)}
 
 	if m.environment == nil {

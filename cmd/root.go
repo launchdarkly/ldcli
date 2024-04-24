@@ -132,7 +132,7 @@ func NewRootCommand(
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
-	cmd.AddCommand(NewQuickStartCmd(clients.EnvironmentsClient, clients.FlagsClient))
+	cmd.AddCommand(NewQuickStartCmd(analyticsTracker, clients.EnvironmentsClient, clients.FlagsClient))
 
 	addAllResourceCmds(cmd, clients.GenericClient)
 

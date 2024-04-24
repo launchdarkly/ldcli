@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/reflow/wordwrap"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 )
@@ -43,15 +44,18 @@ type ContainerModel struct {
 	sdk                sdkDetail
 	totalSteps         int
 	width              int
+	analyticsTracker   analytics.Tracker
 }
 
 func NewContainerModel(
+	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 	accessToken string,
 	baseUri string,
 ) tea.Model {
 	return ContainerModel{
+		analyticsTracker:   analyticsTracker,
 		accessToken:        accessToken,
 		baseUri:            baseUri,
 		currentModel:       NewCreateFlagModel(flagsClient, accessToken, baseUri),
@@ -64,6 +68,14 @@ func NewContainerModel(
 }
 
 func (m ContainerModel) Init() tea.Cmd {
+	m.analyticsTracker.SendEvent(
+		m.accessToken,
+		m.baseUri,
+		"CLI Setup Started",
+		map[string]interface{}{
+			"step": "0",
+		},
+	)
 	return nil
 }
 
@@ -110,6 +122,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case choseSDKMsg:
 		m.currentModel = NewShowSDKInstructionsModel(
+			m.analyticsTracker,
 			m.environmentsClient,
 			m.accessToken,
 			m.baseUri,

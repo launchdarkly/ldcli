@@ -9,35 +9,38 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 )
 
 type toggleFlagModel struct {
-	accessToken    string
-	baseUri        string
-	client         flags.Client
-	enabled        bool
-	err            error
-	flagKey        string
-	flagWasEnabled bool
-	flagWasFetched bool
-	help           help.Model
-	helpKeys       keyMap
-	sdkKind        string
-	spinner        spinner.Model
+	accessToken      string
+	baseUri          string
+	client           flags.Client
+	enabled          bool
+	err              error
+	flagKey          string
+	flagWasEnabled   bool
+	flagWasFetched   bool
+	help             help.Model
+	helpKeys         keyMap
+	sdkKind          string
+	spinner          spinner.Model
+	analyticsTracker analytics.Tracker
 }
 
-func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
+func NewToggleFlagModel(analyticsTracker analytics.Tracker, client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Points
 
 	return toggleFlagModel{
-		accessToken: accessToken,
-		baseUri:     baseUri,
-		client:      client,
-		flagKey:     flagKey,
-		help:        help.New(),
+		analyticsTracker: analyticsTracker,
+		accessToken:      accessToken,
+		baseUri:          baseUri,
+		client:           client,
+		flagKey:          flagKey,
+		help:             help.New(),
 		helpKeys: keyMap{
 			Back: BindingBack,
 			Quit: BindingQuit,
@@ -75,6 +78,14 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fetchedFlagStatusMsg:
 		m.enabled = msg.enabled
 		m.flagWasFetched = true
+		m.analyticsTracker.SendEvent(
+			m.accessToken,
+			m.baseUri,
+			"CLI Setup Flag Toggled",
+			map[string]interface{}{
+				"on": m.enabled,
+			},
+		)
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
 	case errMsg:
