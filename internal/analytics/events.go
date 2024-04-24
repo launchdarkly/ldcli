@@ -59,6 +59,7 @@ func MockedTracker(name string, action string, flags []string, outcome string) *
 }
 
 func SendCommandRunEvent(name string, cmd *cobra.Command, analyticsTracker Tracker) {
+	cmd.Root().Annotations = map[string]string{"tracking": "true"}
 	analyticsTracker.SendEvent(
 		viper.GetString(cliflags.AccessTokenFlag),
 		viper.GetString(cliflags.BaseURIFlag),

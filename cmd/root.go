@@ -135,9 +135,6 @@ func NewRootCommand(
 }
 
 func Execute(analyticsTracker analytics.Tracker, version string) {
-	outcome := analytics.SUCCESS
-	defer analytics.SendCommandCompletedEvent(&outcome, analyticsTracker)
-
 	clients := APIClients{
 		EnvironmentsClient: environments.NewClient(version),
 		FlagsClient:        flags.NewClient(version),
@@ -155,6 +152,10 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	}
 
 	err = rootCmd.Execute()
+	outcome := analytics.SUCCESS
+	if _, tracking := rootCmd.Annotations["tracking"]; tracking {
+		defer analytics.SendCommandCompletedEvent(&outcome, analyticsTracker)
+	}
 	if err != nil {
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
