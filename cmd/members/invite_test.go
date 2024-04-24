@@ -249,4 +249,34 @@ func TestInviteWithOptionalRole(t *testing.T) {
 		_, err := cmd.CallCmd(t, clients, tracker, args)
 		require.NoError(t, err)
 	})
+
+	t.Run("will track analytics for api error", func(t *testing.T) {
+		tracker := analytics.MockedTracker(
+			"members",
+			"invite",
+			[]string{
+				"access-token",
+				"base-uri",
+				"emails",
+				"role",
+			}, analytics.ERROR)
+		client := members.MockClient{}
+		client.
+			On("Create", mockArgs...).
+			Return([]byte(`{}`), errors.NewError("An error"))
+		clients := cmd.APIClients{
+			MembersClient: &client,
+		}
+
+		args := []string{
+			"members", "invite",
+			"--access-token", "testAccessToken",
+			"--base-uri", "http://test.com",
+			"-e", `testemail1@test.com,testemail2@test.com`,
+			"--role", "writer",
+		}
+
+		_, err := cmd.CallCmd(t, clients, tracker, args)
+		require.EqualError(t, err, "An error")
+	})
 }
