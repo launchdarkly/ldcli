@@ -58,3 +58,23 @@ func MockedTracker(name string, action string, flags []string, outcome string) *
 	}...)
 	return &tracker
 }
+
+func SendCommandRunEvent(name string, cmd *cobra.Command, analyticsTracker Tracker) {
+	analyticsTracker.SendEvent(
+		viper.GetString(cliflags.AccessTokenFlag),
+		viper.GetString(cliflags.BaseURIFlag),
+		"CLI Command Run",
+		CmdRunEventProperties(cmd, name),
+	)
+}
+
+func SendCommandCompletedEvent(outcome *string, analyticsTracker Tracker) {
+	analyticsTracker.SendEvent(
+		viper.GetString(cliflags.AccessTokenFlag),
+		viper.GetString(cliflags.BaseURIFlag),
+		"CLI Command Completed",
+		map[string]interface{}{
+			"outcome": *outcome,
+		},
+	)
+}

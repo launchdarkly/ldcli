@@ -2,9 +2,7 @@ package environments
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
-	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 )
@@ -17,13 +15,8 @@ func NewEnvironmentsCmd(
 		Use:   "environments",
 		Short: "Make requests (list, create, etc.) on environments",
 		Long:  "Make requests (list, create, etc.) on environments",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			analyticsTracker.SendEvent(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				"CLI Command Run",
-				analytics.CmdRunEventProperties(cmd, "environments"),
-			)
+		PersistentPreRun: func(c *cobra.Command, args []string) {
+			analytics.SendCommandRunEvent("environments", c, analyticsTracker)
 		},
 	}
 
@@ -35,12 +28,7 @@ func NewEnvironmentsCmd(
 
 	for _, c := range cmd.Commands() {
 		c.SetHelpFunc(func(c *cobra.Command, args []string) {
-			analyticsTracker.SendEvent(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				"CLI Command Run",
-				analytics.CmdRunEventProperties(c, "environments"),
-			)
+			analytics.SendCommandRunEvent("environments", c, analyticsTracker)
 			c.Root().Annotations = map[string]string{"help": "true"}
 		})
 	}

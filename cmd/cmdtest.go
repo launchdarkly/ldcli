@@ -6,10 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 
-	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 )
 
@@ -21,6 +19,9 @@ func CallCmd(
 	tracker analytics.Tracker,
 	args []string,
 ) ([]byte, error) {
+	outcome := analytics.SUCCESS
+	defer analytics.SendCommandCompletedEvent(&outcome, tracker)
+
 	rootCmd, err := NewRootCommand(
 		tracker,
 		clients,
@@ -34,28 +35,11 @@ func CallCmd(
 
 	err = rootCmd.Execute()
 	if err != nil {
-		tracker.SendEvent(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			"CLI Command Completed",
-			map[string]interface{}{
-				"outcome": analytics.ERROR,
-			},
-		)
+		outcome = analytics.ERROR
 		return nil, err
-	}
-	outcome := analytics.SUCCESS
-	if _, isHelp := rootCmd.Annotations["help"]; isHelp {
+	} else if _, isHelp := rootCmd.Annotations["help"]; isHelp {
 		outcome = analytics.HELP
 	}
-	tracker.SendEvent(
-		viper.GetString(cliflags.AccessTokenFlag),
-		viper.GetString(cliflags.BaseURIFlag),
-		"CLI Command Completed",
-		map[string]interface{}{
-			"outcome": outcome,
-		},
-	)
 
 	out, err := io.ReadAll(b)
 	require.NoError(t, err)
