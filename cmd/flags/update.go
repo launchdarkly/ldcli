@@ -117,11 +117,6 @@ func setToggleCommandFlags(cmd *cobra.Command) (*cobra.Command, error) {
 
 func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		// rebind flags used in other subcommands
-		// _ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
-		// _ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
-		// _ = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
-
 		var patch []flags.UpdateInput
 		if cmd.CalledAs() == "toggle-on" || cmd.CalledAs() == "toggle-off" {
 			_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))

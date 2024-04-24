@@ -8,13 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// CmdOutputResource - ConfigPlaintextOutputFn
-// CmdOutputResource - ErrorPlaintextOutputFn
-// CmdOutputResource - SingularPlaintextOutputFn
-
-// CmdOutputResources - MultiplePlaintextOutputFn
-// CmdOutputResources - MultipleEmailPlaintextOutputFn
-
 func TestCmdOutputResource(t *testing.T) {
 	tests := map[string]struct {
 		expected string
