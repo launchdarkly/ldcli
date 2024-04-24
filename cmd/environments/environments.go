@@ -33,5 +33,17 @@ func NewEnvironmentsCmd(
 	}
 	cmd.AddCommand(getCmd)
 
+	for _, c := range cmd.Commands() {
+		c.SetHelpFunc(func(c *cobra.Command, args []string) {
+			analyticsTracker.SendEvent(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				"CLI Command Run",
+				analytics.CmdRunEventProperties(c, "environments"),
+			)
+			c.Root().Annotations = map[string]string{"help": "environments get"}
+		})
+	}
+
 	return cmd, nil
 }

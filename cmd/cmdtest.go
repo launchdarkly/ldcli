@@ -44,13 +44,16 @@ func CallCmd(
 		)
 		return nil, err
 	}
-
+	outcome := analytics.SUCCESS
+	if _, isHelp := rootCmd.Annotations["help"]; isHelp {
+		outcome = analytics.HELP
+	}
 	tracker.SendEvent(
 		viper.GetString(cliflags.AccessTokenFlag),
 		viper.GetString(cliflags.BaseURIFlag),
 		"CLI Command Completed",
 		map[string]interface{}{
-			"outcome": analytics.SUCCESS,
+			"outcome": outcome,
 		},
 	)
 

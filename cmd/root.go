@@ -156,6 +156,8 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	if err != nil {
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
+	} else if _, isHelp := rootCmd.Annotations["help"]; isHelp {
+		outcome = analytics.HELP
 	}
 
 	analyticsTracker.SendEvent(
