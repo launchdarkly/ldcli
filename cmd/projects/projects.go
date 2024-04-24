@@ -2,9 +2,7 @@ package projects
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
-	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/projects"
 )
@@ -14,13 +12,8 @@ func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) 
 		Use:   "projects",
 		Short: "Make requests (list, create, etc.) on projects",
 		Long:  "Make requests (list, create, etc.) on projects",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			analyticsTracker.SendEvent(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				"CLI Command Run",
-				analytics.CmdRunEventProperties(cmd, "projects"),
-			)
+		PersistentPreRun: func(c *cobra.Command, args []string) {
+			analytics.SendCommandRunEvent("members", c, analyticsTracker)
 		},
 	}
 
@@ -32,6 +25,13 @@ func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) 
 
 	cmd.AddCommand(createCmd)
 	cmd.AddCommand(listCmd)
+
+	for _, c := range cmd.Commands() {
+		c.SetHelpFunc(func(c *cobra.Command, args []string) {
+			analytics.SendCommandRunEvent("members", c, analyticsTracker)
+			c.Root().Annotations = map[string]string{"help": "true"}
+		})
+	}
 
 	return cmd, nil
 }
