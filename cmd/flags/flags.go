@@ -17,10 +17,9 @@ func NewFlagsCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobr
 		Long:  "Make requests (list, create, etc.) on flags",
 		PersistentPreRun: func(c *cobra.Command, args []string) {
 			analyticsTracker.SendCommandRunEvent(
-				"projects",
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
-				cmdAnalytics.CmdRunEventProperties(c, "projects"),
+				cmdAnalytics.CmdRunEventProperties(c, "flags"),
 			)
 		},
 	}

@@ -31,10 +31,9 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 		Use:   "config",
 		PreRun: func(c *cobra.Command, args []string) {
 			analyticsTracker.SendCommandRunEvent(
-				"environments",
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
-				cmdAnalytics.CmdRunEventProperties(c, "projects"),
+				cmdAnalytics.CmdRunEventProperties(c, "config"),
 			)
 		},
 	}

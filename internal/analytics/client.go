@@ -19,7 +19,6 @@ type Tracker interface {
 		properties map[string]interface{},
 	)
 	SendCommandRunEvent(
-		name,
 		accessToken,
 		baseURI string,
 		properties map[string]interface{},
@@ -92,7 +91,6 @@ func (c *Client) SendEvent(
 }
 
 func (c *Client) SendCommandRunEvent(
-	name,
 	accessToken,
 	baseURI string,
 	properties map[string]interface{},
@@ -130,7 +128,7 @@ func (c *NoopClient) SendEvent(
 ) {
 }
 
-func (c *NoopClient) SendCommandRunEvent(name,
+func (c *NoopClient) SendCommandRunEvent(
 	accessToken,
 	baseURI string,
 	properties map[string]interface{},
@@ -155,7 +153,7 @@ func (m *MockTracker) SendEvent(
 	m.Called(accessToken, baseURI, eventName, properties)
 }
 
-func (m *MockTracker) SendCommandRunEvent(name,
+func (m *MockTracker) SendCommandRunEvent(
 	accessToken,
 	baseURI string,
 	properties map[string]interface{},

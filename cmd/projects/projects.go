@@ -17,7 +17,6 @@ func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) 
 		Long:  "Make requests (list, create, etc.) on projects",
 		PersistentPreRun: func(c *cobra.Command, args []string) {
 			analyticsTracker.SendCommandRunEvent(
-				"projects",
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				cmdAnalytics.CmdRunEventProperties(c, "projects"),
