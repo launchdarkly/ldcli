@@ -3,6 +3,7 @@ package quickstart
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -43,6 +44,7 @@ type ContainerModel struct {
 	gettingStarted     bool
 	quitting           bool
 	sdk                sdkDetail
+	startTime          time.Time
 	totalSteps         int
 	width              int
 }
@@ -63,6 +65,7 @@ func NewContainerModel(
 		environmentsClient: environmentsClient,
 		flagsClient:        flagsClient,
 		gettingStarted:     true,
+		startTime:          time.Now(),
 		totalSteps:         4,
 	}
 }
@@ -157,6 +160,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.baseUri,
 			m.flagKey,
 			m.sdk.kind,
+			m.startTime,
 		)
 		cmd = m.currentModel.Init()
 		m.currentStep += 1

@@ -2,6 +2,7 @@ package quickstart
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -18,6 +19,7 @@ type toggleFlagModel struct {
 	accessToken      string
 	analyticsTracker analytics.Tracker
 	baseUri          string
+	endTime          time.Time
 	client           flags.Client
 	enabled          bool
 	err              error
@@ -28,10 +30,11 @@ type toggleFlagModel struct {
 	helpKeys         keyMap
 	sdkKind          string
 	spinner          spinner.Model
+	setupStartTime   time.Time
 	toggleCount      int
 }
 
-func NewToggleFlagModel(analyticsTracker analytics.Tracker, client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
+func NewToggleFlagModel(analyticsTracker analytics.Tracker, client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string, startTime time.Time) tea.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Points
 
@@ -46,8 +49,9 @@ func NewToggleFlagModel(analyticsTracker analytics.Tracker, client flags.Client,
 			Back: BindingBack,
 			Quit: BindingQuit,
 		},
-		sdkKind: sdkKind,
-		spinner: s,
+		sdkKind:        sdkKind,
+		spinner:        s,
+		setupStartTime: startTime,
 	}
 }
 
@@ -86,16 +90,20 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
 		}
 	case fetchedFlagStatusMsg:
-		m.enabled = msg.enabled
+		if !m.flagWasFetched {
+			m.endTime = time.Now()
+		}
 		m.flagWasFetched = true
+		m.enabled = msg.enabled
 		m.toggleCount++
 		m.analyticsTracker.SendEvent(
 			m.accessToken,
 			m.baseUri,
 			"CLI Setup Flag Toggled",
 			map[string]interface{}{
-				"on":    m.enabled,
-				"count": m.toggleCount,
+				"on":          m.enabled,
+				"count":       m.toggleCount,
+				"duration_ms": m.endTime.Sub(m.setupStartTime).Milliseconds(),
 			},
 		)
 	case spinner.TickMsg:
