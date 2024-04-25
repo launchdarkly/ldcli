@@ -46,8 +46,6 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 	cmd.Flags().String(UnsetFlag, "", "Unset a config field")
 	_ = viper.BindPFlag(UnsetFlag, cmd.Flags().Lookup(UnsetFlag))
 
-	// TODO: running config should show help
-
 	return cmd
 }
 

@@ -17,7 +17,7 @@ var ConfigPlaintextOutputFn = func(r resource) string {
 
 	lst := make([]string, 0)
 	for _, k := range keys {
-		lst = append(lst, fmt.Sprintf("%s: %s", k, r[k]))
+		lst = append(lst, fmt.Sprintf("%s: %v", k, r[k]))
 	}
 
 	return strings.Join(lst, "\n")
