@@ -72,6 +72,22 @@ func CmdOutputCreate(outputKind string, input []byte, fn PlaintextOutputFn) (str
 	})
 }
 
+// CmdOutputUpdate builds a command response based on the flag the user provided and the shape of
+// the input with a successfully created message. The expected shape is a single JSON object.
+func CmdOutputUpdate(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
+	var r resource
+	err := json.Unmarshal(input, &r)
+	if err != nil {
+		return "", err
+	}
+
+	return outputFromKind(outputKind, "Successfully updated ", SingularOutputter{
+		outputFn:     fn,
+		resource:     r,
+		resourceJSON: input,
+	})
+}
+
 // CmdOutputMultiple builds a command response based on the flag the user provided and the shape of
 // the input. The expected shape is a list of JSON objects.
 func CmdOutputMultiple(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
