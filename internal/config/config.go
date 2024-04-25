@@ -14,7 +14,7 @@ const Filename = ".ldcli-config.yml"
 // ConfigFile represents the data stored in the config file.
 type ConfigFile struct {
 	AccessToken     string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
-	AnalyticsOptOut bool   `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
+	AnalyticsOptOut *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
 	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
 }
 
@@ -35,7 +35,7 @@ func NewConfig(rawConfig map[string]interface{}) ConfigFile {
 
 	return ConfigFile{
 		AccessToken:     accessToken,
-		AnalyticsOptOut: analyticsOptOut,
+		AnalyticsOptOut: &analyticsOptOut,
 		BaseURI:         baseURI,
 	}
 }
