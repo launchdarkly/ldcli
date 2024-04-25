@@ -40,7 +40,7 @@ Current respected settings:
 
 To set a value as an environment variable, prepend the variable name with `LD`. For example:
 ```shell
-export $LD_ACCESS_TOKEN api-123a4bc5-6789-1d2e-34f5-g67hi891jk2l
+export $LD_ACCESS_TOKEN api-00000000-0000-0000-0000-000000000000
 ```
 
 Or, set a value in the configuration file:
