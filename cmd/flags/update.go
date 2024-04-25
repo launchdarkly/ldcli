@@ -150,10 +150,9 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutputUpdate(
+		output, err := output.CmdOutputUpdateResource(
 			viper.GetString(cliflags.OutputFlag),
 			response,
-			output.SingularPlaintextOutputFn,
 		)
 		if err != nil {
 			return errors.NewError(err.Error())

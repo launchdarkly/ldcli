@@ -73,33 +73,7 @@ func CmdOutputSingular(outputKind string, input []byte, fn PlaintextOutputFn) (s
 		return "", err
 	}
 
-	return outputFromKind(outputKind, "", SingularOutputter{
-		outputFn:     fn,
-		resource:     r,
-		resourceJSON: input,
-	})
-}
-
-// CmdOutputCreate builds a command response based on the flag the user provided and the shape of
-// the input with a successfully created message. The expected shape is a single JSON object.
-func CmdOutputCreate(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
-	return cmdOutputWithMessage(outputKind, "Successfully created ", input, fn)
-}
-
-// CmdOutputUpdate builds a command response based on the flag the user provided and the shape of
-// the input with a successfully created message. The expected shape is a single JSON object.
-func CmdOutputUpdate(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
-	return cmdOutputWithMessage(outputKind, "Successfully updated ", input, fn)
-}
-
-func cmdOutputWithMessage(outputKind string, message string, input []byte, fn PlaintextOutputFn) (string, error) {
-	var r resource
-	err := json.Unmarshal(input, &r)
-	if err != nil {
-		return "", err
-	}
-
-	return outputFromKind(outputKind, message, SingularOutputter{
+	return outputFromKind(outputKind, SingularOutputter{
 		outputFn:     fn,
 		resource:     r,
 		resourceJSON: input,
@@ -121,19 +95,19 @@ func CmdOutputMultiple(outputKind string, input []byte, fn PlaintextOutputFn) (s
 		r.Items = rr
 	}
 
-	return outputFromKind(outputKind, "", MultipleOutputter{
+	return outputFromKind(outputKind, MultipleOutputter{
 		outputFn:     fn,
 		resources:    r,
 		resourceJSON: input,
 	})
 }
 
-func outputFromKind(outputKind string, additional string, o Outputter) (string, error) {
+func outputFromKind(outputKind string, o Outputter) (string, error) {
 	switch outputKind {
 	case "json":
 		return o.JSON(), nil
 	case "plaintext":
-		return additional + o.String(), nil
+		return o.String(), nil
 	}
 
 	return "", ErrInvalidOutputKind
