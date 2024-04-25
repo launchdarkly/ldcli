@@ -7,6 +7,8 @@ import (
 	"github.com/mitchellh/go-homedir"
 
 	"ldcli/cmd/cliflags"
+	"ldcli/internal/errors"
+	"ldcli/internal/output"
 )
 
 const Filename = ".ldcli-config.yml"
@@ -19,31 +21,45 @@ type ConfigFile struct {
 	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
 }
 
-func NewConfig(rawConfig map[string]interface{}) ConfigFile {
-	var accessToken string
+func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
+	var (
+		accessToken     string
+		analyticsOptOut bool
+		baseURI         string
+		err             error
+		outputKind      output.OutputKind
+	)
 	if rawConfig[cliflags.AccessTokenFlag] != nil {
 		accessToken = rawConfig[cliflags.AccessTokenFlag].(string)
 	}
-	var analyticsOptOut bool
 	if rawConfig[cliflags.AnalyticsOptOut] != nil {
-		stringValue := rawConfig[cliflags.AnalyticsOptOut].(string)
-		analyticsOptOut, _ = strconv.ParseBool(stringValue)
+		maybeString, ok := rawConfig[cliflags.AnalyticsOptOut].(string)
+		if ok {
+			analyticsOptOut, _ = strconv.ParseBool(maybeString)
+		} else {
+			maybeBool, ok := rawConfig[cliflags.AnalyticsOptOut].(bool)
+			if !ok {
+				return ConfigFile{}, errors.NewError("analanalyticsOptOut must be true or false")
+			}
+			analyticsOptOut = maybeBool
+		}
 	}
-	var baseURI string
 	if rawConfig[cliflags.BaseURIFlag] != nil {
 		baseURI = rawConfig[cliflags.BaseURIFlag].(string)
 	}
-	var output string
 	if rawConfig[cliflags.OutputFlag] != nil {
-		output = rawConfig[cliflags.OutputFlag].(string)
+		outputKind, err = output.NewOutputKind(rawConfig[cliflags.OutputFlag].(string))
+		if err != nil {
+			return ConfigFile{}, err
+		}
 	}
 
 	return ConfigFile{
 		AccessToken:     accessToken,
 		AnalyticsOptOut: &analyticsOptOut,
 		BaseURI:         baseURI,
-		Output:          output,
-	}
+		Output:          outputKind.String(),
+	}, nil
 }
 
 func GetConfigPath() string {

@@ -8,6 +8,30 @@ import (
 
 var ErrInvalidOutputKind = errors.NewError("output is invalid")
 
+type OutputKind string
+
+func (o OutputKind) String() string {
+	return string(o)
+}
+
+var (
+	OutputKindJSON      = OutputKind("json")
+	OutputKindNull      = OutputKind("")
+	OutputKindPlaintext = OutputKind("plaintext")
+)
+
+func NewOutputKind(s string) (OutputKind, error) {
+	validKinds := map[string]struct{}{
+		OutputKindJSON.String():      {},
+		OutputKindPlaintext.String(): {},
+	}
+	if _, isValid := validKinds[s]; !isValid {
+		return OutputKindNull, ErrInvalidOutputKind
+	}
+
+	return OutputKind(s), nil
+}
+
 // Outputter defines the different ways a command's response can be formatted based on
 // user input.
 type Outputter interface {

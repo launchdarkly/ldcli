@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 
@@ -14,6 +13,7 @@ import (
 	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/config"
+	"ldcli/internal/errors"
 	"ldcli/internal/output"
 )
 
@@ -76,7 +76,7 @@ func run() func(*cobra.Command, []string) error {
 		case viper.GetBool(SetFlag):
 			// flag needs two arguments: a key and value
 			if len(args)%2 != 0 {
-				return errors.New("flag needs an argument: --set")
+				return errors.NewError("flag needs an argument: --set")
 			}
 
 			rawConfig, v, err := getRawConfig()
@@ -98,7 +98,12 @@ func run() func(*cobra.Command, []string) error {
 				v.Set(key, value)
 			}
 
-			return writeConfig(config.NewConfig(rawConfig), v, setKeyFn)
+			configFile, err := config.NewConfig(rawConfig)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+
+			return writeConfig(configFile, v, setKeyFn)
 		case viper.IsSet(UnsetFlag):
 			config, v, err := getConfig()
 			if err != nil {
