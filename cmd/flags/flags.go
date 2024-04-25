@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	cmdAnalytics "ldcli/cmd/analytics"
 	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/flags"
@@ -15,11 +16,11 @@ func NewFlagsCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobr
 		Short: "Make requests (list, create, etc.) on flags",
 		Long:  "Make requests (list, create, etc.) on flags",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			analyticsTracker.SendEvent(
+			analyticsTracker.SendCommandRunEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
-				"CLI Command Run",
-				analytics.CmdRunEventProperties(cmd, "flags"),
+				viper.GetBool(cliflags.AnalyticsOptOut),
+				cmdAnalytics.CmdRunEventProperties(cmd, "flags"),
 			)
 		},
 	}

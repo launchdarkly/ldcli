@@ -139,7 +139,7 @@ func TestUpdate(t *testing.T) {
 				"flag",
 				"output",
 				"project",
-			})
+			}, analytics.SUCCESS)
 
 		client := flags.MockClient{}
 		client.
@@ -267,7 +267,7 @@ func TestToggle(t *testing.T) {
 				"flag",
 				"output",
 				"project",
-			})
+			}, analytics.SUCCESS)
 
 		client := flags.MockClient{}
 		client.

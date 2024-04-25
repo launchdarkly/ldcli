@@ -137,7 +137,7 @@ func NewOperationCmd(parentCmd *cobra.Command, client *http.Client, op Operation
 	}
 
 	opCmd.cmd = cmd
-	opCmd.initFlags()
+	_ = opCmd.initFlags()
 
 	parentCmd.AddCommand(cmd)
 

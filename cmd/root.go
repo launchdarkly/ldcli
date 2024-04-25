@@ -99,6 +99,16 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	cmd.PersistentFlags().Bool(
+		cliflags.AnalyticsOptOut,
+		false,
+		"Opt out of analytics tracking",
+	)
+	err = viper.BindPFlag(cliflags.AnalyticsOptOut, cmd.PersistentFlags().Lookup(cliflags.AnalyticsOptOut))
+	if err != nil {
+		return nil, err
+	}
+
 	cmd.PersistentFlags().StringP(
 		cliflags.OutputFlag,
 		"o",
@@ -158,9 +168,18 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	}
 
 	err = rootCmd.Execute()
+	outcome := analytics.SUCCESS
 	if err != nil {
+		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
 	}
+
+	analyticsTracker.SendCommandCompletedEvent(
+		viper.GetString(cliflags.AccessTokenFlag),
+		viper.GetString(cliflags.BaseURIDefault),
+		viper.GetBool(cliflags.AnalyticsOptOut),
+		outcome,
+	)
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
