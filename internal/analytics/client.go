@@ -12,22 +12,29 @@ import (
 )
 
 type Tracker interface {
-	SendEvent(
-		accessToken string,
+	SendCommandRunEvent(
+		accessToken,
 		baseURI string,
 		optOut bool,
-		eventName string,
 		properties map[string]interface{},
+	)
+	SendCommandCompletedEvent(
+		accessToken,
+		baseURI string,
+		optOut bool,
+		outcome string,
 	)
 }
 
 type Client struct {
-	HTTPClient *http.Client
-	wg         sync.WaitGroup
+	ID           string
+	HTTPClient   *http.Client
+	sentRunEvent bool
+	wg           sync.WaitGroup
 }
 
 // SendEvent makes an async request to track the given event with properties.
-func (c *Client) SendEvent(
+func (c *Client) sendEvent(
 	accessToken string,
 	baseURI string,
 	optOut bool,
@@ -37,6 +44,7 @@ func (c *Client) SendEvent(
 	if optOut {
 		return
 	}
+	properties["id"] = c.ID
 	input := struct {
 		Event      string                 `json:"event"`
 		Properties map[string]interface{} `json:"properties"`
@@ -83,18 +91,62 @@ func (c *Client) SendEvent(
 	}()
 }
 
+func (c *Client) SendCommandRunEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	properties map[string]interface{},
+) {
+	c.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Command Run",
+		properties,
+	)
+	if !optOut {
+		c.sentRunEvent = true
+	}
+}
+
+func (c *Client) SendCommandCompletedEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	outcome string,
+) {
+	if c.sentRunEvent {
+		c.sendEvent(
+			accessToken,
+			baseURI,
+			optOut,
+			"CLI Command Completed",
+			map[string]interface{}{
+				"outcome": outcome,
+			},
+		)
+	}
+}
+
 func (a *Client) Wait() {
 	a.wg.Wait()
 }
 
 type NoopClient struct{}
 
-func (c *NoopClient) SendEvent(
-	accessToken string,
+func (c *NoopClient) SendCommandRunEvent(
+	accessToken,
 	baseURI string,
 	optOut bool,
-	eventName string,
 	properties map[string]interface{},
+) {
+}
+
+func (c *NoopClient) SendCommandCompletedEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	outcome string,
 ) {
 }
 
@@ -103,7 +155,7 @@ type MockTracker struct {
 	ID string
 }
 
-func (m *MockTracker) SendEvent(
+func (m *MockTracker) sendEvent(
 	accessToken string,
 	baseURI string,
 	optOut bool,
@@ -112,4 +164,36 @@ func (m *MockTracker) SendEvent(
 ) {
 	properties["id"] = m.ID
 	m.Called(accessToken, baseURI, eventName, properties)
+}
+
+func (m *MockTracker) SendCommandRunEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	properties map[string]interface{},
+) {
+	m.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Command Run",
+		properties,
+	)
+}
+
+func (m *MockTracker) SendCommandCompletedEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	outcome string,
+) {
+	m.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Command Completed",
+		map[string]interface{}{
+			"outcome": outcome,
+		},
+	)
 }

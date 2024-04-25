@@ -6,8 +6,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 
+	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 )
 
@@ -35,8 +37,21 @@ func CallCmd(
 
 	err = rootCmd.Execute()
 	if err != nil {
+		tracker.SendCommandCompletedEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetBool(cliflags.AnalyticsOptOut),
+			analytics.ERROR,
+		)
 		return nil, err
 	}
+
+	tracker.SendCommandCompletedEvent(
+		viper.GetString(cliflags.AccessTokenFlag),
+		viper.GetString(cliflags.BaseURIFlag),
+		viper.GetBool(cliflags.AnalyticsOptOut),
+		analytics.SUCCESS,
+	)
 
 	out, err := io.ReadAll(b)
 	require.NoError(t, err)
