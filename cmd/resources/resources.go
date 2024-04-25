@@ -1,13 +1,15 @@
 package resources
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"regexp"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
 
 	cmdAnalytics "ldcli/cmd/analytics"
 	"ldcli/cmd/cliflags"
@@ -36,13 +38,14 @@ func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker
 }
 
 type OperationData struct {
-	Short        string
-	Long         string
-	Use          string
-	Params       []Param
-	HTTPMethod   string
-	RequiresBody bool
-	Path         string
+	Short                 string
+	Long                  string
+	Use                   string
+	Params                []Param
+	HTTPMethod            string
+	RequiresBody          bool
+	Path                  string
+	SupportsSemanticPatch bool // TBD on how to actually determine from openapi spec
 }
 
 type Param struct {
@@ -72,8 +75,17 @@ func (op *OperationCmd) initFlags() error {
 		}
 	}
 
+	if op.SupportsSemanticPatch {
+		op.cmd.Flags().Bool("semantic-patch", false, "Perform a semantic patch request")
+		err := viper.BindPFlag("semantic-patch", op.cmd.Flags().Lookup("semantic-patch"))
+		if err != nil {
+			return err
+		}
+	}
+
 	for _, p := range op.Params {
 		shorthand := fmt.Sprintf(p.Name[0:1]) // todo: how do we handle potential dupes
+		// TODO: consider handling these all as strings
 		switch p.Type {
 		case "string":
 			op.cmd.Flags().StringP(p.Name, shorthand, "", p.Description)
@@ -88,7 +100,6 @@ func (op *OperationCmd) initFlags() error {
 			if err != nil {
 				return err
 			}
-
 		}
 
 		err := viper.BindPFlag(p.Name, op.cmd.Flags().Lookup(p.Name))
@@ -99,7 +110,7 @@ func (op *OperationCmd) initFlags() error {
 	return nil
 }
 
-func formatURL(path string, urlParams []string) string {
+func formatURL(baseURI, path string, urlParams []string) string {
 	s := make([]interface{}, len(urlParams))
 	for i, v := range urlParams {
 		s[i] = v
@@ -108,44 +119,58 @@ func formatURL(path string, urlParams []string) string {
 	re := regexp.MustCompile(`{\w+}`)
 	format := re.ReplaceAllString(path, "%s")
 
-	return fmt.Sprintf(format, s...)
+	return baseURI + fmt.Sprintf(format, s...)
 }
 
 func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
-	paramVals := map[string]interface{}{}
+	var data interface{}
 	if op.RequiresBody {
-		var data interface{}
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
 		err := json.Unmarshal([]byte(cmd.Flags().Lookup(cliflags.DataFlag).Value.String()), &data)
 		if err != nil {
 			return err
 		}
-		paramVals[cliflags.DataFlag] = data
 	}
 
+	query := url.Values{}
 	var urlParms []string
 	for _, p := range op.Params {
-		var val interface{}
-		switch p.Type {
-		case "string":
-			val = viper.GetString(p.Name)
-		case "boolean":
-			val = viper.GetBool(p.Name)
-		case "int":
-			val = viper.GetInt(p.Name)
-		}
-
-		if val != nil {
-			paramVals[p.Name] = val
-			if p.In == "path" {
+		val := viper.GetString(p.Name)
+		if val != "" {
+			switch p.In {
+			case "path":
 				urlParms = append(urlParms, fmt.Sprintf("%v", val))
+			case "query":
+				query.Add(p.Name, fmt.Sprintf("%v", val))
 			}
 		}
 	}
 
-	path := formatURL(op.Path, urlParms)
+	contentType := "application/json"
+	if op.SupportsSemanticPatch && viper.GetBool("semantic-patch") {
+		contentType += "; domain-model=launchdarkly.semanticpatch"
+	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "would be making a %s request to %s here, with args: %s\n", op.HTTPMethod, path, paramVals)
+	path := formatURL(viper.GetString(cliflags.BaseURIFlag), op.Path, urlParms)
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req, _ := http.NewRequest(strings.ToUpper(op.HTTPMethod), path, bytes.NewReader(jsonData))
+	req.Header.Add("Authorization", viper.GetString(cliflags.AccessTokenFlag))
+	req.Header.Add("Content-type", contentType)
+	req.URL.RawQuery = query.Encode()
+
+	res, err := op.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	// TODO replace with outputter, handle errors
+	fmt.Fprintf(cmd.OutOrStdout(), "would be making a %s request to %s?%s\n", op.HTTPMethod, path, query.Encode())
 
 	return nil
 }
