@@ -34,7 +34,6 @@ func TestCmdOutputCreateResource(t *testing.T) {
 			assert.Equal(t, expected, result)
 		})
 	})
-	// TODO: error handling
 }
 
 func TestCmdOutputDeleteResource(t *testing.T) {
@@ -76,7 +75,6 @@ func TestCmdOutputDeleteResource(t *testing.T) {
 			})
 		})
 	})
-	// TODO: error handling
 }
 
 func TestCmdOutputUpdateResource(t *testing.T) {
@@ -105,5 +103,4 @@ func TestCmdOutputUpdateResource(t *testing.T) {
 			assert.Equal(t, expected, result)
 		})
 	})
-	// TODO: error handling
 }
