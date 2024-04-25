@@ -16,6 +16,7 @@ type ConfigFile struct {
 	AccessToken     string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
 	AnalyticsOptOut bool   `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
 	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
+	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
 }
 
 func NewConfig(rawConfig map[string]interface{}) ConfigFile {
@@ -32,11 +33,16 @@ func NewConfig(rawConfig map[string]interface{}) ConfigFile {
 	if rawConfig[cliflags.BaseURIFlag] != nil {
 		baseURI = rawConfig[cliflags.BaseURIFlag].(string)
 	}
+	var output string
+	if rawConfig[cliflags.OutputFlag] != nil {
+		output = rawConfig[cliflags.OutputFlag].(string)
+	}
 
 	return ConfigFile{
 		AccessToken:     accessToken,
 		AnalyticsOptOut: analyticsOptOut,
 		BaseURI:         baseURI,
+		Output:          output,
 	}
 }
 
