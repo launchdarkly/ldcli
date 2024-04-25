@@ -57,26 +57,30 @@ func TestNewConfig(t *testing.T) {
 		assert.EqualError(t, err, "analytics-opt-out must be true or false")
 	})
 
-	t.Run("is valid with a json output", func(t *testing.T) {
-		rawConfig := map[string]interface{}{
-			"output": "json",
+	t.Run("analytics-opt-out", func(t *testing.T) {
+		tests := map[string]struct {
+			input string
+		}{
+			"is valid when value is json": {
+				input: "json",
+			},
+			"is valid when value is plaintext": {
+				input: "json",
+			},
 		}
+		for name, tt := range tests {
+			tt := tt
+			t.Run(name, func(t *testing.T) {
+				rawConfig := map[string]interface{}{
+					"output": tt.input,
+				}
 
-		configFile, err := config.NewConfig(rawConfig)
+				configFile, err := config.NewConfig(rawConfig)
 
-		require.NoError(t, err)
-		assert.Equal(t, "json", configFile.Output)
-	})
-
-	t.Run("is valid with a plaintext output", func(t *testing.T) {
-		rawConfig := map[string]interface{}{
-			"output": "plaintext",
+				require.NoError(t, err)
+				assert.Equal(t, tt.input, configFile.Output)
+			})
 		}
-
-		configFile, err := config.NewConfig(rawConfig)
-
-		require.NoError(t, err)
-		assert.Equal(t, "plaintext", configFile.Output)
 	})
 
 	t.Run("is invalid with an invalid output", func(t *testing.T) {
