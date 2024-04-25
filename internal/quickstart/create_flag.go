@@ -55,14 +55,7 @@ func NewCreateFlagModel(analyticsTracker analytics.Tracker, client flags.Client,
 }
 
 func (m createFlagModel) Init() tea.Cmd {
-	m.analyticsTracker.SendEvent(
-		m.accessToken,
-		m.baseUri,
-		"CLI Setup Started",
-		map[string]interface{}{
-			"step": "1 - feature flag name",
-		},
-	)
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, "1 - feature flag name")
 
 	return nil
 }

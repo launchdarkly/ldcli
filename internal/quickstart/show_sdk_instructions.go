@@ -96,22 +96,8 @@ func NewShowSDKInstructionsModel(
 // fetch SDK instructions
 // fetch the environment to get values to interpolate into the instructions
 func (m showSDKInstructionsModel) Init() tea.Cmd {
-	m.analyticsTracker.SendEvent(
-		m.accessToken,
-		m.baseUri,
-		"CLI Setup Started",
-		map[string]interface{}{
-			"step": "3 - sdk installation",
-		},
-	)
-	m.analyticsTracker.SendEvent(
-		m.accessToken,
-		m.baseUri,
-		"CLI Setup SDK Selected",
-		map[string]interface{}{
-			"sdk": m.canonicalName,
-		},
-	)
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, "3 - sdk installation")
+	m.analyticsTracker.SendSetupSDKSelectedEvent(m.accessToken, m.baseUri, m.canonicalName)
 
 	cmds := []tea.Cmd{m.spinner.Tick, readSDKInstructions(m.canonicalName)}
 

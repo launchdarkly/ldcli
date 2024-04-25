@@ -71,14 +71,7 @@ func NewChooseSDKModel(analyticsTracker analytics.Tracker, accessToken, baseUri 
 // Init sends commands when the model is created that will:
 // * select an SDK if it's already been selected
 func (m chooseSDKModel) Init() tea.Cmd {
-	m.analyticsTracker.SendEvent(
-		m.accessToken,
-		m.baseUri,
-		"CLI Setup Started",
-		map[string]interface{}{
-			"step": "2 - sdk selection",
-		},
-	)
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, "2 - sdk selection")
 	return selectedSDK(m.selectedIndex)
 }
 

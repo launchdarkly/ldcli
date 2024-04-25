@@ -56,14 +56,7 @@ func NewToggleFlagModel(analyticsTracker analytics.Tracker, client flags.Client,
 }
 
 func (m toggleFlagModel) Init() tea.Cmd {
-	m.analyticsTracker.SendEvent(
-		m.accessToken,
-		m.baseUri,
-		"CLI Setup Started",
-		map[string]interface{}{
-			"step": "4 - flag toggle",
-		},
-	)
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, "4 - flag toggle")
 
 	cmds := []tea.Cmd{
 		m.spinner.Tick,
@@ -96,15 +89,12 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flagWasFetched = true
 		m.enabled = msg.enabled
 		m.toggleCount++
-		m.analyticsTracker.SendEvent(
+		m.analyticsTracker.SendSetupFlagToggledEvent(
 			m.accessToken,
 			m.baseUri,
-			"CLI Setup Flag Toggled",
-			map[string]interface{}{
-				"on":          m.enabled,
-				"count":       m.toggleCount,
-				"duration_ms": m.endTime.Sub(m.setupStartTime).Milliseconds(),
-			},
+			m.enabled,
+			m.toggleCount,
+			m.endTime.Sub(m.setupStartTime).Milliseconds(),
 		)
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)

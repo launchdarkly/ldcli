@@ -24,6 +24,23 @@ type Tracker interface {
 		optOut bool,
 		outcome string,
 	)
+	SendSetupStartedEvent(
+		accessToken,
+		baseURI,
+		step string,
+	)
+	SendSetupSDKSelectedEvent(
+		accessToken,
+		baseURI,
+		sdk string,
+	)
+	SendSetupFlagToggledEvent(
+		accessToken,
+		baseURI string,
+		on bool,
+		count int,
+		duration_ms int64,
+	)
 }
 
 type Client struct {
@@ -128,6 +145,58 @@ func (c *Client) SendCommandCompletedEvent(
 	}
 }
 
+func (c *Client) SendSetupStartedEvent(
+	accessToken,
+	baseURI,
+	step string,
+) {
+	c.sendEvent(
+		accessToken,
+		baseURI,
+		false,
+		"CLI Setup Started",
+		map[string]interface{}{
+			"step": step,
+		},
+	)
+}
+
+func (c *Client) SendSetupSDKSelectedEvent(
+	accessToken,
+	baseURI,
+	sdk string,
+) {
+	c.sendEvent(
+		accessToken,
+		baseURI,
+		false,
+		"CLI Setup SDK Selected",
+		map[string]interface{}{
+			"sdk": sdk,
+		},
+	)
+}
+
+func (c *Client) SendSetupFlagToggledEvent(
+	accessToken,
+	baseURI string,
+	on bool,
+	count int,
+	duration_ms int64,
+) {
+	c.sendEvent(
+		accessToken,
+		baseURI,
+		false,
+		"CLI Setup Flag Toggled",
+		map[string]interface{}{
+			"on":          on,
+			"count":       count,
+			"duration_ms": duration_ms,
+		},
+	)
+}
+
 func (a *Client) Wait() {
 	a.wg.Wait()
 }
@@ -147,6 +216,29 @@ func (c *NoopClient) SendCommandCompletedEvent(
 	baseURI string,
 	optOut bool,
 	outcome string,
+) {
+}
+
+func (c *NoopClient) SendSetupStartedEvent(
+	accessToken,
+	baseURI,
+	step string,
+) {
+}
+
+func (c *NoopClient) SendSetupSDKSelectedEvent(
+	accessToken,
+	baseURI,
+	sdk string,
+) {
+}
+
+func (c *NoopClient) SendSetupFlagToggledEvent(
+	accessToken,
+	baseURI string,
+	on bool,
+	count int,
+	duration_ms int64,
 ) {
 }
 
@@ -194,6 +286,58 @@ func (m *MockTracker) SendCommandCompletedEvent(
 		"CLI Command Completed",
 		map[string]interface{}{
 			"outcome": outcome,
+		},
+	)
+}
+
+func (m *MockTracker) SendSetupStartedEvent(
+	accessToken,
+	baseURI,
+	step string,
+) {
+	m.sendEvent(
+		accessToken,
+		baseURI,
+		false,
+		"CLI Setup Started",
+		map[string]interface{}{
+			"step": step,
+		},
+	)
+}
+
+func (m *MockTracker) SendSetupSDKSelectedEvent(
+	accessToken,
+	baseURI,
+	sdk string,
+) {
+	m.sendEvent(
+		accessToken,
+		baseURI,
+		false,
+		"CLI Setup SDK Selected",
+		map[string]interface{}{
+			"sdk": sdk,
+		},
+	)
+}
+
+func (m *MockTracker) SendSetupFlagToggledEvent(
+	accessToken,
+	baseURI string,
+	on bool,
+	count int,
+	duration_ms int64,
+) {
+	m.sendEvent(
+		accessToken,
+		baseURI,
+		false,
+		"CLI Setup Flag Toggled",
+		map[string]interface{}{
+			"on":          on,
+			"count":       count,
+			"duration_ms": duration_ms,
 		},
 	)
 }
