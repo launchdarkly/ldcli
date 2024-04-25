@@ -94,6 +94,7 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.analyticsTracker.SendSetupFlagToggledEvent(
 			m.accessToken,
 			m.baseUri,
+			viper.GetBool(cliflags.OutputFlag),
 			m.enabled,
 			m.toggleCount,
 			m.endTime.Sub(m.setupStartTime).Milliseconds(),
