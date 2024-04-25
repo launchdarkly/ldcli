@@ -81,7 +81,7 @@ func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutputSingular(
+		output, err := output.CmdOutputCreate(
 			viper.GetString(cliflags.OutputFlag),
 			response,
 			output.SingularPlaintextOutputFn,

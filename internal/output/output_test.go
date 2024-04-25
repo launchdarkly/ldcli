@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCmdOutputResource(t *testing.T) {
+func TestCmdOutputSingular(t *testing.T) {
 	tests := map[string]struct {
 		expected string
 		fn       output.PlaintextOutputFn
@@ -65,7 +65,41 @@ func TestCmdOutputResource(t *testing.T) {
 	}
 }
 
-func TestCmdOutputResources(t *testing.T) {
+func TestCmdOutputCreate(t *testing.T) {
+	t.Run("with json", func(t *testing.T) {
+		input := `{
+			"key": "test-key",
+			"name": "test-name"
+		}`
+
+		output, err := output.CmdOutputCreate(
+			"json",
+			[]byte(input),
+			output.SingularPlaintextOutputFn,
+		)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, input, output)
+	})
+
+	t.Run("with plaintext", func(t *testing.T) {
+		input := `{
+			"key": "test-key",
+			"name": "test-name"
+		}`
+
+		output, err := output.CmdOutputCreate(
+			"plaintext",
+			[]byte(input),
+			output.SingularPlaintextOutputFn,
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Successfully created test-name (test-key)", output)
+	})
+}
+
+func TestCmdOutputMultiple(t *testing.T) {
 	tests := map[string]struct {
 		expected string
 		fn       output.PlaintextOutputFn
