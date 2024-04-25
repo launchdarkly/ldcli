@@ -8,16 +8,25 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	cmdAnalytics "ldcli/cmd/analytics"
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/analytics"
 )
 
-func NewResourceCmd(parentCmd *cobra.Command, resourceName, shortDescription, longDescription string) *cobra.Command {
+func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   resourceName,
 		Short: shortDescription,
 		Long:  longDescription,
-		//TODO: add tracking here
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			analyticsTracker.SendCommandRunEvent(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
+				cmdAnalytics.CmdRunEventProperties(cmd, resourceName),
+			)
+		},
 	}
 
 	parentCmd.AddCommand(cmd)
@@ -40,6 +49,7 @@ type Param struct {
 	In          string
 	Description string
 	Type        string
+	Required    bool
 }
 
 type OperationCmd struct {
@@ -116,7 +126,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "would be making a request to %s here, with args: %s\n", op.Path, paramVals)
+	fmt.Fprintf(cmd.OutOrStdout(), "would be making a %s request to %s here, with args: %s\n", op.HTTPMethod, op.Path, paramVals)
 
 	return nil
 }

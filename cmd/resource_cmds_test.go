@@ -37,6 +37,6 @@ func TestCreateTeam(t *testing.T) {
 
 		require.NoError(t, err)
 		s := string(output)
-		assert.Contains(t, s, "would be making a request to /api/v2/teams here, with args: map[data:map[key:team-key name:Team Name] expand:]\n")
+		assert.Contains(t, s, "would be making a post request to /api/v2/teams here, with args: map[data:map[key:team-key name:Team Name] expand:]\n")
 	})
 }
