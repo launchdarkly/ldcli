@@ -45,7 +45,7 @@ export $LD_ACCESS_TOKEN api-123a4bc5-6789-1d2e-34f5-g67hi891jk2l
 
 Or, set a value in the configuration file:
 ```shell
-ldcli config --set access-token api-123a4bc5-6789-1d2e-34f5-g67hi891jk2l
+ldcli config --set access-token api-00000000-0000-0000-0000-000000000000
 ```
 
 Available `config` commands:
