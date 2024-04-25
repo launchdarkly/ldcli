@@ -49,13 +49,9 @@ func CmdError(err error, commandPath string) error {
 }
 
 func validateOutput(outputFlag string) error {
-	validKinds := map[string]struct{}{
-		"json":      {},
-		"plaintext": {},
-	}
-	_, ok := validKinds[outputFlag]
-	if !ok {
-		return output.ErrInvalidOutputKind
+	_, err := output.NewOutputKind(outputFlag)
+	if err != nil {
+		return err
 	}
 
 	return nil
