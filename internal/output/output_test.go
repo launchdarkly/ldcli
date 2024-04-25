@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCmdOutputResource(t *testing.T) {
+func TestCmdOutputSingular(t *testing.T) {
 	tests := map[string]struct {
 		expected string
 		fn       output.PlaintextOutputFn
@@ -65,7 +65,72 @@ func TestCmdOutputResource(t *testing.T) {
 	}
 }
 
-func TestCmdOutputResources(t *testing.T) {
+func TestCmdOutput_WithSuccessMessage(t *testing.T) {
+	tests := map[string]struct {
+		expected   string
+		fn         func(string, []byte, output.PlaintextOutputFn) (string, error)
+		input      string
+		outputKind string
+	}{
+		"when creating with json": {
+			expected: `{
+				"key": "test-key",
+				"name": "test-name"
+			}`,
+			fn: output.CmdOutputCreate,
+			input: `{
+				"key": "test-key",
+				"name": "test-name"
+			}`,
+			outputKind: "json",
+		},
+		"when creating with plaintext": {
+			expected: "Successfully created test-name (test-key)",
+			fn:       output.CmdOutputCreate,
+			input: `{
+				"key": "test-key",
+				"name": "test-name"
+			}`,
+			outputKind: "plaintext",
+		},
+		"when updating with json": {
+			expected: `{
+				"key": "test-key",
+				"name": "test-name"
+			}`,
+			fn: output.CmdOutputUpdate,
+			input: `{
+				"key": "test-key",
+				"name": "test-name"
+			}`,
+			outputKind: "json",
+		},
+		"when updating with plaintext": {
+			expected: "Successfully updated test-name (test-key)",
+			fn:       output.CmdOutputUpdate,
+			input: `{
+				"key": "test-key",
+				"name": "test-name"
+			}`,
+			outputKind: "plaintext",
+		},
+	}
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			output, err := tt.fn(
+				tt.outputKind,
+				[]byte(tt.input),
+				output.SingularPlaintextOutputFn,
+			)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, output)
+		})
+	}
+}
+
+func TestCmdOutputMultiple(t *testing.T) {
 	tests := map[string]struct {
 		expected string
 		fn       output.PlaintextOutputFn
