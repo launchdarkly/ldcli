@@ -8,15 +8,25 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	cmdAnalytics "ldcli/cmd/analytics"
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/analytics"
 )
 
-func NewResourceCmd(parentCmd *cobra.Command, resourceName, shortDescription, longDescription string) *cobra.Command {
+func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   resourceName,
 		Short: shortDescription,
 		Long:  longDescription,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			analyticsTracker.SendCommandRunEvent(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
+				cmdAnalytics.CmdRunEventProperties(cmd, resourceName),
+			)
+		},
 	}
 
 	parentCmd.AddCommand(cmd)
