@@ -17,7 +17,6 @@ func NewResourceCmd(parentCmd *cobra.Command, resourceName, shortDescription, lo
 		Use:   resourceName,
 		Short: shortDescription,
 		Long:  longDescription,
-		//TODO: add tracking here
 	}
 
 	parentCmd.AddCommand(cmd)
@@ -40,6 +39,7 @@ type Param struct {
 	In          string
 	Description string
 	Type        string
+	Required    bool
 }
 
 type OperationCmd struct {
@@ -116,7 +116,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "would be making a request to %s here, with args: %s\n", op.Path, paramVals)
+	fmt.Fprintf(cmd.OutOrStdout(), "would be making a %s request to %s here, with args: %s\n", op.HTTPMethod, op.Path, paramVals)
 
 	return nil
 }
