@@ -98,8 +98,8 @@ func NewShowSDKInstructionsModel(
 // fetch SDK instructions
 // fetch the environment to get values to interpolate into the instructions
 func (m showSDKInstructionsModel) Init() tea.Cmd {
-	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.OutputFlag), "3 - sdk installation")
-	m.analyticsTracker.SendSetupSDKSelectedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.OutputFlag), m.canonicalName)
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.AnalyticsOptOut), "3 - sdk installation")
+	m.analyticsTracker.SendSetupSDKSelectedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.AnalyticsOptOut), m.canonicalName)
 
 	cmds := []tea.Cmd{m.spinner.Tick, readSDKInstructions(m.canonicalName)}
 

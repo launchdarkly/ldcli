@@ -58,7 +58,7 @@ func NewToggleFlagModel(analyticsTracker analytics.Tracker, client flags.Client,
 }
 
 func (m toggleFlagModel) Init() tea.Cmd {
-	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.OutputFlag), "4 - flag toggle")
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.AnalyticsOptOut), "4 - flag toggle")
 
 	cmds := []tea.Cmd{
 		m.spinner.Tick,
@@ -94,7 +94,7 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.analyticsTracker.SendSetupFlagToggledEvent(
 			m.accessToken,
 			m.baseUri,
-			viper.GetBool(cliflags.OutputFlag),
+			viper.GetBool(cliflags.AnalyticsOptOut),
 			m.enabled,
 			m.toggleCount,
 			m.endTime.Sub(m.setupStartTime).Milliseconds(),

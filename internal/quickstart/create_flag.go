@@ -57,7 +57,7 @@ func NewCreateFlagModel(analyticsTracker analytics.Tracker, client flags.Client,
 }
 
 func (m createFlagModel) Init() tea.Cmd {
-	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.OutputFlag), "1 - feature flag name")
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.AnalyticsOptOut), "1 - feature flag name")
 
 	return nil
 }
