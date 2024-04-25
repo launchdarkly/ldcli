@@ -39,7 +39,7 @@ func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
 		} else {
 			maybeBool, ok := rawConfig[cliflags.AnalyticsOptOut].(bool)
 			if !ok {
-				return ConfigFile{}, errors.NewError("analanalyticsOptOut must be true or false")
+				return ConfigFile{}, errors.NewError("analytics-opt-out must be true or false")
 			}
 			analyticsOptOut = maybeBool
 		}
