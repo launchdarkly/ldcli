@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"io"
+	"ldcli/internal/errors"
+	"ldcli/internal/output"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -46,6 +49,7 @@ type OperationData struct {
 	RequiresBody          bool
 	Path                  string
 	SupportsSemanticPatch bool // TBD on how to actually determine from openapi spec
+	PlaintextOutputFn     output.PlaintextOutputFn
 }
 
 type Param struct {
@@ -169,8 +173,35 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	}
 	defer res.Body.Close()
 
-	// TODO replace with outputter, handle errors
-	fmt.Fprintf(cmd.OutOrStdout(), "would be making a %s request to %s?%s\n", op.HTTPMethod, path, query.Encode())
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode >= 400 {
+		err = errors.NewAPIError(body, nil, nil)
+		output, err := output.CmdOutputSingular(
+			viper.GetString(cliflags.OutputFlag),
+			body,
+			output.ErrorPlaintextOutputFn,
+		)
+		if err != nil {
+			return errors.NewError(err.Error())
+		}
+
+		return errors.NewError(output)
+	}
+
+	output, err := output.CmdOutputSingular(
+		viper.GetString(cliflags.OutputFlag),
+		body,
+		op.PlaintextOutputFn,
+	)
+	if err != nil {
+		return errors.NewError(err.Error())
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 	return nil
 }
