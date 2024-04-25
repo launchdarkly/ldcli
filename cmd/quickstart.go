@@ -50,6 +50,7 @@ func runQuickStart(
 			flagsClient,
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetBool(cliflags.AnalyticsOptOut),
 		)).Run()
 		if err != nil {
 			log.Fatal(err)

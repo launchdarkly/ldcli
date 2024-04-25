@@ -9,7 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/errors"
 	"ldcli/internal/flags"
@@ -56,7 +58,7 @@ func NewToggleFlagModel(analyticsTracker analytics.Tracker, client flags.Client,
 }
 
 func (m toggleFlagModel) Init() tea.Cmd {
-	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, "4 - flag toggle")
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.OutputFlag), "4 - flag toggle")
 
 	cmds := []tea.Cmd{
 		m.spinner.Tick,

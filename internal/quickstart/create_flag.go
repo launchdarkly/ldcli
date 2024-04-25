@@ -8,7 +8,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/flags"
 )
@@ -55,7 +57,7 @@ func NewCreateFlagModel(analyticsTracker analytics.Tracker, client flags.Client,
 }
 
 func (m createFlagModel) Init() tea.Cmd {
-	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, "1 - feature flag name")
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.OutputFlag), "1 - feature flag name")
 
 	return nil
 }

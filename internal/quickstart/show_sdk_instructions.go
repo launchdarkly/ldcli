@@ -10,7 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/sdks"
@@ -96,7 +98,7 @@ func NewShowSDKInstructionsModel(
 // fetch SDK instructions
 // fetch the environment to get values to interpolate into the instructions
 func (m showSDKInstructionsModel) Init() tea.Cmd {
-	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, "3 - sdk installation")
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.OutputFlag), "3 - sdk installation")
 	m.analyticsTracker.SendSetupSDKSelectedEvent(m.accessToken, m.baseUri, m.canonicalName)
 
 	cmds := []tea.Cmd{m.spinner.Tick, readSDKInstructions(m.canonicalName)}

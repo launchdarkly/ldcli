@@ -3,6 +3,7 @@ package quickstart
 import (
 	"fmt"
 	"io"
+	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -71,7 +73,7 @@ func NewChooseSDKModel(analyticsTracker analytics.Tracker, accessToken, baseUri 
 // Init sends commands when the model is created that will:
 // * select an SDK if it's already been selected
 func (m chooseSDKModel) Init() tea.Cmd {
-	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, "2 - sdk selection")
+	m.analyticsTracker.SendSetupStartedEvent(m.accessToken, m.baseUri, viper.GetBool(cliflags.OutputFlag), "2 - sdk selection")
 	return selectedSDK(m.selectedIndex)
 }
 

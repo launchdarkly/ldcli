@@ -26,7 +26,8 @@ type Tracker interface {
 	)
 	SendSetupStartedEvent(
 		accessToken,
-		baseURI,
+		baseURI string,
+		optOut bool,
 		step string,
 	)
 	SendSetupSDKSelectedEvent(
@@ -147,7 +148,8 @@ func (c *Client) SendCommandCompletedEvent(
 
 func (c *Client) SendSetupStartedEvent(
 	accessToken,
-	baseURI,
+	baseURI string,
+	optOut bool,
 	step string,
 ) {
 	c.sendEvent(
@@ -221,7 +223,8 @@ func (c *NoopClient) SendCommandCompletedEvent(
 
 func (c *NoopClient) SendSetupStartedEvent(
 	accessToken,
-	baseURI,
+	baseURI string,
+	optOut bool,
 	step string,
 ) {
 }
@@ -292,7 +295,8 @@ func (m *MockTracker) SendCommandCompletedEvent(
 
 func (m *MockTracker) SendSetupStartedEvent(
 	accessToken,
-	baseURI,
+	baseURI string,
+	outOpt bool,
 	step string,
 ) {
 	m.sendEvent(
