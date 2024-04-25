@@ -33,15 +33,10 @@ func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
 		accessToken = rawConfig[cliflags.AccessTokenFlag].(string)
 	}
 	if rawConfig[cliflags.AnalyticsOptOut] != nil {
-		maybeString, ok := rawConfig[cliflags.AnalyticsOptOut].(string)
-		if ok {
-			analyticsOptOut, _ = strconv.ParseBool(maybeString)
-		} else {
-			maybeBool, ok := rawConfig[cliflags.AnalyticsOptOut].(bool)
-			if !ok {
-				return ConfigFile{}, errors.NewError("analytics-opt-out must be true or false")
-			}
-			analyticsOptOut = maybeBool
+		stringValue := fmt.Sprintf("%v", rawConfig[cliflags.AnalyticsOptOut])
+		analyticsOptOut, err = strconv.ParseBool(stringValue)
+		if err != nil {
+			return ConfigFile{}, errors.NewError("analytics-opt-out must be true or false")
 		}
 	}
 	if rawConfig[cliflags.BaseURIFlag] != nil {
