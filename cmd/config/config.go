@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
+	cmdAnalytics "ldcli/cmd/analytics"
 	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/config"
@@ -29,12 +30,11 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 		Short: "View and modify specific configuration values",
 		Use:   "config",
 		PreRun: func(cmd *cobra.Command, args []string) {
-			analyticsTracker.SendEvent(
+			analyticsTracker.SendCommandRunEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				"CLI Command Run",
-				analytics.CmdRunEventProperties(cmd, "config"),
+				cmdAnalytics.CmdRunEventProperties(cmd, "config"),
 			)
 		},
 	}

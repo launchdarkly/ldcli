@@ -1,37 +1,14 @@
 package analytics
 
-import (
-	"ldcli/cmd/cliflags"
-
-	"github.com/google/uuid"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
+const (
+	SUCCESS = "success"
+	ERROR   = "error"
 )
 
-func CmdRunEventProperties(cmd *cobra.Command, name string) map[string]interface{} {
-	id := uuid.New()
-	baseURI := viper.GetString(cliflags.BaseURIFlag)
-	var flags []string
-	cmd.Flags().Visit(func(f *pflag.Flag) {
-		flags = append(flags, f.Name)
-	})
-
-	properties := map[string]interface{}{
-		"name":   name,
-		"action": cmd.CalledAs(),
-		"flags":  flags,
-		"id":     id.String(),
-	}
-	if baseURI != cliflags.BaseURIDefault {
-		properties["baseURI"] = baseURI
-	}
-	return properties
-}
-
-func MockedTracker(name string, action string, flags []string) *MockTracker {
+func MockedTracker(name string, action string, flags []string, outcome string) *MockTracker {
 	id := "test-id"
-	mockedTrackingArgs := []interface{}{
+	tracker := MockTracker{ID: id}
+	tracker.On("sendEvent", []interface{}{
 		"testAccessToken",
 		"http://test.com",
 		"CLI Command Run",
@@ -42,8 +19,15 @@ func MockedTracker(name string, action string, flags []string) *MockTracker {
 			"id":      id,
 			"name":    name,
 		},
-	}
-	tracker := MockTracker{ID: id}
-	tracker.On("SendEvent", mockedTrackingArgs...)
+	}...)
+	tracker.On("sendEvent", []interface{}{
+		"testAccessToken",
+		"http://test.com",
+		"CLI Command Completed",
+		map[string]interface{}{
+			"id":      id,
+			"outcome": outcome,
+		},
+	}...)
 	return &tracker
 }

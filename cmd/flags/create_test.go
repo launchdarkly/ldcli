@@ -156,7 +156,7 @@ func TestCreate(t *testing.T) {
 				"base-uri",
 				"data",
 				"project",
-			})
+			}, analytics.SUCCESS)
 
 		client := flags.MockClient{}
 		client.

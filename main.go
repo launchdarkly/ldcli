@@ -6,6 +6,8 @@ import (
 
 	"ldcli/cmd"
 	"ldcli/internal/analytics"
+
+	"github.com/google/uuid"
 )
 
 // main.version is set at build time via ldflags by go releaser https://goreleaser.com/cookbooks/using-main.version/
@@ -17,7 +19,7 @@ func main() {
 	httpClient := &http.Client{
 		Timeout: time.Second * 3,
 	}
-	analyticsClient := &analytics.Client{HTTPClient: httpClient}
+	analyticsClient := &analytics.Client{HTTPClient: httpClient, ID: uuid.New().String()}
 	cmd.Execute(analyticsClient, version)
 	analyticsClient.Wait()
 }
