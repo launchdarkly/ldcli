@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -87,6 +88,7 @@ func (op *OperationCmd) initFlags() error {
 			if err != nil {
 				return err
 			}
+
 		}
 
 		err := viper.BindPFlag(p.Name, op.cmd.Flags().Lookup(p.Name))
@@ -97,9 +99,20 @@ func (op *OperationCmd) initFlags() error {
 	return nil
 }
 
+func formatURL(path string, urlParams []string) string {
+	s := make([]interface{}, len(urlParams))
+	for i, v := range urlParams {
+		s[i] = v
+	}
+
+	re := regexp.MustCompile(`{\w+}`)
+	format := re.ReplaceAllString(path, "%s")
+
+	return fmt.Sprintf(format, s...)
+}
+
 func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	paramVals := map[string]interface{}{}
-
 	if op.RequiresBody {
 		var data interface{}
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
@@ -110,6 +123,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		paramVals[cliflags.DataFlag] = data
 	}
 
+	var urlParms []string
 	for _, p := range op.Params {
 		var val interface{}
 		switch p.Type {
@@ -123,10 +137,15 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 
 		if val != nil {
 			paramVals[p.Name] = val
+			if p.In == "path" {
+				urlParms = append(urlParms, fmt.Sprintf("%v", val))
+			}
 		}
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "would be making a %s request to %s here, with args: %s\n", op.HTTPMethod, op.Path, paramVals)
+	path := formatURL(op.Path, urlParms)
+
+	fmt.Fprintf(cmd.OutOrStdout(), "would be making a %s request to %s here, with args: %s\n", op.HTTPMethod, path, paramVals)
 
 	return nil
 }
