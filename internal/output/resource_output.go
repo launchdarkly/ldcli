@@ -19,6 +19,7 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 		isMultipleResponse bool
 	)
 
+	// unmarshal either a singular resource or a list of them
 	err := json.Unmarshal(input, &maybeResource)
 	_, isMultipleResponse = maybeResource["items"]
 	if err != nil || isMultipleResponse {
@@ -41,6 +42,7 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 	}
 
 	if isMultipleResponse {
+		// the response could have various properties we want to show
 		outputFn := MultiplePlaintextOutputFn
 		if _, ok := maybeResources.Items[0]["email"]; ok {
 			outputFn = MultipleEmailPlaintextOutputFn
@@ -51,16 +53,16 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 			items = append(items, outputFn(i))
 		}
 
-		if successMessage != "" {
-			return fmt.Sprintf("%s %s", successMessage, strings.Join(items, "\n")), nil
-		}
-
-		return strings.Join(items, "\n"), nil
+		return plaintextOutput("\n"+strings.Join(items, "\n"), successMessage), nil
 	}
 
+	return plaintextOutput(SingularPlaintextOutputFn(maybeResource), successMessage), nil
+}
+
+func plaintextOutput(out string, successMessage string) string {
 	if successMessage != "" {
-		return fmt.Sprintf("%s %s", successMessage, SingularPlaintextOutputFn(maybeResource)), nil
+		return fmt.Sprintf("%s %s", successMessage, out)
 	}
 
-	return SingularPlaintextOutputFn(maybeResource), nil
+	return out
 }

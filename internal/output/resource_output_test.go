@@ -59,7 +59,7 @@ func TestCmdOutput(t *testing.T) {
 
 		t.Run("with plaintext output", func(t *testing.T) {
 			t.Run("returns a success message", func(t *testing.T) {
-				expected := "Successfully created * test-name (test-key)"
+				expected := "Successfully created \n* test-name (test-key)"
 
 				result, err := output.CmdOutput("create", "plaintext", []byte(input))
 
@@ -91,7 +91,7 @@ func TestCmdOutput(t *testing.T) {
 
 		t.Run("with plaintext output", func(t *testing.T) {
 			t.Run("returns a success message", func(t *testing.T) {
-				expected := "Successfully created * test-email (test-id)"
+				expected := "Successfully created \n* test-email (test-id)"
 
 				result, err := output.CmdOutput("create", "plaintext", []byte(input))
 
