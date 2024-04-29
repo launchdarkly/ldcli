@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/pkg/errors"
+
+	errs "ldcli/internal/errors"
 )
 
-// CmdOutput returns a response from a resource create action formatted based on the
-// output flag along with an optional message based on the action.
+// CmdOutput returns a response from a resource action formatted based on the output flag along with
+// an optional message based on the action.
 func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 	if outputKind == "json" {
 		return string(input), nil
@@ -65,4 +69,39 @@ func plaintextOutput(out string, successMessage string) string {
 	}
 
 	return out
+}
+
+// CmdOutputError returns a response from a resource action error.
+func CmdOutputError(outputKind string, err error) string {
+	var output string
+	jsonErr := &json.UnmarshalTypeError{}
+	switch {
+	case errors.As(err, &jsonErr):
+		output = errJSON("invalid JSON")
+	case errors.As(err, &errs.Error{}):
+		output = err.Error()
+	default:
+		output = errJSON(err.Error())
+	}
+
+	var r resource
+	_ = json.Unmarshal([]byte(output), &r)
+
+	if outputKind == "json" {
+		// convert to a well-formatted output
+		formattedOutput, _ := json.Marshal(r)
+
+		return string(formattedOutput)
+	}
+
+	return ErrorPlaintextOutputFn(r)
+}
+
+func errJSON(s string) string {
+	return fmt.Sprintf(
+		`{
+			"message": %q
+		}`,
+		s,
+	)
 }

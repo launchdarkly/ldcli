@@ -125,7 +125,7 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 		} else {
 			err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &patch)
 			if err != nil {
-				return err
+				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 		}
 
@@ -138,16 +138,7 @@ func runUpdate(client flags.Client) func(*cobra.Command, []string) error {
 			patch,
 		)
 		if err != nil {
-			output, err := output.CmdOutputSingular(
-				viper.GetString(cliflags.OutputFlag),
-				[]byte(err.Error()),
-				output.ErrorPlaintextOutputFn,
-			)
-			if err != nil {
-				return errors.NewError(err.Error())
-			}
-
-			return errors.NewError(output)
+			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 		}
 
 		output, err := output.CmdOutput("update", viper.GetString(cliflags.OutputFlag), response)

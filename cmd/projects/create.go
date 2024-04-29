@@ -48,7 +48,7 @@ func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
 		err := json.Unmarshal([]byte(cmd.Flags().Lookup(cliflags.DataFlag).Value.String()), &data)
 		if err != nil {
-			return err
+			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 		}
 
 		response, err := client.Create(
@@ -59,16 +59,7 @@ func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 			data.Key,
 		)
 		if err != nil {
-			output, err := output.CmdOutputSingular(
-				viper.GetString(cliflags.OutputFlag),
-				[]byte(err.Error()),
-				output.ErrorPlaintextOutputFn,
-			)
-			if err != nil {
-				return errors.NewError(err.Error())
-			}
-
-			return errors.NewError(output)
+			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 		}
 
 		output, err := output.CmdOutput("create", viper.GetString(cliflags.OutputFlag), response)

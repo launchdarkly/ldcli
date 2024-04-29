@@ -1,11 +1,14 @@
 package output_test
 
 import (
-	"ldcli/internal/output"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"ldcli/internal/errors"
+	"ldcli/internal/output"
 )
 
 func TestCmdOutput(t *testing.T) {
@@ -16,7 +19,7 @@ func TestCmdOutput(t *testing.T) {
 			"other": "other-value"
 		}`
 
-		t.Run("with json output", func(t *testing.T) {
+		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("returns the JSON", func(t *testing.T) {
 				result, err := output.CmdOutput("create", "json", []byte(input))
 
@@ -48,7 +51,7 @@ func TestCmdOutput(t *testing.T) {
 			]
 		}`
 
-		t.Run("with json output", func(t *testing.T) {
+		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("returns the JSON", func(t *testing.T) {
 				result, err := output.CmdOutput("create", "json", []byte(input))
 
@@ -80,7 +83,7 @@ func TestCmdOutput(t *testing.T) {
 			]
 		}`
 
-		t.Run("with json output", func(t *testing.T) {
+		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("returns the JSON", func(t *testing.T) {
 				result, err := output.CmdOutput("create", "json", []byte(input))
 
@@ -107,7 +110,7 @@ func TestCmdOutput(t *testing.T) {
 			"name": "test-name"
 		}`
 
-		t.Run("with json output", func(t *testing.T) {
+		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("does not return anything", func(t *testing.T) {
 				result, err := output.CmdOutput("delete", "json", []byte(""))
 
@@ -149,7 +152,7 @@ func TestCmdOutput(t *testing.T) {
 			"other": "other-value"
 		}`
 
-		t.Run("with json output", func(t *testing.T) {
+		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("returns the JSON", func(t *testing.T) {
 				result, err := output.CmdOutput("update", "json", []byte(input))
 
@@ -167,6 +170,31 @@ func TestCmdOutput(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, expected, result)
 			})
+		})
+	})
+}
+
+func TestCmdOutputError(t *testing.T) {
+	t.Run("with an API error", func(t *testing.T) {
+		t.Run("with JSON output", func(t *testing.T) {
+			expected := `{"code":"conflict", "message":"an error"}`
+			err := errors.NewError(`{"code":"conflict", "message":"an error"}`)
+
+			result := output.CmdOutputError("json", err)
+
+			assert.JSONEq(t, expected, result)
+		})
+
+		t.Run("with plaintext output", func(t *testing.T) {
+			expected := "invalid JSON"
+			type testType any
+			invalid := []byte(`{"invalid": true}`)
+			err := json.Unmarshal(invalid, &[]testType{})
+			require.Error(t, err)
+
+			result := output.CmdOutputError("plaintext", err)
+
+			assert.Equal(t, expected, result)
 		})
 	})
 }
