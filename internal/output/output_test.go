@@ -64,30 +64,3 @@ func TestCmdOutputSingular(t *testing.T) {
 		})
 	}
 }
-
-func TestCmdOutputMultiple(t *testing.T) {
-	tests := map[string]struct {
-		expected string
-		fn       output.PlaintextOutputFn
-		input    string
-	}{
-		"with multiple items": {
-			expected: "* test-name1 (test-key1)\n* test-name2 (test-key2)",
-			fn:       output.MultiplePlaintextOutputFn,
-			input:    `{"items": [{"key": "test-key1", "name": "test-name1"}, {"key": "test-key2", "name": "test-name2"}]}`,
-		},
-	}
-	for name, tt := range tests {
-		tt := tt
-		t.Run(name, func(t *testing.T) {
-			output, err := output.CmdOutputMultiple(
-				"plaintext",
-				[]byte(tt.input),
-				tt.fn,
-			)
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, output)
-		})
-	}
-}

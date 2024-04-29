@@ -76,22 +76,6 @@ func CmdOutputSingular(outputKind string, input []byte, fn PlaintextOutputFn) (s
 	})
 }
 
-// CmdOutputMultiple builds a command response based on the flag the user provided and the shape of
-// the input. The expected shape is a list of JSON objects.
-func CmdOutputMultiple(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
-	var r resources
-	err := json.Unmarshal(input, &r)
-	if err != nil {
-		return "", err
-	}
-
-	return outputFromKind(outputKind, MultipleOutputter{
-		outputFn:     fn,
-		resources:    r,
-		resourceJSON: input,
-	})
-}
-
 func outputFromKind(outputKind string, o Outputter) (string, error) {
 	switch outputKind {
 	case "json":
