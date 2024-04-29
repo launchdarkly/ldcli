@@ -32,11 +32,12 @@ ldcli --help
 
 The LaunchDarkly CLI allows you to save preferred settings, either within a config file using the `config` commands, or set as environment variables.
 
-Current respected settings:
+Current settings:
 
-* `access-token` A LaunchDarkly API token with write-level access
+* `access-token` A LaunchDarkly access token with write-level access
 * `analytics-optout` Opt out of analytics tracking (default false)
 * `base-uri` LaunchDarkly base URI (default "https://app.launchdarkly.com")
+* `output` Command response output format in either JSON or plain text
 
 To set a value as an environment variable, prepend the variable name with `LD`. For example:
 ```shell

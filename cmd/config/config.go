@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -38,6 +39,22 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 			)
 		},
 	}
+
+	helpFun := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		var sb strings.Builder
+		sb.WriteString("\n\nCurrent settings:\n")
+		for _, s := range []string{
+			cliflags.AccessTokenFlag,
+			cliflags.AnalyticsOptOut,
+			cliflags.BaseURIFlag,
+			cliflags.OutputFlag,
+		} {
+			sb.WriteString(fmt.Sprintf("- `%s`: %s\n", s, cliflags.AllFlagsHelp()[s]))
+		}
+		cmd.Long += sb.String()
+		helpFun(cmd, args)
+	})
 
 	cmd.Flags().Bool(ListFlag, false, "List configs")
 	_ = viper.BindPFlag(ListFlag, cmd.Flags().Lookup(ListFlag))

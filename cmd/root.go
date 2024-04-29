@@ -78,7 +78,7 @@ func NewRootCommand(
 	cmd.PersistentFlags().String(
 		cliflags.AccessTokenFlag,
 		"",
-		"LaunchDarkly API token with write-level access",
+		cliflags.AccessTokenFlagDescription,
 	)
 	err := cmd.MarkPersistentFlagRequired(cliflags.AccessTokenFlag)
 	if err != nil {
@@ -92,7 +92,7 @@ func NewRootCommand(
 	cmd.PersistentFlags().String(
 		cliflags.BaseURIFlag,
 		cliflags.BaseURIDefault,
-		"LaunchDarkly base URI",
+		cliflags.BaseURIFlagDescription,
 	)
 	err = viper.BindPFlag(cliflags.BaseURIFlag, cmd.PersistentFlags().Lookup(cliflags.BaseURIFlag))
 	if err != nil {
@@ -102,7 +102,7 @@ func NewRootCommand(
 	cmd.PersistentFlags().Bool(
 		cliflags.AnalyticsOptOut,
 		false,
-		"Opt out of analytics tracking",
+		cliflags.AnalyticsOptOutDescription,
 	)
 	err = viper.BindPFlag(cliflags.AnalyticsOptOut, cmd.PersistentFlags().Lookup(cliflags.AnalyticsOptOut))
 	if err != nil {
@@ -113,7 +113,7 @@ func NewRootCommand(
 		cliflags.OutputFlag,
 		"o",
 		"plaintext",
-		"Command response output format in either JSON or plain text",
+		cliflags.OutputFlagDescription,
 	)
 	err = viper.BindPFlag(cliflags.OutputFlag, cmd.PersistentFlags().Lookup(cliflags.OutputFlag))
 	if err != nil {
