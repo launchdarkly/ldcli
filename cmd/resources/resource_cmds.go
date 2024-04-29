@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"ldcli/internal/analytics"
-	"ldcli/internal/output"
 	"ldcli/internal/resources"
 )
 
@@ -33,10 +32,9 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 				Type:        "string",
 			},
 		},
-		HTTPMethod:        "post",
-		RequiresBody:      true,
-		Path:              "/api/v2/teams",
-		PlaintextOutputFn: output.SingularPlaintextOutputFn,
+		HTTPMethod:   "post",
+		RequiresBody: true,
+		Path:         "/api/v2/teams",
 	})
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "Get team",
