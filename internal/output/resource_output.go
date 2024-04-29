@@ -5,6 +5,16 @@ import (
 	"fmt"
 )
 
+type ActionKind string
+
+var (
+	ActionKindCreate = ActionKind("create")
+	ActionKindDelete = ActionKind("delete")
+	ActionKindGet    = ActionKind("get")
+	ActionKindList   = ActionKind("list")
+	ActionKindUpdate = ActionKind("update")
+)
+
 type resourceOutput struct {
 	input          []byte
 	outputFn       PlaintextOutputFn
@@ -26,54 +36,75 @@ func (r resourceOutput) plaintext() string {
 
 type resourceOutputFn func(input []byte, outputFn PlaintextOutputFn, r resource) resourceOutput
 
-// CmdOutputCreateResource returns a response from a resource create action formatted based on the
-// output flag.
-func CmdOutputCreateResource(outputKind string, input []byte) (string, error) {
-	return cmdOutputResource(
-		outputKind,
-		input,
-		func(input []byte, outputFn PlaintextOutputFn, r resource) resourceOutput {
-			return resourceOutput{
-				input:          input,
-				outputFn:       SingularPlaintextOutputFn,
-				resource:       r,
-				successMessage: "Successfully created",
-			}
-		},
-	)
-}
+// CmdOutput returns a response from a resource create action formatted based on the
+// output flag along with an optional message based on the action.
+func CmdOutput(action string, outputKind string, input []byte) (string, error) {
+	switch action {
+	case "create":
+		return cmdOutputResource(
+			outputKind,
+			input,
+			func(input []byte, outputFn PlaintextOutputFn, r resource) resourceOutput {
+				return resourceOutput{
+					input:          input,
+					outputFn:       SingularPlaintextOutputFn,
+					resource:       r,
+					successMessage: "Successfully created",
+				}
+			},
+		)
+	case "delete":
+		return cmdOutputResource(
+			outputKind,
+			input,
+			func(input []byte, outputFn PlaintextOutputFn, r resource) resourceOutput {
+				return resourceOutput{
+					outputFn:       SingularPlaintextOutputFn,
+					resource:       r,
+					successMessage: "Successfully deleted",
+				}
+			},
+		)
+	case "get":
+		return cmdOutputResource(
+			outputKind,
+			input,
+			func(input []byte, outputFn PlaintextOutputFn, r resource) resourceOutput {
+				return resourceOutput{
+					input:    input,
+					outputFn: SingularPlaintextOutputFn,
+					resource: r,
+				}
+			},
+		)
+	case "list":
+		var r resources
+		err := json.Unmarshal(input, &r)
+		if err != nil {
+			return "", err
+		}
 
-// CmdOutputDeleteResource returns a response from a resource delete action formatted based on the
-// output flag.
-func CmdOutputDeleteResource(outputKind string, input []byte) (string, error) {
-	return cmdOutputResource(
-		outputKind,
-		input,
-		func(input []byte, outputFn PlaintextOutputFn, r resource) resourceOutput {
-			return resourceOutput{
-				outputFn:       SingularPlaintextOutputFn,
-				resource:       r,
-				successMessage: "Successfully deleted",
-			}
-		},
-	)
-}
-
-// CmdOutputUpdateResource returns a response from a resource update action formatted based on the
-// output flag.
-func CmdOutputUpdateResource(outputKind string, input []byte) (string, error) {
-	return cmdOutputResource(
-		outputKind,
-		input,
-		func(input []byte, outputFn PlaintextOutputFn, r resource) resourceOutput {
-			return resourceOutput{
-				input:          input,
-				outputFn:       SingularPlaintextOutputFn,
-				resource:       r,
-				successMessage: "Successfully updated",
-			}
-		},
-	)
+		return outputFromKind(outputKind, MultipleOutputter{
+			outputFn:     MultiplePlaintextOutputFn,
+			resources:    r,
+			resourceJSON: input,
+		})
+	case "update":
+		return cmdOutputResource(
+			outputKind,
+			input,
+			func(input []byte, outputFn PlaintextOutputFn, r resource) resourceOutput {
+				return resourceOutput{
+					input:          input,
+					outputFn:       SingularPlaintextOutputFn,
+					resource:       r,
+					successMessage: "Successfully updated",
+				}
+			},
+		)
+	default:
+		return "", ErrInvalidActionKind
+	}
 }
 
 func cmdOutputResource(outputKind string, input []byte, constructor resourceOutputFn) (string, error) {

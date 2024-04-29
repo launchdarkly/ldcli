@@ -71,11 +71,6 @@ func TestCmdOutputMultiple(t *testing.T) {
 		fn       output.PlaintextOutputFn
 		input    string
 	}{
-		"with multiple emails not as items property": {
-			expected: "* test-email1 (test-id1)\n* test-email2 (test-id2)",
-			fn:       output.MultipleEmailPlaintextOutputFn,
-			input:    `[{"_id": "test-id1", "email": "test-email1"}, {"_id": "test-id2", "email": "test-email2"}]`,
-		},
 		"with multiple items": {
 			expected: "* test-name1 (test-key1)\n* test-name2 (test-key2)",
 			fn:       output.MultiplePlaintextOutputFn,

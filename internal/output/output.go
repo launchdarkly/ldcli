@@ -6,7 +6,10 @@ import (
 	"ldcli/internal/errors"
 )
 
-var ErrInvalidOutputKind = errors.NewError("output is invalid")
+var (
+	ErrInvalidActionKind = errors.NewError("action is invalid")
+	ErrInvalidOutputKind = errors.NewError("output is invalid")
+)
 
 type OutputKind string
 
@@ -60,10 +63,6 @@ type resources struct {
 	Items []resource `json:"items"`
 }
 
-// resourcesBare is for responses that return a list of resources at the top level of the response,
-// not as a value of an "items" property.
-type resourcesBare []resource
-
 // CmdOutputSingular builds a command response based on the flag the user provided and the shape of
 // the input. The expected shape is a single JSON object.
 func CmdOutputSingular(outputKind string, input []byte, fn PlaintextOutputFn) (string, error) {
@@ -86,13 +85,7 @@ func CmdOutputMultiple(outputKind string, input []byte, fn PlaintextOutputFn) (s
 	var r resources
 	err := json.Unmarshal(input, &r)
 	if err != nil {
-		// sometimes a response doesn't include each item in an "items" property
-		var rr resourcesBare
-		err := json.Unmarshal(input, &rr)
-		if err != nil {
-			return "", err
-		}
-		r.Items = rr
+		return "", err
 	}
 
 	return outputFromKind(outputKind, MultipleOutputter{

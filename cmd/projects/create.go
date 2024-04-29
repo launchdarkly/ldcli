@@ -71,10 +71,7 @@ func runCreate(client projects.Client) func(*cobra.Command, []string) error {
 			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutputCreateResource(
-			viper.GetString(cliflags.OutputFlag),
-			response,
-		)
+		output, err := output.CmdOutput("create", viper.GetString(cliflags.OutputFlag), response)
 		if err != nil {
 			return errors.NewError(err.Error())
 		}
