@@ -1,6 +1,8 @@
 package cmd_test
 
 import (
+	"github.com/stretchr/testify/mock"
+	resources "ldcli/internal/resources"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +26,10 @@ func TestCreateTeam(t *testing.T) {
 		assert.Contains(t, string(output), "Create a team.")
 	})
 	t.Run("with valid flags calls makeRequest function", func(t *testing.T) {
+		client := resources.MockClient{}
+		client.
+			On("MakeRequest", mock.Anything).
+			Return()
 		args := []string{
 			"teams",
 			"create",

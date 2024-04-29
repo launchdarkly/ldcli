@@ -1,23 +1,22 @@
 package resources
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"io"
-	"ldcli/internal/errors"
-	"ldcli/internal/output"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	cmdAnalytics "ldcli/cmd/analytics"
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
 	"ldcli/internal/analytics"
+	"ldcli/internal/errors"
+	"ldcli/internal/output"
+	"ldcli/internal/resources"
 )
 
 func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
@@ -62,7 +61,7 @@ type Param struct {
 
 type OperationCmd struct {
 	OperationData
-	client *http.Client
+	client resources.Client
 	cmd    *cobra.Command
 }
 
@@ -135,6 +134,10 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
 
 	query := url.Values{}
 	var urlParms []string
@@ -150,63 +153,41 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	path := formatURL(viper.GetString(cliflags.BaseURIFlag), op.Path, urlParms)
+
 	contentType := "application/json"
 	if op.SupportsSemanticPatch && viper.GetBool("semantic-patch") {
 		contentType += "; domain-model=launchdarkly.semanticpatch"
 	}
 
-	path := formatURL(viper.GetString(cliflags.BaseURIFlag), op.Path, urlParms)
-
-	jsonData, err := json.Marshal(data)
+	res, err := op.client.MakeRequest(
+		viper.GetString(cliflags.AccessTokenFlag),
+		strings.ToUpper(op.HTTPMethod),
+		path,
+		contentType,
+		query,
+		jsonData,
+	)
 	if err != nil {
-		return err
-	}
-
-	req, _ := http.NewRequest(strings.ToUpper(op.HTTPMethod), path, bytes.NewReader(jsonData))
-	req.Header.Add("Authorization", viper.GetString(cliflags.AccessTokenFlag))
-	req.Header.Add("Content-type", contentType)
-	req.URL.RawQuery = query.Encode()
-
-	res, err := op.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return err
-	}
-
-	if res.StatusCode >= 400 {
-		err = errors.NewAPIError(body, nil, nil)
-		output, err := output.CmdOutputSingular(
+		out, err := output.CmdOutputSingular(
 			viper.GetString(cliflags.OutputFlag),
-			body,
+			res,
 			output.ErrorPlaintextOutputFn,
 		)
 		if err != nil {
 			return errors.NewError(err.Error())
 		}
 
-		return errors.NewError(output)
+		return errors.NewError(out)
 	}
 
-	output, err := output.CmdOutputSingular(
-		viper.GetString(cliflags.OutputFlag),
-		body,
-		op.PlaintextOutputFn,
-	)
-	if err != nil {
-		return errors.NewError(err.Error())
-	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
+	// todo: handle output
+	fmt.Fprintf(cmd.OutOrStdout(), string(res)+"\n")
 
 	return nil
 }
 
-func NewOperationCmd(parentCmd *cobra.Command, client *http.Client, op OperationData) *cobra.Command {
+func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op OperationData) *cobra.Command {
 	opCmd := OperationCmd{
 		OperationData: op,
 		client:        client,
@@ -218,7 +199,6 @@ func NewOperationCmd(parentCmd *cobra.Command, client *http.Client, op Operation
 		RunE:  opCmd.makeRequest,
 		Short: op.Short,
 		Use:   op.Use,
-		//TODO: add tracking here
 	}
 
 	opCmd.cmd = cmd
