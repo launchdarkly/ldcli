@@ -37,6 +37,70 @@ func TestCmdOutput(t *testing.T) {
 		})
 	})
 
+	t.Run("when creating multiple resources", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"key": "test-key",
+					"name": "test-name",
+					"other": "other-value"
+				}
+			]
+		}`
+
+		t.Run("with json output", func(t *testing.T) {
+			t.Run("returns the JSON", func(t *testing.T) {
+				result, err := output.CmdOutput("create", "json", []byte(input))
+
+				require.NoError(t, err)
+				assert.JSONEq(t, input, result)
+			})
+		})
+
+		t.Run("with plaintext output", func(t *testing.T) {
+			t.Run("returns a success message", func(t *testing.T) {
+				expected := "Successfully created * test-name (test-key)"
+
+				result, err := output.CmdOutput("create", "plaintext", []byte(input))
+
+				require.NoError(t, err)
+				assert.Equal(t, expected, result)
+			})
+		})
+	})
+
+	t.Run("when creating multiple with an email instead of a key", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"_id": "test-id",
+					"email": "test-email",
+					"other": "other-value"
+				}
+			]
+		}`
+
+		t.Run("with json output", func(t *testing.T) {
+			t.Run("returns the JSON", func(t *testing.T) {
+				result, err := output.CmdOutput("create", "json", []byte(input))
+
+				require.NoError(t, err)
+				assert.JSONEq(t, input, result)
+			})
+		})
+
+		t.Run("with plaintext output", func(t *testing.T) {
+			t.Run("returns a success message", func(t *testing.T) {
+				expected := "Successfully created * test-email (test-id)"
+
+				result, err := output.CmdOutput("create", "plaintext", []byte(input))
+
+				require.NoError(t, err)
+				assert.Equal(t, expected, result)
+			})
+		})
+	})
+
 	t.Run("when deleting a resource", func(t *testing.T) {
 		input := `{
 			"key": "test-key",
@@ -45,7 +109,7 @@ func TestCmdOutput(t *testing.T) {
 
 		t.Run("with json output", func(t *testing.T) {
 			t.Run("does not return anything", func(t *testing.T) {
-				result, err := output.CmdOutput("delete", "json", []byte(input))
+				result, err := output.CmdOutput("delete", "json", []byte(""))
 
 				require.NoError(t, err)
 				assert.Equal(t, "", result)
