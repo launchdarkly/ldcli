@@ -42,7 +42,7 @@ context = Context.builder('example-user-key').name('Sandy').build()
 # Call LaunchDarkly with the feature flag key you want to evaluate.
 flag_value = ldclient.get().variation("my-flag-key", context, False)
 
-show_message("Feature flag 'my-flag-key' is {} for this user".format(flag_value))
+show_message("Feature flag 'my-flag-key' is %%s" %% (flag_value))
 
 # Here we ensure that the SDK shuts down cleanly and has a chance to deliver analytics
 # events to LaunchDarkly before the program exits. If analytics events are not delivered,

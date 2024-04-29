@@ -54,7 +54,7 @@ package main
       showMessage("error: " + err.Error())
     }
 
-    showMessage(fmt.Sprintf("Feature flag '%%s' is %%t for this context", featureFlagKey, flagValue))
+    showMessage(fmt.Sprintf("Feature flag '%%s' is %%t ", featureFlagKey, flagValue))
 
     // Here we ensure that the SDK shuts down cleanly and has a chance to deliver analytics
     // events to LaunchDarkly before the program exits. If analytics events are not delivered,

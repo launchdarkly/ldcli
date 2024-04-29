@@ -39,7 +39,7 @@ context = LaunchDarkly::LDContext.create({
 # Call LaunchDarkly with the feature flag key you want to evaluate.
 flag_value = client.variation("my-flag-key", context, false)
 
-show_message "Feature flag 'my-flag-key' is #{flag_value} for this context"
+show_message "Feature flag 'my-flag-key' is #{flag_value}"
 
 # Here we ensure that the SDK shuts down cleanly and has a chance to deliver analytics
 # events to LaunchDarkly before the program exits. If analytics events are not delivered,

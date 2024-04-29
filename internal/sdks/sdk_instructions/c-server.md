@@ -65,7 +65,7 @@ int main() {
         client.BoolVariation(context, "my-flag-key", false);
 
     std::cout << "*** Feature flag 'my-flag-key' is "
-              << (flag_value ? "true" : "false") << " for this user" << std::endl;
+              << (flag_value ? "true" : "false") << std::endl;
 
     return 0;
 }
