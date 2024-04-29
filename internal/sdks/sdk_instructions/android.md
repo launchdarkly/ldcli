@@ -5,7 +5,7 @@
 ```java
 dependencies {
   ...
-  implementation("com.launchdarkly:launchdarkly-android-client-sdk:5.1.1")
+  implementation("com.launchdarkly:launchdarkly-android-client-sdk:5.2.0")
 }
 ```
 

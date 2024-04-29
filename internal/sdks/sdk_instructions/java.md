@@ -80,9 +80,9 @@ public class App {
         .name("Sandy")
         .build();
 
-    // Evaluate the feature flag for this context.
+    // Evaluate the feature flag.
     boolean flagValue = client.boolVariation(FEATURE_FLAG_KEY, context, false);
-    showMessage("Feature flag '" + FEATURE_FLAG_KEY + "' is " + flagValue + " for this context");
+    showMessage("Feature flag '" + FEATURE_FLAG_KEY + "' is " + flagValue);
 
     // Here we request that the SDK flush pending analytic events so that you see
     // data for the above evaluation on the dashboard immediatelynow rather than
@@ -96,7 +96,7 @@ public class App {
       showMessage("Feature flag '" + event.getKey() + "' has changed.");
       if (event.getKey().equals(FEATURE_FLAG_KEY)) {
         boolean value = client.boolVariation(FEATURE_FLAG_KEY, context, false);
-        showMessage("Feature flag '" + FEATURE_FLAG_KEY + "' is " + value + " for this context");
+        showMessage("Feature flag '" + FEATURE_FLAG_KEY + "' is " + value );
       }
     });
     showMessage("Listening for feature flag changes.  Use Ctrl+C to terminate.");

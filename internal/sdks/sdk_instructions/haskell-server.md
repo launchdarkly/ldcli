@@ -43,7 +43,7 @@ main = do
     -- Ensure events are sent to LD immediately for fast completion of the Getting Started guide.
     -- This line is not necessary here for production use.
     flushEvents client
-    putStrLn $ "Flag is: " ++ show launched
+    putStrLn $ "Feature Flag my-flag-key is" ++ show launched
     -- one second
     threadDelay $ 1 * 1000000
 ```

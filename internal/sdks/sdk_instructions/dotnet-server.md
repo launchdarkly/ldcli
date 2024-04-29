@@ -51,7 +51,7 @@ using System;
 
               var flagValue = client.BoolVariation(FeatureFlagKey, context, false);
 
-              ShowMessage(string.Format("Feature flag '{0}' is {1} for this context",
+              ShowMessage(string.Format("Feature flag '{0}' is {1}",
                   FeatureFlagKey, flagValue));
 
               // Here we ensure that the SDK shuts down cleanly and has a chance to deliver analytics

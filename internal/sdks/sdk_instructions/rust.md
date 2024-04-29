@@ -44,7 +44,7 @@ async fn main() {
 
     let result = client.bool_variation(&context, &feature_flag_key, false);
     println!(
-        "Feature flag '{}' is {} for this context",
+        "Feature flag '{}' is {}",
         feature_flag_key, result
     );
 

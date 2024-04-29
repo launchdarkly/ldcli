@@ -35,7 +35,7 @@
 
         function render() {
           const flagValue = ldclient.variation(flagKey, false);
-          const label = 'Feature flag ' + flagKey + ' is ' + flagValue + ' for this context. ';
+          const label = 'Feature flag ' + flagKey + ' is ' + flagValue;
           div.replaceChild(document.createTextNode(label), div.firstChild);
         }
 
