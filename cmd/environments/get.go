@@ -76,11 +76,7 @@ func runGet(
 			return errors.NewError(output)
 		}
 
-		output, err := output.CmdOutputSingular(
-			viper.GetString(cliflags.OutputFlag),
-			response,
-			output.SingularPlaintextOutputFn,
-		)
+		output, err := output.CmdOutput("get", viper.GetString(cliflags.OutputFlag), response)
 		if err != nil {
 			return errors.NewError(err.Error())
 		}
