@@ -32,7 +32,7 @@ ldcli --help
 
 The LaunchDarkly CLI allows you to save preferred settings, either within a config file using the `config` commands, or set as environment variables.
 
-Current settings:
+Supported settings:
 
 * `access-token` A LaunchDarkly access token with write-level access
 * `analytics-optout` Opt out of analytics tracking (default false)

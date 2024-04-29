@@ -43,7 +43,7 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 	helpFun := cmd.HelpFunc()
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		var sb strings.Builder
-		sb.WriteString("\n\nCurrent settings:\n")
+		sb.WriteString("\n\nSupported settings:\n")
 		for _, s := range []string{
 			cliflags.AccessTokenFlag,
 			cliflags.AnalyticsOptOut,
