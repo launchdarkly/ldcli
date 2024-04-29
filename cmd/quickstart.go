@@ -11,25 +11,28 @@ import (
 
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/quickstart"
 )
 
 func NewQuickStartCmd(
+	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 ) *cobra.Command {
 	return &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "",
-		RunE:  runQuickStart(environmentsClient, flagsClient),
+		RunE:  runQuickStart(analyticsTracker, environmentsClient, flagsClient),
 		Short: "Setup guide to create your first feature flag",
 		Use:   "setup",
 	}
 }
 
 func runQuickStart(
+	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 ) func(*cobra.Command, []string) error {
@@ -42,6 +45,7 @@ func runQuickStart(
 		defer f.Close()
 
 		_, err = tea.NewProgram(quickstart.NewContainerModel(
+			analyticsTracker,
 			environmentsClient,
 			flagsClient,
 			viper.GetString(cliflags.AccessTokenFlag),

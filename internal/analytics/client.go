@@ -24,6 +24,12 @@ type Tracker interface {
 		optOut bool,
 		outcome string,
 	)
+	SendSetupStartedEvent(
+		accessToken,
+		baseURI string,
+		optOut bool,
+		step string,
+	)
 }
 
 type Client struct {
@@ -128,6 +134,23 @@ func (c *Client) SendCommandCompletedEvent(
 	}
 }
 
+func (c *Client) SendSetupStartedEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	step string,
+) {
+	c.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Setup Started",
+		map[string]interface{}{
+			"step": step,
+		},
+	)
+}
+
 func (a *Client) Wait() {
 	a.wg.Wait()
 }
@@ -147,6 +170,14 @@ func (c *NoopClient) SendCommandCompletedEvent(
 	baseURI string,
 	optOut bool,
 	outcome string,
+) {
+}
+
+func (c *NoopClient) SendSetupStartedEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	step string,
 ) {
 }
 
@@ -194,6 +225,23 @@ func (m *MockTracker) SendCommandCompletedEvent(
 		"CLI Command Completed",
 		map[string]interface{}{
 			"outcome": outcome,
+		},
+	)
+}
+
+func (m *MockTracker) SendSetupStartedEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	step string,
+) {
+	m.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Setup Started",
+		map[string]interface{}{
+			"step": step,
 		},
 	)
 }

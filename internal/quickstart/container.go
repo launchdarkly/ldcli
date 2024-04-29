@@ -8,7 +8,10 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/reflow/wordwrap"
+	"github.com/spf13/viper"
 
+	"ldcli/cmd/cliflags"
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 )
@@ -30,6 +33,7 @@ const (
 // represents a step in the quick-start flow.
 type ContainerModel struct {
 	accessToken        string
+	analyticsTracker   analytics.Tracker
 	baseUri            string
 	currentModel       tea.Model
 	currentStep        int
@@ -46,6 +50,7 @@ type ContainerModel struct {
 }
 
 func NewContainerModel(
+	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 	accessToken string,
@@ -64,7 +69,13 @@ func NewContainerModel(
 }
 
 func (m ContainerModel) Init() tea.Cmd {
-	return nil
+	return trackSetupStartedEvent(
+		m.analyticsTracker,
+		m.accessToken,
+		m.baseUri,
+		viper.GetBool(cliflags.AnalyticsOptOut),
+		"1 - feature flag name",
+	)
 }
 
 func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

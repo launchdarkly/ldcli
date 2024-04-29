@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/errors"
 	"ldcli/internal/flags"
@@ -238,5 +239,15 @@ type selectedSDKMsg struct {
 func selectedSDK(index int) tea.Cmd {
 	return func() tea.Msg {
 		return selectedSDKMsg{index: index}
+	}
+}
+
+type eventTrackedMsg struct{}
+
+func trackSetupStartedEvent(tracker analytics.Tracker, accessToken, baseURI string, optOut bool, step string) tea.Cmd {
+	return func() tea.Msg {
+		tracker.SendSetupStartedEvent(accessToken, baseURI, optOut, step)
+
+		return eventTrackedMsg{}
 	}
 }
