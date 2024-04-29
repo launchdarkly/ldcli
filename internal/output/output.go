@@ -6,10 +6,7 @@ import (
 	"ldcli/internal/errors"
 )
 
-var (
-	ErrInvalidActionKind = errors.NewError("action is invalid")
-	ErrInvalidOutputKind = errors.NewError("output is invalid")
-)
+var ErrInvalidOutputKind = errors.NewError("output is invalid")
 
 type OutputKind string
 
