@@ -48,7 +48,6 @@ type OperationData struct {
 	RequiresBody          bool
 	Path                  string
 	SupportsSemanticPatch bool // TBD on how to actually determine from openapi spec
-	PlaintextOutputFn     output.PlaintextOutputFn
 }
 
 type Param struct {
@@ -148,7 +147,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 			case "path":
 				urlParms = append(urlParms, fmt.Sprintf("%v", val))
 			case "query":
-				query.Add(p.Name, fmt.Sprintf("%v", val))
+				query.Add(p.Name, val)
 			}
 		}
 	}
