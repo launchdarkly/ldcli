@@ -57,7 +57,7 @@ func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 		var data inputData
 		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &data)
 		if err != nil {
-			return err
+			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 		}
 
 		response, err := client.Create(
@@ -69,16 +69,7 @@ func runCreate(client flags.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.ProjectFlag),
 		)
 		if err != nil {
-			output, err := output.CmdOutputSingular(
-				viper.GetString(cliflags.OutputFlag),
-				[]byte(err.Error()),
-				output.ErrorPlaintextOutputFn,
-			)
-			if err != nil {
-				return errors.NewError(err.Error())
-			}
-
-			return errors.NewError(output)
+			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 		}
 
 		output, err := output.CmdOutput("create", viper.GetString(cliflags.OutputFlag), response)
