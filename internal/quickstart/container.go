@@ -8,9 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/reflow/wordwrap"
-	"github.com/spf13/viper"
 
-	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
@@ -40,6 +38,7 @@ func (s step) String() string {
 type ContainerModel struct {
 	accessToken        string
 	analyticsTracker   analytics.Tracker
+	analyticsOptOut    bool
 	baseUri            string
 	currentModel       tea.Model
 	currentStep        step
@@ -56,6 +55,7 @@ type ContainerModel struct {
 }
 
 func NewContainerModel(
+	analyticsOptOut bool,
 	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
@@ -64,6 +64,8 @@ func NewContainerModel(
 ) tea.Model {
 	return ContainerModel{
 		accessToken:        accessToken,
+		analyticsOptOut:    analyticsOptOut,
+		analyticsTracker:   analyticsTracker,
 		baseUri:            baseUri,
 		currentModel:       NewCreateFlagModel(flagsClient, accessToken, baseUri),
 		currentStep:        1,
@@ -79,7 +81,7 @@ func (m ContainerModel) Init() tea.Cmd {
 		m.analyticsTracker,
 		m.accessToken,
 		m.baseUri,
-		viper.GetBool(cliflags.AnalyticsOptOut),
+		m.analyticsOptOut,
 		m.currentStep.String(),
 	)
 }
@@ -181,7 +183,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.analyticsTracker,
 			m.accessToken,
 			m.baseUri,
-			viper.GetBool(cliflags.AnalyticsOptOut),
+			m.analyticsOptOut,
 			m.currentStep.String(),
 		))
 	}

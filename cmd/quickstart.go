@@ -45,6 +45,7 @@ func runQuickStart(
 		defer f.Close()
 
 		_, err = tea.NewProgram(quickstart.NewContainerModel(
+			viper.GetBool(cliflags.AnalyticsOptOut),
 			analyticsTracker,
 			environmentsClient,
 			flagsClient,
