@@ -30,6 +30,14 @@ type Tracker interface {
 		optOut bool,
 		step string,
 	)
+	SendSetupFlagToggledEvent(
+		accessToken,
+		baseURI string,
+		optOut bool,
+		on bool,
+		count int,
+		duration_ms int64,
+	)
 }
 
 type Client struct {
@@ -151,6 +159,27 @@ func (c *Client) SendSetupStepStartedEvent(
 	)
 }
 
+func (c *Client) SendSetupFlagToggledEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	on bool,
+	count int,
+	duration_ms int64,
+) {
+	c.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Setup Flag Toggled",
+		map[string]interface{}{
+			"on":          on,
+			"count":       count,
+			"duration_ms": duration_ms,
+		},
+	)
+}
+
 func (a *Client) Wait() {
 	a.wg.Wait()
 }
@@ -178,6 +207,16 @@ func (c *NoopClient) SendSetupStepStartedEvent(
 	baseURI string,
 	optOut bool,
 	step string,
+) {
+}
+
+func (c *NoopClient) SendSetupFlagToggledEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	on bool,
+	count int,
+	duration_ms int64,
 ) {
 }
 
@@ -242,6 +281,27 @@ func (m *MockTracker) SendSetupStepStartedEvent(
 		"CLI Setup Step Started",
 		map[string]interface{}{
 			"step": step,
+		},
+	)
+}
+
+func (m *MockTracker) SendSetupFlagToggledEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	on bool,
+	count int,
+	duration_ms int64,
+) {
+	m.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Setup Flag Toggled",
+		map[string]interface{}{
+			"on":          on,
+			"count":       count,
+			"duration_ms": duration_ms,
 		},
 	)
 }
