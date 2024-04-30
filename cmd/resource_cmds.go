@@ -26,7 +26,7 @@ func addAllResourceCmds(rootCmd *cobra.Command, client *http.Client, analyticsTr
 		Short: "Create team",
 		Long:  "Create a team. To learn more, read [Creating a team](https://docs.launchdarkly.com/home/teams/creating).\n\n### Expanding the teams response\nLaunchDarkly supports four fields for expanding the \"Create team\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n* `members` includes the total count of members that belong to the team.\n* `roles` includes a paginated list of the custom roles that you have assigned to the team.\n* `projects` includes a paginated list of the projects that the team has any write access to.\n* `maintainers` includes a paginated list of the maintainers that you have assigned to the team.\n\nFor example, `expand=members,roles` includes the `members` and `roles` fields in the response.\n",
 		Use:   "create", // TODO: translate post -> create
-		Params: []resources.Param{
+		Params: []*resources.Param{
 			{
 				Name:        "expand",
 				In:          "query",
@@ -43,7 +43,7 @@ func addAllResourceCmds(rootCmd *cobra.Command, client *http.Client, analyticsTr
 		Short: "Get team",
 		Long:  "Fetch a team by key.\n\n### Expanding the teams response\nLaunchDarkly supports four fields for expanding the \"Get team\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n* `members` includes the total count of members that belong to the team.\n* `roles` includes a paginated list of the custom roles that you have assigned to the team.\n* `projects` includes a paginated list of the projects that the team has any write access to.\n* `maintainers` includes a paginated list of the maintainers that you have assigned to the team.\n\nFor example, `expand=members,roles` includes the `members` and `roles` fields in the response.\n",
 		Use:   "get",
-		Params: []resources.Param{
+		Params: []*resources.Param{
 			{
 				Name:        "teamKey", // TODO: kebab case/trim key? to be consistent with our existing flags (e.g. projectKey = project)
 				In:          "path",

@@ -1,13 +1,12 @@
 package resources
 
 import (
-	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
-
-	"ldcli/internal/errors"
 )
 
 type TemplateData struct {
@@ -67,16 +66,29 @@ func GetTemplateData() (TemplateData, error) {
 			tag := op.Tags[0]
 			resource := resources[tag]
 			if resource == nil {
-				return TemplateData{}, errors.NewError(fmt.Sprintf("Matching resource not found for operation's tag: %s", tag))
+				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, tag)
+				continue
 			}
 
 			use := methodToCmdUse(method)
-			schema := spec.Components.Schemas[tag]
+
+			var schema *openapi3.SchemaRef
+			for respType, respInfo := range op.Responses.Map() {
+				respCode, _ := strconv.Atoi(respType)
+				if respCode < 300 {
+					for _, s := range respInfo.Value.Content {
+						schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
+						schema = spec.Components.Schemas[schemaName]
+					}
+				}
+			}
+
 			if schema == nil {
-				log.Printf("No schema found for %s", tag)
+				// probably won't need to keep this logging in but leaving it for debugging purposes
+				log.Printf("No response type defined for %s", op.OperationID)
 			} else {
-				for k, _ := range schema.Value.Properties {
-					if k == "items" {
+				for propName, _ := range schema.Value.Properties {
+					if propName == "items" {
 						use = "list"
 						break
 					}
