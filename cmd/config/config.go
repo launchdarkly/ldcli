@@ -122,6 +122,28 @@ func run() func(*cobra.Command, []string) error {
 
 			return writeConfig(configFile, v, setKeyFn)
 		case viper.IsSet(UnsetFlag):
+			isValid := false
+			for _, s := range []string{
+				cliflags.AccessTokenFlag,
+				cliflags.AnalyticsOptOut,
+				cliflags.BaseURIFlag,
+				cliflags.OutputFlag,
+			} {
+				if s == viper.GetString(UnsetFlag) {
+					isValid = true
+				}
+			}
+			if !isValid {
+				err := errors.NewError(
+					fmt.Sprintf(`{
+							"message": "%s is not a valid configuration option"
+						}`,
+						viper.GetString(UnsetFlag),
+					),
+				)
+				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+			}
+
 			config, v, err := getConfig()
 			if err != nil {
 				return err
