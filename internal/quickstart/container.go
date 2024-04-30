@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/reflow/wordwrap"
 
+	"ldcli/internal/analytics"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 )
@@ -18,21 +19,35 @@ const (
 	defaultEnvKey  = "test"
 )
 
+type step int
+
 const (
-	_ = iota
+	_ step = iota
 	stepCreateFlag
 	stepChooseSDK
 	stepShowSDKInstructions
 	stepToggleFlag
 )
 
+func (s step) String() string {
+	return []string{
+		"_",
+		"1 - feature flag name",
+		"2 - sdk selection",
+		"3 - sdk installation",
+		"4 - flag toggle",
+	}[s]
+}
+
 // ContainerModel is a high level container model that controls the nested models where each
 // represents a step in the quick-start flow.
 type ContainerModel struct {
 	accessToken        string
+	analyticsOptOut    bool
+	analyticsTracker   analytics.Tracker
 	baseUri            string
 	currentModel       tea.Model
-	currentStep        int
+	currentStep        step
 	environment        *environment
 	environmentsClient environments.Client
 	err                error
@@ -46,13 +61,17 @@ type ContainerModel struct {
 }
 
 func NewContainerModel(
+	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 	accessToken string,
+	analyticsOptOut bool,
 	baseUri string,
 ) tea.Model {
 	return ContainerModel{
 		accessToken:        accessToken,
+		analyticsOptOut:    analyticsOptOut,
+		analyticsTracker:   analyticsTracker,
 		baseUri:            baseUri,
 		currentModel:       NewCreateFlagModel(flagsClient, accessToken, baseUri),
 		currentStep:        1,
@@ -64,11 +83,18 @@ func NewContainerModel(
 }
 
 func (m ContainerModel) Init() tea.Cmd {
-	return nil
+	return trackSetupStepStartedEvent(
+		m.analyticsTracker,
+		m.accessToken,
+		m.baseUri,
+		m.analyticsOptOut,
+		m.currentStep.String(),
+	)
 }
 
 func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	var sendEvent bool
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -103,11 +129,18 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.environment,
 				)
 				cmd = m.currentModel.Init()
+				sendEvent = true
 			}
 		default:
 			// delegate all other input to the current model
 			m.currentModel, cmd = m.currentModel.Update(msg)
 		}
+	case confirmedFlagMsg:
+		m.currentModel = NewChooseSDKModel(0)
+		m.flagKey = msg.flag.key
+		m.currentStep += 1
+		m.err = nil
+		sendEvent = true
 	case choseSDKMsg:
 		m.currentModel = NewShowSDKInstructionsModel(
 			m.environmentsClient,
@@ -122,11 +155,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.currentModel.Init()
 		m.sdk = msg.sdk
 		m.currentStep += 1
-	case confirmedFlagMsg:
-		m.currentModel = NewChooseSDKModel(0)
-		m.flagKey = msg.flag.key
-		m.currentStep += 1
-		m.err = nil
+		sendEvent = true
 	case errMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 	case fetchedEnvMsg:
@@ -150,8 +179,19 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 		cmd = m.currentModel.Init()
 		m.currentStep += 1
+		sendEvent = true
 	default:
 		log.Printf("container default: %T\n", msg)
+	}
+
+	if sendEvent {
+		cmd = tea.Batch(cmd, trackSetupStepStartedEvent(
+			m.analyticsTracker,
+			m.accessToken,
+			m.baseUri,
+			m.analyticsOptOut,
+			m.currentStep.String(),
+		))
 	}
 
 	return m, cmd
