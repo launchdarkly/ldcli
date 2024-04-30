@@ -33,7 +33,7 @@ type Tracker interface {
 	SendSetupFlagToggledEvent(
 		accessToken,
 		baseURI string,
-		optOut bool,
+		optOut,
 		on bool,
 		count int,
 		duration_ms int64,
@@ -162,7 +162,7 @@ func (c *Client) SendSetupStepStartedEvent(
 func (c *Client) SendSetupFlagToggledEvent(
 	accessToken,
 	baseURI string,
-	optOut bool,
+	optOut,
 	on bool,
 	count int,
 	duration_ms int64,
@@ -213,7 +213,7 @@ func (c *NoopClient) SendSetupStepStartedEvent(
 func (c *NoopClient) SendSetupFlagToggledEvent(
 	accessToken,
 	baseURI string,
-	optOut bool,
+	optOut,
 	on bool,
 	count int,
 	duration_ms int64,
@@ -288,7 +288,7 @@ func (m *MockTracker) SendSetupStepStartedEvent(
 func (m *MockTracker) SendSetupFlagToggledEvent(
 	accessToken,
 	baseURI string,
-	optOut bool,
+	optOut,
 	on bool,
 	count int,
 	duration_ms int64,
