@@ -30,7 +30,13 @@ const (
 )
 
 func (s step) String() string {
-	return [...]string{"_", "1 - feature flag name", "2 - sdk selection", "3 - sdk installation", "4 - flag toggle"}[s]
+	return []string{
+		"_",
+		"1 - feature flag name",
+		"2 - sdk selection",
+		"3 - sdk installation",
+		"4 - flag toggle",
+	}[s]
 }
 
 // ContainerModel is a high level container model that controls the nested models where each
