@@ -251,3 +251,11 @@ func trackSetupStepStartedEvent(tracker analytics.Tracker, accessToken, baseURI 
 		return eventTrackedMsg{}
 	}
 }
+
+func trackSetupSDKSelectedEvent(tracker analytics.Tracker, accessToken, baseURI string, optOut bool, sdk string) tea.Cmd {
+	return func() tea.Msg {
+		tracker.SendSetupSDKSelectedEvent(accessToken, baseURI, optOut, sdk)
+
+		return eventTrackedMsg{}
+	}
+}

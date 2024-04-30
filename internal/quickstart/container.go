@@ -192,6 +192,16 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.analyticsOptOut,
 			m.currentStep.String(),
 		))
+
+		if m.currentStep == stepShowSDKInstructions {
+			cmd = tea.Batch(cmd, trackSetupSDKSelectedEvent(
+				m.analyticsTracker,
+				m.accessToken,
+				m.baseUri,
+				m.analyticsOptOut,
+				m.sdk.kind,
+			))
+		}
 	}
 
 	return m, cmd
