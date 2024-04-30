@@ -55,6 +55,7 @@ type ContainerModel struct {
 	flagKey            string
 	flagsClient        flags.Client
 	flagStatus         bool
+	flagToggled        bool
 	gettingStarted     bool
 	quitting           bool
 	sdk                sdkDetail
@@ -178,10 +179,12 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toggledFlagMsg:
 		m.gettingStarted = false
 		m.currentModel, cmd = m.currentModel.Update(msg)
-		m.toggleCount += 1
+		m.toggleCount++
 		m.flagStatus = msg.on
 		m.toggleTime = msg.time
+		m.flagToggled = true
 		m.err = nil
+		sendEvent = true
 	case showToggleFlagMsg:
 		m.currentModel = NewToggleFlagModel(
 			m.flagsClient,
@@ -206,7 +209,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentStep.String(),
 		))
 
-		if m.currentStep == stepToggleFlag {
+		if (m.currentStep == stepToggleFlag) && m.flagToggled {
 			cmd = tea.Batch(cmd, trackSetupFlagToggledEvent(
 				m.analyticsTracker,
 				m.accessToken,
