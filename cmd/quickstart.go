@@ -45,11 +45,11 @@ func runQuickStart(
 		defer f.Close()
 
 		_, err = tea.NewProgram(quickstart.NewContainerModel(
-			viper.GetBool(cliflags.AnalyticsOptOut),
 			analyticsTracker,
 			environmentsClient,
 			flagsClient,
 			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetBool(cliflags.AnalyticsOptOut),
 			viper.GetString(cliflags.BaseURIFlag),
 		)).Run()
 		if err != nil {

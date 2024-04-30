@@ -43,8 +43,8 @@ func (s step) String() string {
 // represents a step in the quick-start flow.
 type ContainerModel struct {
 	accessToken        string
-	analyticsTracker   analytics.Tracker
 	analyticsOptOut    bool
+	analyticsTracker   analytics.Tracker
 	baseUri            string
 	currentModel       tea.Model
 	currentStep        step
@@ -61,11 +61,11 @@ type ContainerModel struct {
 }
 
 func NewContainerModel(
-	analyticsOptOut bool,
 	analyticsTracker analytics.Tracker,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 	accessToken string,
+	analyticsOptOut bool,
 	baseUri string,
 ) tea.Model {
 	return ContainerModel{
