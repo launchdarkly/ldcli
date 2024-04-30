@@ -144,7 +144,7 @@ func (c *Client) SendSetupStartedEvent(
 		accessToken,
 		baseURI,
 		optOut,
-		"CLI Setup Started",
+		"CLI Setup Step Started",
 		map[string]interface{}{
 			"step": step,
 		},
@@ -239,7 +239,7 @@ func (m *MockTracker) SendSetupStartedEvent(
 		accessToken,
 		baseURI,
 		optOut,
-		"CLI Setup Started",
+		"CLI Setup Step Started",
 		map[string]interface{}{
 			"step": step,
 		},
