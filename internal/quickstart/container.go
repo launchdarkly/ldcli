@@ -3,6 +3,7 @@ package quickstart
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -53,9 +54,14 @@ type ContainerModel struct {
 	err                error
 	flagKey            string
 	flagsClient        flags.Client
+	flagStatus         bool
+	flagToggled        bool
 	gettingStarted     bool
 	quitting           bool
 	sdk                sdkDetail
+	startTime          time.Time
+	toggleCount        int
+	toggleTime         time.Time
 	totalSteps         int
 	width              int
 }
@@ -78,6 +84,7 @@ func NewContainerModel(
 		environmentsClient: environmentsClient,
 		flagsClient:        flagsClient,
 		gettingStarted:     true,
+		startTime:          time.Now(),
 		totalSteps:         4,
 	}
 }
@@ -165,10 +172,19 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fetchedFlagStatusMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
-	case fetchedSDKInstructionsMsg, selectedSDKMsg, toggledFlagMsg, spinner.TickMsg, createdFlagMsg:
+	case fetchedSDKInstructionsMsg, selectedSDKMsg, spinner.TickMsg, createdFlagMsg:
 		m.gettingStarted = false
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
+	case toggledFlagMsg:
+		m.gettingStarted = false
+		m.currentModel, cmd = m.currentModel.Update(msg)
+		m.toggleCount++
+		m.flagStatus = msg.on
+		m.toggleTime = msg.time
+		m.flagToggled = true
+		m.err = nil
+		sendEvent = true
 	case showToggleFlagMsg:
 		m.currentModel = NewToggleFlagModel(
 			m.flagsClient,
@@ -200,6 +216,16 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.baseUri,
 				m.analyticsOptOut,
 				m.sdk.kind,
+			))
+		} else if (m.currentStep == stepToggleFlag) && m.flagToggled {
+			cmd = tea.Batch(cmd, trackSetupFlagToggledEvent(
+				m.analyticsTracker,
+				m.accessToken,
+				m.baseUri,
+				m.analyticsOptOut,
+				m.flagStatus,
+				m.toggleCount,
+				m.toggleTime.Sub(m.startTime).Milliseconds(),
 			))
 		}
 	}

@@ -36,6 +36,14 @@ type Tracker interface {
 		optOut bool,
 		sdk string,
 	)
+	SendSetupFlagToggledEvent(
+		accessToken,
+		baseURI string,
+		optOut,
+		on bool,
+		count int,
+		duration_ms int64,
+	)
 }
 
 type Client struct {
@@ -174,6 +182,27 @@ func (c *Client) SendSetupSDKSelectedEvent(
 	)
 }
 
+func (c *Client) SendSetupFlagToggledEvent(
+	accessToken,
+	baseURI string,
+	optOut,
+	on bool,
+	count int,
+	duration_ms int64,
+) {
+	c.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Setup Flag Toggled",
+		map[string]interface{}{
+			"on":          on,
+			"count":       count,
+			"duration_ms": duration_ms,
+		},
+	)
+}
+
 func (a *Client) Wait() {
 	a.wg.Wait()
 }
@@ -209,6 +238,16 @@ func (c *NoopClient) SendSetupSDKSelectedEvent(
 	baseURI string,
 	optOut bool,
 	sdk string,
+) {
+}
+
+func (c *NoopClient) SendSetupFlagToggledEvent(
+	accessToken,
+	baseURI string,
+	optOut,
+	on bool,
+	count int,
+	duration_ms int64,
 ) {
 }
 
@@ -290,6 +329,27 @@ func (m *MockTracker) SendSetupSDKSelectedEvent(
 		"CLI Setup SDK Selected",
 		map[string]interface{}{
 			"sdk": sdk,
+		},
+	)
+}
+
+func (m *MockTracker) SendSetupFlagToggledEvent(
+	accessToken,
+	baseURI string,
+	optOut,
+	on bool,
+	count int,
+	duration_ms int64,
+) {
+	m.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Setup Flag Toggled",
+		map[string]interface{}{
+			"on":          on,
+			"count":       count,
+			"duration_ms": duration_ms,
 		},
 	)
 }
