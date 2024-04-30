@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -26,7 +27,10 @@ func sendErrMsg(err error) tea.Cmd {
 	}
 }
 
-type toggledFlagMsg struct{}
+type toggledFlagMsg struct {
+	time time.Time
+	on   bool
+}
 
 func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabled bool) tea.Cmd {
 	return func() tea.Msg {
@@ -42,7 +46,10 @@ func toggleFlag(client flags.Client, accessToken, baseUri, flagKey string, enabl
 			return errMsg{err: err}
 		}
 
-		return toggledFlagMsg{}
+		return toggledFlagMsg{
+			time: time.Now(),
+			on:   enabled,
+		}
 	}
 }
 
