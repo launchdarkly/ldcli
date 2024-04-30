@@ -215,7 +215,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.accessToken,
 				m.baseUri,
 				m.analyticsOptOut,
-				m.sdk.kind,
+				m.sdk.canonicalName,
 			))
 		} else if (m.currentStep == stepToggleFlag) && m.flagToggled {
 			cmd = tea.Batch(cmd, trackSetupFlagToggledEvent(
