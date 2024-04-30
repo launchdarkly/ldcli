@@ -244,9 +244,9 @@ func selectedSDK(index int) tea.Cmd {
 
 type eventTrackedMsg struct{}
 
-func trackSetupStartedEvent(tracker analytics.Tracker, accessToken, baseURI string, optOut bool, step string) tea.Cmd {
+func trackSetupStepStartedEvent(tracker analytics.Tracker, accessToken, baseURI string, optOut bool, step string) tea.Cmd {
 	return func() tea.Msg {
-		tracker.SendSetupStartedEvent(accessToken, baseURI, optOut, step)
+		tracker.SendSetupStepStartedEvent(accessToken, baseURI, optOut, step)
 
 		return eventTrackedMsg{}
 	}

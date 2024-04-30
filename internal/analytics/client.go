@@ -24,7 +24,7 @@ type Tracker interface {
 		optOut bool,
 		outcome string,
 	)
-	SendSetupStartedEvent(
+	SendSetupStepStartedEvent(
 		accessToken,
 		baseURI string,
 		optOut bool,
@@ -134,7 +134,7 @@ func (c *Client) SendCommandCompletedEvent(
 	}
 }
 
-func (c *Client) SendSetupStartedEvent(
+func (c *Client) SendSetupStepStartedEvent(
 	accessToken,
 	baseURI string,
 	optOut bool,
@@ -173,7 +173,7 @@ func (c *NoopClient) SendCommandCompletedEvent(
 ) {
 }
 
-func (c *NoopClient) SendSetupStartedEvent(
+func (c *NoopClient) SendSetupStepStartedEvent(
 	accessToken,
 	baseURI string,
 	optOut bool,
@@ -229,7 +229,7 @@ func (m *MockTracker) SendCommandCompletedEvent(
 	)
 }
 
-func (m *MockTracker) SendSetupStartedEvent(
+func (m *MockTracker) SendSetupStepStartedEvent(
 	accessToken,
 	baseURI string,
 	optOut bool,

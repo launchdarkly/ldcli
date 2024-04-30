@@ -83,7 +83,7 @@ func NewContainerModel(
 }
 
 func (m ContainerModel) Init() tea.Cmd {
-	return trackSetupStartedEvent(
+	return trackSetupStepStartedEvent(
 		m.analyticsTracker,
 		m.accessToken,
 		m.baseUri,
@@ -185,7 +185,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if sendEvent {
-		cmd = tea.Batch(cmd, trackSetupStartedEvent(
+		cmd = tea.Batch(cmd, trackSetupStepStartedEvent(
 			m.analyticsTracker,
 			m.accessToken,
 			m.baseUri,
