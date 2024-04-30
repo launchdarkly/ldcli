@@ -34,24 +34,6 @@ func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker
 	return cmd
 }
 
-type OperationData struct {
-	Short        string
-	Long         string
-	Use          string
-	Params       []Param
-	HTTPMethod   string
-	RequiresBody bool
-	Path         string
-}
-
-type Param struct {
-	Name        string
-	In          string
-	Description string
-	Type        string
-	Required    bool
-}
-
 type OperationCmd struct {
 	OperationData
 	client *http.Client
