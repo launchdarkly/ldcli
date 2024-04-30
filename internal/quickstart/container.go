@@ -209,7 +209,15 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentStep.String(),
 		))
 
-		if (m.currentStep == stepToggleFlag) && m.flagToggled {
+		if m.currentStep == stepShowSDKInstructions {
+			cmd = tea.Batch(cmd, trackSetupSDKSelectedEvent(
+				m.analyticsTracker,
+				m.accessToken,
+				m.baseUri,
+				m.analyticsOptOut,
+				m.sdk.canonicalName,
+			))
+		} else if (m.currentStep == stepToggleFlag) && m.flagToggled {
 			cmd = tea.Batch(cmd, trackSetupFlagToggledEvent(
 				m.analyticsTracker,
 				m.accessToken,

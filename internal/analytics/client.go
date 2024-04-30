@@ -30,6 +30,12 @@ type Tracker interface {
 		optOut bool,
 		step string,
 	)
+	SendSetupSDKSelectedEvent(
+		accessToken,
+		baseURI string,
+		optOut bool,
+		sdk string,
+	)
 	SendSetupFlagToggledEvent(
 		accessToken,
 		baseURI string,
@@ -159,6 +165,23 @@ func (c *Client) SendSetupStepStartedEvent(
 	)
 }
 
+func (c *Client) SendSetupSDKSelectedEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	sdk string,
+) {
+	c.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Setup SDK Selected",
+		map[string]interface{}{
+			"sdk": sdk,
+		},
+	)
+}
+
 func (c *Client) SendSetupFlagToggledEvent(
 	accessToken,
 	baseURI string,
@@ -207,6 +230,14 @@ func (c *NoopClient) SendSetupStepStartedEvent(
 	baseURI string,
 	optOut bool,
 	step string,
+) {
+}
+
+func (c *NoopClient) SendSetupSDKSelectedEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	sdk string,
 ) {
 }
 
@@ -281,6 +312,23 @@ func (m *MockTracker) SendSetupStepStartedEvent(
 		"CLI Setup Step Started",
 		map[string]interface{}{
 			"step": step,
+		},
+	)
+}
+
+func (m *MockTracker) SendSetupSDKSelectedEvent(
+	accessToken,
+	baseURI string,
+	optOut bool,
+	sdk string,
+) {
+	m.sendEvent(
+		accessToken,
+		baseURI,
+		optOut,
+		"CLI Setup SDK Selected",
+		map[string]interface{}{
+			"sdk": sdk,
 		},
 	)
 }
