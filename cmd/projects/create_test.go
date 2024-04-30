@@ -104,7 +104,7 @@ func TestCreate(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
-		assert.EqualError(t, err, `required flag(s) "access-token", "data" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "data" not set`+cmd.ExtraErrorHelp("projects", "create"))
 	})
 
 	t.Run("with missing short flag value is an error", func(t *testing.T) {

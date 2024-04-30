@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -39,11 +40,16 @@ func Validate() cobra.PositionalArgs {
 }
 
 func CmdError(err error, commandPath string) error {
-	errorMessage := fmt.Sprintf(
-		"%s. See `%s --help` for supported flags and usage.",
-		err.Error(),
-		commandPath,
-	)
+	errorMessage := err.Error() + "."
+
+	// show additional help if a missing flag can be set in the config file
+	if strings.Contains(err.Error(), cliflags.AccessTokenFlag) {
+		errorMessage += "\n\n"
+		errorMessage += fmt.Sprintf("Use `ldcli config --set %s <value>` to configure the value to persist across CLI commands.\n\n", cliflags.AccessTokenFlag)
+	} else {
+		errorMessage += " "
+	}
+	errorMessage += fmt.Sprintf("See `%s --help` for supported flags and usage.", commandPath)
 
 	return errors.New(errorMessage)
 }
