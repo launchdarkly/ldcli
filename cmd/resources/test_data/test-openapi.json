@@ -1,0 +1,1323 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "LaunchDarkly TEST REST API",
+    "description": "Test file"
+  },
+  "tags": [
+    {
+      "name": "Teams",
+      "description": "A team is a group of members in your LaunchDarkly account."
+    }
+  ],
+  "paths": {
+    "/api/v2/teams": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Teams collection response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Teams"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MethodNotAllowedErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "summary": "List teams",
+        "description": "Return a list of teams.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "The number of teams to return in the response. Defaults to 20.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "description": "The number of teams to return in the response. Defaults to 20."
+            }
+          }
+        ],
+        "operationId": "getTeams"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Teams response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorRep"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MethodNotAllowedErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Create team",
+        "description": "Create a team.",
+        "parameters": [
+          {
+            "name": "expand",
+            "in": "query",
+            "description": "A comma-separated list of properties.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "A comma-separated list of properties."
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/teamPostInput"
+              },
+              "example": {
+                "customRoleKeys": [
+                  "example-role1",
+                  "example-role2"
+                ],
+                "description": "An example team",
+                "key": "team-key-123abc",
+                "memberIDs": [
+                  "12ab3c45de678910fgh12345"
+                ],
+                "name": "Example team"
+              }
+            }
+          },
+          "required": true
+        },
+        "operationId": "postTeam"
+      }
+    },
+    "/api/v2/teams/{teamKey}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Teams response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorRep"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorRep"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid resource identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorRep"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MethodNotAllowedErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Get team",
+        "description": "Get team",
+        "parameters": [
+          {
+            "name": "teamKey",
+            "in": "path",
+            "description": "The team key.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "The team key."
+            }
+          },
+          {
+            "name": "expand",
+            "in": "query",
+            "description": "A comma-separated list of properties that can reveal additional information in the response.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "A comma-separated list of properties that can reveal additional information in the response."
+            }
+          }
+        ],
+        "operationId": "getTeam"
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Teams response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorRep"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid resource identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorRep"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MethodNotAllowedErrorRep"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Status conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusConflictErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Update team",
+        "description": "Perform a partial update to a team.",
+        "parameters": [
+          {
+            "name": "teamKey",
+            "in": "path",
+            "description": "The team key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "The team key"
+            }
+          },
+          {
+            "name": "expand",
+            "in": "query",
+            "description": "A comma-separated list of properties.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "A comma-separated list of properties."
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/teamPatchInput"
+              },
+              "example": {
+                "comment": "Optional comment about the update",
+                "instructions": [
+                  {
+                    "kind": "updateDescription",
+                    "value": "New description for the team"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "operationId": "patchTeam"
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Action succeeded"
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid resource identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Delete team",
+        "description": "Delete a team by key.",
+        "parameters": [
+          {
+            "name": "teamKey",
+            "in": "path",
+            "description": "The team key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "The team key"
+            }
+          }
+        ],
+        "operationId": "deleteTeam"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Access": {
+        "type": "object",
+        "required": [
+          "denied",
+          "allowed"
+        ],
+        "properties": {
+          "denied": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessDenied"
+            }
+          },
+          "allowed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessAllowedRep"
+            }
+          }
+        }
+      },
+      "ActionSpecifier": {
+        "type": "string"
+      },
+      "AccessAllowedReason": {
+        "type": "object",
+        "required": [
+          "effect"
+        ],
+        "properties": {
+          "resources": {
+            "type": "array",
+            "description": "Resource specifier strings",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "proj/*:env/*;qa_*:/flag/*"
+            ]
+          },
+          "notResources": {
+            "type": "array",
+            "description": "Targeted resources are the resources NOT in this list. The <code>resources</code> and <code>notActions</code> fields must be empty to use this field.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actions": {
+            "type": "array",
+            "description": "Actions to perform on a resource",
+            "items": {
+              "$ref": "#/components/schemas/ActionSpecifier"
+            },
+            "example": [
+              "*"
+            ]
+          },
+          "notActions": {
+            "type": "array",
+            "description": "Targeted actions are the actions NOT in this list. The <code>actions</code> and <code>notResources</code> fields must be empty to use this field.",
+            "items": {
+              "$ref": "#/components/schemas/ActionSpecifier"
+            }
+          },
+          "effect": {
+            "type": "string",
+            "description": "Whether this statement should allow or deny actions on the resources.",
+            "example": "allow",
+            "enum": [
+              "allow",
+              "deny"
+            ]
+          },
+          "role_name": {
+            "type": "string"
+          }
+        }
+      },
+      "AccessAllowedRep": {
+        "type": "object",
+        "required": [
+          "action",
+          "reason"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ActionIdentifier"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/AccessAllowedReason"
+          }
+        }
+      },
+      "AccessDenied": {
+        "type": "object",
+        "required": [
+          "action",
+          "reason"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ActionIdentifier"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/AccessDeniedReason"
+          }
+        }
+      },
+      "AccessDeniedReason": {
+        "type": "object",
+        "required": [
+          "effect"
+        ],
+        "properties": {
+          "resources": {
+            "type": "array",
+            "description": "Resource specifier strings",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "proj/*:env/*;qa_*:/flag/*"
+            ]
+          },
+          "notResources": {
+            "type": "array",
+            "description": "Targeted resources are the resources NOT in this list. The <code>resources</code> and <code>notActions</code> fields must be empty to use this field.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actions": {
+            "type": "array",
+            "description": "Actions to perform on a resource",
+            "items": {
+              "$ref": "#/components/schemas/ActionSpecifier"
+            },
+            "example": [
+              "*"
+            ]
+          },
+          "notActions": {
+            "type": "array",
+            "description": "Targeted actions are the actions NOT in this list. The <code>actions</code> and <code>notResources</code> fields must be empty to use this field.",
+            "items": {
+              "$ref": "#/components/schemas/ActionSpecifier"
+            }
+          },
+          "effect": {
+            "type": "string",
+            "description": "Whether this statement should allow or deny actions on the resources.",
+            "example": "allow",
+            "enum": [
+              "allow",
+              "deny"
+            ]
+          },
+          "role_name": {
+            "type": "string"
+          }
+        }
+      },
+      "ActionIdentifier": {
+        "type": "string"
+      },
+      "BulkEditTeamsRep": {
+        "type": "object",
+        "properties": {
+          "memberIDs": {
+            "type": "array",
+            "description": "A list of member IDs of the members who were added to the teams.",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "1234a56b7c89d012345e678f"
+            ]
+          },
+          "teamKeys": {
+            "type": "array",
+            "description": "A list of team keys of the teams that were successfully updated.",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "example-team-1"
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "description": "A list of team keys and errors for the teams whose updates failed.",
+            "items": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "example": [
+              {
+                "example-team-2": "example failure message"
+              }
+            ]
+          }
+        }
+      },
+      "ForbiddenErrorRep": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Specific error code encountered",
+            "example": "forbidden"
+          },
+          "message": {
+            "type": "string",
+            "description": "Description of the error",
+            "example": "Forbidden. Access to the requested resource was denied."
+          }
+        }
+      },
+      "Instruction": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "Instructions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Instruction"
+        }
+      },
+      "InvalidRequestErrorRep": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Specific error code encountered",
+            "example": "invalid_request"
+          },
+          "message": {
+            "type": "string",
+            "description": "Description of the error",
+            "example": "Invalid request body"
+          }
+        }
+      },
+      "Link": {
+        "type": "object",
+        "properties": {
+          "href": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "NotFoundErrorRep": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Specific error code encountered",
+            "example": "not_found"
+          },
+          "message": {
+            "type": "string",
+            "description": "Description of the error",
+            "example": "Invalid resource identifier"
+          }
+        }
+      },
+      "MemberImportItem": {
+        "type": "object",
+        "required": [
+          "status",
+          "value"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "An error message, including CSV line number, if the <code>status</code> is <code>error</code>"
+          },
+          "status": {
+            "type": "string",
+            "description": "Whether this member can be successfully imported (<code>success</code>) or not (<code>error</code>). Even if the status is <code>success</code>, members are only added to a team on a <code>201</code> response.",
+            "example": "error"
+          },
+          "value": {
+            "type": "string",
+            "description": "The email address for the member requested to be added to this team. May be blank or an error, such as 'invalid email format', if the email address cannot be found or parsed.",
+            "example": "new-team-member@acme.com"
+          }
+        }
+      },
+      "MemberSummary": {
+        "type": "object",
+        "required": [
+          "_links",
+          "_id",
+          "role",
+          "email"
+        ],
+        "properties": {
+          "_links": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "description": "The location and content type of related resources",
+            "example": {
+              "self": {
+                "href": "/api/v2/members/569f183514f4432160000007",
+                "type": "application/json"
+              }
+            }
+          },
+          "_id": {
+            "type": "string",
+            "description": "The member's ID",
+            "example": "569f183514f4432160000007"
+          },
+          "firstName": {
+            "type": "string",
+            "description": "The member's first name",
+            "example": "Ariel"
+          },
+          "lastName": {
+            "type": "string",
+            "description": "The member's last name",
+            "example": "Flores"
+          },
+          "role": {
+            "type": "string",
+            "description": "The member's built-in role. If the member has no custom roles, this role will be in effect.",
+            "example": "admin"
+          },
+          "email": {
+            "type": "string",
+            "description": "The member's email address",
+            "example": "ariel@acme.com"
+          }
+        }
+      },
+      "MethodNotAllowedErrorRep": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Specific error code encountered",
+            "example": "method_not_allowed"
+          },
+          "message": {
+            "type": "string",
+            "description": "Description of the error",
+            "example": "Method not allowed"
+          }
+        }
+      },
+      "permissionGrantInput": {
+        "type": "object",
+        "properties": {
+          "actionSet": {
+            "type": "string",
+            "description": "A group of related actions to allow. Specify either <code>actionSet</code> or <code>actions</code>. Use <code>maintainTeam</code> to add team maintainers.",
+            "example": "maintainTeam",
+            "enum": [
+              "maintainTeam"
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "description": "A list of actions to allow. Specify either <code>actionSet</code> or <code>actions</code>. To learn more, read [Role actions](https://docs.launchdarkly.com/home/members/role-actions).",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "updateTeamMembers"
+            ]
+          },
+          "memberIDs": {
+            "type": "array",
+            "description": "A list of member IDs who receive the permission grant.",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "12ab3c45de678910fgh12345"
+            ]
+          }
+        }
+      },
+      "ProjectSummary": {
+        "type": "object",
+        "required": [
+          "_id",
+          "_links",
+          "key",
+          "name"
+        ],
+        "properties": {
+          "_id": {
+            "type": "string",
+            "description": "The ID of this project",
+            "example": "57be1db38b75bf0772d11383"
+          },
+          "_links": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "description": "The location and content type of related resources",
+            "example": {
+              "environments": {
+                "href": "/api/v2/projects/example-project/environments",
+                "type": "application/json"
+              },
+              "self": {
+                "href": "/api/v2/projects/example-project",
+                "type": "application/json"
+              }
+            }
+          },
+          "key": {
+            "type": "string",
+            "description": "The project key",
+            "example": "project-key-123abc"
+          },
+          "name": {
+            "type": "string",
+            "description": "The project name",
+            "example": "Example project"
+          }
+        }
+      },
+      "RateLimitedErrorRep": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Specific error code encountered",
+            "example": "rate_limited"
+          },
+          "message": {
+            "type": "string",
+            "description": "Description of the error",
+            "example": "You've exceeded the API rate limit. Try again later."
+          }
+        }
+      },
+      "StatusConflictErrorRep": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Specific error code encountered",
+            "example": "optimistic_locking_error"
+          },
+          "message": {
+            "type": "string",
+            "description": "Description of the error",
+            "example": "Conflict. Optimistic lock error. Try again later."
+          }
+        }
+      },
+      "Team": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "A description of the team",
+            "example": "Description for this team."
+          },
+          "key": {
+            "type": "string",
+            "description": "The team key",
+            "example": "team-key-123abc"
+          },
+          "name": {
+            "type": "string",
+            "description": "A human-friendly name for the team",
+            "example": "Example team"
+          },
+          "_access": {
+            "description": "Details on the allowed and denied actions for this team",
+            "$ref": "#/components/schemas/Access"
+          },
+          "_creationDate": {
+            "description": "Timestamp of when the team was created",
+            "example": "1648671956143",
+            "$ref": "#/components/schemas/UnixMillis"
+          },
+          "_links": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "description": "The location and content type of related resources",
+            "example": {
+              "parent": {
+                "href": "/api/v2/teams",
+                "type": "application/json"
+              },
+              "roles": {
+                "href": "/api/v2/teams/example-team/roles",
+                "type": "application/json"
+              },
+              "self": {
+                "href": "/api/v2/teams/example-team",
+                "type": "application/json"
+              }
+            }
+          },
+          "_lastModified": {
+            "description": "Timestamp of when the team was most recently updated",
+            "example": "1648672446072",
+            "$ref": "#/components/schemas/UnixMillis"
+          },
+          "_version": {
+            "type": "integer",
+            "description": "The team version",
+            "example": 3
+          },
+          "_idpSynced": {
+            "type": "boolean",
+            "description": "Whether the team has been synced with an external identity provider (IdP). Team sync is available to customers on an Enterprise plan.",
+            "example": true
+          },
+          "roles": {
+            "description": "Paginated list of the custom roles assigned to this team. Only included if specified in the <code>expand</code> query parameter.",
+            "$ref": "#/components/schemas/TeamCustomRoles"
+          },
+          "members": {
+            "description": "Details on the total count of members that belong to the team. Only included if specified in the <code>expand</code> query parameter.",
+            "$ref": "#/components/schemas/TeamMembers"
+          },
+          "projects": {
+            "description": "Paginated list of the projects that the team has any write access to. Only included if specified in the <code>expand</code> query parameter.",
+            "$ref": "#/components/schemas/TeamProjects"
+          },
+          "maintainers": {
+            "description": "Paginated list of the maintainers assigned to this team. Only included if specified in the <code>expand</code> query parameter.",
+            "$ref": "#/components/schemas/TeamMaintainers"
+          }
+        }
+      },
+      "TeamCustomRole": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The key of the custom role",
+            "example": "role-key-123abc"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the custom role",
+            "example": "Example role"
+          },
+          "projects": {
+            "description": "Details on the projects where team members have write privileges on at least one resource type (e.g. flags)",
+            "$ref": "#/components/schemas/TeamProjects"
+          },
+          "appliedOn": {
+            "description": "Timestamp of when the custom role was assigned to this team",
+            "example": "1648672018410",
+            "$ref": "#/components/schemas/UnixMillis"
+          }
+        }
+      },
+      "TeamCustomRoles": {
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "description": "The number of custom roles assigned to this team",
+            "example": 1
+          },
+          "items": {
+            "type": "array",
+            "description": "An array of the custom roles that have been assigned to this team",
+            "items": {
+              "$ref": "#/components/schemas/TeamCustomRole"
+            }
+          },
+          "_links": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "description": "The location and content type of related resources",
+            "example": {
+              "self": {
+                "href": "/api/v2/teams/example-team/roles?limit=25",
+                "type": "application/json"
+              }
+            }
+          }
+        }
+      },
+      "TeamImportsRep": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "An array of details about the members requested to be added to this team",
+            "items": {
+              "$ref": "#/components/schemas/MemberImportItem"
+            }
+          }
+        }
+      },
+      "TeamMaintainers": {
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "description": "The number of maintainers of the team",
+            "example": 1
+          },
+          "items": {
+            "type": "array",
+            "description": "Details on the members that have been assigned as maintainers of the team",
+            "items": {
+              "$ref": "#/components/schemas/MemberSummary"
+            },
+            "example": [
+              {
+                "_id": "569f183514f4432160000007",
+                "_links": {
+                  "self": {
+                    "href": "/api/v2/members/569f183514f4432160000007",
+                    "type": "application/json"
+                  }
+                },
+                "email": "ariel@acme.com",
+                "firstName": "Ariel",
+                "lastName": "Flores",
+                "role": "reader"
+              }
+            ]
+          },
+          "_links": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "description": "The location and content type of related resources",
+            "example": {
+              "self": {
+                "href": "/api/v2/teams/example-team/maintainers?limit=5",
+                "type": "application/json"
+              }
+            }
+          }
+        }
+      },
+      "TeamMembers": {
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "description": "The total count of members that belong to the team",
+            "example": 15
+          }
+        }
+      },
+      "TeamProjects": {
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "example": 1
+          },
+          "items": {
+            "type": "array",
+            "description": "Details on each project where team members have write privileges on at least one resource type (e.g. flags)",
+            "items": {
+              "$ref": "#/components/schemas/ProjectSummary"
+            },
+            "example": [
+              {
+                "_links": {
+                  "environments": {
+                    "href": "/api/v2/projects/example-project/environments",
+                    "type": "application/json"
+                  },
+                  "self": {
+                    "href": "/api/v2/projects/example-project",
+                    "type": "application/json"
+                  }
+                },
+                "key": "project-key-123abc",
+                "name": "Example project"
+              }
+            ]
+          }
+        }
+      },
+      "Teams": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "An array of teams",
+            "items": {
+              "$ref": "#/components/schemas/Team"
+            }
+          },
+          "_links": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "description": "The location and content type of related resources",
+            "example": {
+              "self": {
+                "href": "/api/v2/teams?expand=maintainers%2Cmembers%2Croles%2Cprojects&limit=20",
+                "type": "application/json"
+              }
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "The number of teams",
+            "example": 1
+          }
+        }
+      },
+      "teamPatchInput": {
+        "type": "object",
+        "required": [
+          "instructions"
+        ],
+        "properties": {
+          "comment": {
+            "type": "string",
+            "description": "Optional comment describing the update",
+            "example": "Optional comment about the update"
+          },
+          "instructions": {
+            "description": "The instructions to perform when updating. This should be an array with objects that look like <code>{\"kind\": \"update_action\"}</code>. Some instructions also require additional parameters as part of this object.",
+            "example": "[ { \"kind\": \"updateDescription\", \"value\": \"New description for the team\" } ]",
+            "$ref": "#/components/schemas/Instructions"
+          }
+        }
+      },
+      "teamsPatchInput": {
+        "type": "object",
+        "required": [
+          "instructions"
+        ],
+        "properties": {
+          "comment": {
+            "type": "string",
+            "description": "Optional comment describing the update",
+            "example": "Optional comment about the update"
+          },
+          "instructions": {
+            "description": "The instructions to perform when updating. This should be an array with objects that look like <code>{\"kind\": \"update_action\"}</code>. Some instructions also require additional parameters as part of this object.",
+            "example": "[ { \"kind\": \"updateDescription\", \"value\": \"New description for the team\" } ]",
+            "$ref": "#/components/schemas/Instructions"
+          }
+        }
+      },
+      "teamPostInput": {
+        "type": "object",
+        "required": [
+          "key",
+          "name"
+        ],
+        "properties": {
+          "customRoleKeys": {
+            "type": "array",
+            "description": "List of custom role keys the team will access",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "example-role1",
+              "example-role2"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "A description of the team",
+            "example": "An example team"
+          },
+          "key": {
+            "type": "string",
+            "description": "The team key",
+            "example": "team-key-123abc"
+          },
+          "memberIDs": {
+            "type": "array",
+            "description": "A list of member IDs who belong to the team",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "12ab3c45de678910fgh12345"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "A human-friendly name for the team",
+            "example": "Example team"
+          },
+          "permissionGrants": {
+            "type": "array",
+            "description": "A list of permission grants. Permission grants allow access to a specific action, without having to create or update a custom role.",
+            "items": {
+              "$ref": "#/components/schemas/permissionGrantInput"
+            }
+          }
+        }
+      },
+      "UnauthorizedErrorRep": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Specific error code encountered",
+            "example": "unauthorized"
+          },
+          "message": {
+            "type": "string",
+            "description": "Description of the error",
+            "example": "Invalid access token"
+          }
+        }
+      },
+      "UnixMillis": {
+        "type": "integer",
+        "format": "int64"
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 [![NPM][npm-badge]][npm-link]
+[![Docker][docker-badge]][docker-link]
 
 # LaunchDarkly CLI
 
@@ -107,3 +108,6 @@ LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply
 
 [npm-badge]: https://img.shields.io/npm/v/@launchdarkly/ldcli.svg?style=flat-square
 [npm-link]: https://www.npmjs.com/package/@launchdarkly/ldcli
+
+[docker-badge]: https://img.shields.io/docker/v/launchdarkly/ldcli.svg?style=flat-square&label=Docker
+[docker-link]: https://hub.docker.com/r/launchdarkly/ldcli

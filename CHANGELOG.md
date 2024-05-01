@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.9.0](https://github.com/launchdarkly/ldcli/compare/v0.8.1...v0.9.0) (2024-04-30)
+
+
+### Features
+
+* Add additional help text with missing access-token ([#219](https://github.com/launchdarkly/ldcli/issues/219)) ([b74053c](https://github.com/launchdarkly/ldcli/commit/b74053cbda60f8450b6c943d7f55bc3cc8eb649e))
+* add hardcoded operation command with no body ([#211](https://github.com/launchdarkly/ldcli/issues/211)) ([c27e904](https://github.com/launchdarkly/ldcli/commit/c27e90431aaecd5e2c76fd47009c5b59e2d246d0))
+* Add valid config fields to its help ([#217](https://github.com/launchdarkly/ldcli/issues/217)) ([ffa9fb3](https://github.com/launchdarkly/ldcli/commit/ffa9fb32274ddc54d9086d0c79a4f518660a83a6))
+* added cmd completed to commands ([#200](https://github.com/launchdarkly/ldcli/issues/200)) ([bf0f6aa](https://github.com/launchdarkly/ldcli/commit/bf0f6aa51ee92acae053a6ee53b5fb49693dc782))
+* allow users to opt out of analytics tracking ([#206](https://github.com/launchdarkly/ldcli/issues/206)) ([e782a43](https://github.com/launchdarkly/ldcli/commit/e782a431eb7cc73da863c8736c2fed6a82c26d7c))
+* Create an --output/-o flag for JSON or plain text responses ([#195](https://github.com/launchdarkly/ldcli/issues/195)) ([96474cd](https://github.com/launchdarkly/ldcli/commit/96474cdaaba4175d1b0d9c20c4d1ece8b43ef7ee))
+* hardcoded resource cmds ([#203](https://github.com/launchdarkly/ldcli/issues/203)) ([b8dc52a](https://github.com/launchdarkly/ldcli/commit/b8dc52a0fbde1c6f7c67ea102ca2893031ac0de3))
+* output flag all commands ([#201](https://github.com/launchdarkly/ldcli/issues/201)) ([1670cae](https://github.com/launchdarkly/ldcli/commit/1670cae8239555920587af7fb619e564b93af0fe))
+* output in config ([#209](https://github.com/launchdarkly/ldcli/issues/209)) ([e246cbc](https://github.com/launchdarkly/ldcli/commit/e246cbc692634334bee7d77403daca142f4afc8f))
+* plaintext success response ([#210](https://github.com/launchdarkly/ldcli/issues/210)) ([82244ed](https://github.com/launchdarkly/ldcli/commit/82244edd2983da668480b9f6f0f6784c25e48938))
+* show successful resource delete message ([#212](https://github.com/launchdarkly/ldcli/issues/212)) ([c1c3c1a](https://github.com/launchdarkly/ldcli/commit/c1c3c1a2f74216db7f1c2e8cdc78123d5c9ffc49))
+* track cli command run events ([#189](https://github.com/launchdarkly/ldcli/issues/189)) ([fd98b42](https://github.com/launchdarkly/ldcli/commit/fd98b421cf09c7ee50266d9d73a654101ad11d7d))
+* track cli setup step started event ([#215](https://github.com/launchdarkly/ldcli/issues/215)) ([25b9f2e](https://github.com/launchdarkly/ldcli/commit/25b9f2e6c7577ff300cc09f493ed16dfb4be6917))
+* track sdk selected on setup ([#221](https://github.com/launchdarkly/ldcli/issues/221)) ([2e3445c](https://github.com/launchdarkly/ldcli/commit/2e3445c7487babb65b8b50a27cd05f866510de76))
+* track setup flag toggle event ([#222](https://github.com/launchdarkly/ldcli/issues/222)) ([3b408cc](https://github.com/launchdarkly/ldcli/commit/3b408cca643f5a2a70dc320305a30b5d13a0df77))
+
+
+### Bug Fixes
+
+* config action output ([#225](https://github.com/launchdarkly/ldcli/issues/225)) ([889d8a2](https://github.com/launchdarkly/ldcli/commit/889d8a268c8c3fa6ec20857f4f7745c447deb7eb))
+* Fix data flag JSON error handling ([#214](https://github.com/launchdarkly/ldcli/issues/214)) ([a469c0c](https://github.com/launchdarkly/ldcli/commit/a469c0c8b7d7854feda27c40a3bfcacf1b1b2986))
+* remove get projects limit ([68d0bf0](https://github.com/launchdarkly/ldcli/commit/68d0bf04607133293d87108cf67e9354c0394c96))
+
 ## [0.8.1](https://github.com/launchdarkly/ldcli/compare/v0.8.0...v0.8.1) (2024-04-22)
 
 

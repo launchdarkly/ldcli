@@ -3,7 +3,9 @@ package resources
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -12,6 +14,9 @@ import (
 	"ldcli/cmd/cliflags"
 	"ldcli/cmd/validators"
 	"ldcli/internal/analytics"
+	"ldcli/internal/errors"
+	"ldcli/internal/output"
+	"ldcli/internal/resources"
 )
 
 func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
@@ -34,27 +39,9 @@ func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker
 	return cmd
 }
 
-type OperationData struct {
-	Short        string
-	Long         string
-	Use          string
-	Params       []Param
-	HTTPMethod   string
-	RequiresBody bool
-	Path         string
-}
-
-type Param struct {
-	Name        string
-	In          string
-	Description string
-	Type        string
-	Required    bool
-}
-
 type OperationCmd struct {
 	OperationData
-	client *http.Client
+	client resources.Client
 	cmd    *cobra.Command
 }
 
@@ -71,8 +58,17 @@ func (op *OperationCmd) initFlags() error {
 		}
 	}
 
+	if op.SupportsSemanticPatch {
+		op.cmd.Flags().Bool("semantic-patch", false, "Perform a semantic patch request")
+		err := viper.BindPFlag("semantic-patch", op.cmd.Flags().Lookup("semantic-patch"))
+		if err != nil {
+			return err
+		}
+	}
+
 	for _, p := range op.Params {
 		shorthand := fmt.Sprintf(p.Name[0:1]) // todo: how do we handle potential dupes
+		// TODO: consider handling these all as strings
 		switch p.Type {
 		case "string":
 			op.cmd.Flags().StringP(p.Name, shorthand, "", p.Description)
@@ -97,41 +93,76 @@ func (op *OperationCmd) initFlags() error {
 	return nil
 }
 
-func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
-	paramVals := map[string]interface{}{}
+func buildURLWithParams(baseURI, path string, urlParams []string) string {
+	s := make([]interface{}, len(urlParams))
+	for i, v := range urlParams {
+		s[i] = v
+	}
 
+	re := regexp.MustCompile(`{\w+}`)
+	format := re.ReplaceAllString(path, "%s")
+
+	return baseURI + fmt.Sprintf(format, s...)
+}
+
+func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
+	var data interface{}
 	if op.RequiresBody {
-		var data interface{}
 		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
 		err := json.Unmarshal([]byte(cmd.Flags().Lookup(cliflags.DataFlag).Value.String()), &data)
 		if err != nil {
 			return err
 		}
-		paramVals[cliflags.DataFlag] = data
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return err
 	}
 
+	query := url.Values{}
+	var urlParms []string
 	for _, p := range op.Params {
-		var val interface{}
-		switch p.Type {
-		case "string":
-			val = viper.GetString(p.Name)
-		case "boolean":
-			val = viper.GetBool(p.Name)
-		case "int":
-			val = viper.GetInt(p.Name)
-		}
-
-		if val != nil {
-			paramVals[p.Name] = val
+		val := viper.GetString(p.Name)
+		if val != "" {
+			switch p.In {
+			case "path":
+				urlParms = append(urlParms, val)
+			case "query":
+				query.Add(p.Name, val)
+			}
 		}
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "would be making a %s request to %s here, with args: %s\n", op.HTTPMethod, op.Path, paramVals)
+	path := buildURLWithParams(viper.GetString(cliflags.BaseURIFlag), op.Path, urlParms)
+
+	contentType := "application/json"
+	if viper.GetBool("semantic-patch") {
+		contentType += "; domain-model=launchdarkly.semanticpatch"
+	}
+
+	res, err := op.client.MakeRequest(
+		viper.GetString(cliflags.AccessTokenFlag),
+		strings.ToUpper(op.HTTPMethod),
+		path,
+		contentType,
+		query,
+		jsonData,
+	)
+	if err != nil {
+		return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+	}
+
+	output, err := output.CmdOutput("get", viper.GetString(cliflags.OutputFlag), res)
+	if err != nil {
+		return errors.NewError(err.Error())
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 	return nil
 }
 
-func NewOperationCmd(parentCmd *cobra.Command, client *http.Client, op OperationData) *cobra.Command {
+func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op OperationData) *cobra.Command {
 	opCmd := OperationCmd{
 		OperationData: op,
 		client:        client,
@@ -143,7 +174,6 @@ func NewOperationCmd(parentCmd *cobra.Command, client *http.Client, op Operation
 		RunE:  opCmd.makeRequest,
 		Short: op.Short,
 		Use:   op.Use,
-		//TODO: add tracking here
 	}
 
 	opCmd.cmd = cmd
