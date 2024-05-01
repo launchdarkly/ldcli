@@ -40,7 +40,7 @@ else
 
 var flagValue = client.BoolVariation("my-flag-key", false);
 
-Console.WriteLine(string.Format("Feature flag 'my-flag-key' is {0} for this context", flagValue));
+Console.WriteLine(string.Format("Feature flag 'my-flag-key' is {0}", flagValue));
 
 // Here we ensure that the SDK shuts down cleanly and has a chance to deliver analytics
 // events to LaunchDarkly before the program exits. If analytics events are not delivered,

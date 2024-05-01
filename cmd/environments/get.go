@@ -64,23 +64,10 @@ func runGet(
 			viper.GetString(cliflags.ProjectFlag),
 		)
 		if err != nil {
-			output, err := output.CmdOutputSingular(
-				viper.GetString(cliflags.OutputFlag),
-				[]byte(err.Error()),
-				output.ErrorPlaintextOutputFn,
-			)
-			if err != nil {
-				return errors.NewError(err.Error())
-			}
-
-			return errors.NewError(output)
+			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 		}
 
-		output, err := output.CmdOutputSingular(
-			viper.GetString(cliflags.OutputFlag),
-			response,
-			output.SingularPlaintextOutputFn,
-		)
+		output, err := output.CmdOutput("get", viper.GetString(cliflags.OutputFlag), response)
 		if err != nil {
 			return errors.NewError(err.Error())
 		}

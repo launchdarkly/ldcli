@@ -31,7 +31,7 @@ ldClient.waitForInitialization().then(function() {
   showMessage("SDK successfully initialized!");
   const flagValue = ldClient.variation("my-flag-key", false);
 
-  showMessage("Feature flag " + "my-flag-key" + " is " + flagValue + " for this user");
+  showMessage("Feature flag " + "my-flag-key" + " is " + flagValue + ");
 
   // Here we ensure that the SDK shuts down cleanly and has a chance to deliver analytics
   // events to LaunchDarkly before the program exits. If analytics events are not delivered,

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCmdOutputResource(t *testing.T) {
+func TestCmdOutputSingular(t *testing.T) {
 	tests := map[string]struct {
 		expected string
 		fn       output.PlaintextOutputFn
@@ -54,38 +54,6 @@ func TestCmdOutputResource(t *testing.T) {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
 			output, err := output.CmdOutputSingular(
-				"plaintext",
-				[]byte(tt.input),
-				tt.fn,
-			)
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, output)
-		})
-	}
-}
-
-func TestCmdOutputResources(t *testing.T) {
-	tests := map[string]struct {
-		expected string
-		fn       output.PlaintextOutputFn
-		input    string
-	}{
-		"with multiple emails not as items property": {
-			expected: "* test-email1 (test-id1)\n* test-email2 (test-id2)",
-			fn:       output.MultipleEmailPlaintextOutputFn,
-			input:    `[{"_id": "test-id1", "email": "test-email1"}, {"_id": "test-id2", "email": "test-email2"}]`,
-		},
-		"with multiple items": {
-			expected: "* test-name1 (test-key1)\n* test-name2 (test-key2)",
-			fn:       output.MultiplePlaintextOutputFn,
-			input:    `{"items": [{"key": "test-key1", "name": "test-name1"}, {"key": "test-key2", "name": "test-name2"}]}`,
-		},
-	}
-	for name, tt := range tests {
-		tt := tt
-		t.Run(name, func(t *testing.T) {
-			output, err := output.CmdOutputMultiple(
 				"plaintext",
 				[]byte(tt.input),
 				tt.fn,

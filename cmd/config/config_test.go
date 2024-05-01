@@ -1,13 +1,14 @@
 package config_test
 
 import (
-	"ldcli/cmd"
-	"ldcli/internal/analytics"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"ldcli/cmd"
+	"ldcli/internal/analytics"
 )
 
 func TestNoFlag(t *testing.T) {

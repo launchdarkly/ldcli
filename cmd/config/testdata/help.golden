@@ -1,5 +1,11 @@
 View and modify specific configuration values
 
+Supported settings:
+- `access-token`: LaunchDarkly access token with write-level access
+- `analytics-opt-out`: Opt out of analytics tracking
+- `base-uri`: LaunchDarkly base URI
+- `output`: Command response output format in either JSON or plain text
+
 Usage:
   ldcli config [flags]
 
@@ -10,7 +16,7 @@ Flags:
       --unset string   Unset a config field
 
 Global Flags:
-      --access-token string   LaunchDarkly API token with write-level access
+      --access-token string   LaunchDarkly access token with write-level access
       --analytics-opt-out     Opt out of analytics tracking
       --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
   -o, --output string         Command response output format in either JSON or plain text (default "plaintext")

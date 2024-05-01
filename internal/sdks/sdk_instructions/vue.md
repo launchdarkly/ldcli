@@ -35,7 +35,7 @@ const flagValue = useLDFlag('my-flag-key', false)
 </script>
 
 <template>
-  <div v-if="ldReady">test-boolean-1 is {{ flagValue }}</div>
+  <div v-if="ldReady">Feature Flag my-flag-key is {{ flagValue }}</div>
   <div v-else>LaunchDarkly client initializing...</div>
 </template>
 ```

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -68,4 +69,11 @@ func SetupTestEnvVars(_ *testing.T) func(t *testing.T) {
 		os.Unsetenv("LD_ACCESS_TOKEN")
 		os.Unsetenv("LD_BASE_URI")
 	}
+}
+
+func ExtraErrorHelp(cmdName string, cmdAction string) string {
+	out := ".\n\nUse `ldcli config --set access-token <value>` to configure the value to persist across CLI commands."
+	out += fmt.Sprintf("\n\nSee `ldcli %s %s --help` for supported flags and usage.", cmdName, cmdAction)
+
+	return out
 }

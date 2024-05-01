@@ -42,10 +42,10 @@ func (c MembersClient) Create(ctx context.Context, accessToken string, baseURI s
 	if err != nil {
 		return nil, errors.NewLDAPIError(err)
 	}
-	memberJson, err := json.Marshal(members.Items)
+	membersJson, err := json.Marshal(members)
 	if err != nil {
 		return nil, err
 	}
 
-	return memberJson, nil
+	return membersJson, nil
 }

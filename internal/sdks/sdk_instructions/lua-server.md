@@ -44,7 +44,7 @@ local user = ld.makeContext({
 })
 
 local value = client:boolVariation(user, "my-flag-key", false)
-print("Feature flag 'my-flag-key' is "..tostring(value).." for this user context")
+print("Feature flag 'my-flag-key' is "..tostring(value).."")`
 ```
 
 Now that your application is ready, run the application to see what value we get.

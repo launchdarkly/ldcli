@@ -105,7 +105,7 @@ func TestInvite(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
-		assert.EqualError(t, err, `required flag(s) "access-token", "emails" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "emails" not set`+cmd.ExtraErrorHelp("members", "invite"))
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestInvite(t *testing.T) {
 				"access-token",
 				"base-uri",
 				"emails",
-        "output",
+				"output",
 			}, analytics.SUCCESS)
 
 		client := members.MockClient{}

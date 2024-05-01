@@ -55,9 +55,7 @@ func (c ProjectsClient) List(
 ) ([]byte, error) {
 	client := client.New(accessToken, baseURI, c.cliVersion)
 	projects, _, err := client.ProjectsApi.
-		GetProjects(ctx).
-		Limit(2).
-		Execute()
+		GetProjects(ctx).Execute()
 	if err != nil {
 		return nil, errors.NewLDAPIError(err)
 	}

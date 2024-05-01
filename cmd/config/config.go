@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -38,6 +39,22 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 			)
 		},
 	}
+
+	helpFun := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		var sb strings.Builder
+		sb.WriteString("\n\nSupported settings:\n")
+		for _, s := range []string{
+			cliflags.AccessTokenFlag,
+			cliflags.AnalyticsOptOut,
+			cliflags.BaseURIFlag,
+			cliflags.OutputFlag,
+		} {
+			sb.WriteString(fmt.Sprintf("- `%s`: %s\n", s, cliflags.AllFlagsHelp()[s]))
+		}
+		cmd.Long += sb.String()
+		helpFun(cmd, args)
+	})
 
 	cmd.Flags().Bool(ListFlag, false, "List configs")
 	_ = viper.BindPFlag(ListFlag, cmd.Flags().Lookup(ListFlag))
@@ -79,6 +96,13 @@ func run() func(*cobra.Command, []string) error {
 				return errors.NewError("flag needs an argument: --set")
 			}
 
+			for i := 0; i < len(args)-1; i += 2 {
+				_, ok := cliflags.AllFlagsHelp()[args[i]]
+				if !ok {
+					return newErr(args[i])
+				}
+			}
+
 			rawConfig, v, err := getRawConfig()
 			if err != nil {
 				return err
@@ -105,6 +129,11 @@ func run() func(*cobra.Command, []string) error {
 
 			return writeConfig(configFile, v, setKeyFn)
 		case viper.IsSet(UnsetFlag):
+			_, ok := cliflags.AllFlagsHelp()[viper.GetString(UnsetFlag)]
+			if !ok {
+				return newErr(viper.GetString(UnsetFlag))
+			}
+
 			config, v, err := getConfig()
 			if err != nil {
 				return err
@@ -116,7 +145,12 @@ func run() func(*cobra.Command, []string) error {
 				}
 			}
 
-			return writeConfig(config, v, unsetKeyFn)
+			// TODO: show successful output
+
+			err = writeConfig(config, v, unsetKeyFn)
+			if err != nil {
+				return err
+			}
 		default:
 			return cmd.Help()
 		}
@@ -216,4 +250,17 @@ func writeConfig(
 	}
 
 	return nil
+}
+
+func newErr(flag string) error {
+	err := errors.NewError(
+		fmt.Sprintf(
+			`{
+				"message": "%s is not a valid configuration option"
+			}`,
+			flag,
+		),
+	)
+
+	return errors.NewError(output.CmdOutputError(flag, err))
 }

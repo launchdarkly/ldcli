@@ -26,7 +26,7 @@ $context = LaunchDarkly\LDContext::builder("example-user-key")
 $flagValue = $client->variation("my-flag-key", $context, false);
 $flagValueStr = $flagValue ? 'true' : 'false';
 
-echo "*** Feature flag 'my-flag-key' is {$flagValueStr} for this context\n\n";
+echo "*** Feature flag 'my-flag-key' is {$flagValueStr}\\n\\n";
 ```
 
 Now that your application is ready, run the application to see what value we get.

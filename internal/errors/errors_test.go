@@ -16,7 +16,7 @@ func TestAPIError(t *testing.T) {
 	t.Run("with a 400 error has a JSON response", func(t *testing.T) {
 		underlying := errs.NewAPIError(
 			[]byte(`{"code":"conflict","message":"an error"}`),
-			errors.New("409 Conflict"),
+			errors.New("400 an error"),
 			[]string{},
 		)
 
@@ -45,7 +45,7 @@ func TestAPIError(t *testing.T) {
 	t.Run("with a 403 error has a JSON response", func(t *testing.T) {
 		underlying := errs.NewAPIError(
 			[]byte(`{"code": "forbidden", "message": "an error"}`),
-			errors.New("409 Conflict"),
+			errors.New("403 Forbidden"),
 			[]string{},
 		)
 

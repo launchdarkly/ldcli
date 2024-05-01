@@ -82,7 +82,7 @@ class ViewController: UIViewController {
       // Ensure events are sent to LD immediately for fast completion of the Getting Started guide.
       // This line is not necessary here for production use.
       LDClient.get()?.flush()
-      print("The value of (featureFlagKey) is (boolVal)")
+      print("Feature flag (featureFlagKey) is (boolVal)")
     } else {
       print("failed to get flag, (featureFlagKey)")
     }
