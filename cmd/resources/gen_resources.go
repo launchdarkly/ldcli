@@ -16,7 +16,7 @@ type TemplateData struct {
 type ResourceData struct {
 	Name        string
 	Description string
-	Operations  []*OperationData
+	Operations  map[string]*OperationData
 }
 
 type OperationData struct {
@@ -37,10 +37,8 @@ type Param struct {
 	Required    bool
 }
 
-const pathSpecFile = "ld-teams-openapi.json"
-
-func GetTemplateData() (TemplateData, error) {
-	rawFile, err := os.ReadFile(pathSpecFile)
+func GetTemplateData(fileName string) (TemplateData, error) {
+	rawFile, err := os.ReadFile(fileName)
 	if err != nil {
 		return TemplateData{}, err
 	}
@@ -56,44 +54,20 @@ func GetTemplateData() (TemplateData, error) {
 		resources[r.Name] = &ResourceData{
 			Name:        r.Name,
 			Description: r.Description,
-			Operations:  make([]*OperationData, 0),
+			Operations:  make(map[string]*OperationData, 0),
 		}
 	}
 
 	for path, pathItem := range spec.Paths.Map() {
 		for method, op := range pathItem.Operations() {
-			// TODO: confirm each op only has one tag
-			tag := op.Tags[0]
+			tag := op.Tags[0] // TODO: confirm each op only has one tag
 			resource := resources[tag]
 			if resource == nil {
 				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, tag)
 				continue
 			}
 
-			use := methodToCmdUse(method)
-
-			var schema *openapi3.SchemaRef
-			for respType, respInfo := range op.Responses.Map() {
-				respCode, _ := strconv.Atoi(respType)
-				if respCode < 300 {
-					for _, s := range respInfo.Value.Content {
-						schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
-						schema = spec.Components.Schemas[schemaName]
-					}
-				}
-			}
-
-			if schema == nil {
-				// probably won't need to keep this logging in but leaving it for debugging purposes
-				log.Printf("No response type defined for %s", op.OperationID)
-			} else {
-				for propName, _ := range schema.Value.Properties {
-					if propName == "items" {
-						use = "list"
-						break
-					}
-				}
-			}
+			use := getCmdUse(method, op, spec)
 
 			operation := OperationData{
 				Short:        op.Summary,
@@ -120,14 +94,14 @@ func GetTemplateData() (TemplateData, error) {
 				}
 			}
 
-			resource.Operations = append(resource.Operations, &operation)
+			resource.Operations[op.OperationID] = &operation
 		}
 	}
 
 	return TemplateData{Resources: resources}, nil
 }
 
-func methodToCmdUse(method string) string {
+func getCmdUse(method string, op *openapi3.Operation, spec *openapi3.T) string {
 	methodMap := map[string]string{
 		"GET":    "get",
 		"POST":   "create",
@@ -136,5 +110,29 @@ func methodToCmdUse(method string) string {
 		"PATCH":  "update",
 	}
 
-	return methodMap[method]
+	use := methodMap[method]
+
+	var schema *openapi3.SchemaRef
+	for respType, respInfo := range op.Responses.Map() {
+		respCode, _ := strconv.Atoi(respType)
+		if respCode < 300 {
+			for _, s := range respInfo.Value.Content {
+				schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
+				schema = spec.Components.Schemas[schemaName]
+			}
+		}
+	}
+
+	if schema == nil {
+		// probably won't need to keep this logging in but leaving it for debugging purposes
+		log.Printf("No response type defined for %s", op.OperationID)
+	} else {
+		for propName, _ := range schema.Value.Properties {
+			if propName == "items" {
+				use = "list"
+				break
+			}
+		}
+	}
+	return use
 }

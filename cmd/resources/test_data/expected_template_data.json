@@ -1,0 +1,109 @@
+{
+  "Resources": {
+    "Teams": {
+      "Name": "Teams",
+      "Description": "A team is a group of members in your LaunchDarkly account.",
+      "Operations": {
+        "deleteTeam": {
+          "Short": "Delete team",
+          "Long": "Delete a team by key.",
+          "Use": "delete",
+          "Params": [
+            {
+              "Name": "teamKey",
+              "In": "path",
+              "Description": "The team key",
+              "Type": "string",
+              "Required": true
+            }
+          ],
+          "HTTPMethod": "DELETE",
+          "RequiresBody": false,
+          "Path": "/api/v2/teams/{teamKey}"
+        },
+        "getTeam": {
+          "Short": "Get team",
+          "Long": "Get team",
+          "Use": "get",
+          "Params": [
+            {
+              "Name": "teamKey",
+              "In": "path",
+              "Description": "The team key.",
+              "Type": "string",
+              "Required": true
+            },
+            {
+              "Name": "expand",
+              "In": "query",
+              "Description": "A comma-separated list of properties that can reveal additional information in the response.",
+              "Type": "string",
+              "Required": false
+            }
+          ],
+          "HTTPMethod": "GET",
+          "RequiresBody": false,
+          "Path": "/api/v2/teams/{teamKey}"
+        },
+        "getTeams": {
+          "Short": "List teams",
+          "Long": "Return a list of teams.",
+          "Use": "list",
+          "Params": [
+            {
+              "Name": "limit",
+              "In": "query",
+              "Description": "The number of teams to return in the response. Defaults to 20.",
+              "Type": "integer",
+              "Required": false
+            }
+          ],
+          "HTTPMethod": "GET",
+          "RequiresBody": false,
+          "Path": "/api/v2/teams"
+        },
+        "patchTeam": {
+          "Short": "Update team",
+          "Long": "Perform a partial update to a team.",
+          "Use": "update",
+          "Params": [
+            {
+              "Name": "teamKey",
+              "In": "path",
+              "Description": "The team key",
+              "Type": "string",
+              "Required": true
+            },
+            {
+              "Name": "expand",
+              "In": "query",
+              "Description": "A comma-separated list of properties.",
+              "Type": "string",
+              "Required": false
+            }
+          ],
+          "HTTPMethod": "PATCH",
+          "RequiresBody": true,
+          "Path": "/api/v2/teams/{teamKey}"
+        },
+        "postTeam": {
+          "Short": "Create team",
+          "Long": "Create a team.",
+          "Use": "create",
+          "Params": [
+            {
+              "Name": "expand",
+              "In": "query",
+              "Description": "A comma-separated list of properties.",
+              "Type": "string",
+              "Required": false
+            }
+          ],
+          "HTTPMethod": "POST",
+          "RequiresBody": true,
+          "Path": "/api/v2/teams"
+        }
+      }
+    }
+  }
+}
