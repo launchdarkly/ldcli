@@ -1,20 +1,19 @@
 [![NPM][npm-badge]][npm-link]
 [![Docker][docker-badge]][docker-link]
+[![GitHub release][ghrelease-badge]][ghrelease-link]
 
 # LaunchDarkly CLI
 
-The LaunchDarkly CLI helps you manage your feature flags wherever you are, whether that's in the webapp, your terminal, or your IDE.
+The LaunchDarkly CLI helps you manage your feature flags from your terminal or your IDE.
 
-**With the CLI, you can:**
+With the CLI, you can:
 
-- Evaluate your first feature flag with a guided setup command.
+- Create and evaluate your first feature flag with a guided `setup` command.
 - Onboard your whole team by inviting new members.
-- Interact with the LaunchDarkly API using resource & CRUD based commands.
-
-# 🚫🚫🚫🚫🚫🚫
+- Interact with the [LaunchDarkly API](https://apidocs.launchdarkly.com/) using resource- and CRUD-based commands.
 
 > [!CAUTION]
-> This package is prerelease and experimental. It should not be used in production and is not supported.
+> This package is prerelease and experimental. It should not be used in production and is not yet supported.
 
 ## Installation
 
@@ -33,7 +32,7 @@ ldcli --help
 
 ## Configuration
 
-The LaunchDarkly CLI allows you to save preferred settings, either within a config file using the `config` commands, or set as environment variables.
+The LaunchDarkly CLI allows you to save preferred settings, either as environment variables or within a config file. Use the `config` commands to save your settings.
 
 Supported settings:
 
@@ -42,36 +41,44 @@ Supported settings:
 * `base-uri` LaunchDarkly base URI (default "https://app.launchdarkly.com")
 * `output` Command response output format in either JSON or plain text
 
-To set a value as an environment variable, prepend the variable name with `LD`. For example:
-```shell
-export $LD_ACCESS_TOKEN api-00000000-0000-0000-0000-000000000000
-```
-
-Or, set a value in the configuration file:
-```shell
-ldcli config --set access-token api-00000000-0000-0000-0000-000000000000
-```
-
 Available `config` commands:
+
 - `config --set {key} {value}`
 - `config --unset {key}`
 - `config --list`
 
+To save a setting as an environment variable, prepend the variable name with `LD`. For example:
+
+```shell
+export $LD_ACCESS_TOKEN api-00000000-0000-0000-0000-000000000000
+```
+
+To save a setting in the configuration file:
+
+```shell
+ldcli config --set access-token api-00000000-0000-0000-0000-000000000000
+```
+
+Running this command creates a configuration file located at `$HOME/.ldcli-config.yml` with the access token. Subsequent commands read from this file, so you do not need to specify the access token each time.
+
 ## Commands
 
-LaunchDarkly CLI commands
+LaunchDarkly CLI commands:
+
 - `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
 
 ### Resource Commands
 
-Resource commands mirror the LaunchDarkly API and make requests for a given resource. To see a full list of resources supported by the CLI, enter `ldcli --help` into your terminal, and to see the commands available for a given resource
+Resource commands mirror the LaunchDarkly API and make requests for a given resource. To see a full list of resources supported by the CLI, enter `ldcli --help` into your terminal.
 
 To see the commands available for a given resource:
+
 ```sh-session
 ldcli <resource> --help
 ```
 
-An example command to create a flag:
+Here is an example command to create a flag:
+
 ```sh-session
 ldcli flags create --access-token <access-token> --project default --data '{"name": "My Test Flag", "key": "my-test-flag"}'
 ```
@@ -79,10 +86,6 @@ ldcli flags create --access-token <access-token> --project default --data '{"nam
 ## Documentation
 
 _(coming soon!)_
-
-[//]: # (TODO: add info about how to opt out)
-
-Running `ldcli config --set access-token {your access token}` will create a configuration file located at `$HOME/.ldcli-config.yml` with the access token. Further commands will read from this file so you do not need to specify the access token each time.
 
 ## Contributing
 
@@ -111,3 +114,6 @@ LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply
 
 [docker-badge]: https://img.shields.io/docker/v/launchdarkly/ldcli.svg?style=flat-square&label=Docker
 [docker-link]: https://hub.docker.com/r/launchdarkly/ldcli
+
+[ghrelease-badge]: https://img.shields.io/github/release/launchdarkly/ldcli.svg
+[ghrelease-link]: https://github.com/launchdarkly/ldcli/releases/latest
