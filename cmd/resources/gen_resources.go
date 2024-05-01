@@ -10,20 +10,20 @@ import (
 )
 
 type TemplateData struct {
-	Resources map[string]*ResourceData
+	Resources map[string]ResourceData
 }
 
 type ResourceData struct {
 	Name        string
 	Description string
-	Operations  map[string]*OperationData
+	Operations  map[string]OperationData
 }
 
 type OperationData struct {
 	Short                 string
 	Long                  string
 	Use                   string
-	Params                []*Param
+	Params                []Param
 	HTTPMethod            string
 	RequiresBody          bool
 	Path                  string
@@ -50,20 +50,20 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 		return TemplateData{}, err
 	}
 
-	resources := make(map[string]*ResourceData)
+	resources := make(map[string]ResourceData)
 	for _, r := range spec.Tags {
-		resources[r.Name] = &ResourceData{
+		resources[r.Name] = ResourceData{
 			Name:        r.Name,
 			Description: r.Description,
-			Operations:  make(map[string]*OperationData, 0),
+			Operations:  make(map[string]OperationData, 0),
 		}
 	}
 
 	for path, pathItem := range spec.Paths.Map() {
 		for method, op := range pathItem.Operations() {
 			tag := op.Tags[0] // TODO: confirm each op only has one tag
-			resource := resources[tag]
-			if resource == nil {
+			resource, ok := resources[tag]
+			if !ok {
 				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, tag)
 				continue
 			}
@@ -74,7 +74,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				Short:        op.Summary,
 				Long:         op.Description,
 				Use:          use,
-				Params:       make([]*Param, 0),
+				Params:       make([]Param, 0),
 				HTTPMethod:   method,
 				RequiresBody: method == "PUT" || method == "POST" || method == "PATCH",
 				Path:         path,
@@ -91,11 +91,11 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 						Type:        types[0],
 						Required:    p.Value.Required,
 					}
-					operation.Params = append(operation.Params, &param)
+					operation.Params = append(operation.Params, param)
 				}
 			}
 
-			resource.Operations[op.OperationID] = &operation
+			resource.Operations[op.OperationID] = operation
 		}
 	}
 
@@ -128,7 +128,7 @@ func getCmdUse(method string, op *openapi3.Operation, spec *openapi3.T) string {
 		// probably won't need to keep this logging in but leaving it for debugging purposes
 		log.Printf("No response type defined for %s", op.OperationID)
 	} else {
-		for propName, _ := range schema.Value.Properties {
+		for propName := range schema.Value.Properties {
 			if propName == "items" {
 				use = "list"
 				break
