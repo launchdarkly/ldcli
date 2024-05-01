@@ -15,8 +15,8 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		rootCmd,
 		analyticsTracker,
 		"teams",
-		"A team is a group of members in your LaunchDarkly account.",
-		"A team can have maintainers who are able to add and remove team members. It also can have custom roles assigned to it that allows shared access to those roles for all team members. To learn more, read [Teams](https://docs.launchdarkly.com/home/teams).\n\nThe Teams API allows you to create, read, update, and delete a team.\n\nSeveral of the endpoints in the Teams API require one or more member IDs. The member ID is returned as part of the [List account members](/tag/Account-members#operation/getMembers) response. It is the `_id` field of each element in the `items` array.",
+		"Make requests (list, create, etc.) on teams",
+		"A team is a group of members in your LaunchDarkly account. A team can have maintainers who are able to add and remove team members. It also can have custom roles assigned to it that allows shared access to those roles for all team members. To learn more, read [Teams](https://docs.launchdarkly.com/home/teams).\n\nThe Teams API allows you to create, read, update, and delete a team.\n\nSeveral of the endpoints in the Teams API require one or more member IDs. The member ID is returned as part of the [List account members](/tag/Account-members#operation/getMembers) response. It is the `_id` field of each element in the `items` array.",
 	)
 
 	// Operation commands
