@@ -39,25 +39,6 @@ func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker
 	return cmd
 }
 
-type OperationData struct {
-	Short                 string
-	Long                  string
-	Use                   string
-	Params                []Param
-	HTTPMethod            string
-	RequiresBody          bool
-	Path                  string
-	SupportsSemanticPatch bool // TBD on how to actually determine from openapi spec
-}
-
-type Param struct {
-	Name        string
-	In          string
-	Description string
-	Type        string
-	Required    bool
-}
-
 type OperationCmd struct {
 	OperationData
 	client resources.Client
