@@ -5,7 +5,7 @@
 2. Next, install the LaunchDarkly SDK using [CocoaPods](https://cocoapods.org/) by creating a `Podfile` and adding a dependency (you can also install with [Swift Package Manager](https://docs.launchdarkly.com/sdk/client-side/ios?site=launchDarkly#using-the-swift-package-manager), [Carthage](https://docs.launchdarkly.com/sdk/client-side/ios?site=launchDarkly#using-carthage), or [without a package manager](https://docs.launchdarkly.com/sdk/client-side/ios?site=launchDarkly#installing-the-sdk-manually)):
 ```
 target 'hello-swift' do
-pod 'LaunchDarkly', '9.6.2'
+  pod 'LaunchDarkly', '9.6.2'
 end
 ```
 
@@ -24,76 +24,67 @@ import LaunchDarkly
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
-  var window: UIWindow?
+    var window: UIWindow?
 
-  // Declare a variable for your mobile-specific SDK key.
-  private let mobileKey = "myMobileKey"
+    // Set sdkKey to your LaunchDarkly mobile key.
+    private let sdkKey = "myMobileKey"
 
-  func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-    setUpLDClient()
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        setUpLDClient()
 
-    return true
-  }
+        return true
+    }
 
-  // Create a function to initialize the LDClient with your mobile-specific
-  // SDK key, context, and optional configurations.
-  private func setUpLDClient() {
-    var contextBuilder = LDContextBuilder(key: "test@email.com")
-    contextBuilder.trySetValue("firstName", .string("Bob"))
-    contextBuilder.trySetValue("lastName", .string("Loblaw"))
-    contextBuilder.trySetValue("groups", .array([.string("beta_testers")]))
+    private func setUpLDClient() {
+        // Set up the evaluation context. This context should appear on your
+        // LaunchDarkly contexts dashboard soon after you run the demo.
+        var contextBuilder = LDContextBuilder(key: "example-user-key")
+        contextBuilder.kind("user")
+        contextBuilder.name("Sandy")
 
-    guard case .success(let context) = contextBuilder.build()
-    else { return }
+        guard case .success(let context) = contextBuilder.build()
+        else { return }
 
-    var config = LDConfig(mobileKey: mobileKey, autoEnvAttributes: .enabled)
-    config.eventFlushInterval = 30.0
-
-    LDClient.start(config: config, context: context)
-  }
+        let config = LDConfig(mobileKey: sdkKey, autoEnvAttributes: .enabled)
+        LDClient.start(config: config, context: context, startWaitSeconds: 30)
+    }
 }
 ```
 
 5. Open ViewController.swift and add the following code:
 ```swift
 import UIKit
-// Import the LaunchDarkly SDK.
 import LaunchDarkly
 
 class ViewController: UIViewController {
-  // Create a variable for your flag key.
-  fileprivate let featureFlagKey = "my-flag-key"
+fo
+    @IBOutlet weak var featureFlagLabel: UILabel!
 
-  override func viewDidLoad() {
-    super.viewDidLoad()
+    // Set featureFlagKey to the feature flag key you want to evaluate.
+    fileprivate let featureFlagKey = "my-flag-key"
 
-    // Observe the LDClient for any feature flag updates.
-    LDClient.get()?.observe(key: featureFlagKey, owner: self) { [weak self] changedFlag in
-        self?.featureFlagDidUpdate(changedFlag.key)
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        if let ld = LDClient.get() {
+            ld.observe(key: featureFlagKey, owner: self) { [weak self] changedFlag in
+                guard let me = self else { return }
+                guard case .bool(let booleanValue) = changedFlag.newValue else { return }
+
+                me.updateUi(flagKey: changedFlag.key, result: booleanValue)
+            }
+            let result = ld.boolVariation(forKey: featureFlagKey, defaultValue: false)
+            updateUi(flagKey: featureFlagKey, result: result)
+        }
     }
 
-    checkFeatureValue()
-  }
+    func updateUi(flagKey: String, result: Bool) {
+        self.featureFlagLabel.text = "The (flagKey) feature flag evaluates to (result)"
 
-  // Create a function to call LaunchDarkly with the feature flag key you want to evaluate and print its value.
-  fileprivate func checkFeatureValue() {
-    if let featureFlagValue = LDClient.get() {
-      let boolVal = featureFlagValue.boolVariation(forKey: featureFlagKey, defaultValue: false)
-      // Ensure events are sent to LD immediately for fast completion of the Getting Started guide.
-      // This line is not necessary here for production use.
-      LDClient.get()?.flush()
-      print("Feature flag (featureFlagKey) is (boolVal)")
-    } else {
-      print("failed to get flag, (featureFlagKey)")
+        let toggleOn = UIColor(red: 0, green: 0.52, blue: 0.29, alpha: 1)
+        let toggleOff = UIColor(red: 0.22, green: 0.22, blue: 0.25, alpha: 1)
+        self.view.backgroundColor = result ? toggleOn : toggleOff
     }
-  }
-
-  // Create a function to respond to flag updates.
-  func featureFlagDidUpdate(_ key: LDFlagKey) {
-    if key == featureFlagKey {
-        checkFeatureValue()
-    }
-  }
 }
 ```
 
