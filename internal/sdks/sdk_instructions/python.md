@@ -8,54 +8,97 @@ mkdir hello-python && cd hello-python
 2. Next, create a file called `requirements.txt` with the SDK dependency and install it:
 
 ```bash
-echo "launchdarkly-server-sdk==9.3.1" >> requirements.txt && pip install -r requirements.txt
+echo "launchdarkly-server-sdk==9.4.0" >> requirements.txt && pip install -r requirements.txt
 ```
 
 3. Create a file called `test.py` and add the following code:
 
 ```python
-# Import the LaunchDarkly client.
+import os
 import ldclient
 from ldclient import Context
 from ldclient.config import Config
+from threading import Lock, Event
 
-# Create a helper function for rendering messages.
-def show_message(s):
-    print("*** {}".format(s))
+
+# Set sdk_key to your LaunchDarkly SDK key.
+sdk_key = os.getenv("LAUNCHDARKLY_SDK_KEY")
+
+# Set feature_flag_key to the feature flag key you want to evaluate.
+feature_flag_key = "my-flag-key"
+
+
+def show_evaluation_result(key: str, value: bool):
+    print()
+    print(f"*** The {key} feature flag evaluates to {value}")
+
+
+def show_banner():
+    print()
+    print("        ██       ")
+    print("          ██     ")
+    print("      ████████   ")
+    print("         ███████ ")
+    print("██ LAUNCHDARKLY █")
+    print("         ███████ ")
+    print("      ████████   ")
+    print("          ██     ")
+    print("        ██       ")
     print()
 
-# Initialize the ldclient with your environment-specific SDK key.
+
+class FlagValueChangeListener:
+    def __init__(self):
+        self.__show_banner = True
+        self.__lock = Lock()
+
+    def flag_value_change_listener(self, flag_change):
+        with self.__lock:
+            if self.__show_banner and flag_change.new_value:
+                show_banner()
+                self.__show_banner = False
+
+            show_evaluation_result(flag_change.key, flag_change.new_value)
+
+
 if __name__ == "__main__":
-    ldclient.set_config(Config("1234567890abcdef"))
+    if not sdk_key:
+        print("*** Please set the LAUNCHDARKLY_SDK_KEY env first")
+        exit()
+    if not feature_flag_key:
+        print("*** Please set the LAUNCHDARKLY_FLAG_KEY env first")
+        exit()
 
-# The SDK starts up the first time ldclient.get() is called.
-if ldclient.get().is_initialized():
-    show_message("SDK successfully initialized!")
-else:
-    show_message("SDK failed to initialize")
-    exit()
+    ldclient.set_config(Config(sdk_key))
 
-# Set up the evaluation context. This context should appear on your LaunchDarkly contexts
-# dashboard soon after you run the demo.
-context = Context.builder('example-user-key').name('Sandy').build()
+    if not ldclient.get().is_initialized():
+        print("*** SDK failed to initialize. Please check your internet connection and SDK credential for any typo.")
+        exit()
 
-# Call LaunchDarkly with the feature flag key you want to evaluate.
-flag_value = ldclient.get().variation("my-flag-key", context, False)
+    print("*** SDK successfully initialized")
 
-show_message("Feature flag 'my-flag-key' is %%s" %% (flag_value))
+    # Set up the evaluation context. This context should appear on your
+    # LaunchDarkly contexts dashboard soon after you run the demo.
+    context = \
+        Context.builder('example-user-key').kind('user').name('Sandy').build()
 
-# Here we ensure that the SDK shuts down cleanly and has a chance to deliver analytics
-# events to LaunchDarkly before the program exits. If analytics events are not delivered,
-# the user properties and flag usage statistics will not appear on your dashboard. In a
-# normal long-running application, the SDK would continue running and events would be
-# delivered automatically in the background.
-ldclient.get().close()
+    flag_value = ldclient.get().variation(feature_flag_key, context, False)
+    show_evaluation_result(feature_flag_key, flag_value)
+
+    change_listener = FlagValueChangeListener()
+    listener = ldclient.get().flag_tracker \
+        .add_flag_value_change_listener(feature_flag_key, context, change_listener.flag_value_change_listener)
+
+    try:
+        Event().wait()
+    except KeyboardInterrupt:
+        pass
 ```
 
 Now that your application is ready, run the application to see what value we get.
 
 ```shell
-python test.py
+LAUNCHDARKLY_SDK_KEY=YOUR_SDK_KEY python test.py
 ```
 
 You should see:
