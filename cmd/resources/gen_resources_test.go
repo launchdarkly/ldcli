@@ -2,12 +2,14 @@ package resources_test
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"ldcli/cmd/resources"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"ldcli/cmd/resources"
 )
 
 func TestGetTemplateData(t *testing.T) {
