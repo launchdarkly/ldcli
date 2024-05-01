@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -174,10 +175,12 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		fmt.Fprintln(os.Stderr, err.Error())
 	}
 
+	optOutStr := rootCmd.PersistentFlags().Lookup(cliflags.AnalyticsOptOut).Value.String()
+	optOut, _ := strconv.ParseBool(optOutStr)
 	analyticsTracker.SendCommandCompletedEvent(
-		viper.GetString(cliflags.AccessTokenFlag),
-		viper.GetString(cliflags.BaseURIDefault),
-		viper.GetBool(cliflags.AnalyticsOptOut),
+		rootCmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag).Value.String(),
+		rootCmd.PersistentFlags().Lookup(cliflags.BaseURIFlag).Value.String(),
+		optOut,
 		outcome,
 	)
 }
