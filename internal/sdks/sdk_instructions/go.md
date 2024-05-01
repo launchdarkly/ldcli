@@ -40,7 +40,7 @@ func showBanner() {
     "        ██       \n")
 }
 
-func showMessage(s string) { fmt.Printf("*** %s\n\n", s) }
+func showMessage(s string) { fmt.Printf("*** %%s\n\n", s) }
 
 func main() {
   var sdkKey = os.Getenv("LAUNCHDARKLY_SDK_KEY")
