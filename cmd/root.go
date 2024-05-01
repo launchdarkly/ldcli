@@ -3,10 +3,8 @@ package cmd
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,12 +15,14 @@ import (
 	flagscmd "ldcli/cmd/flags"
 	mbrscmd "ldcli/cmd/members"
 	projcmd "ldcli/cmd/projects"
+	resourcecmd "ldcli/cmd/resources"
 	"ldcli/internal/analytics"
 	"ldcli/internal/config"
 	"ldcli/internal/environments"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
 	"ldcli/internal/projects"
+	"ldcli/internal/resources"
 )
 
 type APIClients struct {
@@ -30,7 +30,7 @@ type APIClients struct {
 	FlagsClient        flags.Client
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
-	GenericClient      *http.Client
+	ResourcesClient    resources.Client
 }
 
 func NewRootCommand(
@@ -142,9 +142,9 @@ func NewRootCommand(
 	cmd.AddCommand(flagsCmd)
 	cmd.AddCommand(membersCmd)
 	cmd.AddCommand(projectsCmd)
-	cmd.AddCommand(NewQuickStartCmd(clients.EnvironmentsClient, clients.FlagsClient))
+	cmd.AddCommand(NewQuickStartCmd(analyticsTracker, clients.EnvironmentsClient, clients.FlagsClient))
 
-	addAllResourceCmds(cmd, clients.GenericClient, analyticsTracker)
+	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTracker)
 
 	return cmd, nil
 }
@@ -155,7 +155,7 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		FlagsClient:        flags.NewClient(version),
 		MembersClient:      members.NewClient(version),
 		ProjectsClient:     projects.NewClient(version),
-		GenericClient:      &http.Client{Timeout: time.Second * 3},
+		ResourcesClient:    resources.NewClient(version),
 	}
 	rootCmd, err := NewRootCommand(
 		analyticsTracker,

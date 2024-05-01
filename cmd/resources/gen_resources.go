@@ -20,13 +20,14 @@ type ResourceData struct {
 }
 
 type OperationData struct {
-	Short        string
-	Long         string
-	Use          string
-	Params       []*Param
-	HTTPMethod   string
-	RequiresBody bool
-	Path         string
+	Short                 string
+	Long                  string
+	Use                   string
+	Params                []*Param
+	HTTPMethod            string
+	RequiresBody          bool
+	Path                  string
+	SupportsSemanticPatch bool
 }
 
 type Param struct {

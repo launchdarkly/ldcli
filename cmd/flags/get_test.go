@@ -101,7 +101,7 @@ func TestGet(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
-		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "flag", "project" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token", "environment", "flag", "project" not set`+cmd.ExtraErrorHelp("flags", "get"))
 	})
 
 	t.Run("with invalid base-uri is an error", func(t *testing.T) {

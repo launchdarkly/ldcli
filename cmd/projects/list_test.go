@@ -99,7 +99,7 @@ func TestList(t *testing.T) {
 
 		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
 
-		assert.EqualError(t, err, `required flag(s) "access-token" not set`+errorHelp)
+		assert.EqualError(t, err, `required flag(s) "access-token" not set`+cmd.ExtraErrorHelp("projects", "list"))
 	})
 
 	t.Run("with missing long flag value is an error", func(t *testing.T) {
