@@ -171,8 +171,12 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 	}
 
-	// todo: handle output
-	fmt.Fprintf(cmd.OutOrStdout(), string(res)+"\n")
+	output, err := output.CmdOutput("get", viper.GetString(cliflags.OutputFlag), res)
+	if err != nil {
+		return errors.NewError(err.Error())
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 	return nil
 }
