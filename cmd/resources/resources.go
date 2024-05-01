@@ -112,7 +112,7 @@ func (op *OperationCmd) initFlags() error {
 	return nil
 }
 
-func formatURL(baseURI, path string, urlParams []string) string {
+func buildURLWithParams(baseURI, path string, urlParams []string) string {
 	s := make([]interface{}, len(urlParams))
 	for i, v := range urlParams {
 		s[i] = v
@@ -145,17 +145,17 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		if val != "" {
 			switch p.In {
 			case "path":
-				urlParms = append(urlParms, fmt.Sprintf("%v", val))
+				urlParms = append(urlParms, val)
 			case "query":
 				query.Add(p.Name, val)
 			}
 		}
 	}
 
-	path := formatURL(viper.GetString(cliflags.BaseURIFlag), op.Path, urlParms)
+	path := buildURLWithParams(viper.GetString(cliflags.BaseURIFlag), op.Path, urlParms)
 
 	contentType := "application/json"
-	if op.SupportsSemanticPatch && viper.GetBool("semantic-patch") {
+	if viper.GetBool("semantic-patch") {
 		contentType += "; domain-model=launchdarkly.semanticpatch"
 	}
 
@@ -168,16 +168,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		jsonData,
 	)
 	if err != nil {
-		out, err := output.CmdOutputSingular(
-			viper.GetString(cliflags.OutputFlag),
-			res,
-			output.ErrorPlaintextOutputFn,
-		)
-		if err != nil {
-			return errors.NewError(err.Error())
-		}
-
-		return errors.NewError(out)
+		return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 	}
 
 	// todo: handle output
