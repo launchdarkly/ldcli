@@ -11,41 +11,66 @@ dependencies {
 
 3. Open the file `MainActivity.kt` and add the following code:
 ```java
+package com.launchdarkly.hello_android
+
+import android.os.Bundle
+import android.view.View
+import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import com.launchdarkly.hello_android.MainApplication.Companion.LAUNCHDARKLY_MOBILE_KEY
 import com.launchdarkly.sdk.android.LDClient
 
 class MainActivity : AppCompatActivity() {
 
-  // Set BOOLEAN_FLAG_KEY to the boolean feature flag you want to evaluate.
-  val BOOLEAN_FLAG_KEY = "my-flag-key"
+    // Set BOOLEAN_FLAG_KEY to the feature flag key you want to evaluate.
+    val BOOLEAN_FLAG_KEY = "my-flag-key"
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-      super.onCreate(savedInstanceState)
-      setContentView(R.layout.activity_main)
-      val textView : TextView = findViewById(R.id.textview)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        val textView : TextView = findViewById(R.id.textview)
+        val fullView : View = window.decorView
 
-      val client = LDClient.get()
+        if (LAUNCHDARKLY_MOBILE_KEY == "example-mobile-key") {
+            val builder = AlertDialog.Builder(this)
+            builder.setMessage("LAUNCHDARKLY_MOBILE_KEY was not customized for this application.")
+            builder.create().show()
+        }
 
-      // to get the variation the SDK has cached
-      textView.text = getString(
-          R.string.flag_evaluated,
-          BOOLEAN_FLAG_KEY,
-          client.boolVariation(BOOLEAN_FLAG_KEY, false).toString()
-      )
+        val client = LDClient.get()
+        val flagValue = client.boolVariation(BOOLEAN_FLAG_KEY, false)
 
-      // to register a listener to get updates in real time
-      client.registerFeatureFlagListener(BOOLEAN_FLAG_KEY) {
-          textView.text = getString(
-              R.string.flag_evaluated,
-              BOOLEAN_FLAG_KEY,
-              client.boolVariation(BOOLEAN_FLAG_KEY, false).toString()
-          )
-      }
+        // to get the variation the SDK has cached
+        textView.text = getString(
+            R.string.flag_evaluated,
+            BOOLEAN_FLAG_KEY,
+            flagValue.toString()
+        )
 
-      // This call ensures all evaluation events show up immediately for this demo. Otherwise, the
-      // SDK sends them at some point in the future. You don't need to call this in production,
-      // because the SDK handles them automatically at an interval. The interval is customizable.
-      client.flush()
-  }
+        // Style the display
+        textView.setTextColor(resources.getColor(R.color.colorText))
+        if(flagValue) {
+            fullView.setBackgroundColor(resources.getColor(R.color.colorBackgroundTrue))
+        } else {
+            fullView.setBackgroundColor(resources.getColor(R.color.colorBackgroundFalse))
+        }
+
+        // to register a listener to get updates in real time
+        client.registerFeatureFlagListener(BOOLEAN_FLAG_KEY) {
+            val changedFlagValue = client.boolVariation(BOOLEAN_FLAG_KEY, false)
+            textView.text = getString(
+                R.string.flag_evaluated,
+                BOOLEAN_FLAG_KEY,
+                changedFlagValue.toString()
+            )
+            if(changedFlagValue) {
+                fullView.setBackgroundColor(resources.getColor(R.color.colorBackgroundTrue))
+            } else {
+                fullView.setBackgroundColor(resources.getColor(R.color.colorBackgroundFalse))
+            }
+        }
+    }
 }
 ```
 
@@ -60,47 +85,54 @@ class MainActivity : AppCompatActivity() {
 
 5. Create `MainApplication.kt` and add the following code:
 ```java
+package com.launchdarkly.hello_android
+
+import android.app.Application
 import com.launchdarkly.sdk.ContextKind
 import com.launchdarkly.sdk.LDContext
 import com.launchdarkly.sdk.android.LDClient
 import com.launchdarkly.sdk.android.LDConfig
+import com.launchdarkly.sdk.android.LDConfig.Builder.AutoEnvAttributes
 
 class MainApplication : Application() {
 
-  companion object {
+    companion object {
 
-      // Set LAUNCHDARKLY_MOBILE_KEY to your LaunchDarkly SDK mobile key.
-      const val LAUNCHDARKLY_MOBILE_KEY = "myMobileKey"
-  }
+        // Set LAUNCHDARKLY_MOBILE_KEY to your LaunchDarkly SDK mobile key.
+        const val LAUNCHDARKLY_MOBILE_KEY = "myMobileKey"
+    }
 
-  override fun onCreate() {
-      super.onCreate()
+    override fun onCreate() {
+        super.onCreate()
 
-      val ldConfig = LDConfig.Builder(AutoEnvAttributes.Enabled)
-          .mobileKey(LAUNCHDARKLY_MOBILE_KEY)
-          .build()
+        // Set LAUNCHDARKLY_MOBILE_KEY to your LaunchDarkly mobile key found on the LaunchDarkly
+        // dashboard in the start guide.
+        // If you want to disable the Auto EnvironmentAttributes functionality.
+        // Use AutoEnvAttributes.Disabled as the argument to the Builder
+        val ldConfig = LDConfig.Builder(AutoEnvAttributes.Enabled)
+            .mobileKey(LAUNCHDARKLY_MOBILE_KEY)
+            .build()
 
-      // Set up the context properties. This context should appear on your LaunchDarkly contexts
-      // list soon after you run the demo.
-      val context = if (isUserLoggedIn()) {
-          LDContext.builder(ContextKind.DEFAULT, getUserKey())
-              .name(getUserName())
-              .build()
-      } else {
-          LDContext.builder(ContextKind.DEFAULT, "example-user-key")
-              .anonymous(true)
-              .build()
-      }
+        // Set up the context properties. This context should appear on your LaunchDarkly context
+        // dashboard soon after you run the demo.
+        val context = if (isUserLoggedIn()) {
+            LDContext.builder(ContextKind.DEFAULT, getUserKey())
+                .name(getUserName())
+                .build()
+        } else {
+            LDContext.builder(ContextKind.DEFAULT, "example-user-key")
+                .anonymous(true)
+                .build()
+        }
 
-      LDClient.init(this@MainApplication, ldConfig, context)
-  }
+        LDClient.init(this@MainApplication, ldConfig, context)
+    }
 
-  private fun isUserLoggedIn(): Boolean = false
+    private fun isUserLoggedIn(): Boolean = false
 
-  private fun getUserKey(): String = "user-key-123abc"
+    private fun getUserKey(): String = "example-user-key"
 
-  private fun getUserName(): String = "Sandy"
-
+    private fun getUserName(): String = "Sandy"
 }
 ```
 
