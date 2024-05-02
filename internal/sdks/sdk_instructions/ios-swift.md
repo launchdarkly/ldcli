@@ -57,7 +57,7 @@ import UIKit
 import LaunchDarkly
 
 class ViewController: UIViewController {
-fo
+
     @IBOutlet weak var featureFlagLabel: UILabel!
 
     // Set featureFlagKey to the feature flag key you want to evaluate.
