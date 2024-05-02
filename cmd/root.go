@@ -1,3 +1,5 @@
+//go:generate go run resources/gen_resources.go
+
 package cmd
 
 import (
