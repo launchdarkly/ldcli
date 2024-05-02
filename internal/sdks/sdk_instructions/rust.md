@@ -9,7 +9,7 @@ cargo new hello-rust && cd hello-rust
 cargo add launchdarkly-server-sdk
 ```
 
-3. Next, add `tokio` as another dependency alongside the side.
+3. Next, add `tokio` as another dependency alongside the SDK.
 ```shell
 cargo add tokio@1 -F rt,macros
 ```
