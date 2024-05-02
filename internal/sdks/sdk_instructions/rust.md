@@ -9,57 +9,92 @@ cargo new hello-rust && cd hello-rust
 cargo add launchdarkly-server-sdk
 ```
 
-3. Next, open `Cargo.toml` and add the following right below `[dependencies]`.
-```toml
-tokio = { version = "1", features = ["rt", "macros"] }
+3. Next, add `tokio` as another dependency alongside the side.
+```shell
+cargo add tokio@1 -F rt,macros
 ```
 
 4. Open the file `src/main.rs` and replace the existing code with the following code:
 ```rust
+use std::{thread, time};
+
 use launchdarkly_server_sdk::{Client, ConfigBuilder, ContextBuilder};
+
+fn show_evaluation_result(feature_flag_key: &str, result: bool) {
+    println!(
+        "*** The {} feature flag evaluates to {}",
+        feature_flag_key,
+        result,
+    );
+}
+
+fn print_banner() {
+    println!("                 ");
+    println!("        ██       ");
+    println!("          ██     ");
+    println!("      ████████   ");
+    println!("         ███████ ");
+    println!("██ LAUNCHDARKLY █");
+    println!("         ███████ ");
+    println!("      ████████   ");
+    println!("          ██     ");
+    println!("        ██       ");
+    println!("                 ");
+}
 
 #[tokio::main]
 async fn main() {
-    let sdk_key = "1234567890abcdef";
+    // Set sdk_key to your LaunchDarkly SDK key.
+    let sdk_key = std::env::var("LAUNCHDARKLY_SDK_KEY")
+        .expect("LAUNCHDARKLY_SDK_KEY env should be set");
+    // Set feature_flag_key to the feature flag key you want to evaluate.
     let feature_flag_key = "my-flag-key";
 
     let config = ConfigBuilder::new(&sdk_key)
         .build()
         .expect("Config failed to build");
-    let client = Client::build(config).expect("Client failed to build");
-
-    // Starts the client using the currently active runtime.
-    client.start_with_default_executor();
+        let client = Client::build(config).expect("Client failed to build");
+        // Starts the client using the currently active runtime.
+        client.start_with_default_executor();
 
     // Wait to ensure the client has fully initialized.
     if !client.initialized_async().await {
-        panic!("SDK failed to initialize");
+        panic!("*** SDK failed to initialize. Please check your internet connection and SDK credential for any typo.");
     }
 
-    // Set up the context properties. This context should appear on your LaunchDarkly contexts dashboard
-    // soon after you run the demo.
+    println!("*** SDK successfully initialized.");
+
+    // Set up the evaluation context. This context should appear on your LaunchDarkly contexts dashboard soon after you run the demo.
     let context = ContextBuilder::new("example-user-key")
+        .kind("user")
+        .name("Sandy")
         .build()
         .expect("Context failed to build");
 
-    let result = client.bool_variation(&context, &feature_flag_key, false);
-    println!(
-        "Feature flag '{}' is {}",
-        feature_flag_key, result
-    );
+    let mut show_banner = true;
+    let mut last_value = None;
 
-    // Here we ensure that the SDK shuts down cleanly and has a chance to deliver analytics events
-    // to LaunchDarkly before the program exits. If analytics events are not delivered, the context
-    // properties and flag usage statistics will not appear on your dashboard. In a normal
-    // long-running application, the SDK would continue running and events would be delivered
-    // automatically in the background.
-    client.close();
+    loop {
+        let result = client.bool_variation(&context, &feature_flag_key, false);
+
+        if Some(result) != last_value {
+            show_evaluation_result(&feature_flag_key, result);
+        }
+
+        if show_banner && result {
+            print_banner();
+            show_banner = false;
+        }
+
+        last_value = Some(result);
+        thread::sleep(time::Duration::from_secs(1));
+    }
 }
 ```
 
 Now that your application is ready, run the application to see what value we get.
 ```shell
-cargo run
+LAUNCHDARKLY_SDK_KEY=YOUR_SDK_KEY cargo run
 ```
 
 You should see:
