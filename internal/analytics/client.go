@@ -49,6 +49,7 @@ type Tracker interface {
 type Client struct {
 	ID           string
 	HTTPClient   *http.Client
+	Version      string
 	sentRunEvent bool
 	wg           sync.WaitGroup
 }
@@ -90,7 +91,7 @@ func (c *Client) sendEvent(
 
 	req.Header.Add("Authorization", accessToken)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("User-Agent", "launchdarkly-cli/v0.1.1")
+	req.Header.Add("User-Agent", fmt.Sprintf("launchdarkly-cli/%s", c.Version))
 	var resp *http.Response
 	go func() {
 		resp, err = c.HTTPClient.Do(req)
