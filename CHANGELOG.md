@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.0](https://github.com/launchdarkly/ldcli/compare/v0.9.0...v0.10.0) (2024-05-02)
+
+
+### Features
+
+* generate teams operation data from openapi spec ([#226](https://github.com/launchdarkly/ldcli/issues/226)) ([e96fb54](https://github.com/launchdarkly/ldcli/commit/e96fb54fef91a08df3e6b3d3cf690fcf15c0dd94))
+* generic api request function ([#218](https://github.com/launchdarkly/ldcli/issues/218)) ([0141d07](https://github.com/launchdarkly/ldcli/commit/0141d07c02bfdf60b8ee5bad2f5981348180242d))
+* update sdk instructions ([#230](https://github.com/launchdarkly/ldcli/issues/230)) ([2909424](https://github.com/launchdarkly/ldcli/commit/29094241577240f7899391807cd8ab5bd2e531b2))
+
 ## [0.9.0](https://github.com/launchdarkly/ldcli/compare/v0.8.1...v0.9.0) (2024-04-30)
 
 
