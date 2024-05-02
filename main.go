@@ -19,7 +19,11 @@ func main() {
 	httpClient := &http.Client{
 		Timeout: time.Second * 3,
 	}
-	analyticsClient := &analytics.Client{HTTPClient: httpClient, ID: uuid.New().String()}
+	analyticsClient := &analytics.Client{
+		HTTPClient: httpClient,
+		ID:         uuid.New().String(),
+		Version:    version,
+	}
 	cmd.Execute(analyticsClient, version)
 	analyticsClient.Wait()
 }
