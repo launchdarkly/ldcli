@@ -33,9 +33,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
                     Type:        "{{ $param.Type }}",
                 }, {{ end }}
             },
-            HTTPMethod:   "{{ $opData.HTTPMethod }}",
-            RequiresBody: {{ $opData.RequiresBody }},
-            Path:         "{{ $opData.Path }}",
+            HTTPMethod:            "{{ $opData.HTTPMethod }}",
+            RequiresBody:          {{ $opData.RequiresBody }},
+            Path:                  "{{ $opData.Path }}",
+            SupportsSemanticPatch: {{ $opData.SupportsSemanticPatch }},
         })
 
 	{{ end }}{{ end }}

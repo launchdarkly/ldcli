@@ -32,9 +32,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 				Type:        "string",
 			},
 		},
-		HTTPMethod:   "DELETE",
-		RequiresBody: false,
-		Path:         "/api/v2/teams/{teamKey}",
+		HTTPMethod:            "DELETE",
+		RequiresBody:          false,
+		Path:                  "/api/v2/teams/{teamKey}",
+		SupportsSemanticPatch: false,
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
@@ -55,9 +56,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 				Type:        "string",
 			},
 		},
-		HTTPMethod:   "GET",
-		RequiresBody: false,
-		Path:         "/api/v2/teams/{teamKey}",
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/teams/{teamKey}",
+		SupportsSemanticPatch: false,
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
@@ -84,9 +86,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 				Type:        "integer",
 			},
 		},
-		HTTPMethod:   "GET",
-		RequiresBody: false,
-		Path:         "/api/v2/teams/{teamKey}/maintainers",
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/teams/{teamKey}/maintainers",
+		SupportsSemanticPatch: false,
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
@@ -113,9 +116,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 				Type:        "integer",
 			},
 		},
-		HTTPMethod:   "GET",
-		RequiresBody: false,
-		Path:         "/api/v2/teams/{teamKey}/roles",
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/teams/{teamKey}/roles",
+		SupportsSemanticPatch: false,
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
@@ -148,9 +152,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 				Type:        "string",
 			},
 		},
-		HTTPMethod:   "GET",
-		RequiresBody: false,
-		Path:         "/api/v2/teams",
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/teams",
+		SupportsSemanticPatch: false,
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
@@ -171,9 +176,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 				Type:        "string",
 			},
 		},
-		HTTPMethod:   "PATCH",
-		RequiresBody: true,
-		Path:         "/api/v2/teams/{teamKey}",
+		HTTPMethod:            "PATCH",
+		RequiresBody:          true,
+		Path:                  "/api/v2/teams/{teamKey}",
+		SupportsSemanticPatch: true,
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
@@ -188,9 +194,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 				Type:        "string",
 			},
 		},
-		HTTPMethod:   "POST",
-		RequiresBody: true,
-		Path:         "/api/v2/teams",
+		HTTPMethod:            "POST",
+		RequiresBody:          true,
+		Path:                  "/api/v2/teams",
+		SupportsSemanticPatch: false,
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
@@ -205,9 +212,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 				Type:        "string",
 			},
 		},
-		HTTPMethod:   "POST",
-		RequiresBody: true,
-		Path:         "/api/v2/teams/{teamKey}/members",
+		HTTPMethod:            "POST",
+		RequiresBody:          true,
+		Path:                  "/api/v2/teams/{teamKey}/members",
+		SupportsSemanticPatch: false,
 	})
 
 }

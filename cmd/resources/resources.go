@@ -99,14 +99,20 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 
 			use := getCmdUse(method, op, spec)
 
+			var supportsSemanticPatch bool
+			if strings.Contains(op.Description, "semantic patch") {
+				supportsSemanticPatch = true
+			}
+
 			operation := OperationData{
-				Short:        jsonString(op.Summary),
-				Long:         jsonString(op.Description),
-				Use:          use,
-				Params:       make([]Param, 0),
-				HTTPMethod:   method,
-				RequiresBody: method == "PUT" || method == "POST" || method == "PATCH",
-				Path:         path,
+				Short:                 jsonString(op.Summary),
+				Long:                  jsonString(op.Description),
+				Use:                   use,
+				Params:                make([]Param, 0),
+				HTTPMethod:            method,
+				RequiresBody:          method == "PUT" || method == "POST" || method == "PATCH",
+				Path:                  path,
+				SupportsSemanticPatch: supportsSemanticPatch,
 			}
 
 			for _, p := range op.Parameters {
