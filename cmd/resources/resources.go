@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/iancoleman/strcase"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -29,6 +29,7 @@ type TemplateData struct {
 
 type ResourceData struct {
 	Name        string
+	DisplayName string
 	Description string
 	Operations  map[string]OperationData
 }
@@ -52,6 +53,11 @@ type Param struct {
 	Required    bool
 }
 
+func jsonString(s string) string {
+	bs, _ := json.Marshal(s)
+	return string(bs)
+}
+
 func GetTemplateData(fileName string) (TemplateData, error) {
 	rawFile, err := os.ReadFile(fileName)
 	if err != nil {
@@ -66,16 +72,25 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 
 	resources := make(map[string]ResourceData)
 	for _, r := range spec.Tags {
-		resources[r.Name] = ResourceData{
-			Name:        r.Name,
-			Description: r.Description,
+		if strings.Contains(r.Name, "(beta)") {
+			// skip beta resources for now
+			continue
+		}
+		resources[strcase.ToCamel(r.Name)] = ResourceData{
+			DisplayName: strings.ToLower(r.Name),
+			Name:        strcase.ToKebab(strings.ToLower(r.Name)),
+			Description: jsonString(r.Description),
 			Operations:  make(map[string]OperationData, 0),
 		}
 	}
 
 	for path, pathItem := range spec.Paths.Map() {
 		for method, op := range pathItem.Operations() {
-			tag := op.Tags[0] // TODO: confirm each op only has one tag
+			tag := op.Tags[0] // each op only has one tag
+			if strings.Contains(tag, "(beta)") {
+				// skip beta resources for now
+				continue
+			}
 			resource, ok := resources[tag]
 			if !ok {
 				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, tag)
@@ -84,14 +99,20 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 
 			use := getCmdUse(method, op, spec)
 
+			var supportsSemanticPatch bool
+			if strings.Contains(op.Description, "semantic patch") {
+				supportsSemanticPatch = true
+			}
+
 			operation := OperationData{
-				Short:        op.Summary,
-				Long:         op.Description,
-				Use:          use,
-				Params:       make([]Param, 0),
-				HTTPMethod:   method,
-				RequiresBody: method == "PUT" || method == "POST" || method == "PATCH",
-				Path:         path,
+				Short:                 jsonString(op.Summary),
+				Long:                  jsonString(op.Description),
+				Use:                   use,
+				Params:                make([]Param, 0),
+				HTTPMethod:            method,
+				RequiresBody:          method == "PUT" || method == "POST" || method == "PATCH",
+				Path:                  path,
+				SupportsSemanticPatch: supportsSemanticPatch,
 			}
 
 			for _, p := range op.Parameters {
@@ -99,9 +120,9 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 					// TODO: confirm if we only have one type per param b/c somehow this is a slice
 					types := *p.Value.Schema.Value.Type
 					param := Param{
-						Name:        p.Value.Name,
+						Name:        strcase.ToKebab(p.Value.Name),
 						In:          p.Value.In,
-						Description: p.Value.Description,
+						Description: jsonString(p.Value.Description),
 						Type:        types[0],
 						Required:    p.Value.Required,
 					}
@@ -117,39 +138,42 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 }
 
 func getCmdUse(method string, op *openapi3.Operation, spec *openapi3.T) string {
-	methodMap := map[string]string{
-		"GET":    "get",
-		"POST":   "create",
-		"PUT":    "replace", // TODO: confirm this
-		"DELETE": "delete",
-		"PATCH":  "update",
-	}
+	return strcase.ToKebab(op.OperationID)
 
-	use := methodMap[method]
-
-	var schema *openapi3.SchemaRef
-	for respType, respInfo := range op.Responses.Map() {
-		respCode, _ := strconv.Atoi(respType)
-		if respCode < 300 {
-			for _, s := range respInfo.Value.Content {
-				schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
-				schema = spec.Components.Schemas[schemaName]
-			}
-		}
-	}
-
-	if schema == nil {
-		// probably won't need to keep this logging in but leaving it for debugging purposes
-		log.Printf("No response type defined for %s", op.OperationID)
-	} else {
-		for propName := range schema.Value.Properties {
-			if propName == "items" {
-				use = "list"
-				break
-			}
-		}
-	}
-	return use
+	// TODO: work with operation ID & response type to stripe out resource name and update post -> create, get -> list, etc.
+	//methodMap := map[string]string{
+	//	"GET":    "get",
+	//	"POST":   "create",
+	//	"PUT":    "replace", // TODO: confirm this
+	//	"DELETE": "delete",
+	//	"PATCH":  "update",
+	//}
+	//
+	//use := methodMap[method]
+	//
+	//var schema *openapi3.SchemaRef
+	//for respType, respInfo := range op.Responses.Map() {
+	//	respCode, _ := strconv.Atoi(respType)
+	//	if respCode < 300 {
+	//		for _, s := range respInfo.Value.Content {
+	//			schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
+	//			schema = spec.Components.Schemas[schemaName]
+	//		}
+	//	}
+	//}
+	//
+	//if schema == nil {
+	//	// probably won't need to keep this logging in but leaving it for debugging purposes
+	//	log.Printf("No response type defined for %s", op.OperationID)
+	//} else {
+	//	for propName := range schema.Value.Properties {
+	//		if propName == "items" {
+	//			use = "list"
+	//			break
+	//		}
+	//	}
+	//}
+	//return use
 }
 
 func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
@@ -200,25 +224,18 @@ func (op *OperationCmd) initFlags() error {
 	}
 
 	for _, p := range op.Params {
-		shorthand := fmt.Sprintf(p.Name[0:1]) // todo: how do we handle potential dupes
-		// TODO: consider handling these all as strings
-		switch p.Type {
-		case "string":
-			op.cmd.Flags().StringP(p.Name, shorthand, "", p.Description)
-		case "int":
-			op.cmd.Flags().IntP(p.Name, shorthand, 0, p.Description)
-		case "boolean":
-			op.cmd.Flags().BoolP(p.Name, shorthand, false, p.Description)
-		}
+		flagName := strcase.ToKebab(p.Name)
 
-		if p.In == "path" {
-			err := op.cmd.MarkFlagRequired(p.Name)
+		op.cmd.Flags().String(flagName, "", p.Description)
+
+		if p.In == "path" || p.Required {
+			err := op.cmd.MarkFlagRequired(flagName)
 			if err != nil {
 				return err
 			}
 		}
 
-		err := viper.BindPFlag(p.Name, op.cmd.Flags().Lookup(p.Name))
+		err := viper.BindPFlag(flagName, op.cmd.Flags().Lookup(flagName))
 		if err != nil {
 			return err
 		}

@@ -14,7 +14,7 @@ func TestCreateTeam(t *testing.T) {
 	t.Run("help shows postTeam description", func(t *testing.T) {
 		args := []string{
 			"teams",
-			"create",
+			"post-team", // temporary command name
 			"--help",
 		}
 
@@ -27,7 +27,7 @@ func TestCreateTeam(t *testing.T) {
 		t.Skip("TODO: add back when mock client is added")
 		args := []string{
 			"teams",
-			"create",
+			"post-team", // temporary command name
 			"--access-token",
 			"abcd1234",
 			"--data",
