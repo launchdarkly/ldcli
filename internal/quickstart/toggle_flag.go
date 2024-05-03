@@ -2,6 +2,7 @@ package quickstart
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -12,6 +13,8 @@ import (
 	"ldcli/internal/errors"
 	"ldcli/internal/flags"
 )
+
+const debounceDuration = time.Second
 
 type toggleFlagModel struct {
 	accessToken    string
@@ -26,6 +29,14 @@ type toggleFlagModel struct {
 	helpKeys       keyMap
 	sdkKind        string
 	spinner        spinner.Model
+
+	// Debouncing fields to control how quickly a user can press (or hold) tab to toggle the flag.
+	// We publish a message based on the debounceDuration that increments a counter to control when we
+	// disable the toggle. We also keep track of how many times we've published a command to toggle the
+	// flag within the debounceDuration timeframe, resetting it once we've stopped debouncing.
+	debouncing         bool
+	debounceCount      int
+	resetDebounceCount int
 }
 
 func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
@@ -67,14 +78,34 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.flagWasFetched {
 				return m, nil
 			}
+			if m.debouncing || m.resetDebounceCount > 1 {
+				// don't toggle the flag if we're currently debouncing the user
+				return m, debounceFlagToggle(m.debounceCount)
+			}
+
 			m.flagWasEnabled = true
 			m.enabled = !m.enabled
 			m.err = nil
-			return m, toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled)
+			m.debounceCount += 1
+			cmd = tea.Sequence(
+				toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled),
+				debounceFlagToggle(m.debounceCount),
+			)
 		}
+	case toggledFlagMsg:
+		m.resetDebounceCount += 1
 	case fetchedFlagStatusMsg:
 		m.enabled = msg.enabled
 		m.flagWasFetched = true
+	case flagToggleDebounceMsg:
+		// if the value on the model is not the same as the message, we know there will be
+		// additional messages coming. Once they are equal, we know the throttle time has elapsed.
+		if int(msg) == m.debounceCount {
+			m.debouncing = false
+			m.resetDebounceCount = 0
+		} else {
+			m.debouncing = true
+		}
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
 	case errMsg:

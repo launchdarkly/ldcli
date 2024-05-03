@@ -274,3 +274,11 @@ func trackSetupFlagToggledEvent(tracker analytics.Tracker, accessToken, baseURI 
 		return eventTrackedMsg{}
 	}
 }
+
+type flagToggleDebounceMsg int
+
+func debounceFlagToggle(count int) tea.Cmd {
+	return tea.Tick(debounceDuration, func(_ time.Time) tea.Msg {
+		return flagToggleDebounceMsg(count)
+	})
+}

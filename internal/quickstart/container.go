@@ -2,7 +2,6 @@ package quickstart
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -172,7 +171,11 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fetchedFlagStatusMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
-	case fetchedSDKInstructionsMsg, selectedSDKMsg, spinner.TickMsg, createdFlagMsg:
+	case createdFlagMsg,
+		fetchedSDKInstructionsMsg,
+		flagToggleDebounceMsg,
+		selectedSDKMsg,
+		spinner.TickMsg:
 		m.gettingStarted = false
 		m.currentModel, cmd = m.currentModel.Update(msg)
 		m.err = nil
@@ -197,7 +200,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentStep += 1
 		sendEvent = true
 	default:
-		log.Printf("container default: %T\n", msg)
+		// ignore other messages
 	}
 
 	if sendEvent {
