@@ -12,27 +12,11 @@ import (
 func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyticsTracker analytics.Tracker) {
 	// Resource commands
 
-	gen_AccessTokensResourceCmd := NewResourceCmd(
+	gen_ApprovalRequestsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTracker,
-		"access-tokens",
-		"Make requests (list, create, etc.) on access tokens",
-		"The access tokens API allows you to list, create, modify, and delete access tokens programmatically. \n\nWhen using access tokens to manage access tokens, the following restrictions apply:\n- Personal tokens can see all service tokens and other personal tokens created by the same team member. If the personal token has the \"Admin\" role, it may also see other member's personal tokens. To learn more, read [Personal tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens#personal-tokens).\n- Service tokens can see all service tokens. If the token has the \"Admin\" role, it may also see all personal tokens. To learn more, read  [Service tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens#service-tokens).\n- Tokens can only manage other tokens, including themselves, if they have \"Admin\" role or explicit permission via a custom role. To learn more, read [Personal access token actions](https://docs.launchdarkly.com/home/team/role-actions#personal-access-token-actions).\n\nSeveral of the endpoints in the access tokens API require an access token ID. The access token ID is returned as part of the [Create access token](/tag/Access-tokens#operation/resetToken) and [List access tokens](/tag/Access-tokens#operation/getTokens) responses. It is the `_id` field, or the `_id` field of each element in the `items` array. \n\nTo learn more about access tokens, read [API access tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens).\n",
-	)
-
-	gen_AccountMembersResourceCmd := NewResourceCmd(
-		rootCmd,
-		analyticsTracker,
-		"account-members",
-		"Make requests (list, create, etc.) on account members",
-		"The account members API allows you to invite new members to an account by making a `POST` request to `/api/v2/members`. When you invite a new member to an account, an invitation is sent to the email you provided. Members with \"admin\" or \"owner\" roles may create new members, as well as anyone with a \"createMember\" permission for \"member/\\*\". To learn more, read [LaunchDarkly account members](https://docs.launchdarkly.com/home/members/managing).\n\nAny member may request the complete list of account members with a `GET` to `/api/v2/members`.\n\nValid built-in role names that you can provide for the `role` field include `reader`, `writer`, `admin`, `owner/admin`, and `no_access`. To learn more about built-in roles, read [LaunchDarkly's built-in roles](https://docs.launchdarkly.com/home/members/built-in-roles).\n\nSeveral of the endpoints in the account members API require a member ID. The member ID is returned as part of the [Invite new members](/tag/Account-members#operation/postMembers) and [List account members](/tag/Account-members#operation/getMembers) responses. It is the `_id` field of each element in the `items` array.\n",
-	)
-
-	gen_ApprovalsResourceCmd := NewResourceCmd(
-		rootCmd,
-		analyticsTracker,
-		"approvals",
-		"Make requests (list, create, etc.) on approvals",
+		"approval-requests",
+		"Make requests (list, create, etc.) on approval requests",
 		"You can create an approval request that prevents a flag change from being applied without approval from a team member. Select up to ten members as reviewers. Reviewers receive an email notification, but anyone with sufficient permissions can review a pending approval request. A change needs at least one approval before you can apply it. To learn more, read [Approvals](https://docs.launchdarkly.com/home/feature-workflows/approvals).\n\nChanges that conflict will fail if approved and applied, and the flag will not be updated.\n\nSeveral of the endpoints in the approvals API require a flag approval request ID. The flag approval request ID is returned as part of the [Create approval request](/tag/Approvals#operation/postApprovalRequest) and [List approval requests for a flag](/tag/Approvals#operation/getApprovalsForFlag) responses. It is the `_id` field, or the `_id` field of each element in the `items` array. If you created the approval request as part of a [workflow](/tag/Workflows), you can also use a workflow ID as the approval request ID. The workflow ID is returned as part of the [Create workflow](/tag/Workflows#operation/postWorkflow) and [Get workflows](/tag/Workflows#operation/getWorkflows) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n",
 	)
 
@@ -44,11 +28,11 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		"The audit log contains a record of all the changes made to any resource in the system. You can filter the audit log by timestamps, or use a custom policy to select which entries to receive.\n\nSeveral of the endpoints in the audit log API require an audit log entry ID. The audit log entry ID is returned as part of the [List audit log entries](/tag/Audit-log#operation/getAuditLogEntries) response. It is the `_id` field of each element in the `items` array.\n\nTo learn more, read [The audit log and history tabs](https://docs.launchdarkly.com/home/code/audit-log-history/).\n",
 	)
 
-	gen_CodeReferencesResourceCmd := NewResourceCmd(
+	gen_CodeRefsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTracker,
-		"code-references",
-		"Make requests (list, create, etc.) on code references",
+		"code-refs",
+		"Make requests (list, create, etc.) on code refs",
 		"\u003e ### Code references is an Enterprise feature\n\u003e\n\u003e Code references is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\n\u003e ### Use ld-find-code-refs\n\u003e\n\u003e LaunchDarkly provides the [ld-find-code-refs utility](https://github.com/launchdarkly/ld-find-code-refs) that creates repository connections, generates code reference data, and creates calls to the code references API. Most customers do not need to call this API directly.\n\nThe code references API provides access to all resources related to each connected repository, and associated feature flag code reference data for all branches. To learn more, read [Code references](https://docs.launchdarkly.com/home/code/code-references).\n",
 	)
 
@@ -124,6 +108,14 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		"Audit log integration subscriptions allow you to send audit log events hooks to one of dozens of external tools. For example, you can send flag change event webhooks to external third party software. To learn more, read [Building your own integrations](https://docs.launchdarkly.com/integrations/building-integrations#building-your-own-integrations).\n\nYou can use the integration subscriptions API to create, delete, and manage your integration audit log subscriptions.\n\nEach of these operations requires an `integrationKey` that refers to the type of integration. The required `config` fields to create a subscription vary depending on the `integrationKey`. You can find a full list of the fields for each integration below.\n\nSeveral of these operations require a subscription ID. The subscription ID is returned as part of the [Create audit log subscription](/tag/Integration-audit-log-subscriptions#operation/createSubscription) and [Get audit log subscriptions by integration](/tag/Integration-audit-log-subscriptions#operation/getSubscriptions) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n\n### Configuration bodies by integrationKey\n\n#### datadog\n\n`apiKey` is a sensitive value.\n\n`hostURL` must evaluate to either `\"https://api.datadoghq.com\"` or `\"https://api.datadoghq.eu\"` and will default to the former if not explicitly defined.\n\n```\n\"config\": {\n    \"apiKey\": \u003cstring, optional\u003e, # sensitive value\n    \"hostURL\": \u003cstring, optional\u003e\n}\n```\n\n#### dynatrace\n\n`apiToken` is a sensitive value.\n\n`entity` must evaluate to one of the following fields and will default to `\"APPLICATION\"` if not explicitly defined:\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand list of fields\u003c/summary\u003e\n\u003cbr\u003e\n\"APPLICATION\"\u003cbr\u003e\n\"APPLICATION_METHOD\"\u003cbr\u003e\n\"APPLICATION_METHOD_GROUP\"\u003cbr\u003e\n\"AUTO_SCALING_GROUP\"\u003cbr\u003e\n\"AUXILIARY_SYNTHETIC_TEST\"\u003cbr\u003e\n\"AWS_APPLICATION_LOAD_BALANCER\"\u003cbr\u003e\n\"AWS_AVAILABILITY_ZONE\"\u003cbr\u003e\n\"AWS_CREDENTIALS\"\u003cbr\u003e\n\"AWS_LAMBDA_FUNCTION\"\u003cbr\u003e\n\"AWS_NETWORK_LOAD_BALANCER\"\u003cbr\u003e\n\"AZURE_API_MANAGEMENT_SERVICE\"\u003cbr\u003e\n\"AZURE_APPLICATION_GATEWAY\"\u003cbr\u003e\n\"AZURE_COSMOS_DB\"\u003cbr\u003e\n\"AZURE_CREDENTIALS\"\u003cbr\u003e\n\"AZURE_EVENT_HUB\"\u003cbr\u003e\n\"AZURE_EVENT_HUB_NAMESPACE\"\u003cbr\u003e\n\"AZURE_FUNCTION_APP\"\u003cbr\u003e\n\"AZURE_IOT_HUB\"\u003cbr\u003e\n\"AZURE_LOAD_BALANCER\"\u003cbr\u003e\n\"AZURE_MGMT_GROUP\"\u003cbr\u003e\n\"AZURE_REDIS_CACHE\"\u003cbr\u003e\n\"AZURE_REGION\"\u003cbr\u003e\n\"AZURE_SERVICE_BUS_NAMESPACE\"\u003cbr\u003e\n\"AZURE_SERVICE_BUS_QUEUE\"\u003cbr\u003e\n\"AZURE_SERVICE_BUS_TOPIC\"\u003cbr\u003e\n\"AZURE_SQL_DATABASE\"\u003cbr\u003e\n\"AZURE_SQL_ELASTIC_POOL\"\u003cbr\u003e\n\"AZURE_SQL_SERVER\"\u003cbr\u003e\n\"AZURE_STORAGE_ACCOUNT\"\u003cbr\u003e\n\"AZURE_SUBSCRIPTION\"\u003cbr\u003e\n\"AZURE_TENANT\"\u003cbr\u003e\n\"AZURE_VM\"\u003cbr\u003e\n\"AZURE_VM_SCALE_SET\"\u003cbr\u003e\n\"AZURE_WEB_APP\"\u003cbr\u003e\n\"CF_APPLICATION\"\u003cbr\u003e\n\"CF_FOUNDATION\"\u003cbr\u003e\n\"CINDER_VOLUME\"\u003cbr\u003e\n\"CLOUD_APPLICATION\"\u003cbr\u003e\n\"CLOUD_APPLICATION_INSTANCE\"\u003cbr\u003e\n\"CLOUD_APPLICATION_NAMESPACE\"\u003cbr\u003e\n\"CONTAINER_GROUP\"\u003cbr\u003e\n\"CONTAINER_GROUP_INSTANCE\"\u003cbr\u003e\n\"CUSTOM_APPLICATION\"\u003cbr\u003e\n\"CUSTOM_DEVICE\"\u003cbr\u003e\n\"CUSTOM_DEVICE_GROUP\"\u003cbr\u003e\n\"DCRUM_APPLICATION\"\u003cbr\u003e\n\"DCRUM_SERVICE\"\u003cbr\u003e\n\"DCRUM_SERVICE_INSTANCE\"\u003cbr\u003e\n\"DEVICE_APPLICATION_METHOD\"\u003cbr\u003e\n\"DISK\"\u003cbr\u003e\n\"DOCKER_CONTAINER_GROUP_INSTANCE\"\u003cbr\u003e\n\"DYNAMO_DB_TABLE\"\u003cbr\u003e\n\"EBS_VOLUME\"\u003cbr\u003e\n\"EC2_INSTANCE\"\u003cbr\u003e\n\"ELASTIC_LOAD_BALANCER\"\u003cbr\u003e\n\"ENVIRONMENT\"\u003cbr\u003e\n\"EXTERNAL_SYNTHETIC_TEST_STEP\"\u003cbr\u003e\n\"GCP_ZONE\"\u003cbr\u003e\n\"GEOLOCATION\"\u003cbr\u003e\n\"GEOLOC_SITE\"\u003cbr\u003e\n\"GOOGLE_COMPUTE_ENGINE\"\u003cbr\u003e\n\"HOST\"\u003cbr\u003e\n\"HOST_GROUP\"\u003cbr\u003e\n\"HTTP_CHECK\"\u003cbr\u003e\n\"HTTP_CHECK_STEP\"\u003cbr\u003e\n\"HYPERVISOR\"\u003cbr\u003e\n\"KUBERNETES_CLUSTER\"\u003cbr\u003e\n\"KUBERNETES_NODE\"\u003cbr\u003e\n\"MOBILE_APPLICATION\"\u003cbr\u003e\n\"NETWORK_INTERFACE\"\u003cbr\u003e\n\"NEUTRON_SUBNET\"\u003cbr\u003e\n\"OPENSTACK_PROJECT\"\u003cbr\u003e\n\"OPENSTACK_REGION\"\u003cbr\u003e\n\"OPENSTACK_VM\"\u003cbr\u003e\n\"OS\"\u003cbr\u003e\n\"PROCESS_GROUP\"\u003cbr\u003e\n\"PROCESS_GROUP_INSTANCE\"\u003cbr\u003e\n\"RELATIONAL_DATABASE_SERVICE\"\u003cbr\u003e\n\"SERVICE\"\u003cbr\u003e\n\"SERVICE_INSTANCE\"\u003cbr\u003e\n\"SERVICE_METHOD\"\u003cbr\u003e\n\"SERVICE_METHOD_GROUP\"\u003cbr\u003e\n\"SWIFT_CONTAINER\"\u003cbr\u003e\n\"SYNTHETIC_LOCATION\"\u003cbr\u003e\n\"SYNTHETIC_TEST\"\u003cbr\u003e\n\"SYNTHETIC_TEST_STEP\"\u003cbr\u003e\n\"VIRTUALMACHINE\"\u003cbr\u003e\n\"VMWARE_DATACENTER\"\n\u003c/details\u003e\n\n```\n\"config\": {\n    \"apiToken\": \u003cstring, required\u003e,\n    \"url\": \u003cstring, required\u003e,\n    \"entity\": \u003cstring, optional\u003e\n}\n```\n\n#### elastic\n\n`token` is a sensitive field.\n\n```\n\"config\": {\n    \"url\": \u003cstring, required\u003e,\n    \"token\": \u003cstring, required\u003e,\n    \"index\": \u003cstring, required\u003e\n}\n```\n\n#### honeycomb\n\n`apiKey` is a sensitive field.\n\n```\n\"config\": {\n    \"datasetName\": \u003cstring, required\u003e,\n    \"apiKey\": \u003cstring, required\u003e\n}\n```\n\n#### logdna\n\n`ingestionKey` is a sensitive field.\n\n```\n\"config\": {\n    \"ingestionKey\": \u003cstring, required\u003e,\n    \"level\": \u003cstring, optional\u003e\n}\n```\n\n#### msteams\n\n```\n\"config\": {\n    \"url\": \u003cstring, required\u003e\n}\n```\n\n#### new-relic-apm\n\n`apiKey` is a sensitive field.\n\n`domain` must evaluate to either `\"api.newrelic.com\"` or `\"api.eu.newrelic.com\"` and will default to the former if not explicitly defined.\n\n```\n\"config\": {\n    \"apiKey\": \u003cstring, required\u003e,\n    \"applicationId\": \u003cstring, required\u003e,\n    \"domain\": \u003cstring, optional\u003e\n}\n```\n\n#### signalfx\n\n`accessToken` is a sensitive field.\n\n```\n\"config\": {\n    \"accessToken\": \u003cstring, required\u003e,\n    \"realm\": \u003cstring, required\u003e\n}\n```\n\n#### splunk\n\n`token` is a sensitive field.\n\n```\n\"config\": {\n    \"base-url\": \u003cstring, required\u003e,\n    \"token\": \u003cstring, required\u003e,\n    \"skip-ca-verificiation\": \u003cboolean, required\u003e\n}\n```\n",
 	)
 
+	gen_MembersResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTracker,
+		"members",
+		"Make requests (list, create, etc.) on members",
+		"The account members API allows you to invite new members to an account by making a `POST` request to `/api/v2/members`. When you invite a new member to an account, an invitation is sent to the email you provided. Members with \"admin\" or \"owner\" roles may create new members, as well as anyone with a \"createMember\" permission for \"member/\\*\". To learn more, read [LaunchDarkly account members](https://docs.launchdarkly.com/home/members/managing).\n\nAny member may request the complete list of account members with a `GET` to `/api/v2/members`.\n\nValid built-in role names that you can provide for the `role` field include `reader`, `writer`, `admin`, `owner/admin`, and `no_access`. To learn more about built-in roles, read [LaunchDarkly's built-in roles](https://docs.launchdarkly.com/home/members/built-in-roles).\n\nSeveral of the endpoints in the account members API require a member ID. The member ID is returned as part of the [Invite new members](/tag/Account-members#operation/postMembers) and [List account members](/tag/Account-members#operation/getMembers) responses. It is the `_id` field of each element in the `items` array.\n",
+	)
+
 	gen_MetricsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTracker,
@@ -196,11 +188,19 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		"\u003e ### Teams is an Enterprise feature\n\u003e\n\u003e Teams is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nA team is a group of members in your LaunchDarkly account. A team can have maintainers who are able to add and remove team members. It also can have custom roles assigned to it that allows shared access to those roles for all team members. To learn more, read [Teams](https://docs.launchdarkly.com/home/teams).\n\nThe Teams API allows you to create, read, update, and delete a team.\n\nSeveral of the endpoints in the Teams API require one or more member IDs. The member ID is returned as part of the [List account members](/tag/Account-members#operation/getMembers) response. It is the `_id` field of each element in the `items` array.\n",
 	)
 
-	gen_UserSettingsResourceCmd := NewResourceCmd(
+	gen_TokensResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTracker,
-		"user-settings",
-		"Make requests (list, create, etc.) on user settings",
+		"tokens",
+		"Make requests (list, create, etc.) on tokens",
+		"The access tokens API allows you to list, create, modify, and delete access tokens programmatically. \n\nWhen using access tokens to manage access tokens, the following restrictions apply:\n- Personal tokens can see all service tokens and other personal tokens created by the same team member. If the personal token has the \"Admin\" role, it may also see other member's personal tokens. To learn more, read [Personal tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens#personal-tokens).\n- Service tokens can see all service tokens. If the token has the \"Admin\" role, it may also see all personal tokens. To learn more, read  [Service tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens#service-tokens).\n- Tokens can only manage other tokens, including themselves, if they have \"Admin\" role or explicit permission via a custom role. To learn more, read [Personal access token actions](https://docs.launchdarkly.com/home/team/role-actions#personal-access-token-actions).\n\nSeveral of the endpoints in the access tokens API require an access token ID. The access token ID is returned as part of the [Create access token](/tag/Access-tokens#operation/resetToken) and [List access tokens](/tag/Access-tokens#operation/getTokens) responses. It is the `_id` field, or the `_id` field of each element in the `items` array. \n\nTo learn more about access tokens, read [API access tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens).\n",
+	)
+
+	gen_UserFlagSettingsResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTracker,
+		"user-flag-settings",
+		"Make requests (list, create, etc.) on user flag settings",
 		"\u003e ### Contexts are now available\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Contexts](/tag/Contexts) instead of the user settings API. To learn more, read [Contexts](https://docs.launchdarkly.com/home/contexts).\n\nLaunchDarkly's user settings API provides a picture of all feature flags and their current values for a specific user. This gives you instant visibility into how a particular user experiences your site or application. To learn more, read [Viewing and managing users](https://docs.launchdarkly.com/home/users/attributes#viewing-and-managing-users).\n\nYou can also use the user settings API to assign a user to a specific variation for any feature flag.\n",
 	)
 
@@ -238,248 +238,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 
 	// Operation commands
 
-	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
-		Short: "Delete access token",
-		Long:  "Delete an access token by ID.",
-		Use:   "delete-token",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The ID of the access token to update",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "DELETE",
-		RequiresBody:          false,
-		Path:                  "/api/v2/tokens/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
-		Short: "Get access token",
-		Long:  "Get a single access token by ID.",
-		Use:   "get-token",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The ID of the access token",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "GET",
-		RequiresBody:          false,
-		Path:                  "/api/v2/tokens/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
-		Short: "List access tokens",
-		Long:  "Fetch a list of all access tokens.",
-		Use:   "get-tokens",
-		Params: []Param{
-			{
-				Name:        "show-all",
-				In:          "query",
-				Description: "If set to true, and the authentication access token has the 'Admin' role, personal access tokens for all members will be retrieved.",
-				Type:        "boolean",
-			},
-			{
-				Name:        "limit",
-				In:          "query",
-				Description: "The number of access tokens to return in the response. Defaults to 25.",
-				Type:        "integer",
-			},
-			{
-				Name:        "offset",
-				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
-				Type:        "integer",
-			},
-		},
-		HTTPMethod:            "GET",
-		RequiresBody:          false,
-		Path:                  "/api/v2/tokens",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
-		Short: "Patch access token",
-		Long:  "Update an access token's settings. Updating an access token uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "patch-token",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The ID of the access token to update",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "PATCH",
-		RequiresBody:          true,
-		Path:                  "/api/v2/tokens/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
-		Short:                 "Create access token",
-		Long:                  "Create a new access token.",
-		Use:                   "post-token",
-		Params:                []Param{},
-		HTTPMethod:            "POST",
-		RequiresBody:          true,
-		Path:                  "/api/v2/tokens",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
-		Short: "Reset access token",
-		Long:  "Reset an access token's secret key with an optional expiry time for the old key.",
-		Use:   "reset-token",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The ID of the access token to update",
-				Type:        "string",
-			},
-			{
-				Name:        "expiry",
-				In:          "query",
-				Description: "An expiration time for the old token key, expressed as a Unix epoch time in milliseconds. By default, the token will expire immediately.",
-				Type:        "integer",
-			},
-		},
-		HTTPMethod:            "POST",
-		RequiresBody:          true,
-		Path:                  "/api/v2/tokens/{id}/reset",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccountMembersResourceCmd, client, OperationData{
-		Short: "Delete account member",
-		Long:  "Delete a single account member by ID. Requests to delete account members will not work if SCIM is enabled for the account.",
-		Use:   "delete-member",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The member ID",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "DELETE",
-		RequiresBody:          false,
-		Path:                  "/api/v2/members/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccountMembersResourceCmd, client, OperationData{
-		Short: "Get account member",
-		Long:  "Get a single account member by member ID.\n\n`me` is a reserved value for the `id` parameter that returns the caller's member information.\n",
-		Use:   "get-member",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The member ID",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "GET",
-		RequiresBody:          false,
-		Path:                  "/api/v2/members/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccountMembersResourceCmd, client, OperationData{
-		Short: "List account members",
-		Long:  "Return a list of account members.\n\nBy default, this returns the first 20 members. Page through this list with the `limit` parameter and by following the `first`, `prev`, `next`, and `last` links in the returned `_links` field. These links are not present if the pages they refer to don't exist. For example, the `first` and `prev` links will be missing from the response on the first page.\n\n### Filtering members\n\nLaunchDarkly supports the following fields for filters:\n\n- `query` is a string that matches against the members' emails and names. It is not case sensitive.\n- `role` is a `|` separated list of roles and custom roles. It filters the list to members who have any of the roles in the list. For the purposes of this filtering, `Owner` counts as `Admin`.\n- `team` is a string that matches against the key of the teams the members belong to. It is not case sensitive.\n- `noteam` is a boolean that filters the list of members who are not on a team if true and members on a team if false.\n- `lastSeen` is a JSON object in one of the following formats:\n  - `{\"never\": true}` - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.\n  - `{\"noData\": true}` - Members that have not been active since LaunchDarkly began recording last seen timestamps.\n  - `{\"before\": 1608672063611}` - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.\n- `accessCheck` is a string that represents a specific action on a specific resource and is in the format `\u003cActionSpecifier\u003e:\u003cResourceSpecifier\u003e`. It filters the list to members who have the ability to perform that action on that resource. Note: `accessCheck` is only supported in API version `20220603` and earlier. To learn more, read [Versioning](https://apidocs.launchdarkly.com/#section/Overview/Versioning).\n  - For example, the filter `accessCheck:createApprovalRequest:proj/default:env/test:flag/alternate-page` matches members with the ability to create an approval request for the `alternate-page` flag in the `test` environment of the `default` project.\n  - Wildcard and tag filters are not supported when filtering for access.\n\nFor example, the filter `query:abc,role:admin|customrole` matches members with the string `abc` in their email or name, ignoring case, who also are either an `Owner` or `Admin` or have the custom role `customrole`.\n\n### Sorting members\n\nLaunchDarkly supports two fields for sorting: `displayName` and `lastSeen`:\n\n- `displayName` sorts by first + last name, using the member's email if no name is set.\n- `lastSeen` sorts by the `_lastSeen` property. LaunchDarkly considers members that have never been seen or have no data the oldest.\n",
-		Use:   "get-members",
-		Params: []Param{
-			{
-				Name:        "limit",
-				In:          "query",
-				Description: "The number of members to return in the response. Defaults to 20.",
-				Type:        "integer",
-			},
-			{
-				Name:        "offset",
-				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
-				Type:        "integer",
-			},
-			{
-				Name:        "filter",
-				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field:value`. Supported fields are explained above.",
-				Type:        "string",
-			},
-			{
-				Name:        "sort",
-				In:          "query",
-				Description: "A comma-separated list of fields to sort by. Fields prefixed by a dash ( - ) sort in descending order.",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "GET",
-		RequiresBody:          false,
-		Path:                  "/api/v2/members",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccountMembersResourceCmd, client, OperationData{
-		Short: "Modify an account member",
-		Long:  "\nUpdate a single account member. Updating a member uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).\n\nTo update fields in the account member object that are arrays, set the `path` to the name of the field and then append `/\u003carray index\u003e`. Use `/0` to add to the beginning of the array. Use `/-` to add to the end of the array. For example, to add a new custom role to a member, use the following request body:\n\n```\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/customRoles/0\",\n      \"value\": \"some-role-id\"\n    }\n  ]\n```\n\nYou can update only an account member's role or custom role using a JSON patch. Members can update their own names and email addresses though the LaunchDarkly UI.\n\nWhen SAML SSO or SCIM is enabled for the account, account members are managed in the Identity Provider (IdP). Requests to update account members will succeed, but the IdP will override the update shortly afterwards.\n",
-		Use:   "patch-member",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The member ID",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "PATCH",
-		RequiresBody:          true,
-		Path:                  "/api/v2/members/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccountMembersResourceCmd, client, OperationData{
-		Short: "Add a member to teams",
-		Long:  "Add one member to one or more teams.",
-		Use:   "post-member-teams",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The member ID",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "POST",
-		RequiresBody:          true,
-		Path:                  "/api/v2/members/{id}/teams",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_AccountMembersResourceCmd, client, OperationData{
-		Short:                 "Invite new members",
-		Long:                  "Invite one or more new members to join an account. Each member is sent an invitation. Members with \"admin\" or \"owner\" roles may create new members, as well as anyone with a \"createMember\" permission for \"member/\\*\". If a member cannot be invited, the entire request is rejected and no members are invited from that request.\n\nEach member _must_ have an `email` field and either a `role` or a `customRoles` field. If any of the fields are not populated correctly, the request is rejected with the reason specified in the \"message\" field of the response.\n\nRequests to create account members will not work if SCIM is enabled for the account.\n\n_No more than 50 members may be created per request._\n\nA request may also fail because of conflicts with existing members. These conflicts are reported using the additional `code` and `invalid_emails` response fields with the following possible values for `code`:\n\n- **email_already_exists_in_account**: A member with this email address already exists in this account.\n- **email_taken_in_different_account**: A member with this email address exists in another account.\n- **duplicate_email**s: This request contains two or more members with the same email address.\n\nA request that fails for one of the above reasons returns an HTTP response code of 400 (Bad Request).\n",
-		Use:                   "post-members",
-		Params:                []Param{},
-		HTTPMethod:            "POST",
-		RequiresBody:          true,
-		Path:                  "/api/v2/members",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Delete approval request",
 		Long:  "Delete an approval request.",
-		Use:   "delete-approval-request",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -494,10 +256,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Delete approval request for a flag",
 		Long:  "Delete an approval request for a feature flag.",
-		Use:   "delete-approval-request-for-flag",
+		Use:   "delete-for-flag",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -530,7 +292,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Get approval request for a flag",
 		Long:  "Get a single approval request for a feature flag.",
 		Use:   "get-approval-for-flag",
@@ -566,10 +328,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Get approval request",
 		Long:  "Get an approval request by approval request ID.\n\n### Expanding approval response\n\nLaunchDarkly supports the `expand` query param to include additional fields in the response, with the following fields:\n\n- `flag` includes the flag the approval request belongs to\n- `project` includes the project the approval request belongs to\n- `environments` includes the environments the approval request relates to\n\nFor example, `expand=project,flag` includes the `project` and `flag` fields in the response.\n",
-		Use:   "get-approval-request",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -590,10 +352,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "List approval requests",
 		Long:  "Get all approval requests.\n\n### Filtering approvals\n\nLaunchDarkly supports the `filter` query param for filtering, with the following fields:\n\n- `notifyMemberIds` filters for only approvals that are assigned to a member in the specified list. For example: `filter=notifyMemberIds anyOf [\"memberId1\", \"memberId2\"]`.\n- `requestorId` filters for only approvals that correspond to the ID of the member who requested the approval. For example: `filter=requestorId equals 457034721476302714390214`.\n- `resourceId` filters for only approvals that correspond to the the specified resource identifier. For example: `filter=resourceId equals proj/my-project:env/my-environment:flag/my-flag`.\n- `reviewStatus` filters for only approvals which correspond to the review status in the specified list. The possible values are `approved`, `declined`, and `pending`. For example: `filter=reviewStatus anyOf [\"pending\", \"approved\"]`.\n- `status` filters for only approvals which correspond to the status in the specified list. The possible values are `pending`, `scheduled`, `failed`, and `completed`. For example: `filter=status anyOf [\"pending\", \"scheduled\"]`.\n\nYou can also apply multiple filters at once. For example, setting `filter=projectKey equals my-project, reviewStatus anyOf [\"pending\",\"approved\"]` matches approval requests which correspond to the `my-project` project key, and a review status of either `pending` or `approved`.\n\n### Expanding approval response\n\nLaunchDarkly supports the `expand` query param to include additional fields in the response, with the following fields:\n\n- `flag` includes the flag the approval request belongs to\n- `project` includes the project the approval request belongs to\n- `environments` includes the environments the approval request relates to\n\nFor example, `expand=project,flag` includes the `project` and `flag` fields in the response.\n",
-		Use:   "get-approval-requests",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "filter",
@@ -626,10 +388,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "List approval requests for a flag",
 		Long:  "Get all approval requests for a feature flag.",
-		Use:   "get-approvals-for-flag",
+		Use:   "list-approvals-for-flag",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -656,10 +418,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short:                 "Create approval request",
 		Long:                  "Create an approval request.\n\nThis endpoint currently supports creating an approval request for a flag across all environments with the following instructions:\n\n- `addVariation`\n- `removeVariation`\n- `updateVariation`\n- `updateDefaultVariation`\n\nFor details on using these instructions, read [Update feature flag](/tag/Feature-flags#operation/patchFeatureFlag).\n\nTo create an approval for a flag specific to an environment, use [Create approval request for a flag](/tag/Approvals#operation/postApprovalRequestForFlag).\n",
-		Use:                   "post-approval-request",
+		Use:                   "create",
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		RequiresBody:          true,
@@ -667,10 +429,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Apply approval request",
 		Long:  "Apply an approval request that has been approved.",
-		Use:   "post-approval-request-apply",
+		Use:   "create-apply",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -685,10 +447,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Apply approval request for a flag",
 		Long:  "Apply an approval request that has been approved.",
-		Use:   "post-approval-request-apply-for-flag",
+		Use:   "create-apply-for-flag",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -721,10 +483,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Create approval request for a flag",
 		Long:  "Create an approval request for a feature flag.",
-		Use:   "post-approval-request-for-flag",
+		Use:   "create-for-flag",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -751,10 +513,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Review approval request",
 		Long:  "Review an approval request by approving or denying changes.",
-		Use:   "post-approval-request-review",
+		Use:   "create-review",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -769,10 +531,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Review approval request for a flag",
 		Long:  "Review an approval request by approving or denying changes.",
-		Use:   "post-approval-request-review-for-flag",
+		Use:   "create-review-for-flag",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -805,10 +567,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_ApprovalsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Create approval request to copy flag configurations across environments",
 		Long:  "Create an approval request to copy a feature flag's configuration across environments.",
-		Use:   "post-flag-copy-config-approval-request",
+		Use:   "create-flag-copy-config",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -838,7 +600,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_AuditLogResourceCmd, client, OperationData{
 		Short: "List audit log entries",
 		Long:  "Get a list of all audit log entries. The query parameters let you restrict the results that return by date ranges, resource specifiers, or a full-text search query.\n\nLaunchDarkly uses a resource specifier syntax to name resources or collections of resources. To learn more, read [Understanding the resource specifier syntax](https://docs.launchdarkly.com/home/members/role-resources#understanding-the-resource-specifier-syntax).\n",
-		Use:   "get-audit-log-entries",
+		Use:   "list-entries",
 		Params: []Param{
 			{
 				Name:        "before",
@@ -880,7 +642,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_AuditLogResourceCmd, client, OperationData{
 		Short: "Get audit log entry",
 		Long:  "Fetch a detailed audit log entry representation. The detailed representation includes several fields that are not present in the summary representation, including:\n\n- `delta`: the JSON patch body that was used in the request to update the entity\n- `previousVersion`: a JSON representation of the previous version of the entity\n- `currentVersion`: a JSON representation of the current version of the entity\n",
-		Use:   "get-audit-log-entry",
+		Use:   "get-entry",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -895,7 +657,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "Delete branches",
 		Long:  "Asynchronously delete a number of branches.",
 		Use:   "delete-branches",
@@ -913,7 +675,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "Delete repository",
 		Long:  "Delete a repository with the specified name.",
 		Use:   "delete-repository",
@@ -931,7 +693,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "Get branch",
 		Long:  "Get a specific branch in a repository.",
 		Use:   "get-branch",
@@ -967,10 +729,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "List branches",
 		Long:  "Get a list of branches.",
-		Use:   "get-branches",
+		Use:   "list-branches",
 		Params: []Param{
 			{
 				Name:        "repo",
@@ -985,10 +747,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "List extinctions",
 		Long:  "Get a list of all extinctions. LaunchDarkly creates an extinction event after you remove all code references to a flag. To learn more, read [Understanding extinction events](https://docs.launchdarkly.com/home/code/code-references#understanding-extinction-events).",
-		Use:   "get-extinctions",
+		Use:   "list-extinctions",
 		Params: []Param{
 			{
 				Name:        "repo-name",
@@ -1033,10 +795,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "List repositories",
 		Long:  "Get a list of connected repositories. Optionally, you can include branch metadata with the `withBranches` query parameter. Embed references for the default branch with `ReferencesForDefaultBranch`. You can also filter the list of code references by project key and flag key.",
-		Use:   "get-repositories",
+		Use:   "list-repositories",
 		Params: []Param{
 			{
 				Name:        "with-branches",
@@ -1069,7 +831,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "Get repository",
 		Long:  "Get a single repository by name.",
 		Use:   "get-repository",
@@ -1087,7 +849,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short:                 "Get links to code reference repositories for each project",
 		Long:                  "Get links for all projects that have code references.",
 		Use:                   "get-root-statistic",
@@ -1098,7 +860,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "Get code references statistics for flags",
 		Long:  "Get statistics about all the code references across repositories for all flags in your project that have code references in the default branch, for example, `main`. Optionally, you can include the `flagKey` query parameter to limit your request to statistics about code references for a single flag. This endpoint returns the number of references to your flag keys in your repositories, as well as a link to each repository.",
 		Use:   "get-statistics",
@@ -1122,10 +884,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "Update repository",
 		Long:  "Update a repository's settings. Updating repository settings uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "patch-repository",
+		Use:   "update-repository",
 		Params: []Param{
 			{
 				Name:        "repo",
@@ -1140,10 +902,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "Create extinction",
 		Long:  "Create a new extinction.",
-		Use:   "post-extinction",
+		Use:   "create-extinction",
 		Params: []Param{
 			{
 				Name:        "repo",
@@ -1164,10 +926,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short:                 "Create repository",
 		Long:                  "Create a repository with the specified name.",
-		Use:                   "post-repository",
+		Use:                   "create-repository",
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		RequiresBody:          true,
@@ -1175,10 +937,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_CodeReferencesResourceCmd, client, OperationData{
+	NewOperationCmd(gen_CodeRefsResourceCmd, client, OperationData{
 		Short: "Upsert branch",
 		Long:  "Create a new branch if it doesn't exist, or update the branch if it already exists.",
-		Use:   "put-branch",
+		Use:   "replace-branch",
 		Params: []Param{
 			{
 				Name:        "repo",
@@ -1202,7 +964,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextSettingsResourceCmd, client, OperationData{
 		Short: "Update flag settings for context",
 		Long:  "\nEnable or disable a feature flag for a context based on its context kind and key.\n\nOmitting the `setting` attribute from the request body, or including a `setting` of `null`, erases the current setting for a context.\n\nIf you previously patched the flag, and the patch included the context's data, LaunchDarkly continues to use that data. If LaunchDarkly has never encountered the combination of the context's key and kind before, it calculates the flag values based on the context kind and key.\n",
-		Use:   "put-context-flag-setting",
+		Use:   "replace-context-flag-setting",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1244,7 +1006,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Delete context instances",
 		Long:  "Delete context instances by ID.",
-		Use:   "delete-context-instances",
+		Use:   "delete-instances",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1274,7 +1036,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Evaluate flags for context instance",
 		Long:  "Evaluate flags for a context instance, for example, to determine the expected flag variation. **Do not use this API instead of an SDK.** The LaunchDarkly SDKs are specialized for the tasks of evaluating feature flags in your application at scale and generating analytics events based on those evaluations. This API is not designed for that use case. Any evaluations you perform with this API will not be reflected in features such as flag statuses and flag insights. Context instances evaluated by this API will not appear in the Contexts list. To learn more, read [Comparing LaunchDarkly's SDKs and REST API](https://docs.launchdarkly.com/guide/api/comparing-sdk-rest-api).\n\n### Filtering \n\nLaunchDarkly supports the `filter` query param for filtering, with the following fields:\n\n- `query` filters for a string that matches against the flags' keys and names. It is not case sensitive. For example: `filter=query equals dark-mode`.\n- `tags` filters the list to flags that have all of the tags in the list. For example: `filter=tags contains [\"beta\",\"q1\"]`.\n\nYou can also apply multiple filters at once. For example, setting `filter=query equals dark-mode, tags contains [\"beta\",\"q1\"]` matches flags which match the key or name `dark-mode` and are tagged `beta` and `q1`.\n",
-		Use:   "evaluate-context-instance",
+		Use:   "evaluate-instance",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1322,7 +1084,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Get context attribute names",
 		Long:  "Get context attribute names. Returns only the first 100 attribute names per context.",
-		Use:   "get-context-attribute-names",
+		Use:   "list-attribute-names",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1352,7 +1114,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Get context attribute values",
 		Long:  "Get context attribute values.",
-		Use:   "get-context-attribute-values",
+		Use:   "list-attribute-values",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1388,7 +1150,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Get context instances",
 		Long:  "Get context instances by ID.",
-		Use:   "get-context-instances",
+		Use:   "list-instances",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1448,7 +1210,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Get context kinds",
 		Long:  "Get all context kinds for a given project.",
-		Use:   "get-context-kinds-by-project-key",
+		Use:   "list-kinds-by-project-key",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1466,7 +1228,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Get contexts",
 		Long:  "Get contexts based on kind and key.",
-		Use:   "get-contexts",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1532,7 +1294,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Create or update context kind",
 		Long:  "Create or update a context kind by key. Only the included fields will be updated.",
-		Use:   "put-context-kind",
+		Use:   "replace-kind",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1556,7 +1318,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Search for context instances",
 		Long:  "\nSearch for context instances.\n\nYou can use either the query parameters or the request body parameters. If both are provided, there is an error.\n\nTo learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances). To learn more about context instances, read [Understanding context instances](https://docs.launchdarkly.com/home/contexts#understanding-context-instances).\n",
-		Use:   "search-context-instances",
+		Use:   "search-instances",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1610,7 +1372,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Search for contexts",
 		Long:  "\nSearch for contexts.\n\nYou can use either the query parameters or the request body parameters. If both are provided, there is an error.\n\nTo learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances). To learn more about contexts, read [Understanding contexts and context kinds](https://docs.launchdarkly.com/home/contexts#understanding-contexts-and-context-kinds).\n",
-		Use:   "search-contexts",
+		Use:   "search",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1664,7 +1426,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, OperationData{
 		Short: "Delete custom role",
 		Long:  "Delete a custom role by key",
-		Use:   "delete-custom-role",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "custom-role-key",
@@ -1682,7 +1444,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, OperationData{
 		Short: "Get custom role",
 		Long:  "Get a single custom role by key or ID",
-		Use:   "get-custom-role",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "custom-role-key",
@@ -1700,7 +1462,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, OperationData{
 		Short: "List custom roles",
 		Long:  "Get a complete list of custom roles. Custom roles let you create flexible policies providing fine-grained access control to everything in LaunchDarkly, from feature flags to goals, environments, and teams. With custom roles, it's possible to enforce access policies that meet your exact workflow needs. Custom roles are available to customers on our enterprise plans. If you're interested in learning more about our enterprise plans, contact sales@launchdarkly.com.",
-		Use:   "get-custom-roles",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "limit",
@@ -1724,7 +1486,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, OperationData{
 		Short: "Update custom role",
 		Long:  "Update a single custom role. Updating a custom role uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).\u003cbr/\u003e\u003cbr/\u003eTo add an element to the `policy` array, set the `path` to `/policy` and then append `/\u003carray index\u003e`. Use `/0` to add to the beginning of the array. Use `/-` to add to the end of the array.",
-		Use:   "patch-custom-role",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "custom-role-key",
@@ -1742,7 +1504,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, OperationData{
 		Short:                 "Create custom role",
 		Long:                  "Create a new custom role",
-		Use:                   "post-custom-role",
+		Use:                   "create",
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		RequiresBody:          true,
@@ -1813,7 +1575,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, OperationData{
 		Short:                 "List destinations",
 		Long:                  "Get a list of Data Export destinations configured across all projects and environments.",
-		Use:                   "get-destinations",
+		Use:                   "list-destinations",
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		RequiresBody:          false,
@@ -1824,7 +1586,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, OperationData{
 		Short: "Update Data Export destination",
 		Long:  "Update a Data Export destination. Updating a destination uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "patch-destination",
+		Use:   "update-destination",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1854,7 +1616,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, OperationData{
 		Short: "Create Data Export destination",
 		Long:  "\nCreate a new Data Export destination.\n\nIn the `config` request body parameter, the fields required depend on the type of Data Export destination.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand \u003ccode\u003econfig\u003c/code\u003e parameter details\u003c/summary\u003e\n\n#### Azure Event Hubs\n\nTo create a Data Export destination with a `kind` of `azure-event-hubs`, the `config` object requires the following fields:\n\n* `namespace`: The Event Hub Namespace name\n* `name`: The Event Hub name\n* `policyName`: The shared access signature policy name. You can find your policy name in the settings of your Azure Event Hubs Namespace.\n* `policyKey`: The shared access signature key. You can find your policy key in the settings of your Azure Event Hubs Namespace.\n\n#### Google Cloud Pub/Sub\n\nTo create a Data Export destination with a `kind` of `google-pubsub`, the `config` object requires the following fields:\n\n* `project`: The Google PubSub project ID for the project to publish to\n* `topic`: The Google PubSub topic ID for the topic to publish to\n\n#### Amazon Kinesis\n\nTo create a Data Export destination with a `kind` of `kinesis`, the `config` object requires the following fields:\n\n* `region`: The Kinesis stream's AWS region key\n* `roleArn`: The Amazon Resource Name (ARN) of the AWS role that will be writing to Kinesis\n* `streamName`: The name of the Kinesis stream that LaunchDarkly is sending events to. This is not the ARN of the stream.\n\n#### mParticle\n\nTo create a Data Export destination with a `kind` of `mparticle`, the `config` object requires the following fields:\n\n* `apiKey`: The mParticle API key\n* `secret`: The mParticle API secret\n* `userIdentity`: The type of identifier you use to identify your end users in mParticle\n* `anonymousUserIdentity`: The type of identifier you use to identify your anonymous end users in mParticle\n\n#### Segment\n\nTo create a Data Export destination with a `kind` of `segment`, the `config` object requires the following fields:\n\n* `writeKey`: The Segment write key. This is used to authenticate LaunchDarkly's calls to Segment.\n\n\u003c/details\u003e\n",
-		Use:   "post-destination",
+		Use:   "create-destination",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1878,7 +1640,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, OperationData{
 		Short: "Delete environment",
 		Long:  "Delete a environment by key.",
-		Use:   "delete-environment",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1902,7 +1664,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, OperationData{
 		Short: "Get environment",
 		Long:  "\u003e ### Approval settings\n\u003e\n\u003e The `approvalSettings` key is only returned when the Flag Approvals feature is enabled.\n\nGet an environment given a project and key.\n",
-		Use:   "get-environment",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1926,7 +1688,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, OperationData{
 		Short: "List environments",
 		Long:  "Return a list of environments for the specified project.\n\nBy default, this returns the first 20 environments. Page through this list with the `limit` parameter and by following the `first`, `prev`, `next`, and `last` links in the `_links` field that returns. If those links do not appear, the pages they refer to don't exist. For example, the `first` and `prev` links will be missing from the response on the first page, because there is no previous page and you cannot return to the first page when you are already on the first page.\n\n### Filtering environments\n\nLaunchDarkly supports two fields for filters:\n- `query` is a string that matches against the environments' names and keys. It is not case sensitive.\n- `tags` is a `+`-separated list of environment tags. It filters the list of environments that have all of the tags in the list.\n\nFor example, the filter `filter=query:abc,tags:tag-1+tag-2` matches environments with the string `abc` in their name or key and also are tagged with `tag-1` and `tag-2`. The filter is not case-sensitive.\n\nThe documented values for `filter` query parameters are prior to URL encoding. For example, the `+` in `filter=tags:tag-1+tag-2` must be encoded to `%2B`.\n\n### Sorting environments\n\nLaunchDarkly supports the following fields for sorting:\n\n- `createdOn` sorts by the creation date of the environment.\n- `critical` sorts by whether the environments are marked as critical.\n- `name` sorts by environment name.\n\nFor example, `sort=name` sorts the response by environment name in ascending order.\n",
-		Use:   "get-environments-by-project",
+		Use:   "list-by-project",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1968,7 +1730,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, OperationData{
 		Short: "Update environment",
 		Long:  "\nUpdate an environment. Updating an environment uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).\n\nTo update fields in the environment object that are arrays, set the `path` to the name of the field and then append `/\u003carray index\u003e`. Using `/0` appends to the beginning of the array.\n\n### Approval settings\n\nThis request only returns the `approvalSettings` key if the [Flag Approvals](https://docs.launchdarkly.com/home/feature-workflows/approvals) feature is enabled.\n\nOnly the `canReviewOwnRequest`, `canApplyDeclinedChanges`, `minNumApprovals`, `required` and `requiredApprovalTagsfields` are editable.\n\nIf you try to patch the environment by setting both `required` and `requiredApprovalTags`, the request fails and an error appears. You can specify either required approvals for all flags in an environment or those with specific tags, but not both.\n",
-		Use:   "patch-environment",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1992,7 +1754,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, OperationData{
 		Short: "Create environment",
 		Long:  "\u003e ### Approval settings\n\u003e\n\u003e The `approvalSettings` key is only returned when the Flag Approvals feature is enabled.\n\u003e\n\u003e You cannot update approval settings when creating new environments. Update approval settings with the PATCH Environment API.\n\nCreate a new environment in a specified project with a given name, key, swatch color, and default TTL.\n",
-		Use:   "post-environment",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2010,7 +1772,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, OperationData{
 		Short: "Reset environment mobile SDK key",
 		Long:  "Reset an environment's mobile key. The optional expiry for the old key is deprecated for this endpoint, so the old key will always expire immediately.",
-		Use:   "reset-environment-mobile-key",
+		Use:   "reset-mobile-key",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2034,7 +1796,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, OperationData{
 		Short: "Reset environment SDK key",
 		Long:  "Reset an environment's SDK key with an optional expiry time for the old key.",
-		Use:   "reset-environment-sdk-key",
+		Use:   "reset-sdk-key",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2064,7 +1826,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Copy feature flag",
 		Long:  "\n\u003e ### Copying flag settings is an Enterprise feature\n\u003e\n\u003e Copying flag settings is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nCopy flag settings from a source environment to a target environment.\n\nBy default, this operation copies the entire flag configuration. You can use the `includedActions` or `excludedActions` to specify that only part of the flag configuration is copied.\n\nIf you provide the optional `currentVersion` of a flag, this operation tests to ensure that the current flag version in the environment matches the version you've specified. The operation rejects attempts to copy flag settings if the environment's current version  of the flag does not match the version you've specified. You can use this to enforce optimistic locking on copy attempts.\n",
-		Use:   "copy-feature-flag",
+		Use:   "copy",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2088,7 +1850,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Delete feature flag",
 		Long:  "Delete a feature flag in all environments. Use with caution: only delete feature flags your application no longer uses.",
-		Use:   "delete-feature-flag",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2112,7 +1874,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Get expiring context targets for feature flag",
 		Long:  "Get a list of context targets on a feature flag that are scheduled for removal.",
-		Use:   "get-expiring-context-targets",
+		Use:   "list-expiring-context-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2142,7 +1904,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Get expiring user targets for feature flag",
 		Long:  "\n\u003e ### Contexts are now available\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Get expiring context targets for feature flag](/tag/Feature-flags#operation/getExpiringContextTargets) instead of this endpoint. To learn more, read [Contexts](https://docs.launchdarkly.com/home/contexts).\n\nGet a list of user targets on a feature flag that are scheduled for removal.\n",
-		Use:   "get-expiring-user-targets",
+		Use:   "list-expiring-user-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2172,7 +1934,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Get feature flag",
 		Long:  "Get a single feature flag by key. By default, this returns the configurations for all environments. You can filter environments with the `env` query parameter. For example, setting `env=production` restricts the returned configurations to just the `production` environment.\n\n\u003e #### Recommended use\n\u003e\n\u003e This endpoint can return a large amount of information. Specifying one or multiple environments with the `env` parameter can decrease response time and overall payload size. We recommend using this parameter to return only the environments relevant to your query.\n\n### Expanding response\n\nLaunchDarkly supports the `expand` query param to include additional fields in the response, with the following fields:\n\n- `evaluation` includes evaluation information within returned environments, including which context kinds the flag has been evaluated for in the past 30 days \n- `migrationSettings` includes migration settings information within the flag and within returned environments. These settings are only included for migration flags, that is, where `purpose` is `migration`.\n\nFor example, `expand=evaluation` includes the `evaluation` field in the response.\n",
-		Use:   "get-feature-flag",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2208,7 +1970,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Get feature flag status",
 		Long:  "Get the status for a particular feature flag.",
-		Use:   "get-feature-flag-status",
+		Use:   "get-status",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2238,7 +2000,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Get flag status across environments",
 		Long:  "Get the status for a particular feature flag across environments.",
-		Use:   "get-feature-flag-status-across-environments",
+		Use:   "get-status-across-environments",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2268,7 +2030,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "List feature flag statuses",
 		Long:  "Get a list of statuses for all feature flags. The status includes the last time the feature flag was requested, as well as a state, which is one of the following:\n\n- `new`: You created the flag fewer than seven days ago and it has never been requested.\n- `active`: LaunchDarkly is receiving requests for this flag, but there are either multiple variations configured, or it is toggled off, or there have been changes to configuration in the past seven days.\n- `inactive`: You created the feature flag more than seven days ago, and hasn't been requested within the past seven days.\n- `launched`: LaunchDarkly is receiving requests for this flag, it is toggled on, there is only one variation configured, and there have been no changes to configuration in the past seven days.\n\nTo learn more, read [Flag statuses](https://docs.launchdarkly.com/home/code/flag-status).\n",
-		Use:   "get-feature-flag-statuses",
+		Use:   "list-statuses",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2292,7 +2054,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "List feature flags",
 		Long:  "Get a list of all feature flags in the given project. By default, each flag includes configurations for each environment. You can filter environments with the `env` query parameter. For example, setting `env=production` restricts the returned configurations to just your production environment. You can also filter feature flags by tag with the `tag` query parameter.\n\n\u003e #### Recommended use\n\u003e\n\u003e This endpoint can return a large amount of information. We recommend using some or all of these query parameters to decrease response time and overall payload size: `limit`, `env`, `query`, and `filter=creationDate`.\n\n### Filtering flags\n\nYou can filter on certain fields using the `filter` query parameter. For example, setting `filter=query:dark-mode,tags:beta+test` matches flags with the string `dark-mode` in their key or name, ignoring case, which also have the tags `beta` and `test`.\n\nThe `filter` query parameter supports the following arguments:\n\n| Filter argument       | Description | Example              |\n|-----------------------|-------------|----------------------|\n| `applicationEvaluated`  | A string. It filters the list to flags that are evaluated in the application with the given key. | `filter=applicationEvaluated:com.launchdarkly.cafe` |\n| `archived`              | (deprecated) A boolean value. It filters the list to archived flags. | Use `filter=state:archived` instead |\n| `contextKindsEvaluated` | A `+`-separated list of context kind keys. It filters the list to flags which have been evaluated in the past 30 days for all of the context kinds in the list. | `filter=contextKindsEvaluated:user+application` |\n| `codeReferences.max`    | An integer value. Use `0` to return flags that do not have code references. | `filter=codeReferences.max:0` |\n| `codeReferences.min`    | An integer value. Use `1` to return flags that do have code references. | `filter=codeReferences.min:1` |\n| `creationDate`          | An object with an optional `before` field whose value is Unix time in milliseconds. It filters the list to flags created before the date. | `filter=creationDate:{\"before\":1690527600000}` |\n| `evaluated`             | An object that contains a key of `after` and a value in Unix time in milliseconds. It filters the list to all flags that have been evaluated since the time you specify, in the environment provided. This filter requires the `filterEnv` filter. | `filter=evaluated:{\"after\":1690527600000},filterEnv:production` |\n| `filterEnv`             | A string with a list of comma-separated keys of valid environments. You must use this field for filters that are environment-specific. If there are multiple environment-specific filters, you only need to include this field once. You can filter for a maximum of three environments. | `filter=evaluated:{\"after\": 1590768455282},filterEnv:production,status:active` |\n| `hasExperiment`         | A boolean value. It filters the list to flags that are used in an experiment. | `filter=hasExperiment:true` |\n| `maintainerId`          | A valid member ID. It filters the list to flags that are maintained by this member. | `filter=maintainerId:12ab3c45de678910abc12345` |\n| `maintainerTeamKey`     | A string. It filters the list to flags that are maintained by the team with this key. | `filter=maintainerTeamKey:example-team-key` |\n| `query`                 | A string. It filters the list to flags that include the specified string in their key or name. It is not case sensitive. | `filter=query:example` |\n| `state`                 | A string, either `live`, `deprecated`, or `archived`. It filters the list to flags in this state. | `filter=state:archived` |\n| `sdkAvailability`       | A string, one of `client`, `mobile`, `anyClient`, `server`. Using `client` filters the list to flags whose client-side SDK availability is set to use the client-side ID. Using `mobile` filters to flags set to use the mobile key. Using `anyClient` filters to flags set to use either the client-side ID or the mobile key. Using `server` filters to flags set to use neither, that is, to flags only available in server-side SDKs.  | `filter=sdkAvailability:client` |\n| `tags`                  | A `+`-separated list of tags. It filters the list to flags that have all of the tags in the list. | `filter=tags:beta+test` |\n| `type`                  | A string, either `temporary` or `permanent`. It filters the list to flags with the specified type. | `filter=type:permanent` |\n\nThe documented values for the `filter` query are prior to URL encoding. For example, the `+` in `filter=tags:beta+test` must be encoded to `%2B`.\n\nBy default, this endpoint returns all flags. You can page through the list with the `limit` parameter and by following the `first`, `prev`, `next`, and `last` links in the returned `_links` field. These links will not be present if the pages they refer to don't exist. For example, the `first` and `prev` links will be missing from the response on the first page.\n\n### Sorting flags\n\nYou can sort flags based on the following fields:\n\n- `creationDate` sorts by the creation date of the flag.\n- `key` sorts by the key of the flag.\n- `maintainerId` sorts by the flag maintainer.\n- `name` sorts by flag name.\n- `tags` sorts by tags.\n- `targetingModifiedDate` sorts by the date that the flag's targeting rules were last modified in a given environment. It must be used with `env` parameter and it can not be combined with any other sort. If multiple `env` values are provided, it will perform sort using the first one. For example, `sort=-targetingModifiedDate\u0026env=production\u0026env=staging` returns results sorted by `targetingModifiedDate` for the `production` environment.\n- `type` sorts by flag type\n\nAll fields are sorted in ascending order by default. To sort in descending order, prefix the field with a dash ( - ). For example, `sort=-name` sorts the response by flag name in descending order.\n\n### Expanding response\n\nLaunchDarkly supports the `expand` query param to include additional fields in the response, with the following fields:\n\n- `codeReferences` includes code references for the feature flag\n- `evaluation` includes evaluation information within returned environments, including which context kinds the flag has been evaluated for in the past 30 days\n- `migrationSettings` includes migration settings information within the flag and within returned environments. These settings are only included for migration flags, that is, where `purpose` is `migration`.\n\nFor example, `expand=evaluation` includes the `evaluation` field in the response.\n\n### Migration flags\nFor migration flags, the cohort information is included in the `rules` property of a flag's response, and default cohort information is included in the `fallthrough` property of a flag's response.\nTo learn more, read [Migration Flags](https://docs.launchdarkly.com/home/flag-types/migration-flags).\n",
-		Use:   "get-feature-flags",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2370,7 +2132,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Update expiring context targets on feature flag",
 		Long:  "Schedule a context for removal from individual targeting on a feature flag. The flag must already individually target the context.\n\nYou can add, update, or remove a scheduled removal date. You can only schedule a context for removal on a single variation per flag.\n\nUpdating an expiring target uses the semantic patch format. To make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating expiring targets.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating expiring targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExpiringTarget\n\nAdds a date and time that LaunchDarkly will remove the context from the flag's individual targeting.\n\n##### Parameters\n\n* `value`: The time, in Unix milliseconds, when LaunchDarkly should remove the context from individual targeting for this flag\n* `variationId`: ID of a variation on the flag\n* `contextKey`: The context key for the context to remove from individual targeting\n* `contextKind`: The kind of context represented by the `contextKey`\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addExpiringTarget\",\n    \"value\": 1754006460000,\n    \"variationId\": \"4254742c-71ae-411f-a992-43b18a51afe0\",\n    \"contextKey\": \"user-key-123abc\",\n    \"contextKind\": \"user\"\n  }]\n}\n```\n\n#### updateExpiringTarget\n\nUpdates the date and time that LaunchDarkly will remove the context from the flag's individual targeting\n\n##### Parameters\n\n* `value`: The time, in Unix milliseconds, when LaunchDarkly should remove the context from individual targeting for this flag\n* `variationId`: ID of a variation on the flag\n* `contextKey`: The context key for the context to remove from individual targeting\n* `contextKind`: The kind of context represented by the `contextKey`\n* `version`: (Optional) The version of the expiring target to update. If included, update will fail if version doesn't match current version of the expiring target.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateExpiringTarget\",\n    \"value\": 1754006460000,\n    \"variationId\": \"4254742c-71ae-411f-a992-43b18a51afe0\",\n    \"contextKey\": \"user-key-123abc\",\n    \"contextKind\": \"user\"\n  }]\n}\n```\n\n#### removeExpiringTarget\n\nRemoves the scheduled removal of the context from the flag's individual targeting. The context will remain part of the flag's individual targeting until you explicitly remove it, or until you schedule another removal.\n\n##### Parameters\n\n* `variationId`: ID of a variation on the flag\n* `contextKey`: The context key for the context to remove from individual targeting\n* `contextKind`: The kind of context represented by the `contextKey`\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeExpiringTarget\",\n    \"variationId\": \"4254742c-71ae-411f-a992-43b18a51afe0\",\n    \"contextKey\": \"user-key-123abc\",\n    \"contextKind\": \"user\"\n  }]\n}\n```\n\n\u003c/details\u003e\n",
-		Use:   "patch-expiring-targets",
+		Use:   "update-expiring-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2400,7 +2162,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Update expiring user targets on feature flag",
 		Long:  "\u003e ### Contexts are now available\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Update expiring context targets on feature flag](/tag/Feature-flags#operation/patchExpiringTargets) instead of this endpoint. To learn more, read [Contexts](https://docs.launchdarkly.com/home/contexts).\n\nSchedule a target for removal from individual targeting on a feature flag. The flag must already serve a variation to specific targets based on their key.\n\nYou can add, update, or remove a scheduled removal date. You can only schedule a target for removal on a single variation per flag.\n\nUpdating an expiring target uses the semantic patch format. To make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating expiring user targets.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating expiring user targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExpireUserTargetDate\n\nAdds a date and time that LaunchDarkly will remove the user from the flag's individual targeting.\n\n##### Parameters\n\n* `value`: The time, in Unix milliseconds, when LaunchDarkly should remove the user from individual targeting for this flag\n* `variationId`: ID of a variation on the flag\n* `userKey`: The user key for the user to remove from individual targeting\n\n#### updateExpireUserTargetDate\n\nUpdates the date and time that LaunchDarkly will remove the user from the flag's individual targeting.\n\n##### Parameters\n\n* `value`: The time, in Unix milliseconds, when LaunchDarkly should remove the user from individual targeting for this flag\n* `variationId`: ID of a variation on the flag\n* `userKey`: The user key for the user to remove from individual targeting\n* `version`: (Optional) The version of the expiring user target to update. If included, update will fail if version doesn't match current version of the expiring user target.\n\n#### removeExpireUserTargetDate\n\nRemoves the scheduled removal of the user from the flag's individual targeting. The user will remain part of the flag's individual targeting until you explicitly remove them, or until you schedule another removal.\n\n##### Parameters\n\n* `variationId`: ID of a variation on the flag\n* `userKey`: The user key for the user to remove from individual targeting\n\n\u003c/details\u003e\n",
-		Use:   "patch-expiring-user-targets",
+		Use:   "update-expiring-user-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2430,7 +2192,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Update feature flag",
 		Long:  "Perform a partial update to a feature flag. The request body must be a valid semantic patch, JSON patch, or JSON merge patch. To learn more the different formats, read [Updates](/#section/Overview/Updates).\n\n### Using semantic patches on a feature flag\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\nThe body of a semantic patch request for updating feature flags takes the following properties:\n\n* `comment` (string): (Optional) A description of the update.\n* `environmentKey` (string): (Required for some instructions only) The key of the LaunchDarkly environment.\n* `instructions` (array): (Required) A list of actions the update should perform. Each action in the list must be an object with a `kind` property that indicates the instruction. If the action requires parameters, you must include those parameters as additional fields in the object. The body of a single semantic patch can contain many different instructions.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating feature flags.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eturning flags on and off\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions require the `environmentKey` parameter.\n\n#### turnFlagOff\n\nSets the flag's targeting state to **Off**.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"turnFlagOff\" } ]\n}\n```\n\n#### turnFlagOn\n\nSets the flag's targeting state to **On**.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"turnFlagOn\" } ]\n}\n```\n\n\u003c/details\u003e\u003cbr /\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eworking with targeting and variations\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions require the `environmentKey` parameter.\n\nSeveral of the instructions for working with targeting and variations require flag rule IDs, variation IDs, or clause IDs as parameters. Each of these are returned as part of the [Get feature flag](/tag/Feature-flags#operation/getFeatureFlag) response. The flag rule ID is the `_id` field of each element in the `rules` array within each environment listed in the `environments` object. The variation ID is the `_id` field in each element of the `variations` array. The clause ID is the `_id` field of each element of the `clauses` array within the `rules` array within each environment listed in the `environments` object.\n\n#### addClauses\n\nAdds the given clauses to the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addClauses\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauses\": [{\n\t\t\t\"contextKind\": \"user\",\n\t\t\t\"attribute\": \"country\",\n\t\t\t\"op\": \"in\",\n\t\t\t\"negate\": false,\n\t\t\t\"values\": [\"USA\", \"Canada\"]\n\t\t}]\n\t}]\n}\n```\n\n#### addPrerequisite\n\nAdds the flag indicated by `key` with variation `variationId` as a prerequisite to the flag in the path parameter.\n\n##### Parameters\n\n- `key`: Flag key of the prerequisite flag.\n- `variationId`: ID of a variation of the prerequisite flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addPrerequisite\",\n\t\t\"key\": \"example-prereq-flag-key\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### addRule\n\nAdds a new targeting rule to the flag. The rule may contain `clauses` and serve the variation that `variationId` indicates, or serve a percentage rollout that `rolloutWeights`, `rolloutBucketBy`, and `rolloutContextKind` indicate.\n\nIf you set `beforeRuleId`, this adds the new rule before the indicated rule. Otherwise, adds the new rule to the end of the list.\n\n##### Parameters\n\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n- `beforeRuleId`: (Optional) ID of a flag rule.\n- Either\n  - `variationId`: ID of a variation of the flag.\n\n  or\n\n  - `rolloutWeights`: (Optional) Map of `variationId` to weight, in thousandths of a percent (0-100000).\n  - `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n  - `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example that uses a `variationId`:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"addRule\",\n    \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n    \"clauses\": [{\n      \"contextKind\": \"organization\",\n      \"attribute\": \"located_in\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Sweden\", \"Norway\"]\n    }]\n  }]\n}\n```\n\nHere's an example that uses a percentage rollout:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"addRule\",\n    \"clauses\": [{\n      \"contextKind\": \"organization\",\n      \"attribute\": \"located_in\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Sweden\", \"Norway\"]\n    }],\n    \"rolloutContextKind\": \"organization\",\n    \"rolloutWeights\": {\n      \"2f43f67c-3e4e-4945-a18a-26559378ca00\": 15000, // serve 15% this variation\n      \"e5830889-1ec5-4b0c-9cc9-c48790090c43\": 85000  // serve 85% this variation\n    }\n  }]\n}\n```\n\n#### addTargets\n\nAdds context keys to the individual context targets for the context kind that `contextKind` specifies and the variation that `variationId` specifies. Returns an error if this causes the flag to target the same context key in multiple variations.\n\n##### Parameters\n\n- `values`: List of context keys.\n- `contextKind`: (Optional) Context kind to target, defaults to `user`\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addTargets\",\n\t\t\"values\": [\"context-key-123abc\", \"context-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### addUserTargets\n\nAdds user keys to the individual user targets for the variation that `variationId` specifies. Returns an error if this causes the flag to target the same user key in multiple variations. If you are working with contexts, use `addTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addUserTargets\",\n\t\t\"values\": [\"user-key-123abc\", \"user-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### addValuesToClause\n\nAdds `values` to the values of the clause that `ruleId` and `clauseId` indicate. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"addValuesToClause\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n\t\t\"values\": [\"beta_testers\"]\n\t}]\n}\n```\n\n#### addVariation\n\nAdds a variation to the flag.\n\n##### Parameters\n\n- `value`: The variation value.\n- `name`: (Optional) The variation name.\n- `description`: (Optional) A description for the variation.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"addVariation\", \"value\": 20, \"name\": \"New variation\" } ]\n}\n```\n\n#### clearTargets\n\nRemoves all individual targets from the variation that `variationId` specifies. This includes both user and non-user targets.\n\n##### Parameters\n\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"clearTargets\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### clearUserTargets\n\nRemoves all individual user targets from the variation that `variationId` specifies. If you are working with contexts, use `clearTargets` instead of this instruction.\n\n##### Parameters\n\n- `variationId`: ID of a variation on the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"clearUserTargets\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### removeClauses\n\nRemoves the clauses specified by `clauseIds` from the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseIds`: Array of IDs of clauses in the rule.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeClauses\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauseIds\": [\"10a58772-3121-400f-846b-b8a04e8944ed\", \"36a461dc-235e-4b08-97b9-73ce9365873e\"]\n\t}]\n}\n```\n\n#### removePrerequisite\n\nRemoves the prerequisite flag indicated by `key`. Does nothing if this prerequisite does not exist.\n\n##### Parameters\n\n- `key`: Flag key of an existing prerequisite flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"removePrerequisite\", \"key\": \"prereq-flag-key-123abc\" } ]\n}\n```\n\n#### removeRule\n\nRemoves the targeting rule specified by `ruleId`. Does nothing if the rule does not exist.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"removeRule\", \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\" } ]\n}\n```\n\n#### removeTargets\n\nRemoves context keys from the individual context targets for the context kind that `contextKind` specifies and the variation that `variationId` specifies. Does nothing if the flag does not target the context keys.\n\n##### Parameters\n\n- `values`: List of context keys.\n- `contextKind`: (Optional) Context kind to target, defaults to `user`\n- `variationId`: ID of a flag variation.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeTargets\",\n\t\t\"values\": [\"context-key-123abc\", \"context-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### removeUserTargets\n\nRemoves user keys from the individual user targets for the variation that `variationId` specifies. Does nothing if the flag does not target the user keys. If you are working with contexts, use `removeTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n- `variationId`: ID of a flag variation.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeUserTargets\",\n\t\t\"values\": [\"user-key-123abc\", \"user-key-456def\"],\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### removeValuesFromClause\n\nRemoves `values` from the values of the clause indicated by `ruleId` and `clauseId`. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"removeValuesFromClause\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n\t\t\"values\": [\"beta_testers\"]\n\t}]\n}\n```\n\n#### removeVariation\n\nRemoves a variation from the flag.\n\n##### Parameters\n\n- `variationId`: ID of a variation of the flag to remove.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"removeVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### reorderRules\n\nRearranges the rules to match the order given in `ruleIds`. Returns an error if `ruleIds` does not match the current set of rules on the flag.\n\n##### Parameters\n\n- `ruleIds`: Array of IDs of all rules in the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"reorderRules\",\n\t\t\"ruleIds\": [\"a902ef4a-2faf-4eaf-88e1-ecc356708a29\", \"63c238d1-835d-435e-8f21-c8d5e40b2a3d\"]\n\t}]\n}\n```\n\n#### replacePrerequisites\n\nRemoves all existing prerequisites and replaces them with the list you provide.\n\n##### Parameters\n\n- `prerequisites`: A list of prerequisites. Each item in the list must include a flag `key` and `variationId`.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replacePrerequisites\",\n      \"prerequisites\": [\n        {\n          \"key\": \"prereq-flag-key-123abc\",\n          \"variationId\": \"10a58772-3121-400f-846b-b8a04e8944ed\"\n        },\n        {\n          \"key\": \"another-prereq-flag-key-456def\",\n          \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\"\n        }\n      ]\n    }\n  ]\n}\n```\n\n#### replaceRules\n\nRemoves all targeting rules for the flag and replaces them with the list you provide.\n\n##### Parameters\n\n- `rules`: A list of rules.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceRules\",\n      \"rules\": [\n        {\n          \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n          \"description\": \"My new rule\",\n          \"clauses\": [\n            {\n              \"contextKind\": \"user\",\n              \"attribute\": \"segmentMatch\",\n              \"op\": \"segmentMatch\",\n              \"values\": [\"test\"]\n            }\n          ],\n          \"trackEvents\": true\n        }\n      ]\n    }\n  ]\n}\n```\n\n#### replaceTargets\n\nRemoves all existing targeting and replaces it with the list of targets you provide.\n\n##### Parameters\n\n- `targets`: A list of context targeting. Each item in the list includes an optional `contextKind` that defaults to `user`, a required `variationId`, and a required list of `values`.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceTargets\",\n      \"targets\": [\n        {\n          \"contextKind\": \"user\",\n          \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n          \"values\": [\"user-key-123abc\"]\n        },\n        {\n          \"contextKind\": \"device\",\n          \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\",\n          \"values\": [\"device-key-456def\"]\n        }\n      ]\n    }    \n  ]\n}\n```\n\n#### replaceUserTargets\n\nRemoves all existing user targeting and replaces it with the list of targets you provide. In the list of targets, you must include a target for each of the flag's variations. If you are working with contexts, use `replaceTargets` instead of this instruction.\n\n##### Parameters\n\n- `targets`: A list of user targeting. Each item in the list must include a `variationId` and a list of `values`.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [\n    {\n      \"kind\": \"replaceUserTargets\",\n      \"targets\": [\n        {\n          \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n          \"values\": [\"user-key-123abc\", \"user-key-456def\"]\n        },\n        {\n          \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\",\n          \"values\": [\"user-key-789ghi\"]\n        }\n      ]\n    }\n  ]\n}\n```\n\n#### updateClause\n\nReplaces the clause indicated by `ruleId` and `clauseId` with `clause`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `clauseId`: ID of a clause in that rule.\n- `clause`: New `clause` object, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"updateClause\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseId\": \"10c7462a-2062-45ba-a8bb-dfb3de0f8af5\",\n    \"clause\": {\n      \"contextKind\": \"user\",\n      \"attribute\": \"country\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Mexico\", \"Canada\"]\n    }\n  }]\n}\n```\n\n#### updateDefaultVariation\n\nUpdates the default on or off variation of the flag.\n\n##### Parameters\n\n- `onVariationValue`: (Optional) The value of the variation of the new on variation.\n- `offVariationValue`: (Optional) The value of the variation of the new off variation\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"updateDefaultVariation\", \"OnVariationValue\": true, \"OffVariationValue\": false } ]\n}\n```\n\n#### updateFallthroughVariationOrRollout\n\nUpdates the default or \"fallthrough\" rule for the flag, which the flag serves when a context matches none of the targeting rules. The rule can serve either the variation that `variationId` indicates, or a percentage rollout that `rolloutWeights` and `rolloutBucketBy` indicate.\n\n##### Parameters\n\n- `variationId`: ID of a variation of the flag.\n\nor\n\n- `rolloutWeights`: Map of `variationId` to weight, in thousandths of a percent (0-100000).\n- `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n- `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example that uses a `variationId`:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateFallthroughVariationOrRollout\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\nHere's an example that uses a percentage rollout:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateFallthroughVariationOrRollout\",\n\t\t\"rolloutContextKind\": \"user\",\n\t\t\"rolloutWeights\": {\n\t\t\t\"2f43f67c-3e4e-4945-a18a-26559378ca00\": 15000, // serve 15% this variation\n\t\t\t\"e5830889-1ec5-4b0c-9cc9-c48790090c43\": 85000  // serve 85% this variation\n\t\t}\n\t}]\n}\n```\n\n#### updateOffVariation\n\nUpdates the default off variation to `variationId`. The flag serves the default off variation when the flag's targeting is **Off**.\n\n##### Parameters\n\n- `variationId`: ID of a variation of the flag.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"updateOffVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### updatePrerequisite\n\nChanges the prerequisite flag that `key` indicates to use the variation that `variationId` indicates. Returns an error if this prerequisite does not exist.\n\n##### Parameters\n\n- `key`: Flag key of an existing prerequisite flag.\n- `variationId`: ID of a variation of the prerequisite flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updatePrerequisite\",\n\t\t\"key\": \"example-prereq-flag-key\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### updateRuleDescription\n\nUpdates the description of the feature flag rule.\n\n##### Parameters\n\n- `description`: The new human-readable description for this rule.\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the flag.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateRuleDescription\",\n\t\t\"description\": \"New rule description\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n\t}]\n}\n```\n\n#### updateRuleTrackEvents\n\nUpdates whether or not LaunchDarkly tracks events for the feature flag associated with this rule.\n\n##### Parameters\n\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the flag.\n- `trackEvents`: Whether or not events are tracked.\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateRuleTrackEvents\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"trackEvents\": true\n\t}]\n}\n```\n\n#### updateRuleVariationOrRollout\n\nUpdates what `ruleId` serves when its clauses evaluate to true. The rule can serve either the variation that `variationId` indicates, or a percent rollout that `rolloutWeights` and `rolloutBucketBy` indicate.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the flag.\n- `variationId`: ID of a variation of the flag.\n\n  or\n\n- `rolloutWeights`: Map of `variationId` to weight, in thousandths of a percent (0-100000).\n- `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n- `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example:\n\n```json\n{\n\t\"environmentKey\": \"environment-key-123abc\",\n\t\"instructions\": [{\n\t\t\"kind\": \"updateRuleVariationOrRollout\",\n\t\t\"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n\t\t\"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n\t}]\n}\n```\n\n#### updateTrackEvents\n\nUpdates whether or not LaunchDarkly tracks events for the feature flag, for all rules.\n\n##### Parameters\n\n- `trackEvents`: Whether or not events are tracked.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"updateTrackEvents\", \"trackEvents\": true } ]\n}\n```\n\n#### updateTrackEventsFallthrough\n\nUpdates whether or not LaunchDarkly tracks events for the feature flag, for the default rule.\n\n##### Parameters\n\n- `trackEvents`: Whether or not events are tracked.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [ { \"kind\": \"updateTrackEventsFallthrough\", \"trackEvents\": true } ]\n}\n```\n\n#### updateVariation\n\nUpdates a variation of the flag.\n\n##### Parameters\n\n- `variationId`: The ID of the variation to update.\n- `name`: (Optional) The updated variation name.\n- `value`: (Optional) The updated variation value.\n- `description`: (Optional) The updated variation description.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [ { \"kind\": \"updateVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\", \"value\": 20 } ]\n}\n```\n\n\u003c/details\u003e\u003cbr /\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating flag settings\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions do not require the `environmentKey` parameter. They make changes that apply to the flag across all environments.\n\n#### addCustomProperties\n\nAdds a new custom property to the feature flag. Custom properties are used to associate feature flags with LaunchDarkly integrations. For example, if you create an integration with an issue tracking service, you may want to associate a flag with a list of issues related to a feature's development.\n\n##### Parameters\n\n - `key`: The custom property key.\n - `name`: The custom property name.\n - `values`: A list of the associated values for the custom property.\n\nHere's an example:\n\n```json\n{\n\t\"instructions\": [{\n\t\t\"kind\": \"addCustomProperties\",\n\t\t\"key\": \"example-custom-property\",\n\t\t\"name\": \"Example custom property\",\n\t\t\"values\": [\"value1\", \"value2\"]\n\t}]\n}\n```\n\n#### addTags\n\nAdds tags to the feature flag.\n\n##### Parameters\n\n- `values`: A list of tags to add.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"addTags\", \"values\": [\"tag1\", \"tag2\"] } ]\n}\n```\n\n#### makeFlagPermanent\n\nMarks the feature flag as permanent. LaunchDarkly does not prompt you to remove permanent flags, even if one variation is rolled out to all your customers.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"makeFlagPermanent\" } ]\n}\n```\n\n#### makeFlagTemporary\n\nMarks the feature flag as temporary.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"makeFlagTemporary\" } ]\n}\n```\n\n#### removeCustomProperties\n\nRemoves the associated values from a custom property. If all the associated values are removed, this instruction also removes the custom property.\n\n##### Parameters\n\n - `key`: The custom property key.\n - `values`: A list of the associated values to remove from the custom property.\n\n```json\n{\n\t\"instructions\": [{\n\t\t\"kind\": \"replaceCustomProperties\",\n\t\t\"key\": \"example-custom-property\",\n\t\t\"values\": [\"value1\", \"value2\"]\n\t}]\n}\n```\n\n#### removeMaintainer\n\nRemoves the flag's maintainer. To set a new maintainer, use the flag's **Settings** tab in the LaunchDarkly user interface.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"removeMaintainer\" } ]\n}\n```\n\n#### removeTags\n\nRemoves tags from the feature flag.\n\n##### Parameters\n\n- `values`: A list of tags to remove.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"removeTags\", \"values\": [\"tag1\", \"tag2\"] } ]\n}\n```\n\n#### replaceCustomProperties\n\nReplaces the existing associated values for a custom property with the new values.\n\n##### Parameters\n\n - `key`: The custom property key.\n - `name`: The custom property name.\n - `values`: A list of the new associated values for the custom property.\n\nHere's an example:\n\n```json\n{\n \"instructions\": [{\n   \"kind\": \"replaceCustomProperties\",\n   \"key\": \"example-custom-property\",\n   \"name\": \"Example custom property\",\n   \"values\": [\"value1\", \"value2\"]\n }]\n}\n```\n\n#### turnOffClientSideAvailability\n\nTurns off client-side SDK availability for the flag. This is equivalent to unchecking the **SDKs using Mobile Key** and/or **SDKs using client-side ID** boxes for the flag. If you're using a client-side or mobile SDK, you must expose your feature flags in order for the client-side or mobile SDKs to evaluate them.\n\n##### Parameters\n\n- `value`: Use \"usingMobileKey\" to turn off availability for mobile SDKs. Use \"usingEnvironmentId\" to turn on availability for client-side SDKs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"turnOffClientSideAvailability\", \"value\": \"usingMobileKey\" } ]\n}\n```\n\n#### turnOnClientSideAvailability\n\nTurns on client-side SDK availability for the flag. This is equivalent to unchecking the **SDKs using Mobile Key** and/or **SDKs using client-side ID** boxes for the flag. If you're using a client-side or mobile SDK, you must expose your feature flags in order for the client-side or mobile SDKs to evaluate them.\n\n##### Parameters\n\n- `value`: Use \"usingMobileKey\" to turn on availability for mobile SDKs. Use \"usingEnvironmentId\" to turn on availability for client-side SDKs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"turnOnClientSideAvailability\", \"value\": \"usingMobileKey\" } ]\n}\n```\n\n#### updateDescription\n\nUpdates the feature flag description.\n\n##### Parameters\n\n- `value`: The new description.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateDescription\", \"value\": \"Updated flag description\" } ]\n}\n```\n#### updateMaintainerMember\n\nUpdates the maintainer of the flag to an existing member and removes the existing maintainer.\n\n##### Parameters\n\n- `value`: The ID of the member.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateMaintainerMember\", \"value\": \"61e9b714fd47591727db558a\" } ]\n}\n```\n\n#### updateMaintainerTeam\n\nUpdates the maintainer of the flag to an existing team and removes the existing maintainer.\n\n##### Parameters\n\n- `value`: The key of the team.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateMaintainerTeam\", \"value\": \"example-team-key\" } ]\n}\n```\n\n#### updateName\n\nUpdates the feature flag name.\n\n##### Parameters\n\n- `value`: The new name.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"updateName\", \"value\": \"Updated flag name\" } ]\n}\n```\n\n\u003c/details\u003e\u003cbr /\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating the flag lifecycle\u003c/strong\u003e\u003c/summary\u003e\n\nThese instructions do not require the `environmentKey` parameter. They make changes that apply to the flag across all environments.\n\n#### archiveFlag\n\nArchives the feature flag. This retires it from LaunchDarkly without deleting it. You cannot archive a flag that is a prerequisite of other flags.\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"archiveFlag\" } ]\n}\n```\n\n#### deleteFlag\n\nDeletes the feature flag and its rules. You cannot restore a deleted flag. If this flag is requested again, the flag value defined in code will be returned for all contexts.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"deleteFlag\" } ]\n}\n```\n\n#### deprecateFlag\n\nDeprecates the feature flag. This hides it from the live flags list without archiving or deleting it.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"deprecateFlag\" } ]\n}\n```\n\n#### restoreDeprecatedFlag\n\nRestores the feature flag if it was previously deprecated.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"restoreDeprecatedFlag\" } ]\n}\n```\n\n#### restoreFlag\n\nRestores the feature flag if it was previously archived.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [ { \"kind\": \"restoreFlag\" } ]\n}\n```\n\n\u003c/details\u003e\n\n### Using JSON patches on a feature flag\n\nIf you do not include the semantic patch header described above, you can use a [JSON patch](/reference#updates-using-json-patch) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes.\n\nIn the JSON patch representation, use a JSON pointer in the `path` element to describe what field to change. Use the [Get feature flag](/tag/Feature-flags#operation/getFeatureFlag) endpoint to find the field you want to update.\n\nThere are a few special cases to keep in mind when determining the value of the `path` element:\n\n  * To add an individual target to a specific variation if the flag variation already has individual targets, the path for the JSON patch operation is:\n\n  ```json\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/environments/devint/targets/0/values/-\",\n      \"value\": \"TestClient10\"\n    }\n  ]\n  ```\n\n  * To add an individual target to a specific variation if the flag variation does not already have individual targets, the path for the JSON patch operation is:\n\n  ```json\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/environments/devint/targets/-\",\n      \"value\": { \"variation\": 0, \"values\": [\"TestClient10\"] }\n    }\n  ]\n  ```\n\n  * To add a flag to a release pipeline, the path for the JSON patch operation is:\n\n  ```json\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/releasePipelineKey\",\n      \"value\": \"example-release-pipeline-key\"\n    }\n  ]\n  ```\n\n### Required approvals\nIf a request attempts to alter a flag configuration in an environment where approvals are required for the flag, the request will fail with a 405. Changes to the flag configuration in that environment will require creating an [approval request](/tag/Approvals) or a [workflow](/tag/Workflows).\n\n### Conflicts\nIf a flag configuration change made through this endpoint would cause a pending scheduled change or approval request to fail, this endpoint will return a 400. You can ignore this check by adding an `ignoreConflicts` query parameter set to `true`.\n\n### Migration flags\nFor migration flags, the cohort information is included in the `rules` property of a flag's response. You can update cohorts by updating `rules`. Default cohort information is included in the `fallthrough` property of a flag's response. You can update the default cohort by updating `fallthrough`.\nWhen you update the rollout for a cohort or the default cohort through the API, provide a rollout instead of a single `variationId`.\nTo learn more, read [Migration Flags](https://docs.launchdarkly.com/home/flag-types/migration-flags).\n",
-		Use:   "patch-feature-flag",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2454,7 +2216,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Create a feature flag",
 		Long:  "Create a feature flag with the given name, key, and variations.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003ecreating a migration flag\u003c/strong\u003e\u003c/summary\u003e\n\n### Creating a migration flag\n\nWhen you create a migration flag, the variations are pre-determined based on the number of stages in the migration.\n\nTo create a migration flag, omit the `variations` and `defaults` information. Instead, provide a `purpose` of `migration`, and `migrationSettings`. If you create a migration flag with six stages, `contextKind` is required. Otherwise, it should be omitted.\n\nHere's an example:\n\n```json\n{\n  \"key\": \"flag-key-123\",\n  \"purpose\": \"migration\",\n  \"migrationSettings\": {\n    \"stageCount\": 6,\n    \"contextKind\": \"account\"\n  }\n}\n```\n\nTo learn more, read [Migration Flags](https://docs.launchdarkly.com/home/flag-types/migration-flags).\n\n\u003c/details\u003e\n",
-		Use:   "post-feature-flag",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2478,7 +2240,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Get migration safety issues",
 		Long:  "Returns the migration safety issues that are associated with the POSTed flag patch. The patch must use the semantic patch format for updating feature flags.",
-		Use:   "post-migration-safety-issues",
+		Use:   "create-migration-safety-issues",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2610,7 +2372,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
 		Short: "List flag triggers",
 		Long:  "Get a list of all flag triggers.",
-		Use:   "get-trigger-workflows",
+		Use:   "list-trigger-workflows",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2640,7 +2402,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
 		Short: "Update flag trigger",
 		Long:  "Update a flag trigger. Updating a flag trigger uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating flag triggers.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating flag triggers\u003c/strong\u003e\u003c/summary\u003e\n\n#### replaceTriggerActionInstructions\n\nRemoves the existing trigger action and replaces it with the new instructions.\n\n##### Parameters\n\n- `value`: An array of the new `kind`s of actions to perform when triggering. Supported flag actions are `turnFlagOn` and `turnFlagOff`.\n\nHere's an example that replaces the existing action with new instructions to turn flag targeting off:\n\n```json\n{\n  \"instructions\": [\n    {\n      \"kind\": \"replaceTriggerActionInstructions\",\n      \"value\": [ {\"kind\": \"turnFlagOff\"} ]\n    }\n  ]\n}\n```\n\n#### cycleTriggerUrl\n\nGenerates a new URL for this trigger. You must update any clients using the trigger to use this new URL.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"cycleTriggerUrl\" }]\n}\n```\n\n#### disableTrigger\n\nDisables the trigger. This saves the trigger configuration, but the trigger stops running. To re-enable, use `enableTrigger`.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"disableTrigger\" }]\n}\n```\n\n#### enableTrigger\n\nEnables the trigger. If you previously disabled the trigger, it begins running again.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"enableTrigger\" }]\n}\n```\n\n\u003c/details\u003e\n",
-		Use:   "patch-trigger-workflow",
+		Use:   "update-trigger-workflow",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2712,7 +2474,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, OperationData{
 		Short: "Get followers of a flag in a project and environment",
 		Long:  "Get a list of members following a flag in a project and environment",
-		Use:   "get-flag-followers",
+		Use:   "list-flag-followers",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2742,7 +2504,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, OperationData{
 		Short: "Get followers of all flags in a given project and environment",
 		Long:  "Get followers of all flags in a given environment and project",
-		Use:   "get-followers-by-proj-env",
+		Use:   "list-followers-by-proj-env",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2766,7 +2528,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, OperationData{
 		Short: "Add a member as a follower of a flag in a project and environment",
 		Long:  "Add a member as a follower to a flag in a project and environment",
-		Use:   "put-flag-followers",
+		Use:   "replace-flag-followers",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2868,7 +2630,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_IntegrationAuditLogSubscriptionsResourceCmd, client, OperationData{
 		Short: "Get audit log subscriptions by integration",
 		Long:  "Get all audit log subscriptions associated with a given integration.",
-		Use:   "get-subscriptions",
+		Use:   "list-subscriptions",
 		Params: []Param{
 			{
 				Name:        "integration-key",
@@ -2907,10 +2669,129 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
+	NewOperationCmd(gen_MembersResourceCmd, client, OperationData{
+		Short: "Delete account member",
+		Long:  "Delete a single account member by ID. Requests to delete account members will not work if SCIM is enabled for the account.",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The member ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		RequiresBody:          false,
+		Path:                  "/api/v2/members/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MembersResourceCmd, client, OperationData{
+		Short: "Get account member",
+		Long:  "Get a single account member by member ID.\n\n`me` is a reserved value for the `id` parameter that returns the caller's member information.\n",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The member ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/members/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MembersResourceCmd, client, OperationData{
+		Short: "List account members",
+		Long:  "Return a list of account members.\n\nBy default, this returns the first 20 members. Page through this list with the `limit` parameter and by following the `first`, `prev`, `next`, and `last` links in the returned `_links` field. These links are not present if the pages they refer to don't exist. For example, the `first` and `prev` links will be missing from the response on the first page.\n\n### Filtering members\n\nLaunchDarkly supports the following fields for filters:\n\n- `query` is a string that matches against the members' emails and names. It is not case sensitive.\n- `role` is a `|` separated list of roles and custom roles. It filters the list to members who have any of the roles in the list. For the purposes of this filtering, `Owner` counts as `Admin`.\n- `team` is a string that matches against the key of the teams the members belong to. It is not case sensitive.\n- `noteam` is a boolean that filters the list of members who are not on a team if true and members on a team if false.\n- `lastSeen` is a JSON object in one of the following formats:\n  - `{\"never\": true}` - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.\n  - `{\"noData\": true}` - Members that have not been active since LaunchDarkly began recording last seen timestamps.\n  - `{\"before\": 1608672063611}` - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.\n- `accessCheck` is a string that represents a specific action on a specific resource and is in the format `\u003cActionSpecifier\u003e:\u003cResourceSpecifier\u003e`. It filters the list to members who have the ability to perform that action on that resource. Note: `accessCheck` is only supported in API version `20220603` and earlier. To learn more, read [Versioning](https://apidocs.launchdarkly.com/#section/Overview/Versioning).\n  - For example, the filter `accessCheck:createApprovalRequest:proj/default:env/test:flag/alternate-page` matches members with the ability to create an approval request for the `alternate-page` flag in the `test` environment of the `default` project.\n  - Wildcard and tag filters are not supported when filtering for access.\n\nFor example, the filter `query:abc,role:admin|customrole` matches members with the string `abc` in their email or name, ignoring case, who also are either an `Owner` or `Admin` or have the custom role `customrole`.\n\n### Sorting members\n\nLaunchDarkly supports two fields for sorting: `displayName` and `lastSeen`:\n\n- `displayName` sorts by first + last name, using the member's email if no name is set.\n- `lastSeen` sorts by the `_lastSeen` property. LaunchDarkly considers members that have never been seen or have no data the oldest.\n",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The number of members to return in the response. Defaults to 20.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Type:        "integer",
+			},
+			{
+				Name:        "filter",
+				In:          "query",
+				Description: "A comma-separated list of filters. Each filter is of the form `field:value`. Supported fields are explained above.",
+				Type:        "string",
+			},
+			{
+				Name:        "sort",
+				In:          "query",
+				Description: "A comma-separated list of fields to sort by. Fields prefixed by a dash ( - ) sort in descending order.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/members",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MembersResourceCmd, client, OperationData{
+		Short: "Modify an account member",
+		Long:  "\nUpdate a single account member. Updating a member uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).\n\nTo update fields in the account member object that are arrays, set the `path` to the name of the field and then append `/\u003carray index\u003e`. Use `/0` to add to the beginning of the array. Use `/-` to add to the end of the array. For example, to add a new custom role to a member, use the following request body:\n\n```\n  [\n    {\n      \"op\": \"add\",\n      \"path\": \"/customRoles/0\",\n      \"value\": \"some-role-id\"\n    }\n  ]\n```\n\nYou can update only an account member's role or custom role using a JSON patch. Members can update their own names and email addresses though the LaunchDarkly UI.\n\nWhen SAML SSO or SCIM is enabled for the account, account members are managed in the Identity Provider (IdP). Requests to update account members will succeed, but the IdP will override the update shortly afterwards.\n",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The member ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		RequiresBody:          true,
+		Path:                  "/api/v2/members/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MembersResourceCmd, client, OperationData{
+		Short: "Add a member to teams",
+		Long:  "Add one member to one or more teams.",
+		Use:   "create-teams",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The member ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		RequiresBody:          true,
+		Path:                  "/api/v2/members/{id}/teams",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MembersResourceCmd, client, OperationData{
+		Short:                 "Invite new members",
+		Long:                  "Invite one or more new members to join an account. Each member is sent an invitation. Members with \"admin\" or \"owner\" roles may create new members, as well as anyone with a \"createMember\" permission for \"member/\\*\". If a member cannot be invited, the entire request is rejected and no members are invited from that request.\n\nEach member _must_ have an `email` field and either a `role` or a `customRoles` field. If any of the fields are not populated correctly, the request is rejected with the reason specified in the \"message\" field of the response.\n\nRequests to create account members will not work if SCIM is enabled for the account.\n\n_No more than 50 members may be created per request._\n\nA request may also fail because of conflicts with existing members. These conflicts are reported using the additional `code` and `invalid_emails` response fields with the following possible values for `code`:\n\n- **email_already_exists_in_account**: A member with this email address already exists in this account.\n- **email_taken_in_different_account**: A member with this email address exists in another account.\n- **duplicate_email**s: This request contains two or more members with the same email address.\n\nA request that fails for one of the above reasons returns an HTTP response code of 400 (Bad Request).\n",
+		Use:                   "create",
+		Params:                []Param{},
+		HTTPMethod:            "POST",
+		RequiresBody:          true,
+		Path:                  "/api/v2/members",
+		SupportsSemanticPatch: false,
+	})
+
 	NewOperationCmd(gen_MetricsResourceCmd, client, OperationData{
 		Short: "Delete metric",
 		Long:  "Delete a metric by key.",
-		Use:   "delete-metric",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2934,7 +2815,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_MetricsResourceCmd, client, OperationData{
 		Short: "Get metric",
 		Long:  "Get information for a single metric from the specific project.\n\n### Expanding the metric response\nLaunchDarkly supports four fields for expanding the \"Get metric\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `experiments` includes all experiments from the specific project that use the metric\n- `experimentCount` includes the number of experiments from the specific project that use the metric\n- `metricGroups` includes all metric groups from the specific project that use the metric\n- `metricGroupCount` includes the number of metric groups from the specific project that use the metric\n\nFor example, `expand=experiments` includes the `experiments` field in the response.\n",
-		Use:   "get-metric",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2970,7 +2851,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_MetricsResourceCmd, client, OperationData{
 		Short: "List metrics",
 		Long:  "Get a list of all metrics for the specified project.\n\n### Expanding the metric list response\nLaunchDarkly supports expanding the \"List metrics\" response. By default, the expandable field is **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add the following supported field:\n\n- `experimentCount` includes the number of experiments from the specific project that use the metric\n\nFor example, `expand=experimentCount` includes the `experimentCount` field for each metric in the response.\n",
-		Use:   "get-metrics",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2994,7 +2875,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_MetricsResourceCmd, client, OperationData{
 		Short: "Update metric",
 		Long:  "Patch a metric by key. Updating a metric uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "patch-metric",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3018,7 +2899,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_MetricsResourceCmd, client, OperationData{
 		Short: "Create metric",
 		Long:  "Create a new metric in the specified project. The expected `POST` body differs depending on the specified `kind` property.",
-		Use:   "post-metric",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3083,7 +2964,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_Oauth2ClientsResourceCmd, client, OperationData{
 		Short:                 "Get clients",
 		Long:                  "Get all OAuth 2.0 clients registered by your account.",
-		Use:                   "get-o-auth-clients",
+		Use:                   "list-o-auth-clients",
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		RequiresBody:          false,
@@ -3094,7 +2975,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_Oauth2ClientsResourceCmd, client, OperationData{
 		Short: "Patch client by ID",
 		Long:  "Patch an existing OAuth 2.0 client by client ID. Updating an OAuth2 client uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates). Only `name`, `description`, and `redirectUri` may be patched.",
-		Use:   "patch-o-auth-client",
+		Use:   "update-o-auth-client",
 		Params: []Param{
 			{
 				Name:        "client-id",
@@ -3156,7 +3037,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "Delete project",
 		Long:  "Delete a project by key. Use this endpoint with caution. Deleting a project will delete all associated environments and feature flags. You cannot delete the last project in an account.",
-		Use:   "delete-project",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3174,7 +3055,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "Get flag defaults for project",
 		Long:  "Get the flag defaults for a specific project.",
-		Use:   "get-flag-defaults-by-project",
+		Use:   "get-flag-defaults-by",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3192,7 +3073,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "Get project",
 		Long:  "Get a single project by key.\n\n### Expanding the project response\n\nLaunchDarkly supports one field for expanding the \"Get project\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n* `environments` includes a paginated list of the project environments.\n\nFor example, `expand=environments` includes the `environments` field for the project in the response.\n",
-		Use:   "get-project",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3216,7 +3097,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "List projects",
 		Long:  "Return a list of projects.\n\nBy default, this returns the first 20 projects. Page through this list with the `limit` parameter and by following the `first`, `prev`, `next`, and `last` links in the `_links` field that returns. If those links do not appear, the pages they refer to don't exist. For example, the `first` and `prev` links will be missing from the response on the first page, because there is no previous page and you cannot return to the first page when you are already on the first page.\n\n### Filtering projects\n\nLaunchDarkly supports two fields for filters:\n- `query` is a string that matches against the projects' names and keys. It is not case sensitive.\n- `tags` is a `+`-separated list of project tags. It filters the list of projects that have all of the tags in the list.\n\nFor example, the filter `filter=query:abc,tags:tag-1+tag-2` matches projects with the string `abc` in their name or key and also are tagged with `tag-1` and `tag-2`. The filter is not case-sensitive.\n\nThe documented values for `filter` query parameters are prior to URL encoding. For example, the `+` in `filter=tags:tag-1+tag-2` must be encoded to `%2B`.\n\n### Sorting projects\n\nLaunchDarkly supports two fields for sorting:\n- `name` sorts by project name.\n- `createdOn` sorts by the creation date of the project.\n\nFor example, `sort=name` sorts the response by project name in ascending order.\n\n### Expanding the projects response\n\nLaunchDarkly supports one field for expanding the \"List projects\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with the `environments` field.\n\n`Environments` includes a paginated list of the project environments.\n* `environments` includes a paginated list of the project environments.\n\nFor example, `expand=environments` includes the `environments` field for each project in the response.\n",
-		Use:   "get-projects",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "limit",
@@ -3258,7 +3139,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "Update flag default for project",
 		Long:  "Update a flag default. Updating a flag default uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "patch-flag-defaults-by-project",
+		Use:   "update-flag-defaults-by",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3276,7 +3157,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "Update project",
 		Long:  "Update a project. Updating a project uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).\u003cbr/\u003e\u003cbr/\u003eTo add an element to the project fields that are arrays, set the `path` to the name of the field and then append `/\u003carray index\u003e`. Use `/0` to add to the beginning of the array. Use `/-` to add to the end of the array.",
-		Use:   "patch-project",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3294,7 +3175,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short:                 "Create project",
 		Long:                  "Create a new project with the given key and name. Project keys must be unique within an account.",
-		Use:                   "post-project",
+		Use:                   "create",
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		RequiresBody:          true,
@@ -3305,7 +3186,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "Create or update flag defaults for project",
 		Long:  "Create or update flag defaults for a project.",
-		Use:   "put-flag-defaults-by-project",
+		Use:   "replace-flag-defaults-by",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3359,7 +3240,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_RelayProxyConfigurationsResourceCmd, client, OperationData{
 		Short:                 "List Relay Proxy configs",
 		Long:                  "Get a list of Relay Proxy configurations in the account.",
-		Use:                   "get-relay-proxy-configs",
+		Use:                   "list-relay-proxy-configs",
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		RequiresBody:          false,
@@ -3370,7 +3251,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_RelayProxyConfigurationsResourceCmd, client, OperationData{
 		Short: "Update a Relay Proxy config",
 		Long:  "Update a Relay Proxy configuration. Updating a configuration uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "patch-relay-auto-config",
+		Use:   "update-relay-auto-config",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -3388,7 +3269,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_RelayProxyConfigurationsResourceCmd, client, OperationData{
 		Short:                 "Create a new Relay Proxy config",
 		Long:                  "Create a Relay Proxy config.",
-		Use:                   "post-relay-auto-config",
+		Use:                   "create-relay-auto-config",
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		RequiresBody:          true,
@@ -3423,7 +3304,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "Delete scheduled changes workflow",
 		Long:  "Delete a scheduled changes workflow.",
-		Use:   "delete-flag-config-scheduled-changes",
+		Use:   "delete-flag-config",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3459,7 +3340,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "Get a scheduled change",
 		Long:  "Get a scheduled change that will be applied to the feature flag by ID.",
-		Use:   "get-feature-flag-scheduled-change",
+		Use:   "get-feature-flag",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3495,7 +3376,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "List scheduled changes",
 		Long:  "Get a list of scheduled changes that will be applied to the feature flag.",
-		Use:   "get-flag-config-scheduled-changes",
+		Use:   "list-flag-config",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3525,7 +3406,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "Update scheduled changes workflow",
 		Long:  "\nUpdate a scheduled change, overriding existing instructions with the new ones. Updating a scheduled change uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating scheduled changes.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating scheduled changes\u003c/strong\u003e\u003c/summary\u003e\n\n#### deleteScheduledChange\n\nRemoves the scheduled change.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"deleteScheduledChange\" }]\n}\n```\n\n#### replaceScheduledChangesInstructions\n\nRemoves the existing scheduled changes and replaces them with the new instructions.\n\n##### Parameters\n\n- `value`: An array of the new actions to perform when the execution date for these scheduled changes arrives. Supported scheduled actions are `turnFlagOn` and `turnFlagOff`.\n\nHere's an example that replaces the scheduled changes with new instructions to turn flag targeting off:\n\n```json\n{\n  \"instructions\": [\n    {\n      \"kind\": \"replaceScheduledChangesInstructions\",\n      \"value\": [ {\"kind\": \"turnFlagOff\"} ]\n    }\n  ]\n}\n```\n\n#### updateScheduledChangesExecutionDate\n\nUpdates the execution date for the scheduled changes.\n\n##### Parameters\n\n- `value`: the new execution date, in Unix milliseconds.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [\n    {\n      \"kind\": \"updateScheduledChangesExecutionDate\",\n      \"value\": 1754092860000\n    }\n  ]\n}\n```\n\n\u003c/details\u003e\n",
-		Use:   "patch-flag-config-scheduled-change",
+		Use:   "update-flag-config",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3567,7 +3448,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "Create scheduled changes workflow",
 		Long:  "Create scheduled changes for a feature flag. If the `ignoreConficts` query parameter is false and there are conflicts between these instructions and existing scheduled changes, the request will fail. If the parameter is true and there are conflicts, the request will succeed.",
-		Use:   "post-flag-config-scheduled-changes",
+		Use:   "create-flag-config",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3603,7 +3484,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Delete segment",
 		Long:  "Delete a segment.",
-		Use:   "delete-segment",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3633,7 +3514,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "List segment memberships for context instance",
 		Long:  "For a given context instance with attributes, get membership details for all segments. In the request body, pass in the context instance.",
-		Use:   "get-context-instance-segments-membership-by-env",
+		Use:   "list-context-instance-membership-by-env",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3657,7 +3538,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Get expiring targets for segment",
 		Long:  "Get a list of a segment's context targets that are scheduled for removal.",
-		Use:   "get-expiring-targets-for-segment",
+		Use:   "list-expiring-targets-for",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3687,7 +3568,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Get expiring user targets for segment",
 		Long:  "\u003e ### Contexts are now available\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Get expiring targets for segment](/tag/Segments#operation/getExpiringTargetsForSegment) instead of this endpoint. To learn more, read [Contexts](https://docs.launchdarkly.com/home/contexts).\n\nGet a list of a segment's user targets that are scheduled for removal.\n",
-		Use:   "get-expiring-user-targets-for-segment",
+		Use:   "list-expiring-user-targets-for",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3717,7 +3598,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Get segment",
 		Long:  "Get a single segment by key.\u003cbr/\u003e\u003cbr/\u003eSegments can be rule-based, list-based, or synced. Big segments include larger list-based segments and synced segments. Some fields in the response only apply to big segments.",
-		Use:   "get-segment",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3747,7 +3628,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Get big segment membership for context",
 		Long:  "Get the membership status (included/excluded) for a given context in this big segment. Big segments include larger list-based segments and synced segments. This operation does not support standard segments.",
-		Use:   "get-segment-membership-for-context",
+		Use:   "get-membership-for-context",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3783,7 +3664,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Get big segment membership for user",
 		Long:  "\u003e ### Contexts are now available\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Get expiring targets for segment](/tag/Segments#operation/getExpiringTargetsForSegment) instead of this endpoint. To learn more, read [Contexts](https://docs.launchdarkly.com/home/contexts).\n\nGet the membership status (included/excluded) for a given user in this big segment. This operation does not support standard segments.\n",
-		Use:   "get-segment-membership-for-user",
+		Use:   "get-membership-for-user",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3819,7 +3700,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "List segments",
 		Long:  "Get a list of all segments in the given project.\u003cbr/\u003e\u003cbr/\u003eSegments can be rule-based, list-based, or synced. Big segments include larger list-based segments and synced segments. Some fields in the response only apply to big segments.",
-		Use:   "get-segments",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3867,7 +3748,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Update expiring targets for segment",
 		Long:  "\nUpdate expiring context targets for a segment. Updating a context target expiration uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\nIf the request is well-formed but any of its instructions failed to process, this operation returns status code `200`. In this case, the response `errors` array will be non-empty.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating expiring context targets.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating expiring context targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExpiringTarget\n\nSchedules a date and time when LaunchDarkly will remove a context from segment targeting. The segment must already have the context as an individual target.\n\n##### Parameters\n\n- `targetType`: The type of individual target for this context. Must be either `included` or `excluded`.\n- `contextKey`: The context key.\n- `contextKind`: The kind of context being targeted.\n- `value`: The date when the context should expire from the segment targeting, in Unix milliseconds.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addExpiringTarget\",\n    \"targetType\": \"included\",\n    \"contextKey\": \"user-key-123abc\",\n    \"contextKind\": \"user\",\n    \"value\": 1754092860000\n  }]\n}\n```\n\n#### updateExpiringTarget\n\nUpdates the date and time when LaunchDarkly will remove a context from segment targeting.\n\n##### Parameters\n\n- `targetType`: The type of individual target for this context. Must be either `included` or `excluded`.\n- `contextKey`: The context key.\n- `contextKind`: The kind of context being targeted.\n- `value`: The new date when the context should expire from the segment targeting, in Unix milliseconds.\n- `version`: (Optional) The version of the expiring target to update. If included, update will fail if version doesn't match current version of the expiring target.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateExpiringTarget\",\n    \"targetType\": \"included\",\n    \"contextKey\": \"user-key-123abc\",\n    \"contextKind\": \"user\",\n    \"value\": 1754179260000\n  }]\n}\n```\n\n#### removeExpiringTarget\n\nRemoves the scheduled expiration for the context in the segment.\n\n##### Parameters\n\n- `targetType`: The type of individual target for this context. Must be either `included` or `excluded`.\n- `contextKey`: The context key.\n- `contextKind`: The kind of context being targeted.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeExpiringTarget\",\n    \"targetType\": \"included\",\n    \"contextKey\": \"user-key-123abc\",\n    \"contextKind\": \"user\",\n  }]\n}\n```\n\n\u003c/details\u003e\n",
-		Use:   "patch-expiring-targets-for-segment",
+		Use:   "update-expiring-targets-for",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3897,7 +3778,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Update expiring user targets for segment",
 		Long:  "\n\u003e ### Contexts are now available\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Update expiring targets for segment](/tag/Segments#operation/patchExpiringTargetsForSegment) instead of this endpoint. To learn more, read [Contexts](https://docs.launchdarkly.com/home/contexts).\n\nUpdate expiring user targets for a segment. Updating a user target expiration uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\nIf the request is well-formed but any of its instructions failed to process, this operation returns status code `200`. In this case, the response `errors` array will be non-empty.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating expiring user targets.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating expiring user targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExpireUserTargetDate\n\nSchedules a date and time when LaunchDarkly will remove a user from segment targeting.\n\n##### Parameters\n\n- `targetType`: A segment's target type, must be either `included` or `excluded`.\n- `userKey`: The user key.\n- `value`: The date when the user should expire from the segment targeting, in Unix milliseconds.\n\n#### updateExpireUserTargetDate\n\nUpdates the date and time when LaunchDarkly will remove a user from segment targeting.\n\n##### Parameters\n\n- `targetType`: A segment's target type, must be either `included` or `excluded`.\n- `userKey`: The user key.\n- `value`: The new date when the user should expire from the segment targeting, in Unix milliseconds.\n- `version`: The segment version.\n\n#### removeExpireUserTargetDate\n\nRemoves the scheduled expiration for the user in the segment.\n\n##### Parameters\n\n- `targetType`: A segment's target type, must be either `included` or `excluded`.\n- `userKey`: The user key.\n\n\u003c/details\u003e\n",
-		Use:   "patch-expiring-user-targets-for-segment",
+		Use:   "update-expiring-user-targets-for",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3927,7 +3808,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Patch segment",
 		Long:  "Update a segment. The request body must be a valid semantic patch, JSON patch, or JSON merge patch. To learn more the different formats, read [Updates](/#section/Overview/Updates).\n\n### Using semantic patches on a segment\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\nThe body of a semantic patch request for updating segments requires an `environmentKey` in addition to `instructions` and an optional `comment`. The body of the request takes the following properties:\n\n* `comment` (string): (Optional) A description of the update.\n* `environmentKey` (string): (Required) The key of the LaunchDarkly environment.\n* `instructions` (array): (Required) A list of actions the update should perform. Each action in the list must be an object with a `kind` property that indicates the instruction. If the action requires parameters, you must include those parameters as additional fields in the object.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating segments.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating segments\u003c/strong\u003e\u003c/summary\u003e\n\n#### addIncludedTargets\n\nAdds context keys to the individual context targets included in the segment for the specified `contextKind`. Returns an error if this causes the same context key to be both included and excluded.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be added to.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addIncludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### addIncludedUsers\n\nAdds user keys to the individual user targets included in the segment. Returns an error if this causes the same user key to be both included and excluded. If you are working with contexts, use `addIncludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addIncludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### addExcludedTargets\n\nAdds context keys to the individual context targets excluded in the segment for the specified `contextKind`. Returns an error if this causes the same context key to be both included and excluded.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be added to.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addExcludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### addExcludedUsers\n\nAdds user keys to the individual user targets excluded from the segment. Returns an error if this causes the same user key to be both included and excluded. If you are working with contexts, use `addExcludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addExcludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### removeIncludedTargets\n\nRemoves context keys from the individual context targets included in the segment for the specified `contextKind`.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be removed from.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeIncludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### removeIncludedUsers\n\nRemoves user keys from the individual user targets included in the segment. If you are working with contexts, use `removeIncludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeIncludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### removeExcludedTargets\n\nRemoves context keys from the individual context targets excluded from the segment for the specified `contextKind`.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be removed from.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeExcludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### removeExcludedUsers\n\nRemoves user keys from the individual user targets excluded from the segment. If you are working with contexts, use `removeExcludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeExcludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### updateName\n\nUpdates the name of the segment.\n\n##### Parameters\n\n- `value`: Name of the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateName\",\n    \"value\": \"Updated segment name\"\n  }]\n}\n```\n\n\u003c/details\u003e\n\n## Using JSON patches on a segment\n\nIf you do not include the header described above, you can use a [JSON patch](/reference#updates-using-json-patch) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes.\n\nFor example, to update the description for a segment with a JSON patch, use the following request body:\n\n```json\n{\n  \"patch\": [\n    {\n      \"op\": \"replace\",\n      \"path\": \"/description\",\n      \"value\": \"new description\"\n    }\n  ]\n}\n```\n\nTo update fields in the segment that are arrays, set the `path` to the name of the field and then append `/\u003carray index\u003e`. Use `/0` to add the new entry to the beginning of the array. Use `/-` to add the new entry to the end of the array.\n\nFor example, to add a rule to a segment, use the following request body:\n\n```json\n{\n  \"patch\":[\n    {\n      \"op\": \"add\",\n      \"path\": \"/rules/0\",\n      \"value\": {\n        \"clauses\": [{ \"contextKind\": \"user\", \"attribute\": \"email\", \"op\": \"endsWith\", \"values\": [\".edu\"], \"negate\": false }]\n      }\n    }\n  ]\n}\n```\n\nTo add or remove targets from segments, we recommend using semantic patch. Semantic patch for segments includes specific instructions for adding and removing both included and excluded targets.\n",
-		Use:   "patch-segment",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3957,7 +3838,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Create segment",
 		Long:  "Create a new segment.",
-		Use:   "post-segment",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3981,7 +3862,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Update context targets on a big segment",
 		Long:  "Update context targets included or excluded in a big segment. Big segments include larger list-based segments and synced segments. This operation does not support standard segments.",
-		Use:   "update-big-segment-context-targets",
+		Use:   "update-big-context-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4011,7 +3892,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Update user context targets on a big segment",
 		Long:  "Update user context targets included or excluded in a big segment. Big segments include larger list-based segments and synced segments. This operation does not support standard segments.",
-		Use:   "update-big-segment-targets",
+		Use:   "update-big-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4041,7 +3922,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_TagsResourceCmd, client, OperationData{
 		Short: "List tags",
 		Long:  "Get a list of tags.",
-		Use:   "get-tags",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "kind",
@@ -4071,7 +3952,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "Delete team",
 		Long:  "Delete a team by key. To learn more, read [Deleting a team](https://docs.launchdarkly.com/home/teams/managing#deleting-a-team).",
-		Use:   "delete-team",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "team-key",
@@ -4089,7 +3970,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "Get team",
 		Long:  "Fetch a team by key.\n\n### Expanding the teams response\nLaunchDarkly supports four fields for expanding the \"Get team\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n* `members` includes the total count of members that belong to the team.\n* `roles` includes a paginated list of the custom roles that you have assigned to the team.\n* `projects` includes a paginated list of the projects that the team has any write access to.\n* `maintainers` includes a paginated list of the maintainers that you have assigned to the team.\n\nFor example, `expand=members,roles` includes the `members` and `roles` fields in the response.\n",
-		Use:   "get-team",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "team-key",
@@ -4113,7 +3994,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "Get team maintainers",
 		Long:  "Fetch the maintainers that have been assigned to the team. To learn more, read [Managing team maintainers](https://docs.launchdarkly.com/home/teams/managing#managing-team-maintainers).",
-		Use:   "get-team-maintainers",
+		Use:   "list-maintainers",
 		Params: []Param{
 			{
 				Name:        "team-key",
@@ -4143,7 +4024,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "Get team custom roles",
 		Long:  "Fetch the custom roles that have been assigned to the team. To learn more, read [Managing team permissions](https://docs.launchdarkly.com/home/teams/managing#managing-team-permissions).",
-		Use:   "get-team-roles",
+		Use:   "list-roles",
 		Params: []Param{
 			{
 				Name:        "team-key",
@@ -4173,7 +4054,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "List teams",
 		Long:  "Return a list of teams.\n\nBy default, this returns the first 20 teams. Page through this list with the `limit` parameter and by following the `first`, `prev`, `next`, and `last` links in the `_links` field that returns. If those links do not appear, the pages they refer to don't exist. For example, the `first` and `prev` links will be missing from the response on the first page, because there is no previous page and you cannot return to the first page when you are already on the first page.\n\n### Filtering teams\n\nLaunchDarkly supports the following fields for filters:\n\n- `query` is a string that matches against the teams' names and keys. It is not case-sensitive.\n  - A request with `query:abc` returns teams with the string `abc` in their name or key.\n- `nomembers` is a boolean that filters the list of teams who have 0 members\n  - A request with `nomembers:true` returns teams that have 0 members\n  - A request with `nomembers:false` returns teams that have 1 or more members\n\n### Expanding the teams response\nLaunchDarkly supports expanding several fields in the \"List teams\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n* `members` includes the total count of members that belong to the team.\n* `maintainers` includes a paginated list of the maintainers that you have assigned to the team.\n\nFor example, `expand=members,maintainers` includes the `members` and `maintainers` fields in the response.\n",
-		Use:   "get-teams",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "limit",
@@ -4209,7 +4090,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "Update team",
 		Long:  "Perform a partial update to a team. Updating a team uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating teams.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating teams\u003c/strong\u003e\u003c/summary\u003e\n\n#### addCustomRoles\n\nAdds custom roles to the team. Team members will have these custom roles granted to them.\n\n##### Parameters\n\n- `values`: List of custom role keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addCustomRoles\",\n    \"values\": [ \"example-custom-role\" ]\n  }]\n}\n```\n\n#### removeCustomRoles\n\nRemoves custom roles from the team. The app will no longer grant these custom roles to the team members.\n\n##### Parameters\n\n- `values`: List of custom role keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeCustomRoles\",\n    \"values\": [ \"example-custom-role\" ]\n  }]\n}\n```\n\n#### addMembers\n\nAdds members to the team.\n\n##### Parameters\n\n- `values`: List of member IDs to add.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addMembers\",\n    \"values\": [ \"1234a56b7c89d012345e678f\", \"507f1f77bcf86cd799439011\" ]\n  }]\n}\n```\n\n#### removeMembers\n\nRemoves members from the team.\n\n##### Parameters\n\n- `values`: List of member IDs to remove.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeMembers\",\n    \"values\": [ \"1234a56b7c89d012345e678f\", \"507f1f77bcf86cd799439011\" ]\n  }]\n}\n```\n\n#### replaceMembers\n\nReplaces the existing members of the team with the new members.\n\n##### Parameters\n\n- `values`: List of member IDs of the new members.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceMembers\",\n    \"values\": [ \"1234a56b7c89d012345e678f\", \"507f1f77bcf86cd799439011\" ]\n  }]\n}\n```\n\n#### addPermissionGrants\n\nAdds permission grants to members for the team. For example, a permission grant could allow a member to act as a team maintainer. A permission grant may have either an `actionSet` or a list of `actions` but not both at the same time. The members do not have to be team members to have a permission grant for the team.\n\n##### Parameters\n\n- `actionSet`: Name of the action set.\n- `actions`: List of actions.\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addPermissionGrants\",\n    \"actions\": [ \"updateTeamName\", \"updateTeamDescription\" ],\n    \"memberIDs\": [ \"1234a56b7c89d012345e678f\", \"507f1f77bcf86cd799439011\" ]\n  }]\n}\n```\n\n#### removePermissionGrants\n\nRemoves permission grants from members for the team. A permission grant may have either an `actionSet` or a list of `actions` but not both at the same time. The `actionSet` and `actions` must match an existing permission grant.\n\n##### Parameters\n\n- `actionSet`: Name of the action set.\n- `actions`: List of actions.\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removePermissionGrants\",\n    \"actions\": [ \"updateTeamName\", \"updateTeamDescription\" ],\n    \"memberIDs\": [ \"1234a56b7c89d012345e678f\", \"507f1f77bcf86cd799439011\" ]\n  }]\n}\n```\n\n#### updateDescription\n\nUpdates the description of the team.\n\n##### Parameters\n\n- `value`: The new description.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateDescription\",\n    \"value\": \"Updated team description\"\n  }]\n}\n```\n\n#### updateName\n\nUpdates the name of the team.\n\n##### Parameters\n\n- `value`: The new name.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateName\",\n    \"value\": \"Updated team name\"\n  }]\n}\n```\n\n\u003c/details\u003e\n\n### Expanding the teams response\nLaunchDarkly supports four fields for expanding the \"Update team\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n* `members` includes the total count of members that belong to the team.\n* `roles` includes a paginated list of the custom roles that you have assigned to the team.\n* `projects` includes a paginated list of the projects that the team has any write access to.\n* `maintainers` includes a paginated list of the maintainers that you have assigned to the team.\n\nFor example, `expand=members,roles` includes the `members` and `roles` fields in the response.\n",
-		Use:   "patch-team",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "team-key",
@@ -4233,7 +4114,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "Create team",
 		Long:  "Create a team. To learn more, read [Creating a team](https://docs.launchdarkly.com/home/teams/creating).\n\n### Expanding the teams response\nLaunchDarkly supports four fields for expanding the \"Create team\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n* `members` includes the total count of members that belong to the team.\n* `roles` includes a paginated list of the custom roles that you have assigned to the team.\n* `projects` includes a paginated list of the projects that the team has any write access to.\n* `maintainers` includes a paginated list of the maintainers that you have assigned to the team.\n\nFor example, `expand=members,roles` includes the `members` and `roles` fields in the response.\n",
-		Use:   "post-team",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "expand",
@@ -4251,7 +4132,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "Add multiple members to team",
 		Long:  "Add multiple members to an existing team by uploading a CSV file of member email addresses. Your CSV file must include email addresses in the first column. You can include data in additional columns, but LaunchDarkly ignores all data outside the first column. Headers are optional. To learn more, read [Managing team members](https://docs.launchdarkly.com/home/teams/managing#managing-team-members).\n\n**Members are only added on a `201` response.** A `207` indicates the CSV file contains a combination of valid and invalid entries. A `207` results in no members being added to the team.\n\nOn a `207` response, if an entry contains bad input, the `message` field contains the row number as well as the reason for the error. The `message` field is omitted if the entry is valid.\n\nExample `207` response:\n```json\n{\n  \"items\": [\n    {\n      \"status\": \"success\",\n      \"value\": \"new-team-member@acme.com\"\n    },\n    {\n      \"message\": \"Line 2: empty row\",\n      \"status\": \"error\",\n      \"value\": \"\"\n    },\n    {\n      \"message\": \"Line 3: email already exists in the specified team\",\n      \"status\": \"error\",\n      \"value\": \"existing-team-member@acme.com\"\n    },\n    {\n      \"message\": \"Line 4: invalid email formatting\",\n      \"status\": \"error\",\n      \"value\": \"invalid email format\"\n    }\n  ]\n}\n```\n\nMessage | Resolution\n--- | ---\nEmpty row | This line is blank. Add an email address and try again.\nDuplicate entry | This email address appears in the file twice. Remove the email from the file and try again.\nEmail already exists in the specified team | This member is already on your team. Remove the email from the file and try again.\nInvalid formatting | This email address is not formatted correctly. Fix the formatting and try again.\nEmail does not belong to a LaunchDarkly member | The email address doesn't belong to a LaunchDarkly account member. Invite them to LaunchDarkly, then re-add them to the team.\n\nOn a `400` response, the `message` field may contain errors specific to this endpoint.\n\nExample `400` response:\n```json\n{\n  \"code\": \"invalid_request\",\n  \"message\": \"Unable to process file\"\n}\n```\n\nMessage | Resolution\n--- | ---\nUnable to process file | LaunchDarkly could not process the file for an unspecified reason. Review your file for errors and try again.\nFile exceeds 25mb | Break up your file into multiple files of less than 25mbs each.\nAll emails have invalid formatting | None of the email addresses in the file are in the correct format. Fix the formatting and try again.\nAll emails belong to existing team members | All listed members are already on this team. Populate the file with member emails that do not belong to the team and try again.\nFile is empty | The CSV file does not contain any email addresses. Populate the file and try again.\nNo emails belong to members of your LaunchDarkly organization | None of the email addresses belong to members of your LaunchDarkly account. Invite these members to LaunchDarkly, then re-add them to the team.\n",
-		Use:   "post-team-members",
+		Use:   "create-members",
 		Params: []Param{
 			{
 				Name:        "team-key",
@@ -4266,10 +4147,129 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_UserSettingsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
+		Short: "Delete access token",
+		Long:  "Delete an access token by ID.",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the access token to update",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		RequiresBody:          false,
+		Path:                  "/api/v2/tokens/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
+		Short: "Get access token",
+		Long:  "Get a single access token by ID.",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the access token",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/tokens/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
+		Short: "List access tokens",
+		Long:  "Fetch a list of all access tokens.",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "show-all",
+				In:          "query",
+				Description: "If set to true, and the authentication access token has the 'Admin' role, personal access tokens for all members will be retrieved.",
+				Type:        "boolean",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The number of access tokens to return in the response. Defaults to 25.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/tokens",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
+		Short: "Patch access token",
+		Long:  "Update an access token's settings. Updating an access token uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the access token to update",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		RequiresBody:          true,
+		Path:                  "/api/v2/tokens/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
+		Short:                 "Create access token",
+		Long:                  "Create a new access token.",
+		Use:                   "create",
+		Params:                []Param{},
+		HTTPMethod:            "POST",
+		RequiresBody:          true,
+		Path:                  "/api/v2/tokens",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
+		Short: "Reset access token",
+		Long:  "Reset an access token's secret key with an optional expiry time for the old key.",
+		Use:   "reset",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the access token to update",
+				Type:        "string",
+			},
+			{
+				Name:        "expiry",
+				In:          "query",
+				Description: "An expiration time for the old token key, expressed as a Unix epoch time in milliseconds. By default, the token will expire immediately.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "POST",
+		RequiresBody:          true,
+		Path:                  "/api/v2/tokens/{id}/reset",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_UserFlagSettingsResourceCmd, client, OperationData{
 		Short: "Get expiring dates on flags for user",
 		Long:  "Get a list of flags for which the given user is scheduled for removal.",
-		Use:   "get-expiring-flags-for-user",
+		Use:   "list-expiring-flags-for-user",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4296,10 +4296,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_UserSettingsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_UserFlagSettingsResourceCmd, client, OperationData{
 		Short: "Get flag setting for user",
 		Long:  "Get a single flag setting for a user by flag key. \u003cbr /\u003e\u003cbr /\u003eThe `_value` is the flag variation that the user receives. The `setting` indicates whether you've explicitly targeted a user to receive a particular variation. For example, if you have turned off a feature flag for a user, this setting will be `false`. The example response indicates that the user `Abbie_Braun` has the `sort.order` flag enabled.",
-		Use:   "get-user-flag-setting",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4332,10 +4332,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_UserSettingsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_UserFlagSettingsResourceCmd, client, OperationData{
 		Short: "List flag settings for user",
 		Long:  "Get the current flag settings for a given user. \u003cbr /\u003e\u003cbr /\u003eThe `_value` is the flag variation that the user receives. The `setting` indicates whether you've explicitly targeted a user to receive a particular variation. For example, if you have turned off a feature flag for a user, this setting will be `false`. The example response indicates that the user `Abbie_Braun` has the `sort.order` flag enabled and the `alternate.page` flag disabled, and that the user has not been explicitly targeted to receive a particular variation.",
-		Use:   "get-user-flag-settings",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4362,10 +4362,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_UserSettingsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_UserFlagSettingsResourceCmd, client, OperationData{
 		Short: "Update expiring user target for flags",
 		Long:  "Schedule the specified user for removal from individual targeting on one or more flags. The user must already be individually targeted for each flag.\n\nYou can add, update, or remove a scheduled removal date. You can only schedule a user for removal on a single variation per flag.\n\nUpdating an expiring target uses the semantic patch format. To make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating expiring user targets.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating expiring user targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExpireUserTargetDate\n\nAdds a date and time that LaunchDarkly will remove the user from the flag's individual targeting.\n\n##### Parameters\n\n* `flagKey`: The flag key\n* `variationId`: ID of a variation on the flag\n* `value`: The time, in Unix milliseconds, when LaunchDarkly should remove the user from individual targeting for this flag.\n\n#### updateExpireUserTargetDate\n\nUpdates the date and time that LaunchDarkly will remove the user from the flag's individual targeting.\n\n##### Parameters\n\n* `flagKey`: The flag key\n* `variationId`: ID of a variation on the flag\n* `value`: The time, in Unix milliseconds, when LaunchDarkly should remove the user from individual targeting for this flag.\n* `version`: The version of the expiring user target to update. If included, update will fail if version doesn't match current version of the expiring user target.\n\n#### removeExpireUserTargetDate\n\nRemoves the scheduled removal of the user from the flag's individual targeting. The user will remain part of the flag's individual targeting until explicitly removed, or until another removal is scheduled.\n\n##### Parameters\n\n* `flagKey`: The flag key\n* `variationId`: ID of a variation on the flag\n\n\u003c/details\u003e\n",
-		Use:   "patch-expiring-flags-for-user",
+		Use:   "update-expiring-flags-for-user",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4392,10 +4392,10 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: true,
 	})
 
-	NewOperationCmd(gen_UserSettingsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_UserFlagSettingsResourceCmd, client, OperationData{
 		Short: "Update flag settings for user",
 		Long:  "Enable or disable a feature flag for a user based on their key.\n\nOmitting the `setting` attribute from the request body, or including a `setting` of `null`, erases the current setting for a user.\n\nIf you previously patched the flag, and the patch included the user's data, LaunchDarkly continues to use that data. If LaunchDarkly has never encountered the user's key before, it calculates the flag values based on the user key alone.\n",
-		Use:   "put-flag-setting",
+		Use:   "replace-flag-setting",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4431,7 +4431,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_UsersResourceCmd, client, OperationData{
 		Short: "Delete user",
 		Long:  "\u003e ### Use contexts instead\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Delete context instances](/tag/Contexts#operation/deleteContextInstances) instead of this endpoint.\n\nDelete a user by key.\n",
-		Use:   "delete-user",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4461,7 +4461,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_UsersResourceCmd, client, OperationData{
 		Short: "Find users",
 		Long:  "\u003e ### Use contexts instead\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Search for context instances](/tag/Contexts#operation/searchContextInstances) instead of this endpoint.\n\nSearch users in LaunchDarkly based on their last active date, a user attribute filter set, or a search query.\n\nAn example user attribute filter set is `filter=firstName:Anna,activeTrial:false`. This matches users that have the user attribute `firstName` set to `Anna`, that also have the attribute `activeTrial` set to `false`.\n\nTo paginate through results, follow the `next` link in the `_links` object. To learn more, read [Representations](/#section/Representations).\n",
-		Use:   "get-search-users",
+		Use:   "list-search",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4527,7 +4527,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_UsersResourceCmd, client, OperationData{
 		Short: "Get user",
 		Long:  "\u003e ### Use contexts instead\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Get context instances](/tag/Contexts#operation/getContextInstances) instead of this endpoint.\n\nGet a user by key. The `user` object contains all attributes sent in `variation` calls for that key.\n",
-		Use:   "get-user",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4557,7 +4557,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_UsersResourceCmd, client, OperationData{
 		Short: "List users",
 		Long:  "\u003e ### Use contexts instead\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Search for contexts](/tag/Contexts#operation/searchContexts) instead of this endpoint.\n\nList all users in the environment. Includes the total count of users. This is useful for exporting all users in the system for further analysis.\n\nEach page displays users up to a set `limit`. The default is 20. To page through, follow the `next` link in the `_links` object. To learn more, read [Representations](/#section/Representations).\n",
-		Use:   "get-users",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4593,7 +4593,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WebhooksResourceCmd, client, OperationData{
 		Short: "Delete webhook",
 		Long:  "Delete a webhook by ID.",
-		Use:   "delete-webhook",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -4611,7 +4611,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WebhooksResourceCmd, client, OperationData{
 		Short:                 "List webhooks",
 		Long:                  "Fetch a list of all webhooks.",
-		Use:                   "get-all-webhooks",
+		Use:                   "list-all",
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		RequiresBody:          false,
@@ -4622,7 +4622,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WebhooksResourceCmd, client, OperationData{
 		Short: "Get webhook",
 		Long:  "Get a single webhook by ID.",
-		Use:   "get-webhook",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -4640,7 +4640,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WebhooksResourceCmd, client, OperationData{
 		Short: "Update webhook",
 		Long:  "Update a webhook's settings. Updating webhook settings uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "patch-webhook",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -4658,7 +4658,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WebhooksResourceCmd, client, OperationData{
 		Short:                 "Creates a webhook",
 		Long:                  "Create a new webhook.",
-		Use:                   "post-webhook",
+		Use:                   "create",
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		RequiresBody:          true,
@@ -4669,7 +4669,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WorkflowTemplatesResourceCmd, client, OperationData{
 		Short:                 "Create workflow template",
 		Long:                  "Create a template for a feature flag workflow",
-		Use:                   "create-workflow-template",
+		Use:                   "create",
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		RequiresBody:          true,
@@ -4680,7 +4680,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WorkflowTemplatesResourceCmd, client, OperationData{
 		Short: "Delete workflow template",
 		Long:  "Delete a workflow template",
-		Use:   "delete-workflow-template",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "template-key",
@@ -4698,7 +4698,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WorkflowTemplatesResourceCmd, client, OperationData{
 		Short: "Get workflow templates",
 		Long:  "Get workflow templates belonging to an account, or can optionally return templates_endpoints.workflowTemplateSummariesListingOutputRep when summary query param is true",
-		Use:   "get-workflow-templates",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "summary",
@@ -4722,7 +4722,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WorkflowsResourceCmd, client, OperationData{
 		Short: "Delete workflow",
 		Long:  "Delete a workflow from a feature flag.",
-		Use:   "delete-workflow",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4758,7 +4758,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WorkflowsResourceCmd, client, OperationData{
 		Short: "Get custom workflow",
 		Long:  "Get a specific workflow by ID.",
-		Use:   "get-custom-workflow",
+		Use:   "get-custom",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4794,7 +4794,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WorkflowsResourceCmd, client, OperationData{
 		Short: "Get workflows",
 		Long:  "Display workflows associated with a feature flag.",
-		Use:   "get-workflows",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4848,7 +4848,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_WorkflowsResourceCmd, client, OperationData{
 		Short: "Create workflow",
 		Long:  "Create a workflow for a feature flag. You can create a workflow directly, or you can apply a template to create a new workflow.\n\n### Creating a workflow\n\nYou can use the create workflow endpoint to create a workflow directly by adding a `stages` array to the request body.\n\nFor each stage, define the `name`, `conditions` when the stage should be executed, and `action` that describes the stage.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand example\u003c/summary\u003e\n\n_Example request body_\n```json\n{\n  \"name\": \"Progressive rollout starting in two days\",\n  \"description\": \"Turn flag targeting on and increase feature rollout in 10% increments each day\",\n  \"stages\": [\n    {\n      \"name\": \"10% rollout on day 1\",\n      \"conditions\": [\n        {\n          \"kind\": \"schedule\",\n          \"scheduleKind\": \"relative\", // or \"absolute\"\n              //  If \"scheduleKind\" is \"absolute\", set \"executionDate\";\n              // \"waitDuration\" and \"waitDurationUnit\" will be ignored\n          \"waitDuration\": 2,\n          \"waitDurationUnit\": \"calendarDay\"\n        },\n        {\n          \"kind\": \"ld-approval\",\n          \"notifyMemberIds\": [ \"507f1f77bcf86cd799439011\" ],\n          \"notifyTeamKeys\": [ \"team-key-123abc\" ]\n        }\n      ],\n      \"action\": {\n        \"instructions\": [\n          {\n            \"kind\": \"turnFlagOn\"\n          },\n          {\n            \"kind\": \"updateFallthroughVariationOrRollout\",\n            \"rolloutWeights\": {\n              \"452f5fb5-7320-4ba3-81a1-8f4324f79d49\": 90000,\n              \"fc15f6a4-05d3-4aa4-a997-446be461345d\": 10000\n            }\n          }\n        ]\n      }\n    }\n  ]\n}\n```\n\u003c/details\u003e\n\n### Creating a workflow by applying a workflow template\n\nYou can also create a workflow by applying a workflow template. If you pass a valid workflow template key as the `templateKey` query parameter with the request, the API will attempt to create a new workflow with the stages defined in the workflow template with the corresponding key.\n\n#### Applicability of stages\nTemplates are created in the context of a particular flag in a particular environment in a particular project. However, because workflows created from a template can be applied to any project, environment, and flag, some steps of the workflow may need to be updated in order to be applicable for the target resource.\n\nYou can pass a `dryRun` query parameter to tell the API to return a report of which steps of the workflow template are applicable in the target project/environment/flag, and which will need to be updated. When the `dryRun` query parameter is present the response body includes a `meta` property that holds a list of parameters that could potentially be inapplicable for the target resource. Each of these parameters will include a `valid` field. You will need to update any invalid parameters in order to create the new workflow. You can do this using the `parameters` property, which overrides the workflow template parameters.\n\n#### Overriding template parameters\nYou can use the `parameters` property in the request body to tell the API to override the specified workflow template parameters with new values that are specific to your target project/environment/flag.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand example\u003c/summary\u003e\n\n_Example request body_\n```json\n{\n\t\"name\": \"workflow created from my-template\",\n\t\"description\": \"description of my workflow\",\n\t\"parameters\": [\n\t\t{\n\t\t\t\"_id\": \"62cf2bc4cadbeb7697943f3b\",\n\t\t\t\"path\": \"/clauses/0/values\",\n\t\t\t\"default\": {\n\t\t\t\t\"value\": [\"updated-segment\"]\n\t\t\t}\n\t\t},\n\t\t{\n\t\t\t\"_id\": \"62cf2bc4cadbeb7697943f3d\",\n\t\t\t\"path\": \"/variationId\",\n\t\t\t\"default\": {\n\t\t\t\t\"value\": \"abcd1234-abcd-1234-abcd-1234abcd12\"\n\t\t\t}\n\t\t}\n\t]\n}\n```\n\u003c/details\u003e\n\nIf there are any steps in the template that are not applicable to the target resource, the workflow will not be created, and the `meta` property will be included in the response body detailing which parameters need to be updated.\n",
-		Use:   "post-workflow",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "template-key",

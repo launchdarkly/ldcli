@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -76,9 +77,11 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 			// skip beta resources for now
 			continue
 		}
-		resources[strcase.ToCamel(r.Name)] = ResourceData{
-			DisplayName: strings.ToLower(r.Name),
-			Name:        strcase.ToKebab(strings.ToLower(r.Name)),
+
+		resourceName := getResourceName(r.Name)
+		resources[strcase.ToCamel(resourceName)] = ResourceData{
+			DisplayName: strings.ToLower(resourceName),
+			Name:        strcase.ToKebab(resourceName),
 			Description: jsonString(r.Description),
 			Operations:  make(map[string]OperationData, 0),
 		}
@@ -91,13 +94,13 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				// skip beta resources for now
 				continue
 			}
-			resource, ok := resources[strcase.ToCamel(tag)]
+			resource, ok := resources[strcase.ToCamel(getResourceName(tag))]
 			if !ok {
-				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, tag)
+				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, strcase.ToCamel(tag))
 				continue
 			}
 
-			use := getCmdUse(method, op, spec)
+			use := getCmdUse(op, spec)
 
 			var supportsSemanticPatch bool
 			if strings.Contains(op.Description, "semantic patch") {
@@ -137,43 +140,74 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 	return TemplateData{Resources: resources}, nil
 }
 
-func getCmdUse(method string, op *openapi3.Operation, spec *openapi3.T) string {
-	return strcase.ToKebab(op.OperationID)
+func getResourceName(tagName string) string {
+	if mappedName, ok := mapTagToResource[tagName]; ok {
+		return mappedName
+	}
+	return tagName
+}
 
-	// TODO: work with operation ID & response type to stripe out resource name and update post -> create, get -> list, etc.
-	//methodMap := map[string]string{
-	//	"GET":    "get",
-	//	"POST":   "create",
-	//	"PUT":    "replace", // TODO: confirm this
-	//	"DELETE": "delete",
-	//	"PATCH":  "update",
-	//}
-	//
-	//use := methodMap[method]
-	//
-	//var schema *openapi3.SchemaRef
-	//for respType, respInfo := range op.Responses.Map() {
-	//	respCode, _ := strconv.Atoi(respType)
-	//	if respCode < 300 {
-	//		for _, s := range respInfo.Value.Content {
-	//			schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
-	//			schema = spec.Components.Schemas[schemaName]
-	//		}
-	//	}
-	//}
-	//
-	//if schema == nil {
-	//	// probably won't need to keep this logging in but leaving it for debugging purposes
-	//	log.Printf("No response type defined for %s", op.OperationID)
-	//} else {
-	//	for propName := range schema.Value.Properties {
-	//		if propName == "items" {
-	//			use = "list"
-	//			break
-	//		}
-	//	}
-	//}
-	//return use
+var mapTagToResource = map[string]string{
+	"Access tokens":   "Tokens",
+	"Account members": "Members",
+	"Approvals":       "Approval requests",
+	"Code references": "Code refs",
+	//"Feature flags":   "Flags",
+	"OAuth2 Clients": "Oauth2 clients",
+	"User settings":  "User flag settings",
+}
+var mapOperationIdToUse = map[string]string{}
+
+func replaceMethod(operationId string) string {
+	r := strings.NewReplacer(
+		"post", "create",
+		"patch", "update",
+		"put", "replace",
+	)
+
+	return r.Replace(operationId)
+}
+
+func replaceGetWithList(input string) string {
+	re := regexp.MustCompile(`^get(.*)$`)
+	return re.ReplaceAllString(input, "list$1")
+}
+
+func getCmdUse(op *openapi3.Operation, spec *openapi3.T) string {
+	resourceName := strcase.ToCamel(getResourceName(op.Tags[0]))
+	singularResourceName := resourceName
+	if string(resourceName[len(resourceName)-1]) == "s" {
+		singularResourceName = resourceName[:len(resourceName)-1]
+	}
+	action := strings.Replace(op.OperationID, resourceName, "", 1)
+	action = strings.Replace(action, singularResourceName, "", 1)
+	action = strcase.ToKebab(action)
+	action = replaceMethod(action)
+
+	var schema *openapi3.SchemaRef
+	for respType, respInfo := range op.Responses.Map() {
+		respCode, _ := strconv.Atoi(respType)
+		if respCode < 300 {
+			for _, s := range respInfo.Value.Content {
+				schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
+				schema = spec.Components.Schemas[schemaName]
+			}
+		}
+	}
+
+	if schema == nil {
+		// probably won't need to keep this logging in but leaving it for debugging purposes
+		log.Printf("No response type defined for %s", op.OperationID)
+	} else {
+		for propName := range schema.Value.Properties {
+			if propName == "items" {
+				action = replaceGetWithList(action)
+				break
+			}
+		}
+	}
+
+	return action
 }
 
 func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
