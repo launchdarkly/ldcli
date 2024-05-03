@@ -91,7 +91,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				// skip beta resources for now
 				continue
 			}
-			resource, ok := resources[tag]
+			resource, ok := resources[strcase.ToCamel(tag)]
 			if !ok {
 				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, tag)
 				continue
