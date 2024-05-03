@@ -76,20 +76,20 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		"Environments allow you to maintain separate rollout rules in different contexts, from local development to QA, staging, and production. With the LaunchDarkly Environments API, you can programmatically create, delete, and update environments. To learn more, read [Environments](https://docs.launchdarkly.com/home/organize/environments).\n",
 	)
 
-	gen_FeatureFlagsResourceCmd := NewResourceCmd(
-		rootCmd,
-		analyticsTracker,
-		"feature-flags",
-		"Make requests (list, create, etc.) on feature flags",
-		"The feature flags API allows you to list, create, modify, and delete feature flags, their statuses, and their expiring targets programmatically. For example, you can control percentage rollouts, target specific contexts, or even toggle off a feature flag programmatically.\n\n## Sample feature flag representation\n\nEvery feature flag has a set of top-level attributes, as well as an `environments` map containing the flag rollout and targeting rules specific to each environment. To learn more, read [Using feature flags](https://docs.launchdarkly.com/home/creating-flags).\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand an example of a \u003cstrong\u003ecomplete feature flag representation\u003c/strong\u003e\u003c/summary\u003e\n\n```json\n{\n  \"name\": \"Alternate product page\",\n  \"kind\": \"boolean\",\n  \"description\": \"This is a description\",\n  \"key\": \"alternate.page\",\n  \"_version\": 2,\n  \"creationDate\": 1418684722483,\n  \"includeInSnippet\": true,\n  \"clientSideAvailability\" {\n    \"usingMobileKey\": false,\n    \"usingEnvironmentId\": true,\n  },\n  \"variations\": [\n    {\n      \"value\": true,\n      \"name\": \"true\",\n      \"_id\": \"86208e6e-468f-4425-b334-7f318397f95c\"\n    },\n    {\n      \"value\": false,\n      \"name\": \"false\",\n      \"_id\": \"7b32de80-f346-4276-bb77-28dfa7ddc2d8\"\n    }\n  ],\n  \"variationJsonSchema\": null,\n  \"defaults\": {\n    \"onVariation\": 0,\n    \"offVariation\": 1\n  },\n  \"temporary\": false,\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_links\": {\n    \"parent\": {\n      \"href\": \"/api/v2/flags/default\",\n      \"type\": \"application/json\"\n    },\n    \"self\": {\n      \"href\": \"/api/v2/flags/default/alternate.page\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"maintainerId\": \"548f6741c1efad40031b18ae\",\n  \"_maintainer\": {\n    \"_links\": {\n      \"self\": {\n        \"href\": \"/api/v2/members/548f6741c1efad40031b18ae\",\n        \"type\": \"application/json\"\n      }\n    },\n    \"_id\": \"548f6741c1efad40031b18ae\",\n    \"firstName\": \"Ariel\",\n    \"lastName\": \"Flores\",\n    \"role\": \"reader\",\n    \"email\": \"ariel@acme.com\"\n  },\n  \"goalIds\": [],\n  \"experiments\": {\n    \"baselineIdx\": 0,\n    \"items\": []\n  },\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"archived\": false,\n      \"salt\": \"YWx0ZXJuYXRlLnBhZ2U=\",\n      \"sel\": \"45501b9314dc4641841af774cb038b96\",\n      \"lastModified\": 1469326565348,\n      \"version\": 61,\n      \"targets\": [{\n          \"values\": [\"user-key-123abc\"],\n          \"variation\": 0,\n          \"contextKind\": \"user\"\n      }],\n      \"contextTargets\": [{\n        \"values\": [],\n        \"variation\": 0,\n        \"contextKind\": \"user\"\n        }, {\n        \"values\": [\"org-key-123abc\"],\n        \"variation\": 0,\n        \"contextKind\": \"organization\"\n      }],\n      \"rules\": [\n        {\n          \"_id\": \"f3ea72d0-e473-4e8b-b942-565b790ffe18\",\n          \"variation\": 0,\n          \"clauses\": [\n            {\n              \"_id\": \"6b81968e-3744-4416-9d64-74547eb0a7d1\",\n              \"attribute\": \"groups\",\n              \"op\": \"in\",\n              \"values\": [\"Top Customers\"],\n              \"contextKind\": \"user\",\n              \"negate\": false\n            },\n            {\n              \"_id\": \"9d60165d-82b8-4b9a-9136-f23407ba1718\",\n              \"attribute\": \"email\",\n              \"op\": \"endsWith\",\n              \"values\": [\"gmail.com\"],\n              \"contextKind\": \"user\",\n              \"negate\": false\n            }\n          ],\n          \"trackEvents\": false,\n          \"ref\": \"73257308-472b-4d9c-a556-10aa7adbf857\"\n        }\n      ],\n      \"fallthrough\": {\n        \"rollout\": {\n          \"variations\": [\n            {\n              \"variation\": 0,\n              \"weight\": 60000\n            },\n            {\n              \"variation\": 1,\n              \"weight\": 40000\n            }\n          ],\n          \"contextKind\": \"user\"\n        }\n      },\n      \"offVariation\": 1,\n      \"prerequisites\": [],\n      \"_site\": {\n        \"href\": \"/default/production/features/alternate.page\",\n        \"type\": \"text/html\"\n      },\n      \"_environmentName\": \"Production\",\n      \"trackEvents\": false,\n      \"trackEventsFallthrough\": false,\n      \"_summary\": {\n        \"variations\": {\n          \"0\": {\n            \"rules\": 1,\n            \"nullRules\": 0,\n            \"targets\": 2,\n            \"rollout\": 60000\n          },\n          \"1\": {\n            \"rules\": 0,\n            \"nullRules\": 0,\n            \"targets\": 0,\n            \"isOff\": true,\n            \"rollout\": 40000\n          }\n        },\n        \"prerequisites\": 0\n      }\n    }\n}\n```\n\n\u003c/details\u003e\n\n## Anatomy of a feature flag\n\nThis section describes the sample feature flag representation in more detail.\n\n### Top-level attributes\n\nMost of the top-level attributes have a straightforward interpretation, for example `name` and `description`.\n\nThe `variations` array represents the different variation values that a feature flag has. For a boolean flag, there are two variations: `true` and `false`. Multivariate flags have more variation values, and those values could be any JSON type: numbers, strings, objects, or arrays. In targeting rules, the variations are referred to by their index into this array.\n\nTo update these attributes, read [Update feature flag](#operation/patchFeatureFlag), especially the instructions for **updating flag settings**.\n\n### Per-environment configurations\n\nEach entry in the `environments` map contains a JSON object that represents the environment-specific flag configuration data available in the flag's Targeting tab. To learn more, read [Targeting with flags](https://docs.launchdarkly.com/home/targeting-flags).\n\nTo update per-environment information for a flag, read [Update feature flag](#operation/patchFeatureFlag), especially the instructions for **turning flags on and off** and **working with targeting and variations**.\n\n### Individual context targets\n\nThe `targets` and `contextTargets` arrays in the per-environment configuration data correspond to the individual context targeting on the Targeting tab. To learn more, read [Individual targeting](https://docs.launchdarkly.com/home/targeting-flags/individual-targeting).\n\nEach object in the `targets` and `contextTargets` arrays represents a list of context keys assigned to a particular variation. The `targets` array includes contexts with `contextKind` of \"user\" and the `contextTargets` array includes contexts with context kinds other than \"user.\"\n\nFor example:\n\n```json\n{\n  ...\n  \"environments\" : {\n    \"production\" : {\n      ...\n      \"targets\": [\n        {\n          \"values\": [\"user-key-123abc\"],\n          \"variation\": 0,\n          \"contextKind\": \"user\"\n        }\n      ],\n      \"contextTargets\": [\n        {\n          \"values\": [\"org-key-123abc\"],\n          \"variation\": 0,\n          \"contextKind\": \"organization\"\n        }\n      ]\n    }\n  }\n}\n```\n\nThe `targets` array means that any user context instance with the key `user-key-123abc` receives the first variation listed in the `variations` array. The `contextTargets` array means that any organization context with the key `org-key-123abc` receives the first variation listed in the `variations` array. Recall that the variations are stored at the top level of the flag JSON in an array, and the per-environment configuration rules point to indexes into this array. If this is a boolean flag, both contexts are receiving the `true` variation.\n\n### Targeting rules\n\nThe `rules` array corresponds to the rules section of the Targeting tab. This is where you can express complex rules on attributes with conditions and operators. For example, you might create a rule that specifies \"roll out the `true` variation to 80% of contexts whose email address ends with `gmail.com`\". To learn more, read [Creating targeting rules](https://docs.launchdarkly.com/home/targeting-flags/targeting-rules#creating-targeting-rules).\n\n### The fallthrough rule\n\nThe `fallthrough` object is a special rule that contains no conditions. It is the rollout strategy that is applied when none of the individual or custom targeting rules match. In the LaunchDarkly UI, it is called the \"Default rule.\"\n\n### The off variation\n\nThe off variation represents the variation to serve if the feature flag targeting is turned off, meaning the `on` attribute is `false`. For boolean flags, this is usually `false`. For multivariate flags, set the off variation to whatever variation represents the control or baseline behavior for your application. If you don't set the off variation, LaunchDarkly will serve the fallback value defined in your code.\n\n### Percentage rollouts\n\nWhen you work with targeting rules and with the default rule, you can specify either a single variation or a percentage rollout. The `weight` attribute defines the percentage rollout for each variation. Weights range from 0 (a 0% rollout) to 100000 (a 100% rollout). The weights are scaled by a factor of 1000 so that fractions of a percent can be represented without using floating-point. For example, a weight of `60000` means that 60% of contexts will receive that variation. The sum of weights across all variations should be 100%.\n",
-	)
-
 	gen_FlagTriggersResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTracker,
 		"flag-triggers",
 		"Make requests (list, create, etc.) on flag triggers",
 		"\u003e ### Flag triggers is an Enterprise feature\n\u003e\n\u003e Flag triggers is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nFlag triggers let you initiate flag changes remotely using a unique webhook URL. For example, you can integrate triggers with your existing tools to enable or disable flags when you hit specific operational health thresholds or receive certain alerts. To learn more, read [Flag triggers](https://docs.launchdarkly.com/home/feature-workflows/triggers).\n\nWith the flag triggers API, you can create, delete, and manage triggers.\n\nSeveral of the endpoints in the flag triggers API require a flag trigger ID. The flag trigger ID is returned as part of the [Create flag trigger](/tag/Flag-triggers#operation/createTriggerWorkflow) and [List flag triggers](/tag/Flag-triggers#operation/getTriggerWorkflows) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n",
+	)
+
+	gen_FeatureFlagsResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTracker,
+		"flags",
+		"Make requests (list, create, etc.) on feature flags",
+		"The feature flags API allows you to list, create, modify, and delete feature flags, their statuses, and their expiring targets programmatically. For example, you can control percentage rollouts, target specific contexts, or even toggle off a feature flag programmatically.\n\n## Sample feature flag representation\n\nEvery feature flag has a set of top-level attributes, as well as an `environments` map containing the flag rollout and targeting rules specific to each environment. To learn more, read [Using feature flags](https://docs.launchdarkly.com/home/creating-flags).\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand an example of a \u003cstrong\u003ecomplete feature flag representation\u003c/strong\u003e\u003c/summary\u003e\n\n```json\n{\n  \"name\": \"Alternate product page\",\n  \"kind\": \"boolean\",\n  \"description\": \"This is a description\",\n  \"key\": \"alternate.page\",\n  \"_version\": 2,\n  \"creationDate\": 1418684722483,\n  \"includeInSnippet\": true,\n  \"clientSideAvailability\" {\n    \"usingMobileKey\": false,\n    \"usingEnvironmentId\": true,\n  },\n  \"variations\": [\n    {\n      \"value\": true,\n      \"name\": \"true\",\n      \"_id\": \"86208e6e-468f-4425-b334-7f318397f95c\"\n    },\n    {\n      \"value\": false,\n      \"name\": \"false\",\n      \"_id\": \"7b32de80-f346-4276-bb77-28dfa7ddc2d8\"\n    }\n  ],\n  \"variationJsonSchema\": null,\n  \"defaults\": {\n    \"onVariation\": 0,\n    \"offVariation\": 1\n  },\n  \"temporary\": false,\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_links\": {\n    \"parent\": {\n      \"href\": \"/api/v2/flags/default\",\n      \"type\": \"application/json\"\n    },\n    \"self\": {\n      \"href\": \"/api/v2/flags/default/alternate.page\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"maintainerId\": \"548f6741c1efad40031b18ae\",\n  \"_maintainer\": {\n    \"_links\": {\n      \"self\": {\n        \"href\": \"/api/v2/members/548f6741c1efad40031b18ae\",\n        \"type\": \"application/json\"\n      }\n    },\n    \"_id\": \"548f6741c1efad40031b18ae\",\n    \"firstName\": \"Ariel\",\n    \"lastName\": \"Flores\",\n    \"role\": \"reader\",\n    \"email\": \"ariel@acme.com\"\n  },\n  \"goalIds\": [],\n  \"experiments\": {\n    \"baselineIdx\": 0,\n    \"items\": []\n  },\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"archived\": false,\n      \"salt\": \"YWx0ZXJuYXRlLnBhZ2U=\",\n      \"sel\": \"45501b9314dc4641841af774cb038b96\",\n      \"lastModified\": 1469326565348,\n      \"version\": 61,\n      \"targets\": [{\n          \"values\": [\"user-key-123abc\"],\n          \"variation\": 0,\n          \"contextKind\": \"user\"\n      }],\n      \"contextTargets\": [{\n        \"values\": [],\n        \"variation\": 0,\n        \"contextKind\": \"user\"\n        }, {\n        \"values\": [\"org-key-123abc\"],\n        \"variation\": 0,\n        \"contextKind\": \"organization\"\n      }],\n      \"rules\": [\n        {\n          \"_id\": \"f3ea72d0-e473-4e8b-b942-565b790ffe18\",\n          \"variation\": 0,\n          \"clauses\": [\n            {\n              \"_id\": \"6b81968e-3744-4416-9d64-74547eb0a7d1\",\n              \"attribute\": \"groups\",\n              \"op\": \"in\",\n              \"values\": [\"Top Customers\"],\n              \"contextKind\": \"user\",\n              \"negate\": false\n            },\n            {\n              \"_id\": \"9d60165d-82b8-4b9a-9136-f23407ba1718\",\n              \"attribute\": \"email\",\n              \"op\": \"endsWith\",\n              \"values\": [\"gmail.com\"],\n              \"contextKind\": \"user\",\n              \"negate\": false\n            }\n          ],\n          \"trackEvents\": false,\n          \"ref\": \"73257308-472b-4d9c-a556-10aa7adbf857\"\n        }\n      ],\n      \"fallthrough\": {\n        \"rollout\": {\n          \"variations\": [\n            {\n              \"variation\": 0,\n              \"weight\": 60000\n            },\n            {\n              \"variation\": 1,\n              \"weight\": 40000\n            }\n          ],\n          \"contextKind\": \"user\"\n        }\n      },\n      \"offVariation\": 1,\n      \"prerequisites\": [],\n      \"_site\": {\n        \"href\": \"/default/production/features/alternate.page\",\n        \"type\": \"text/html\"\n      },\n      \"_environmentName\": \"Production\",\n      \"trackEvents\": false,\n      \"trackEventsFallthrough\": false,\n      \"_summary\": {\n        \"variations\": {\n          \"0\": {\n            \"rules\": 1,\n            \"nullRules\": 0,\n            \"targets\": 2,\n            \"rollout\": 60000\n          },\n          \"1\": {\n            \"rules\": 0,\n            \"nullRules\": 0,\n            \"targets\": 0,\n            \"isOff\": true,\n            \"rollout\": 40000\n          }\n        },\n        \"prerequisites\": 0\n      }\n    }\n}\n```\n\n\u003c/details\u003e\n\n## Anatomy of a feature flag\n\nThis section describes the sample feature flag representation in more detail.\n\n### Top-level attributes\n\nMost of the top-level attributes have a straightforward interpretation, for example `name` and `description`.\n\nThe `variations` array represents the different variation values that a feature flag has. For a boolean flag, there are two variations: `true` and `false`. Multivariate flags have more variation values, and those values could be any JSON type: numbers, strings, objects, or arrays. In targeting rules, the variations are referred to by their index into this array.\n\nTo update these attributes, read [Update feature flag](#operation/patchFeatureFlag), especially the instructions for **updating flag settings**.\n\n### Per-environment configurations\n\nEach entry in the `environments` map contains a JSON object that represents the environment-specific flag configuration data available in the flag's Targeting tab. To learn more, read [Targeting with flags](https://docs.launchdarkly.com/home/targeting-flags).\n\nTo update per-environment information for a flag, read [Update feature flag](#operation/patchFeatureFlag), especially the instructions for **turning flags on and off** and **working with targeting and variations**.\n\n### Individual context targets\n\nThe `targets` and `contextTargets` arrays in the per-environment configuration data correspond to the individual context targeting on the Targeting tab. To learn more, read [Individual targeting](https://docs.launchdarkly.com/home/targeting-flags/individual-targeting).\n\nEach object in the `targets` and `contextTargets` arrays represents a list of context keys assigned to a particular variation. The `targets` array includes contexts with `contextKind` of \"user\" and the `contextTargets` array includes contexts with context kinds other than \"user.\"\n\nFor example:\n\n```json\n{\n  ...\n  \"environments\" : {\n    \"production\" : {\n      ...\n      \"targets\": [\n        {\n          \"values\": [\"user-key-123abc\"],\n          \"variation\": 0,\n          \"contextKind\": \"user\"\n        }\n      ],\n      \"contextTargets\": [\n        {\n          \"values\": [\"org-key-123abc\"],\n          \"variation\": 0,\n          \"contextKind\": \"organization\"\n        }\n      ]\n    }\n  }\n}\n```\n\nThe `targets` array means that any user context instance with the key `user-key-123abc` receives the first variation listed in the `variations` array. The `contextTargets` array means that any organization context with the key `org-key-123abc` receives the first variation listed in the `variations` array. Recall that the variations are stored at the top level of the flag JSON in an array, and the per-environment configuration rules point to indexes into this array. If this is a boolean flag, both contexts are receiving the `true` variation.\n\n### Targeting rules\n\nThe `rules` array corresponds to the rules section of the Targeting tab. This is where you can express complex rules on attributes with conditions and operators. For example, you might create a rule that specifies \"roll out the `true` variation to 80% of contexts whose email address ends with `gmail.com`\". To learn more, read [Creating targeting rules](https://docs.launchdarkly.com/home/targeting-flags/targeting-rules#creating-targeting-rules).\n\n### The fallthrough rule\n\nThe `fallthrough` object is a special rule that contains no conditions. It is the rollout strategy that is applied when none of the individual or custom targeting rules match. In the LaunchDarkly UI, it is called the \"Default rule.\"\n\n### The off variation\n\nThe off variation represents the variation to serve if the feature flag targeting is turned off, meaning the `on` attribute is `false`. For boolean flags, this is usually `false`. For multivariate flags, set the off variation to whatever variation represents the control or baseline behavior for your application. If you don't set the off variation, LaunchDarkly will serve the fallback value defined in your code.\n\n### Percentage rollouts\n\nWhen you work with targeting rules and with the default rule, you can specify either a single variation or a percentage rollout. The `weight` attribute defines the percentage rollout for each variation. Weights range from 0 (a 0% rollout) to 100000 (a 100% rollout). The weights are scaled by a factor of 1000 so that fractions of a percent can be represented without using floating-point. For example, a weight of `60000` means that 60% of contexts will receive that variation. The sum of weights across all variations should be 100%.\n",
 	)
 
 	gen_FollowFlagsResourceCmd := NewResourceCmd(
@@ -1823,6 +1823,174 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		SupportsSemanticPatch: false,
 	})
 
+	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
+		Short: "Create flag trigger",
+		Long:  "Create a new flag trigger.",
+		Use:   "create-trigger-workflow",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		RequiresBody:          true,
+		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
+		Short: "Delete flag trigger",
+		Long:  "Delete a flag trigger by ID.",
+		Use:   "delete-trigger-workflow",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The flag trigger ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		RequiresBody:          false,
+		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
+		Short: "Get flag trigger by ID",
+		Long:  "Get a flag trigger by ID.",
+		Use:   "get-trigger-workflow-by-id",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The flag trigger ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
+		Short: "List flag triggers",
+		Long:  "Get a list of all flag triggers.",
+		Use:   "list-trigger-workflows",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		RequiresBody:          false,
+		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
+		Short: "Update flag trigger",
+		Long:  "Update a flag trigger. Updating a flag trigger uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating flag triggers.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating flag triggers\u003c/strong\u003e\u003c/summary\u003e\n\n#### replaceTriggerActionInstructions\n\nRemoves the existing trigger action and replaces it with the new instructions.\n\n##### Parameters\n\n- `value`: An array of the new `kind`s of actions to perform when triggering. Supported flag actions are `turnFlagOn` and `turnFlagOff`.\n\nHere's an example that replaces the existing action with new instructions to turn flag targeting off:\n\n```json\n{\n  \"instructions\": [\n    {\n      \"kind\": \"replaceTriggerActionInstructions\",\n      \"value\": [ {\"kind\": \"turnFlagOff\"} ]\n    }\n  ]\n}\n```\n\n#### cycleTriggerUrl\n\nGenerates a new URL for this trigger. You must update any clients using the trigger to use this new URL.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"cycleTriggerUrl\" }]\n}\n```\n\n#### disableTrigger\n\nDisables the trigger. This saves the trigger configuration, but the trigger stops running. To re-enable, use `enableTrigger`.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"disableTrigger\" }]\n}\n```\n\n#### enableTrigger\n\nEnables the trigger. If you previously disabled the trigger, it begins running again.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"enableTrigger\" }]\n}\n```\n\n\u003c/details\u003e\n",
+		Use:   "update-trigger-workflow",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The flag trigger ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		RequiresBody:          true,
+		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
+		SupportsSemanticPatch: true,
+	})
+
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, OperationData{
 		Short: "Copy feature flag",
 		Long:  "\n\u003e ### Copying flag settings is an Enterprise feature\n\u003e\n\u003e Copying flag settings is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nCopy flag settings from a source environment to a target environment.\n\nBy default, this operation copies the entire flag configuration. You can use the `includedActions` or `excludedActions` to specify that only part of the flag configuration is copied.\n\nIf you provide the optional `currentVersion` of a flag, this operation tests to ensure that the current flag version in the environment matches the version you've specified. The operation rejects attempts to copy flag settings if the environment's current version  of the flag does not match the version you've specified. You can use this to enforce optimistic locking on copy attempts.\n",
@@ -2264,174 +2432,6 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 		HTTPMethod:            "POST",
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{flagKey}/environments/{environmentKey}/migration-safety-issues",
-		SupportsSemanticPatch: true,
-	})
-
-	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
-		Short: "Create flag trigger",
-		Long:  "Create a new flag trigger.",
-		Use:   "create-trigger-workflow",
-		Params: []Param{
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-			{
-				Name:        "environment-key",
-				In:          "path",
-				Description: "The environment key",
-				Type:        "string",
-			},
-			{
-				Name:        "feature-flag-key",
-				In:          "path",
-				Description: "The feature flag key",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "POST",
-		RequiresBody:          true,
-		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
-		Short: "Delete flag trigger",
-		Long:  "Delete a flag trigger by ID.",
-		Use:   "delete-trigger-workflow",
-		Params: []Param{
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-			{
-				Name:        "environment-key",
-				In:          "path",
-				Description: "The environment key",
-				Type:        "string",
-			},
-			{
-				Name:        "feature-flag-key",
-				In:          "path",
-				Description: "The feature flag key",
-				Type:        "string",
-			},
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The flag trigger ID",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "DELETE",
-		RequiresBody:          false,
-		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
-		Short: "Get flag trigger by ID",
-		Long:  "Get a flag trigger by ID.",
-		Use:   "get-trigger-workflow-by-id",
-		Params: []Param{
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-			{
-				Name:        "feature-flag-key",
-				In:          "path",
-				Description: "The feature flag key",
-				Type:        "string",
-			},
-			{
-				Name:        "environment-key",
-				In:          "path",
-				Description: "The environment key",
-				Type:        "string",
-			},
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The flag trigger ID",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "GET",
-		RequiresBody:          false,
-		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
-		Short: "List flag triggers",
-		Long:  "Get a list of all flag triggers.",
-		Use:   "list-trigger-workflows",
-		Params: []Param{
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-			{
-				Name:        "environment-key",
-				In:          "path",
-				Description: "The environment key",
-				Type:        "string",
-			},
-			{
-				Name:        "feature-flag-key",
-				In:          "path",
-				Description: "The feature flag key",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "GET",
-		RequiresBody:          false,
-		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
-		Short: "Update flag trigger",
-		Long:  "Update a flag trigger. Updating a flag trigger uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating flag triggers.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating flag triggers\u003c/strong\u003e\u003c/summary\u003e\n\n#### replaceTriggerActionInstructions\n\nRemoves the existing trigger action and replaces it with the new instructions.\n\n##### Parameters\n\n- `value`: An array of the new `kind`s of actions to perform when triggering. Supported flag actions are `turnFlagOn` and `turnFlagOff`.\n\nHere's an example that replaces the existing action with new instructions to turn flag targeting off:\n\n```json\n{\n  \"instructions\": [\n    {\n      \"kind\": \"replaceTriggerActionInstructions\",\n      \"value\": [ {\"kind\": \"turnFlagOff\"} ]\n    }\n  ]\n}\n```\n\n#### cycleTriggerUrl\n\nGenerates a new URL for this trigger. You must update any clients using the trigger to use this new URL.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"cycleTriggerUrl\" }]\n}\n```\n\n#### disableTrigger\n\nDisables the trigger. This saves the trigger configuration, but the trigger stops running. To re-enable, use `enableTrigger`.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"disableTrigger\" }]\n}\n```\n\n#### enableTrigger\n\nEnables the trigger. If you previously disabled the trigger, it begins running again.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"enableTrigger\" }]\n}\n```\n\n\u003c/details\u003e\n",
-		Use:   "update-trigger-workflow",
-		Params: []Param{
-			{
-				Name:        "project-key",
-				In:          "path",
-				Description: "The project key",
-				Type:        "string",
-			},
-			{
-				Name:        "environment-key",
-				In:          "path",
-				Description: "The environment key",
-				Type:        "string",
-			},
-			{
-				Name:        "feature-flag-key",
-				In:          "path",
-				Description: "The feature flag key",
-				Type:        "string",
-			},
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The flag trigger ID",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "PATCH",
-		RequiresBody:          true,
-		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
 		SupportsSemanticPatch: true,
 	})
 

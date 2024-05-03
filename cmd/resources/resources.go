@@ -29,7 +29,7 @@ type TemplateData struct {
 }
 
 type ResourceData struct {
-	Name        string
+	GoName      string
 	DisplayName string
 	Description string
 	Operations  map[string]OperationData
@@ -78,10 +78,10 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 			continue
 		}
 
-		resourceName := getResourceName(r.Name)
-		resources[strcase.ToCamel(resourceName)] = ResourceData{
+		resourceName, resourceKey := getResourceNames(r.Name)
+		resources[resourceKey] = ResourceData{
+			GoName:      strcase.ToCamel(resourceName),
 			DisplayName: strings.ToLower(resourceName),
-			Name:        strcase.ToKebab(resourceName),
 			Description: jsonString(r.Description),
 			Operations:  make(map[string]OperationData, 0),
 		}
@@ -94,7 +94,8 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				// skip beta resources for now
 				continue
 			}
-			resource, ok := resources[strcase.ToCamel(getResourceName(tag))]
+			_, resourceKey := getResourceNames(tag)
+			resource, ok := resources[resourceKey]
 			if !ok {
 				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, strcase.ToCamel(tag))
 				continue
@@ -140,11 +141,18 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 	return TemplateData{Resources: resources}, nil
 }
 
-func getResourceName(tagName string) string {
+func getResourceNames(tagName string) (string, string) {
+	name := tagName
 	if mappedName, ok := mapTagToResource[tagName]; ok {
-		return mappedName
+		name = mappedName
 	}
-	return tagName
+
+	resourceKey := strcase.ToKebab(name)
+	// the operationIds use "FeatureFlag" so we want to keep that whole, but the command should just be `flags`
+	if name == "Feature flags" {
+		resourceKey = "flags"
+	}
+	return name, resourceKey
 }
 
 var mapTagToResource = map[string]string{
@@ -152,9 +160,8 @@ var mapTagToResource = map[string]string{
 	"Account members": "Members",
 	"Approvals":       "Approval requests",
 	"Code references": "Code refs",
-	//"Feature flags":   "Flags",
-	"OAuth2 Clients": "Oauth2 clients",
-	"User settings":  "User flag settings",
+	"OAuth2 Clients":  "Oauth2 clients",
+	"User settings":   "User flag settings",
 }
 var mapOperationIdToUse = map[string]string{}
 
@@ -174,7 +181,8 @@ func replaceGetWithList(input string) string {
 }
 
 func getCmdUse(op *openapi3.Operation, spec *openapi3.T) string {
-	resourceName := strcase.ToCamel(getResourceName(op.Tags[0]))
+	resourceName, _ := getResourceNames(op.Tags[0])
+	resourceName = strcase.ToCamel(resourceName)
 	singularResourceName := resourceName
 	if string(resourceName[len(resourceName)-1]) == "s" {
 		singularResourceName = resourceName[:len(resourceName)-1]
