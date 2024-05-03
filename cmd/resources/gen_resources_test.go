@@ -22,7 +22,5 @@ func TestGetTemplateData(t *testing.T) {
 	err = json.Unmarshal(expectedFromFile, &expected)
 	require.NoError(t, err)
 
-	t.Run("succeeds with single get resource", func(t *testing.T) {
-		assert.Equal(t, expected, actual)
-	})
+	assert.Equal(t, expected, actual)
 }
