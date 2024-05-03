@@ -46,7 +46,7 @@ func (c ResourcesClient) MakeRequest(accessToken, method, path, contentType stri
 	defer res.Body.Close()
 
 	if res.StatusCode >= 400 {
-		return body, errors.NewAPIError(body, nil, nil)
+		return body, errors.NewError(string(body))
 	}
 
 	return body, nil
