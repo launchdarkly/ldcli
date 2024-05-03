@@ -132,9 +132,11 @@ func TestCmdOutput(t *testing.T) {
 			})
 
 			t.Run("with a key", func(t *testing.T) {
-				t.Skip()
 				t.Run("returns a success message", func(t *testing.T) {
 					expected := "Successfully deleted test-key"
+					input := `{
+						"key": "test-key"
+					}`
 
 					result, err := output.CmdOutput("delete", "plaintext", []byte(input))
 
