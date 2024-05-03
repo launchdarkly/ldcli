@@ -11,6 +11,7 @@ import (
 
 func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyticsTracker analytics.Tracker) {
 	// Resource commands
+
 	gen_TeamsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTracker,
@@ -20,6 +21,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	)
 
 	// Operation commands
+
 	NewOperationCmd(gen_TeamsResourceCmd, client, OperationData{
 		Short: "Delete team",
 		Long:  "Delete a team by key. To learn more, read [Deleting a team](https://docs.launchdarkly.com/home/teams/managing#deleting-a-team).",

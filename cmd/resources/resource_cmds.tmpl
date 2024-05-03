@@ -10,7 +10,8 @@ import (
 )
 
 func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyticsTracker analytics.Tracker) {
-	// Resource commands{{ range $resName, $resData := .Resources }}
+	// Resource commands
+	{{ range $resName, $resData := .Resources }}
 	gen_{{ $resName }}ResourceCmd := NewResourceCmd(
         rootCmd,
         analyticsTracker,
@@ -20,7 +21,8 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
     )
     {{ end }}
 
-    // Operation commands{{ range $resName, $resData := .Resources }}{{ range $opName, $opData := $resData.Operations }}
+    // Operation commands
+    {{ range $resName, $resData := .Resources }}{{ range $opName, $opData := $resData.Operations }}
     NewOperationCmd(gen_{{ $resName }}ResourceCmd, client, OperationData{
             Short: {{ $opData.Short }},
             Long:  {{ $opData.Long }},
