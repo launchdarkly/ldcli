@@ -14,7 +14,10 @@ import (
 	"ldcli/internal/flags"
 )
 
-const debounceDuration = time.Second
+const (
+	resetThrottleCountThreshold = 1
+	throttleDuration            = time.Second
+)
 
 type toggleFlagModel struct {
 	accessToken    string
@@ -30,13 +33,13 @@ type toggleFlagModel struct {
 	sdkKind        string
 	spinner        spinner.Model
 
-	// Debouncing fields to control how quickly a user can press (or hold) tab to toggle the flag.
-	// We publish a message based on the debounceDuration that increments a counter to control when we
-	// disable the toggle. We also keep track of how many times we've published a command to toggle the
-	// flag within the debounceDuration timeframe, resetting it once we've stopped debouncing.
-	debouncing         bool
-	debounceCount      int
-	resetDebounceCount int
+	// Throttling fields to control how quickly a user can press (or hold) tab to toggle the flag.
+	// We publish a message based on the throttleDuration that increments a counter to control when
+	// we disable the toggle. We also keep track of how many times we've published a command to toggle
+	// the flag within the throttleDuration timeframe, resetting it once we've stopped throttling.
+	resetThrottleCount int  // incremented when the user toggles the flag which is only allowed when it's below a threshold
+	throttleCount      int  // syncs messages to know when the throttleDuration has elapsed
+	throttling         bool // flag to decide when the user is throttled
 }
 
 func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
@@ -78,33 +81,33 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.flagWasFetched {
 				return m, nil
 			}
-			if m.debouncing || m.resetDebounceCount > 1 {
+			if m.throttling || m.resetThrottleCount > resetThrottleCountThreshold {
 				// don't toggle the flag if we're currently debouncing the user
-				return m, debounceFlagToggle(m.debounceCount)
+				return m, throttleFlagToggle(m.throttleCount)
 			}
 
 			m.flagWasEnabled = true
 			m.enabled = !m.enabled
 			m.err = nil
-			m.debounceCount += 1
+			m.throttleCount += 1
 			cmd = tea.Sequence(
 				toggleFlag(m.client, m.accessToken, m.baseUri, m.flagKey, m.enabled),
-				debounceFlagToggle(m.debounceCount),
+				throttleFlagToggle(m.throttleCount),
 			)
 		}
 	case toggledFlagMsg:
-		m.resetDebounceCount += 1
+		m.resetThrottleCount += 1
 	case fetchedFlagStatusMsg:
 		m.enabled = msg.enabled
 		m.flagWasFetched = true
-	case flagToggleDebounceMsg:
+	case flagToggleThrottleMsg:
 		// if the value on the model is not the same as the message, we know there will be
 		// additional messages coming. Once they are equal, we know the throttle time has elapsed.
-		if int(msg) == m.debounceCount {
-			m.debouncing = false
-			m.resetDebounceCount = 0
+		if int(msg) == m.throttleCount {
+			m.throttling = false
+			m.resetThrottleCount = 0
 		} else {
-			m.debouncing = true
+			m.throttling = true
 		}
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)

@@ -173,7 +173,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = nil
 	case createdFlagMsg,
 		fetchedSDKInstructionsMsg,
-		flagToggleDebounceMsg,
+		flagToggleThrottleMsg,
 		selectedSDKMsg,
 		spinner.TickMsg:
 		m.gettingStarted = false

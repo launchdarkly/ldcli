@@ -275,10 +275,10 @@ func trackSetupFlagToggledEvent(tracker analytics.Tracker, accessToken, baseURI 
 	}
 }
 
-type flagToggleDebounceMsg int
+type flagToggleThrottleMsg int
 
-func debounceFlagToggle(count int) tea.Cmd {
-	return tea.Tick(debounceDuration, func(_ time.Time) tea.Msg {
-		return flagToggleDebounceMsg(count)
+func throttleFlagToggle(count int) tea.Cmd {
+	return tea.Tick(throttleDuration, func(_ time.Time) tea.Msg {
+		return flagToggleThrottleMsg(count)
 	})
 }
