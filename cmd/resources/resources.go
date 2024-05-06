@@ -132,6 +132,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 					}
 					operation.Params = append(operation.Params, param)
 				}
+				log.Println(op.OperationID, "|", resourceKey, "|", use, "|", getFlagName(strcase.ToKebab(p.Value.Name)))
 			}
 
 			resource.Operations[op.OperationID] = operation

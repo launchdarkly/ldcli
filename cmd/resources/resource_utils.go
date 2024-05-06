@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,7 +16,7 @@ var mapTagToSchemaName = map[string]string{
 	"Account members": "Members",
 	"Approvals":       "Approval requests",
 	"Code references": "Code refs",
-	"OAuth2 Clients":  "Oauth2 clients", // this is just so we don't camelCase to O-Auth2
+	"OAuth2 Clients":  "Oauth2 clients", // this is just so we don't kebab case to o-auth
 	"User settings":   "User flag settings",
 }
 
@@ -50,6 +51,10 @@ func removeResourceFromOperationId(resourceName, operationId string) string {
 	}
 
 	r := strings.NewReplacer(
+		// a lot of "list" operations say "GetFor{ResourceName}"
+		fmt.Sprintf("For%s", singularResourceName), "",
+		fmt.Sprintf("For%s", resourceName), "",
+		fmt.Sprint("ByProject"), "",
 		resourceName, "",
 		singularResourceName, "",
 	)
@@ -98,9 +103,18 @@ var mapParamToFlagName = map[string]string{
 	"feature-flag": "flag",
 }
 
+func stripFlagName(flagName string) string {
+	r := strings.NewReplacer(
+		"-key", "",
+		"-id", "",
+	)
+
+	return r.Replace(flagName)
+}
+
 func getFlagName(paramName string) string {
 	flagName := strcase.ToKebab(paramName)
-	flagName = strings.Replace(flagName, "-key", "", -1)
+	flagName = stripFlagName(flagName)
 	if mappedName, ok := mapParamToFlagName[flagName]; ok {
 		flagName = mappedName
 	}

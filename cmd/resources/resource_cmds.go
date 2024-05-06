@@ -1210,7 +1210,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ContextsResourceCmd, client, OperationData{
 		Short: "Get context kinds",
 		Long:  "Get all context kinds for a given project.",
-		Use:   "list-kinds-by-project-key",
+		Use:   "list-kinds-key",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1688,7 +1688,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, OperationData{
 		Short: "List environments",
 		Long:  "Return a list of environments for the specified project.\n\nBy default, this returns the first 20 environments. Page through this list with the `limit` parameter and by following the `first`, `prev`, `next`, and `last` links in the `_links` field that returns. If those links do not appear, the pages they refer to don't exist. For example, the `first` and `prev` links will be missing from the response on the first page, because there is no previous page and you cannot return to the first page when you are already on the first page.\n\n### Filtering environments\n\nLaunchDarkly supports two fields for filters:\n- `query` is a string that matches against the environments' names and keys. It is not case sensitive.\n- `tags` is a `+`-separated list of environment tags. It filters the list of environments that have all of the tags in the list.\n\nFor example, the filter `filter=query:abc,tags:tag-1+tag-2` matches environments with the string `abc` in their name or key and also are tagged with `tag-1` and `tag-2`. The filter is not case-sensitive.\n\nThe documented values for `filter` query parameters are prior to URL encoding. For example, the `+` in `filter=tags:tag-1+tag-2` must be encoded to `%2B`.\n\n### Sorting environments\n\nLaunchDarkly supports the following fields for sorting:\n\n- `createdOn` sorts by the creation date of the environment.\n- `critical` sorts by whether the environments are marked as critical.\n- `name` sorts by environment name.\n\nFor example, `sort=name` sorts the response by environment name in ascending order.\n",
-		Use:   "list-by-project",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3055,7 +3055,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "Get flag defaults for project",
 		Long:  "Get the flag defaults for a specific project.",
-		Use:   "get-flag-defaults-by",
+		Use:   "get-flag-defaults",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3139,7 +3139,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "Update flag default for project",
 		Long:  "Update a flag default. Updating a flag default uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "update-flag-defaults-by",
+		Use:   "update-flag-defaults",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3186,7 +3186,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_ProjectsResourceCmd, client, OperationData{
 		Short: "Create or update flag defaults for project",
 		Long:  "Create or update flag defaults for a project.",
-		Use:   "replace-flag-defaults-by",
+		Use:   "replace-flag-defaults",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3538,7 +3538,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Get expiring targets for segment",
 		Long:  "Get a list of a segment's context targets that are scheduled for removal.",
-		Use:   "list-expiring-targets-for",
+		Use:   "list-expiring-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3568,7 +3568,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Get expiring user targets for segment",
 		Long:  "\u003e ### Contexts are now available\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Get expiring targets for segment](/tag/Segments#operation/getExpiringTargetsForSegment) instead of this endpoint. To learn more, read [Contexts](https://docs.launchdarkly.com/home/contexts).\n\nGet a list of a segment's user targets that are scheduled for removal.\n",
-		Use:   "list-expiring-user-targets-for",
+		Use:   "list-expiring-user-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3748,7 +3748,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Update expiring targets for segment",
 		Long:  "\nUpdate expiring context targets for a segment. Updating a context target expiration uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\nIf the request is well-formed but any of its instructions failed to process, this operation returns status code `200`. In this case, the response `errors` array will be non-empty.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating expiring context targets.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating expiring context targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExpiringTarget\n\nSchedules a date and time when LaunchDarkly will remove a context from segment targeting. The segment must already have the context as an individual target.\n\n##### Parameters\n\n- `targetType`: The type of individual target for this context. Must be either `included` or `excluded`.\n- `contextKey`: The context key.\n- `contextKind`: The kind of context being targeted.\n- `value`: The date when the context should expire from the segment targeting, in Unix milliseconds.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addExpiringTarget\",\n    \"targetType\": \"included\",\n    \"contextKey\": \"user-key-123abc\",\n    \"contextKind\": \"user\",\n    \"value\": 1754092860000\n  }]\n}\n```\n\n#### updateExpiringTarget\n\nUpdates the date and time when LaunchDarkly will remove a context from segment targeting.\n\n##### Parameters\n\n- `targetType`: The type of individual target for this context. Must be either `included` or `excluded`.\n- `contextKey`: The context key.\n- `contextKind`: The kind of context being targeted.\n- `value`: The new date when the context should expire from the segment targeting, in Unix milliseconds.\n- `version`: (Optional) The version of the expiring target to update. If included, update will fail if version doesn't match current version of the expiring target.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateExpiringTarget\",\n    \"targetType\": \"included\",\n    \"contextKey\": \"user-key-123abc\",\n    \"contextKind\": \"user\",\n    \"value\": 1754179260000\n  }]\n}\n```\n\n#### removeExpiringTarget\n\nRemoves the scheduled expiration for the context in the segment.\n\n##### Parameters\n\n- `targetType`: The type of individual target for this context. Must be either `included` or `excluded`.\n- `contextKey`: The context key.\n- `contextKind`: The kind of context being targeted.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeExpiringTarget\",\n    \"targetType\": \"included\",\n    \"contextKey\": \"user-key-123abc\",\n    \"contextKind\": \"user\",\n  }]\n}\n```\n\n\u003c/details\u003e\n",
-		Use:   "update-expiring-targets-for",
+		Use:   "update-expiring-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3778,7 +3778,7 @@ func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyti
 	NewOperationCmd(gen_SegmentsResourceCmd, client, OperationData{
 		Short: "Update expiring user targets for segment",
 		Long:  "\n\u003e ### Contexts are now available\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Update expiring targets for segment](/tag/Segments#operation/patchExpiringTargetsForSegment) instead of this endpoint. To learn more, read [Contexts](https://docs.launchdarkly.com/home/contexts).\n\nUpdate expiring user targets for a segment. Updating a user target expiration uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\nIf the request is well-formed but any of its instructions failed to process, this operation returns status code `200`. In this case, the response `errors` array will be non-empty.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating expiring user targets.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating expiring user targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExpireUserTargetDate\n\nSchedules a date and time when LaunchDarkly will remove a user from segment targeting.\n\n##### Parameters\n\n- `targetType`: A segment's target type, must be either `included` or `excluded`.\n- `userKey`: The user key.\n- `value`: The date when the user should expire from the segment targeting, in Unix milliseconds.\n\n#### updateExpireUserTargetDate\n\nUpdates the date and time when LaunchDarkly will remove a user from segment targeting.\n\n##### Parameters\n\n- `targetType`: A segment's target type, must be either `included` or `excluded`.\n- `userKey`: The user key.\n- `value`: The new date when the user should expire from the segment targeting, in Unix milliseconds.\n- `version`: The segment version.\n\n#### removeExpireUserTargetDate\n\nRemoves the scheduled expiration for the user in the segment.\n\n##### Parameters\n\n- `targetType`: A segment's target type, must be either `included` or `excluded`.\n- `userKey`: The user key.\n\n\u003c/details\u003e\n",
-		Use:   "update-expiring-user-targets-for",
+		Use:   "update-expiring-user-targets",
 		Params: []Param{
 			{
 				Name:        "project-key",
