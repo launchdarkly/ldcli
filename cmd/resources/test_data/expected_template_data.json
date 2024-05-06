@@ -1,14 +1,14 @@
 {
   "Resources":{
-    "Teams":{
-      "Name":"teams",
+    "teams":{
+      "GoName":"Teams",
       "DisplayName":"teams",
       "Description":"\"A team is a group of members in your LaunchDarkly account.\"",
       "Operations":{
         "deleteTeam":{
           "Short":"\"Delete team\"",
           "Long":"\"Delete a team by key.\"",
-          "Use":"delete-team",
+          "Use":"delete",
           "Params":[
             {
               "Name":"team-key",
@@ -26,7 +26,7 @@
         "getTeam":{
           "Short":"\"Get team\"",
           "Long":"\"Get team\"",
-          "Use":"get-team",
+          "Use":"get",
           "Params":[
             {
               "Name":"team-key",
@@ -51,7 +51,7 @@
         "getTeams":{
           "Short":"\"List teams\"",
           "Long":"\"Return a list of teams.\"",
-          "Use":"get-teams",
+          "Use":"list",
           "Params":[
             {
               "Name":"limit",
@@ -69,7 +69,7 @@
         "patchTeam":{
           "Short":"\"Update team\"",
           "Long":"\"Perform a partial update to a team.\"",
-          "Use":"patch-team",
+          "Use":"update",
           "Params":[
             {
               "Name":"team-key",
@@ -94,7 +94,7 @@
         "postTeam":{
           "Short":"\"Create team\"",
           "Long":"\"Create a team.\"",
-          "Use":"post-team",
+          "Use":"create",
           "Params":[
             {
               "Name":"expand",
