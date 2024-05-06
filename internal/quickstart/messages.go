@@ -274,3 +274,11 @@ func trackSetupFlagToggledEvent(tracker analytics.Tracker, accessToken, baseURI 
 		return eventTrackedMsg{}
 	}
 }
+
+type flagToggleThrottleMsg int
+
+func throttleFlagToggle(count int) tea.Cmd {
+	return tea.Tick(throttleDuration, func(_ time.Time) tea.Msg {
+		return flagToggleThrottleMsg(count)
+	})
+}

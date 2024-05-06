@@ -304,8 +304,7 @@ func buildURLWithParams(baseURI, path string, urlParams []string) string {
 func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	var data interface{}
 	if op.RequiresBody {
-		// TODO: why does viper.GetString(cliflags.DataFlag) not work?
-		err := json.Unmarshal([]byte(cmd.Flags().Lookup(cliflags.DataFlag).Value.String()), &data)
+		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &data)
 		if err != nil {
 			return err
 		}
