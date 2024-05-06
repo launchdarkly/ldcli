@@ -46,8 +46,8 @@ func replaceMethodWithCmdUse(operationId string) string {
 func removeResourceFromOperationId(resourceName, operationId string) string {
 	// operations use both singular (Team) and plural (Teams) resource names, whereas resource names are (usually) plural
 	var singularResourceName string
-	if string(resourceName[len(resourceName)-1]) == "s" {
-		singularResourceName = resourceName[:len(resourceName)-1]
+	if strings.HasSuffix("teams", "s") {
+		singularResourceName = strings.TrimRight(resourceName, "s")
 	}
 
 	r := strings.NewReplacer(
@@ -89,13 +89,16 @@ func isListResponse(op *openapi3.Operation, spec *openapi3.T) bool {
 	}
 
 	// if the schema is nil, there is no response body for the request
-	if schema != nil {
-		for propName := range schema.Value.Properties {
-			if propName == "items" {
-				return true
-			}
+	if schema == nil {
+		return false
+	}
+
+	for propName := range schema.Value.Properties {
+		if propName == "items" {
+			return true
 		}
 	}
+	
 	return false
 }
 
