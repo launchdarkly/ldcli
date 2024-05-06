@@ -1,8 +1,6 @@
 package projects
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -18,7 +16,6 @@ func NewProjectsCmd(analyticsTracker analytics.Tracker, client projects.Client) 
 		Short: "Make requests (list, create, etc.) on projects",
 		Long:  "Make requests (list, create, etc.) on projects",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			fmt.Println(">>> Projects#PersistentPreRun")
 			analyticsTracker.SendCommandRunEvent(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
