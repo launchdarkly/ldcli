@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	cmdAnalytics "ldcli/cmd/analytics"
 	"ldcli/cmd/cliflags"
 	configcmd "ldcli/cmd/config"
 	envscmd "ldcli/cmd/environments"
@@ -68,6 +69,24 @@ func NewRootCommand(
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
+
+	hf := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		// get the resource for the tracking event, not the action
+		resourceCommand := getResourceCommand(c)
+		analyticsTracker.SendCommandRunEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetBool(cliflags.AnalyticsOptOut),
+			cmdAnalytics.CmdRunEventProperties(c,
+				resourceCommand.Name(),
+				map[string]interface{}{
+					"action": "help",
+				},
+			),
+		)
+		hf(c, args)
+	})
 
 	if useConfigFile {
 		setFlagsFromConfig()
@@ -191,4 +210,15 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 func setFlagsFromConfig() {
 	viper.SetConfigFile(config.GetConfigFile())
 	_ = viper.ReadInConfig()
+}
+
+// getResourceCommand returns the command for a resource or an action's parent resource.
+// ldcli projects // returns projects command
+// ldcli projects list // returns projects command
+func getResourceCommand(c *cobra.Command) *cobra.Command {
+	if !c.HasParent() || c.Parent() == c.Root() {
+		return c
+	}
+
+	return getResourceCommand(c.Parent())
 }

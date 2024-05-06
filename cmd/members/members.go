@@ -20,7 +20,7 @@ func NewMembersCmd(analyticsTracker analytics.Tracker, client members.Client) (*
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(cmd, "members"),
+				cmdAnalytics.CmdRunEventProperties(cmd, "members", nil),
 			)
 		},
 	}

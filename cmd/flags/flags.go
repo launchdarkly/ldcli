@@ -20,7 +20,7 @@ func NewFlagsCmd(analyticsTracker analytics.Tracker, client flags.Client) (*cobr
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(cmd, "flags"),
+				cmdAnalytics.CmdRunEventProperties(cmd, "flags", nil),
 			)
 		},
 	}

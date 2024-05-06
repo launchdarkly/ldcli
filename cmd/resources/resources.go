@@ -186,7 +186,7 @@ func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(cmd, resourceName),
+				cmdAnalytics.CmdRunEventProperties(cmd, resourceName, nil),
 			)
 		},
 	}
