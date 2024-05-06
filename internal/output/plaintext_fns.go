@@ -52,5 +52,12 @@ var MultiplePlaintextOutputFn = func(r resource) string {
 
 // SingularPlaintextOutputFn converts the resource to plain text based on its name and key.
 var SingularPlaintextOutputFn = func(r resource) string {
+	if r["name"] == nil {
+		return r["key"].(string)
+	}
+	if r["key"] == nil {
+		return r["name"].(string)
+	}
+
 	return fmt.Sprintf("%s (%s)", r["name"], r["key"])
 }

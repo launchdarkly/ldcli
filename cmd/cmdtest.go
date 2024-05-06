@@ -72,7 +72,8 @@ func SetupTestEnvVars(_ *testing.T) func(t *testing.T) {
 }
 
 func ExtraErrorHelp(cmdName string, cmdAction string) string {
-	out := ".\n\nUse `ldcli config --set access-token <value>` to configure the value to persist across CLI commands."
+	out := ".\n\nGo to https://app.launchdarkly.com/settings/authorization to create an access token.\n"
+	out += "Use `ldcli config --set access-token <value>` to configure the value to persist across CLI commands."
 	out += fmt.Sprintf("\n\nSee `ldcli %s %s --help` for supported flags and usage.", cmdName, cmdAction)
 
 	return out

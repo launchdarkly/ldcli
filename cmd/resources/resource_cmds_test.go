@@ -14,7 +14,7 @@ func TestCreateTeam(t *testing.T) {
 	t.Run("help shows postTeam description", func(t *testing.T) {
 		args := []string{
 			"teams",
-			"post-team", // temporary command name
+			"create",
 			"--help",
 		}
 

@@ -46,6 +46,9 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 	}
 
 	if isMultipleResponse {
+		if len(maybeResources.Items) == 0 {
+			return "No items found", nil
+		}
 		// the response could have various properties we want to show
 		outputFn := MultiplePlaintextOutputFn
 		if _, ok := maybeResources.Items[0]["email"]; ok {

@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"fmt"
+	mbrscmd "ldcli/cmd/members"
 	"log"
 	"os"
 	"strconv"
@@ -15,10 +16,6 @@ import (
 	cmdAnalytics "ldcli/cmd/analytics"
 	"ldcli/cmd/cliflags"
 	configcmd "ldcli/cmd/config"
-	envscmd "ldcli/cmd/environments"
-	flagscmd "ldcli/cmd/flags"
-	mbrscmd "ldcli/cmd/members"
-	projcmd "ldcli/cmd/projects"
 	resourcecmd "ldcli/cmd/resources"
 	"ldcli/internal/analytics"
 	"ldcli/internal/config"
@@ -142,29 +139,14 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	environmentsCmd, err := envscmd.NewEnvironmentsCmd(analyticsTracker, clients.EnvironmentsClient)
-	if err != nil {
-		return nil, err
-	}
-	flagsCmd, err := flagscmd.NewFlagsCmd(analyticsTracker, clients.FlagsClient)
-	if err != nil {
-		return nil, err
-	}
 	membersCmd, err := mbrscmd.NewMembersCmd(analyticsTracker, clients.MembersClient)
-	if err != nil {
-		return nil, err
-	}
-	projectsCmd, err := projcmd.NewProjectsCmd(analyticsTracker, clients.ProjectsClient)
 	if err != nil {
 		return nil, err
 	}
 
 	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
-	cmd.AddCommand(environmentsCmd)
-	cmd.AddCommand(flagsCmd)
-	cmd.AddCommand(membersCmd)
-	cmd.AddCommand(projectsCmd)
 	cmd.AddCommand(NewQuickStartCmd(analyticsTracker, clients.EnvironmentsClient, clients.FlagsClient))
+	cmd.AddCommand(membersCmd)
 
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTracker)
 
