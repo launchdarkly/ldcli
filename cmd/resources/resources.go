@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -97,7 +96,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 			_, resourceKey := getResourceNames(tag)
 			resource, ok := resources[resourceKey]
 			if !ok {
-				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, strcase.ToCamel(tag))
+				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, resourceKey)
 				continue
 			}
 
@@ -142,94 +141,6 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 	return TemplateData{Resources: resources}, nil
 }
 
-func getResourceNames(name string) (string, string) {
-	if mappedName, ok := mapTagToResource[name]; ok {
-		name = mappedName
-	}
-
-	resourceKey := strcase.ToKebab(name)
-	// the operationIds use "FeatureFlag" so we want to keep that whole, but the command should just be `flags`
-	if name == "Feature flags" {
-		resourceKey = "flags"
-	}
-	return name, resourceKey
-}
-
-var mapTagToResource = map[string]string{
-	"Access tokens":   "Tokens",
-	"Account members": "Members",
-	"Approvals":       "Approval requests",
-	"Code references": "Code refs",
-	"OAuth2 Clients":  "Oauth2 clients",
-	"User settings":   "User flag settings",
-}
-
-var mapOperationIdToUse = map[string]string{}
-
-func replaceMethodWithCmdUse(operationId string) string {
-	r := strings.NewReplacer(
-		"post", "create",
-		"patch", "update",
-		"put", "replace",
-	)
-
-	return r.Replace(operationId)
-}
-
-func removeResourceFromOperationId(resourceName, operationId string) string {
-	// operations use both singular (Team) and plural (Teams) resource names, whereas resource names are (usually) plural
-	var singularResourceName string
-	if string(resourceName[len(resourceName)-1]) == "s" {
-		singularResourceName = resourceName[:len(resourceName)-1]
-	}
-
-	r := strings.NewReplacer(
-		resourceName, "",
-		singularResourceName, "",
-	)
-
-	return r.Replace(operationId)
-}
-
-func getCmdUse(resourceName, operationId string, isList bool) string {
-	action := removeResourceFromOperationId(resourceName, operationId)
-	action = strcase.ToKebab(action)
-	action = replaceMethodWithCmdUse(action)
-
-	if isList {
-		re := regexp.MustCompile(`^get(.*)$`)
-		action = re.ReplaceAllString(action, "list$1")
-	}
-
-	return action
-}
-
-func isListResponse(op *openapi3.Operation, spec *openapi3.T) bool {
-	// get the success response type from the operation to retrieve its schema
-	var schema *openapi3.SchemaRef
-	for respType, respInfo := range op.Responses.Map() {
-		respCode, _ := strconv.Atoi(respType)
-		if respCode < 300 {
-			for _, s := range respInfo.Value.Content {
-				schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
-				schema = spec.Components.Schemas[schemaName]
-			}
-		}
-	}
-
-	if schema == nil {
-		// probably won't need to keep this logging in but leaving it for debugging purposes
-		log.Printf("No response type defined for %s", op.OperationID)
-	} else {
-		for propName := range schema.Value.Properties {
-			if propName == "items" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   resourceName,
@@ -254,10 +165,6 @@ type OperationCmd struct {
 	OperationData
 	client resources.Client
 	cmd    *cobra.Command
-}
-
-var mapParamToFlagName = map[string]string{
-	"feature-flag": "flag",
 }
 
 func (op *OperationCmd) initFlags() error {
@@ -361,7 +268,8 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	}
 
 	if string(res) == "" {
-		// assuming the key to be deleted is last in the list of params, e.g. contexts delete-instances
+		// assuming the key to be deleted/replaced is last in the list of params,
+		// e.g. contexts delete-instances or code-refs replace-branch
 		res = []byte(fmt.Sprintf(`{"key": %q}`, urlParms[len(urlParms)-1]))
 	}
 
@@ -373,15 +281,6 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 	return nil
-}
-
-func getFlagName(paramName string) string {
-	flagName := strcase.ToKebab(paramName)
-	flagName = strings.Replace(flagName, "-key", "", -1)
-	if mappedName, ok := mapParamToFlagName[flagName]; ok {
-		flagName = mappedName
-	}
-	return flagName
 }
 
 func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op OperationData) *cobra.Command {
