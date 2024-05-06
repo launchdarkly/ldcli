@@ -244,6 +244,12 @@ type OperationCmd struct {
 	cmd    *cobra.Command
 }
 
+var mapParamToFlagName = map[string]string{
+	"project-key":      "project",
+	"feature-flag-key": "flag",
+	"environment-key":  "environment",
+}
+
 func (op *OperationCmd) initFlags() error {
 	if op.RequiresBody {
 		op.cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
@@ -267,6 +273,9 @@ func (op *OperationCmd) initFlags() error {
 
 	for _, p := range op.Params {
 		flagName := strcase.ToKebab(p.Name)
+		if mappedName, ok := mapParamToFlagName[flagName]; ok {
+			flagName = mappedName
+		}
 
 		op.cmd.Flags().String(flagName, "", p.Description)
 
@@ -314,7 +323,11 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	query := url.Values{}
 	var urlParms []string
 	for _, p := range op.Params {
-		val := viper.GetString(p.Name)
+		flagName := strcase.ToKebab(p.Name)
+		if mappedName, ok := mapParamToFlagName[flagName]; ok {
+			flagName = mappedName
+		}
+		val := viper.GetString(flagName)
 		if val != "" {
 			switch p.In {
 			case "path":
