@@ -28,7 +28,7 @@ type TemplateData struct {
 }
 
 type ResourceData struct {
-	Name        string
+	GoName      string
 	DisplayName string
 	Description string
 	Operations  map[string]OperationData
@@ -40,6 +40,7 @@ type OperationData struct {
 	Use                   string
 	Params                []Param
 	HTTPMethod            string
+	HasBody               bool
 	RequiresBody          bool
 	Path                  string
 	SupportsSemanticPatch bool
@@ -76,9 +77,11 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 			// skip beta resources for now
 			continue
 		}
-		resources[strcase.ToCamel(r.Name)] = ResourceData{
-			DisplayName: strings.ToLower(r.Name),
-			Name:        strcase.ToKebab(strings.ToLower(r.Name)),
+
+		resourceName, resourceKey := getResourceNames(r.Name)
+		resources[resourceKey] = ResourceData{
+			GoName:      strcase.ToCamel(resourceName),
+			DisplayName: strings.ToLower(resourceName),
 			Description: jsonString(r.Description),
 			Operations:  make(map[string]OperationData, 0),
 		}
@@ -91,17 +94,25 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				// skip beta resources for now
 				continue
 			}
-			resource, ok := resources[tag]
+			_, resourceKey := getResourceNames(tag)
+			resource, ok := resources[resourceKey]
 			if !ok {
-				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, tag)
+				log.Printf("Matching resource not found for %s operation's tag: %s", op.OperationID, resourceKey)
 				continue
 			}
 
-			use := getCmdUse(method, op, spec)
+			isList := isListResponse(op, spec)
+			use := getCmdUse(resource.GoName, op.OperationID, isList)
 
 			var supportsSemanticPatch bool
 			if strings.Contains(op.Description, "semantic patch") {
 				supportsSemanticPatch = true
+			}
+
+			var hasBody, requiresBody bool
+			if op.RequestBody != nil {
+				hasBody = true
+				requiresBody = op.RequestBody.Value.Required
 			}
 
 			operation := OperationData{
@@ -110,7 +121,8 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				Use:                   use,
 				Params:                make([]Param, 0),
 				HTTPMethod:            method,
-				RequiresBody:          method == "PUT" || method == "POST" || method == "PATCH",
+				HasBody:               hasBody,
+				RequiresBody:          requiresBody,
 				Path:                  path,
 				SupportsSemanticPatch: supportsSemanticPatch,
 			}
@@ -135,45 +147,6 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 	}
 
 	return TemplateData{Resources: resources}, nil
-}
-
-func getCmdUse(method string, op *openapi3.Operation, spec *openapi3.T) string {
-	return strcase.ToKebab(op.OperationID)
-
-	// TODO: work with operation ID & response type to stripe out resource name and update post -> create, get -> list, etc.
-	//methodMap := map[string]string{
-	//	"GET":    "get",
-	//	"POST":   "create",
-	//	"PUT":    "replace", // TODO: confirm this
-	//	"DELETE": "delete",
-	//	"PATCH":  "update",
-	//}
-	//
-	//use := methodMap[method]
-	//
-	//var schema *openapi3.SchemaRef
-	//for respType, respInfo := range op.Responses.Map() {
-	//	respCode, _ := strconv.Atoi(respType)
-	//	if respCode < 300 {
-	//		for _, s := range respInfo.Value.Content {
-	//			schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
-	//			schema = spec.Components.Schemas[schemaName]
-	//		}
-	//	}
-	//}
-	//
-	//if schema == nil {
-	//	// probably won't need to keep this logging in but leaving it for debugging purposes
-	//	log.Printf("No response type defined for %s", op.OperationID)
-	//} else {
-	//	for propName := range schema.Value.Properties {
-	//		if propName == "items" {
-	//			use = "list"
-	//			break
-	//		}
-	//	}
-	//}
-	//return use
 }
 
 func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
@@ -203,13 +176,15 @@ type OperationCmd struct {
 }
 
 func (op *OperationCmd) initFlags() error {
-	if op.RequiresBody {
+	if op.HasBody {
 		op.cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
-		err := op.cmd.MarkFlagRequired(cliflags.DataFlag)
-		if err != nil {
-			return err
+		if op.RequiresBody {
+			err := op.cmd.MarkFlagRequired(cliflags.DataFlag)
+			if err != nil {
+				return err
+			}
 		}
-		err = viper.BindPFlag(cliflags.DataFlag, op.cmd.Flags().Lookup(cliflags.DataFlag))
+		err := viper.BindPFlag(cliflags.DataFlag, op.cmd.Flags().Lookup(cliflags.DataFlag))
 		if err != nil {
 			return err
 		}
@@ -224,7 +199,7 @@ func (op *OperationCmd) initFlags() error {
 	}
 
 	for _, p := range op.Params {
-		flagName := strcase.ToKebab(p.Name)
+		flagName := getFlagName(p.Name)
 
 		op.cmd.Flags().String(flagName, "", p.Description)
 
@@ -271,7 +246,8 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	query := url.Values{}
 	var urlParms []string
 	for _, p := range op.Params {
-		val := viper.GetString(p.Name)
+		flagName := getFlagName(p.Name)
+		val := viper.GetString(flagName)
 		if val != "" {
 			switch p.In {
 			case "path":
@@ -301,7 +277,13 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 	}
 
-	output, err := output.CmdOutput("get", viper.GetString(cliflags.OutputFlag), res)
+	if string(res) == "" {
+		// assuming the key to be deleted/replaced is last in the list of params,
+		// e.g. contexts delete-instances or code-refs replace-branch
+		res = []byte(fmt.Sprintf(`{"key": %q}`, urlParms[len(urlParms)-1]))
+	}
+
+	output, err := output.CmdOutput(cmd.Use, viper.GetString(cliflags.OutputFlag), res)
 	if err != nil {
 		return errors.NewError(err.Error())
 	}

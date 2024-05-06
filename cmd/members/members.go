@@ -25,17 +25,11 @@ func NewMembersCmd(analyticsTracker analytics.Tracker, client members.Client) (*
 		},
 	}
 
-	createCmd, err := NewCreateCmd(client)
-	if err != nil {
-		return nil, err
-	}
-
 	inviteCmd, err := NewInviteCmd(client)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd.AddCommand(createCmd)
 	cmd.AddCommand(inviteCmd)
 
 	return cmd, nil

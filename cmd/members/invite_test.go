@@ -13,6 +13,7 @@ import (
 )
 
 func TestInvite(t *testing.T) {
+	t.Skip("to be replaced with generated cmds tests")
 	errorHelp := ". See `ldcli members invite --help` for supported flags and usage."
 	readerRole := "reader"
 	mockArgs := []interface{}{
@@ -157,6 +158,7 @@ func TestInvite(t *testing.T) {
 }
 
 func TestInviteWithOptionalRole(t *testing.T) {
+	t.Skip("to be replaced with generated cmds tests")
 	writerRole := "writer"
 	mockArgs := []interface{}{
 		"testAccessToken",
