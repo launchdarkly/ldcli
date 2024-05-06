@@ -101,7 +101,8 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				continue
 			}
 
-			use := getCmdUse(op, spec)
+			isList := isListResponse(op, spec)
+			use := getCmdUse(resource.GoName, op.OperationID, isList)
 
 			var supportsSemanticPatch bool
 			if strings.Contains(op.Description, "semantic patch") {
@@ -141,9 +142,8 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 	return TemplateData{Resources: resources}, nil
 }
 
-func getResourceNames(tagName string) (string, string) {
-	name := tagName
-	if mappedName, ok := mapTagToResource[tagName]; ok {
+func getResourceNames(name string) (string, string) {
+	if mappedName, ok := mapTagToResource[name]; ok {
 		name = mappedName
 	}
 
@@ -163,9 +163,10 @@ var mapTagToResource = map[string]string{
 	"OAuth2 Clients":  "Oauth2 clients",
 	"User settings":   "User flag settings",
 }
+
 var mapOperationIdToUse = map[string]string{}
 
-func replaceMethod(operationId string) string {
+func replaceMethodWithCmdUse(operationId string) string {
 	r := strings.NewReplacer(
 		"post", "create",
 		"patch", "update",
@@ -175,23 +176,36 @@ func replaceMethod(operationId string) string {
 	return r.Replace(operationId)
 }
 
-func replaceGetWithList(input string) string {
-	re := regexp.MustCompile(`^get(.*)$`)
-	return re.ReplaceAllString(input, "list$1")
-}
-
-func getCmdUse(op *openapi3.Operation, spec *openapi3.T) string {
-	resourceName, _ := getResourceNames(op.Tags[0])
-	resourceName = strcase.ToCamel(resourceName)
-	singularResourceName := resourceName
+func removeResourceFromOperationId(resourceName, operationId string) string {
+	// operations use both singular (Team) and plural (Teams) resource names, whereas resource names are (usually) plural
+	var singularResourceName string
 	if string(resourceName[len(resourceName)-1]) == "s" {
 		singularResourceName = resourceName[:len(resourceName)-1]
 	}
-	action := strings.Replace(op.OperationID, resourceName, "", 1)
-	action = strings.Replace(action, singularResourceName, "", 1)
-	action = strcase.ToKebab(action)
-	action = replaceMethod(action)
 
+	r := strings.NewReplacer(
+		resourceName, "",
+		singularResourceName, "",
+	)
+
+	return r.Replace(operationId)
+}
+
+func getCmdUse(resourceName, operationId string, isList bool) string {
+	action := removeResourceFromOperationId(resourceName, operationId)
+	action = strcase.ToKebab(action)
+	action = replaceMethodWithCmdUse(action)
+
+	if isList {
+		re := regexp.MustCompile(`^get(.*)$`)
+		action = re.ReplaceAllString(action, "list$1")
+	}
+
+	return action
+}
+
+func isListResponse(op *openapi3.Operation, spec *openapi3.T) bool {
+	// get the success response type from the operation to retrieve its schema
 	var schema *openapi3.SchemaRef
 	for respType, respInfo := range op.Responses.Map() {
 		respCode, _ := strconv.Atoi(respType)
@@ -209,13 +223,11 @@ func getCmdUse(op *openapi3.Operation, spec *openapi3.T) string {
 	} else {
 		for propName := range schema.Value.Properties {
 			if propName == "items" {
-				action = replaceGetWithList(action)
-				break
+				return true
 			}
 		}
 	}
-
-	return action
+	return false
 }
 
 func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
@@ -348,7 +360,8 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 	}
 
-	if cmd.Use == "delete" {
+	if string(res) == "" {
+		// assuming the key to be deleted is last in the list of params, e.g. contexts delete-instances
 		res = []byte(fmt.Sprintf(`{"key": %q}`, urlParms[len(urlParms)-1]))
 	}
 
