@@ -245,9 +245,7 @@ type OperationCmd struct {
 }
 
 var mapParamToFlagName = map[string]string{
-	"project-key":      "project",
-	"feature-flag-key": "flag",
-	"environment-key":  "environment",
+	"feature-flag": "flag",
 }
 
 func (op *OperationCmd) initFlags() error {
@@ -272,10 +270,7 @@ func (op *OperationCmd) initFlags() error {
 	}
 
 	for _, p := range op.Params {
-		flagName := strcase.ToKebab(p.Name)
-		if mappedName, ok := mapParamToFlagName[flagName]; ok {
-			flagName = mappedName
-		}
+		flagName := getFlagName(p.Name)
 
 		op.cmd.Flags().String(flagName, "", p.Description)
 
@@ -323,10 +318,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	query := url.Values{}
 	var urlParms []string
 	for _, p := range op.Params {
-		flagName := strcase.ToKebab(p.Name)
-		if mappedName, ok := mapParamToFlagName[flagName]; ok {
-			flagName = mappedName
-		}
+		flagName := getFlagName(p.Name)
 		val := viper.GetString(flagName)
 		if val != "" {
 			switch p.In {
@@ -357,7 +349,11 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 	}
 
-	output, err := output.CmdOutput("get", viper.GetString(cliflags.OutputFlag), res)
+	if cmd.Use == "delete" {
+		res = []byte(fmt.Sprintf(`{"key": %q}`, urlParms[len(urlParms)-1]))
+	}
+
+	output, err := output.CmdOutput(cmd.Use, viper.GetString(cliflags.OutputFlag), res)
 	if err != nil {
 		return errors.NewError(err.Error())
 	}
@@ -365,6 +361,15 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 
 	return nil
+}
+
+func getFlagName(paramName string) string {
+	flagName := strcase.ToKebab(paramName)
+	flagName = strings.Replace(flagName, "-key", "", -1)
+	if mappedName, ok := mapParamToFlagName[flagName]; ok {
+		flagName = mappedName
+	}
+	return flagName
 }
 
 func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op OperationData) *cobra.Command {
