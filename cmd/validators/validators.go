@@ -22,29 +22,32 @@ func Validate() cobra.PositionalArgs {
 
 		_, err := url.ParseRequestURI(viper.GetString(cliflags.BaseURIFlag))
 		if err != nil {
-			return CmdError(errs.ErrInvalidBaseURI, cmd.CommandPath())
+			return CmdError(errs.ErrInvalidBaseURI, cmd.CommandPath(), "")
 		}
 
 		err = cmd.ValidateRequiredFlags()
 		if err != nil {
-			return CmdError(err, cmd.CommandPath())
+			return CmdError(err, cmd.CommandPath(), viper.GetString(cliflags.BaseURIFlag))
 		}
 
 		err = validateOutput(viper.GetString(cliflags.OutputFlag))
 		if err != nil {
-			return CmdError(err, cmd.CommandPath())
+			return CmdError(err, cmd.CommandPath(), viper.GetString(cliflags.BaseURIFlag))
 		}
 
 		return nil
 	}
 }
 
-func CmdError(err error, commandPath string) error {
+func CmdError(err error, commandPath string, baseURI string) error {
 	errorMessage := err.Error() + "."
 
 	// show additional help if a missing flag can be set in the config file
 	if strings.Contains(err.Error(), cliflags.AccessTokenFlag) {
 		errorMessage += "\n\n"
+		if baseURI != "" {
+			errorMessage += fmt.Sprintf("Go to %s/settings/authorization to create an access token.\n", baseURI)
+		}
 		errorMessage += fmt.Sprintf("Use `ldcli config --set %s <value>` to configure the value to persist across CLI commands.\n\n", cliflags.AccessTokenFlag)
 	} else {
 		errorMessage += " "
