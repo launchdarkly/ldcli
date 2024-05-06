@@ -85,7 +85,7 @@ ldcli flags create --access-token <access-token> --project default --data '{"nam
 
 ## Documentation
 
-_(coming soon!)_
+Additional documentation is available at https://docs.launchdarkly.com/home/getting-started/ldcli.
 
 ## Contributing
 
