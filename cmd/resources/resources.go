@@ -40,6 +40,7 @@ type OperationData struct {
 	Use                   string
 	Params                []Param
 	HTTPMethod            string
+	HasBody               bool
 	RequiresBody          bool
 	Path                  string
 	SupportsSemanticPatch bool
@@ -108,13 +109,20 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				supportsSemanticPatch = true
 			}
 
+			var hasBody, requiresBody bool
+			if op.RequestBody != nil {
+				hasBody = true
+				requiresBody = op.RequestBody.Value.Required
+			}
+
 			operation := OperationData{
 				Short:                 jsonString(op.Summary),
 				Long:                  jsonString(op.Description),
 				Use:                   use,
 				Params:                make([]Param, 0),
 				HTTPMethod:            method,
-				RequiresBody:          method == "PUT" || method == "POST" || method == "PATCH",
+				HasBody:               hasBody,
+				RequiresBody:          requiresBody,
 				Path:                  path,
 				SupportsSemanticPatch: supportsSemanticPatch,
 			}
@@ -168,13 +176,15 @@ type OperationCmd struct {
 }
 
 func (op *OperationCmd) initFlags() error {
-	if op.RequiresBody {
+	if op.HasBody {
 		op.cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
-		err := op.cmd.MarkFlagRequired(cliflags.DataFlag)
-		if err != nil {
-			return err
+		if op.RequiresBody {
+			err := op.cmd.MarkFlagRequired(cliflags.DataFlag)
+			if err != nil {
+				return err
+			}
 		}
-		err = viper.BindPFlag(cliflags.DataFlag, op.cmd.Flags().Lookup(cliflags.DataFlag))
+		err := viper.BindPFlag(cliflags.DataFlag, op.cmd.Flags().Lookup(cliflags.DataFlag))
 		if err != nil {
 			return err
 		}
