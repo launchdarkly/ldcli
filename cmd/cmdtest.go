@@ -29,13 +29,14 @@ func CallCmd(
 		"test",
 		false,
 	)
+	cmd := rootCmd.Cmd()
 	require.NoError(t, err)
 	b := bytes.NewBufferString("")
-	rootCmd.SetOut(b)
-	rootCmd.SetArgs(args)
+	cmd.SetOut(b)
+	cmd.SetArgs(args)
 	tracker := trackerFn("", "", false)
 
-	err = rootCmd.Execute()
+	err = cmd.Execute()
 	if err != nil {
 		tracker.SendCommandCompletedEvent(analytics.ERROR)
 		return nil, err

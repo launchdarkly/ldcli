@@ -55,11 +55,10 @@ type Tracker interface {
 }
 
 type Client struct {
-	ID            string
-	HTTPClient    *http.Client
-	Version       string
-	sentHelpEvent bool
-	wg            sync.WaitGroup
+	ID         string
+	HTTPClient *http.Client
+	Version    string
+	wg         sync.WaitGroup
 
 	accessToken string
 	baseURI     string
@@ -121,18 +120,9 @@ func (c *Client) SendCommandRunEvent(properties map[string]interface{}) {
 		"CLI Command Run",
 		properties,
 	)
-	action, ok := properties["action"]
-	if ok && action == "help" {
-		c.sentHelpEvent = true
-	}
 }
 
 func (c *Client) SendCommandCompletedEvent(outcome string) {
-	fmt.Println(">>> SendCommandCompletedEvent", outcome, c.sentHelpEvent)
-	if c.sentHelpEvent {
-		outcome = HELP
-	}
-
 	c.sendEvent(
 		"CLI Command Completed",
 		map[string]interface{}{

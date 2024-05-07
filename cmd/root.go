@@ -34,12 +34,41 @@ type APIClients struct {
 	ResourcesClient    resources.Client
 }
 
+type Command interface {
+	Cmd() *cobra.Command
+	HelpCalled() bool
+}
+
+type RootCmd struct {
+	Commands   []Command
+	cmd        *cobra.Command
+	helpCalled bool
+}
+
+func (cmd RootCmd) Cmd() *cobra.Command {
+	return cmd.cmd
+}
+
+func (cmd RootCmd) HelpCalled() bool {
+	for _, c := range cmd.Commands {
+		if c.HelpCalled() {
+			return true
+		}
+	}
+
+	return cmd.helpCalled
+}
+
+func (cmd RootCmd) Execute() error {
+	return cmd.cmd.Execute()
+}
+
 func NewRootCommand(
 	analyticsTrackerFn analytics.TrackerFn,
 	clients APIClients,
 	version string,
 	useConfigFile bool,
-) (*cobra.Command, error) {
+) (*RootCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -66,9 +95,15 @@ func NewRootCommand(
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
+	rootCmd := &RootCmd{
+		cmd: cmd,
+	}
 
 	hf := cmd.HelpFunc()
 	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		fmt.Println(">>> SetHelpFunc")
+		rootCmd.helpCalled = true
+
 		// get the resource for the tracking event, not the action
 		resourceCommand := getResourceCommand(c)
 		analyticsTrackerFn(
@@ -145,13 +180,15 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTrackerFn))
+	configCmd := configcmd.NewConfigCmd(analyticsTrackerFn)
+	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(membersCmd)
-
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
-	return cmd, nil
+	rootCmd.Commands = append(rootCmd.Commands, configCmd)
+
+	return rootCmd, nil
 }
 
 func Execute(version string) {
@@ -176,16 +213,21 @@ func Execute(version string) {
 	}
 
 	err = rootCmd.Execute()
-	fmt.Println(">>> err", err)
-	outcome := analytics.SUCCESS
-	if err != nil {
+
+	var outcome string
+	switch {
+	case rootCmd.HelpCalled():
+		outcome = analytics.HELP
+	case err != nil:
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
+	default:
+		outcome = analytics.SUCCESS
 	}
 
 	analyticsClient := trackerFn.Tracker(version)(
-		rootCmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag).Value.String(),
-		rootCmd.PersistentFlags().Lookup(cliflags.BaseURIFlag).Value.String(),
+		rootCmd.cmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag).Value.String(),
+		rootCmd.cmd.PersistentFlags().Lookup(cliflags.BaseURIFlag).Value.String(),
 		viper.GetBool(cliflags.AnalyticsOptOut),
 	)
 

@@ -24,7 +24,20 @@ const (
 	UnsetFlag = "unset"
 )
 
-func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
+type ConfigCmd struct {
+	cmd        *cobra.Command
+	helpCalled bool
+}
+
+func (cmd ConfigCmd) Cmd() *cobra.Command {
+	return cmd.cmd
+}
+
+func (cmd ConfigCmd) HelpCalled() bool {
+	return cmd.helpCalled
+}
+
+func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 	cmd := &cobra.Command{
 		Long:  "View and modify specific configuration values",
 		RunE:  run(),
@@ -41,10 +54,14 @@ func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 			}
 		},
 	}
+	configCmd := ConfigCmd{
+		cmd: cmd,
+	}
 
 	helpFun := cmd.HelpFunc()
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		fmt.Println(">>> SetHelpFunc")
+		configCmd.helpCalled = true
+
 		var sb strings.Builder
 		sb.WriteString("\n\nSupported settings:\n")
 		for _, s := range []string{
@@ -79,7 +96,7 @@ func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd.Flags().String(UnsetFlag, "", "Unset a config field")
 	_ = viper.BindPFlag(UnsetFlag, cmd.Flags().Lookup(UnsetFlag))
 
-	return cmd
+	return &configCmd
 }
 
 func run() func(*cobra.Command, []string) error {
