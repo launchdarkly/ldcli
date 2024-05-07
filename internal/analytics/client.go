@@ -47,11 +47,12 @@ type Tracker interface {
 }
 
 type Client struct {
-	ID           string
-	HTTPClient   *http.Client
-	Version      string
-	sentRunEvent bool
-	wg           sync.WaitGroup
+	ID            string
+	HTTPClient    *http.Client
+	Version       string
+	sentHelpEvent bool
+	sentRunEvent  bool
+	wg            sync.WaitGroup
 }
 
 // SendEvent makes an async request to track the given event with properties.
@@ -127,6 +128,10 @@ func (c *Client) SendCommandRunEvent(
 	)
 	if !optOut {
 		c.sentRunEvent = true
+		action, ok := properties["action"]
+		if ok && action == "help" {
+			c.sentHelpEvent = true
+		}
 	}
 }
 
@@ -137,6 +142,10 @@ func (c *Client) SendCommandCompletedEvent(
 	outcome string,
 ) {
 	if c.sentRunEvent {
+		if c.sentHelpEvent {
+			outcome = HELP
+		}
+
 		c.sendEvent(
 			accessToken,
 			baseURI,

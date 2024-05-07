@@ -1,8 +1,9 @@
 package analytics
 
 const (
-	SUCCESS = "success"
 	ERROR   = "error"
+	HELP    = "help"
+	SUCCESS = "success"
 )
 
 func MockedTracker(name string, action string, flags []string, outcome string) *MockTracker {
