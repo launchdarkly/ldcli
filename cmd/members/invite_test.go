@@ -42,7 +42,7 @@ func TestInvite(t *testing.T) {
 			"-e", `testemail1@test.com,testemail2@test.com`,
 		}
 
-		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
+		output, err := cmd.CallCmd(t, clients, analytics.NoopClientFn{}.Tracker(), args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
@@ -68,7 +68,7 @@ func TestInvite(t *testing.T) {
 			"-e", `testemail1@test.com,testemail2@test.com`,
 		}
 
-		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
+		output, err := cmd.CallCmd(t, clients, analytics.NoopClientFn{}.Tracker(), args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
@@ -90,7 +90,7 @@ func TestInvite(t *testing.T) {
 			"-e", `testemail1@test.com,testemail2@test.com`,
 		}
 
-		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
+		_, err := cmd.CallCmd(t, clients, analytics.NoopClientFn{}.Tracker(), args)
 
 		require.EqualError(t, err, "An error")
 	})
@@ -104,7 +104,7 @@ func TestInvite(t *testing.T) {
 			"invite",
 		}
 
-		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
+		_, err := cmd.CallCmd(t, clients, analytics.NoopClientFn{}.Tracker(), args)
 
 		assert.EqualError(t, err, `required flag(s) "access-token", "emails" not set`+cmd.ExtraErrorHelp("members", "invite"))
 	})
@@ -119,13 +119,13 @@ func TestInvite(t *testing.T) {
 			"--base-uri", "invalid",
 		}
 
-		_, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
+		_, err := cmd.CallCmd(t, clients, analytics.NoopClientFn{}.Tracker(), args)
 
 		assert.EqualError(t, err, "base-uri is invalid"+errorHelp)
 	})
 
 	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
-		tracker := analytics.MockedTracker(
+		_ = analytics.MockedTracker(
 			"members",
 			"invite",
 			[]string{
@@ -152,7 +152,8 @@ func TestInvite(t *testing.T) {
 			`testemail1@test.com,testemail2@test.com`,
 		}
 
-		_, err := cmd.CallCmd(t, clients, tracker, args)
+		// TODO: pass in mock
+		_, err := cmd.CallCmd(t, clients, analytics.NoopClientFn{}.Tracker(), args)
 		require.NoError(t, err)
 	})
 }
@@ -187,7 +188,7 @@ func TestInviteWithOptionalRole(t *testing.T) {
 			"--role", "writer",
 		}
 
-		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
+		output, err := cmd.CallCmd(t, clients, analytics.NoopClientFn{}.Tracker(), args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
@@ -211,14 +212,14 @@ func TestInviteWithOptionalRole(t *testing.T) {
 			"-r", "writer",
 		}
 
-		output, err := cmd.CallCmd(t, clients, &analytics.NoopClient{}, args)
+		output, err := cmd.CallCmd(t, clients, analytics.NoopClientFn{}.Tracker(), args)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, cmd.StubbedSuccessResponse, string(output))
 	})
 
 	t.Run("will track analytics for CLI Command Run event", func(t *testing.T) {
-		tracker := analytics.MockedTracker(
+		_ = analytics.MockedTracker(
 			"members",
 			"invite",
 			[]string{
@@ -245,7 +246,8 @@ func TestInviteWithOptionalRole(t *testing.T) {
 			"--role", "writer",
 		}
 
-		_, err := cmd.CallCmd(t, clients, tracker, args)
+		// TODO: pass in mock
+		_, err := cmd.CallCmd(t, clients, analytics.NoopClientFn{}.Tracker(), args)
 		require.NoError(t, err)
 	})
 }

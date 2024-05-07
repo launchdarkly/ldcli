@@ -10,18 +10,17 @@ import (
 	"ldcli/internal/members"
 )
 
-func NewMembersCmd(analyticsTracker analytics.Tracker, client members.Client) (*cobra.Command, error) {
+func NewMembersCmd(analyticsTrackerFn analytics.TrackerFn, client members.Client) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "members",
 		Short: "Make requests (list, create, etc.) on members",
 		Long:  "Make requests (list, create, etc.) on members",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			analyticsTracker.SendCommandRunEvent(
+			analyticsTrackerFn(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(cmd, "members", nil),
-			)
+			).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, "members", nil))
 		},
 	}
 

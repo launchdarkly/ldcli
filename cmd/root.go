@@ -7,9 +7,9 @@ import (
 	mbrscmd "ldcli/cmd/members"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -35,7 +35,7 @@ type APIClients struct {
 }
 
 func NewRootCommand(
-	analyticsTracker analytics.Tracker,
+	analyticsTrackerFn analytics.TrackerFn,
 	clients APIClients,
 	version string,
 	useConfigFile bool,
@@ -71,10 +71,11 @@ func NewRootCommand(
 	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
 		// get the resource for the tracking event, not the action
 		resourceCommand := getResourceCommand(c)
-		analyticsTracker.SendCommandRunEvent(
+		analyticsTrackerFn(
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetBool(cliflags.AnalyticsOptOut),
+		).SendCommandRunEvent(
 			cmdAnalytics.CmdRunEventProperties(c,
 				resourceCommand.Name(),
 				map[string]interface{}{
@@ -139,21 +140,21 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	membersCmd, err := mbrscmd.NewMembersCmd(analyticsTracker, clients.MembersClient)
+	membersCmd, err := mbrscmd.NewMembersCmd(analyticsTrackerFn, clients.MembersClient)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
-	cmd.AddCommand(NewQuickStartCmd(analyticsTracker, clients.EnvironmentsClient, clients.FlagsClient))
+	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTrackerFn))
+	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(membersCmd)
 
-	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTracker)
+	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	return cmd, nil
 }
 
-func Execute(analyticsTracker analytics.Tracker, version string) {
+func Execute(version string) {
 	clients := APIClients{
 		EnvironmentsClient: environments.NewClient(version),
 		FlagsClient:        flags.NewClient(version),
@@ -161,8 +162,11 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		ProjectsClient:     projects.NewClient(version),
 		ResourcesClient:    resources.NewClient(version),
 	}
+	trackerFn := analytics.ClientFn{
+		ID: uuid.New().String(),
+	}
 	rootCmd, err := NewRootCommand(
-		analyticsTracker,
+		trackerFn.Tracker(version),
 		clients,
 		version,
 		true,
@@ -172,20 +176,21 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	}
 
 	err = rootCmd.Execute()
+	fmt.Println(">>> err", err)
 	outcome := analytics.SUCCESS
 	if err != nil {
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
 	}
 
-	optOutStr := rootCmd.PersistentFlags().Lookup(cliflags.AnalyticsOptOut).Value.String()
-	optOut, _ := strconv.ParseBool(optOutStr)
-	analyticsTracker.SendCommandCompletedEvent(
+	analyticsClient := trackerFn.Tracker(version)(
 		rootCmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag).Value.String(),
 		rootCmd.PersistentFlags().Lookup(cliflags.BaseURIFlag).Value.String(),
-		optOut,
-		outcome,
+		viper.GetBool(cliflags.AnalyticsOptOut),
 	)
+
+	analyticsClient.SendCommandCompletedEvent(outcome)
+	analyticsClient.Wait()
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.

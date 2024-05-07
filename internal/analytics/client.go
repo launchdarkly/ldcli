@@ -7,43 +7,51 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/mock"
 )
 
+type TrackerFn func(accessToken string, baseURI string, optOut bool) Tracker
+
+type ClientFn struct {
+	ID string
+}
+
+func (fn ClientFn) Tracker(version string) TrackerFn {
+	return func(accessToken string, baseURI string, optOut bool) Tracker {
+		if optOut {
+			return &NoopClient{}
+		}
+
+		return &Client{
+			HTTPClient: &http.Client{
+				Timeout: time.Second * 3,
+			},
+			ID:          fn.ID,
+			Version:     version,
+			accessToken: accessToken,
+			baseURI:     baseURI,
+		}
+	}
+}
+
+type NoopClientFn struct{}
+
+func (fn NoopClientFn) Tracker() TrackerFn {
+	return func(_ string, _ string, _ bool) Tracker {
+		return &NoopClient{}
+	}
+}
+
 type Tracker interface {
-	SendCommandRunEvent(
-		accessToken,
-		baseURI string,
-		optOut bool,
-		properties map[string]interface{},
-	)
-	SendCommandCompletedEvent(
-		accessToken,
-		baseURI string,
-		optOut bool,
-		outcome string,
-	)
-	SendSetupStepStartedEvent(
-		accessToken,
-		baseURI string,
-		optOut bool,
-		step string,
-	)
-	SendSetupSDKSelectedEvent(
-		accessToken,
-		baseURI string,
-		optOut bool,
-		sdk string,
-	)
-	SendSetupFlagToggledEvent(
-		accessToken,
-		baseURI string,
-		optOut,
-		on bool,
-		count int,
-		duration_ms int64,
-	)
+	SendCommandRunEvent(properties map[string]interface{})
+	SendCommandCompletedEvent(outcome string)
+	SendSetupStepStartedEvent(step string)
+	SendSetupSDKSelectedEvent(sdk string)
+	SendSetupFlagToggledEvent(on bool, count int, duration_ms int64)
+	Wait()
 }
 
 type Client struct {
@@ -51,21 +59,14 @@ type Client struct {
 	HTTPClient    *http.Client
 	Version       string
 	sentHelpEvent bool
-	sentRunEvent  bool
 	wg            sync.WaitGroup
+
+	accessToken string
+	baseURI     string
 }
 
 // SendEvent makes an async request to track the given event with properties.
-func (c *Client) sendEvent(
-	accessToken string,
-	baseURI string,
-	optOut bool,
-	eventName string,
-	properties map[string]interface{},
-) {
-	if optOut {
-		return
-	}
+func (c *Client) sendEvent(eventName string, properties map[string]interface{}) {
 	properties["id"] = c.ID
 	input := struct {
 		Event      string                 `json:"event"`
@@ -83,18 +84,20 @@ func (c *Client) sendEvent(
 		return
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v2/tracking", baseURI), bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v2/tracking", c.baseURI), bytes.NewBuffer(body))
 	if err != nil { //nolint:staticcheck
 		// TODO: log error
 		c.wg.Done()
 		return
 	}
 
-	req.Header.Add("Authorization", accessToken)
+	req.Header.Add("Authorization", c.accessToken)
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("User-Agent", fmt.Sprintf("launchdarkly-cli/%s", c.Version))
 	var resp *http.Response
 	go func() {
+		fmt.Println(">>> sending event", c.accessToken, c.baseURI)
+		spew.Dump(properties)
 		resp, err = c.HTTPClient.Do(req)
 		if err != nil { //nolint:staticcheck
 			// TODO: log error
@@ -113,61 +116,33 @@ func (c *Client) sendEvent(
 	}()
 }
 
-func (c *Client) SendCommandRunEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	properties map[string]interface{},
-) {
+func (c *Client) SendCommandRunEvent(properties map[string]interface{}) {
 	c.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
 		"CLI Command Run",
 		properties,
 	)
-	if !optOut {
-		c.sentRunEvent = true
-		action, ok := properties["action"]
-		if ok && action == "help" {
-			c.sentHelpEvent = true
-		}
+	action, ok := properties["action"]
+	if ok && action == "help" {
+		c.sentHelpEvent = true
 	}
 }
 
-func (c *Client) SendCommandCompletedEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	outcome string,
-) {
-	if c.sentRunEvent {
-		if c.sentHelpEvent {
-			outcome = HELP
-		}
-
-		c.sendEvent(
-			accessToken,
-			baseURI,
-			optOut,
-			"CLI Command Completed",
-			map[string]interface{}{
-				"outcome": outcome,
-			},
-		)
+func (c *Client) SendCommandCompletedEvent(outcome string) {
+	fmt.Println(">>> SendCommandCompletedEvent", outcome, c.sentHelpEvent)
+	if c.sentHelpEvent {
+		outcome = HELP
 	}
-}
 
-func (c *Client) SendSetupStepStartedEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	step string,
-) {
 	c.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
+		"CLI Command Completed",
+		map[string]interface{}{
+			"outcome": outcome,
+		},
+	)
+}
+
+func (c *Client) SendSetupStepStartedEvent(step string) {
+	c.sendEvent(
 		"CLI Setup Step Started",
 		map[string]interface{}{
 			"step": step,
@@ -175,16 +150,8 @@ func (c *Client) SendSetupStepStartedEvent(
 	)
 }
 
-func (c *Client) SendSetupSDKSelectedEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	sdk string,
-) {
+func (c *Client) SendSetupSDKSelectedEvent(sdk string) {
 	c.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
 		"CLI Setup SDK Selected",
 		map[string]interface{}{
 			"sdk": sdk,
@@ -192,18 +159,8 @@ func (c *Client) SendSetupSDKSelectedEvent(
 	)
 }
 
-func (c *Client) SendSetupFlagToggledEvent(
-	accessToken,
-	baseURI string,
-	optOut,
-	on bool,
-	count int,
-	duration_ms int64,
-) {
+func (c *Client) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64) {
 	c.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
 		"CLI Setup Flag Toggled",
 		map[string]interface{}{
 			"on":          on,
@@ -219,89 +176,32 @@ func (a *Client) Wait() {
 
 type NoopClient struct{}
 
-func (c *NoopClient) SendCommandRunEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	properties map[string]interface{},
-) {
-}
-
-func (c *NoopClient) SendCommandCompletedEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	outcome string,
-) {
-}
-
-func (c *NoopClient) SendSetupStepStartedEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	step string,
-) {
-}
-
-func (c *NoopClient) SendSetupSDKSelectedEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	sdk string,
-) {
-}
-
-func (c *NoopClient) SendSetupFlagToggledEvent(
-	accessToken,
-	baseURI string,
-	optOut,
-	on bool,
-	count int,
-	duration_ms int64,
-) {
-}
+func (c *NoopClient) SendCommandRunEvent(properties map[string]interface{})           {}
+func (c *NoopClient) SendCommandCompletedEvent(outcome string)                        {}
+func (c *NoopClient) SendSetupStepStartedEvent(step string)                           {}
+func (c *NoopClient) SendSetupSDKSelectedEvent(sdk string)                            {}
+func (c *NoopClient) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64) {}
+func (a *NoopClient) Wait()                                                           {}
 
 type MockTracker struct {
 	mock.Mock
 	ID string
 }
 
-func (m *MockTracker) sendEvent(
-	accessToken string,
-	baseURI string,
-	optOut bool,
-	eventName string,
-	properties map[string]interface{},
-) {
+func (m *MockTracker) sendEvent(eventName string, properties map[string]interface{}) {
 	properties["id"] = m.ID
-	m.Called(accessToken, baseURI, eventName, properties)
+	m.Called(eventName, properties)
 }
 
-func (m *MockTracker) SendCommandRunEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	properties map[string]interface{},
-) {
+func (m *MockTracker) SendCommandRunEvent(properties map[string]interface{}) {
 	m.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
 		"CLI Command Run",
 		properties,
 	)
 }
 
-func (m *MockTracker) SendCommandCompletedEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	outcome string,
-) {
+func (m *MockTracker) SendCommandCompletedEvent(outcome string) {
 	m.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
 		"CLI Command Completed",
 		map[string]interface{}{
 			"outcome": outcome,
@@ -309,16 +209,8 @@ func (m *MockTracker) SendCommandCompletedEvent(
 	)
 }
 
-func (m *MockTracker) SendSetupStepStartedEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	step string,
-) {
+func (m *MockTracker) SendSetupStepStartedEvent(step string) {
 	m.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
 		"CLI Setup Step Started",
 		map[string]interface{}{
 			"step": step,
@@ -326,16 +218,8 @@ func (m *MockTracker) SendSetupStepStartedEvent(
 	)
 }
 
-func (m *MockTracker) SendSetupSDKSelectedEvent(
-	accessToken,
-	baseURI string,
-	optOut bool,
-	sdk string,
-) {
+func (m *MockTracker) SendSetupSDKSelectedEvent(sdk string) {
 	m.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
 		"CLI Setup SDK Selected",
 		map[string]interface{}{
 			"sdk": sdk,
@@ -343,18 +227,8 @@ func (m *MockTracker) SendSetupSDKSelectedEvent(
 	)
 }
 
-func (m *MockTracker) SendSetupFlagToggledEvent(
-	accessToken,
-	baseURI string,
-	optOut,
-	on bool,
-	count int,
-	duration_ms int64,
-) {
+func (m *MockTracker) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64) {
 	m.sendEvent(
-		accessToken,
-		baseURI,
-		optOut,
 		"CLI Setup Flag Toggled",
 		map[string]interface{}{
 			"on":          on,
@@ -363,3 +237,5 @@ func (m *MockTracker) SendSetupFlagToggledEvent(
 		},
 	)
 }
+
+func (a *MockTracker) Wait() {}
