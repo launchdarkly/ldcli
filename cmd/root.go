@@ -152,6 +152,15 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		log.Fatal(err)
 	}
 
+	// change the completion command help
+	rootCmd.InitDefaultCompletionCmd()
+	completionCmd, _, err := rootCmd.Find([]string{"completion"})
+	if err == nil {
+		completionCmd.Long = fmt.Sprintf(`Generate the autocompletion script for %[1]s for the specified shell.
+See each command's help for details on how to use the generated script.`, rootCmd.Name())
+		rootCmd.AddCommand(completionCmd)
+	}
+
 	err = rootCmd.Execute()
 	outcome := analytics.SUCCESS
 	if err != nil {
