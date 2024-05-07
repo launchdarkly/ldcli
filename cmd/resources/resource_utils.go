@@ -54,7 +54,7 @@ func removeResourceFromOperationId(resourceName, operationId string) string {
 		// a lot of "list" operations say "GetFor{ResourceName}"
 		fmt.Sprintf("For%s", singularResourceName), "",
 		fmt.Sprintf("For%s", resourceName), "",
-		fmt.Sprint("ByProject"), "",
+		"ByProject", "",
 		resourceName, "",
 		singularResourceName, "",
 	)
@@ -98,7 +98,7 @@ func isListResponse(op *openapi3.Operation, spec *openapi3.T) bool {
 			return true
 		}
 	}
-	
+
 	return false
 }
 

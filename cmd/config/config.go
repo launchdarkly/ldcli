@@ -31,12 +31,15 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 		Short: "View and modify specific configuration values",
 		Use:   "config",
 		PreRun: func(cmd *cobra.Command, args []string) {
-			analyticsTracker.SendCommandRunEvent(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(cmd, "config"),
-			)
+			// only track event if there are flags
+			if len(os.Args[1:]) > 1 {
+				analyticsTracker.SendCommandRunEvent(
+					viper.GetString(cliflags.AccessTokenFlag),
+					viper.GetString(cliflags.BaseURIFlag),
+					viper.GetBool(cliflags.AnalyticsOptOut),
+					cmdAnalytics.CmdRunEventProperties(cmd, "config", nil),
+				)
+			}
 		},
 	}
 
@@ -53,6 +56,19 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 			sb.WriteString(fmt.Sprintf("- `%s`: %s\n", s, cliflags.AllFlagsHelp()[s]))
 		}
 		cmd.Long += sb.String()
+
+		analyticsTracker.SendCommandRunEvent(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetBool(cliflags.AnalyticsOptOut),
+			cmdAnalytics.CmdRunEventProperties(cmd,
+				"config",
+				map[string]interface{}{
+					"action": "help",
+				},
+			),
+		)
+
 		helpFun(cmd, args)
 	})
 

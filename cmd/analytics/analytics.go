@@ -8,7 +8,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-func CmdRunEventProperties(cmd *cobra.Command, name string) map[string]interface{} {
+func CmdRunEventProperties(
+	cmd *cobra.Command,
+	name string,
+	overrides map[string]interface{},
+) map[string]interface{} {
 	baseURI := viper.GetString(cliflags.BaseURIFlag)
 	var flags []string
 	cmd.Flags().Visit(func(f *pflag.Flag) {
@@ -23,5 +27,10 @@ func CmdRunEventProperties(cmd *cobra.Command, name string) map[string]interface
 	if baseURI != cliflags.BaseURIDefault {
 		properties["baseURI"] = baseURI
 	}
+
+	for k, v := range overrides {
+		properties[k] = v
+	}
+
 	return properties
 }
