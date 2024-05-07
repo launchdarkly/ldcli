@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"fmt"
-	mbrscmd "ldcli/cmd/members"
 	"log"
 	"os"
 	"strconv"
@@ -139,14 +138,8 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	membersCmd, err := mbrscmd.NewMembersCmd(analyticsTracker, clients.MembersClient)
-	if err != nil {
-		return nil, err
-	}
-
 	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
 	cmd.AddCommand(NewQuickStartCmd(analyticsTracker, clients.EnvironmentsClient, clients.FlagsClient))
-	cmd.AddCommand(membersCmd)
 
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTracker)
 
