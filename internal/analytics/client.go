@@ -25,11 +25,11 @@ func (fn ClientFn) Tracker(version string) TrackerFn {
 		}
 
 		return &Client{
-			HTTPClient: &http.Client{
+			httpClient: &http.Client{
 				Timeout: time.Second * 3,
 			},
-			ID:          fn.ID,
-			Version:     version,
+			id:          fn.ID,
+			version:     version,
 			accessToken: accessToken,
 			baseURI:     baseURI,
 		}
@@ -54,18 +54,17 @@ type Tracker interface {
 }
 
 type Client struct {
-	ID         string
-	HTTPClient *http.Client
-	Version    string
-	wg         sync.WaitGroup
-
 	accessToken string
 	baseURI     string
+	httpClient  *http.Client
+	id          string
+	version     string
+	wg          sync.WaitGroup
 }
 
 // SendEvent makes an async request to track the given event with properties.
 func (c *Client) sendEvent(eventName string, properties map[string]interface{}) {
-	properties["id"] = c.ID
+	properties["id"] = c.id
 	input := struct {
 		Event      string                 `json:"event"`
 		Properties map[string]interface{} `json:"properties"`
@@ -91,10 +90,10 @@ func (c *Client) sendEvent(eventName string, properties map[string]interface{}) 
 
 	req.Header.Add("Authorization", c.accessToken)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("User-Agent", fmt.Sprintf("launchdarkly-cli/%s", c.Version))
+	req.Header.Add("User-Agent", fmt.Sprintf("launchdarkly-cli/%s", c.version))
 	var resp *http.Response
 	go func() {
-		resp, err = c.HTTPClient.Do(req)
+		resp, err = c.httpClient.Do(req)
 		if err != nil { //nolint:staticcheck
 			// TODO: log error
 		}
