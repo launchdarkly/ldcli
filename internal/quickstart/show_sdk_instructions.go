@@ -153,7 +153,7 @@ Here are the steps to set up a test app to see feature flagging in action
 using the %s SDK in your Default project & Test environment.
 
 You should have everything you need to get started, including the flag from
-the previous step and your environmnet key from your Test environment already
+the previous step and your environment key from your Test environment already
 embedded in the code!
 
 Open a new terminal window to get started.
