@@ -251,25 +251,25 @@ func selectedSDK(index int) tea.Cmd {
 
 type eventTrackedMsg struct{}
 
-func trackSetupStepStartedEvent(tracker analytics.Tracker, accessToken, baseURI string, optOut bool, step string) tea.Cmd {
+func trackSetupStepStartedEvent(tracker analytics.Tracker, step string) tea.Cmd {
 	return func() tea.Msg {
-		tracker.SendSetupStepStartedEvent(accessToken, baseURI, optOut, step)
+		tracker.SendSetupStepStartedEvent(step)
 
 		return eventTrackedMsg{}
 	}
 }
 
-func trackSetupSDKSelectedEvent(tracker analytics.Tracker, accessToken, baseURI string, optOut bool, sdk string) tea.Cmd {
+func trackSetupSDKSelectedEvent(tracker analytics.Tracker, sdk string) tea.Cmd {
 	return func() tea.Msg {
-		tracker.SendSetupSDKSelectedEvent(accessToken, baseURI, optOut, sdk)
+		tracker.SendSetupSDKSelectedEvent(sdk)
 
 		return eventTrackedMsg{}
 	}
 }
 
-func trackSetupFlagToggledEvent(tracker analytics.Tracker, accessToken, baseURI string, optOut, on bool, count int, duration_ms int64) tea.Cmd {
+func trackSetupFlagToggledEvent(tracker analytics.Tracker, on bool, count int, duration_ms int64) tea.Cmd {
 	return func() tea.Msg {
-		tracker.SendSetupFlagToggledEvent(accessToken, baseURI, optOut, on, count, duration_ms)
+		tracker.SendSetupFlagToggledEvent(on, count, duration_ms)
 
 		return eventTrackedMsg{}
 	}

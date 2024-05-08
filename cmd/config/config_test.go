@@ -18,7 +18,12 @@ func TestNoFlag(t *testing.T) {
 		"config",
 	}
 
-	output, err := cmd.CallCmd(t, cmd.APIClients{}, &analytics.NoopClient{}, args)
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
 
 	require.NoError(t, err)
 

@@ -169,18 +169,22 @@ func shouldFilter(name string) bool {
 		strings.ToLower(name) == "oauth2 clients"
 }
 
-func NewResourceCmd(parentCmd *cobra.Command, analyticsTracker analytics.Tracker, resourceName, shortDescription, longDescription string) *cobra.Command {
+func NewResourceCmd(
+	parentCmd *cobra.Command,
+	analyticsTrackerFn analytics.TrackerFn,
+	resourceName, shortDescription, longDescription string,
+) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   resourceName,
 		Short: shortDescription,
 		Long:  longDescription,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			analyticsTracker.SendCommandRunEvent(
+			tracker := analyticsTrackerFn(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
 				viper.GetBool(cliflags.AnalyticsOptOut),
-				cmdAnalytics.CmdRunEventProperties(cmd, resourceName, nil),
 			)
+			tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, resourceName, nil))
 		},
 	}
 

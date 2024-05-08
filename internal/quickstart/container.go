@@ -43,18 +43,17 @@ func (s step) String() string {
 // represents a step in the quick-start flow.
 type ContainerModel struct {
 	accessToken        string
-	analyticsOptOut    bool
 	analyticsTracker   analytics.Tracker
-	baseUri            string
+	baseURI            string
 	currentModel       tea.Model
 	currentStep        step
 	environment        *environment
 	environmentsClient environments.Client
 	err                error
 	flagKey            string
-	flagsClient        flags.Client
 	flagStatus         bool
 	flagToggled        bool
+	flagsClient        flags.Client
 	gettingStarted     bool
 	quitting           bool
 	sdk                sdkDetail
@@ -70,15 +69,13 @@ func NewContainerModel(
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 	accessToken string,
-	analyticsOptOut bool,
-	baseUri string,
+	baseURI string,
 ) tea.Model {
 	return ContainerModel{
 		accessToken:        accessToken,
-		analyticsOptOut:    analyticsOptOut,
 		analyticsTracker:   analyticsTracker,
-		baseUri:            baseUri,
-		currentModel:       NewCreateFlagModel(flagsClient, accessToken, baseUri),
+		baseURI:            baseURI,
+		currentModel:       NewCreateFlagModel(flagsClient, accessToken, baseURI),
 		currentStep:        1,
 		environmentsClient: environmentsClient,
 		flagsClient:        flagsClient,
@@ -89,13 +86,7 @@ func NewContainerModel(
 }
 
 func (m ContainerModel) Init() tea.Cmd {
-	return trackSetupStepStartedEvent(
-		m.analyticsTracker,
-		m.accessToken,
-		m.baseUri,
-		m.analyticsOptOut,
-		m.currentStep.String(),
-	)
+	return trackSetupStepStartedEvent(m.analyticsTracker, m.currentStep.String())
 }
 
 func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -117,7 +108,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentModel, cmd = m.currentModel.Update(msg)
 			case stepChooseSDK:
 				m.currentStep -= 1
-				m.currentModel = NewCreateFlagModel(m.flagsClient, m.accessToken, m.baseUri)
+				m.currentModel = NewCreateFlagModel(m.flagsClient, m.accessToken, m.baseURI)
 			case stepShowSDKInstructions:
 				m.currentStep -= 1
 				m.currentModel = NewChooseSDKModel(m.sdk.index)
@@ -127,7 +118,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentModel = NewShowSDKInstructionsModel(
 					m.environmentsClient,
 					m.accessToken,
-					m.baseUri,
+					m.baseURI,
 					m.sdk.canonicalName,
 					m.sdk.displayName,
 					m.sdk.url,
@@ -151,7 +142,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentModel = NewShowSDKInstructionsModel(
 			m.environmentsClient,
 			m.accessToken,
-			m.baseUri,
+			m.baseURI,
 			msg.sdk.canonicalName,
 			msg.sdk.displayName,
 			msg.sdk.url,
@@ -192,7 +183,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentModel = NewToggleFlagModel(
 			m.flagsClient,
 			m.accessToken,
-			m.baseUri,
+			m.baseURI,
 			m.flagKey,
 			m.sdk.kind,
 		)
@@ -204,28 +195,13 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if sendEvent {
-		cmd = tea.Batch(cmd, trackSetupStepStartedEvent(
-			m.analyticsTracker,
-			m.accessToken,
-			m.baseUri,
-			m.analyticsOptOut,
-			m.currentStep.String(),
-		))
+		cmd = tea.Batch(cmd, trackSetupStepStartedEvent(m.analyticsTracker, m.currentStep.String()))
 
 		if m.currentStep == stepShowSDKInstructions {
-			cmd = tea.Batch(cmd, trackSetupSDKSelectedEvent(
-				m.analyticsTracker,
-				m.accessToken,
-				m.baseUri,
-				m.analyticsOptOut,
-				m.sdk.canonicalName,
-			))
+			cmd = tea.Batch(cmd, trackSetupSDKSelectedEvent(m.analyticsTracker, m.sdk.canonicalName))
 		} else if (m.currentStep == stepToggleFlag) && m.flagToggled {
 			cmd = tea.Batch(cmd, trackSetupFlagToggledEvent(
 				m.analyticsTracker,
-				m.accessToken,
-				m.baseUri,
-				m.analyticsOptOut,
 				m.flagStatus,
 				m.toggleCount,
 				m.toggleTime.Sub(m.startTime).Milliseconds(),

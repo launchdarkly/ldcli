@@ -9,12 +9,16 @@ import (
 	"ldcli/internal/resources"
 )
 
-func AddAllResourceCmds(rootCmd *cobra.Command, client resources.Client, analyticsTracker analytics.Tracker) {
+func AddAllResourceCmds(
+  rootCmd *cobra.Command,
+  client resources.Client,
+  analyticsTrackerFn analytics.TrackerFn,
+) {
 	// Resource commands
 	{{ range $resKey, $resData := .Resources }}
 	gen_{{ $resData.GoName }}ResourceCmd := NewResourceCmd(
         rootCmd,
-        analyticsTracker,
+        analyticsTrackerFn,
         "{{ $resKey }}",
         "Make requests (list, create, etc.) on {{ $resData.DisplayName }}",
         {{ $resData.Description }},

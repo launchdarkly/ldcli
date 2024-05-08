@@ -3,12 +3,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -19,6 +20,7 @@ import (
 	"ldcli/internal/analytics"
 	"ldcli/internal/config"
 	"ldcli/internal/environments"
+	errs "ldcli/internal/errors"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
 	"ldcli/internal/projects"
@@ -33,12 +35,41 @@ type APIClients struct {
 	ResourcesClient    resources.Client
 }
 
+type Command interface {
+	Cmd() *cobra.Command
+	HelpCalled() bool
+}
+
+type RootCmd struct {
+	Commands   []Command
+	cmd        *cobra.Command
+	helpCalled bool
+}
+
+func (cmd RootCmd) Cmd() *cobra.Command {
+	return cmd.cmd
+}
+
+func (cmd RootCmd) HelpCalled() bool {
+	for _, c := range cmd.Commands {
+		if c.HelpCalled() {
+			return true
+		}
+	}
+
+	return cmd.helpCalled
+}
+
+func (cmd RootCmd) Execute() error {
+	return cmd.cmd.Execute()
+}
+
 func NewRootCommand(
-	analyticsTracker analytics.Tracker,
+	analyticsTrackerFn analytics.TrackerFn,
 	clients APIClients,
 	version string,
 	useConfigFile bool,
-) (*cobra.Command, error) {
+) (*RootCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -65,15 +96,21 @@ func NewRootCommand(
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
+	rootCmd := &RootCmd{
+		cmd: cmd,
+	}
 
 	hf := cmd.HelpFunc()
 	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		rootCmd.helpCalled = true
+
 		// get the resource for the tracking event, not the action
 		resourceCommand := getResourceCommand(c)
-		analyticsTracker.SendCommandRunEvent(
+		analyticsTrackerFn(
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetBool(cliflags.AnalyticsOptOut),
+		).SendCommandRunEvent(
 			cmdAnalytics.CmdRunEventProperties(c,
 				resourceCommand.Name(),
 				map[string]interface{}{
@@ -138,15 +175,17 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	cmd.AddCommand(configcmd.NewConfigCmd(analyticsTracker))
-	cmd.AddCommand(NewQuickStartCmd(analyticsTracker, clients.EnvironmentsClient, clients.FlagsClient))
+	configCmd := configcmd.NewConfigCmd(analyticsTrackerFn)
+	cmd.AddCommand(configCmd.Cmd())
+	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
+	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
-	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTracker)
+	rootCmd.Commands = append(rootCmd.Commands, configCmd)
 
-	return cmd, nil
+	return rootCmd, nil
 }
 
-func Execute(analyticsTracker analytics.Tracker, version string) {
+func Execute(version string) {
 	clients := APIClients{
 		EnvironmentsClient: environments.NewClient(version),
 		FlagsClient:        flags.NewClient(version),
@@ -154,8 +193,11 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 		ProjectsClient:     projects.NewClient(version),
 		ResourcesClient:    resources.NewClient(version),
 	}
+	trackerFn := analytics.ClientFn{
+		ID: uuid.New().String(),
+	}
 	rootCmd, err := NewRootCommand(
-		analyticsTracker,
+		trackerFn.Tracker(version),
 		clients,
 		version,
 		true,
@@ -165,29 +207,43 @@ func Execute(analyticsTracker analytics.Tracker, version string) {
 	}
 
 	// change the completion command help
-	rootCmd.InitDefaultCompletionCmd()
-	completionCmd, _, err := rootCmd.Find([]string{"completion"})
+	rootCmd.Cmd().InitDefaultCompletionCmd()
+	completionCmd, _, err := rootCmd.Cmd().Find([]string{"completion"})
 	if err == nil {
 		completionCmd.Long = fmt.Sprintf(`Generate the autocompletion script for %[1]s for the specified shell.
-See each command's help for details on how to use the generated script.`, rootCmd.Name())
-		rootCmd.AddCommand(completionCmd)
+See each command's help for details on how to use the generated script.`, rootCmd.Cmd().Name())
+		rootCmd.Cmd().AddCommand(completionCmd)
 	}
 
 	err = rootCmd.Execute()
-	outcome := analytics.SUCCESS
-	if err != nil {
+
+	var outcome string
+	switch {
+	case rootCmd.HelpCalled():
+		outcome = analytics.HELP
+	case err != nil:
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
+	default:
+		outcome = analytics.SUCCESS
 	}
 
-	optOutStr := rootCmd.PersistentFlags().Lookup(cliflags.AnalyticsOptOut).Value.String()
-	optOut, _ := strconv.ParseBool(optOutStr)
-	analyticsTracker.SendCommandCompletedEvent(
-		rootCmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag).Value.String(),
-		rootCmd.PersistentFlags().Lookup(cliflags.BaseURIFlag).Value.String(),
-		optOut,
-		outcome,
+	analyticsClient := trackerFn.Tracker(version)(
+		viper.GetString(cliflags.AccessTokenFlag),
+		viper.GetString(cliflags.BaseURIFlag),
+		viper.GetBool(cliflags.AnalyticsOptOut),
 	)
+	if err != nil {
+		// If there's an error, it could be because of a missing flag. In that case, don't send
+		// analytics.
+		if errors.Is(err, errs.Error{}) {
+			analyticsClient.SendCommandCompletedEvent(outcome)
+		}
+	} else {
+		analyticsClient.SendCommandCompletedEvent(outcome)
+	}
+
+	analyticsClient.Wait()
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.

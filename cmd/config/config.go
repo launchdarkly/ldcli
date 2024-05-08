@@ -24,7 +24,20 @@ const (
 	UnsetFlag = "unset"
 )
 
-func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
+type ConfigCmd struct {
+	cmd        *cobra.Command
+	helpCalled bool
+}
+
+func (cmd ConfigCmd) Cmd() *cobra.Command {
+	return cmd.cmd
+}
+
+func (cmd ConfigCmd) HelpCalled() bool {
+	return cmd.helpCalled
+}
+
+func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 	cmd := &cobra.Command{
 		Long:  "View and modify specific configuration values",
 		RunE:  run(),
@@ -33,18 +46,22 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 		PreRun: func(cmd *cobra.Command, args []string) {
 			// only track event if there are flags
 			if len(os.Args[1:]) > 1 {
-				analyticsTracker.SendCommandRunEvent(
+				analyticsTrackerFn(
 					viper.GetString(cliflags.AccessTokenFlag),
 					viper.GetString(cliflags.BaseURIFlag),
 					viper.GetBool(cliflags.AnalyticsOptOut),
-					cmdAnalytics.CmdRunEventProperties(cmd, "config", nil),
-				)
+				).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, "config", nil))
 			}
 		},
+	}
+	configCmd := ConfigCmd{
+		cmd: cmd,
 	}
 
 	helpFun := cmd.HelpFunc()
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		configCmd.helpCalled = true
+
 		var sb strings.Builder
 		sb.WriteString("\n\nSupported settings:\n")
 		for _, s := range []string{
@@ -57,17 +74,17 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 		}
 		cmd.Long += sb.String()
 
-		analyticsTracker.SendCommandRunEvent(
+		analyticsTrackerFn(
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetBool(cliflags.AnalyticsOptOut),
-			cmdAnalytics.CmdRunEventProperties(cmd,
-				"config",
-				map[string]interface{}{
-					"action": "help",
-				},
-			),
-		)
+		).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(
+			cmd,
+			"config",
+			map[string]interface{}{
+				"action": "help",
+			},
+		))
 
 		helpFun(cmd, args)
 	})
@@ -79,7 +96,7 @@ func NewConfigCmd(analyticsTracker analytics.Tracker) *cobra.Command {
 	cmd.Flags().String(UnsetFlag, "", "Unset a config field")
 	_ = viper.BindPFlag(UnsetFlag, cmd.Flags().Lookup(UnsetFlag))
 
-	return cmd
+	return &configCmd
 }
 
 func run() func(*cobra.Command, []string) error {

@@ -18,7 +18,12 @@ func TestCreateTeam(t *testing.T) {
 			"--help",
 		}
 
-		output, err := cmd.CallCmd(t, cmd.APIClients{}, &analytics.NoopClient{}, args)
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
 
 		require.NoError(t, err)
 		assert.Contains(t, string(output), "Create a team.")
@@ -34,7 +39,12 @@ func TestCreateTeam(t *testing.T) {
 			`{"key": "team-key", "name": "Team Name"}`,
 		}
 
-		output, err := cmd.CallCmd(t, cmd.APIClients{}, &analytics.NoopClient{}, args)
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
 
 		require.NoError(t, err)
 		s := string(output)

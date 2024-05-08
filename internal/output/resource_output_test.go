@@ -12,6 +12,28 @@ import (
 )
 
 func TestCmdOutput(t *testing.T) {
+	t.Run("with multiple resources with an ID and name", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"_id": "test-id",
+					"name": "test-name"
+				}
+			]
+		}`
+
+		t.Run("with plaintext output", func(t *testing.T) {
+			t.Run("returns a success message", func(t *testing.T) {
+				expected := "\n* test-name (test-id)"
+
+				result, err := output.CmdOutput("list", "plaintext", []byte(input))
+
+				require.NoError(t, err)
+				assert.Equal(t, expected, result)
+			})
+		})
+	})
+
 	t.Run("when creating a resource", func(t *testing.T) {
 		input := `{
 			"key": "test-key",
