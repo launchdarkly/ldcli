@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.11.0](https://github.com/launchdarkly/ldcli/compare/v0.10.0...v0.11.0) (2024-05-07)
+
+
+### Features
+
+* create and generate template from template data for teams ([#238](https://github.com/launchdarkly/ldcli/issues/238)) ([bf2f0a1](https://github.com/launchdarkly/ldcli/commit/bf2f0a10aeba241ef32bf7c37b8a58ce1f2567d4))
+* generate remaining resources commands from openapi spec ([#244](https://github.com/launchdarkly/ldcli/issues/244)) ([e78e32b](https://github.com/launchdarkly/ldcli/commit/e78e32b5f53b13ac17a2575c479f00cdebc590b4))
+* throttle flag toggle ([#243](https://github.com/launchdarkly/ldcli/issues/243)) ([3b88329](https://github.com/launchdarkly/ldcli/commit/3b88329d3e2dc4a57f8b70cef9078b40a1103b00))
+* track help cmd ([#245](https://github.com/launchdarkly/ldcli/issues/245)) ([1ebc398](https://github.com/launchdarkly/ldcli/commit/1ebc398a184239a62df7b1ac5e33f123f342c6c1))
+
+
+### Bug Fixes
+
+* remove old members cmd ([#249](https://github.com/launchdarkly/ldcli/issues/249)) ([27c72ce](https://github.com/launchdarkly/ldcli/commit/27c72ce35c4369ea1a19166b9ed96a99f8543913))
+
 ## [0.10.0](https://github.com/launchdarkly/ldcli/compare/v0.9.0...v0.10.0) (2024-05-02)
 
 

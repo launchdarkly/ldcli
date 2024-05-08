@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"fmt"
-	mbrscmd "ldcli/cmd/members"
 	"log"
 	"os"
 	"strings"
@@ -174,15 +173,9 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	membersCmd, err := mbrscmd.NewMembersCmd(analyticsTrackerFn, clients.MembersClient)
-	if err != nil {
-		return nil, err
-	}
-
 	configCmd := configcmd.NewConfigCmd(analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
-	cmd.AddCommand(membersCmd)
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	rootCmd.Commands = append(rootCmd.Commands, configCmd)
@@ -209,6 +202,15 @@ func Execute(version string) {
 	)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// change the completion command help
+	rootCmd.Cmd().InitDefaultCompletionCmd()
+	completionCmd, _, err := rootCmd.Cmd().Find([]string{"completion"})
+	if err == nil {
+		completionCmd.Long = fmt.Sprintf(`Generate the autocompletion script for %[1]s for the specified shell.
+See each command's help for details on how to use the generated script.`, rootCmd.Cmd().Name())
+		rootCmd.Cmd().AddCommand(completionCmd)
 	}
 
 	err = rootCmd.Execute()
