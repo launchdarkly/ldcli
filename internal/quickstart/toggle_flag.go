@@ -152,6 +152,7 @@ func (m toggleFlagModel) View() string {
 
 	if m.flagWasEnabled && m.err == nil {
 		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
+		furtherInstructions += "\nDidn't see this change in your application? Check https://docs.launchdarkly.com/home/flags/toggle#watch-for-changes-in-your-application for details."
 	}
 
 	toggleStyle := lipgloss.NewStyle().
