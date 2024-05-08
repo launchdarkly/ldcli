@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"ldcli/internal/analytics"
 	"ldcli/internal/config"
 	"ldcli/internal/environments"
+	errs "ldcli/internal/errors"
 	"ldcli/internal/flags"
 	"ldcli/internal/members"
 	"ldcli/internal/projects"
@@ -231,7 +233,16 @@ See each command's help for details on how to use the generated script.`, rootCm
 		viper.GetString(cliflags.BaseURIFlag),
 		viper.GetBool(cliflags.AnalyticsOptOut),
 	)
-	analyticsClient.SendCommandCompletedEvent(outcome)
+	if err != nil {
+		// If there's an error, it could be because of a missing flag. In that case, don't send
+		// analytics.
+		if errors.Is(err, errs.Error{}) {
+			analyticsClient.SendCommandCompletedEvent(outcome)
+		}
+	} else {
+		analyticsClient.SendCommandCompletedEvent(outcome)
+	}
+
 	analyticsClient.Wait()
 }
 
