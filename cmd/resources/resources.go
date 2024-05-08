@@ -73,9 +73,7 @@ func NewResourceData(tag openapi3.Tag) ResourceData {
 func NewResources(tags openapi3.Tags) map[string]ResourceData {
 	resources := make(map[string]ResourceData)
 	for _, t := range tags {
-		if strings.Contains(t.Name, "(beta)") ||
-			strings.ToLower(t.Name) == "other" ||
-			strings.ToLower(t.Name) == "oauth2 clients" {
+		if shouldFilter(t.Name) {
 			continue
 		}
 
@@ -91,6 +89,12 @@ func NewResources(tags openapi3.Tags) map[string]ResourceData {
 	return resources
 }
 
+func shouldFilter(name string) bool {
+	return strings.Contains(name, "(beta)") ||
+		strings.ToLower(name) == "other" ||
+		strings.ToLower(name) == "oauth2 clients"
+}
+
 func GetTemplateData(fileName string) (TemplateData, error) {
 	rawFile, err := os.ReadFile(fileName)
 	if err != nil {
@@ -103,27 +107,11 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 		return TemplateData{}, err
 	}
 
-	resources := make(map[string]ResourceData)
-	for _, r := range spec.Tags {
-		if strings.Contains(r.Name, "(beta)") {
-			// skip beta resources for now
-			continue
-		}
-
-		resourceName, resourceKey := getResourceNames(r.Name)
-		resources[resourceKey] = ResourceData{
-			GoName:      strcase.ToCamel(resourceName),
-			DisplayName: strings.ToLower(resourceName),
-			Description: jsonString(r.Description),
-			Operations:  make(map[string]OperationData, 0),
-		}
-	}
-
+	resources := NewResources(spec.Tags)
 	for path, pathItem := range spec.Paths.Map() {
 		for method, op := range pathItem.Operations() {
 			tag := op.Tags[0] // each op only has one tag
-			if strings.Contains(tag, "(beta)") {
-				// skip beta resources for now
+			if shouldFilter(tag) {
 				continue
 			}
 			_, resourceKey := getResourceNames(tag)
