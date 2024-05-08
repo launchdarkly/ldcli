@@ -15,7 +15,12 @@ func TestCreate(t *testing.T) {
 			"--version",
 		}
 
-		output, err := cmd.CallCmd(t, cmd.APIClients{}, &analytics.NoopClient{}, args)
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
 
 		require.NoError(t, err)
 		assert.Contains(t, string(output), `ldcli version test`)

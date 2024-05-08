@@ -7,10 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 
-	"ldcli/cmd/cliflags"
 	"ldcli/internal/analytics"
 )
 
@@ -22,37 +20,29 @@ var StubbedSuccessResponse = `{
 func CallCmd(
 	t *testing.T,
 	clients APIClients,
-	tracker analytics.Tracker,
+	trackerFn analytics.TrackerFn,
 	args []string,
 ) ([]byte, error) {
 	rootCmd, err := NewRootCommand(
-		tracker,
+		trackerFn,
 		clients,
 		"test",
 		false,
 	)
+	cmd := rootCmd.Cmd()
 	require.NoError(t, err)
 	b := bytes.NewBufferString("")
-	rootCmd.SetOut(b)
-	rootCmd.SetArgs(args)
+	cmd.SetOut(b)
+	cmd.SetArgs(args)
+	tracker := trackerFn("", "", false)
 
-	err = rootCmd.Execute()
+	err = cmd.Execute()
 	if err != nil {
-		tracker.SendCommandCompletedEvent(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			viper.GetBool(cliflags.AnalyticsOptOut),
-			analytics.ERROR,
-		)
+		tracker.SendCommandCompletedEvent(analytics.ERROR)
 		return nil, err
 	}
 
-	tracker.SendCommandCompletedEvent(
-		viper.GetString(cliflags.AccessTokenFlag),
-		viper.GetString(cliflags.BaseURIFlag),
-		viper.GetBool(cliflags.AnalyticsOptOut),
-		analytics.SUCCESS,
-	)
+	tracker.SendCommandCompletedEvent(analytics.SUCCESS)
 
 	out, err := io.ReadAll(b)
 	require.NoError(t, err)

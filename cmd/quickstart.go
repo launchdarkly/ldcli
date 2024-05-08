@@ -18,21 +18,21 @@ import (
 )
 
 func NewQuickStartCmd(
-	analyticsTracker analytics.Tracker,
+	analyticsTrackerFn analytics.TrackerFn,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 ) *cobra.Command {
 	return &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "",
-		RunE:  runQuickStart(analyticsTracker, environmentsClient, flagsClient),
+		RunE:  runQuickStart(analyticsTrackerFn, environmentsClient, flagsClient),
 		Short: "Setup guide to create your first feature flag",
 		Use:   "setup",
 	}
 }
 
 func runQuickStart(
-	analyticsTracker analytics.Tracker,
+	analyticsTrackerFn analytics.TrackerFn,
 	environmentsClient environments.Client,
 	flagsClient flags.Client,
 ) func(*cobra.Command, []string) error {
@@ -44,12 +44,16 @@ func runQuickStart(
 		}
 		defer f.Close()
 
+		analyticsTracker := analyticsTrackerFn(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetBool(cliflags.AnalyticsOptOut),
+		)
 		_, err = tea.NewProgram(quickstart.NewContainerModel(
 			analyticsTracker,
 			environmentsClient,
 			flagsClient,
 			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetBool(cliflags.AnalyticsOptOut),
 			viper.GetString(cliflags.BaseURIFlag),
 		)).Run()
 		if err != nil {
