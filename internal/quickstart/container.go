@@ -55,6 +55,7 @@ type ContainerModel struct {
 	flagToggled        bool
 	flagsClient        flags.Client
 	gettingStarted     bool
+	height             int
 	quitting           bool
 	sdk                sdkDetail
 	startTime          time.Time
@@ -95,6 +96,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		m.height = msg.Height
+		m.currentModel, cmd = m.currentModel.Update(msg)
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, pressableKeys.Quit):
@@ -124,6 +127,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.sdk.url,
 					m.flagKey,
 					m.environment,
+					m.height,
+					m.width,
 				)
 				cmd = m.currentModel.Init()
 				sendEvent = true
@@ -148,6 +153,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.sdk.url,
 			m.flagKey,
 			m.environment,
+			m.height,
+			m.width,
 		)
 		cmd = m.currentModel.Init()
 		m.sdk = msg.sdk
