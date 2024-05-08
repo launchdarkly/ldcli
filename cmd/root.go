@@ -227,8 +227,8 @@ See each command's help for details on how to use the generated script.`, rootCm
 	}
 
 	analyticsClient := trackerFn.Tracker(version)(
-		rootCmd.cmd.PersistentFlags().Lookup(cliflags.AccessTokenFlag).Value.String(),
-		rootCmd.cmd.PersistentFlags().Lookup(cliflags.BaseURIFlag).Value.String(),
+		viper.GetString(cliflags.AccessTokenFlag),
+		viper.GetString(cliflags.BaseURIFlag),
 		viper.GetBool(cliflags.AnalyticsOptOut),
 	)
 	analyticsClient.SendCommandCompletedEvent(outcome)
