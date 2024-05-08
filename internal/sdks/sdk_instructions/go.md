@@ -9,9 +9,9 @@ mkdir hello-go && cd hello-go
 go mod init example/hello-go
 ```
 
-3. Next, install the SDK (SDK v6 requires go 1.18+):
+3. Next, install the SDK (SDK v7 requires go 1.18+):
 ```shell
-go get github.com/launchdarkly/go-server-sdk/v6
+go get github.com/launchdarkly/go-server-sdk/v7
 ```
 
 4. Create a file called main.go and add the following code:
@@ -99,9 +99,10 @@ func main() {
 
 Now that your application is ready, run the application to see what value we get.
 ```shell
+export LAUNCHDARKLY_SDK_KEY=1234567890abcdef
 go build && ./hello-go
 ```
 
 You should see:
 
-`Feature flag my-flag-key is FALSE for this context`
+`*** The 'my-flag-key' feature flag evaluates to false.`
