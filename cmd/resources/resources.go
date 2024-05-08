@@ -59,6 +59,38 @@ func jsonString(s string) string {
 	return string(bs)
 }
 
+func NewResourceData(tag openapi3.Tag) ResourceData {
+	resourceName, _ := getResourceNames(tag.Name)
+
+	return ResourceData{
+		GoName:      strcase.ToCamel(resourceName),
+		DisplayName: strings.ToLower(resourceName),
+		Description: jsonString(tag.Description),
+		Operations:  make(map[string]OperationData, 0),
+	}
+}
+
+func NewResources(tags openapi3.Tags) map[string]ResourceData {
+	resources := make(map[string]ResourceData)
+	for _, t := range tags {
+		if strings.Contains(t.Name, "(beta)") ||
+			strings.ToLower(t.Name) == "other" ||
+			strings.ToLower(t.Name) == "oauth2 clients" {
+			continue
+		}
+
+		resourceName, resourceKey := getResourceNames(t.Name)
+		resources[resourceKey] = ResourceData{
+			GoName:      strcase.ToCamel(resourceName),
+			DisplayName: strings.ToLower(resourceName),
+			Description: jsonString(t.Description),
+			Operations:  make(map[string]OperationData, 0),
+		}
+	}
+
+	return resources
+}
+
 func GetTemplateData(fileName string) (TemplateData, error) {
 	rawFile, err := os.ReadFile(fileName)
 	if err != nil {
