@@ -45,6 +45,11 @@ var MultipleEmailPlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("* %s (%s)", r["email"], r["_id"])
 }
 
+// MultipleIDPlaintextOutputFn converts the resource to plain text for data without a key.
+var MultipleIDPlaintextOutputFn = func(r resource) string {
+	return fmt.Sprintf("* %s (%s)", r["name"], r["_id"])
+}
+
 // MultiplePlaintextOutputFn converts the resource to plain text based on its name and key in a list.
 var MultiplePlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("* %s (%s)", r["name"], r["key"])
