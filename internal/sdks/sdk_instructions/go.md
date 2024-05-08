@@ -99,8 +99,7 @@ func main() {
 
 Now that your application is ready, run the application to see what value we get.
 ```shell
-export LAUNCHDARKLY_SDK_KEY=1234567890abcdef
-go build && ./hello-go
+go build && LAUNCHDARKLY_SDK_KEY='1234567890abcdef' ./hello-go
 ```
 
 You should see:
