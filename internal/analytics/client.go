@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -95,8 +94,6 @@ func (c *Client) sendEvent(eventName string, properties map[string]interface{}) 
 	req.Header.Add("User-Agent", fmt.Sprintf("launchdarkly-cli/%s", c.Version))
 	var resp *http.Response
 	go func() {
-		fmt.Println(">>> sending event", c.accessToken, c.baseURI)
-		spew.Dump(properties)
 		resp, err = c.HTTPClient.Do(req)
 		if err != nil { //nolint:staticcheck
 			// TODO: log error

@@ -101,7 +101,6 @@ func NewRootCommand(
 
 	hf := cmd.HelpFunc()
 	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
-		fmt.Println(">>> SetHelpFunc")
 		rootCmd.helpCalled = true
 
 		// get the resource for the tracking event, not the action
@@ -230,7 +229,6 @@ func Execute(version string) {
 		rootCmd.cmd.PersistentFlags().Lookup(cliflags.BaseURIFlag).Value.String(),
 		viper.GetBool(cliflags.AnalyticsOptOut),
 	)
-
 	analyticsClient.SendCommandCompletedEvent(outcome)
 	analyticsClient.Wait()
 }
