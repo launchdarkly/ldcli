@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"time"
 
 	"ldcli/internal/errors"
 )
@@ -26,7 +25,7 @@ func NewClient(cliVersion string) ResourcesClient {
 }
 
 func (c ResourcesClient) MakeRequest(accessToken, method, path, contentType string, query url.Values, data []byte) ([]byte, error) {
-	client := http.Client{Timeout: 3 * time.Second}
+	client := http.Client{}
 
 	req, _ := http.NewRequest(method, path, bytes.NewReader(data))
 	req.Header.Add("Authorization", accessToken)
