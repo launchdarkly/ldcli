@@ -1,7 +1,10 @@
-.PHONY: vendor
+.PHONY: build generate log test vendor
 
 build:
 	go build -o ldcli
+
+generate:
+	go generate ./...
 
 log:
 	tail -f *.log
