@@ -12,12 +12,13 @@ import (
 
 // we have certain tags that aren't a 1:1 match to their operation id names
 var mapTagToSchemaName = map[string]string{
-	"Access tokens":   "Tokens",
-	"Account members": "Members",
-	"Approvals":       "Approval requests",
-	"Code references": "Code refs",
-	"OAuth2 Clients":  "Oauth2 clients", // this is just so we don't kebab case to o-auth
-	"User settings":   "User flag settings",
+	"Access tokens":                       "Tokens",
+	"Account members":                     "Members",
+	"Approvals":                           "Approval requests",
+	"Code references":                     "Code refs",
+	"User settings":                       "User flag settings",
+	"Relay Proxy configurations":          "Relay Proxy configs",
+	"Integration audit log subscriptions": "Integration subscriptions",
 }
 
 func getResourceNames(name string) (string, string) {
@@ -31,6 +32,48 @@ func getResourceNames(name string) (string, string) {
 		resourceKey = "flags"
 	}
 	return name, resourceKey
+}
+
+var mapOperationIdToCmdUse = map[string]string{
+	"createSubscription":               "create",
+	"createTriggerWorkflow":            "create",
+	"deleteDestination":                "delete",
+	"deleteFlagConfigScheduledChanges": "delete",
+	"deleteFlagFollowers":              "delete",
+	"deleteRelayAutoConfig":            "delete",
+	"deleteSubscription":               "delete",
+	"deleteTriggerWorkflow":            "delete",
+	"getAllWebhooks":                   "list",
+	"getAuditLogEntries":               "list",
+	"getAuditLogEntry":                 "get",
+	"getCustomWorkflow":                "get",
+	"getDestination":                   "get",
+	"getDestinations":                  "list",
+	"getExpiringFlagsForUser":          "list-expiring",
+	"getFeatureFlagScheduledChange":    "get",
+	"getFlagConfigScheduledChanges":    "list",
+	"getFlagFollowers":                 "list",
+	"getFollowersByProjEnv":            "list-by-proj-env",
+	"getRelayProxyConfig":              "get",
+	"getRelayProxyConfigs":             "list",
+	"getSearchUsers":                   "search",
+	"getSubscriptionByID":              "get",
+	"getSubscriptions":                 "list",
+	"getTriggerWorkflowById":           "get",
+	"getTriggerWorkflows":              "list",
+	"patchDestination":                 "update",
+	"patchExpiringFlagsForUser":        "update-expiring",
+	"patchFlagConfigScheduledChange":   "update",
+	"patchRelayAutoConfig":             "update",
+	"patchTriggerWorkflow":             "update",
+	"postDestination":                  "create",
+	"postFlagConfigScheduledChanges":   "create",
+	"postRelayAutoConfig":              "create",
+	"putContextFlagSetting":            "replace",
+	"putFlagFollowers":                 "replace",
+	"putFlagSetting":                   "replace",
+	"resetRelayAutoConfig":             "reset",
+	"updateSubscription":               "update",
 }
 
 func replaceMethodWithCmdUse(operationId string) string {
@@ -63,6 +106,10 @@ func removeResourceFromOperationId(resourceName, operationId string) string {
 }
 
 func getCmdUse(resourceName, operationId string, isList bool) string {
+	if mappedName, ok := mapOperationIdToCmdUse[operationId]; ok {
+		return mappedName
+	}
+
 	action := removeResourceFromOperationId(resourceName, operationId)
 	action = strcase.ToKebab(action)
 	action = replaceMethodWithCmdUse(action)

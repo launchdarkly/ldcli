@@ -93,10 +93,10 @@ func AddAllResourceCmds(
 		"Follow flags to receive email updates about targeting changes to a flag in a project and environment.\n\nSeveral of the endpoints in the follow flags API require a member ID. The member ID is returned as part of the [Invite new members](/tag/Account-members#operation/postMembers) and [List account members](/tag/Account-members#operation/getMembers) responses. It is the `_id` field of each element in the `items` array.\n",
 	)
 
-	gen_IntegrationAuditLogSubscriptionsResourceCmd := NewResourceCmd(
+	gen_IntegrationSubscriptionsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
-		"integration-audit-log-subscriptions",
+		"integration-subscriptions",
 		"Audit log integration subscriptions allow you to send audit log events hooks to one of dozens of external tools. For example, you can send flag change event webhooks to external third party software. To learn more, read [Building your own integrations](https://docs.launchdarkly.com/integrations/building-integrations#building-your-own-integrations).\n\nYou can use the integration subscriptions API to create, delete, and manage your integration audit log subscriptions.\n\nEach of these operations requires an `integrationKey` that refers to the type of integration. The required `config` fields to create a subscription vary depending on the `integrationKey`. You can find a full list of the fields for each integration below.\n\nSeveral of these operations require a subscription ID. The subscription ID is returned as part of the [Create audit log subscription](/tag/Integration-audit-log-subscriptions#operation/createSubscription) and [Get audit log subscriptions by integration](/tag/Integration-audit-log-subscriptions#operation/getSubscriptions) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n\n### Configuration bodies by integrationKey\n\n#### datadog\n\n`apiKey` is a sensitive value.\n\n`hostURL` must evaluate to either `\"https://api.datadoghq.com\"` or `\"https://api.datadoghq.eu\"` and will default to the former if not explicitly defined.\n\n```\n\"config\": {\n    \"apiKey\": \u003cstring, optional\u003e, # sensitive value\n    \"hostURL\": \u003cstring, optional\u003e\n}\n```\n\n#### dynatrace\n\n`apiToken` is a sensitive value.\n\n`entity` must evaluate to one of the following fields and will default to `\"APPLICATION\"` if not explicitly defined:\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand list of fields\u003c/summary\u003e\n\u003cbr\u003e\n\"APPLICATION\"\u003cbr\u003e\n\"APPLICATION_METHOD\"\u003cbr\u003e\n\"APPLICATION_METHOD_GROUP\"\u003cbr\u003e\n\"AUTO_SCALING_GROUP\"\u003cbr\u003e\n\"AUXILIARY_SYNTHETIC_TEST\"\u003cbr\u003e\n\"AWS_APPLICATION_LOAD_BALANCER\"\u003cbr\u003e\n\"AWS_AVAILABILITY_ZONE\"\u003cbr\u003e\n\"AWS_CREDENTIALS\"\u003cbr\u003e\n\"AWS_LAMBDA_FUNCTION\"\u003cbr\u003e\n\"AWS_NETWORK_LOAD_BALANCER\"\u003cbr\u003e\n\"AZURE_API_MANAGEMENT_SERVICE\"\u003cbr\u003e\n\"AZURE_APPLICATION_GATEWAY\"\u003cbr\u003e\n\"AZURE_COSMOS_DB\"\u003cbr\u003e\n\"AZURE_CREDENTIALS\"\u003cbr\u003e\n\"AZURE_EVENT_HUB\"\u003cbr\u003e\n\"AZURE_EVENT_HUB_NAMESPACE\"\u003cbr\u003e\n\"AZURE_FUNCTION_APP\"\u003cbr\u003e\n\"AZURE_IOT_HUB\"\u003cbr\u003e\n\"AZURE_LOAD_BALANCER\"\u003cbr\u003e\n\"AZURE_MGMT_GROUP\"\u003cbr\u003e\n\"AZURE_REDIS_CACHE\"\u003cbr\u003e\n\"AZURE_REGION\"\u003cbr\u003e\n\"AZURE_SERVICE_BUS_NAMESPACE\"\u003cbr\u003e\n\"AZURE_SERVICE_BUS_QUEUE\"\u003cbr\u003e\n\"AZURE_SERVICE_BUS_TOPIC\"\u003cbr\u003e\n\"AZURE_SQL_DATABASE\"\u003cbr\u003e\n\"AZURE_SQL_ELASTIC_POOL\"\u003cbr\u003e\n\"AZURE_SQL_SERVER\"\u003cbr\u003e\n\"AZURE_STORAGE_ACCOUNT\"\u003cbr\u003e\n\"AZURE_SUBSCRIPTION\"\u003cbr\u003e\n\"AZURE_TENANT\"\u003cbr\u003e\n\"AZURE_VM\"\u003cbr\u003e\n\"AZURE_VM_SCALE_SET\"\u003cbr\u003e\n\"AZURE_WEB_APP\"\u003cbr\u003e\n\"CF_APPLICATION\"\u003cbr\u003e\n\"CF_FOUNDATION\"\u003cbr\u003e\n\"CINDER_VOLUME\"\u003cbr\u003e\n\"CLOUD_APPLICATION\"\u003cbr\u003e\n\"CLOUD_APPLICATION_INSTANCE\"\u003cbr\u003e\n\"CLOUD_APPLICATION_NAMESPACE\"\u003cbr\u003e\n\"CONTAINER_GROUP\"\u003cbr\u003e\n\"CONTAINER_GROUP_INSTANCE\"\u003cbr\u003e\n\"CUSTOM_APPLICATION\"\u003cbr\u003e\n\"CUSTOM_DEVICE\"\u003cbr\u003e\n\"CUSTOM_DEVICE_GROUP\"\u003cbr\u003e\n\"DCRUM_APPLICATION\"\u003cbr\u003e\n\"DCRUM_SERVICE\"\u003cbr\u003e\n\"DCRUM_SERVICE_INSTANCE\"\u003cbr\u003e\n\"DEVICE_APPLICATION_METHOD\"\u003cbr\u003e\n\"DISK\"\u003cbr\u003e\n\"DOCKER_CONTAINER_GROUP_INSTANCE\"\u003cbr\u003e\n\"DYNAMO_DB_TABLE\"\u003cbr\u003e\n\"EBS_VOLUME\"\u003cbr\u003e\n\"EC2_INSTANCE\"\u003cbr\u003e\n\"ELASTIC_LOAD_BALANCER\"\u003cbr\u003e\n\"ENVIRONMENT\"\u003cbr\u003e\n\"EXTERNAL_SYNTHETIC_TEST_STEP\"\u003cbr\u003e\n\"GCP_ZONE\"\u003cbr\u003e\n\"GEOLOCATION\"\u003cbr\u003e\n\"GEOLOC_SITE\"\u003cbr\u003e\n\"GOOGLE_COMPUTE_ENGINE\"\u003cbr\u003e\n\"HOST\"\u003cbr\u003e\n\"HOST_GROUP\"\u003cbr\u003e\n\"HTTP_CHECK\"\u003cbr\u003e\n\"HTTP_CHECK_STEP\"\u003cbr\u003e\n\"HYPERVISOR\"\u003cbr\u003e\n\"KUBERNETES_CLUSTER\"\u003cbr\u003e\n\"KUBERNETES_NODE\"\u003cbr\u003e\n\"MOBILE_APPLICATION\"\u003cbr\u003e\n\"NETWORK_INTERFACE\"\u003cbr\u003e\n\"NEUTRON_SUBNET\"\u003cbr\u003e\n\"OPENSTACK_PROJECT\"\u003cbr\u003e\n\"OPENSTACK_REGION\"\u003cbr\u003e\n\"OPENSTACK_VM\"\u003cbr\u003e\n\"OS\"\u003cbr\u003e\n\"PROCESS_GROUP\"\u003cbr\u003e\n\"PROCESS_GROUP_INSTANCE\"\u003cbr\u003e\n\"RELATIONAL_DATABASE_SERVICE\"\u003cbr\u003e\n\"SERVICE\"\u003cbr\u003e\n\"SERVICE_INSTANCE\"\u003cbr\u003e\n\"SERVICE_METHOD\"\u003cbr\u003e\n\"SERVICE_METHOD_GROUP\"\u003cbr\u003e\n\"SWIFT_CONTAINER\"\u003cbr\u003e\n\"SYNTHETIC_LOCATION\"\u003cbr\u003e\n\"SYNTHETIC_TEST\"\u003cbr\u003e\n\"SYNTHETIC_TEST_STEP\"\u003cbr\u003e\n\"VIRTUALMACHINE\"\u003cbr\u003e\n\"VMWARE_DATACENTER\"\n\u003c/details\u003e\n\n```\n\"config\": {\n    \"apiToken\": \u003cstring, required\u003e,\n    \"url\": \u003cstring, required\u003e,\n    \"entity\": \u003cstring, optional\u003e\n}\n```\n\n#### elastic\n\n`token` is a sensitive field.\n\n```\n\"config\": {\n    \"url\": \u003cstring, required\u003e,\n    \"token\": \u003cstring, required\u003e,\n    \"index\": \u003cstring, required\u003e\n}\n```\n\n#### honeycomb\n\n`apiKey` is a sensitive field.\n\n```\n\"config\": {\n    \"datasetName\": \u003cstring, required\u003e,\n    \"apiKey\": \u003cstring, required\u003e\n}\n```\n\n#### logdna\n\n`ingestionKey` is a sensitive field.\n\n```\n\"config\": {\n    \"ingestionKey\": \u003cstring, required\u003e,\n    \"level\": \u003cstring, optional\u003e\n}\n```\n\n#### msteams\n\n```\n\"config\": {\n    \"url\": \u003cstring, required\u003e\n}\n```\n\n#### new-relic-apm\n\n`apiKey` is a sensitive field.\n\n`domain` must evaluate to either `\"api.newrelic.com\"` or `\"api.eu.newrelic.com\"` and will default to the former if not explicitly defined.\n\n```\n\"config\": {\n    \"apiKey\": \u003cstring, required\u003e,\n    \"applicationId\": \u003cstring, required\u003e,\n    \"domain\": \u003cstring, optional\u003e\n}\n```\n\n#### signalfx\n\n`accessToken` is a sensitive field.\n\n```\n\"config\": {\n    \"accessToken\": \u003cstring, required\u003e,\n    \"realm\": \u003cstring, required\u003e\n}\n```\n\n#### splunk\n\n`token` is a sensitive field.\n\n```\n\"config\": {\n    \"base-url\": \u003cstring, required\u003e,\n    \"token\": \u003cstring, required\u003e,\n    \"skip-ca-verificiation\": \u003cboolean, required\u003e\n}\n```\n",
 	)
 
@@ -121,10 +121,10 @@ func AddAllResourceCmds(
 		"Projects allow you to manage multiple different software projects under one LaunchDarkly account. Each project has its own unique set of environments and feature flags. To learn more, read [Projects](https://docs.launchdarkly.com/home/organize/projects).\n\nUsing the projects API, you can create, destroy, and manage projects.\n",
 	)
 
-	gen_RelayProxyConfigurationsResourceCmd := NewResourceCmd(
+	gen_RelayProxyConfigsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
-		"relay-proxy-configurations",
+		"relay-proxy-configs",
 		"\n\u003e ### Relay Proxy automatic configuration is an Enterprise feature\n\u003e\n\u003e Relay Proxy automatic configuration is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nThe Relay Proxy automatic configuration API provides access to all resources related to relay tokens. To learn more, read [Automatic configuration](https://docs.launchdarkly.com/home/relay-proxy/automatic-configuration).\n\nSeveral of the endpoints in the Relay Proxy automatic configuration API require a configuration ID. The Relay Proxy configuration ID is returned as part of the [Create a new Relay Proxy config](/tag/Relay-Proxy-configurations#operation/postRelayAutoConfig) and [List Relay Proxy configs](/tag/Relay-Proxy-configurations#operation/getRelayProxyConfigs) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n",
 	)
 
@@ -575,7 +575,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_AuditLogResourceCmd, client, OperationData{
 		Short: "List audit log entries",
 		Long:  "Get a list of all audit log entries. The query parameters let you restrict the results that return by date ranges, resource specifiers, or a full-text search query.\n\nLaunchDarkly uses a resource specifier syntax to name resources or collections of resources. To learn more, read [Understanding the resource specifier syntax](https://docs.launchdarkly.com/home/members/role-resources#understanding-the-resource-specifier-syntax).\n",
-		Use:   "list-entries",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "before",
@@ -618,7 +618,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_AuditLogResourceCmd, client, OperationData{
 		Short: "Get audit log entry",
 		Long:  "Fetch a detailed audit log entry representation. The detailed representation includes several fields that are not present in the summary representation, including:\n\n- `delta`: the JSON patch body that was used in the request to update the entity\n- `previousVersion`: a JSON representation of the previous version of the entity\n- `currentVersion`: a JSON representation of the current version of the entity\n",
-		Use:   "get-entry",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -954,7 +954,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_ContextSettingsResourceCmd, client, OperationData{
 		Short: "Update flag settings for context",
 		Long:  "\nEnable or disable a feature flag for a context based on its context kind and key.\n\nOmitting the `setting` attribute from the request body, or including a `setting` of `null`, erases the current setting for a context.\n\nIf you previously patched the flag, and the patch included the context's data, LaunchDarkly continues to use that data. If LaunchDarkly has never encountered the combination of the context's key and kind before, it calculates the flag values based on the context kind and key.\n",
-		Use:   "replace-context-flag-setting",
+		Use:   "replace",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1521,7 +1521,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, OperationData{
 		Short: "Delete Data Export destination",
 		Long:  "Delete a Data Export destination by ID.",
-		Use:   "delete-destination",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1552,7 +1552,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, OperationData{
 		Short: "Get destination",
 		Long:  "Get a single Data Export destination by ID.",
-		Use:   "get-destination",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1583,7 +1583,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, OperationData{
 		Short:                 "List destinations",
 		Long:                  "Get a list of Data Export destinations configured across all projects and environments.",
-		Use:                   "list-destinations",
+		Use:                   "list",
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		HasBody:               false,
@@ -1595,7 +1595,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, OperationData{
 		Short: "Update Data Export destination",
 		Long:  "Update a Data Export destination. Updating a destination uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "update-destination",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1626,7 +1626,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, OperationData{
 		Short: "Create Data Export destination",
 		Long:  "\nCreate a new Data Export destination.\n\nIn the `config` request body parameter, the fields required depend on the type of Data Export destination.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand \u003ccode\u003econfig\u003c/code\u003e parameter details\u003c/summary\u003e\n\n#### Azure Event Hubs\n\nTo create a Data Export destination with a `kind` of `azure-event-hubs`, the `config` object requires the following fields:\n\n* `namespace`: The Event Hub Namespace name\n* `name`: The Event Hub name\n* `policyName`: The shared access signature policy name. You can find your policy name in the settings of your Azure Event Hubs Namespace.\n* `policyKey`: The shared access signature key. You can find your policy key in the settings of your Azure Event Hubs Namespace.\n\n#### Google Cloud Pub/Sub\n\nTo create a Data Export destination with a `kind` of `google-pubsub`, the `config` object requires the following fields:\n\n* `project`: The Google PubSub project ID for the project to publish to\n* `topic`: The Google PubSub topic ID for the topic to publish to\n\n#### Amazon Kinesis\n\nTo create a Data Export destination with a `kind` of `kinesis`, the `config` object requires the following fields:\n\n* `region`: The Kinesis stream's AWS region key\n* `roleArn`: The Amazon Resource Name (ARN) of the AWS role that will be writing to Kinesis\n* `streamName`: The name of the Kinesis stream that LaunchDarkly is sending events to. This is not the ARN of the stream.\n\n#### mParticle\n\nTo create a Data Export destination with a `kind` of `mparticle`, the `config` object requires the following fields:\n\n* `apiKey`: The mParticle API key\n* `secret`: The mParticle API secret\n* `userIdentity`: The type of identifier you use to identify your end users in mParticle\n* `anonymousUserIdentity`: The type of identifier you use to identify your anonymous end users in mParticle\n\n#### Segment\n\nTo create a Data Export destination with a `kind` of `segment`, the `config` object requires the following fields:\n\n* `writeKey`: The Segment write key. This is used to authenticate LaunchDarkly's calls to Segment.\n\n\u003c/details\u003e\n",
-		Use:   "create-destination",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1844,7 +1844,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
 		Short: "Create flag trigger",
 		Long:  "Create a new flag trigger.",
-		Use:   "create-trigger-workflow",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1875,7 +1875,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
 		Short: "Delete flag trigger",
 		Long:  "Delete a flag trigger by ID.",
-		Use:   "delete-trigger-workflow",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1912,7 +1912,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
 		Short: "Get flag trigger by ID",
 		Long:  "Get a flag trigger by ID.",
-		Use:   "get-trigger-workflow-by-id",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1949,7 +1949,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
 		Short: "List flag triggers",
 		Long:  "Get a list of all flag triggers.",
-		Use:   "list-trigger-workflows",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -1980,7 +1980,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, OperationData{
 		Short: "Update flag trigger",
 		Long:  "Update a flag trigger. Updating a flag trigger uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating flag triggers.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating flag triggers\u003c/strong\u003e\u003c/summary\u003e\n\n#### replaceTriggerActionInstructions\n\nRemoves the existing trigger action and replaces it with the new instructions.\n\n##### Parameters\n\n- `value`: An array of the new `kind`s of actions to perform when triggering. Supported flag actions are `turnFlagOn` and `turnFlagOff`.\n\nHere's an example that replaces the existing action with new instructions to turn flag targeting off:\n\n```json\n{\n  \"instructions\": [\n    {\n      \"kind\": \"replaceTriggerActionInstructions\",\n      \"value\": [ {\"kind\": \"turnFlagOff\"} ]\n    }\n  ]\n}\n```\n\n#### cycleTriggerUrl\n\nGenerates a new URL for this trigger. You must update any clients using the trigger to use this new URL.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"cycleTriggerUrl\" }]\n}\n```\n\n#### disableTrigger\n\nDisables the trigger. This saves the trigger configuration, but the trigger stops running. To re-enable, use `enableTrigger`.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"disableTrigger\" }]\n}\n```\n\n#### enableTrigger\n\nEnables the trigger. If you previously disabled the trigger, it begins running again.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"enableTrigger\" }]\n}\n```\n\n\u003c/details\u003e\n",
-		Use:   "update-trigger-workflow",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2475,7 +2475,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, OperationData{
 		Short: "Remove a member as a follower of a flag in a project and environment",
 		Long:  "Remove a member as a follower to a flag in a project and environment",
-		Use:   "delete-flag-followers",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2512,7 +2512,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, OperationData{
 		Short: "Get followers of a flag in a project and environment",
 		Long:  "Get a list of members following a flag in a project and environment",
-		Use:   "list-flag-followers",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2543,7 +2543,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, OperationData{
 		Short: "Get followers of all flags in a given project and environment",
 		Long:  "Get followers of all flags in a given environment and project",
-		Use:   "list-followers-by-proj-env",
+		Use:   "list-by-proj-env",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2568,7 +2568,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, OperationData{
 		Short: "Add a member as a follower of a flag in a project and environment",
 		Long:  "Add a member as a follower to a flag in a project and environment",
-		Use:   "replace-flag-followers",
+		Use:   "replace",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -2602,10 +2602,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_IntegrationAuditLogSubscriptionsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, OperationData{
 		Short: "Create audit log subscription",
 		Long:  "Create an audit log subscription.\u003cbr /\u003e\u003cbr /\u003eFor each subscription, you must specify the set of resources you wish to subscribe to audit log notifications for. You can describe these resources using a custom role policy. To learn more, read [Custom role concepts](https://docs.launchdarkly.com/home/members/role-concepts).",
-		Use:   "create-subscription",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "integration-key",
@@ -2621,10 +2621,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_IntegrationAuditLogSubscriptionsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, OperationData{
 		Short: "Delete audit log subscription",
 		Long:  "Delete an audit log subscription.",
-		Use:   "delete-subscription",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "integration-key",
@@ -2646,10 +2646,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_IntegrationAuditLogSubscriptionsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, OperationData{
 		Short: "Get audit log subscription by ID",
 		Long:  "Get an audit log subscription by ID.",
-		Use:   "get-subscription-by-id",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "integration-key",
@@ -2671,10 +2671,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_IntegrationAuditLogSubscriptionsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, OperationData{
 		Short: "Get audit log subscriptions by integration",
 		Long:  "Get all audit log subscriptions associated with a given integration.",
-		Use:   "list-subscriptions",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "integration-key",
@@ -2690,10 +2690,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_IntegrationAuditLogSubscriptionsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, OperationData{
 		Short: "Update audit log subscription",
 		Long:  "Update an audit log subscription configuration. Updating an audit log subscription uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "update-subscription",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "integration-key",
@@ -3146,10 +3146,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_RelayProxyConfigurationsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, OperationData{
 		Short: "Delete Relay Proxy config by ID",
 		Long:  "Delete a Relay Proxy config.",
-		Use:   "delete-relay-auto-config",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -3165,10 +3165,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_RelayProxyConfigurationsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, OperationData{
 		Short: "Get Relay Proxy config",
 		Long:  "Get a single Relay Proxy auto config by ID.",
-		Use:   "get-relay-proxy-config",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -3184,10 +3184,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_RelayProxyConfigurationsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, OperationData{
 		Short:                 "List Relay Proxy configs",
 		Long:                  "Get a list of Relay Proxy configurations in the account.",
-		Use:                   "list-relay-proxy-configs",
+		Use:                   "list",
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		HasBody:               false,
@@ -3196,10 +3196,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_RelayProxyConfigurationsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, OperationData{
 		Short: "Update a Relay Proxy config",
 		Long:  "Update a Relay Proxy configuration. Updating a configuration uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "update-relay-auto-config",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -3215,10 +3215,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_RelayProxyConfigurationsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, OperationData{
 		Short:                 "Create a new Relay Proxy config",
 		Long:                  "Create a Relay Proxy config.",
-		Use:                   "create-relay-auto-config",
+		Use:                   "create",
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
@@ -3227,10 +3227,10 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_RelayProxyConfigurationsResourceCmd, client, OperationData{
+	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, OperationData{
 		Short: "Reset Relay Proxy configuration key",
 		Long:  "Reset a Relay Proxy configuration's secret key with an optional expiry time for the old key.",
-		Use:   "reset-relay-auto-config",
+		Use:   "reset",
 		Params: []Param{
 			{
 				Name:        "id",
@@ -3255,7 +3255,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "Delete scheduled changes workflow",
 		Long:  "Delete a scheduled changes workflow.",
-		Use:   "delete-flag-config",
+		Use:   "delete",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3292,7 +3292,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "Get a scheduled change",
 		Long:  "Get a scheduled change that will be applied to the feature flag by ID.",
-		Use:   "get-feature-flag",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3329,7 +3329,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "List scheduled changes",
 		Long:  "Get a list of scheduled changes that will be applied to the feature flag.",
-		Use:   "list-flag-config",
+		Use:   "list",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3360,7 +3360,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "Update scheduled changes workflow",
 		Long:  "\nUpdate a scheduled change, overriding existing instructions with the new ones. Updating a scheduled change uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating scheduled changes.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating scheduled changes\u003c/strong\u003e\u003c/summary\u003e\n\n#### deleteScheduledChange\n\nRemoves the scheduled change.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"deleteScheduledChange\" }]\n}\n```\n\n#### replaceScheduledChangesInstructions\n\nRemoves the existing scheduled changes and replaces them with the new instructions.\n\n##### Parameters\n\n- `value`: An array of the new actions to perform when the execution date for these scheduled changes arrives. Supported scheduled actions are `turnFlagOn` and `turnFlagOff`.\n\nHere's an example that replaces the scheduled changes with new instructions to turn flag targeting off:\n\n```json\n{\n  \"instructions\": [\n    {\n      \"kind\": \"replaceScheduledChangesInstructions\",\n      \"value\": [ {\"kind\": \"turnFlagOff\"} ]\n    }\n  ]\n}\n```\n\n#### updateScheduledChangesExecutionDate\n\nUpdates the execution date for the scheduled changes.\n\n##### Parameters\n\n- `value`: the new execution date, in Unix milliseconds.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [\n    {\n      \"kind\": \"updateScheduledChangesExecutionDate\",\n      \"value\": 1754092860000\n    }\n  ]\n}\n```\n\n\u003c/details\u003e\n",
-		Use:   "update-flag-config",
+		Use:   "update",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -3403,7 +3403,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, OperationData{
 		Short: "Create scheduled changes workflow",
 		Long:  "Create scheduled changes for a feature flag. If the `ignoreConficts` query parameter is false and there are conflicts between these instructions and existing scheduled changes, the request will fail. If the parameter is true and there are conflicts, the request will succeed.",
-		Use:   "create-flag-config",
+		Use:   "create",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4254,7 +4254,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_UserFlagSettingsResourceCmd, client, OperationData{
 		Short: "Get expiring dates on flags for user",
 		Long:  "Get a list of flags for which the given user is scheduled for removal.",
-		Use:   "list-expiring-flags-for-user",
+		Use:   "list-expiring",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4353,7 +4353,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_UserFlagSettingsResourceCmd, client, OperationData{
 		Short: "Update expiring user target for flags",
 		Long:  "Schedule the specified user for removal from individual targeting on one or more flags. The user must already be individually targeted for each flag.\n\nYou can add, update, or remove a scheduled removal date. You can only schedule a user for removal on a single variation per flag.\n\nUpdating an expiring target uses the semantic patch format. To make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating expiring user targets.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating expiring user targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExpireUserTargetDate\n\nAdds a date and time that LaunchDarkly will remove the user from the flag's individual targeting.\n\n##### Parameters\n\n* `flagKey`: The flag key\n* `variationId`: ID of a variation on the flag\n* `value`: The time, in Unix milliseconds, when LaunchDarkly should remove the user from individual targeting for this flag.\n\n#### updateExpireUserTargetDate\n\nUpdates the date and time that LaunchDarkly will remove the user from the flag's individual targeting.\n\n##### Parameters\n\n* `flagKey`: The flag key\n* `variationId`: ID of a variation on the flag\n* `value`: The time, in Unix milliseconds, when LaunchDarkly should remove the user from individual targeting for this flag.\n* `version`: The version of the expiring user target to update. If included, update will fail if version doesn't match current version of the expiring user target.\n\n#### removeExpireUserTargetDate\n\nRemoves the scheduled removal of the user from the flag's individual targeting. The user will remain part of the flag's individual targeting until explicitly removed, or until another removal is scheduled.\n\n##### Parameters\n\n* `flagKey`: The flag key\n* `variationId`: ID of a variation on the flag\n\n\u003c/details\u003e\n",
-		Use:   "update-expiring-flags-for-user",
+		Use:   "update-expiring",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4384,7 +4384,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_UserFlagSettingsResourceCmd, client, OperationData{
 		Short: "Update flag settings for user",
 		Long:  "Enable or disable a feature flag for a user based on their key.\n\nOmitting the `setting` attribute from the request body, or including a `setting` of `null`, erases the current setting for a user.\n\nIf you previously patched the flag, and the patch included the user's data, LaunchDarkly continues to use that data. If LaunchDarkly has never encountered the user's key before, it calculates the flag values based on the user key alone.\n",
-		Use:   "replace-flag-setting",
+		Use:   "replace",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4452,7 +4452,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_UsersResourceCmd, client, OperationData{
 		Short: "Find users",
 		Long:  "\u003e ### Use contexts instead\n\u003e\n\u003e After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use [Search for context instances](/tag/Contexts#operation/searchContextInstances) instead of this endpoint.\n\nSearch users in LaunchDarkly based on their last active date, a user attribute filter set, or a search query.\n\nAn example user attribute filter set is `filter=firstName:Anna,activeTrial:false`. This matches users that have the user attribute `firstName` set to `Anna`, that also have the attribute `activeTrial` set to `false`.\n\nTo paginate through results, follow the `next` link in the `_links` object. To learn more, read [Representations](/#section/Representations).\n",
-		Use:   "list-search",
+		Use:   "search",
 		Params: []Param{
 			{
 				Name:        "project-key",
@@ -4606,7 +4606,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_WebhooksResourceCmd, client, OperationData{
 		Short:                 "List webhooks",
 		Long:                  "Fetch a list of all webhooks.",
-		Use:                   "list-all",
+		Use:                   "list",
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		HasBody:               false,
@@ -4761,7 +4761,7 @@ func AddAllResourceCmds(
 	NewOperationCmd(gen_WorkflowsResourceCmd, client, OperationData{
 		Short: "Get custom workflow",
 		Long:  "Get a specific workflow by ID.",
-		Use:   "get-custom",
+		Use:   "get",
 		Params: []Param{
 			{
 				Name:        "project-key",
