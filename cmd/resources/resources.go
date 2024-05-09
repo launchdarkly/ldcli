@@ -23,6 +23,27 @@ import (
 	"ldcli/internal/resources"
 )
 
+func getResourcesHelpTemplate() string {
+	// This template uses `.Parent` to access subcommands on the root command.
+	return fmt.Sprintf(`Available commands:{{range $index, $cmd := .Parent.Commands}}{{if (or (eq (index $.Parent.Annotations $cmd.Name) "resource"))}}
+  {{rpad $cmd.Name $cmd.NamePadding }} {{$cmd.Short}}{{end}}{{end}}
+
+Use "ldcli [command] --help" for more information about a command.
+`,
+	)
+}
+
+func NewResourcesCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "resources",
+		//Args:  validators.NoArgs,
+		Short: "List resource commands",
+	}
+	cmd.SetHelpTemplate(getResourcesHelpTemplate())
+
+	return cmd
+}
+
 type TemplateData struct {
 	Resources map[string]ResourceData
 }
@@ -169,6 +190,7 @@ func NewResourceCmd(
 	}
 
 	parentCmd.AddCommand(cmd)
+	parentCmd.Annotations[resourceName] = "resource"
 
 	return cmd
 }
