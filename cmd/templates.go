@@ -1,15 +1,8 @@
 package cmd
 
 func getUsageTemplate() string {
-	return `Usage:{{if .Runnable}}
-  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
-  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
-
-Aliases:
-  {{.NameAndAliases}}{{end}}{{if .HasExample}}
-
-Examples:
-  {{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+	return `Usage:
+  {{.CommandPath}} [command]
 
 Commands:
   {{rpad "setup" 29}} Setup guide to create your first feature flag
@@ -25,7 +18,6 @@ Resource Commands:
   {{rpad "..." 29}} To see more resource commands, run 'ldcli resources help'
 
 Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
-{{end}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
 `
 }
