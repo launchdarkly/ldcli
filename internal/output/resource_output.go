@@ -3,6 +3,7 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -48,7 +49,7 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 	}
 
 	if !isMultipleResponse {
-		return plaintextOutput(SingularPlaintextOutputFn(maybeResource), successMessage), nil
+		return plaintextOutput(SingularPlaintextOutputFn(maybeResource), successMessage+" "), nil
 	}
 
 	if len(maybeResources.Items) == 0 {
@@ -70,34 +71,37 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 		items = append(items, outputFn(i))
 	}
 
-	// fmt.Println(">>> checking", maybeResources.TotalCount)
-	// spew.Dump(maybeResources.Links)
 	var (
 		pagination string
 		limit      int
 		offset     int
 	)
-	if self, ok := maybeResources.Links["self"]; ok {
+	self, ok := maybeResources.Links["self"]
+	if ok && maybeResources.TotalCount > 0 {
 		selfURL, _ := url.Parse(self["href"])
 		limit, _ = strconv.Atoi(selfURL.Query().Get("limit"))
 		offset, _ = strconv.Atoi(selfURL.Query().Get("offset"))
-		fmt.Println(">>> found", limit, offset)
+		maxResults := int(math.Min(float64(offset+limit), float64(maybeResources.TotalCount)))
+		pagination = fmt.Sprintf(
+			"\nShowing results %d - %d of %d.",
+			offset+1,
+			maxResults,
+			maybeResources.TotalCount,
+		)
+		if offset+limit < maybeResources.TotalCount {
+			pagination += fmt.Sprintf(" Use --offset %d for additional results.", offset+limit)
+		}
 	}
 
-	pagination = fmt.Sprintf(
-		"Showing results %d - %d of %d. Use --offset %d for additional results.",
-		offset+1,
-		offset+limit,
-		maybeResources.TotalCount,
-		offset+limit,
-	)
-
-	return plaintextOutput("\n"+strings.Join(items, "\n"), successMessage) + "\n" + pagination, nil
+	if successMessage != "" {
+		successMessage += "\n"
+	}
+	return plaintextOutput(strings.Join(items, "\n"), successMessage) + pagination, nil
 }
 
 func plaintextOutput(out string, successMessage string) string {
 	if successMessage != "" {
-		return fmt.Sprintf("%s %s", successMessage, out)
+		return fmt.Sprintf("%s%s", successMessage, out)
 	}
 
 	return out
