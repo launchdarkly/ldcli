@@ -92,27 +92,11 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 		return TemplateData{}, err
 	}
 
-	resources := make(map[string]ResourceData)
-	for _, r := range spec.Tags {
-		if strings.Contains(r.Name, "(beta)") {
-			// skip beta resources for now
-			continue
-		}
-
-		resourceName, resourceKey := getResourceNames(r.Name)
-		resources[resourceKey] = ResourceData{
-			GoName:      strcase.ToCamel(resourceName),
-			DisplayName: strings.ToLower(resourceName),
-			Description: jsonString(r.Description),
-			Operations:  make(map[string]OperationData, 0),
-		}
-	}
-
+	resources := NewResources(spec.Tags)
 	for path, pathItem := range spec.Paths.Map() {
 		for method, op := range pathItem.Operations() {
 			tag := op.Tags[0] // each op only has one tag
-			if strings.Contains(tag, "(beta)") {
-				// skip beta resources for now
+			if shouldFilter(tag) {
 				continue
 			}
 			_, resourceKey := getResourceNames(tag)
@@ -168,6 +152,42 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 	}
 
 	return TemplateData{Resources: resources}, nil
+}
+
+func NewResourceData(tag openapi3.Tag) ResourceData {
+	resourceName, _ := getResourceNames(tag.Name)
+
+	return ResourceData{
+		GoName:      strcase.ToCamel(resourceName),
+		DisplayName: strings.ToLower(resourceName),
+		Description: jsonString(tag.Description),
+		Operations:  make(map[string]OperationData, 0),
+	}
+}
+
+func NewResources(tags openapi3.Tags) map[string]ResourceData {
+	resources := make(map[string]ResourceData)
+	for _, t := range tags {
+		if shouldFilter(t.Name) {
+			continue
+		}
+
+		resourceName, resourceKey := getResourceNames(t.Name)
+		resources[resourceKey] = ResourceData{
+			GoName:      strcase.ToCamel(resourceName),
+			DisplayName: strings.ToLower(resourceName),
+			Description: jsonString(t.Description),
+			Operations:  make(map[string]OperationData, 0),
+		}
+	}
+
+	return resources
+}
+
+func shouldFilter(name string) bool {
+	return strings.Contains(name, "(beta)") ||
+		strings.ToLower(name) == "other" ||
+		strings.ToLower(name) == "oauth2 clients"
 }
 
 func NewResourceCmd(
