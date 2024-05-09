@@ -215,6 +215,8 @@ See each command's help for details on how to use the generated script.`, rootCm
 		rootCmd.Cmd().AddCommand(completionCmd)
 	}
 
+	//rootCmd.cmd.SetUsageTemplate(getUsageTemplate())
+
 	err = rootCmd.Execute()
 
 	var outcome string
