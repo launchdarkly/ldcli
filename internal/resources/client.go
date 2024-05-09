@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"ldcli/internal/errors"
 	"net/http"
 	"net/url"
+
+	"ldcli/internal/errors"
 )
 
 type Client interface {
