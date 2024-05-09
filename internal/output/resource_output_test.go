@@ -12,6 +12,34 @@ import (
 )
 
 func TestCmdOutput(t *testing.T) {
+	t.Run("with paginated multiple resources", func(t *testing.T) {
+		input := `{
+			"_links": {
+				"self": {
+					"href": "/my-resources?limit=5&offset=5",
+					"type": "application/json"
+				}
+			},
+			"items": [
+				{
+					"key": "test-key",
+					"name": "test-name"
+				}
+			],
+			"totalCount": 100
+		}`
+
+		t.Run("shows pagination", func(t *testing.T) {
+			expected := "\n* test-name (test-key)"
+			expected += "\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+
+			result, err := output.CmdOutput("list", "plaintext", []byte(input))
+
+			require.NoError(t, err)
+			assert.Equal(t, expected, result)
+		})
+	})
+
 	t.Run("with multiple resources with an ID and name", func(t *testing.T) {
 		input := `{
 			"items": [
@@ -23,7 +51,7 @@ func TestCmdOutput(t *testing.T) {
 		}`
 
 		t.Run("with plaintext output", func(t *testing.T) {
-			t.Run("returns a success message", func(t *testing.T) {
+			t.Run("returns a list of resources", func(t *testing.T) {
 				expected := "\n* test-name (test-id)"
 
 				result, err := output.CmdOutput("list", "plaintext", []byte(input))
