@@ -173,12 +173,11 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 func NewResourceCmd(
 	parentCmd *cobra.Command,
 	analyticsTrackerFn analytics.TrackerFn,
-	resourceName, shortDescription, longDescription string,
+	resourceName, longDescription string,
 ) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   resourceName,
-		Short: shortDescription,
-		Long:  longDescription,
+		Use:  resourceName,
+		Long: longDescription,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			tracker := analyticsTrackerFn(
 				viper.GetString(cliflags.AccessTokenFlag),
