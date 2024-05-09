@@ -2,6 +2,7 @@ package output_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,89 +13,56 @@ import (
 )
 
 func TestCmdOutput(t *testing.T) {
-	// with no additional pagination - does not show offset help
 	t.Run("with paginated multiple resources", func(t *testing.T) {
-		input := `{
-			"_links": {
-				"self": {
-					"href": "/my-resources?limit=5",
-					"type": "application/json"
-				}
+		tests := map[string]struct {
+			limit    int
+			offset   int
+			expected string
+		}{
+			"shows pagination": {
+				limit:    5,
+				expected: "* test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results.",
 			},
-			"items": [
-				{
-					"key": "test-key",
-					"name": "test-name"
-				}
-			],
-			"totalCount": 100
-		}`
-
-		t.Run("shows pagination", func(t *testing.T) {
-			expected := "* test-name (test-key)"
-			expected += "\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
-
-			result, err := output.CmdOutput("list", "plaintext", []byte(input))
-
-			require.NoError(t, err)
-			assert.Equal(t, expected, result)
-		})
-	})
-
-	t.Run("with a paginated offset shows pagination", func(t *testing.T) {
-		input := `{
-			"_links": {
-				"self": {
-					"href": "/my-resources?limit=5&offset=5",
-					"type": "application/json"
-				}
+			"with a paginated offset shows pagination": {
+				limit:    5,
+				offset:   5,
+				expected: "* test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results.",
 			},
-			"items": [
-				{
-					"key": "test-key",
-					"name": "test-name"
-				}
-			],
-			"totalCount": 100
-		}`
-
-		t.Run("shows pagination", func(t *testing.T) {
-			expected := "* test-name (test-key)"
-			expected += "\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
-
-			result, err := output.CmdOutput("list", "plaintext", []byte(input))
-
-			require.NoError(t, err)
-			assert.Equal(t, expected, result)
-		})
-	})
-
-	t.Run("with no additional pagination does not show offset help", func(t *testing.T) {
-		input := `{
-			"_links": {
-				"self": {
-					"href": "/my-resources?limit=5&offset=95",
-					"type": "application/json"
-				}
+			"with no additional pagination does not show offset help": {
+				limit:    5,
+				offset:   95,
+				expected: "* test-name (test-key)\nShowing results 96 - 100 of 100.",
 			},
-			"items": [
-				{
-					"key": "test-key",
-					"name": "test-name"
-				}
-			],
-			"totalCount": 100
-		}`
+		}
+		for name, tt := range tests {
+			tt := tt
+			t.Run(name, func(t *testing.T) {
+				input := fmt.Sprintf(
+					`{
+						"_links": {
+							"self": {
+								"href": "/my-resources?limit=%d&offset=%d",
+								"type": "application/json"
+							}
+						},
+						"items": [
+							{
+								"key": "test-key",
+								"name": "test-name"
+							}
+						],
+						"totalCount": 100
+					}`,
+					tt.limit,
+					tt.offset,
+				)
 
-		t.Run("shows pagination", func(t *testing.T) {
-			expected := "* test-name (test-key)"
-			expected += "\nShowing results 96 - 100 of 100."
+				result, err := output.CmdOutput("list", "plaintext", []byte(input))
 
-			result, err := output.CmdOutput("list", "plaintext", []byte(input))
-
-			require.NoError(t, err)
-			assert.Equal(t, expected, result)
-		})
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
 	})
 
 	t.Run("with multiple resources with an ID and name", func(t *testing.T) {
