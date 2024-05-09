@@ -90,6 +90,7 @@ func NewRootCommand(
 				}
 			}
 		},
+		Annotations: make(map[string]string),
 		// Handle errors differently based on type.
 		// We don't want to show the usage if the user has the right structure but invalid data such as
 		// the wrong key.
@@ -178,6 +179,7 @@ func NewRootCommand(
 	configCmd := configcmd.NewConfigCmd(analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
+	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	rootCmd.Commands = append(rootCmd.Commands, configCmd)
@@ -214,6 +216,8 @@ func Execute(version string) {
 See each command's help for details on how to use the generated script.`, rootCmd.Cmd().Name())
 		rootCmd.Cmd().AddCommand(completionCmd)
 	}
+
+	rootCmd.cmd.SetUsageTemplate(getUsageTemplate())
 
 	err = rootCmd.Execute()
 
