@@ -240,7 +240,10 @@ func getViperWithConfigFile() (*viper.Viper, error) {
 	v := viper.GetViper()
 	if err := v.ReadInConfig(); err != nil {
 		newViper := viper.New()
-		newViper.SetConfigFile(config.GetConfigFile())
+		configFile := config.GetConfigFile()
+		newViper.SetConfigType("yml")
+		newViper.SetConfigFile(configFile)
+
 		err = newViper.WriteConfig()
 		if err != nil {
 			return nil, err

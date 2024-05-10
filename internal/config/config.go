@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/mitchellh/go-homedir"
@@ -57,16 +59,17 @@ func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
 	}, nil
 }
 
-func GetConfigPath() string {
-	home, err := homedir.Dir()
-	if err != nil {
-		return ""
-	}
-
-	return home
-}
-
 // GetConfigFile gets the full path to the config file.
 func GetConfigFile() string {
-	return fmt.Sprintf("%s/%s", GetConfigPath(), Filename)
+	configPath := os.Getenv("XDG_CONFIG_HOME")
+	if configPath == "" {
+		home, err := homedir.Dir()
+		if err != nil {
+			return ""
+		}
+		configPath = filepath.Join(home, ".config")
+	}
+	configFilePath := filepath.Join(configPath, "ldcli")
+
+	return filepath.Join(configFilePath, "config.yml")
 }
