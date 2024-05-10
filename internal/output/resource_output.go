@@ -3,6 +3,9 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -45,35 +48,60 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 		// no success message
 	}
 
-	if isMultipleResponse {
-		if len(maybeResources.Items) == 0 {
-			return "No items found", nil
-		}
-
-		// the response could have various properties we want to show
-		keyExists := func(key string) bool { _, ok := maybeResources.Items[0][key]; return ok }
-		outputFn := MultiplePlaintextOutputFn
-		switch {
-		case keyExists("email"):
-			outputFn = MultipleEmailPlaintextOutputFn
-		case keyExists("_id"):
-			outputFn = MultipleIDPlaintextOutputFn
-		}
-
-		items := make([]string, 0, len(maybeResources.Items))
-		for _, i := range maybeResources.Items {
-			items = append(items, outputFn(i))
-		}
-
-		return plaintextOutput("\n"+strings.Join(items, "\n"), successMessage), nil
+	if !isMultipleResponse {
+		return plaintextOutput(SingularPlaintextOutputFn(maybeResource), successMessage+" "), nil
 	}
 
-	return plaintextOutput(SingularPlaintextOutputFn(maybeResource), successMessage), nil
+	if len(maybeResources.Items) == 0 {
+		return "No items found", nil
+	}
+
+	// the response could have various properties we want to show
+	keyExists := func(key string) bool { _, ok := maybeResources.Items[0][key]; return ok }
+	outputFn := MultiplePlaintextOutputFn
+	switch {
+	case keyExists("email"):
+		outputFn = MultipleEmailPlaintextOutputFn
+	case keyExists("_id"):
+		outputFn = MultipleIDPlaintextOutputFn
+	}
+
+	items := make([]string, 0, len(maybeResources.Items))
+	for _, i := range maybeResources.Items {
+		items = append(items, outputFn(i))
+	}
+
+	var (
+		pagination string
+		limit      int
+		offset     int
+	)
+	self, ok := maybeResources.Links["self"]
+	if ok && maybeResources.TotalCount > 0 {
+		selfURL, _ := url.Parse(self["href"])
+		limit, _ = strconv.Atoi(selfURL.Query().Get("limit"))
+		offset, _ = strconv.Atoi(selfURL.Query().Get("offset"))
+		maxResults := int(math.Min(float64(offset+limit), float64(maybeResources.TotalCount)))
+		pagination = fmt.Sprintf(
+			"\nShowing results %d - %d of %d.",
+			offset+1,
+			maxResults,
+			maybeResources.TotalCount,
+		)
+		if offset+limit < maybeResources.TotalCount {
+			pagination += fmt.Sprintf(" Use --offset %d for additional results.", offset+limit)
+		}
+	}
+
+	if successMessage != "" {
+		successMessage += "\n"
+	}
+	return plaintextOutput(strings.Join(items, "\n"), successMessage) + pagination, nil
 }
 
 func plaintextOutput(out string, successMessage string) string {
 	if successMessage != "" {
-		return fmt.Sprintf("%s %s", successMessage, out)
+		return fmt.Sprintf("%s%s", successMessage, out)
 	}
 
 	return out

@@ -54,10 +54,16 @@ type PlaintextOutputFn func(resource) string
 // We're trading off type safety for easy of use instead of defining a type for each expected resource.
 type resource map[string]interface{}
 
+type link map[string]string
+
+type links map[string]link
+
 // resources is the subset of data we need to display a command's plain text response for a list
 // of resources.
 type resources struct {
-	Items []resource `json:"items"`
+	Items      []resource `json:"items"`
+	Links      links      `json:"_links"`
+	TotalCount int        `json:"totalCount"`
 }
 
 // CmdOutputSingular builds a command response based on the flag the user provided and the shape of
