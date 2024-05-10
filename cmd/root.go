@@ -217,6 +217,8 @@ See each command's help for details on how to use the generated script.`, rootCm
 		rootCmd.Cmd().AddCommand(completionCmd)
 	}
 
+	cobra.AddTemplateFunc("WrappedRequiredFlagUsages", WrappedRequiredFlagUsages)
+	cobra.AddTemplateFunc("WrappedOptionalFlagUsages", WrappedOptionalFlagUsages)
 	rootCmd.cmd.SetUsageTemplate(getUsageTemplate())
 
 	err = rootCmd.Execute()

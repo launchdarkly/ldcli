@@ -63,8 +63,3 @@ func getTerminalWidth() int {
 
 	return width
 }
-
-func init() {
-	cobra.AddTemplateFunc("WrappedRequiredFlagUsages", WrappedRequiredFlagUsages)
-	cobra.AddTemplateFunc("WrappedOptionalFlagUsages", WrappedOptionalFlagUsages)
-}
