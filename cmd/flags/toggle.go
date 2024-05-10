@@ -23,7 +23,7 @@ func NewToggleOnCmd(client resources.Client) *cobra.Command {
 		Use:   "toggle-on",
 	}
 
-	cmd.SetUsageTemplate(resourcescmd.OperationUsageTemplate())
+	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 	initFlags(cmd)
 
 	return cmd

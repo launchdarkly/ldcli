@@ -28,29 +28,53 @@ Flags:
 `
 }
 
-func WrappedRequiredFlagUsages(cmd *cobra.Command) string {
-	nonRequestParamsFlags := pflag.NewFlagSet("request", pflag.ExitOnError)
-
+func HasRequiredFlags(cmd *cobra.Command) bool {
+	var numFlags int
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		if _, ok := flag.Annotations["required"]; ok {
-			nonRequestParamsFlags.AddFlag(flag)
+		_, ok := flag.Annotations["required"]
+		if ok {
+			numFlags += 1
 		}
 	})
 
-	return nonRequestParamsFlags.FlagUsagesWrapped(getTerminalWidth())
+	return numFlags > 0
+}
+
+func HasOptionalFlags(cmd *cobra.Command) bool {
+	var numFlags int
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		_, ok := flag.Annotations["required"]
+		if !ok && flag.Name != "help" {
+			numFlags += 1
+		}
+	})
+
+	return numFlags > 0
+}
+
+func WrappedRequiredFlagUsages(cmd *cobra.Command) string {
+	flagSet := pflag.NewFlagSet("request", pflag.ExitOnError)
+
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		if _, ok := flag.Annotations["required"]; ok {
+			flagSet.AddFlag(flag)
+		}
+	})
+
+	return flagSet.FlagUsagesWrapped(getTerminalWidth())
 }
 
 func WrappedOptionalFlagUsages(cmd *cobra.Command) string {
-	nonRequestParamsFlags := pflag.NewFlagSet("request", pflag.ExitOnError)
+	flagSet := pflag.NewFlagSet("request", pflag.ExitOnError)
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		_, ok := flag.Annotations["required"]
 		if !ok && flag.Name != "help" {
-			nonRequestParamsFlags.AddFlag(flag)
+			flagSet.AddFlag(flag)
 		}
 	})
 
-	return nonRequestParamsFlags.FlagUsagesWrapped(getTerminalWidth())
+	return flagSet.FlagUsagesWrapped(getTerminalWidth())
 }
 
 func getTerminalWidth() int {
