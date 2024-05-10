@@ -187,6 +187,7 @@ func NewRootCommand(
 	for _, c := range cmd.Commands() {
 		if c.Name() == "flags" {
 			c.AddCommand(flagscmd.NewToggleOnCmd(clients.ResourcesClient))
+			c.AddCommand(flagscmd.NewToggleOffCmd(clients.ResourcesClient))
 		}
 	}
 
