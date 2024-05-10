@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -124,7 +125,10 @@ func NewRootCommand(
 	})
 
 	if useConfigFile {
-		setFlagsFromConfig()
+		err := setFlagsFromConfig()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	viper.SetEnvPrefix("LD")
@@ -262,9 +266,32 @@ See each command's help for details on how to use the generated script.`, rootCm
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
-func setFlagsFromConfig() {
-	viper.SetConfigFile(config.GetConfigFile())
+func setFlagsFromConfig() error {
+	configFile := config.GetConfigFile()
+	viper.SetConfigType("yml")
+	viper.SetConfigFile(configFile)
+
+	err := makePath(configFile)
+	if err != nil {
+		return err
+	}
+
 	_ = viper.ReadInConfig()
+
+	return nil
+}
+
+func makePath(path string) error {
+	dir := filepath.Dir(path)
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // getResourceCommand returns the command for a resource or an action's parent resource.
