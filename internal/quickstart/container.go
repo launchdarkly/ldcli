@@ -91,7 +91,7 @@ func (m ContainerModel) Init() tea.Cmd {
 
 func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	var sendEvent bool
+	var shouldSendTrackingEvent bool
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -128,7 +128,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.environment,
 				)
 				cmd = m.currentModel.Init()
-				sendEvent = true
+				shouldSendTrackingEvent = true
 			}
 		default:
 			// delegate all other input to the current model
@@ -139,7 +139,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flagKey = msg.flag.key
 		m.currentStep += 1
 		m.err = nil
-		sendEvent = true
+		shouldSendTrackingEvent = true
 	case choseSDKMsg:
 		m.currentModel = NewShowSDKInstructionsModel(
 			m.environmentsClient,
@@ -156,7 +156,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.currentModel.Init()
 		m.sdk = msg.sdk
 		m.currentStep += 1
-		sendEvent = true
+		shouldSendTrackingEvent = true
 	case errMsg:
 		m.currentModel, cmd = m.currentModel.Update(msg)
 	case fetchedEnvMsg:
@@ -182,7 +182,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.toggleTime = msg.time
 		m.flagToggled = true
 		m.err = nil
-		sendEvent = true
+		shouldSendTrackingEvent = true
 	case showToggleFlagMsg:
 		m.currentModel = NewToggleFlagModel(
 			m.flagsClient,
@@ -193,26 +193,37 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 		cmd = m.currentModel.Init()
 		m.currentStep += 1
-		sendEvent = true
+		shouldSendTrackingEvent = true
 	default:
 		// ignore other messages
 	}
 
-	if sendEvent {
-		cmd = tea.Batch(cmd, trackSetupStepStartedEvent(m.analyticsTracker, m.currentStep.String()))
-
+	if shouldSendTrackingEvent {
 		switch {
 		case m.currentStep == stepShowSDKInstructions:
-			cmd = tea.Batch(cmd, trackSetupSDKSelectedEvent(m.analyticsTracker, m.sdk.canonicalName))
+			cmd = tea.Batch(
+				cmd,
+				trackSetupStepStartedEvent(m.analyticsTracker, m.currentStep.String()),
+				trackSetupSDKSelectedEvent(m.analyticsTracker, m.sdk.canonicalName),
+			)
+		case m.currentStep == stepToggleFlag && !m.flagToggled:
+			// the first time we get to the flag toggled view
+			cmd = tea.Batch(
+				cmd,
+				trackSendCommandCompletedEvent(m.analyticsTracker),
+				trackSetupStepStartedEvent(m.analyticsTracker, m.currentStep.String()),
+			)
 		case m.currentStep == stepToggleFlag && m.flagToggled:
+			// subsequent times we've toggled the flag in the toggle flag view
 			cmd = tea.Batch(cmd, trackSetupFlagToggledEvent(
 				m.analyticsTracker,
 				m.flagStatus,
 				m.toggleCount,
 				m.toggleTime.Sub(m.startTime).Milliseconds(),
 			))
-		case m.currentStep == stepToggleFlag && !m.flagToggled:
-			cmd = tea.Batch(cmd, trackSendCommandCompletedEvent(m.analyticsTracker))
+		default:
+			// all other views
+			cmd = tea.Batch(cmd, trackSetupStepStartedEvent(m.analyticsTracker, m.currentStep.String()))
 		}
 	}
 
