@@ -16,6 +16,7 @@ import (
 	cmdAnalytics "ldcli/cmd/analytics"
 	"ldcli/cmd/cliflags"
 	configcmd "ldcli/cmd/config"
+	flagscmd "ldcli/cmd/flags"
 	resourcecmd "ldcli/cmd/resources"
 	"ldcli/internal/analytics"
 	"ldcli/internal/config"
@@ -181,6 +182,13 @@ func NewRootCommand(
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
+
+	// add non-generated commands
+	for _, c := range cmd.Commands() {
+		if c.Name() == "flags" {
+			c.AddCommand(flagscmd.NewToggleOnCmd(clients.ResourcesClient))
+		}
+	}
 
 	rootCmd.Commands = append(rootCmd.Commands, configCmd)
 
