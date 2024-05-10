@@ -42,27 +42,45 @@ var ErrorPlaintextOutputFn = func(r resource) string {
 
 // MultipleEmailPlaintextOutputFn converts the resource to plain text specifically for member data.
 var MultipleEmailPlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("* %s (%s)", r["email"], r["_id"])
+	return fmt.Sprintf("* %s", SingularPlaintextOutputFn(r))
 }
 
 // MultipleIDPlaintextOutputFn converts the resource to plain text for data without a key.
 var MultipleIDPlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("* %s (%s)", r["name"], r["_id"])
+	return fmt.Sprintf("* %s", SingularPlaintextOutputFn(r))
+}
+
+// MultipleNameIDPlaintextOutputFn converts the resource to plain text for data without a key.
+var MultipleNameIDPlaintextOutputFn = func(r resource) string {
+	return fmt.Sprintf("* %s", SingularPlaintextOutputFn(r))
 }
 
 // MultiplePlaintextOutputFn converts the resource to plain text based on its name and key in a list.
 var MultiplePlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("* %s (%s)", r["name"], r["key"])
+	return fmt.Sprintf("* %s", SingularPlaintextOutputFn(r))
 }
 
 // SingularPlaintextOutputFn converts the resource to plain text based on its name and key.
 var SingularPlaintextOutputFn = func(r resource) string {
-	if r["name"] == nil {
-		return r["key"].(string)
-	}
-	if r["key"] == nil {
-		return r["name"].(string)
-	}
+	email := r["email"]
+	id := r["_id"]
+	key := r["key"]
+	name := r["name"]
 
-	return fmt.Sprintf("%s (%s)", r["name"], r["key"])
+	switch {
+	case name != nil && key != nil:
+		return fmt.Sprintf("%s (%s)", name.(string), key.(string))
+	case email != nil && id != nil:
+		return fmt.Sprintf("%s (%s)", email.(string), id.(string))
+	case name != nil && id != nil:
+		return fmt.Sprintf("%s (%s)", name.(string), id.(string))
+	case key != nil:
+		return key.(string)
+	case email != nil:
+		return email.(string)
+	case id != nil:
+		return id.(string)
+	default:
+		return "cannot read resource"
+	}
 }

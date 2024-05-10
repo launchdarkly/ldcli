@@ -56,8 +56,10 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 		switch {
 		case keyExists("email"):
 			outputFn = MultipleEmailPlaintextOutputFn
-		case keyExists("_id"):
+		case keyExists("_id") && !keyExists("name"):
 			outputFn = MultipleIDPlaintextOutputFn
+		case keyExists("_id"):
+			outputFn = MultipleNameIDPlaintextOutputFn
 		}
 
 		items := make([]string, 0, len(maybeResources.Items))
