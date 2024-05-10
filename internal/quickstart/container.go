@@ -117,11 +117,13 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentStep -= 1
 				m.currentModel = NewShowSDKInstructionsModel(
 					m.environmentsClient,
+					m.flagsClient,
 					m.accessToken,
 					m.baseURI,
 					m.sdk.canonicalName,
 					m.sdk.displayName,
 					m.sdk.url,
+					m.sdk.kind,
 					m.flagKey,
 					m.environment,
 				)
@@ -141,11 +143,13 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case choseSDKMsg:
 		m.currentModel = NewShowSDKInstructionsModel(
 			m.environmentsClient,
+			m.flagsClient,
 			m.accessToken,
 			m.baseURI,
 			msg.sdk.canonicalName,
 			msg.sdk.displayName,
 			msg.sdk.url,
+			msg.sdk.kind,
 			m.flagKey,
 			m.environment,
 		)

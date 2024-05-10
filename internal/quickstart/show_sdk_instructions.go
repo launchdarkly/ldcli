@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"ldcli/internal/environments"
+	"ldcli/internal/flags"
 	"ldcli/internal/sdks"
 )
 
@@ -34,10 +35,12 @@ type showSDKInstructionsModel struct {
 	environment        *environment
 	environmentsClient environments.Client
 	err                error
+	flagsClient        flags.Client
 	flagKey            string
 	help               help.Model
 	helpKeys           keyMap
 	instructions       string
+	sdkKind            string
 	spinner            spinner.Model
 	url                string
 	viewport           viewport.Model
@@ -45,11 +48,13 @@ type showSDKInstructionsModel struct {
 
 func NewShowSDKInstructionsModel(
 	environmentsClient environments.Client,
+	flagsClient flags.Client,
 	accessToken string,
 	baseUri string,
 	canonicalName string,
 	displayName string,
 	url string,
+	sdkKind string,
 	flagKey string,
 	environment *environment,
 ) tea.Model {
@@ -73,6 +78,7 @@ func NewShowSDKInstructionsModel(
 		displayName:        displayName,
 		environmentsClient: environmentsClient,
 		environment:        environment,
+		flagsClient:        flagsClient,
 		flagKey:            flagKey,
 		help:               h,
 		helpKeys: keyMap{
@@ -81,6 +87,7 @@ func NewShowSDKInstructionsModel(
 			CursorUp:   BindingCursorUp,
 			Quit:       BindingQuit,
 		},
+		sdkKind:  sdkKind,
 		spinner:  s,
 		url:      url,
 		viewport: vp,
@@ -96,6 +103,10 @@ func (m showSDKInstructionsModel) Init() tea.Cmd {
 
 	if m.environment == nil {
 		cmds = append(cmds, fetchEnv(m.environmentsClient, m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey))
+	}
+
+	if m.sdkKind == clientSideSDK {
+		cmds = append(cmds, updateClientSideFlag(m.flagsClient, m.accessToken, m.baseUri, m.flagKey))
 	}
 
 	return tea.Sequence(cmds...)
