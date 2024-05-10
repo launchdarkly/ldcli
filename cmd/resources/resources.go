@@ -210,7 +210,7 @@ func NewResourceCmd(
 		},
 	}
 
-	cmd.SetUsageTemplate(OperationUsageTemplate())
+	cmd.SetUsageTemplate(SubcommandUsageTemplate())
 	parentCmd.AddCommand(cmd)
 	parentCmd.Annotations[resourceName] = "resource"
 
@@ -356,7 +356,7 @@ func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op Opera
 		Use:   op.Use,
 	}
 
-	cmd.SetUsageTemplate(OperationUsageTemplate())
+	cmd.SetUsageTemplate(SubcommandUsageTemplate())
 
 	opCmd.cmd = cmd
 	_ = opCmd.initFlags()
@@ -366,7 +366,7 @@ func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op Opera
 	return cmd
 }
 
-func OperationUsageTemplate() string {
+func SubcommandUsageTemplate() string {
 	return `Usage:{{if .Runnable}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
   {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
@@ -384,7 +384,7 @@ Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help")
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
 
 Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}{{if HasRequiredFlags .}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}{{if gt (len WrappedRequiredFlagUsages .) 0}}
 
 Required flags:
 {{WrappedRequiredFlagUsages . | trimTrailingWhitespaces}}{{end}}{{if HasOptionalFlags .}}
@@ -392,7 +392,7 @@ Required flags:
 Optional flags:
 {{WrappedOptionalFlagUsages . | trimTrailingWhitespaces}}{{end}}
 
-Global Flags:
+Global flags:
 {{rpad "  -h, --help" 29}} Get help about any command
 {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
 
