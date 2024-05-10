@@ -40,22 +40,7 @@ var ErrorPlaintextOutputFn = func(r resource) string {
 	}
 }
 
-// MultipleEmailPlaintextOutputFn converts the resource to plain text specifically for member data.
-var MultipleEmailPlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("* %s", SingularPlaintextOutputFn(r))
-}
-
-// MultipleIDPlaintextOutputFn converts the resource to plain text for data without a key.
-var MultipleIDPlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("* %s", SingularPlaintextOutputFn(r))
-}
-
-// MultipleNameIDPlaintextOutputFn converts the resource to plain text for data without a key.
-var MultipleNameIDPlaintextOutputFn = func(r resource) string {
-	return fmt.Sprintf("* %s", SingularPlaintextOutputFn(r))
-}
-
-// MultiplePlaintextOutputFn converts the resource to plain text based on its name and key in a list.
+// MultiplePlaintextOutputFn converts the resource to plain text.
 var MultiplePlaintextOutputFn = func(r resource) string {
 	return fmt.Sprintf("* %s", SingularPlaintextOutputFn(r))
 }
