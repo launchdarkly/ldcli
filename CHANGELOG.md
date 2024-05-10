@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.12.0](https://github.com/launchdarkly/ldcli/compare/v0.11.0...v0.12.0) (2024-05-10)
+
+
+### Features
+
+* break out required and optional flags in subcommand help ([#262](https://github.com/launchdarkly/ldcli/issues/262)) ([f3075bf](https://github.com/launchdarkly/ldcli/commit/f3075bf2d5144b67bbafd2afeb1fbad69f193124))
+* hide resources ([#254](https://github.com/launchdarkly/ldcli/issues/254)) ([af22b5d](https://github.com/launchdarkly/ldcli/commit/af22b5d501c08d48bb466a99b39c868c6f2a2679))
+* show pagination ([#261](https://github.com/launchdarkly/ldcli/issues/261)) ([9a71cfe](https://github.com/launchdarkly/ldcli/commit/9a71cfe6fededaa2fe2e89970fe69ba91a86c055))
+
+
+### Bug Fixes
+
+* fix go sdk instructions ([#253](https://github.com/launchdarkly/ldcli/issues/253)) ([2fe1c8a](https://github.com/launchdarkly/ldcli/commit/2fe1c8a4bd283fe3bd703ad80fc4fff36687b5f4))
+* Fix plaintext output for a resource with only and ID ([#263](https://github.com/launchdarkly/ldcli/issues/263)) ([e9139c0](https://github.com/launchdarkly/ldcli/commit/e9139c0df2a9e166a0ec2977b2559627e645775f))
+* remove http client timeout for resources ([#259](https://github.com/launchdarkly/ldcli/issues/259)) ([56cbcdb](https://github.com/launchdarkly/ldcli/commit/56cbcdb54daa1e2823db64c7c03418fdc9a36994))
+* typo in SDK setup steps ([#257](https://github.com/launchdarkly/ldcli/issues/257)) ([99379aa](https://github.com/launchdarkly/ldcli/commit/99379aae617f66d1678b4f465b8088aaec0fffd1))
+
 ## [0.11.0](https://github.com/launchdarkly/ldcli/compare/v0.10.0...v0.11.0) (2024-05-07)
 
 
