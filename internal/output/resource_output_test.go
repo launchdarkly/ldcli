@@ -13,6 +13,27 @@ import (
 )
 
 func TestCmdOutput(t *testing.T) {
+	t.Run("with multiple resources with only an ID", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"_id": "test-id"
+				}
+			]
+		}`
+
+		t.Run("with plaintext output", func(t *testing.T) {
+			t.Run("returns a success message", func(t *testing.T) {
+				expected := "* test-id"
+
+				result, err := output.CmdOutput("list", "plaintext", []byte(input))
+
+				require.NoError(t, err)
+				assert.Equal(t, expected, result)
+			})
+		})
+	})
+
 	t.Run("with paginated multiple resources", func(t *testing.T) {
 		tests := map[string]struct {
 			limit    int

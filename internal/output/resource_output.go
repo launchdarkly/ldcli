@@ -56,19 +56,9 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 		return "No items found", nil
 	}
 
-	// the response could have various properties we want to show
-	keyExists := func(key string) bool { _, ok := maybeResources.Items[0][key]; return ok }
-	outputFn := MultiplePlaintextOutputFn
-	switch {
-	case keyExists("email"):
-		outputFn = MultipleEmailPlaintextOutputFn
-	case keyExists("_id"):
-		outputFn = MultipleIDPlaintextOutputFn
-	}
-
 	items := make([]string, 0, len(maybeResources.Items))
 	for _, i := range maybeResources.Items {
-		items = append(items, outputFn(i))
+		items = append(items, MultiplePlaintextOutputFn(i))
 	}
 
 	var (

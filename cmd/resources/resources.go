@@ -25,12 +25,11 @@ import (
 
 func getResourcesHelpTemplate() string {
 	// This template uses `.Parent` to access subcommands on the root command.
-	return fmt.Sprintf(`Available commands:{{range $index, $cmd := .Parent.Commands}}{{if (or (eq (index $.Parent.Annotations $cmd.Name) "resource"))}}
+	return `Available commands:{{range $index, $cmd := .Parent.Commands}}{{if (or (eq (index $.Parent.Annotations $cmd.Name) "resource"))}}
   {{rpad $cmd.Name $cmd.NamePadding }} {{$cmd.Short}}{{end}}{{end}}
 
 Use "ldcli [command] --help" for more information about a command.
-`,
-	)
+`
 }
 
 func NewResourcesCmd() *cobra.Command {
@@ -256,7 +255,7 @@ func (op *OperationCmd) initFlags() error {
 			if err != nil {
 				return err
 			}
-			op.cmd.Flags().SetAnnotation(flagName, "required", []string{"true"})
+			_ = op.cmd.Flags().SetAnnotation(flagName, "required", []string{"true"})
 		}
 
 		err := viper.BindPFlag(flagName, op.cmd.Flags().Lookup(flagName))
@@ -367,7 +366,7 @@ func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op Opera
 }
 
 func operationUsageTemplate() string {
-	return fmt.Sprint(`Usage:{{if .Runnable}}
+	return `Usage:{{if .Runnable}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
   {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
 
@@ -400,5 +399,5 @@ Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
   {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
-`)
+`
 }
