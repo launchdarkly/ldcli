@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/launchdarkly/ldcli/compare/v0.12.0...v0.12.1) (2024-05-10)
+
+
+### Miscellaneous Chores
+
+* release 0.12.1 ([#265](https://github.com/launchdarkly/ldcli/issues/265)) ([33f606d](https://github.com/launchdarkly/ldcli/commit/33f606d394fd67b5a353d669ead3dfad98de68fc))
+
 ## [0.12.0](https://github.com/launchdarkly/ldcli/compare/v0.11.0...v0.12.0) (2024-05-10)
 
 
