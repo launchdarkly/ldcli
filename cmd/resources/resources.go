@@ -356,7 +356,7 @@ func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op Opera
 		Use:   op.Use,
 	}
 
-	cmd.SetUsageTemplate(operationUsageTemplate())
+	cmd.SetUsageTemplate(OperationUsageTemplate())
 
 	opCmd.cmd = cmd
 	_ = opCmd.initFlags()
@@ -395,10 +395,11 @@ Global Flags:
 Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
   {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
 
-Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}`
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`
 }
 
-func operationUsageTemplate() string {
+func OperationUsageTemplate() string {
 	return `Usage:{{if .Runnable}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
   {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
