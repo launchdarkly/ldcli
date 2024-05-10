@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 
 	"ldcli/cmd/cliflags"
+	resourcescmd "ldcli/cmd/resources"
 	"ldcli/cmd/validators"
 	"ldcli/internal/errors"
 	"ldcli/internal/output"
@@ -22,6 +23,7 @@ func NewToggleOnCmd(client resources.Client) *cobra.Command {
 		Use:   "toggle-on",
 	}
 
+	cmd.SetUsageTemplate(resourcescmd.OperationUsageTemplate())
 	initFlags(cmd)
 
 	return cmd
