@@ -201,15 +201,18 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if sendEvent {
 		cmd = tea.Batch(cmd, trackSetupStepStartedEvent(m.analyticsTracker, m.currentStep.String()))
 
-		if m.currentStep == stepShowSDKInstructions {
+		switch {
+		case m.currentStep == stepShowSDKInstructions:
 			cmd = tea.Batch(cmd, trackSetupSDKSelectedEvent(m.analyticsTracker, m.sdk.canonicalName))
-		} else if (m.currentStep == stepToggleFlag) && m.flagToggled {
+		case m.currentStep == stepToggleFlag && m.flagToggled:
 			cmd = tea.Batch(cmd, trackSetupFlagToggledEvent(
 				m.analyticsTracker,
 				m.flagStatus,
 				m.toggleCount,
 				m.toggleTime.Sub(m.startTime).Milliseconds(),
 			))
+		case m.currentStep == stepToggleFlag && !m.flagToggled:
+			cmd = tea.Batch(cmd, trackSendCommandCompletedEvent(m.analyticsTracker))
 		}
 	}
 
