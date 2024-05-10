@@ -135,6 +135,9 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 			for _, p := range op.Parameters {
 				if p.Value != nil {
 					// TODO: confirm if we only have one type per param b/c somehow this is a slice
+					if strings.Contains(p.Value.Description, "Deprecated") {
+						continue
+					}
 					types := *p.Value.Schema.Value.Type
 					param := Param{
 						Name:        strcase.ToKebab(p.Value.Name),
@@ -253,6 +256,7 @@ func (op *OperationCmd) initFlags() error {
 			if err != nil {
 				return err
 			}
+			op.cmd.Flags().SetAnnotation(flagName, "required", []string{"true"})
 		}
 
 		err := viper.BindPFlag(flagName, op.cmd.Flags().Lookup(flagName))
@@ -352,10 +356,49 @@ func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op Opera
 		Use:   op.Use,
 	}
 
+	cmd.SetUsageTemplate(operationUsageTemplate())
+
 	opCmd.cmd = cmd
 	_ = opCmd.initFlags()
 
 	parentCmd.AddCommand(cmd)
 
 	return cmd
+}
+
+func operationUsageTemplate() string {
+	return fmt.Sprint(`Usage:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+Examples:
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Required flags:
+{{WrappedRequiredFlagUsages . | trimTrailingWhitespaces}}
+
+Optional flags:
+{{WrappedOptionalFlagUsages . | trimTrailingWhitespaces}}
+
+Global Flags:
+{{rpad "  -h, --help" 29}} Help for this command
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`)
 }
