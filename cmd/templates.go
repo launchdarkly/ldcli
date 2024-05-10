@@ -1,5 +1,11 @@
 package cmd
 
+import (
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"golang.org/x/term"
+)
+
 func getUsageTemplate() string {
 	return `Usage:
   {{.CommandPath}} [command]
@@ -20,4 +26,45 @@ Common resource commands:
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
 `
+}
+
+func WrappedRequiredFlagUsages(cmd *cobra.Command) string {
+	nonRequestParamsFlags := pflag.NewFlagSet("request", pflag.ExitOnError)
+
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		if _, ok := flag.Annotations["required"]; ok {
+			nonRequestParamsFlags.AddFlag(flag)
+		}
+	})
+
+	return nonRequestParamsFlags.FlagUsagesWrapped(getTerminalWidth())
+}
+
+func WrappedOptionalFlagUsages(cmd *cobra.Command) string {
+	nonRequestParamsFlags := pflag.NewFlagSet("request", pflag.ExitOnError)
+
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		_, ok := flag.Annotations["required"]
+		if !ok && flag.Name != "help" {
+			nonRequestParamsFlags.AddFlag(flag)
+		}
+	})
+
+	return nonRequestParamsFlags.FlagUsagesWrapped(getTerminalWidth())
+}
+
+func getTerminalWidth() int {
+	var width int
+
+	width, _, err := term.GetSize(0)
+	if err != nil {
+		width = 80
+	}
+
+	return width
+}
+
+func init() {
+	cobra.AddTemplateFunc("WrappedRequiredFlagUsages", WrappedRequiredFlagUsages)
+	cobra.AddTemplateFunc("WrappedOptionalFlagUsages", WrappedOptionalFlagUsages)
 }

@@ -2286,12 +2286,6 @@ func AddAllResourceCmds(
 				Type:        "integer",
 			},
 			{
-				Name:        "archived",
-				In:          "query",
-				Description: "Deprecated, use `filter=archived:true` instead. A boolean to filter the list to archived flags. When this is absent, only unarchived flags will be returned",
-				Type:        "boolean",
-			},
-			{
 				Name:        "summary",
 				In:          "query",
 				Description: "By default, flags do _not_ include their lists of prerequisites, targets, or rules for each environment. Set `summary=0` to include these fields for each flag returned.",
@@ -4476,12 +4470,6 @@ func AddAllResourceCmds(
 				Name:        "limit",
 				In:          "query",
 				Description: "Specifies the maximum number of items in the collection to return (max: 50, default: 20)",
-				Type:        "integer",
-			},
-			{
-				Name:        "offset",
-				In:          "query",
-				Description: "Deprecated, use `searchAfter` instead. Specifies the first item to return in the collection.",
 				Type:        "integer",
 			},
 			{
