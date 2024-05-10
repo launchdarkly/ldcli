@@ -210,6 +210,31 @@ func fetchEnv(
 	}
 }
 
+type clientSideFlagMsg struct{} // todo: rename
+
+func updateClientSideFlag(
+	client flags.Client,
+	accessToken string,
+	baseUri string,
+	key string,
+) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.Update(
+			context.Background(),
+			accessToken,
+			baseUri,
+			key,
+			defaultProjKey,
+			[]flags.UpdateInput{{Op: "replace", Path: "/clientSideAvailability/usingEnvironmentId", Value: true}},
+		)
+		if err != nil {
+			return errMsg{err: err}
+		}
+
+		return clientSideFlagMsg{}
+	}
+}
+
 type fetchedFlagStatusMsg struct {
 	enabled bool
 }
