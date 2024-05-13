@@ -75,7 +75,7 @@ func runE(client resources.Client) func(*cobra.Command, []string) error {
 func initFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceP(cliflags.EmailsFlag, "e", []string{}, "A comma separated list of emails")
 	_ = cmd.MarkFlagRequired(cliflags.EmailsFlag)
-	_ = cmd.Flags().SetAnnotation(cliflags.EnvironmentFlag, "required", []string{"true"})
+	_ = cmd.Flags().SetAnnotation(cliflags.EmailsFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.EmailsFlag, cmd.Flags().Lookup(cliflags.EmailsFlag))
 
 	cmd.Flags().StringP(
