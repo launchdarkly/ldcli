@@ -300,6 +300,14 @@ func trackSetupFlagToggledEvent(tracker analytics.Tracker, on bool, count int, d
 	}
 }
 
+func trackSendCommandCompletedEvent(tracker analytics.Tracker) tea.Cmd {
+	return func() tea.Msg {
+		tracker.SendCommandCompletedEvent(analytics.SUCCESS)
+
+		return eventTrackedMsg{}
+	}
+}
+
 type flagToggleThrottleMsg int
 
 func throttleFlagToggle(count int) tea.Cmd {
