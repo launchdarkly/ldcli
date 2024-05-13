@@ -50,8 +50,8 @@ type OutputterFn interface {
 type PlaintextOutputFn func(resource) string
 
 // resource is the subset of data we need to display a command's plain text response for a single
-// resource.
-// We're trading off type safety for easy of use instead of defining a type for each expected resource.
+// resource. We're trading off type safety for easy of use instead of defining a type for each
+// expected resource.
 type resource map[string]interface{}
 
 type link map[string]string
@@ -64,6 +64,13 @@ type resources struct {
 	Items      []resource `json:"items"`
 	Links      links      `json:"_links"`
 	TotalCount int        `json:"totalCount"`
+}
+
+// resourcesList is a response that has a list of scalar values instead of JSON objects.
+type resourcesList struct {
+	Items      []interface{} `json:"items"`
+	Links      links         `json:"_links"`
+	TotalCount int           `json:"totalCount"`
 }
 
 // CmdOutputSingular builds a command response based on the flag the user provided and the shape of

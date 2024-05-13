@@ -108,6 +108,33 @@ func TestCmdOutput(t *testing.T) {
 		})
 	})
 
+	t.Run("with a list of tags", func(t *testing.T) {
+		input := `{
+			"items": [
+				"tag1",
+				"tag2"
+			],
+			"_links": {
+				"self": {
+					"href": "/api/v2/tags",
+					"type": "application/json"
+				}
+			},
+			"totalCount": 2
+		}`
+
+		t.Run("with plaintext output", func(t *testing.T) {
+			t.Run("returns the list", func(t *testing.T) {
+				expected := "* tag1\n* tag2\nShowing results 1 - 2 of 2."
+
+				result, err := output.CmdOutput("list", "plaintext", []byte(input))
+
+				require.NoError(t, err)
+				assert.Equal(t, expected, result)
+			})
+		})
+	})
+
 	t.Run("when creating a resource", func(t *testing.T) {
 		input := `{
 			"key": "test-key",
