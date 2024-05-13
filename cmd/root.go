@@ -18,6 +18,7 @@ import (
 	"ldcli/cmd/cliflags"
 	configcmd "ldcli/cmd/config"
 	flagscmd "ldcli/cmd/flags"
+	memberscmd "ldcli/cmd/members"
 	resourcecmd "ldcli/cmd/resources"
 	"ldcli/internal/analytics"
 	"ldcli/internal/config"
@@ -192,6 +193,9 @@ func NewRootCommand(
 		if c.Name() == "flags" {
 			c.AddCommand(flagscmd.NewToggleOnCmd(clients.ResourcesClient))
 			c.AddCommand(flagscmd.NewToggleOffCmd(clients.ResourcesClient))
+		}
+		if c.Name() == "members" {
+			c.AddCommand(memberscmd.NewMembersInviteCmd(clients.ResourcesClient))
 		}
 	}
 
