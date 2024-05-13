@@ -384,7 +384,7 @@ Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help")
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
 
 Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}{{if gt (len WrappedRequiredFlagUsages .) 0}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}{{if HasRequiredFlags .}}
 
 Required flags:
 {{WrappedRequiredFlagUsages . | trimTrailingWhitespaces}}{{end}}{{if HasOptionalFlags .}}
