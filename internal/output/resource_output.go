@@ -23,16 +23,27 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 	var (
 		maybeResource      resource
 		maybeResources     resources
+		maybeResourcesList resourcesList
 		isMultipleResponse bool
 	)
 
-	// unmarshal either a singular resource or a list of them
+	// unmarshal singular resource, or a list of resources, or a list of scalar values
 	err := json.Unmarshal(input, &maybeResource)
 	_, isMultipleResponse = maybeResource["items"]
 	if err != nil || isMultipleResponse {
 		err := json.Unmarshal(input, &maybeResources)
 		if err != nil {
-			return "", err
+			err := json.Unmarshal(input, &maybeResourcesList)
+			if err != nil {
+				return "", err
+			}
+			maybeResources.Items = make([]resource, 0, len(maybeResources.Items))
+			maybeResources.TotalCount = maybeResourcesList.TotalCount
+			for _, i := range maybeResourcesList.Items {
+				maybeResources.Items = append(maybeResources.Items, resource{
+					"key": i,
+				})
+			}
 		}
 	}
 
@@ -72,13 +83,16 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 		limit, _ = strconv.Atoi(selfURL.Query().Get("limit"))
 		offset, _ = strconv.Atoi(selfURL.Query().Get("offset"))
 		maxResults := int(math.Min(float64(offset+limit), float64(maybeResources.TotalCount)))
+		if maxResults == 0 {
+			maxResults = maybeResources.TotalCount
+		}
 		pagination = fmt.Sprintf(
 			"\nShowing results %d - %d of %d.",
 			offset+1,
 			maxResults,
 			maybeResources.TotalCount,
 		)
-		if offset+limit < maybeResources.TotalCount {
+		if maxResults < maybeResources.TotalCount {
 			pagination += fmt.Sprintf(" Use --offset %d for additional results.", offset+limit)
 		}
 	}
