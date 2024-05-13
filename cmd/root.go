@@ -5,7 +5,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-
 	"log"
 	"os"
 	"path/filepath"
