@@ -5,7 +5,7 @@ LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply
 As part of [SLSA requirements for level 3 compliance](https://slsa.dev/spec/v1.0/requirements), LaunchDarkly publishes provenance about our package builds using [GitHub's generic SLSA3 provenance generator](https://github.com/slsa-framework/slsa-github-generator/blob/main/internal/builders/generic/README.md#generation-of-slsa3-provenance-for-arbitrary-projects) for distribution alongside our packages.
 
 <!-- x-release-please-start-version -->
-These attestations are available for download from the GitHub release page for the release version under Assets > `ldcli_0.12.1_multiple_provenance.intoto.jsonl`.
+These attestations are available for download from the GitHub release page for the release version under Assets > `ldcli_0.13.0_multiple_provenance.intoto.jsonl`.
 <!-- x-release-please-end -->
 
 To verify SLSA provenance attestations, we recommend using [slsa-verifier](https://github.com/slsa-framework/slsa-verifier). Example usage for verifying packages for Linux is included below: 
@@ -13,7 +13,7 @@ To verify SLSA provenance attestations, we recommend using [slsa-verifier](https
 <!-- x-release-please-start-version -->
 ```
 # Set the version of the PACKAGE to verify
-PACKAGE_VERSION=0.12.1
+PACKAGE_VERSION=0.13.0
 ```
 <!-- x-release-please-end -->
 
