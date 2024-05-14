@@ -16,6 +16,10 @@ import (
 	"ldcli/internal/sdks"
 )
 
+// stepCountHeight is the approximate height of the current step value shown from the container and
+// is used to calculate height of viewport.
+const stepCountHeight = 4
+
 type environment struct {
 	sdkKey       string
 	mobileKey    string
@@ -47,7 +51,6 @@ func NewShowSDKInstructionsModel(
 	accessToken string,
 	baseUri string,
 	height int,
-	width int,
 	canonicalName string,
 	displayName string,
 	url string,
@@ -81,8 +84,7 @@ func NewShowSDKInstructionsModel(
 
 	vp := viewport.New(
 		lipgloss.Width(m.headerView()),
-		// total screen height minus the footer and the step count set in the container
-		height-lipgloss.Height(m.footerView())-4,
+		height-lipgloss.Height(m.footerView())-stepCountHeight,
 	)
 	vp.Style = borderStyle().BorderBottom(true)
 
@@ -112,6 +114,9 @@ func (m showSDKInstructionsModel) Init() tea.Cmd {
 func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.viewport.Height = msg.Height - lipgloss.Height(m.footerView()) - stepCountHeight
+		// m.viewport.Width = msg.Width
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, pressableKeys.Enter):
