@@ -55,6 +55,7 @@ type ContainerModel struct {
 	flagToggled        bool
 	flagsClient        flags.Client
 	gettingStarted     bool
+	height             int
 	quitting           bool
 	sdk                sdkDetail
 	startTime          time.Time
@@ -94,7 +95,9 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var shouldSendTrackingEvent bool
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.height = msg.Height
 		m.width = msg.Width
+		m.currentModel, cmd = m.currentModel.Update(msg)
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, pressableKeys.Quit):
@@ -120,6 +123,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.flagsClient,
 					m.accessToken,
 					m.baseURI,
+					m.height,
+					m.width,
 					m.sdk.canonicalName,
 					m.sdk.displayName,
 					m.sdk.url,
@@ -146,6 +151,8 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flagsClient,
 			m.accessToken,
 			m.baseURI,
+			m.height,
+			m.width,
 			msg.sdk.canonicalName,
 			msg.sdk.displayName,
 			msg.sdk.url,
@@ -231,14 +238,14 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ContainerModel) View() string {
-	out := fmt.Sprintf("\nStep %d of %d\n"+m.currentModel.View(), m.currentStep, m.totalSteps)
+	out := fmt.Sprintf("Step %d of %d\n"+m.currentModel.View(), m.currentStep, m.totalSteps)
 
 	if m.quitting {
 		return ""
 	}
 
 	if m.gettingStarted {
-		out = "Within this guided setup flow, you'll be creating a new feature flag and,\nusing the SDK of your choice, building a small sample application to see a\nfeature flag toggle on and off in real time.\n\nLet's get started!\n" + out
+		out = "Within this guided setup flow, you'll be creating a new feature flag and,\nusing the SDK of your choice, building a small sample application to see a\nfeature flag toggle on and off in real time.\n\nLet's get started!\n\n" + out
 	}
 
 	return wordwrap.String(out, m.width)

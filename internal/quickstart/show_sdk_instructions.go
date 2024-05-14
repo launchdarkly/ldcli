@@ -16,10 +16,9 @@ import (
 	"ldcli/internal/sdks"
 )
 
-const (
-	viewportWidth  = 80
-	viewportHeight = 30
-)
+// stepCountHeight is the approximate height of the current step value shown from the container and
+// is used to calculate height of viewport.
+const stepCountHeight = 4
 
 type environment struct {
 	sdkKey       string
@@ -51,6 +50,8 @@ func NewShowSDKInstructionsModel(
 	flagsClient flags.Client,
 	accessToken string,
 	baseUri string,
+	height int,
+	width int,
 	canonicalName string,
 	displayName string,
 	url string,
@@ -61,17 +62,7 @@ func NewShowSDKInstructionsModel(
 	s := spinner.New()
 	s.Spinner = spinner.Points
 
-	vp := viewport.New(viewportWidth, viewportHeight)
-	vp.Style = lipgloss.NewStyle().
-		BorderStyle(lipgloss.ThickBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		BorderTop(true).
-		BorderBottom(true).
-		PaddingRight(2)
-
-	h := help.New()
-
-	return showSDKInstructionsModel{
+	m := showSDKInstructionsModel{
 		accessToken:        accessToken,
 		baseUri:            baseUri,
 		canonicalName:      canonicalName,
@@ -80,18 +71,26 @@ func NewShowSDKInstructionsModel(
 		environment:        environment,
 		flagsClient:        flagsClient,
 		flagKey:            flagKey,
-		help:               h,
+		help:               help.New(),
 		helpKeys: keyMap{
 			Back:       BindingBack,
 			CursorDown: BindingCursorDown,
 			CursorUp:   BindingCursorUp,
 			Quit:       BindingQuit,
 		},
-		sdkKind:  sdkKind,
-		spinner:  s,
-		url:      url,
-		viewport: vp,
+		sdkKind: sdkKind,
+		spinner: s,
+		url:     url,
 	}
+
+	vp := viewport.New(
+		width,
+		m.getViewportHeight(height),
+	)
+
+	m.viewport = vp
+
+	return m
 }
 
 // Init sends commands when the model is created that will:
@@ -115,6 +114,8 @@ func (m showSDKInstructionsModel) Init() tea.Cmd {
 func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.viewport.Height = m.getViewportHeight(msg.Height)
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, pressableKeys.Enter):
@@ -130,7 +131,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				return m, sendErrMsg(err)
 			}
-			m.viewport.SetContent(md)
+			m.viewport.SetContent(m.headerView() + md)
 		}
 	case fetchedEnvMsg:
 		m.environment = &msg.environment
@@ -138,7 +139,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if err != nil {
 			return m, sendErrMsg(err)
 		}
-		m.viewport.SetContent(md)
+		m.viewport.SetContent(m.headerView() + md)
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
 	case errMsg:
@@ -159,7 +160,14 @@ func (m showSDKInstructionsModel) View() string {
 
 	m.help.ShowAll = true
 
-	instructions := fmt.Sprintf(`
+	return m.viewport.View() + m.footerView()
+}
+
+func (m showSDKInstructionsModel) headerView() string {
+	style := borderStyle().BorderBottom(true)
+
+	return style.Render(
+		fmt.Sprintf(`
 Here are the steps to set up a test app to see feature flagging in action
 using the %s SDK in your Default project & Test environment.
 
@@ -172,10 +180,21 @@ Open a new terminal window to get started.
 If you want to skip ahead, the final code is available in our GitHub repository:
 %s
 `,
-		m.displayName,
-		m.url,
+			m.displayName,
+			m.url,
+		),
 	)
-	return instructions + m.viewport.View() + "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
+}
+
+func (m showSDKInstructionsModel) footerView() string {
+	// set the width to tbe the same as the header so the borders are the same length
+	style := borderStyle().
+		BorderTop(true).
+		Width(lipgloss.Width(m.headerView()))
+
+	return style.Render(
+		"\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil),
+	)
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
@@ -187,8 +206,10 @@ func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
 		m.environment.mobileKey,
 	)
 
+	// set the width to be as long as possible to have less line wrapping in the SDK code
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(m.viewport.Width),
 	)
 	if err != nil {
 		return "", err
@@ -200,4 +221,16 @@ func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
 	}
 
 	return out, nil
+}
+
+func (m showSDKInstructionsModel) getViewportHeight(h int) int {
+	return h - lipgloss.Height(m.footerView()) - stepCountHeight
+}
+
+// borderStyle sets a border for the bottom of the headerView and the top of the footerView to show a
+// border around the SDK code.
+func borderStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		BorderForeground(lipgloss.Color("62")).
+		BorderStyle(lipgloss.ThickBorder())
 }
