@@ -231,6 +231,7 @@ func Execute(version string) {
 	if err == nil {
 		completionCmd.Long = fmt.Sprintf(`Generate the autocompletion script for %[1]s for the specified shell.
 See each command's help for details on how to use the generated script.`, rootCmd.Cmd().Name())
+		completionCmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())
 		rootCmd.Cmd().AddCommand(completionCmd)
 	}
 
