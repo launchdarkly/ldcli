@@ -90,6 +90,6 @@ func TestNewConfig(t *testing.T) {
 
 		_, err := config.NewConfig(rawConfig)
 
-		assert.EqualError(t, err, "output is invalid")
+		assert.EqualError(t, err, "output is invalid, use 'json' or 'plaintext'")
 	})
 }

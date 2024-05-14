@@ -6,7 +6,7 @@ import (
 	"ldcli/internal/errors"
 )
 
-var ErrInvalidOutputKind = errors.NewError("output is invalid")
+var ErrInvalidOutputKind = errors.NewError("output is invalid, use 'json' or 'plaintext'")
 
 type OutputKind string
 
