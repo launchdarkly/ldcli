@@ -51,6 +51,7 @@ func NewShowSDKInstructionsModel(
 	accessToken string,
 	baseUri string,
 	height int,
+	width int,
 	canonicalName string,
 	displayName string,
 	url string,
@@ -83,10 +84,9 @@ func NewShowSDKInstructionsModel(
 	}
 
 	vp := viewport.New(
-		lipgloss.Width(m.headerView()),
+		width,
 		m.getViewportHeight(height),
 	)
-	vp.Style = borderStyle().BorderBottom(true)
 
 	m.viewport = vp
 
@@ -164,7 +164,9 @@ func (m showSDKInstructionsModel) View() string {
 }
 
 func (m showSDKInstructionsModel) headerView() string {
-	return borderStyle().Render(
+	style := borderStyle().BorderBottom(true)
+
+	return style.Render(
 		fmt.Sprintf(`
 Here are the steps to set up a test app to see feature flagging in action
 using the %s SDK in your Default project & Test environment.
@@ -185,7 +187,14 @@ If you want to skip ahead, the final code is available in our GitHub repository:
 }
 
 func (m showSDKInstructionsModel) footerView() string {
-	return "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
+	// set the width to tbe the same as the header so the borders are the same length
+	style := borderStyle().
+		BorderTop(true).
+		Width(lipgloss.Width(m.headerView()))
+
+	return style.Render(
+		"\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil),
+	)
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
@@ -197,8 +206,10 @@ func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
 		m.environment.mobileKey,
 	)
 
+	// set the width to be as long as possible to have less line wrapping in the SDK code
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(m.viewport.Width),
 	)
 	if err != nil {
 		return "", err
@@ -216,11 +227,10 @@ func (m showSDKInstructionsModel) getViewportHeight(h int) int {
 	return h - lipgloss.Height(m.footerView()) - stepCountHeight
 }
 
-// borderStyle sets a border for the bottom of the headerView and the entire viewport to wrap a
-// border around the sample code.
+// borderStyle sets a border for the bottom of the headerView and the top of the footerView to show a
+// border around the SDK code.
 func borderStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
-		BorderBottom(true).
 		BorderForeground(lipgloss.Color("62")).
 		BorderStyle(lipgloss.ThickBorder())
 }
