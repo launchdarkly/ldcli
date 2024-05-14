@@ -21,7 +21,7 @@ Common resource commands:
   {{rpad "projects" 29}} List, create, and manage projects
   {{rpad "members" 29}} Invite new members to an account
   {{rpad "segments" 29}} List, create, modify, and delete segments
-  {{rpad "..." 29}} To see more resource commands, run 'ldcli resources help'
+  {{rpad "..." 29}} To see more resource commands, run 'ldcli resources'
 
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
