@@ -84,7 +84,7 @@ func NewShowSDKInstructionsModel(
 
 	vp := viewport.New(
 		lipgloss.Width(m.headerView()),
-		height-lipgloss.Height(m.footerView())-stepCountHeight,
+		m.getViewportHeight(height),
 	)
 	vp.Style = borderStyle().BorderBottom(true)
 
@@ -115,8 +115,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.viewport.Height = msg.Height - lipgloss.Height(m.footerView()) - stepCountHeight
-		// m.viewport.Width = msg.Width
+		m.viewport.Height = m.getViewportHeight(msg.Height)
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, pressableKeys.Enter):
@@ -150,6 +149,20 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m showSDKInstructionsModel) View() string {
+	if m.err != nil {
+		return footerView(m.help.View(m.helpKeys), m.err)
+	}
+
+	if m.instructions == "" || m.environment == nil {
+		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...\n", m.displayName) + footerView(m.help.View(m.helpKeys), nil)
+	}
+
+	m.help.ShowAll = true
+
+	return m.viewport.View() + m.footerView()
+}
+
 func (m showSDKInstructionsModel) headerView() string {
 	return borderStyle().Render(
 		fmt.Sprintf(`
@@ -175,20 +188,6 @@ func (m showSDKInstructionsModel) footerView() string {
 	return "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
 }
 
-func (m showSDKInstructionsModel) View() string {
-	if m.err != nil {
-		return footerView(m.help.View(m.helpKeys), m.err)
-	}
-
-	if m.instructions == "" || m.environment == nil {
-		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...\n", m.displayName) + footerView(m.help.View(m.helpKeys), nil)
-	}
-
-	m.help.ShowAll = true
-
-	return m.viewport.View() + m.footerView()
-}
-
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
 	instructions := sdks.ReplaceFlagKey(m.instructions, m.flagKey)
 	instructions = sdks.ReplaceSDKKeys(
@@ -211,6 +210,10 @@ func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
 	}
 
 	return out, nil
+}
+
+func (m showSDKInstructionsModel) getViewportHeight(h int) int {
+	return h - lipgloss.Height(m.footerView()) - stepCountHeight
 }
 
 // borderStyle sets a border for the bottom of the headerView and the entire viewport to wrap a
