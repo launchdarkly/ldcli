@@ -57,13 +57,16 @@ func runQuickStart(
 			viper.GetString(cliflags.BaseURIFlag),
 			viper.GetBool(cliflags.AnalyticsOptOut),
 		)
-		_, err = tea.NewProgram(quickstart.NewContainerModel(
-			analyticsTracker,
-			environmentsClient,
-			flagsClient,
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-		)).Run()
+		_, err = tea.NewProgram(
+			quickstart.NewContainerModel(
+				analyticsTracker,
+				environmentsClient,
+				flagsClient,
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+			),
+			tea.WithAltScreen(),
+		).Run()
 		if err != nil {
 			log.Fatal(err)
 		}

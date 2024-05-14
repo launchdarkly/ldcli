@@ -16,11 +16,6 @@ import (
 	"ldcli/internal/sdks"
 )
 
-const (
-	viewportWidth  = 80
-	viewportHeight = 30
-)
-
 type environment struct {
 	sdkKey       string
 	mobileKey    string
@@ -51,6 +46,8 @@ func NewShowSDKInstructionsModel(
 	flagsClient flags.Client,
 	accessToken string,
 	baseUri string,
+	height int,
+	width int,
 	canonicalName string,
 	displayName string,
 	url string,
@@ -61,17 +58,7 @@ func NewShowSDKInstructionsModel(
 	s := spinner.New()
 	s.Spinner = spinner.Points
 
-	vp := viewport.New(viewportWidth, viewportHeight)
-	vp.Style = lipgloss.NewStyle().
-		BorderStyle(lipgloss.ThickBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		BorderTop(true).
-		BorderBottom(true).
-		PaddingRight(2)
-
-	h := help.New()
-
-	return showSDKInstructionsModel{
+	m := showSDKInstructionsModel{
 		accessToken:        accessToken,
 		baseUri:            baseUri,
 		canonicalName:      canonicalName,
@@ -80,18 +67,32 @@ func NewShowSDKInstructionsModel(
 		environment:        environment,
 		flagsClient:        flagsClient,
 		flagKey:            flagKey,
-		help:               h,
+		help:               help.New(),
 		helpKeys: keyMap{
 			Back:       BindingBack,
 			CursorDown: BindingCursorDown,
 			CursorUp:   BindingCursorUp,
 			Quit:       BindingQuit,
 		},
-		sdkKind:  sdkKind,
-		spinner:  s,
-		url:      url,
-		viewport: vp,
+		sdkKind: sdkKind,
+		spinner: s,
+		url:     url,
 	}
+
+	vp := viewport.New(
+		width,
+		// TODO: refactor
+		height-lipgloss.Height(m.headerView())-lipgloss.Height(m.footerView()),
+	)
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(lipgloss.ThickBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		BorderTop(true).
+		BorderBottom(true)
+
+	m.viewport = vp
+
+	return m
 }
 
 // Init sends commands when the model is created that will:
@@ -123,6 +124,10 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m.viewport, cmd = m.viewport.Update(msg)
 		}
+	case tea.WindowSizeMsg:
+		headerHeight := lipgloss.Height(m.headerView())
+		footerHeight := lipgloss.Height(m.footerView())
+		m.viewport.Height = msg.Height - headerHeight - footerHeight
 	case fetchedSDKInstructionsMsg:
 		m.instructions = string(msg.instructions)
 		if m.environment != nil {
@@ -148,18 +153,8 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m showSDKInstructionsModel) View() string {
-	if m.err != nil {
-		return footerView(m.help.View(m.helpKeys), m.err)
-	}
-
-	if m.instructions == "" || m.environment == nil {
-		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...\n", m.displayName) + footerView(m.help.View(m.helpKeys), nil)
-	}
-
-	m.help.ShowAll = true
-
-	instructions := fmt.Sprintf(`
+func (m showSDKInstructionsModel) headerView() string {
+	return fmt.Sprintf(`
 Here are the steps to set up a test app to see feature flagging in action
 using the %s SDK in your Default project & Test environment.
 
@@ -175,7 +170,24 @@ If you want to skip ahead, the final code is available in our GitHub repository:
 		m.displayName,
 		m.url,
 	)
-	return instructions + m.viewport.View() + "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
+}
+
+func (m showSDKInstructionsModel) footerView() string {
+	return "\n(press enter to continue)" + footerView(m.help.View(m.helpKeys), nil)
+}
+
+func (m showSDKInstructionsModel) View() string {
+	if m.err != nil {
+		return footerView(m.help.View(m.helpKeys), m.err)
+	}
+
+	if m.instructions == "" || m.environment == nil {
+		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...\n", m.displayName) + footerView(m.help.View(m.helpKeys), nil)
+	}
+
+	m.help.ShowAll = true
+
+	return m.headerView() + m.viewport.View() + m.footerView()
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {

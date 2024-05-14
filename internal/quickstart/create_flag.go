@@ -95,7 +95,7 @@ func (m createFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m createFlagModel) View() string {
 	style := lipgloss.NewStyle().
-		MarginLeft(2)
+		MarginLeft(1)
 
 	if m.showSuccessView {
 		successMessage := fmt.Sprintf("Flag %q created successfully!", m.flag.name)
