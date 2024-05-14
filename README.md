@@ -50,7 +50,7 @@ Available `config` commands:
 To save a setting as an environment variable, prepend the variable name with `LD`. For example:
 
 ```shell
-export LD_ACCESS_TOKEN api-00000000-0000-0000-0000-000000000000
+export LD_ACCESS_TOKEN=api-00000000-0000-0000-0000-000000000000
 ```
 
 To save a setting in the configuration file:
