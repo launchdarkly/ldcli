@@ -80,15 +80,11 @@ func NewShowSDKInstructionsModel(
 	}
 
 	vp := viewport.New(
-		width,
-		// TODO: refactor
-		height-lipgloss.Height(m.headerView())-lipgloss.Height(m.footerView()),
+		lipgloss.Width(m.headerView()),
+		// total screen height minus the footer and the step count set in the container
+		height-lipgloss.Height(m.footerView())-4,
 	)
-	vp.Style = lipgloss.NewStyle().
-		BorderStyle(lipgloss.ThickBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		BorderTop(true).
-		BorderBottom(true)
+	vp.Style = borderStyle().BorderBottom(true)
 
 	m.viewport = vp
 
@@ -124,10 +120,6 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m.viewport, cmd = m.viewport.Update(msg)
 		}
-	case tea.WindowSizeMsg:
-		headerHeight := lipgloss.Height(m.headerView())
-		footerHeight := lipgloss.Height(m.footerView())
-		m.viewport.Height = msg.Height - headerHeight - footerHeight
 	case fetchedSDKInstructionsMsg:
 		m.instructions = string(msg.instructions)
 		if m.environment != nil {
@@ -135,7 +127,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				return m, sendErrMsg(err)
 			}
-			m.viewport.SetContent(md)
+			m.viewport.SetContent(m.headerView() + md)
 		}
 	case fetchedEnvMsg:
 		m.environment = &msg.environment
@@ -143,7 +135,7 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if err != nil {
 			return m, sendErrMsg(err)
 		}
-		m.viewport.SetContent(md)
+		m.viewport.SetContent(m.headerView() + md)
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
 	case errMsg:
@@ -154,7 +146,8 @@ func (m showSDKInstructionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m showSDKInstructionsModel) headerView() string {
-	return fmt.Sprintf(`
+	return borderStyle().Render(
+		fmt.Sprintf(`
 Here are the steps to set up a test app to see feature flagging in action
 using the %s SDK in your Default project & Test environment.
 
@@ -167,8 +160,9 @@ Open a new terminal window to get started.
 If you want to skip ahead, the final code is available in our GitHub repository:
 %s
 `,
-		m.displayName,
-		m.url,
+			m.displayName,
+			m.url,
+		),
 	)
 }
 
@@ -187,7 +181,7 @@ func (m showSDKInstructionsModel) View() string {
 
 	m.help.ShowAll = true
 
-	return m.headerView() + m.viewport.View() + m.footerView()
+	return m.viewport.View() + m.footerView()
 }
 
 func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
@@ -212,4 +206,13 @@ func (m showSDKInstructionsModel) renderMarkdown() (string, error) {
 	}
 
 	return out, nil
+}
+
+// borderStyle sets a border for the bottom of the headerView and the entire viewport to wrap a
+// border around the sample code.
+func borderStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		BorderBottom(true).
+		BorderForeground(lipgloss.Color("62")).
+		BorderStyle(lipgloss.ThickBorder())
 }
