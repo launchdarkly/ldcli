@@ -5,6 +5,7 @@ Supported settings:
 - `analytics-opt-out`: Opt out of analytics tracking
 - `base-uri`: LaunchDarkly base URI
 - `output`: Command response output format in either JSON or plain text
+- `project`: Default project key
 
 Usage:
   ldcli config [flags]

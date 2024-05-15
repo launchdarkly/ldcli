@@ -69,6 +69,7 @@ func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 			cliflags.AnalyticsOptOut,
 			cliflags.BaseURIFlag,
 			cliflags.OutputFlag,
+			cliflags.ProjectFlag,
 		} {
 			sb.WriteString(fmt.Sprintf("- `%s`: %s\n", s, cliflags.AllFlagsHelp()[s]))
 		}

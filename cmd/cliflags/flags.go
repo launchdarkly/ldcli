@@ -18,6 +18,7 @@ const (
 	AnalyticsOptOutDescription = "Opt out of analytics tracking"
 	BaseURIFlagDescription     = "LaunchDarkly base URI"
 	OutputFlagDescription      = "Command response output format in either JSON or plain text"
+	ProjectFlagDescription     = "Default project key"
 )
 
 func AllFlagsHelp() map[string]string {
@@ -26,5 +27,6 @@ func AllFlagsHelp() map[string]string {
 		AnalyticsOptOut: AnalyticsOptOutDescription,
 		BaseURIFlag:     BaseURIFlagDescription,
 		OutputFlag:      OutputFlagDescription,
+		ProjectFlag:     ProjectFlagDescription,
 	}
 }

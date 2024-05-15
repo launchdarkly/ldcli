@@ -92,4 +92,17 @@ func TestNewConfig(t *testing.T) {
 
 		assert.EqualError(t, err, "output is invalid, use 'json' or 'plaintext'")
 	})
+
+	t.Run("project", func(t *testing.T) {
+		t.Run("sets the given value", func(t *testing.T) {
+			rawConfig := map[string]interface{}{
+				"project": "test-project-key",
+			}
+
+			configFile, err := config.NewConfig(rawConfig)
+
+			require.NoError(t, err)
+			assert.Equal(t, "test-project-key", configFile.Project)
+		})
+	})
 }
