@@ -64,16 +64,9 @@ func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 
 		var sb strings.Builder
 		sb.WriteString("\n\nSupported settings:\n")
-		for _, s := range []string{
-			cliflags.AccessTokenFlag,
-			cliflags.AnalyticsOptOut,
-			cliflags.BaseURIFlag,
-			cliflags.EnvironmentFlag,
-			cliflags.FlagFlag,
-			cliflags.OutputFlag,
-			cliflags.ProjectFlag,
-		} {
-			sb.WriteString(fmt.Sprintf("- `%s`: %s\n", s, cliflags.AllFlagsHelp()[s]))
+
+		for flag, description := range cliflags.AllFlagsHelp() {
+			sb.WriteString(fmt.Sprintf("- `%s`: %s\n", flag, description))
 		}
 		cmd.Long += sb.String()
 
