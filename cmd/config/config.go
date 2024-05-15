@@ -159,15 +159,9 @@ func run() func(*cobra.Command, []string) error {
 				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
-			fields := struct {
-				Items []string `json:"items"`
-			}{
-				Items: newFields,
-			}
-			fieldsJSON, _ := json.Marshal(fields)
-			output, err := output.CmdOutput("update", viper.GetString(cliflags.OutputFlag), fieldsJSON)
+			output, err := outputSetAction(newFields)
 			if err != nil {
-				return errors.NewError(err.Error())
+				return err
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
@@ -192,16 +186,11 @@ func run() func(*cobra.Command, []string) error {
 				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
-			fields := struct {
-				Key string `json:"key"`
-			}{
-				Key: viper.GetString(UnsetFlag),
-			}
-			fieldsJSON, _ := json.Marshal(fields)
-			output, err := output.CmdOutput("delete", viper.GetString(cliflags.OutputFlag), fieldsJSON)
+			output, err := outputUnsetAction(viper.GetString(UnsetFlag))
 			if err != nil {
-				return errors.NewError(err.Error())
+				return err
 			}
+
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 		default:
 			return cmd.Help()
@@ -329,4 +318,34 @@ func writeAlphabetizedFlags(sb *strings.Builder) {
 	for _, flag := range flags {
 		sb.WriteString(fmt.Sprintf("- `%s`: %s\n", flag, cliflags.AllFlagsHelp()[flag]))
 	}
+}
+
+func outputSetAction(newFields []string) (string, error) {
+	fields := struct {
+		Items []string `json:"items"`
+	}{
+		Items: newFields,
+	}
+	fieldsJSON, _ := json.Marshal(fields)
+	output, err := output.CmdOutput("update", viper.GetString(cliflags.OutputFlag), fieldsJSON)
+	if err != nil {
+		return "", errors.NewError(err.Error())
+	}
+
+	return output, nil
+}
+
+func outputUnsetAction(newField string) (string, error) {
+	field := struct {
+		Key string `json:"key"`
+	}{
+		Key: newField,
+	}
+	fieldJSON, _ := json.Marshal(field)
+	output, err := output.CmdOutput("delete", viper.GetString(cliflags.OutputFlag), fieldJSON)
+	if err != nil {
+		return "", errors.NewError(err.Error())
+	}
+
+	return output, nil
 }
