@@ -12,7 +12,6 @@ import (
 
 // we have certain tags that aren't a 1:1 match to their operation id names
 var mapTagToSchemaName = map[string]string{
-	"Access tokens":                       "Tokens",
 	"Account members":                     "Members",
 	"Approvals":                           "Approval requests",
 	"Code references":                     "Code refs",
@@ -42,6 +41,7 @@ var mapOperationIdToCmdUse = map[string]string{
 	"deleteFlagFollowers":              "delete",
 	"deleteRelayAutoConfig":            "delete",
 	"deleteSubscription":               "delete",
+	"deleteToken":                      "delete",
 	"deleteTriggerWorkflow":            "delete",
 	"getAllWebhooks":                   "list",
 	"getAuditLogEntries":               "list",
@@ -59,20 +59,25 @@ var mapOperationIdToCmdUse = map[string]string{
 	"getSearchUsers":                   "search",
 	"getSubscriptionByID":              "get",
 	"getSubscriptions":                 "list",
+	"getToken":                         "get",
+	"getTokens":                        "list",
 	"getTriggerWorkflowById":           "get",
 	"getTriggerWorkflows":              "list",
 	"patchDestination":                 "update",
 	"patchExpiringFlagsForUser":        "update-expiring",
 	"patchFlagConfigScheduledChange":   "update",
 	"patchRelayAutoConfig":             "update",
+	"patchToken":                       "update",
 	"patchTriggerWorkflow":             "update",
 	"postDestination":                  "create",
 	"postFlagConfigScheduledChanges":   "create",
 	"postRelayAutoConfig":              "create",
+	"postToken":                        "create",
 	"putContextFlagSetting":            "replace",
 	"putFlagFollowers":                 "replace",
 	"putFlagSetting":                   "replace",
 	"resetRelayAutoConfig":             "reset",
+	"resetToken":                       "reset",
 	"updateSubscription":               "update",
 }
 

@@ -16,6 +16,13 @@ func AddAllResourceCmds(
 ) {
 	// Resource commands
 
+	gen_AccessTokensResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"access-tokens",
+		"The access tokens API allows you to list, create, modify, and delete access tokens programmatically. \n\nWhen using access tokens to manage access tokens, the following restrictions apply:\n- Personal tokens can see all service tokens and other personal tokens created by the same team member. If the personal token has the \"Admin\" role, it may also see other member's personal tokens. To learn more, read [Personal tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens#personal-tokens).\n- Service tokens can see all service tokens. If the token has the \"Admin\" role, it may also see all personal tokens. To learn more, read  [Service tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens#service-tokens).\n- Tokens can only manage other tokens, including themselves, if they have \"Admin\" role or explicit permission via a custom role. To learn more, read [Personal access token actions](https://docs.launchdarkly.com/home/team/role-actions#personal-access-token-actions).\n\nSeveral of the endpoints in the access tokens API require an access token ID. The access token ID is returned as part of the [Create access token](/tag/Access-tokens#operation/resetToken) and [List access tokens](/tag/Access-tokens#operation/getTokens) responses. It is the `_id` field, or the `_id` field of each element in the `items` array. \n\nTo learn more about access tokens, read [API access tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens).\n",
+	)
+
 	gen_ApprovalRequestsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
@@ -156,13 +163,6 @@ func AddAllResourceCmds(
 		"\u003e ### Teams is an Enterprise feature\n\u003e\n\u003e Teams is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nA team is a group of members in your LaunchDarkly account. A team can have maintainers who are able to add and remove team members. It also can have custom roles assigned to it that allows shared access to those roles for all team members. To learn more, read [Teams](https://docs.launchdarkly.com/home/teams).\n\nThe Teams API allows you to create, read, update, and delete a team.\n\nSeveral of the endpoints in the Teams API require one or more member IDs. The member ID is returned as part of the [List account members](/tag/Account-members#operation/getMembers) response. It is the `_id` field of each element in the `items` array.\n",
 	)
 
-	gen_TokensResourceCmd := NewResourceCmd(
-		rootCmd,
-		analyticsTrackerFn,
-		"tokens",
-		"The access tokens API allows you to list, create, modify, and delete access tokens programmatically. \n\nWhen using access tokens to manage access tokens, the following restrictions apply:\n- Personal tokens can see all service tokens and other personal tokens created by the same team member. If the personal token has the \"Admin\" role, it may also see other member's personal tokens. To learn more, read [Personal tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens#personal-tokens).\n- Service tokens can see all service tokens. If the token has the \"Admin\" role, it may also see all personal tokens. To learn more, read  [Service tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens#service-tokens).\n- Tokens can only manage other tokens, including themselves, if they have \"Admin\" role or explicit permission via a custom role. To learn more, read [Personal access token actions](https://docs.launchdarkly.com/home/team/role-actions#personal-access-token-actions).\n\nSeveral of the endpoints in the access tokens API require an access token ID. The access token ID is returned as part of the [Create access token](/tag/Access-tokens#operation/resetToken) and [List access tokens](/tag/Access-tokens#operation/getTokens) responses. It is the `_id` field, or the `_id` field of each element in the `items` array. \n\nTo learn more about access tokens, read [API access tokens](https://docs.launchdarkly.com/home/account-security/api-access-tokens).\n",
-	)
-
 	gen_WebhooksResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
@@ -185,6 +185,131 @@ func AddAllResourceCmds(
 	)
 
 	// Operation commands
+
+	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
+		Short: "Delete access token",
+		Long:  "Delete an access token by ID.",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the access token to update",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/tokens/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
+		Short: "Get access token",
+		Long:  "Get a single access token by ID.",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the access token",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/tokens/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
+		Short: "List access tokens",
+		Long:  "Fetch a list of all access tokens.",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "show-all",
+				In:          "query",
+				Description: "If set to true, and the authentication access token has the 'Admin' role, personal access tokens for all members will be retrieved.",
+				Type:        "boolean",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The number of access tokens to return in the response. Defaults to 25.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/tokens",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
+		Short: "Patch access token",
+		Long:  "Update an access token's settings. Updating an access token uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the access token to update",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/tokens/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
+		Short:                 "Create access token",
+		Long:                  "Create a new access token.",
+		Use:                   "create",
+		Params:                []Param{},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/tokens",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccessTokensResourceCmd, client, OperationData{
+		Short: "Reset access token",
+		Long:  "Reset an access token's secret key with an optional expiry time for the old key.",
+		Use:   "reset",
+		Params: []Param{
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The ID of the access token to update",
+				Type:        "string",
+			},
+			{
+				Name:        "expiry",
+				In:          "query",
+				Description: "An expiration time for the old token key, expressed as a Unix epoch time in milliseconds. By default, the token will expire immediately.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/tokens/{id}/reset",
+		SupportsSemanticPatch: false,
+	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, OperationData{
 		Short: "Delete approval request",
@@ -4103,131 +4228,6 @@ func AddAllResourceCmds(
 		HasBody:               true,
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams/{teamKey}/members",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
-		Short: "Delete access token",
-		Long:  "Delete an access token by ID.",
-		Use:   "delete",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The ID of the access token to update",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "DELETE",
-		HasBody:               false,
-		RequiresBody:          false,
-		Path:                  "/api/v2/tokens/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
-		Short: "Get access token",
-		Long:  "Get a single access token by ID.",
-		Use:   "get",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The ID of the access token",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "GET",
-		HasBody:               false,
-		RequiresBody:          false,
-		Path:                  "/api/v2/tokens/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
-		Short: "List access tokens",
-		Long:  "Fetch a list of all access tokens.",
-		Use:   "list",
-		Params: []Param{
-			{
-				Name:        "show-all",
-				In:          "query",
-				Description: "If set to true, and the authentication access token has the 'Admin' role, personal access tokens for all members will be retrieved.",
-				Type:        "boolean",
-			},
-			{
-				Name:        "limit",
-				In:          "query",
-				Description: "The number of access tokens to return in the response. Defaults to 25.",
-				Type:        "integer",
-			},
-			{
-				Name:        "offset",
-				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
-				Type:        "integer",
-			},
-		},
-		HTTPMethod:            "GET",
-		HasBody:               false,
-		RequiresBody:          false,
-		Path:                  "/api/v2/tokens",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
-		Short: "Patch access token",
-		Long:  "Update an access token's settings. Updating an access token uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
-		Use:   "update",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The ID of the access token to update",
-				Type:        "string",
-			},
-		},
-		HTTPMethod:            "PATCH",
-		HasBody:               true,
-		RequiresBody:          true,
-		Path:                  "/api/v2/tokens/{id}",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
-		Short:                 "Create access token",
-		Long:                  "Create a new access token.",
-		Use:                   "create",
-		Params:                []Param{},
-		HTTPMethod:            "POST",
-		HasBody:               true,
-		RequiresBody:          true,
-		Path:                  "/api/v2/tokens",
-		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_TokensResourceCmd, client, OperationData{
-		Short: "Reset access token",
-		Long:  "Reset an access token's secret key with an optional expiry time for the old key.",
-		Use:   "reset",
-		Params: []Param{
-			{
-				Name:        "id",
-				In:          "path",
-				Description: "The ID of the access token to update",
-				Type:        "string",
-			},
-			{
-				Name:        "expiry",
-				In:          "query",
-				Description: "An expiration time for the old token key, expressed as a Unix epoch time in milliseconds. By default, the token will expire immediately.",
-				Type:        "integer",
-			},
-		},
-		HTTPMethod:            "POST",
-		HasBody:               false,
-		RequiresBody:          false,
-		Path:                  "/api/v2/tokens/{id}/reset",
 		SupportsSemanticPatch: false,
 	})
 
