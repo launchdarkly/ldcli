@@ -136,16 +136,14 @@ func run() func(*cobra.Command, []string) error {
 			}
 
 			// add arg pairs to config where each argument is --set arg1 val1 --set arg2 val2
+			newFields := make([]string, 0)
 			for i, a := range args {
 				if i%2 == 0 {
 					rawConfig[a] = struct{}{}
+					newFields = append(newFields, a)
 				} else {
 					rawConfig[args[i-1]] = a
 				}
-			}
-
-			setKeyFn := func(key string, value interface{}, v *viper.Viper) {
-				v.Set(key, value)
 			}
 
 			configFile, err := config.NewConfig(rawConfig)
@@ -153,10 +151,26 @@ func run() func(*cobra.Command, []string) error {
 				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
+			setKeyFn := func(key string, value interface{}, v *viper.Viper) {
+				v.Set(key, value)
+			}
 			err = writeConfig(configFile, v, setKeyFn)
 			if err != nil {
 				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
+
+			fields := struct {
+				Items []string `json:"items"`
+			}{
+				Items: newFields,
+			}
+			fieldsJSON, _ := json.Marshal(fields)
+			output, err := output.CmdOutput("update", viper.GetString(cliflags.OutputFlag), fieldsJSON)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 		case viper.IsSet(UnsetFlag):
 			_, ok := cliflags.AllFlagsHelp()[viper.GetString(UnsetFlag)]
 			if !ok {
