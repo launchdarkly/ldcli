@@ -179,7 +179,7 @@ func run() func(*cobra.Command, []string) error {
 
 			config, v, err := getConfig()
 			if err != nil {
-				return err
+				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
 			unsetKeyFn := func(key string, value interface{}, v *viper.Viper) {
@@ -187,13 +187,22 @@ func run() func(*cobra.Command, []string) error {
 					v.Set(key, value)
 				}
 			}
-
-			// TODO: show successful output
-
 			err = writeConfig(config, v, unsetKeyFn)
 			if err != nil {
-				return err
+				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
+
+			fields := struct {
+				Key string `json:"key"`
+			}{
+				Key: viper.GetString(UnsetFlag),
+			}
+			fieldsJSON, _ := json.Marshal(fields)
+			output, err := output.CmdOutput("delete", viper.GetString(cliflags.OutputFlag), fieldsJSON)
+			if err != nil {
+				return errors.NewError(err.Error())
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 		default:
 			return cmd.Help()
 		}
