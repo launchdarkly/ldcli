@@ -39,7 +39,10 @@ Supported settings:
 * `access-token` A LaunchDarkly access token with write-level access
 * `analytics-opt-out` Opt out of analytics tracking (default false)
 * `base-uri` LaunchDarkly base URI (default "https://app.launchdarkly.com")
-* `output` Command response output format in either JSON or plain text
+- `environment`: Default environment key
+- `flag`: Default feature flag key
+- `output`: Command response output format in either JSON or plain text
+- `project`: Default project key
 
 Available `config` commands:
 
