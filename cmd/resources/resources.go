@@ -188,6 +188,7 @@ func NewResources(tags openapi3.Tags) map[string]ResourceData {
 
 func shouldFilter(name string) bool {
 	return strings.Contains(name, "(beta)") ||
+		strings.Contains(name, "User") ||
 		strings.ToLower(name) == "other" ||
 		strings.ToLower(name) == "oauth2 clients"
 }
