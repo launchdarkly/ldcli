@@ -4,6 +4,8 @@ Supported settings:
 - `access-token`: LaunchDarkly access token with write-level access
 - `analytics-opt-out`: Opt out of analytics tracking
 - `base-uri`: LaunchDarkly base URI
+- `environment`: Default environment key
+- `flag`: Default feature flag key
 - `output`: Command response output format in either JSON or plain text
 - `project`: Default project key
 

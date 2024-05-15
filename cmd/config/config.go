@@ -68,6 +68,8 @@ func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 			cliflags.AccessTokenFlag,
 			cliflags.AnalyticsOptOut,
 			cliflags.BaseURIFlag,
+			cliflags.EnvironmentFlag,
+			cliflags.FlagFlag,
 			cliflags.OutputFlag,
 			cliflags.ProjectFlag,
 		} {

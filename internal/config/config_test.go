@@ -93,16 +93,42 @@ func TestNewConfig(t *testing.T) {
 		assert.EqualError(t, err, "output is invalid, use 'json' or 'plaintext'")
 	})
 
-	t.Run("project", func(t *testing.T) {
+	t.Run("environment", func(t *testing.T) {
 		t.Run("sets the given value", func(t *testing.T) {
 			rawConfig := map[string]interface{}{
-				"project": "test-project-key",
+				"environment": "test-key",
 			}
 
 			configFile, err := config.NewConfig(rawConfig)
 
 			require.NoError(t, err)
-			assert.Equal(t, "test-project-key", configFile.Project)
+			assert.Equal(t, "test-key", configFile.Environment)
+		})
+	})
+
+	t.Run("flag", func(t *testing.T) {
+		t.Run("sets the given value", func(t *testing.T) {
+			rawConfig := map[string]interface{}{
+				"flag": "test-key",
+			}
+
+			configFile, err := config.NewConfig(rawConfig)
+
+			require.NoError(t, err)
+			assert.Equal(t, "test-key", configFile.Flag)
+		})
+	})
+
+	t.Run("project", func(t *testing.T) {
+		t.Run("sets the given value", func(t *testing.T) {
+			rawConfig := map[string]interface{}{
+				"project": "test-key",
+			}
+
+			configFile, err := config.NewConfig(rawConfig)
+
+			require.NoError(t, err)
+			assert.Equal(t, "test-key", configFile.Project)
 		})
 	})
 }
