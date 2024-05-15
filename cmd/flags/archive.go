@@ -17,9 +17,9 @@ import (
 func NewArchiveCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
-		Long:  "Archive a feature flag on",
+		Long:  "Archive a flag across all environments. It will only appear in your list when filtered for.",
 		RunE:  makeArchiveRequest(client),
-		Short: "Archive a feature flag on",
+		Short: "Archive a feature flag",
 		Use:   "archive",
 	}
 
