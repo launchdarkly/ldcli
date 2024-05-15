@@ -132,11 +132,10 @@ func run() func(*cobra.Command, []string) error {
 
 			rawConfig, v, err := getRawConfig()
 			if err != nil {
-				return err
+				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
-			// add arg pairs to config
-			// where each argument is --set arg1 val1 --set arg2 val2
+			// add arg pairs to config where each argument is --set arg1 val1 --set arg2 val2
 			for i, a := range args {
 				if i%2 == 0 {
 					rawConfig[a] = struct{}{}
@@ -151,10 +150,13 @@ func run() func(*cobra.Command, []string) error {
 
 			configFile, err := config.NewConfig(rawConfig)
 			if err != nil {
-				return errors.NewError(err.Error())
+				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
-			return writeConfig(configFile, v, setKeyFn)
+			err = writeConfig(configFile, v, setKeyFn)
+			if err != nil {
+				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+			}
 		case viper.IsSet(UnsetFlag):
 			_, ok := cliflags.AllFlagsHelp()[viper.GetString(UnsetFlag)]
 			if !ok {
@@ -292,7 +294,7 @@ func newErr(flag string) error {
 		),
 	)
 
-	return errors.NewError(output.CmdOutputError(flag, err))
+	return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 }
 
 func writeAlphabetizedFlags(sb *strings.Builder) {
