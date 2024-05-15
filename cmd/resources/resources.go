@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/iancoleman/strcase"
 	"github.com/spf13/cobra"
@@ -34,8 +35,7 @@ Use "ldcli [command] --help" for more information about a command.
 
 func NewResourcesCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "resources",
-		//Args:  validators.NoArgs,
+		Use:   "resources",
 		Short: "List resource commands",
 	}
 	cmd.SetHelpTemplate(getResourcesHelpTemplate())
@@ -200,7 +200,7 @@ func NewResourceCmd(
 ) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:  resourceName,
-		Long: longDescription,
+		Long: asMarkdown(longDescription),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			tracker := analyticsTrackerFn(
 				viper.GetString(cliflags.AccessTokenFlag),
@@ -351,7 +351,7 @@ func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op Opera
 
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
-		Long:  op.Long,
+		Long:  asMarkdown(op.Long),
 		RunE:  opCmd.makeRequest,
 		Short: op.Short,
 		Use:   op.Use,
@@ -402,4 +402,22 @@ Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
+}
+
+func asMarkdown(s string) string {
+	renderer, _ := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(0),
+		// remove default margin
+		glamour.WithStylesFromJSONBytes([]byte(
+			`{
+				"document": {
+					"margin": 0
+				}
+			}`,
+		)),
+	)
+	md, _ := renderer.Render(s)
+
+	return md
 }
