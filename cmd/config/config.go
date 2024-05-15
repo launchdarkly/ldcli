@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -64,14 +65,7 @@ func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 
 		var sb strings.Builder
 		sb.WriteString("\n\nSupported settings:\n")
-		for _, s := range []string{
-			cliflags.AccessTokenFlag,
-			cliflags.AnalyticsOptOut,
-			cliflags.BaseURIFlag,
-			cliflags.OutputFlag,
-		} {
-			sb.WriteString(fmt.Sprintf("- `%s`: %s\n", s, cliflags.AllFlagsHelp()[s]))
-		}
+		writeAlphabetizedFlags(&sb)
 		cmd.Long += sb.String()
 
 		analyticsTrackerFn(
@@ -299,4 +293,15 @@ func newErr(flag string) error {
 	)
 
 	return errors.NewError(output.CmdOutputError(flag, err))
+}
+
+func writeAlphabetizedFlags(sb *strings.Builder) {
+	flags := make([]string, 0, len(cliflags.AllFlagsHelp()))
+	for f := range cliflags.AllFlagsHelp() {
+		flags = append(flags, f)
+	}
+	sort.Strings(flags)
+	for _, flag := range flags {
+		sb.WriteString(fmt.Sprintf("- `%s`: %s\n", flag, cliflags.AllFlagsHelp()[flag]))
+	}
 }

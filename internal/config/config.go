@@ -20,7 +20,10 @@ type ConfigFile struct {
 	AccessToken     string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
 	AnalyticsOptOut *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
 	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
+	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
+	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
+	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
 }
 
 func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
@@ -28,8 +31,11 @@ func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
 		accessToken     string
 		analyticsOptOut bool
 		baseURI         string
+		environment     string
 		err             error
+		flag            string
 		outputKind      output.OutputKind
+		project         string
 	)
 	if rawConfig[cliflags.AccessTokenFlag] != nil {
 		accessToken = rawConfig[cliflags.AccessTokenFlag].(string)
@@ -44,18 +50,30 @@ func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
 	if rawConfig[cliflags.BaseURIFlag] != nil {
 		baseURI = rawConfig[cliflags.BaseURIFlag].(string)
 	}
+	if rawConfig[cliflags.EnvironmentFlag] != nil {
+		environment = rawConfig[cliflags.EnvironmentFlag].(string)
+	}
+	if rawConfig[cliflags.FlagFlag] != nil {
+		flag = rawConfig[cliflags.FlagFlag].(string)
+	}
 	if rawConfig[cliflags.OutputFlag] != nil {
 		outputKind, err = output.NewOutputKind(rawConfig[cliflags.OutputFlag].(string))
 		if err != nil {
 			return ConfigFile{}, err
 		}
 	}
+	if rawConfig[cliflags.ProjectFlag] != nil {
+		project = rawConfig[cliflags.ProjectFlag].(string)
+	}
 
 	return ConfigFile{
 		AccessToken:     accessToken,
 		AnalyticsOptOut: &analyticsOptOut,
 		BaseURI:         baseURI,
+		Environment:     environment,
+		Flag:            flag,
 		Output:          outputKind.String(),
+		Project:         project,
 	}, nil
 }
 
