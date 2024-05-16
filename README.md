@@ -12,9 +12,6 @@ With the CLI, you can:
 - Onboard your whole team by inviting new members.
 - Interact with the [LaunchDarkly API](https://apidocs.launchdarkly.com/) using resource- and CRUD-based commands.
 
-> [!CAUTION]
-> This package is prerelease and experimental. It should not be used in production and is not yet supported.
-
 ## Installation
 
 The LaunchDarkly CLI is available for macOS, Windows, and Linux.
