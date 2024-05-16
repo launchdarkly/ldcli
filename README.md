@@ -14,7 +14,36 @@ With the CLI, you can:
 
 ## Installation
 
-The LaunchDarkly CLI will soon be available for macOS, Windows, and Linux.
+The LaunchDarkly CLI is available for macOS, Windows, and Linux.
+
+### macOS
+The CLI is available on macOS via [Homebrew](https://brew.sh/):
+```shell
+brew tap launchdarkly/homebrew-tap
+brew install ldcli
+```
+
+### Windows
+A Windows executable of `ldcli` is available on the [releases page](https://github.com/launchdarkly/ldcli/releases).
+
+### Linux
+_Coming soon._
+
+### Additional installations
+
+You can also install the LaunchDarkly CLI using npm or Docker.
+
+#### npm
+Install with npm:
+```shell
+npm -g @launchdarkly/ldcli
+```
+
+#### Docker
+Pull from Docker:
+```shell
+docker pull launchdarkly/ldcli
+```
 
 ## Usage
 
