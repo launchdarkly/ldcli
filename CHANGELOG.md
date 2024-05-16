@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.0](https://github.com/launchdarkly/ldcli/compare/v0.13.0...v1.0.0) (2024-05-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* manual update of openapi docs and generated cmds
+
+### Features
+
+* add archive flag cmd ([#287](https://github.com/launchdarkly/ldcli/issues/287)) ([1c6f55b](https://github.com/launchdarkly/ldcli/commit/1c6f55b7081bf115497ece015427f1349050d2b6))
+* config feedback ([#292](https://github.com/launchdarkly/ldcli/issues/292)) ([0268ab6](https://github.com/launchdarkly/ldcli/commit/0268ab63eb5bc9fcc8234837b6b18c35ee8d9f6c))
+* manual update of openapi docs and generated cmds ([65d5caf](https://github.com/launchdarkly/ldcli/commit/65d5caf652ce27d60e22202e5d7fecf8f3449b66))
+* support default resources in config ([#286](https://github.com/launchdarkly/ldcli/issues/286)) ([afa9142](https://github.com/launchdarkly/ldcli/commit/afa9142fc53aaab56860bf493455f6acd3e68559))
+
+
+### Bug Fixes
+
+* completion cmd usage & short description ([#281](https://github.com/launchdarkly/ldcli/issues/281)) ([362b23c](https://github.com/launchdarkly/ldcli/commit/362b23cf5f543c28c75d9cd157a8b0f35009b94f))
+
 ## [0.13.0](https://github.com/launchdarkly/ldcli/compare/v0.12.1...v0.13.0) (2024-05-14)
 
 
