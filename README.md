@@ -29,7 +29,9 @@ A Windows executable of `ldcli` is available on the [releases page](https://gith
 ### Linux
 _Coming soon._
 
-### Additional installations:
+### Additional installations
+
+You can also install the LaunchDarkly CLI using npm or Docker.
 
 #### npm
 Install with npm:
