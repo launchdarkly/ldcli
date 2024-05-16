@@ -2,7 +2,6 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "release-as": "1.0.0",
       "versioning": "default",
       "extra-files": [
         "PROVENANCE.md",
