@@ -11,12 +11,12 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
-	cmdAnalytics "ldcli/cmd/analytics"
-	"ldcli/cmd/cliflags"
-	"ldcli/internal/analytics"
-	"ldcli/internal/config"
-	"ldcli/internal/errors"
-	"ldcli/internal/output"
+	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/config"
+	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/output"
 )
 
 const (

@@ -10,7 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	errs "ldcli/internal/errors"
+	errs "github.com/launchdarkly/ldcli/internal/errors"
 )
 
 // CmdOutput returns a response from a resource action formatted based on the output flag along with

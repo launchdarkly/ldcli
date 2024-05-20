@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"ldcli/cmd"
-	"ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/cmd"
+	"github.com/launchdarkly/ldcli/internal/analytics"
 )
 
 func TestNoFlag(t *testing.T) {

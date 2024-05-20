@@ -7,8 +7,8 @@ import (
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 
-	"ldcli/internal/client"
-	"ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/client"
+	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
 type UpdateInput struct {

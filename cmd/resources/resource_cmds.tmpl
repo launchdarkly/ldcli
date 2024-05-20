@@ -5,8 +5,8 @@ package resources
 import (
 	"github.com/spf13/cobra"
 
-	"ldcli/internal/analytics"
-	"ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 func AddAllResourceCmds(

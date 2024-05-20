@@ -1,7 +1,7 @@
 package analytics
 
 import (
-	"ldcli/cmd/cliflags"
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

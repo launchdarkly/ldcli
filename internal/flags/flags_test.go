@@ -2,7 +2,7 @@ package flags_test
 
 import (
 	"fmt"
-	"ldcli/internal/flags"
+	"github.com/launchdarkly/ldcli/internal/flags"
 	"strings"
 	"testing"
 

@@ -8,11 +8,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"ldcli/internal/analytics"
-	"ldcli/internal/environments"
-	"ldcli/internal/errors"
-	"ldcli/internal/flags"
-	"ldcli/internal/sdks"
+	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/environments"
+	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/flags"
+	"github.com/launchdarkly/ldcli/internal/sdks"
 )
 
 // errMsg is sent when there is an error in one of the steps that the container model needs to

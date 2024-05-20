@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/analytics"
 )
 
 var StubbedSuccessResponse = `{

@@ -1,8 +1,8 @@
 package cmd_test
 
 import (
-	"ldcli/cmd"
-	"ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/cmd"
+	"github.com/launchdarkly/ldcli/internal/analytics"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

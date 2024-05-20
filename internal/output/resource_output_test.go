@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"ldcli/internal/errors"
-	"ldcli/internal/output"
+	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/output"
 )
 
 func TestCmdOutput(t *testing.T) {

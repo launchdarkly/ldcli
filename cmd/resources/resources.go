@@ -15,13 +15,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	cmdAnalytics "ldcli/cmd/analytics"
-	"ldcli/cmd/cliflags"
-	"ldcli/cmd/validators"
-	"ldcli/internal/analytics"
-	"ldcli/internal/errors"
-	"ldcli/internal/output"
-	"ldcli/internal/resources"
+	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	"github.com/launchdarkly/ldcli/cmd/validators"
+	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/output"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 func getResourcesHelpTemplate() string {

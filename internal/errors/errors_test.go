@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	errs "ldcli/internal/errors"
+	errs "github.com/launchdarkly/ldcli/internal/errors"
 )
 
 func TestAPIError(t *testing.T) {

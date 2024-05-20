@@ -1,7 +1,7 @@
 package flags
 
 import (
-	"ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/errors"
 	"regexp"
 	"strings"
 )

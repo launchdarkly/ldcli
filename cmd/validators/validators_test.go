@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"ldcli/cmd/validators"
+	"github.com/launchdarkly/ldcli/cmd/validators"
 )
 
 func TestCmdError(t *testing.T) {
