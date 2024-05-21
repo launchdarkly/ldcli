@@ -232,6 +232,10 @@ func (op *OperationCmd) initFlags() error {
 			if err != nil {
 				return err
 			}
+			err = op.cmd.Flags().SetAnnotation(cliflags.DataFlag, "required", []string{"true"})
+			if err != nil {
+				return err
+			}
 		}
 		err := viper.BindPFlag(cliflags.DataFlag, op.cmd.Flags().Lookup(cliflags.DataFlag))
 		if err != nil {
