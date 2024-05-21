@@ -36,7 +36,7 @@ You can also install the LaunchDarkly CLI using npm or Docker.
 #### npm
 Install with npm:
 ```shell
-npm -g @launchdarkly/ldcli
+npm install -g @launchdarkly/ldcli
 ```
 
 #### Docker
