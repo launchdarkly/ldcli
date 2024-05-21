@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"ldcli/internal/flags"
+	"github.com/launchdarkly/ldcli/internal/flags"
 )
 
 const defaultFlagName = "My New Flag"

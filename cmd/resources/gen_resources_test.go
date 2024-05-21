@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"ldcli/cmd/resources"
+	"github.com/launchdarkly/ldcli/cmd/resources"
 )
 
 func TestGetTemplateData(t *testing.T) {

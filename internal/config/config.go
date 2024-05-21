@@ -8,9 +8,9 @@ import (
 
 	"github.com/mitchellh/go-homedir"
 
-	"ldcli/cmd/cliflags"
-	"ldcli/internal/errors"
-	"ldcli/internal/output"
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/output"
 )
 
 const Filename = ".ldcli-config.yml"

@@ -10,9 +10,9 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"ldcli/cmd/cliflags"
-	errs "ldcli/internal/errors"
-	"ldcli/internal/output"
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	errs "github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/output"
 )
 
 // Validate is a validator for commands to print an error when the user input is invalid.

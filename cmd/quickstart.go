@@ -9,13 +9,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	cmdAnalytics "ldcli/cmd/analytics"
-	"ldcli/cmd/cliflags"
-	"ldcli/cmd/validators"
-	"ldcli/internal/analytics"
-	"ldcli/internal/environments"
-	"ldcli/internal/flags"
-	"ldcli/internal/quickstart"
+	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	"github.com/launchdarkly/ldcli/cmd/validators"
+	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/environments"
+	"github.com/launchdarkly/ldcli/internal/flags"
+	"github.com/launchdarkly/ldcli/internal/quickstart"
 )
 
 func NewQuickStartCmd(

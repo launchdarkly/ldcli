@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"ldcli/cmd/cliflags"
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
 )
 
 var ErrInvalidBaseURI = NewError(fmt.Sprintf("%s is invalid", cliflags.BaseURIFlag))

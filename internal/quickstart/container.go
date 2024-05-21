@@ -9,9 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/reflow/wordwrap"
 
-	"ldcli/internal/analytics"
-	"ldcli/internal/environments"
-	"ldcli/internal/flags"
+	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/environments"
+	"github.com/launchdarkly/ldcli/internal/flags"
 )
 
 const (

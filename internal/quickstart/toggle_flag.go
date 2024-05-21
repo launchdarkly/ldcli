@@ -10,8 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"ldcli/internal/errors"
-	"ldcli/internal/flags"
+	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/flags"
 )
 
 const (

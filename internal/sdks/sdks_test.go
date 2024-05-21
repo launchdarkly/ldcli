@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"ldcli/internal/sdks"
+	"github.com/launchdarkly/ldcli/internal/sdks"
 )
 
 func TestReplaceFlagKey(t *testing.T) {

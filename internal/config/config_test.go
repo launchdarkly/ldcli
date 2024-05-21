@@ -2,7 +2,7 @@ package config_test
 
 import (
 	"fmt"
-	"ldcli/internal/config"
+	"github.com/launchdarkly/ldcli/internal/config"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

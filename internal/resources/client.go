@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
 type Client interface {

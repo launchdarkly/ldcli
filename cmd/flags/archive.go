@@ -6,12 +6,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"ldcli/cmd/cliflags"
-	resourcescmd "ldcli/cmd/resources"
-	"ldcli/cmd/validators"
-	"ldcli/internal/errors"
-	"ldcli/internal/output"
-	"ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
+	"github.com/launchdarkly/ldcli/cmd/validators"
+	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/output"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 func NewArchiveCmd(client resources.Client) *cobra.Command {

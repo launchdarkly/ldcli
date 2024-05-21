@@ -3,7 +3,7 @@ package output
 import (
 	"encoding/json"
 
-	"ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
 var ErrInvalidOutputKind = errors.NewError("output is invalid, use 'json' or 'plaintext'")

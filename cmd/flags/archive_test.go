@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"ldcli/cmd"
-	"ldcli/internal/analytics"
-	"ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/cmd"
+	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 func TestArchive(t *testing.T) {

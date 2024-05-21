@@ -1,7 +1,7 @@
 package output_test
 
 import (
-	"ldcli/internal/output"
+	"github.com/launchdarkly/ldcli/internal/output"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

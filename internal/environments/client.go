@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"ldcli/internal/client"
-	"ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/client"
+	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
 type Client interface {

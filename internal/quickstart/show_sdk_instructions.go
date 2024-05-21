@@ -11,9 +11,9 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
-	"ldcli/internal/environments"
-	"ldcli/internal/flags"
-	"ldcli/internal/sdks"
+	"github.com/launchdarkly/ldcli/internal/environments"
+	"github.com/launchdarkly/ldcli/internal/flags"
+	"github.com/launchdarkly/ldcli/internal/sdks"
 )
 
 // stepCountHeight is the approximate height of the current step value shown from the container and
