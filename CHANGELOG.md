@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/launchdarkly/ldcli/compare/v1.0.0...v1.0.1) (2024-05-21)
+
+
+### Bug Fixes
+
+* add required annotation to data flags ([#302](https://github.com/launchdarkly/ldcli/issues/302)) ([72a3a92](https://github.com/launchdarkly/ldcli/commit/72a3a9239960f124a3b3f66cff5237b2dfc3e4fd))
+* update Go module path to github.com/launchdarkly/ldcli ([#303](https://github.com/launchdarkly/ldcli/issues/303)) ([7c7925d](https://github.com/launchdarkly/ldcli/commit/7c7925ddde04b6ba5bc2e74e4ede9df71c822e40))
+
 ## [1.0.0](https://github.com/launchdarkly/ldcli/compare/v0.13.0...v1.0.0) (2024-05-16)
 
 
