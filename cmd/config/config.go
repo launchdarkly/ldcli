@@ -3,10 +3,12 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
 
+	errs "github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -143,6 +145,33 @@ func run() func(*cobra.Command, []string) error {
 					newFields = append(newFields, a)
 				} else {
 					rawConfig[args[i-1]] = a
+				}
+			}
+
+			var updatingAccessToken bool
+			for _, f := range newFields {
+				if f == cliflags.AccessTokenFlag {
+					updatingAccessToken = true
+					break
+				}
+			}
+			if updatingAccessToken {
+				path := fmt.Sprintf(
+					"%s/api/v2/account",
+					viper.GetString(cliflags.BaseURIFlag),
+				)
+				client := http.Client{}
+				req, _ := http.NewRequest("HEAD", path, nil)
+				req.Header.Add("Authorization", rawConfig[cliflags.AccessTokenFlag].(string))
+				res, err := client.Do(req)
+				if err != nil {
+					return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				}
+				if res.StatusCode != http.StatusOK {
+					errorMessage := fmt.Sprintf("%s is invalid. ", cliflags.AccessTokenFlag)
+					errorMessage += fmt.Sprintf("Go to %s/settings/authorization to create an access token.", viper.GetString(cliflags.BaseURIFlag))
+					err := errs.New(errorMessage)
+					return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 				}
 			}
 

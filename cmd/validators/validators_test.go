@@ -1,9 +1,9 @@
 package validators_test
 
 import (
-	"errors"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/launchdarkly/ldcli/cmd/validators"

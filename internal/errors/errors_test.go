@@ -2,10 +2,10 @@ package errors_test
 
 import (
 	"encoding/json"
-	"errors"
 	"testing"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
