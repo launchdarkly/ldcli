@@ -160,7 +160,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 					viper.GetString(cliflags.BaseURIFlag),
 				) {
 					errorMessage := fmt.Sprintf("%s is invalid. ", cliflags.AccessTokenFlag)
-					errorMessage += fmt.Sprintf("Go to %s/settings/authorization to create an access token.", viper.GetString(cliflags.BaseURIFlag))
+					errorMessage += errors.AccessTokenInvalidErrMessage(viper.GetString(cliflags.BaseURIFlag))
 					err := errs.New(errorMessage)
 					return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 				}

@@ -115,3 +115,7 @@ func normalizeUnauthorizedJSON() ([]byte, error) {
 
 	return errMsg, nil
 }
+
+func AccessTokenInvalidErrMessage(baseURI string) string {
+	return fmt.Sprintf("Go to %s/settings/authorization to create an access token.", baseURI)
+}
