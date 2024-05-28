@@ -47,9 +47,6 @@ func TestNewResources(t *testing.T) {
 		tests := map[string]struct {
 			name string
 		}{
-			"skips beta endpoints": {
-				name: "My resources (beta)",
-			},
 			"skips oauth2- endpoints": {
 				name: "OAuth2 clients",
 			},
