@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/config"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 var StubbedSuccessResponse = `{
@@ -24,6 +26,7 @@ func CallCmd(
 	args []string,
 ) ([]byte, error) {
 	rootCmd, err := NewRootCommand(
+		config.NewService(&resources.MockClient{}),
 		trackerFn,
 		clients,
 		"test",

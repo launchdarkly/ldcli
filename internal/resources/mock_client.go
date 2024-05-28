@@ -1,10 +1,15 @@
 package resources
 
-import "net/url"
+import (
+	"net/http"
+	"net/url"
+)
 
 type MockClient struct {
-	Input    []byte
-	Response []byte
+	Err        error
+	Input      []byte
+	Response   []byte
+	StatusCode int
 }
 
 var _ Client = &MockClient{}
@@ -15,6 +20,10 @@ func (c *MockClient) MakeRequest(
 	data []byte,
 ) ([]byte, error) {
 	c.Input = data
+
+	if c.StatusCode > http.StatusBadRequest {
+		return c.Response, c.Err
+	}
 
 	return c.Response, nil
 }

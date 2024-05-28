@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -40,10 +39,10 @@ func (cmd ConfigCmd) HelpCalled() bool {
 	return cmd.helpCalled
 }
 
-func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
+func NewConfigCmd(service config.Service, analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 	cmd := &cobra.Command{
 		Long:  "View and modify specific configuration values",
-		RunE:  run(),
+		RunE:  run(service),
 		Short: "View and modify specific configuration values",
 		Use:   "config",
 		PreRun: func(cmd *cobra.Command, args []string) {
@@ -95,7 +94,7 @@ func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 	return &configCmd
 }
 
-func run() func(*cobra.Command, []string) error {
+func run(service config.Service) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		switch {
 		case viper.GetBool(ListFlag):
@@ -156,18 +155,10 @@ func run() func(*cobra.Command, []string) error {
 				}
 			}
 			if updatingAccessToken {
-				path := fmt.Sprintf(
-					"%s/api/v2/account",
+				if !service.VerifyAccessToken(
+					rawConfig[cliflags.AccessTokenFlag].(string),
 					viper.GetString(cliflags.BaseURIFlag),
-				)
-				client := http.Client{}
-				req, _ := http.NewRequest("HEAD", path, nil)
-				req.Header.Add("Authorization", rawConfig[cliflags.AccessTokenFlag].(string))
-				res, err := client.Do(req)
-				if err != nil {
-					return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
-				}
-				if res.StatusCode != http.StatusOK {
+				) {
 					errorMessage := fmt.Sprintf("%s is invalid. ", cliflags.AccessTokenFlag)
 					errorMessage += fmt.Sprintf("Go to %s/settings/authorization to create an access token.", viper.GetString(cliflags.BaseURIFlag))
 					err := errs.New(errorMessage)

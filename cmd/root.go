@@ -68,6 +68,7 @@ func (cmd RootCmd) Execute() error {
 }
 
 func NewRootCommand(
+	configService config.Service,
 	analyticsTrackerFn analytics.TrackerFn,
 	clients APIClients,
 	version string,
@@ -182,7 +183,7 @@ func NewRootCommand(
 		return nil, err
 	}
 
-	configCmd := configcmd.NewConfigCmd(analyticsTrackerFn)
+	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
@@ -213,10 +214,12 @@ func Execute(version string) {
 		ProjectsClient:     projects.NewClient(version),
 		ResourcesClient:    resources.NewClient(version),
 	}
+	configService := config.NewService(resources.NewClient(version))
 	trackerFn := analytics.ClientFn{
 		ID: uuid.New().String(),
 	}
 	rootCmd, err := NewRootCommand(
+		configService,
 		trackerFn.Tracker(version),
 		clients,
 		version,
