@@ -15,6 +15,7 @@ import (
 var (
 	sdkStyle             = lipgloss.NewStyle().PaddingLeft(4)
 	selectedSdkItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
+	titleBarStyle        = lipgloss.NewStyle().MarginBottom(1)
 )
 
 const (
@@ -32,15 +33,17 @@ type chooseSDKModel struct {
 }
 
 func NewChooseSDKModel(selectedIndex int) tea.Model {
+	initSDKs()
 	l := list.New(sdksToItems(), sdkDelegate{}, 30, 9)
-	l.Title = "Select your SDK:\n"
+	l.FilterInput.PromptStyle = lipgloss.NewStyle()
+
+	l.Title = "Select your SDK:"
 	// reset title styles
 	l.Styles.Title = lipgloss.NewStyle()
-	l.Styles.TitleBar = lipgloss.NewStyle()
+	l.Styles.TitleBar = titleBarStyle
 	l.SetShowHelp(false)
 	l.SetShowPagination(true)
 	l.SetShowStatusBar(false)
-	l.SetFilteringEnabled(false) // TODO: try to get filtering working
 
 	return chooseSDKModel{
 		help: help.New(),
@@ -61,6 +64,13 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	}
 }
 
+// initSDKs sets the index of each SDK based on place in list.
+func initSDKs() {
+	for i := range SDKs {
+		SDKs[i].index = i
+	}
+}
+
 // Init sends commands when the model is created that will:
 // * select an SDK if it's already been selected
 func (m chooseSDKModel) Init() tea.Cmd {
@@ -72,11 +82,17 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
+		case msg.String() == "/":
+			if m.list.FilterState() == list.Filtering {
+				m.list.SetFilteringEnabled(false)
+			} else {
+				m.list.SetFilteringEnabled(true)
+			}
+			m.list, cmd = m.list.Update(msg)
 		case key.Matches(msg, pressableKeys.Enter):
 			i, ok := m.list.SelectedItem().(sdkDetail)
 			if ok {
 				m.selectedSDK = i
-				m.selectedSDK.index = m.list.Index()
 				cmd = chooseSDK(m.selectedSDK)
 			}
 		case key.Matches(msg, m.helpKeys.CloseFullHelp):
@@ -86,6 +102,9 @@ func (m chooseSDKModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case selectedSDKMsg:
 		m.list.Select(msg.index)
+	default:
+		// update list from list.FilterMatchesMsg
+		m.list, cmd = m.list.Update(msg)
 	}
 
 	return m, cmd
@@ -103,7 +122,7 @@ type sdkDetail struct {
 	url           string // custom URL if it differs from the other SDKs
 }
 
-func (s sdkDetail) FilterValue() string { return "" }
+func (s sdkDetail) FilterValue() string { return s.displayName }
 
 var SDKs = []sdkDetail{
 	{
@@ -112,39 +131,99 @@ var SDKs = []sdkDetail{
 		kind:          clientSideSDK,
 		url:           "https://github.com/launchdarkly/react-client-sdk/tree/main/examples/typescript",
 	},
-	{canonicalName: "node-server", displayName: "Node.js (server-side)", kind: serverSideSDK},
-	{canonicalName: "python", displayName: "Python", kind: serverSideSDK},
-	{canonicalName: "java", displayName: "Java", kind: serverSideSDK},
-	{canonicalName: "dotnet-server", displayName: ".NET (server-side)", kind: serverSideSDK},
-	{canonicalName: "js", displayName: "JavaScript", kind: clientSideSDK},
+	{
+		canonicalName: "node-server",
+		displayName:   "Node.js (server-side)",
+		kind:          serverSideSDK,
+	},
+	{
+		canonicalName: "python",
+		displayName:   "Python",
+		kind:          serverSideSDK,
+	},
+	{
+		canonicalName: "java",
+		displayName:   "Java",
+		kind:          serverSideSDK,
+	},
+	{
+		canonicalName: "dotnet-server",
+		displayName:   ".NET (server-side)",
+		kind:          serverSideSDK,
+	},
+	{
+		canonicalName: "js",
+		displayName:   "JavaScript",
+		kind:          clientSideSDK,
+	},
 	{
 		canonicalName: "vue",
 		displayName:   "Vue",
 		kind:          clientSideSDK,
 		url:           "https://github.com/launchdarkly/vue-client-sdk/tree/main/example",
 	},
-	{canonicalName: "ios-swift", displayName: "iOS", kind: mobileSDK},
-	{canonicalName: "go", displayName: "Go", kind: serverSideSDK},
-	{canonicalName: "android", displayName: "Android", kind: mobileSDK},
+	{
+		canonicalName: "ios-swift",
+		displayName:   "iOS",
+		kind:          mobileSDK,
+	},
+	{
+		canonicalName: "go",
+		displayName:   "Go",
+		kind:          serverSideSDK,
+	},
+	{
+		canonicalName: "android",
+		displayName:   "Android",
+		kind:          mobileSDK,
+	},
 	{
 		canonicalName: "react-native",
 		displayName:   "React Native",
 		kind:          mobileSDK,
 		url:           "https://github.com/launchdarkly/js-core/tree/main/packages/sdk/react-native/example",
 	},
-	{canonicalName: "ruby", displayName: "Ruby", kind: serverSideSDK},
-	{canonicalName: "flutter", displayName: "Flutter", kind: mobileSDK},
-	{canonicalName: "dotnet-client", displayName: ".NET (client-side)", kind: clientSideSDK},
-	{canonicalName: "erlang", displayName: "Erlang", kind: serverSideSDK},
-	{canonicalName: "rust", displayName: "Rust", kind: serverSideSDK},
+	{
+		canonicalName: "ruby",
+		displayName:   "Ruby",
+		kind:          serverSideSDK,
+	},
+	{
+		canonicalName: "flutter",
+		displayName:   "Flutter",
+		kind:          mobileSDK,
+	},
+	{
+		canonicalName: "dotnet-client",
+		displayName:   ".NET (client-side)",
+		kind:          clientSideSDK,
+	},
+	{
+		canonicalName: "erlang",
+		displayName:   "Erlang",
+		kind:          serverSideSDK,
+	},
+	{
+		canonicalName: "rust",
+		displayName:   "Rust",
+		kind:          serverSideSDK,
+	},
 	{
 		canonicalName: "c-client",
 		displayName:   "C/C++ (client-side)",
 		kind:          clientSideSDK,
 		url:           "https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-client",
 	},
-	{canonicalName: "roku", displayName: "Roku", kind: clientSideSDK},
-	{canonicalName: "node-client", displayName: "Node.js (client-side)", kind: clientSideSDK},
+	{
+		canonicalName: "roku",
+		displayName:   "Roku",
+		kind:          clientSideSDK,
+	},
+	{
+		canonicalName: "node-client",
+		displayName:   "Node.js (client-side)",
+		kind:          clientSideSDK,
+	},
 	{
 		canonicalName: "c-server",
 		displayName:   "C/C++ (server-side)",
@@ -157,8 +236,16 @@ var SDKs = []sdkDetail{
 		kind:          serverSideSDK,
 		url:           "https://github.com/launchdarkly/lua-server-sdk/tree/main/examples/hello-lua-server",
 	},
-	{canonicalName: "haskell-server", displayName: "Haskell", kind: serverSideSDK},
-	{canonicalName: "php", displayName: "PHP", kind: serverSideSDK},
+	{
+		canonicalName: "haskell-server",
+		displayName:   "Haskell",
+		kind:          serverSideSDK,
+	},
+	{
+		canonicalName: "php",
+		displayName:   "PHP",
+		kind:          serverSideSDK,
+	},
 }
 
 func sdksToItems() []list.Item {
