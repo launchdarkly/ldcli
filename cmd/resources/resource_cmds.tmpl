@@ -40,6 +40,7 @@ func AddAllResourceCmds(
             },
             HTTPMethod:            "{{ $opData.HTTPMethod }}",
             HasBody:               {{ $opData.HasBody }},
+            IsBeta:                {{ $opData.IsBeta }},
             RequiresBody:          {{ $opData.RequiresBody }},
             Path:                  "{{ $opData.Path }}",
             SupportsSemanticPatch: {{ $opData.SupportsSemanticPatch }},

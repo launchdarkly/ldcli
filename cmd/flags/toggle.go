@@ -66,6 +66,7 @@ func runE(client resources.Client) func(*cobra.Command, []string) error {
 			"application/json",
 			nil,
 			[]byte(buildPatch(viper.GetString("environment"), toggleOn)),
+			false,
 		)
 		if err != nil {
 			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))

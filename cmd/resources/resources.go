@@ -61,6 +61,7 @@ type OperationData struct {
 	Params                []Param
 	HTTPMethod            string
 	HasBody               bool
+	IsBeta                bool
 	RequiresBody          bool
 	Path                  string
 	SupportsSemanticPatch bool
@@ -119,6 +120,11 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				requiresBody = op.RequestBody.Value.Required
 			}
 
+			var isBeta bool
+			if strings.Contains(tag, "(beta)") {
+				isBeta = true
+			}
+
 			operation := OperationData{
 				Short:                 jsonString(op.Summary),
 				Long:                  jsonString(op.Description),
@@ -126,6 +132,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				Params:                make([]Param, 0),
 				HTTPMethod:            method,
 				HasBody:               hasBody,
+				IsBeta:                isBeta,
 				RequiresBody:          requiresBody,
 				Path:                  path,
 				SupportsSemanticPatch: supportsSemanticPatch,
@@ -325,6 +332,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		contentType,
 		query,
 		jsonData,
+		op.IsBeta,
 	)
 	if err != nil {
 		return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))

@@ -45,6 +45,7 @@ func makeArchiveRequest(client resources.Client) func(*cobra.Command, []string) 
 			"application/json",
 			nil,
 			[]byte(`[{"op": "replace", "path": "/archived", "value": true}]`),
+			false,
 		)
 		if err != nil {
 			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
