@@ -147,7 +147,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 					types := *p.Value.Schema.Value.Type
 
 					// cobra will try to take backquoted values as the type, so we remove them
-					description := removeBackticks(p.Value.Description)
+					description := replaceBackticks(p.Value.Description)
 
 					param := Param{
 						Name:        strcase.ToKebab(p.Value.Name),

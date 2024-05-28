@@ -190,6 +190,6 @@ func getFlagName(paramName string) string {
 	return flagName
 }
 
-func removeBackticks(s string) string {
+func replaceBackticks(s string) string {
 	return strings.Replace(s, "`", "'", -1)
 }
