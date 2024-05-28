@@ -16,6 +16,7 @@ var mapTagToSchemaName = map[string]string{
 	"Account members (beta)":              "Members beta",
 	"Approvals":                           "Approval requests",
 	"Code references":                     "Code refs",
+	"Feature flags (beta)":                "Flags beta",
 	"Integration audit log subscriptions": "Integration subscriptions",
 	"Metrics (beta)":                      "Metric groups beta",
 	"Relay Proxy configurations":          "Relay Proxy configs",
