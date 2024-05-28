@@ -337,7 +337,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
@@ -492,7 +492,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "type",
 				In:          "path",
-				Description: "The type of event to retrieve. Must be either `received` or `published`.",
+				Description: "The type of event to retrieve. Must be either 'received' or 'published'.",
 				Type:        "string",
 			},
 			{
@@ -588,7 +588,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "sdktype",
 				In:          "query",
-				Description: "The type of SDK with monthly active users (MAU) to list. Must be either `client` or `server`.",
+				Description: "The type of SDK with monthly active users (MAU) to list. Must be either 'client' or 'server'.",
 				Type:        "string",
 			},
 		},
@@ -722,7 +722,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "source",
 				In:          "path",
-				Description: "The source of streaming connections to describe. Must be either `client` or `server`.",
+				Description: "The source of streaming connections to describe. Must be either 'client' or 'server'.",
 				Type:        "string",
 			},
 			{
@@ -760,7 +760,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "source",
 				In:          "path",
-				Description: "The source of streaming connections to describe. Must be either `client` or `server`.",
+				Description: "The source of streaming connections to describe. Must be either 'client' or 'server'.",
 				Type:        "string",
 			},
 			{
@@ -810,7 +810,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "source",
 				In:          "path",
-				Description: "The source of streaming connections to describe. Must be either `client` or `server`.",
+				Description: "The source of streaming connections to describe. Must be either 'client' or 'server'.",
 				Type:        "string",
 			},
 		},
@@ -882,7 +882,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "expand",
 				In:          "query",
-				Description: "A comma-separated list of properties that can reveal additional information in the response. Options: `flags`.",
+				Description: "A comma-separated list of properties that can reveal additional information in the response. Options: 'flags'.",
 				Type:        "string",
 			},
 		},
@@ -902,7 +902,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "Accepts filter by `key`, `name`, `supported`, and `autoAdded`. Example: `filter=key equals 'test-key'`. To learn more about the filter syntax, read [Filtering applications and application versions](/tag/Applications-(beta)#filtering-contexts-and-context-instances).",
+				Description: "Accepts filter by 'key', 'name', 'supported', and 'autoAdded'. Example: 'filter=key equals 'test-key''. To learn more about the filter syntax, read [Filtering applications and application versions](/tag/Applications-(beta)#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 			{
@@ -920,13 +920,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are `creationDate`, `name`. Examples: `sort=name` sort by names ascending, `sort=-name,creationDate` sort by names descending and creationDate ascending.",
+				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are 'creationDate', 'name'. Examples: 'sort=name' sort by names ascending, 'sort=-name,creationDate' sort by names descending and creationDate ascending.",
 				Type:        "string",
 			},
 		},
@@ -946,7 +946,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "Accepts filter by `key`, `name`, `kind`, and `autoAdded`. Example: `filter=kind anyOf ['mobile', 'server'],key equals 'test-key'`. To learn more about the filter syntax, read [Filtering applications and application versions](/tag/Applications-(beta)#filtering-contexts-and-context-instances).",
+				Description: "Accepts filter by 'key', 'name', 'kind', and 'autoAdded'. Example: 'filter=kind anyOf ['mobile', 'server'],key equals 'test-key''. To learn more about the filter syntax, read [Filtering applications and application versions](/tag/Applications-(beta)#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 			{
@@ -958,19 +958,19 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are `creationDate`, `name`. Examples: `sort=name` sort by names ascending, `sort=-name,creationDate` sort by names descending and creationDate ascending.",
+				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are 'creationDate', 'name'. Examples: 'sort=name' sort by names ascending, 'sort=-name,creationDate' sort by names descending and creationDate ascending.",
 				Type:        "string",
 			},
 			{
 				Name:        "expand",
 				In:          "query",
-				Description: "A comma-separated list of properties that can reveal additional information in the response. Options: `flags`.",
+				Description: "A comma-separated list of properties that can reveal additional information in the response. Options: 'flags'.",
 				Type:        "string",
 			},
 		},
@@ -1158,7 +1158,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field operator value`. Supported fields are explained above.",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field operator value'. Supported fields are explained above.",
 				Type:        "string",
 			},
 			{
@@ -1176,7 +1176,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
@@ -1607,13 +1607,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "from",
 				In:          "query",
-				Description: "Filter results to a specific timeframe based on commit time, expressed as a Unix epoch time in milliseconds. Must be used with `to`.",
+				Description: "Filter results to a specific timeframe based on commit time, expressed as a Unix epoch time in milliseconds. Must be used with 'to'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "to",
 				In:          "query",
-				Description: "Filter results to a specific timeframe based on commit time, expressed as a Unix epoch time in milliseconds. Must be used with `from`.",
+				Description: "Filter results to a specific timeframe based on commit time, expressed as a Unix epoch time in milliseconds. Must be used with 'from'.",
 				Type:        "integer",
 			},
 		},
@@ -1909,7 +1909,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
@@ -1921,7 +1921,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field operator value`. Supported fields are explained above.",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field operator value'. Supported fields are explained above.",
 				Type:        "string",
 			},
 		},
@@ -1953,7 +1953,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts `kind` filters, with the `equals` operator, and `name` filters, with the `startsWith` operator. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts 'kind' filters, with the 'equals' operator, and 'name' filters, with the 'startsWith' operator. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 		},
@@ -1991,7 +1991,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts `kind` filters, with the `equals` operator, and `value` filters, with the `startsWith` operator. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts 'kind' filters, with the 'equals' operator, and 'value' filters, with the 'startsWith' operator. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 		},
@@ -2035,19 +2035,19 @@ func AddAllResourceCmds(
 			{
 				Name:        "continuation-token",
 				In:          "query",
-				Description: "Limits results to context instances with sort values after the value specified. You can use this for pagination, however, we recommend using the `next` link we provide instead.",
+				Description: "Limits results to context instances with sort values after the value specified. You can use this for pagination, however, we recommend using the 'next' link we provide instead.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying `ts` for this value, or descending order by specifying `-ts`.",
+				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying 'ts' for this value, or descending order by specifying '-ts'.",
 				Type:        "string",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts an `applicationId` filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts an 'applicationId' filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 			{
@@ -2123,19 +2123,19 @@ func AddAllResourceCmds(
 			{
 				Name:        "continuation-token",
 				In:          "query",
-				Description: "Limits results to contexts with sort values after the value specified. You can use this for pagination, however, we recommend using the `next` link we provide instead.",
+				Description: "Limits results to contexts with sort values after the value specified. You can use this for pagination, however, we recommend using the 'next' link we provide instead.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying `ts` for this value, or descending order by specifying `-ts`.",
+				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying 'ts' for this value, or descending order by specifying '-ts'.",
 				Type:        "string",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts an `applicationId` filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts an 'applicationId' filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 			{
@@ -2205,19 +2205,19 @@ func AddAllResourceCmds(
 			{
 				Name:        "continuation-token",
 				In:          "query",
-				Description: "Limits results to context instances with sort values after the value specified. You can use this for pagination, however, we recommend using the `next` link we provide instead.",
+				Description: "Limits results to context instances with sort values after the value specified. You can use this for pagination, however, we recommend using the 'next' link we provide instead.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying `ts` for this value, or descending order by specifying `-ts`.",
+				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying 'ts' for this value, or descending order by specifying '-ts'.",
 				Type:        "string",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts an `applicationId` filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts an 'applicationId' filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 			{
@@ -2261,13 +2261,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "continuation-token",
 				In:          "query",
-				Description: "Limits results to contexts with sort values after the value specified. You can use this for pagination, however, we recommend using the `next` link we provide instead.",
+				Description: "Limits results to contexts with sort values after the value specified. You can use this for pagination, however, we recommend using the 'next' link we provide instead.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying `ts` for this value, or descending order by specifying `-ts`.",
+				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying 'ts' for this value, or descending order by specifying '-ts'.",
 				Type:        "string",
 			},
 			{
@@ -2345,7 +2345,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
@@ -2597,13 +2597,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field:value`.",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field:value'.",
 				Type:        "string",
 			},
 			{
@@ -2961,13 +2961,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field:value`. Supported fields are explained above.",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field:value'. Supported fields are explained above.",
 				Type:        "string",
 			},
 			{
@@ -2979,7 +2979,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "lifecycle-state",
 				In:          "query",
-				Description: "A comma-separated list of experiment archived states. Supports `archived`, `active`, or both. Defaults to `active` experiments.",
+				Description: "A comma-separated list of experiment archived states. Supports 'archived', 'active', or both. Defaults to 'active' experiments.",
 				Type:        "string",
 			},
 		},
@@ -3663,13 +3663,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "summary",
 				In:          "query",
-				Description: "By default, flags do _not_ include their lists of prerequisites, targets, or rules for each environment. Set `summary=0` to include these fields for each flag returned.",
+				Description: "By default, flags do _not_ include their lists of prerequisites, targets, or rules for each environment. Set 'summary=0' to include these fields for each flag returned.",
 				Type:        "boolean",
 			},
 			{
@@ -3809,7 +3809,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "clone",
 				In:          "query",
-				Description: "The key of the feature flag to be cloned. The key identifies the flag in your code. For example, setting `clone=flagKey` copies the full targeting configuration for all environments, including `on/off` state, from the original flag to the new flag.",
+				Description: "The key of the feature flag to be cloned. The key identifies the flag in your code. For example, setting 'clone=flagKey' copies the full targeting configuration for all environments, including 'on/off' state, from the original flag to the new flag.",
 				Type:        "string",
 			},
 		},
@@ -4406,7 +4406,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "integration-key",
 				In:          "path",
-				Description: "The integration key, either `redis` or `dynamodb`",
+				Description: "The integration key, either 'redis' or 'dynamodb'",
 				Type:        "string",
 			},
 		},
@@ -4438,7 +4438,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "integration-key",
 				In:          "path",
-				Description: "The integration key, either `redis` or `dynamodb`",
+				Description: "The integration key, either 'redis' or 'dynamodb'",
 				Type:        "string",
 			},
 			{
@@ -4476,7 +4476,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "integration-key",
 				In:          "path",
-				Description: "The integration key, either `redis` or `dynamodb`",
+				Description: "The integration key, either 'redis' or 'dynamodb'",
 				Type:        "string",
 			},
 			{
@@ -4527,7 +4527,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "integration-key",
 				In:          "path",
-				Description: "The integration key, either `redis` or `dynamodb`",
+				Description: "The integration key, either 'redis' or 'dynamodb'",
 				Type:        "string",
 			},
 			{
@@ -4599,13 +4599,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field:value`. Supported fields are explained above.",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field:value'. Supported fields are explained above.",
 				Type:        "string",
 			},
 			{
@@ -5035,13 +5035,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and returns the next `limit` items.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and returns the next 'limit' items.",
 				Type:        "integer",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is constructed as `field:value`.",
+				Description: "A comma-separated list of filters. Each filter is constructed as 'field:value'.",
 				Type:        "string",
 			},
 			{
@@ -5302,7 +5302,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
@@ -5578,7 +5578,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "ignore-conflicts",
 				In:          "query",
-				Description: "Whether to succeed (`true`) or fail (`false`) when these new instructions conflict with existing scheduled changes",
+				Description: "Whether to succeed ('true') or fail ('false') when these new instructions conflict with existing scheduled changes",
 				Type:        "boolean",
 			},
 		},
@@ -5616,7 +5616,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "ignore-conflicts",
 				In:          "query",
-				Description: "Whether to succeed (`true`) or fail (`false`) when these instructions conflict with existing scheduled changes",
+				Description: "Whether to succeed ('true') or fail ('false') when these instructions conflict with existing scheduled changes",
 				Type:        "boolean",
 			},
 		},
@@ -5884,19 +5884,19 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are 'creationDate', 'name', 'lastModified'. Example: `sort=name` sort by names ascending or `sort=-name,creationDate` sort by names descending and creationDate ascending.",
+				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are 'creationDate', 'name', 'lastModified'. Example: 'sort=name' sort by names ascending or 'sort=-name,creationDate' sort by names descending and creationDate ascending.",
 				Type:        "string",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "Accepts filter by kind, query, tags, unbounded, external, or included and excluded segment keys. To filter by kind or query, use the `equals` operator. To filter by tags, use the `anyOf` operator. Query is a 'fuzzy' search across segment key, name, and description. Example: `filter=tags anyOf ['enterprise', 'beta'],query equals 'toggle'` returns segments with 'toggle' in their key, name, or description that also have 'enterprise' or 'beta' as a tag. To filter by unbounded, use the `equals` operator. Example: `filter=unbounded equals true`. To filter by external, use the `exists` operator. Example: `filter=external exists true`. To exclude segments from results, use `filter=excludedKeys anyOf ['segmentKey1', 'segmentKey2']`.",
+				Description: "Accepts filter by kind, query, tags, unbounded, external, or included and excluded segment keys. To filter by kind or query, use the 'equals' operator. To filter by tags, use the 'anyOf' operator. Query is a 'fuzzy' search across segment key, name, and description. Example: 'filter=tags anyOf ['enterprise', 'beta'],query equals 'toggle'' returns segments with 'toggle' in their key, name, or description that also have 'enterprise' or 'beta' as a tag. To filter by unbounded, use the 'equals' operator. Example: 'filter=unbounded equals true'. To filter by external, use the 'exists' operator. Example: 'filter=external exists true'. To exclude segments from results, use 'filter=excludedKeys anyOf ['segmentKey1', 'segmentKey2']'.",
 				Type:        "string",
 			},
 		},
@@ -6242,7 +6242,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "kind",
 				In:          "query",
-				Description: "Fetch tags associated with the specified resource type. Options are `flag`, `project`, `environment`, `segment`. Returns all types by default.",
+				Description: "Fetch tags associated with the specified resource type. Options are 'flag', 'project', 'environment', 'segment'. Returns all types by default.",
 				Type:        "string",
 			},
 			{
@@ -6332,7 +6332,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
@@ -6364,7 +6364,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
@@ -6390,13 +6390,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and returns the next `limit` items.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and returns the next 'limit' items.",
 				Type:        "integer",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is constructed as `field:value`.",
+				Description: "A comma-separated list of filters. Each filter is constructed as 'field:value'.",
 				Type:        "string",
 			},
 			{
@@ -6740,13 +6740,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "status",
 				In:          "query",
-				Description: "Filter results by workflow status. Valid status filters are `active`, `completed`, and `failed`.",
+				Description: "Filter results by workflow status. Valid status filters are 'active', 'completed', and 'failed'.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "A field to sort the items by. Prefix field by a dash ( - ) to sort in descending order. This endpoint supports sorting by `creationDate` or `stopDate`.",
+				Description: "A field to sort the items by. Prefix field by a dash ( - ) to sort in descending order. This endpoint supports sorting by 'creationDate' or 'stopDate'.",
 				Type:        "string",
 			},
 			{
@@ -6758,7 +6758,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},

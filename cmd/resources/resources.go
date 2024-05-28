@@ -140,18 +140,23 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 
 			for _, p := range op.Parameters {
 				if p.Value != nil {
-					// TODO: confirm if we only have one type per param b/c somehow this is a slice
 					if strings.Contains(p.Value.Description, "Deprecated") {
 						continue
 					}
+					// TODO: confirm if we only have one type per param b/c somehow this is a slice
 					types := *p.Value.Schema.Value.Type
+
+					// cobra will try to take backquoted values as the type, so we remove them
+					description := removeBackticks(p.Value.Description)
+
 					param := Param{
 						Name:        strcase.ToKebab(p.Value.Name),
 						In:          p.Value.In,
-						Description: jsonString(p.Value.Description),
+						Description: jsonString(description),
 						Type:        types[0],
 						Required:    p.Value.Required,
 					}
+
 					operation.Params = append(operation.Params, param)
 				}
 			}
