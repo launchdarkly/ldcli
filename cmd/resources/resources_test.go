@@ -34,13 +34,17 @@ func TestNewResources(t *testing.T) {
 			{
 				Name: "My resources2",
 			},
+			{
+				Name: "My resources (beta)",
+			},
 		}
 
 		rs := resources.NewResources(tags)
 
-		require.Len(t, rs, 2)
+		require.Len(t, rs, 3)
 		assert.Equal(t, "MyResources", rs["my-resources"].GoName)
 		assert.Equal(t, "MyResources2", rs["my-resources-2"].GoName)
+		assert.Equal(t, "MyResourcesBeta", rs["my-resources-beta"].GoName)
 	})
 
 	t.Run("skips certain endpoints", func(t *testing.T) {
