@@ -2,13 +2,12 @@ package output
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
 	"strconv"
 	"strings"
-
-	"github.com/pkg/errors"
 
 	errs "github.com/launchdarkly/ldcli/internal/errors"
 )

@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pkg/errors"
-
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	"github.com/pkg/errors"
 )
 
 var ErrInvalidBaseURI = NewError(fmt.Sprintf("%s is invalid", cliflags.BaseURIFlag))
