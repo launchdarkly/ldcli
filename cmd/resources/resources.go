@@ -120,10 +120,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				requiresBody = op.RequestBody.Value.Required
 			}
 
-			var isBeta bool
-			if strings.Contains(tag, "(beta)") {
-				isBeta = true
-			}
+			isBeta := strings.Contains(tag, "(beta)")
 
 			operation := OperationData{
 				Short:                 jsonString(op.Summary),
