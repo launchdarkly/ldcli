@@ -23,7 +23,7 @@ func (s Service) VerifyAccessToken(accessToken string, baseURI string) bool {
 		baseURI,
 	)
 
-	_, err := s.client.MakeRequest(accessToken, "HEAD", path, "application/json", nil, nil)
+	_, err := s.client.MakeRequest(accessToken, "HEAD", path, "application/json", nil, nil, false)
 
 	return err == nil
 }
