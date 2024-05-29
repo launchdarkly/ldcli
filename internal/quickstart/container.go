@@ -202,7 +202,9 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentStep += 1
 		shouldSendTrackingEvent = true
 	default:
-		// ignore other messages
+		// delegate other messages
+		m.currentModel, cmd = m.currentModel.Update(msg)
+		m.err = nil
 	}
 
 	if shouldSendTrackingEvent {
