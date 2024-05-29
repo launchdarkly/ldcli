@@ -22,4 +22,3 @@ if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
 	echo "go.mod/go.sum is not tidy; run go mod tidy"
 	exit 1
 fi
-fi
