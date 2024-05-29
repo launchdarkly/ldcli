@@ -21,22 +21,9 @@ jobs:
       with:
         go-version: '1.20'
 
-    - name: Enforce gofmt
+    - name: Enforce formatting / go mod tidy
       run: |
-        test -z $(gofmt -l cmd)
-        test -z $(gofmt -l internal)
-        test -z $(gofmt -l *.go)
-
-    - name: Enforce go mod tidy
-      run: |
-        set -e
-        go mod tidy
-        STATUS=$(git status --porcelain go.mod go.sum)
-        if [ ! -z "$STATUS" ]; then
-          echo "go.mod/go.sum is not tidy!"
-          exit 1
-        fi
-        exit 0
+        ./git/hooks/pre-commit
 
     - name: Build
       run: go build -o ldcli

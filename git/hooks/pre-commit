@@ -2,10 +2,6 @@
 
 set -eo pipefail
 
-
-# REwrite the test lines above so that the script exits with a non-zero exit code, and emits
-# a emssage if any of them fail.
-
 if [ -n "$(gofmt -l cmd)"  ]; then
   echo "cmd/* is not formatted; run gofmt -w -s cmd"
   exit 1
@@ -21,12 +17,9 @@ if [ -n "$(gofmt -l ./*.go)"  ]; then
   exit 1
 fi
 
-
-
 go mod tidy
-status=$(git status --porcelain go.mod go.sum)
-if [ ! -z "$status" ]; then
+if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
 	echo "go.mod/go.sum is not tidy; run go mod tidy"
 	exit 1
 fi
-exit 0
+fi
