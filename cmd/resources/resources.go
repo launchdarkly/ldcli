@@ -61,6 +61,7 @@ type OperationData struct {
 	Params                []Param
 	HTTPMethod            string
 	HasBody               bool
+	IsBeta                bool
 	RequiresBody          bool
 	Path                  string
 	SupportsSemanticPatch bool
@@ -119,6 +120,8 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				requiresBody = op.RequestBody.Value.Required
 			}
 
+			isBeta := strings.Contains(tag, "(beta)")
+
 			operation := OperationData{
 				Short:                 jsonString(op.Summary),
 				Long:                  jsonString(op.Description),
@@ -126,6 +129,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				Params:                make([]Param, 0),
 				HTTPMethod:            method,
 				HasBody:               hasBody,
+				IsBeta:                isBeta,
 				RequiresBody:          requiresBody,
 				Path:                  path,
 				SupportsSemanticPatch: supportsSemanticPatch,
@@ -133,18 +137,23 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 
 			for _, p := range op.Parameters {
 				if p.Value != nil {
-					// TODO: confirm if we only have one type per param b/c somehow this is a slice
 					if strings.Contains(p.Value.Description, "Deprecated") {
 						continue
 					}
+					// TODO: confirm if we only have one type per param b/c somehow this is a slice
 					types := *p.Value.Schema.Value.Type
+
+					// cobra will try to take backquoted values as the type, so we remove them
+					description := replaceBackticks(p.Value.Description)
+
 					param := Param{
 						Name:        strcase.ToKebab(p.Value.Name),
 						In:          p.Value.In,
-						Description: jsonString(p.Value.Description),
+						Description: jsonString(description),
 						Type:        types[0],
 						Required:    p.Value.Required,
 					}
+
 					operation.Params = append(operation.Params, param)
 				}
 			}
@@ -187,8 +196,7 @@ func NewResources(tags openapi3.Tags) map[string]ResourceData {
 }
 
 func shouldFilter(name string) bool {
-	return strings.Contains(name, "(beta)") ||
-		strings.Contains(name, "User") ||
+	return strings.Contains(name, "User") ||
 		strings.ToLower(name) == "other" ||
 		strings.ToLower(name) == "oauth2 clients"
 }
@@ -326,6 +334,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		contentType,
 		query,
 		jsonData,
+		op.IsBeta,
 	)
 	if err != nil {
 		return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))

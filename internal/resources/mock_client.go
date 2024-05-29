@@ -18,6 +18,7 @@ func (c *MockClient) MakeRequest(
 	accessToken, method, path, contentType string,
 	query url.Values,
 	data []byte,
+	isBeta bool,
 ) ([]byte, error) {
 	c.Input = data
 

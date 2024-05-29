@@ -23,6 +23,20 @@ func AddAllResourceCmds(
 		"The access tokens API allows you to list, create, modify, and delete access tokens programmatically. \n\nWhen using access tokens to manage access tokens, the following restrictions apply:\n- Personal tokens can see all service tokens and other personal tokens created by the same team member. If the personal token has the \"Admin\" role, it may also see other member's personal tokens. To learn more, read [Personal tokens](https://docs.launchdarkly.com/home/account/api#personal-tokens).\n- Service tokens can see all service tokens. If the token has the \"Admin\" role, it may also see all personal tokens. To learn more, read  [Service tokens](https://docs.launchdarkly.com/home/account/api#service-tokens).\n- Tokens can only manage other tokens, including themselves, if they have \"Admin\" role or explicit permission via a custom role. To learn more, read [Personal access token actions](https://docs.launchdarkly.com/home/team/role-actions#personal-access-token-actions).\n\nSeveral of the endpoints in the access tokens API require an access token ID. The access token ID is returned as part of the [Create access token](/tag/Access-tokens#operation/resetToken) and [List access tokens](/tag/Access-tokens#operation/getTokens) responses. It is the `_id` field, or the `_id` field of each element in the `items` array. \n\nTo learn more about access tokens, read [API access tokens](https://docs.launchdarkly.com/home/account/api).\n",
 	)
 
+	gen_AccountUsageBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"account-usage-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nThe account usage API lets you query for metrics about how your account is using LaunchDarkly. To learn more, read [Account usage metrics](https://docs.launchdarkly.com/home/account/metrics).\n\nEach endpoint returns time-series data in the form of an array of data points with timestamps. Each one contains data for that time from one or more series. It also includes a metadata array describing what each of the series is.\n",
+	)
+
+	gen_ApplicationsBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"applications-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nThe applications API lets you create, update, delete, and search for applications and application versions.\n\nEach application includes information about the app you're creating, and a set of versions of the app that you've released. You can use applications to target particular application versions in your feature flags more easily, and to handle unsupported application versions more gracefully.\n\nIn addition to creating applications through the applications API, you can also create applications in the LaunchDarkly user interface. To learn more, read [Applications and application versions](https://docs.launchdarkly.com/home/releases/applications). LaunchDarkly also creates applications and application versions automatically when a LaunchDarkly SDK evaluates a feature flag for a context that includes application information. To learn more, read [Automatic environment attributes](https://docs.launchdarkly.com/sdk/features/environment-attributes).\n\nYou can use an application in any project in your LaunchDarkly account.\n\n### Filtering applications and application versions\n\nThe `filter` parameter supports the following operators: `equals`, `notEquals`, `anyOf`, `startsWith`.\n\nYou can also combine filters in the following ways:\n\n- Use a comma (`,`) as an AND operator\n- Use a vertical bar (`|`) as an OR operator\n- Use parentheses (`()`) to group filters\n\n#### Supported fields and operators\n\nYou can only filter certain fields in applications when using the `filter` parameter. Additionally, you can only filter some fields with certain operators.\n\nWhen you search for applications, the `filter` parameter supports the following fields and operators:\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n|`key` | The application or application version key, a unique identifier |`equals`, `notEquals`, `anyOf` |\n|`name` | The application name or application version name |`equals`, `notEquals`, `anyOf`, `startsWith` |\n|`autoAdded` | Whether the application or application version was automatically created because it was included in a context when a LaunchDarkly SDK evaluated a feature flag, or was created through the LaunchDarkly UI or REST API |`equals`, `notEquals` |\n|`kind` | The application kind, one of `mobile`, `server`, `browser`. Only available for [Get applications](/tag/Applications-(beta)#operation/getApplications). |`equals`, `notEquals`, `anyOf` |\n|`supported` | Whether a mobile application version is supported or unsupported. Only available for [Get application versions by application key](/tag/Applications-(beta)#operation/getApplicationVersions).|`equals`, `notEquals` |\n\nFor example, the filter `?filter=kind anyOf ['mobile', 'server']` matches applications whose `kind` is either `mobile` or `server`. The filter is not case-sensitive.\n\nThe documented values for `filter` query parameters are prior to URL encoding. For example, the `[` in `?filter=kind anyOf ['mobile', 'server']` must be encoded to `%5B`.\n\n### Sorting applications and application versions\n\nLaunchDarkly supports the following fields for sorting:\n- `name` sorts by application name.\n- `creationDate` sorts by the creation date of the application.\n\nBy default, the sort is in ascending order. Use `-` to sort in descending order. For example, `?sort=name` sorts the response by application name in ascending order, and `?sort=-name` sorts in descending order.\n",
+	)
+
 	gen_ApprovalRequestsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
@@ -79,6 +93,20 @@ func AddAllResourceCmds(
 		"Environments allow you to maintain separate rollout rules in different contexts, from local development to QA, staging, and production. With the LaunchDarkly Environments API, you can programmatically create, delete, and update environments. To learn more, read [Environments](https://docs.launchdarkly.com/home/account/environment).\n",
 	)
 
+	gen_ExperimentsBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"experiments-beta",
+		"\u003e ### Available for Pro and Enterprise plans\n\u003e\n\u003e Experimentation is available to customers on a Pro or Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To add Experimentation to your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\n\n\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nExperimentation lets you validate the impact of features you roll out to your app or infrastructure. You can measure things like page views, clicks, load time, infrastructure costs, and more. By connecting metrics you create to flags in your LaunchDarkly environment, you can measure the changes in your customers' behavior based on what flags they evaluate. You can run experiments with any type of flag, including boolean, string, number, and JSON flags. To learn more, read [Experimentation](https://docs.launchdarkly.com/home/experimentation).\n\nYou can manage experiments by using the dedicated experiment endpoints described below.\n\nSeveral of the endpoints require a treatment ID or a flag rule ID. Treatment IDs are returned as part of the [Get experiment results](/tag/Experiments-(beta)#operation/getExperimentResults) response. They are the `treatmentId` of each element in the `treatmentResults` array. Winning treatment IDs are also returned as part of the [Get experiment](/tag/Experiments-(beta)#operation/getExperiment) response. They are the `winningTreatmentId` in the `currentIteration`, the `winningTreatmentId` in the `draftIteration`, and the `winningTreatmentId` in each element of the `previousIterations` array. In the flags object, the rule ID is the ID of the variation or rollout of the flag. Each flag variation ID is returned as part of the [Get feature flag](/tag/Experiments-(beta)#operation/getFeatureFlag) response. It is the `_id` field in each element of the `variations` array.\n",
+	)
+
+	gen_FlagLinksBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"flag-links-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nFlag links let you view external mentions of flags from other tools and services. Links to external conversations and references to your flags allow you to collaborate more easily and quickly review relevant flag contexts. To learn more, read [Flag links](https://docs.launchdarkly.com/home/flags/links).\n\nYou can create custom flag links by associating an external URL with a feature flag. After you create a flag link, it applies across all your environments. You should use caution when you delete a flag link, because it will be deleted from all your environments.\n\nWith the flag links API, you can view, create, update, and delete links to flags.\n\nSeveral of the endpoints in the flag links API require a flag link ID. The flag link ID is returned as part of the [Create flag link](/tag/Flag-links-(beta)#operation/createFlagLink) and [List flag links](/tag/Flag-links-(beta)#operation/getFlagLinks) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n",
+	)
+
 	gen_FlagTriggersResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
@@ -93,11 +121,25 @@ func AddAllResourceCmds(
 		"The feature flags API allows you to list, create, modify, and delete feature flags, their statuses, and their expiring targets programmatically. For example, you can control percentage rollouts, target specific contexts, or even toggle off a feature flag programmatically.\n\n## Sample feature flag representation\n\nEvery feature flag has a set of top-level attributes, as well as an `environments` map containing the flag rollout and targeting rules specific to each environment. To learn more, read [Using feature flags](https://docs.launchdarkly.com/home/flags/create).\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand an example of a \u003cstrong\u003ecomplete feature flag representation\u003c/strong\u003e\u003c/summary\u003e\n\n```json\n{\n  \"name\": \"Alternate product page\",\n  \"kind\": \"boolean\",\n  \"description\": \"This is a description\",\n  \"key\": \"alternate.page\",\n  \"_version\": 2,\n  \"creationDate\": 1418684722483,\n  \"includeInSnippet\": true,\n  \"clientSideAvailability\" {\n    \"usingMobileKey\": false,\n    \"usingEnvironmentId\": true,\n  },\n  \"variations\": [\n    {\n      \"value\": true,\n      \"name\": \"true\",\n      \"_id\": \"86208e6e-468f-4425-b334-7f318397f95c\"\n    },\n    {\n      \"value\": false,\n      \"name\": \"false\",\n      \"_id\": \"7b32de80-f346-4276-bb77-28dfa7ddc2d8\"\n    }\n  ],\n  \"variationJsonSchema\": null,\n  \"defaults\": {\n    \"onVariation\": 0,\n    \"offVariation\": 1\n  },\n  \"temporary\": false,\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_links\": {\n    \"parent\": {\n      \"href\": \"/api/v2/flags/default\",\n      \"type\": \"application/json\"\n    },\n    \"self\": {\n      \"href\": \"/api/v2/flags/default/alternate.page\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"maintainerId\": \"548f6741c1efad40031b18ae\",\n  \"_maintainer\": {\n    \"_links\": {\n      \"self\": {\n        \"href\": \"/api/v2/members/548f6741c1efad40031b18ae\",\n        \"type\": \"application/json\"\n      }\n    },\n    \"_id\": \"548f6741c1efad40031b18ae\",\n    \"firstName\": \"Ariel\",\n    \"lastName\": \"Flores\",\n    \"role\": \"reader\",\n    \"email\": \"ariel@acme.com\"\n  },\n  \"goalIds\": [],\n  \"experiments\": {\n    \"baselineIdx\": 0,\n    \"items\": []\n  },\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"archived\": false,\n      \"salt\": \"YWx0ZXJuYXRlLnBhZ2U=\",\n      \"sel\": \"45501b9314dc4641841af774cb038b96\",\n      \"lastModified\": 1469326565348,\n      \"version\": 61,\n      \"targets\": [{\n          \"values\": [\"user-key-123abc\"],\n          \"variation\": 0,\n          \"contextKind\": \"user\"\n      }],\n      \"contextTargets\": [{\n        \"values\": [],\n        \"variation\": 0,\n        \"contextKind\": \"user\"\n        }, {\n        \"values\": [\"org-key-123abc\"],\n        \"variation\": 0,\n        \"contextKind\": \"organization\"\n      }],\n      \"rules\": [\n        {\n          \"_id\": \"f3ea72d0-e473-4e8b-b942-565b790ffe18\",\n          \"variation\": 0,\n          \"clauses\": [\n            {\n              \"_id\": \"6b81968e-3744-4416-9d64-74547eb0a7d1\",\n              \"attribute\": \"groups\",\n              \"op\": \"in\",\n              \"values\": [\"Top Customers\"],\n              \"contextKind\": \"user\",\n              \"negate\": false\n            },\n            {\n              \"_id\": \"9d60165d-82b8-4b9a-9136-f23407ba1718\",\n              \"attribute\": \"email\",\n              \"op\": \"endsWith\",\n              \"values\": [\"gmail.com\"],\n              \"contextKind\": \"user\",\n              \"negate\": false\n            }\n          ],\n          \"trackEvents\": false,\n          \"ref\": \"73257308-472b-4d9c-a556-10aa7adbf857\"\n        }\n      ],\n      \"fallthrough\": {\n        \"rollout\": {\n          \"variations\": [\n            {\n              \"variation\": 0,\n              \"weight\": 60000\n            },\n            {\n              \"variation\": 1,\n              \"weight\": 40000\n            }\n          ],\n          \"contextKind\": \"user\"\n        }\n      },\n      \"offVariation\": 1,\n      \"prerequisites\": [],\n      \"_site\": {\n        \"href\": \"/default/production/features/alternate.page\",\n        \"type\": \"text/html\"\n      },\n      \"_environmentName\": \"Production\",\n      \"trackEvents\": false,\n      \"trackEventsFallthrough\": false,\n      \"_summary\": {\n        \"variations\": {\n          \"0\": {\n            \"rules\": 1,\n            \"nullRules\": 0,\n            \"targets\": 2,\n            \"rollout\": 60000\n          },\n          \"1\": {\n            \"rules\": 0,\n            \"nullRules\": 0,\n            \"targets\": 0,\n            \"isOff\": true,\n            \"rollout\": 40000\n          }\n        },\n        \"prerequisites\": 0\n      }\n    }\n}\n```\n\n\u003c/details\u003e\n\n## Anatomy of a feature flag\n\nThis section describes the sample feature flag representation in more detail.\n\n### Top-level attributes\n\nMost of the top-level attributes have a straightforward interpretation, for example `name` and `description`.\n\nThe `variations` array represents the different variation values that a feature flag has. For a boolean flag, there are two variations: `true` and `false`. Multivariate flags have more variation values, and those values could be any JSON type: numbers, strings, objects, or arrays. In targeting rules, the variations are referred to by their index into this array.\n\nTo update these attributes, read [Update feature flag](#operation/patchFeatureFlag), especially the instructions for **updating flag settings**.\n\n### Per-environment configurations\n\nEach entry in the `environments` map contains a JSON object that represents the environment-specific flag configuration data available in the flag's Targeting tab. To learn more, read [Targeting with flags](https://docs.launchdarkly.com/home/flags/target).\n\nTo update per-environment information for a flag, read [Update feature flag](#operation/patchFeatureFlag), especially the instructions for **turning flags on and off** and **working with targeting and variations**.\n\n### Individual context targets\n\nThe `targets` and `contextTargets` arrays in the per-environment configuration data correspond to the individual context targeting on the Targeting tab. To learn more, read [Individual targeting](https://docs.launchdarkly.com/home/flags/individual-targeting).\n\nEach object in the `targets` and `contextTargets` arrays represents a list of context keys assigned to a particular variation. The `targets` array includes contexts with `contextKind` of \"user\" and the `contextTargets` array includes contexts with context kinds other than \"user.\"\n\nFor example:\n\n```json\n{\n  ...\n  \"environments\" : {\n    \"production\" : {\n      ...\n      \"targets\": [\n        {\n          \"values\": [\"user-key-123abc\"],\n          \"variation\": 0,\n          \"contextKind\": \"user\"\n        }\n      ],\n      \"contextTargets\": [\n        {\n          \"values\": [\"org-key-123abc\"],\n          \"variation\": 0,\n          \"contextKind\": \"organization\"\n        }\n      ]\n    }\n  }\n}\n```\n\nThe `targets` array means that any user context instance with the key `user-key-123abc` receives the first variation listed in the `variations` array. The `contextTargets` array means that any organization context with the key `org-key-123abc` receives the first variation listed in the `variations` array. Recall that the variations are stored at the top level of the flag JSON in an array, and the per-environment configuration rules point to indexes into this array. If this is a boolean flag, both contexts are receiving the `true` variation.\n\n### Targeting rules\n\nThe `rules` array corresponds to the rules section of the Targeting tab. This is where you can express complex rules on attributes with conditions and operators. For example, you might create a rule that specifies \"roll out the `true` variation to 80% of contexts whose email address ends with `gmail.com`\". To learn more, read [Targeting rules](https://docs.launchdarkly.com/home/flags/targeting-rules).\n\n### The fallthrough rule\n\nThe `fallthrough` object is a special rule that contains no conditions. It is the rollout strategy that is applied when none of the individual or custom targeting rules match. In the LaunchDarkly UI, it is called the \"Default rule.\"\n\n### The off variation\n\nThe off variation represents the variation to serve if the feature flag targeting is turned off, meaning the `on` attribute is `false`. For boolean flags, this is usually `false`. For multivariate flags, set the off variation to whatever variation represents the control or baseline behavior for your application. If you don't set the off variation, LaunchDarkly will serve the fallback value defined in your code.\n\n### Percentage rollouts\n\nWhen you work with targeting rules and with the default rule, you can specify either a single variation or a percentage rollout. The `weight` attribute defines the percentage rollout for each variation. Weights range from 0 (a 0% rollout) to 100000 (a 100% rollout). The weights are scaled by a factor of 1000 so that fractions of a percent can be represented without using floating-point. For example, a weight of `60000` means that 60% of contexts will receive that variation. The sum of weights across all variations should be 100%.\n",
 	)
 
+	gen_FlagsBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"flags-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n",
+	)
+
 	gen_FollowFlagsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
 		"follow-flags",
 		"Follow flags to receive email updates about targeting changes to a flag in a project and environment.\n\nSeveral of the endpoints in the follow flags API require a member ID. The member ID is returned as part of the [Invite new members](/tag/Account-members#operation/postMembers) and [List account members](/tag/Account-members#operation/getMembers) responses. It is the `_id` field of each element in the `items` array.\n",
+	)
+
+	gen_IntegrationDeliveryConfigurationsBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"integration-delivery-configurations-beta",
+		"\n\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nThe integration delivery configurations API allow you to create, modify, validate, and delete delivery configurations.\n\nSeveral of the endpoints require a delivery configuration ID. The delivery configuration ID is returned as part of the [Create delivery configuration](/tag/Integration-delivery-configurations-(beta)#operation/createIntegrationDeliveryConfiguration) and [List all delivery configurations](/tag/Integration-delivery-configurations-(beta)#operation/getIntegrationDeliveryConfigurations) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n",
 	)
 
 	gen_IntegrationSubscriptionsResourceCmd := NewResourceCmd(
@@ -107,11 +149,32 @@ func AddAllResourceCmds(
 		"Audit log integration subscriptions allow you to send audit log events hooks to one of dozens of external tools. For example, you can send flag change event webhooks to external third party software. To learn more, read [Building your own integrations](https://docs.launchdarkly.com/integrations/building-integrations#building-your-own-integrations).\n\nYou can use the integration subscriptions API to create, delete, and manage your integration audit log subscriptions.\n\nEach of these operations requires an `integrationKey` that refers to the type of integration. The required `config` fields to create a subscription vary depending on the `integrationKey`. You can find a full list of the fields for each integration below.\n\nSeveral of these operations require a subscription ID. The subscription ID is returned as part of the [Create audit log subscription](/tag/Integration-audit-log-subscriptions#operation/createSubscription) and [Get audit log subscriptions by integration](/tag/Integration-audit-log-subscriptions#operation/getSubscriptions) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n\n### Configuration bodies by integrationKey\n\n#### datadog\n\n`apiKey` is a sensitive value.\n\n`hostURL` must evaluate to either `\"https://api.datadoghq.com\"` or `\"https://api.datadoghq.eu\"` and will default to the former if not explicitly defined.\n\n```\n\"config\": {\n    \"apiKey\": \u003cstring, optional\u003e, # sensitive value\n    \"hostURL\": \u003cstring, optional\u003e\n}\n```\n\n#### dynatrace\n\n`apiToken` is a sensitive value.\n\n`entity` must evaluate to one of the following fields and will default to `\"APPLICATION\"` if not explicitly defined:\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand list of fields\u003c/summary\u003e\n\u003cbr\u003e\n\"APPLICATION\"\u003cbr\u003e\n\"APPLICATION_METHOD\"\u003cbr\u003e\n\"APPLICATION_METHOD_GROUP\"\u003cbr\u003e\n\"AUTO_SCALING_GROUP\"\u003cbr\u003e\n\"AUXILIARY_SYNTHETIC_TEST\"\u003cbr\u003e\n\"AWS_APPLICATION_LOAD_BALANCER\"\u003cbr\u003e\n\"AWS_AVAILABILITY_ZONE\"\u003cbr\u003e\n\"AWS_CREDENTIALS\"\u003cbr\u003e\n\"AWS_LAMBDA_FUNCTION\"\u003cbr\u003e\n\"AWS_NETWORK_LOAD_BALANCER\"\u003cbr\u003e\n\"AZURE_API_MANAGEMENT_SERVICE\"\u003cbr\u003e\n\"AZURE_APPLICATION_GATEWAY\"\u003cbr\u003e\n\"AZURE_COSMOS_DB\"\u003cbr\u003e\n\"AZURE_CREDENTIALS\"\u003cbr\u003e\n\"AZURE_EVENT_HUB\"\u003cbr\u003e\n\"AZURE_EVENT_HUB_NAMESPACE\"\u003cbr\u003e\n\"AZURE_FUNCTION_APP\"\u003cbr\u003e\n\"AZURE_IOT_HUB\"\u003cbr\u003e\n\"AZURE_LOAD_BALANCER\"\u003cbr\u003e\n\"AZURE_MGMT_GROUP\"\u003cbr\u003e\n\"AZURE_REDIS_CACHE\"\u003cbr\u003e\n\"AZURE_REGION\"\u003cbr\u003e\n\"AZURE_SERVICE_BUS_NAMESPACE\"\u003cbr\u003e\n\"AZURE_SERVICE_BUS_QUEUE\"\u003cbr\u003e\n\"AZURE_SERVICE_BUS_TOPIC\"\u003cbr\u003e\n\"AZURE_SQL_DATABASE\"\u003cbr\u003e\n\"AZURE_SQL_ELASTIC_POOL\"\u003cbr\u003e\n\"AZURE_SQL_SERVER\"\u003cbr\u003e\n\"AZURE_STORAGE_ACCOUNT\"\u003cbr\u003e\n\"AZURE_SUBSCRIPTION\"\u003cbr\u003e\n\"AZURE_TENANT\"\u003cbr\u003e\n\"AZURE_VM\"\u003cbr\u003e\n\"AZURE_VM_SCALE_SET\"\u003cbr\u003e\n\"AZURE_WEB_APP\"\u003cbr\u003e\n\"CF_APPLICATION\"\u003cbr\u003e\n\"CF_FOUNDATION\"\u003cbr\u003e\n\"CINDER_VOLUME\"\u003cbr\u003e\n\"CLOUD_APPLICATION\"\u003cbr\u003e\n\"CLOUD_APPLICATION_INSTANCE\"\u003cbr\u003e\n\"CLOUD_APPLICATION_NAMESPACE\"\u003cbr\u003e\n\"CONTAINER_GROUP\"\u003cbr\u003e\n\"CONTAINER_GROUP_INSTANCE\"\u003cbr\u003e\n\"CUSTOM_APPLICATION\"\u003cbr\u003e\n\"CUSTOM_DEVICE\"\u003cbr\u003e\n\"CUSTOM_DEVICE_GROUP\"\u003cbr\u003e\n\"DCRUM_APPLICATION\"\u003cbr\u003e\n\"DCRUM_SERVICE\"\u003cbr\u003e\n\"DCRUM_SERVICE_INSTANCE\"\u003cbr\u003e\n\"DEVICE_APPLICATION_METHOD\"\u003cbr\u003e\n\"DISK\"\u003cbr\u003e\n\"DOCKER_CONTAINER_GROUP_INSTANCE\"\u003cbr\u003e\n\"DYNAMO_DB_TABLE\"\u003cbr\u003e\n\"EBS_VOLUME\"\u003cbr\u003e\n\"EC2_INSTANCE\"\u003cbr\u003e\n\"ELASTIC_LOAD_BALANCER\"\u003cbr\u003e\n\"ENVIRONMENT\"\u003cbr\u003e\n\"EXTERNAL_SYNTHETIC_TEST_STEP\"\u003cbr\u003e\n\"GCP_ZONE\"\u003cbr\u003e\n\"GEOLOCATION\"\u003cbr\u003e\n\"GEOLOC_SITE\"\u003cbr\u003e\n\"GOOGLE_COMPUTE_ENGINE\"\u003cbr\u003e\n\"HOST\"\u003cbr\u003e\n\"HOST_GROUP\"\u003cbr\u003e\n\"HTTP_CHECK\"\u003cbr\u003e\n\"HTTP_CHECK_STEP\"\u003cbr\u003e\n\"HYPERVISOR\"\u003cbr\u003e\n\"KUBERNETES_CLUSTER\"\u003cbr\u003e\n\"KUBERNETES_NODE\"\u003cbr\u003e\n\"MOBILE_APPLICATION\"\u003cbr\u003e\n\"NETWORK_INTERFACE\"\u003cbr\u003e\n\"NEUTRON_SUBNET\"\u003cbr\u003e\n\"OPENSTACK_PROJECT\"\u003cbr\u003e\n\"OPENSTACK_REGION\"\u003cbr\u003e\n\"OPENSTACK_VM\"\u003cbr\u003e\n\"OS\"\u003cbr\u003e\n\"PROCESS_GROUP\"\u003cbr\u003e\n\"PROCESS_GROUP_INSTANCE\"\u003cbr\u003e\n\"RELATIONAL_DATABASE_SERVICE\"\u003cbr\u003e\n\"SERVICE\"\u003cbr\u003e\n\"SERVICE_INSTANCE\"\u003cbr\u003e\n\"SERVICE_METHOD\"\u003cbr\u003e\n\"SERVICE_METHOD_GROUP\"\u003cbr\u003e\n\"SWIFT_CONTAINER\"\u003cbr\u003e\n\"SYNTHETIC_LOCATION\"\u003cbr\u003e\n\"SYNTHETIC_TEST\"\u003cbr\u003e\n\"SYNTHETIC_TEST_STEP\"\u003cbr\u003e\n\"VIRTUALMACHINE\"\u003cbr\u003e\n\"VMWARE_DATACENTER\"\n\u003c/details\u003e\n\n```\n\"config\": {\n    \"apiToken\": \u003cstring, required\u003e,\n    \"url\": \u003cstring, required\u003e,\n    \"entity\": \u003cstring, optional\u003e\n}\n```\n\n#### elastic\n\n`token` is a sensitive field.\n\n```\n\"config\": {\n    \"url\": \u003cstring, required\u003e,\n    \"token\": \u003cstring, required\u003e,\n    \"index\": \u003cstring, required\u003e\n}\n```\n\n#### honeycomb\n\n`apiKey` is a sensitive field.\n\n```\n\"config\": {\n    \"datasetName\": \u003cstring, required\u003e,\n    \"apiKey\": \u003cstring, required\u003e\n}\n```\n\n#### logdna\n\n`ingestionKey` is a sensitive field.\n\n```\n\"config\": {\n    \"ingestionKey\": \u003cstring, required\u003e,\n    \"level\": \u003cstring, optional\u003e\n}\n```\n\n#### msteams\n\n```\n\"config\": {\n    \"url\": \u003cstring, required\u003e\n}\n```\n\n#### new-relic-apm\n\n`apiKey` is a sensitive field.\n\n`domain` must evaluate to either `\"api.newrelic.com\"` or `\"api.eu.newrelic.com\"` and will default to the former if not explicitly defined.\n\n```\n\"config\": {\n    \"apiKey\": \u003cstring, required\u003e,\n    \"applicationId\": \u003cstring, required\u003e,\n    \"domain\": \u003cstring, optional\u003e\n}\n```\n\n#### signalfx\n\n`accessToken` is a sensitive field.\n\n```\n\"config\": {\n    \"accessToken\": \u003cstring, required\u003e,\n    \"realm\": \u003cstring, required\u003e\n}\n```\n\n#### splunk\n\n`token` is a sensitive field.\n\n```\n\"config\": {\n    \"base-url\": \u003cstring, required\u003e,\n    \"token\": \u003cstring, required\u003e,\n    \"skip-ca-verificiation\": \u003cboolean, required\u003e\n}\n```\n",
 	)
 
+	gen_IntegrationsBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"integrations-beta",
+		"\n\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nYou can use the integrations API to create, delete, and manage integrations between LaunchDarkly and third-party applications.\n\nSpecifically, the integrations API provides endpoints for managing the persistent store integrations, also called \"big segment\" store integrations, that are required when you use a server-side SDK and big segments.\n\n\u003e ### Synced segments and larger list-based segments are an Enterprise feature\n\u003e\n\u003e Segments synced from external tools and larger list-based segments with more than 15,000 entries are the two kinds of \"big segment.\" LaunchDarkly uses different implementations for different types of segments so that all of your segments have good performance.\n\u003e\n\u003e These segments are available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\n[Segments synced from external tools](https://docs.launchdarkly.com/home/flags/synced-segments) and [larger list-based segments](https://docs.launchdarkly.com/home/flags/list-based-segments#larger-list-based-segments) are the two kinds of big segment. If you are using server-side SDKs, these segments require a persistent store within your infrastructure. LaunchDarkly keeps the persistent store up to date and consults it during flag evaluation.\n\nYou need either a persistent store integration or a [Relay Proxy](https://docs.launchdarkly.com/sdk/relay-proxy) to support these segments. The integrations API lets you manage the persistent store integrations.\n\nTo learn more about segments, read [Segments](https://docs.launchdarkly.com/home/flags/segments) and [Segment configuration](https://docs.launchdarkly.com/home/flags/segment-config).\n\nSeveral of the endpoints in the integrations API require an integration ID. The integration ID is returned as part of the [Create big segment store integration](/tag/Integrations-(beta)#operation/createBigSegmentStoreIntegration) response, in the `_id` field. It is also returned as part of the [List all big segment store integrations](/tag/Integrations-(beta)#operation/getBigSegmentStoreIntegrations) response, in the `_id` field of each element in the `items` array.\n\nYou can find other APIs for working with big segments under [Segments](/tag/Segments) and [Segments (beta)](/tag/Segments-(beta)).\n",
+	)
+
 	gen_MembersResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
 		"members",
 		"The account members API allows you to invite new members to an account by making a `POST` request to `/api/v2/members`. When you invite a new member to an account, an invitation is sent to the email you provided. Members with \"admin\" or \"owner\" roles may create new members, as well as anyone with a \"createMember\" permission for \"member/\\*\". To learn more, read [LaunchDarkly account members](https://docs.launchdarkly.com/home/account/members).\n\nAny member may request the complete list of account members with a `GET` to `/api/v2/members`.\n\nValid built-in role names that you can provide for the `role` field include `reader`, `writer`, `admin`, `owner/admin`, and `no_access`. To learn more about built-in roles, read [LaunchDarkly's built-in roles](https://docs.launchdarkly.com/home/account/built-in-roles).\n\nSeveral of the endpoints in the account members API require a member ID. The member ID is returned as part of the [Invite new members](/tag/Account-members#operation/postMembers) and [List account members](/tag/Account-members#operation/getMembers) responses. It is the `_id` field of each element in the `items` array.\n",
+	)
+
+	gen_MembersBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"members-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n",
+	)
+
+	gen_MetricGroupsBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"metric-groups-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nMetrics measure audience behaviors affected by the flags in your experiments. Metric groups are reusable, ordered lists of metrics you can use to standardize metrics across multiple experiments. To learn more, read [Metrics](https://docs.launchdarkly.com/home/observability/metrics) and [Metric groups](https://docs.launchdarkly.com/home/observability/metric-groups).\n\nUsing the metrics API, you can create, delete, and manage metrics and metric groups.\n",
 	)
 
 	gen_MetricsResourceCmd := NewResourceCmd(
@@ -135,6 +198,20 @@ func AddAllResourceCmds(
 		"\n\u003e ### Relay Proxy automatic configuration is an Enterprise feature\n\u003e\n\u003e Relay Proxy automatic configuration is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nThe Relay Proxy automatic configuration API provides access to all resources related to relay tokens. To learn more, read [Automatic configuration](https://docs.launchdarkly.com/sdk/relay-proxy/automatic-configuration).\n\nSeveral of the endpoints in the Relay Proxy automatic configuration API require a configuration ID. The Relay Proxy configuration ID is returned as part of the [Create a new Relay Proxy config](/tag/Relay-Proxy-configurations#operation/postRelayAutoConfig) and [List Relay Proxy configs](/tag/Relay-Proxy-configurations#operation/getRelayProxyConfigs) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n",
 	)
 
+	gen_ReleasePipelinesBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"release-pipelines-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nRelease pipelines track the progression of a feature flag across a series of phases, where each phase consists of one or more environments. When you add a flag to a release pipeline, you create a \"release\" to track that flag's progress through the pipeline.\n\nYou can use release pipelines to ensure that you correctly roll out the flag in each environment before moving on to the next. You can also use them to view the status of ongoing releases across all flags within a project, enforcing a standardized process and ensuring they are following best practices. To learn more, read [Release pipelines](https://docs.launchdarkly.com/home/releases/release-pipelines).\n\nWith the release pipelines API, you can view, create, and delete release pipelines.\n\nWith the related [releases API](/tag/Releases-(beta)), you can view and update the active releases for a given flag.\n\nTo add a feature flag to an existing release pipeline, use the [Update feature flag](/tag/Feature-flags#operation/patchFeatureFlag) endpoint.\n",
+	)
+
+	gen_ReleasesBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"releases-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nRelease pipelines track the progression of a feature flag across a series of phases, where each phase consists of one or more environments. When you add a flag to a release pipeline, you create a \"release\" to track that flag's progress through the pipeline. To learn more, read [Release pipelines](https://docs.launchdarkly.com/home/releases/release-pipelines).\n\nWith the releases API, you can view and update the active releases for a given flag.\n\nWith the related [release pipelines API](/tag/Release-pipelines-(beta)), you can view, create, and delete release pipelines.\n",
+	)
+
 	gen_ScheduledChangesResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
@@ -149,6 +226,13 @@ func AddAllResourceCmds(
 		"\n\u003e ### Synced segments and larger list-based segments are an Enterprise feature\n\u003e\n\u003e This section documents endpoints for rule-based, list-based, and synced segments.\n\u003e\n\u003e A \"big segment\" is a segment that is either a synced segment, or a list-based segment with more than 15,000 entries that includes only one targeted context kind. LaunchDarkly uses different implementations for different types of segments so that all of your segments have good performance.\n\u003e\n\u003e In the segments API, a big segment is indicated by the `unbounded` field being set to `true`.\n\u003e\n\u003e These segments are available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nSegments are groups of contexts that you can use to manage flag targeting behavior in bulk. LaunchDarkly supports:\n\n* rule-based segments, which let you target groups of contexts individually or by attribute,\n* list-based segments, which let you target individual contexts or uploaded lists of contexts, and\n* synced segments, which let you target groups of contexts backed by an external data store.\n\nTo learn more, read [Segments](https://docs.launchdarkly.com/home/flags/segments).\n\nThe segments API allows you to list, create, modify, and delete segments programmatically.\n\nYou can find other APIs for working with big segments under [Segments (beta)](/tag/Segments-(beta)) and [Integrations (beta)](/tag/Integrations-(beta)).\n",
 	)
 
+	gen_SegmentsBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"segments-beta",
+		"\u003e ### Synced segments and larger list-based segments are an Enterprise feature\n\u003e\n\u003e This section documents endpoints for rule-based, list-based, and synced segments.\n\u003e\n\u003e A \"big segment\" is a segment that is either a synced segment, or a list-based segment with more than 15,000 entries that includes only one targeted context kind. LaunchDarkly uses different implementations for different types of segments so that all of your segments have good performance.\n\u003e\n\u003e In the segments API, a big segment is indicated by the `unbounded` field being set to `true`.\n\u003e\n\u003e These segments are available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\n\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nThe segments API allows you to create and retrieve exports and imports for big segments, which are synced segments or list-based segments with 15,000 or more entries. To learn more, read [Segments](https://docs.launchdarkly.com/home/flags/segments).\n\nSeveral of the endpoints in the segments API require an import or export ID. The import ID is returned in the `Location` header as part of the [Create big segment import](/tag/Segments-(beta)#operation/createBigSegmentImport) request. The export ID is returned in the `Location` header as part of the [Create big segment export](/tag/Segments-(beta)#operation/createBigSegmentExport) request. In each case, the ID is the final element of the path returned in the `Location` header.\n\nYou can find other APIs for working with big segments under [Segments](/tag/Segments) and [Integrations (beta)](/tag/Integrations-(beta)).\n",
+	)
+
 	gen_TagsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
@@ -161,6 +245,13 @@ func AddAllResourceCmds(
 		analyticsTrackerFn,
 		"teams",
 		"\u003e ### Teams is an Enterprise feature\n\u003e\n\u003e Teams is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nA team is a group of members in your LaunchDarkly account. A team can have maintainers who are able to add and remove team members. It also can have custom roles assigned to it that allows shared access to those roles for all team members. To learn more, read [Teams](https://docs.launchdarkly.com/home/account/teams).\n\nThe Teams API allows you to create, read, update, and delete a team.\n\nSeveral of the endpoints in the Teams API require one or more member IDs. The member ID is returned as part of the [List account members](/tag/Account-members#operation/getMembers) response. It is the `_id` field of each element in the `items` array.\n",
+	)
+
+	gen_TeamsBetaResourceCmd := NewResourceCmd(
+		rootCmd,
+		analyticsTrackerFn,
+		"teams-beta",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](/#section/Overview/Beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\n\u003e ### Teams is an Enterprise feature\n\u003e\n\u003e Teams is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nA team is a group of members in your LaunchDarkly account. A team can have maintainers who are able to add and remove team members. It also can have custom roles assigned to it that allows shared access to those roles for all team members. To learn more, read [Teams](https://docs.launchdarkly.com/home/account/teams).\n",
 	)
 
 	gen_WebhooksResourceCmd := NewResourceCmd(
@@ -200,6 +291,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/tokens/{id}",
 		SupportsSemanticPatch: false,
@@ -219,6 +311,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/tokens/{id}",
 		SupportsSemanticPatch: false,
@@ -244,12 +337,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/tokens",
 		SupportsSemanticPatch: false,
@@ -269,6 +363,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/tokens/{id}",
 		SupportsSemanticPatch: false,
@@ -281,6 +376,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/tokens",
 		SupportsSemanticPatch: false,
@@ -306,8 +402,629 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/tokens/{id}/reset",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get data export events usage",
+		Long:  "Get a time-series array of the number of monthly data export events from your account. The granularity is always daily, with a maximum of 31 days.",
+		Use:   "get-data-export-events-usage",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/data-export-events",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get evaluations usage",
+		Long:  "Get time-series arrays of the number of times a flag is evaluated, broken down by the variation that resulted from that evaluation. The granularity of the data depends on the age of the data requested. If the requested range is within the past two hours, minutely data is returned. If it is within the last two days, hourly data is returned. Otherwise, daily data is returned.",
+		Use:   "get-evaluations-usage",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp. Defaults to 30 days ago.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp. Defaults to the current time.",
+				Type:        "string",
+			},
+			{
+				Name:        "tz",
+				In:          "query",
+				Description: "The timezone to use for breaks between days when returning daily data.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/evaluations/{projectKey}/{environmentKey}/{featureFlagKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get events usage",
+		Long:  "Get time-series arrays of the number of times a flag is evaluated, broken down by the variation that resulted from that evaluation. The granularity of the data depends on the age of the data requested. If the requested range is within the past two hours, minutely data is returned. If it is within the last two days, hourly data is returned. Otherwise, daily data is returned.",
+		Use:   "get-events-usage",
+		Params: []Param{
+			{
+				Name:        "type",
+				In:          "path",
+				Description: "The type of event to retrieve. Must be either 'received' or 'published'.",
+				Type:        "string",
+			},
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp. Defaults to 24 hours ago.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp. Defaults to the current time.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/events/{type}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get experimentation keys usage",
+		Long:  "Get a time-series array of the number of monthly experimentation keys from your account. The granularity is always daily, with a maximum of 31 days.",
+		Use:   "get-experimentation-keys-usage",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/experimentation-keys",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get experimentation units usage",
+		Long:  "Get a time-series array of the number of monthly experimentation units from your account. The granularity is always daily, with a maximum of 31 days.",
+		Use:   "get-experimentation-units-usage",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/experimentation-units",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get MAU SDKs by type",
+		Long:  "Get a list of SDKs. These are all of the SDKs that have connected to LaunchDarkly by monthly active users (MAU) in the requested time period.\u003cbr/\u003e\u003cbr/\u003eEndpoints for retrieving monthly active users (MAU) do not return information about active context instances. After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should not rely on this endpoint. To learn more, read [Account usage metrics](https://docs.launchdarkly.com/home/account/metrics).",
+		Use:   "get-mau-sdks-by-type",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The data returned starts from this timestamp. Defaults to seven days ago. The timestamp is in Unix milliseconds, for example, 1656694800000.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The data returned ends at this timestamp. Defaults to the current time. The timestamp is in Unix milliseconds, for example, 1657904400000.",
+				Type:        "string",
+			},
+			{
+				Name:        "sdktype",
+				In:          "query",
+				Description: "The type of SDK with monthly active users (MAU) to list. Must be either 'client' or 'server'.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/mau/sdks",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get MAU usage",
+		Long:  "Get a time-series array of the number of monthly active users (MAU) seen by LaunchDarkly from your account. The granularity is always daily.\u003cbr/\u003e\u003cbr/\u003eEndpoints for retrieving monthly active users (MAU) do not return information about active context instances. After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should not rely on this endpoint. To learn more, read [Account usage metrics](https://docs.launchdarkly.com/home/account/metrics).",
+		Use:   "get-mau-usage",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp. Defaults to 30 days ago.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp. Defaults to the current time.",
+				Type:        "string",
+			},
+			{
+				Name:        "project",
+				In:          "query",
+				Description: "A project key to filter results to. Can be specified multiple times, one query parameter per project key, to view data for multiple projects.",
+				Type:        "string",
+			},
+			{
+				Name:        "environment",
+				In:          "query",
+				Description: "An environment key to filter results to. When using this parameter, exactly one project key must also be set. Can be specified multiple times as separate query parameters to view data for multiple environments within a single project.",
+				Type:        "string",
+			},
+			{
+				Name:        "sdktype",
+				In:          "query",
+				Description: "An SDK type to filter results to. Can be specified multiple times, one query parameter per SDK type. Valid values: client, server",
+				Type:        "string",
+			},
+			{
+				Name:        "sdk",
+				In:          "query",
+				Description: "An SDK name to filter results to. Can be specified multiple times, one query parameter per SDK.",
+				Type:        "string",
+			},
+			{
+				Name:        "anonymous",
+				In:          "query",
+				Description: "If specified, filters results to either anonymous or nonanonymous users.",
+				Type:        "string",
+			},
+			{
+				Name:        "groupby",
+				In:          "query",
+				Description: "If specified, returns data for each distinct value of the given field. Can be specified multiple times to group data by multiple dimensions (for example, to group by both project and SDK). Valid values: project, environment, sdktype, sdk, anonymous",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/mau",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get MAU usage by category",
+		Long:  "Get time-series arrays of the number of monthly active users (MAU) seen by LaunchDarkly from your account, broken down by the category of users. The category is either `browser`, `mobile`, or `backend`.\u003cbr/\u003e\u003cbr/\u003eEndpoints for retrieving monthly active users (MAU) do not return information about active context instances. After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should not rely on this endpoint. To learn more, read [Account usage metrics](https://docs.launchdarkly.com/home/account/metrics).",
+		Use:   "get-mau-usage-by-category",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp. Defaults to 30 days ago.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp. Defaults to the current time.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/mau/bycategory",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get service connection usage",
+		Long:  "Get a time-series array of the number of monthly service connections from your account. The granularity is always daily, with a maximum of 31 days.",
+		Use:   "get-service-connection-usage",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/service-connections",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get stream usage",
+		Long:  "Get a time-series array of the number of streaming connections to LaunchDarkly in each time period. The granularity of the data depends on the age of the data requested. If the requested range is within the past two hours, minutely data is returned. If it is within the last two days, hourly data is returned. Otherwise, daily data is returned.",
+		Use:   "get-stream-usage",
+		Params: []Param{
+			{
+				Name:        "source",
+				In:          "path",
+				Description: "The source of streaming connections to describe. Must be either 'client' or 'server'.",
+				Type:        "string",
+			},
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp. Defaults to 30 days ago.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp. Defaults to the current time.",
+				Type:        "string",
+			},
+			{
+				Name:        "tz",
+				In:          "query",
+				Description: "The timezone to use for breaks between days when returning daily data.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/streams/{source}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get stream usage by SDK version",
+		Long:  "Get multiple series of the number of streaming connections to LaunchDarkly in each time period, separated by SDK type and version. Information about each series is in the metadata array. The granularity of the data depends on the age of the data requested. If the requested range is within the past 2 hours, minutely data is returned. If it is within the last two days, hourly data is returned. Otherwise, daily data is returned.",
+		Use:   "get-stream-usage-by-sdk-version",
+		Params: []Param{
+			{
+				Name:        "source",
+				In:          "path",
+				Description: "The source of streaming connections to describe. Must be either 'client' or 'server'.",
+				Type:        "string",
+			},
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp. Defaults to 24 hours ago.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp. Defaults to the current time.",
+				Type:        "string",
+			},
+			{
+				Name:        "tz",
+				In:          "query",
+				Description: "The timezone to use for breaks between days when returning daily data.",
+				Type:        "string",
+			},
+			{
+				Name:        "sdk",
+				In:          "query",
+				Description: "If included, this filters the returned series to only those that match this SDK name.",
+				Type:        "string",
+			},
+			{
+				Name:        "version",
+				In:          "query",
+				Description: "If included, this filters the returned series to only those that match this SDK version.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/streams/{source}/bysdkversion",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, OperationData{
+		Short: "Get stream usage SDK versions",
+		Long:  "Get a list of SDK version objects, which contain an SDK name and version. These are all of the SDKs that have connected to LaunchDarkly from your account in the past 60 days.",
+		Use:   "get-stream-usage-sdkversion",
+		Params: []Param{
+			{
+				Name:        "source",
+				In:          "path",
+				Description: "The source of streaming connections to describe. Must be either 'client' or 'server'.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/streams/{source}/sdkversions",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, OperationData{
+		Short: "Delete application",
+		Long:  "Delete an application.",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "application-key",
+				In:          "path",
+				Description: "The application key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/applications/{applicationKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, OperationData{
+		Short: "Delete application version",
+		Long:  "Delete an application version.",
+		Use:   "delete-version",
+		Params: []Param{
+			{
+				Name:        "application-key",
+				In:          "path",
+				Description: "The application key",
+				Type:        "string",
+			},
+			{
+				Name:        "version-key",
+				In:          "path",
+				Description: "The application version key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/applications/{applicationKey}/versions/{versionKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, OperationData{
+		Short: "Get application by key",
+		Long:  "\nRetrieve an application by the application key.\n\n### Expanding the application response\n\nLaunchDarkly supports expanding the \"Get application\" response to include additional fields.\n\nTo expand the response, append the `expand` query parameter and include the following:\n\n* `flags` includes details on the flags that have been evaluated by the application\n\nFor example, use `?expand=flags` to include the `flags` field in the response. By default, this field is **not** included in the response.\n",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "application-key",
+				In:          "path",
+				Description: "The application key",
+				Type:        "string",
+			},
+			{
+				Name:        "expand",
+				In:          "query",
+				Description: "A comma-separated list of properties that can reveal additional information in the response. Options: 'flags'.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/applications/{applicationKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, OperationData{
+		Short: "Get application versions by application key",
+		Long:  "Get a list of versions for a specific application in an account.",
+		Use:   "list-versions",
+		Params: []Param{
+			{
+				Name:        "filter",
+				In:          "query",
+				Description: "Accepts filter by 'key', 'name', 'supported', and 'autoAdded'. Example: 'filter=key equals 'test-key''. To learn more about the filter syntax, read [Filtering applications and application versions](/tag/Applications-(beta)#filtering-contexts-and-context-instances).",
+				Type:        "string",
+			},
+			{
+				Name:        "application-key",
+				In:          "path",
+				Description: "The application key",
+				Type:        "string",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The number of versions to return. Defaults to 50.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
+				Type:        "integer",
+			},
+			{
+				Name:        "sort",
+				In:          "query",
+				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are 'creationDate', 'name'. Examples: 'sort=name' sort by names ascending, 'sort=-name,creationDate' sort by names descending and creationDate ascending.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/applications/{applicationKey}/versions",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, OperationData{
+		Short: "Get applications",
+		Long:  "\nGet a list of applications.\n\n### Expanding the applications response\n\nLaunchDarkly supports expanding the \"Get applications\" response to include additional fields.\n\nTo expand the response, append the `expand` query parameter and include the following:\n\n* `flags` includes details on the flags that have been evaluated by the application\n\nFor example, use `?expand=flags` to include the `flags` field in the response. By default, this field is **not** included in the response.\n",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "filter",
+				In:          "query",
+				Description: "Accepts filter by 'key', 'name', 'kind', and 'autoAdded'. Example: 'filter=kind anyOf ['mobile', 'server'],key equals 'test-key''. To learn more about the filter syntax, read [Filtering applications and application versions](/tag/Applications-(beta)#filtering-contexts-and-context-instances).",
+				Type:        "string",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The number of applications to return. Defaults to 10.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
+				Type:        "integer",
+			},
+			{
+				Name:        "sort",
+				In:          "query",
+				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are 'creationDate', 'name'. Examples: 'sort=name' sort by names ascending, 'sort=-name,creationDate' sort by names descending and creationDate ascending.",
+				Type:        "string",
+			},
+			{
+				Name:        "expand",
+				In:          "query",
+				Description: "A comma-separated list of properties that can reveal additional information in the response. Options: 'flags'.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/applications",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, OperationData{
+		Short: "Update application",
+		Long:  "Update an application. You can update the `description` and `kind` fields. Requires a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes to the application. To learn more, read [Updates](/#section/Overview/Updates).",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "application-key",
+				In:          "path",
+				Description: "The application key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/applications/{applicationKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, OperationData{
+		Short: "Update application version",
+		Long:  "Update an application version. You can update the `supported` field. Requires a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes to the application version. To learn more, read [Updates](/#section/Overview/Updates).",
+		Use:   "update-version",
+		Params: []Param{
+			{
+				Name:        "application-key",
+				In:          "path",
+				Description: "The application key",
+				Type:        "string",
+			},
+			{
+				Name:        "version-key",
+				In:          "path",
+				Description: "The application version key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/applications/{applicationKey}/versions/{versionKey}",
 		SupportsSemanticPatch: false,
 	})
 
@@ -325,6 +1042,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/approval-requests/{id}",
 		SupportsSemanticPatch: false,
@@ -362,6 +1080,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{id}",
 		SupportsSemanticPatch: false,
@@ -399,6 +1118,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{id}",
 		SupportsSemanticPatch: false,
@@ -424,6 +1144,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/approval-requests/{id}",
 		SupportsSemanticPatch: false,
@@ -437,7 +1158,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field operator value`. Supported fields are explained above.",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field operator value'. Supported fields are explained above.",
 				Type:        "string",
 			},
 			{
@@ -455,12 +1176,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/approval-requests",
 		SupportsSemanticPatch: false,
@@ -492,6 +1214,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests",
 		SupportsSemanticPatch: false,
@@ -504,6 +1227,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/approval-requests",
 		SupportsSemanticPatch: false,
@@ -523,6 +1247,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/approval-requests/{id}/apply",
 		SupportsSemanticPatch: false,
@@ -560,6 +1285,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{id}/apply",
 		SupportsSemanticPatch: false,
@@ -591,6 +1317,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests",
 		SupportsSemanticPatch: false,
@@ -610,6 +1337,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/approval-requests/{id}/reviews",
 		SupportsSemanticPatch: false,
@@ -647,6 +1375,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{id}/reviews",
 		SupportsSemanticPatch: false,
@@ -678,6 +1407,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests-flag-copy",
 		SupportsSemanticPatch: false,
@@ -721,6 +1451,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/auditlog",
 		SupportsSemanticPatch: false,
@@ -740,6 +1471,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/auditlog/{id}",
 		SupportsSemanticPatch: false,
@@ -759,6 +1491,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branch-delete-tasks",
 		SupportsSemanticPatch: false,
@@ -778,6 +1511,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories/{repo}",
 		SupportsSemanticPatch: false,
@@ -815,6 +1549,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branches/{branch}",
 		SupportsSemanticPatch: false,
@@ -834,6 +1569,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branches",
 		SupportsSemanticPatch: false,
@@ -871,18 +1607,19 @@ func AddAllResourceCmds(
 			{
 				Name:        "from",
 				In:          "query",
-				Description: "Filter results to a specific timeframe based on commit time, expressed as a Unix epoch time in milliseconds. Must be used with `to`.",
+				Description: "Filter results to a specific timeframe based on commit time, expressed as a Unix epoch time in milliseconds. Must be used with 'to'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "to",
 				In:          "query",
-				Description: "Filter results to a specific timeframe based on commit time, expressed as a Unix epoch time in milliseconds. Must be used with `from`.",
+				Description: "Filter results to a specific timeframe based on commit time, expressed as a Unix epoch time in milliseconds. Must be used with 'from'.",
 				Type:        "integer",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/extinctions",
 		SupportsSemanticPatch: false,
@@ -920,6 +1657,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories",
 		SupportsSemanticPatch: false,
@@ -939,6 +1677,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories/{repo}",
 		SupportsSemanticPatch: false,
@@ -951,6 +1690,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/statistics",
 		SupportsSemanticPatch: false,
@@ -976,6 +1716,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/statistics/{projectKey}",
 		SupportsSemanticPatch: false,
@@ -995,6 +1736,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}",
 		SupportsSemanticPatch: false,
@@ -1020,6 +1762,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branches/{branch}/extinction-events",
 		SupportsSemanticPatch: false,
@@ -1032,6 +1775,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories",
 		SupportsSemanticPatch: false,
@@ -1057,6 +1801,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PUT",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branches/{branch}",
 		SupportsSemanticPatch: false,
@@ -1100,6 +1845,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PUT",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/contexts/{contextKind}/{contextKey}/flags/{featureFlagKey}",
 		SupportsSemanticPatch: false,
@@ -1131,6 +1877,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-instances/{id}",
 		SupportsSemanticPatch: false,
@@ -1162,7 +1909,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
@@ -1174,12 +1921,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field operator value`. Supported fields are explained above.",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field operator value'. Supported fields are explained above.",
 				Type:        "string",
 			},
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/flags/evaluate",
 		SupportsSemanticPatch: false,
@@ -1205,12 +1953,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts `kind` filters, with the `equals` operator, and `name` filters, with the `startsWith` operator. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts 'kind' filters, with the 'equals' operator, and 'name' filters, with the 'startsWith' operator. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-attributes",
 		SupportsSemanticPatch: false,
@@ -1242,12 +1991,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts `kind` filters, with the `equals` operator, and `value` filters, with the `startsWith` operator. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts 'kind' filters, with the 'equals' operator, and 'value' filters, with the 'startsWith' operator. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-attributes/{attributeName}",
 		SupportsSemanticPatch: false,
@@ -1285,19 +2035,19 @@ func AddAllResourceCmds(
 			{
 				Name:        "continuation-token",
 				In:          "query",
-				Description: "Limits results to context instances with sort values after the value specified. You can use this for pagination, however, we recommend using the `next` link we provide instead.",
+				Description: "Limits results to context instances with sort values after the value specified. You can use this for pagination, however, we recommend using the 'next' link we provide instead.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying `ts` for this value, or descending order by specifying `-ts`.",
+				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying 'ts' for this value, or descending order by specifying '-ts'.",
 				Type:        "string",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts an `applicationId` filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts an 'applicationId' filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 			{
@@ -1309,6 +2059,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-instances/{id}",
 		SupportsSemanticPatch: false,
@@ -1328,6 +2079,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/context-kinds",
 		SupportsSemanticPatch: false,
@@ -1371,19 +2123,19 @@ func AddAllResourceCmds(
 			{
 				Name:        "continuation-token",
 				In:          "query",
-				Description: "Limits results to contexts with sort values after the value specified. You can use this for pagination, however, we recommend using the `next` link we provide instead.",
+				Description: "Limits results to contexts with sort values after the value specified. You can use this for pagination, however, we recommend using the 'next' link we provide instead.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying `ts` for this value, or descending order by specifying `-ts`.",
+				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying 'ts' for this value, or descending order by specifying '-ts'.",
 				Type:        "string",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts an `applicationId` filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts an 'applicationId' filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 			{
@@ -1395,6 +2147,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/contexts/{kind}/{key}",
 		SupportsSemanticPatch: false,
@@ -1420,6 +2173,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PUT",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/context-kinds/{key}",
 		SupportsSemanticPatch: false,
@@ -1451,19 +2205,19 @@ func AddAllResourceCmds(
 			{
 				Name:        "continuation-token",
 				In:          "query",
-				Description: "Limits results to context instances with sort values after the value specified. You can use this for pagination, however, we recommend using the `next` link we provide instead.",
+				Description: "Limits results to context instances with sort values after the value specified. You can use this for pagination, however, we recommend using the 'next' link we provide instead.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying `ts` for this value, or descending order by specifying `-ts`.",
+				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying 'ts' for this value, or descending order by specifying '-ts'.",
 				Type:        "string",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of context filters. This endpoint only accepts an `applicationId` filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
+				Description: "A comma-separated list of context filters. This endpoint only accepts an 'applicationId' filter. To learn more about the filter syntax, read [Filtering contexts and context instances](/tag/Contexts#filtering-contexts-and-context-instances).",
 				Type:        "string",
 			},
 			{
@@ -1475,6 +2229,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-instances/search",
 		SupportsSemanticPatch: false,
@@ -1506,13 +2261,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "continuation-token",
 				In:          "query",
-				Description: "Limits results to contexts with sort values after the value specified. You can use this for pagination, however, we recommend using the `next` link we provide instead.",
+				Description: "Limits results to contexts with sort values after the value specified. You can use this for pagination, however, we recommend using the 'next' link we provide instead.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying `ts` for this value, or descending order by specifying `-ts`.",
+				Description: "Specifies a field by which to sort. LaunchDarkly supports sorting by timestamp in ascending order by specifying 'ts' for this value, or descending order by specifying '-ts'.",
 				Type:        "string",
 			},
 			{
@@ -1530,6 +2285,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/contexts/search",
 		SupportsSemanticPatch: false,
@@ -1549,6 +2305,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/roles/{customRoleKey}",
 		SupportsSemanticPatch: false,
@@ -1568,6 +2325,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/roles/{customRoleKey}",
 		SupportsSemanticPatch: false,
@@ -1587,12 +2345,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/roles",
 		SupportsSemanticPatch: false,
@@ -1612,6 +2371,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/roles/{customRoleKey}",
 		SupportsSemanticPatch: false,
@@ -1624,6 +2384,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/roles",
 		SupportsSemanticPatch: false,
@@ -1655,6 +2416,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
@@ -1686,6 +2448,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
@@ -1698,6 +2461,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/destinations",
 		SupportsSemanticPatch: false,
@@ -1729,6 +2493,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
@@ -1754,6 +2519,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -1779,6 +2545,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -1804,6 +2571,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -1829,13 +2597,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field:value`.",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field:value'.",
 				Type:        "string",
 			},
 			{
@@ -1847,6 +2615,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments",
 		SupportsSemanticPatch: false,
@@ -1872,6 +2641,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -1891,6 +2661,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments",
 		SupportsSemanticPatch: false,
@@ -1916,6 +2687,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/mobileKey",
 		SupportsSemanticPatch: false,
@@ -1947,8 +2719,493 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/apiKey",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Create experiment",
+		Long:  "Create an experiment.\n\nTo run this experiment, you'll need to [create an iteration](/tag/Experiments-(beta)#operation/createIteration) and then [update the experiment](/tag/Experiments-(beta)#operation/patchExperiment) with the `startIteration` instruction.\n\nTo learn more, read [Creating experiments](https://docs.launchdarkly.com/home/experimentation/create).\n",
+		Use:   "create",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Create iteration",
+		Long:  "Create an experiment iteration.\n\nExperiment iterations let you record experiments in individual blocks of time. Initially, iterations are created with a status of `not_started` and appear in the `draftIteration` field of an experiment. To start or stop an iteration, [update the experiment](/tag/Experiments-(beta)#operation/patchExperiment) with the `startIteration` or `stopIteration` instruction. \n\nTo learn more, read [Start experiment iterations](https://docs.launchdarkly.com/home/experimentation/feature#start-experiment-iterations).\n",
+		Use:   "create-iteration",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "experiment-key",
+				In:          "path",
+				Description: "The experiment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}/iterations",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Get experiment",
+		Long:  "Get details about an experiment.\n\n### Expanding the experiment response\n\nLaunchDarkly supports four fields for expanding the \"Get experiment\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "experiment-key",
+				In:          "path",
+				Description: "The experiment key",
+				Type:        "string",
+			},
+			{
+				Name:        "expand",
+				In:          "query",
+				Description: "A comma-separated list of properties that can reveal additional information in the response. Supported fields are explained above.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Get experiment results",
+		Long:  "Get results from an experiment for a particular metric.\n\nLaunchDarkly supports one field for expanding the \"Get experiment results\" response. By default, this field is **not** included in the response.\n\nTo expand the response, append the `expand` query parameter with the following field:\n* `traffic` includes the total count of units for each treatment.\n\nFor example, `expand=traffic` includes the `traffic` field for the project in the response.\n",
+		Use:   "get-results",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "experiment-key",
+				In:          "path",
+				Description: "The experiment key",
+				Type:        "string",
+			},
+			{
+				Name:        "metric-key",
+				In:          "path",
+				Description: "The metric key",
+				Type:        "string",
+			},
+			{
+				Name:        "iteration-id",
+				In:          "query",
+				Description: "The iteration ID",
+				Type:        "string",
+			},
+			{
+				Name:        "expand",
+				In:          "query",
+				Description: "A comma-separated list of fields to expand in the response. Supported fields are explained above.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}/metrics/{metricKey}/results",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Get experiment results for metric group",
+		Long:  "Get results from an experiment for a particular metric group.",
+		Use:   "get-results-for-metric-group",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "experiment-key",
+				In:          "path",
+				Description: "The experiment key",
+				Type:        "string",
+			},
+			{
+				Name:        "metric-group-key",
+				In:          "path",
+				Description: "The metric group key",
+				Type:        "string",
+			},
+			{
+				Name:        "iteration-id",
+				In:          "query",
+				Description: "The iteration ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}/metric-groups/{metricGroupKey}/results",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Get experimentation settings",
+		Long:  "Get current experimentation settings for the given project",
+		Use:   "get-settings",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/experimentation-settings",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Get experiments",
+		Long:  "Get details about all experiments in an environment.\n\n### Filtering experiments\n\nLaunchDarkly supports the `filter` query param for filtering, with the following fields:\n\n- `flagKey` filters for only experiments that use the flag with the given key.\n- `metricKey` filters for only experiments that use the metric with the given key.\n- `status` filters for only experiments with an iteration with the given status. An iteration can have the status `not_started`, `running` or `stopped`.\n\nFor example, `filter=flagKey:my-flag,status:running,metricKey:page-load-ms` filters for experiments for the given flag key and the given metric key which have a currently running iteration.\n\n### Expanding the experiments response\n\nLaunchDarkly supports four fields for expanding the \"Get experiments\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The maximum number of experiments to return. Defaults to 20.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
+				Type:        "integer",
+			},
+			{
+				Name:        "filter",
+				In:          "query",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field:value'. Supported fields are explained above.",
+				Type:        "string",
+			},
+			{
+				Name:        "expand",
+				In:          "query",
+				Description: "A comma-separated list of properties that can reveal additional information in the response. Supported fields are explained above.",
+				Type:        "string",
+			},
+			{
+				Name:        "lifecycle-state",
+				In:          "query",
+				Description: "A comma-separated list of experiment archived states. Supports 'archived', 'active', or both. Defaults to 'active' experiments.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Get legacy experiment results (deprecated)",
+		Long:  "Get detailed experiment result data for legacy experiments.",
+		Use:   "get-legacy-results",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "metric-key",
+				In:          "path",
+				Description: "The metric key",
+				Type:        "string",
+			},
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "A timestamp denoting the start of the data collection period, expressed as a Unix epoch time in milliseconds.",
+				Type:        "integer",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "A timestamp denoting the end of the data collection period, expressed as a Unix epoch time in milliseconds.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/experiments/{environmentKey}/{metricKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Patch experiment",
+		Long:  "Update an experiment. Updating an experiment uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating experiments.\n\n#### updateName\n\nUpdates the experiment name.\n\n##### Parameters\n\n- `value`: The new name.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateName\",\n    \"value\": \"Example updated experiment name\"\n  }]\n}\n```\n\n#### updateDescription\n\nUpdates the experiment description.\n\n##### Parameters\n\n- `value`: The new description.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateDescription\",\n    \"value\": \"Example updated description\"\n  }]\n}\n```\n\n#### startIteration\n\nStarts a new iteration for this experiment. You must [create a new iteration](/tag/Experiments-(beta)#operation/createIteration) before calling this instruction.\n\nAn iteration may not be started until it meets the following criteria:\n\n* Its associated flag is toggled on and is not archived\n* Its `randomizationUnit` is set\n* At least one of its `treatments` has a non-zero `allocationPercent`\n\n##### Parameters\n\n- `changeJustification`: The reason for starting a new iteration. Required when you call `startIteration` on an already running experiment, otherwise optional.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"startIteration\",\n    \"changeJustification\": \"It's time to start a new iteration\"\n  }]\n}\n```\n\n#### stopIteration\n\nStops the current iteration for this experiment.\n\n##### Parameters\n\n- `winningTreatmentId`: The ID of the winning treatment. Treatment IDs are returned as part of the [Get experiment](/tag/Experiments-(beta)#operation/getExperiment) response. They are the `_id` of each element in the `treatments` array.\n- `winningReason`: The reason for the winner\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"stopIteration\",\n    \"winningTreatmentId\": \"3a548ec2-72ac-4e59-8518-5c24f5609ccf\",\n    \"winningReason\": \"Example reason to stop the iteration\"\n  }]\n}\n```\n\n#### archiveExperiment\n\nArchives this experiment. Archived experiments are hidden by default in the LaunchDarkly user interface. You cannot start new iterations for archived experiments.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"archiveExperiment\" }]\n}\n```\n\n#### restoreExperiment\n\nRestores an archived experiment. After restoring an experiment, you can start new iterations for it again.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{ \"kind\": \"restoreExperiment\" }]\n}\n```\n",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "experiment-key",
+				In:          "path",
+				Description: "The experiment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}",
+		SupportsSemanticPatch: true,
+	})
+
+	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, OperationData{
+		Short: "Update experimentation settings",
+		Long:  "Update experimentation settings for the given project",
+		Use:   "replace-settings",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PUT",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/experimentation-settings",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagLinksBetaResourceCmd, client, OperationData{
+		Short: "Create flag link",
+		Long:  "Create a new flag link. Flag links let you reference external resources and associate them with your flags.",
+		Use:   "create",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagLinksBetaResourceCmd, client, OperationData{
+		Short: "Delete flag link",
+		Long:  "Delete a flag link by ID or key.",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The flag link ID or Key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagLinksBetaResourceCmd, client, OperationData{
+		Short: "List flag links",
+		Long:  "Get a list of all flag links.",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagLinksBetaResourceCmd, client, OperationData{
+		Short: "Update flag link",
+		Long:  "Update a flag link. Updating a flag link uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The flag link ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}/{id}",
 		SupportsSemanticPatch: false,
 	})
 
@@ -1978,6 +3235,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -2015,6 +3273,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
@@ -2052,6 +3311,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
@@ -2083,6 +3343,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -2120,6 +3381,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
 		SupportsSemanticPatch: true,
@@ -2145,6 +3407,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/copy",
 		SupportsSemanticPatch: false,
@@ -2170,6 +3433,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}",
 		SupportsSemanticPatch: false,
@@ -2201,6 +3465,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/expiring-targets/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -2232,6 +3497,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/expiring-user-targets/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -2269,6 +3535,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}",
 		SupportsSemanticPatch: false,
@@ -2300,6 +3567,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flag-statuses/{projectKey}/{environmentKey}/{featureFlagKey}",
 		SupportsSemanticPatch: false,
@@ -2331,6 +3599,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flag-status/{projectKey}/{featureFlagKey}",
 		SupportsSemanticPatch: false,
@@ -2356,6 +3625,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flag-statuses/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -2393,13 +3663,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "summary",
 				In:          "query",
-				Description: "By default, flags do _not_ include their lists of prerequisites, targets, or rules for each environment. Set `summary=0` to include these fields for each flag returned.",
+				Description: "By default, flags do _not_ include their lists of prerequisites, targets, or rules for each environment. Set 'summary=0' to include these fields for each flag returned.",
 				Type:        "boolean",
 			},
 			{
@@ -2429,6 +3699,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}",
 		SupportsSemanticPatch: false,
@@ -2460,6 +3731,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/expiring-targets/{environmentKey}",
 		SupportsSemanticPatch: true,
@@ -2491,6 +3763,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/expiring-user-targets/{environmentKey}",
 		SupportsSemanticPatch: true,
@@ -2516,6 +3789,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}",
 		SupportsSemanticPatch: true,
@@ -2535,12 +3809,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "clone",
 				In:          "query",
-				Description: "The key of the feature flag to be cloned. The key identifies the flag in your code. For example, setting `clone=flagKey` copies the full targeting configuration for all environments, including `on/off` state, from the original flag to the new flag.",
+				Description: "The key of the feature flag to be cloned. The key identifies the flag in your code. For example, setting 'clone=flagKey' copies the full targeting configuration for all environments, including 'on/off' state, from the original flag to the new flag.",
 				Type:        "string",
 			},
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}",
 		SupportsSemanticPatch: false,
@@ -2572,9 +3847,68 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{flagKey}/environments/{environmentKey}/migration-safety-issues",
 		SupportsSemanticPatch: true,
+	})
+
+	NewOperationCmd(gen_FlagsBetaResourceCmd, client, OperationData{
+		Short: "List dependent feature flags",
+		Long:  "\u003e ### Flag prerequisites is an Enterprise feature\n\u003e\n\u003e Flag prerequisites is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nList dependent flags across all environments for the flag specified in the path parameters. A dependent flag is a flag that uses another flag as a prerequisite. To learn more, read [Flag prerequisites](https://docs.launchdarkly.com/home/flags/prereqs).\n",
+		Use:   "list-dependent",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/dependent-flags",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_FlagsBetaResourceCmd, client, OperationData{
+		Short: "List dependent feature flags by environment",
+		Long:  "\u003e ### Flag prerequisites is an Enterprise feature\n\u003e\n\u003e Flag prerequisites is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nList dependent flags across all environments for the flag specified in the path parameters. A dependent flag is a flag that uses another flag as a prerequisite. To learn more, read [Flag prerequisites](https://docs.launchdarkly.com/home/flags/prereqs).\n",
+		Use:   "list-dependent-by-env",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "feature-flag-key",
+				In:          "path",
+				Description: "The feature flag key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/flags/{projectKey}/{environmentKey}/{featureFlagKey}/dependent-flags",
+		SupportsSemanticPatch: false,
 	})
 
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, OperationData{
@@ -2609,6 +3943,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/followers/{memberId}",
 		SupportsSemanticPatch: false,
@@ -2640,6 +3975,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/followers",
 		SupportsSemanticPatch: false,
@@ -2665,6 +4001,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/followers",
 		SupportsSemanticPatch: false,
@@ -2702,8 +4039,232 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PUT",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/followers/{memberId}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, OperationData{
+		Short: "Create delivery configuration",
+		Long:  "Create a delivery configuration.",
+		Use:   "create",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-key",
+				In:          "path",
+				Description: "The integration key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, OperationData{
+		Short: "Delete delivery configuration",
+		Long:  "Delete a delivery configuration.",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-key",
+				In:          "path",
+				Description: "The integration key",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The configuration ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, OperationData{
+		Short: "Get delivery configurations by environment",
+		Long:  "Get delivery configurations by environment.",
+		Use:   "list-by-environment",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, OperationData{
+		Short: "Get delivery configuration by ID",
+		Long:  "Get delivery configuration by ID.",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-key",
+				In:          "path",
+				Description: "The integration key",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The configuration ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, OperationData{
+		Short:                 "List all delivery configurations",
+		Long:                  "List all delivery configurations.",
+		Use:                   "list",
+		Params:                []Param{},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/integration-capabilities/featureStore",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, OperationData{
+		Short: "Update delivery configuration",
+		Long:  "Update an integration delivery configuration. Updating an integration delivery configuration uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-key",
+				In:          "path",
+				Description: "The integration key",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The configuration ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, OperationData{
+		Short: "Validate delivery configuration",
+		Long:  "Validate the saved delivery configuration, using the `validationRequest` in the integration's `manifest.json` file.",
+		Use:   "validate",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-key",
+				In:          "path",
+				Description: "The integration key",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				In:          "path",
+				Description: "The configuration ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}/{id}/validate",
 		SupportsSemanticPatch: false,
 	})
 
@@ -2721,6 +4282,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/integrations/{integrationKey}",
 		SupportsSemanticPatch: false,
@@ -2746,6 +4308,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/integrations/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
@@ -2771,6 +4334,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/integrations/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
@@ -2790,6 +4354,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/integrations/{integrationKey}",
 		SupportsSemanticPatch: false,
@@ -2815,8 +4380,168 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/integrations/{integrationKey}/{id}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, OperationData{
+		Short: "Create big segment store integration",
+		Long:  "\nCreate a persistent store integration.\n\nIf you are using server-side SDKs, segments synced from external tools and larger list-based segments require a persistent store within your infrastructure. LaunchDarkly keeps the persistent store up to date and consults it during flag evaluation.\n\nYou can use either Redis or DynamoDB as your persistent store. When you create a persistent store integration, the fields in the `config` object in the request vary depending on which persistent store you use.\n\nIf you are using Redis to create your persistent store integration, you will need to know:\n\n* Your Redis host\n* Your Redis port\n* Your Redis username\n* Your Redis password\n* Whether or not LaunchDarkly should connect using TLS\n\nIf you are using DynamoDB to create your persistent store integration, you will need to know:\n\n* Your DynamoDB table name. The table must have the following schema:\n  * Partition key: `namespace` (string)\n  * Sort key: `key` (string)\n* Your DynamoDB Amazon Web Services (AWS) region.\n* Your AWS role Amazon Resource Name (ARN). This is the role that LaunchDarkly will assume to manage your DynamoDB table.\n* The External ID you specified when creating your Amazon Resource Name (ARN).\n\nTo learn more, read [Segment configuration](https://docs.launchdarkly.com/home/flags/segment-config).\n",
+		Use:   "create-big-segment-store",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-key",
+				In:          "path",
+				Description: "The integration key, either 'redis' or 'dynamodb'",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/integration-capabilities/big-segment-store/{projectKey}/{environmentKey}/{integrationKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, OperationData{
+		Short: "Delete big segment store integration",
+		Long:  "Delete a persistent store integration. Each integration uses either Redis or DynamoDB.",
+		Use:   "delete-big-segment-store",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-key",
+				In:          "path",
+				Description: "The integration key, either 'redis' or 'dynamodb'",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-id",
+				In:          "path",
+				Description: "The integration ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/integration-capabilities/big-segment-store/{projectKey}/{environmentKey}/{integrationKey}/{integrationId}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, OperationData{
+		Short: "Get big segment store integration by ID",
+		Long:  "Get a big segment store integration by ID.",
+		Use:   "get-big-segment-store",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-key",
+				In:          "path",
+				Description: "The integration key, either 'redis' or 'dynamodb'",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-id",
+				In:          "path",
+				Description: "The integration ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/integration-capabilities/big-segment-store/{projectKey}/{environmentKey}/{integrationKey}/{integrationId}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, OperationData{
+		Short:                 "List all big segment store integrations",
+		Long:                  "List all big segment store integrations.",
+		Use:                   "list-big-segment-store",
+		Params:                []Param{},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/integration-capabilities/big-segment-store",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, OperationData{
+		Short: "Update big segment store integration",
+		Long:  "Update a big segment store integration. Updating a big segment store requires a [JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
+		Use:   "update-big-segment-store",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-key",
+				In:          "path",
+				Description: "The integration key, either 'redis' or 'dynamodb'",
+				Type:        "string",
+			},
+			{
+				Name:        "integration-id",
+				In:          "path",
+				Description: "The integration ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/integration-capabilities/big-segment-store/{projectKey}/{environmentKey}/{integrationKey}/{integrationId}",
 		SupportsSemanticPatch: false,
 	})
 
@@ -2834,6 +4559,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/members/{id}",
 		SupportsSemanticPatch: false,
@@ -2853,6 +4579,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/members/{id}",
 		SupportsSemanticPatch: false,
@@ -2872,13 +4599,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is of the form `field:value`. Supported fields are explained above.",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field:value'. Supported fields are explained above.",
 				Type:        "string",
 			},
 			{
@@ -2890,6 +4617,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/members",
 		SupportsSemanticPatch: false,
@@ -2909,6 +4637,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/members/{id}",
 		SupportsSemanticPatch: false,
@@ -2928,6 +4657,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/members/{id}/teams",
 		SupportsSemanticPatch: false,
@@ -2940,8 +4670,152 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/members",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MembersBetaResourceCmd, client, OperationData{
+		Short:                 "Modify account members",
+		Long:                  "\u003e ### Full use of this API resource is an Enterprise feature\n\u003e\n\u003e The ability to perform a partial update to multiple members is available to customers on an Enterprise plan. If you are on a Pro plan, you can update members individually. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nPerform a partial update to multiple members. Updating members uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating members.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating members\u003c/strong\u003e\u003c/summary\u003e\n\n#### replaceMembersRoles\n\nReplaces the roles of the specified members. This also removes all custom roles assigned to the specified members.\n\n##### Parameters\n\n- `value`: The new role. Must be a valid built-in role. To learn more about built-in roles, read [LaunchDarkly's built-in roles](https://docs.launchdarkly.com/home/account/built-in-roles).\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceMemberRoles\",\n    \"value\": \"reader\",\n    \"memberIDs\": [\n      \"1234a56b7c89d012345e678f\",\n      \"507f1f77bcf86cd799439011\"\n    ]\n  }]\n}\n```\n\n#### replaceAllMembersRoles\n\nReplaces the roles of all members. This also removes all custom roles assigned to the specified members.\n\nMembers that match any of the filters are **excluded** from the update.\n\n##### Parameters\n\n- `value`: The new role. Must be a valid built-in role. To learn more about built-in roles, read [LaunchDarkly's built-in roles](https://docs.launchdarkly.com/home/account/built-in-roles).\n- `filterLastSeen`: (Optional) A JSON object with one of the following formats:\n  - `{\"never\": true}` - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.\n  - `{\"noData\": true}` - Members that have not been active since LaunchDarkly began recording last seen timestamps.\n  - `{\"before\": 1608672063611}` - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.\n- `filterQuery`: (Optional) A string that matches against the members' emails and names. It is not case sensitive.\n- `filterRoles`: (Optional) A `|` separated list of roles and custom roles. For the purposes of this filtering, `Owner` counts as `Admin`.\n- `filterTeamKey`: (Optional) A string that matches against the key of the team the members belong to. It is not case sensitive.\n- `ignoredMemberIDs`: (Optional) A list of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceAllMembersRoles\",\n    \"value\": \"reader\",\n    \"filterLastSeen\": { \"never\": true }\n  }]\n}\n```\n\n#### replaceMembersCustomRoles\n\nReplaces the custom roles of the specified members.\n\n##### Parameters\n\n- `values`: List of new custom roles. Must be a valid custom role key or ID.\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceMembersCustomRoles\",\n    \"values\": [ \"example-custom-role\" ],\n    \"memberIDs\": [\n      \"1234a56b7c89d012345e678f\",\n      \"507f1f77bcf86cd799439011\"\n    ]\n  }]\n}\n```\n\n#### replaceAllMembersCustomRoles\n\nReplaces the custom roles of all members. Members that match any of the filters are **excluded** from the update.\n\n##### Parameters\n\n- `values`: List of new roles. Must be a valid custom role key or ID.\n- `filterLastSeen`: (Optional) A JSON object with one of the following formats:\n  - `{\"never\": true}` - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.\n  - `{\"noData\": true}` - Members that have not been active since LaunchDarkly began recording last seen timestamps.\n  - `{\"before\": 1608672063611}` - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.\n- `filterQuery`: (Optional) A string that matches against the members' emails and names. It is not case sensitive.\n- `filterRoles`: (Optional) A `|` separated list of roles and custom roles. For the purposes of this filtering, `Owner` counts as `Admin`.\n- `filterTeamKey`: (Optional) A string that matches against the key of the team the members belong to. It is not case sensitive.\n- `ignoredMemberIDs`: (Optional) A list of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceAllMembersCustomRoles\",\n    \"values\": [ \"example-custom-role\" ],\n    \"filterLastSeen\": { \"never\": true }\n  }]\n}\n```\n\n\u003c/details\u003e\n",
+		Use:                   "update-multiple",
+		Params:                []Param{},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/members",
+		SupportsSemanticPatch: true,
+	})
+
+	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, OperationData{
+		Short: "Create metric group",
+		Long:  "Create a new metric group in the specified project",
+		Use:   "create",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/metric-groups",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, OperationData{
+		Short: "Delete metric group",
+		Long:  "Delete a metric group by key.",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "metric-group-key",
+				In:          "path",
+				Description: "The metric group key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/metric-groups/{metricGroupKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, OperationData{
+		Short: "Get metric group",
+		Long:  "Get information for a single metric group from the specific project.\n\n### Expanding the metric group response\nLaunchDarkly supports two fields for expanding the \"Get metric group\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with either or both of the following fields:\n\n- `experiments` includes all experiments from the specific project that use the metric group\n- `experimentCount` includes the number of experiments from the specific project that use the metric group\n\nFor example, `expand=experiments` includes the `experiments` field in the response.\n",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "metric-group-key",
+				In:          "path",
+				Description: "The metric group key",
+				Type:        "string",
+			},
+			{
+				Name:        "expand",
+				In:          "query",
+				Description: "A comma-separated list of properties that can reveal additional information in the response.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/metric-groups/{metricGroupKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, OperationData{
+		Short: "List metric groups",
+		Long:  "Get a list of all metric groups for the specified project.\n\n### Expanding the metric groups response\nLaunchDarkly supports one field for expanding the \"Get metric groups\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with the following field:\n\n- `experiments` includes all experiments from the specific project that use the metric group\n\nFor example, `expand=experiments` includes the `experiments` field in the response.\n",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "expand",
+				In:          "query",
+				Description: "A comma-separated list of properties that can reveal additional information in the response.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/metric-groups",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, OperationData{
+		Short: "Patch metric group",
+		Long:  "Patch a metric group by key. Updating a metric group uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes.",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "metric-group-key",
+				In:          "path",
+				Description: "The metric group key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/metric-groups/{metricGroupKey}",
 		SupportsSemanticPatch: false,
 	})
 
@@ -2965,6 +4839,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/metrics/{projectKey}/{metricKey}",
 		SupportsSemanticPatch: false,
@@ -3002,6 +4877,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/metrics/{projectKey}/{metricKey}",
 		SupportsSemanticPatch: false,
@@ -3027,6 +4903,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/metrics/{projectKey}",
 		SupportsSemanticPatch: false,
@@ -3052,6 +4929,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/metrics/{projectKey}/{metricKey}",
 		SupportsSemanticPatch: false,
@@ -3071,6 +4949,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/metrics/{projectKey}",
 		SupportsSemanticPatch: false,
@@ -3090,6 +4969,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}",
 		SupportsSemanticPatch: false,
@@ -3109,6 +4989,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flag-defaults",
 		SupportsSemanticPatch: false,
@@ -3134,6 +5015,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}",
 		SupportsSemanticPatch: false,
@@ -3153,13 +5035,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and returns the next `limit` items.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and returns the next 'limit' items.",
 				Type:        "integer",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is constructed as `field:value`.",
+				Description: "A comma-separated list of filters. Each filter is constructed as 'field:value'.",
 				Type:        "string",
 			},
 			{
@@ -3177,6 +5059,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects",
 		SupportsSemanticPatch: false,
@@ -3196,6 +5079,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flag-defaults",
 		SupportsSemanticPatch: false,
@@ -3215,6 +5099,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}",
 		SupportsSemanticPatch: false,
@@ -3227,6 +5112,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects",
 		SupportsSemanticPatch: false,
@@ -3246,6 +5132,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PUT",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flag-defaults",
 		SupportsSemanticPatch: false,
@@ -3265,6 +5152,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/account/relay-auto-configs/{id}",
 		SupportsSemanticPatch: false,
@@ -3284,6 +5172,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/account/relay-auto-configs/{id}",
 		SupportsSemanticPatch: false,
@@ -3296,6 +5185,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/account/relay-auto-configs",
 		SupportsSemanticPatch: false,
@@ -3315,6 +5205,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/account/relay-auto-configs/{id}",
 		SupportsSemanticPatch: false,
@@ -3327,6 +5218,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/account/relay-auto-configs",
 		SupportsSemanticPatch: false,
@@ -3352,8 +5244,197 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/account/relay-auto-configs/{id}/reset",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, OperationData{
+		Short: "Delete release pipeline",
+		Long:  "Deletes a release pipeline.\n\nYou cannot delete the default release pipeline.\n\nIf you want to delete a release pipeline that is currently the default, create a second release pipeline and set it as the default. Then delete the first release pipeline. To change the default release pipeline, use the [Update project](/tag/Projects#operation/patchProject) API to set the `defaultReleasePipelineKey`.\n",
+		Use:   "delete",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "pipeline-key",
+				In:          "path",
+				Description: "The release pipeline key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/release-pipelines/{pipelineKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, OperationData{
+		Short: "Get all release pipelines",
+		Long:  "Get all release pipelines for a project.\n\n### Filtering release pipelines\n\nLaunchDarkly supports the following fields for filters:\n\n- `query` is a string that matches against the release pipeline `key`, `name`, and `description`. It is not case sensitive. For example: `?filter=query:examplePipeline`.\n",
+		Use:   "list",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "filter",
+				In:          "query",
+				Description: "A comma-separated list of filters. Each filter is of the form field:value. Read the endpoint description for a full list of available filter fields.",
+				Type:        "string",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The maximum number of items to return. Defaults to 20.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/release-pipelines",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, OperationData{
+		Short: "Get release pipeline by key",
+		Long:  "Get a release pipeline by key",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "pipeline-key",
+				In:          "path",
+				Description: "The release pipeline key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/release-pipelines/{pipelineKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, OperationData{
+		Short: "Update a release pipeline",
+		Long:  "Updates a release pipeline. Updating a release pipeline uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](/#section/Overview/Updates).",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "pipeline-key",
+				In:          "path",
+				Description: "The release pipeline key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/release-pipelines/{pipelineKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, OperationData{
+		Short: "Create a release pipeline",
+		Long:  "Creates a new release pipeline.\n\nThe first release pipeline you create is automatically set as the default release pipeline for your project. To change the default release pipeline, use the [Update project](/tag/Projects#operation/patchProject) API to set the `defaultReleasePipelineKey`.\n\nYou can create up to 20 release pipelines per project.\n",
+		Use:   "create",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/release-pipelines",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ReleasesBetaResourceCmd, client, OperationData{
+		Short: "Get release for flag",
+		Long:  "Get currently active release for a flag",
+		Use:   "get",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "flag-key",
+				In:          "path",
+				Description: "The flag key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/flags/{projectKey}/{flagKey}/release",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ReleasesBetaResourceCmd, client, OperationData{
+		Short: "Patch release for flag",
+		Long:  "Update currently active release for a flag. Updating releases requires the [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) format. To learn more, read [Updates](/#section/Overview/Updates).\n\nYou can only use this endpoint to mark a release phase complete or incomplete. To indicate which phase to update, use the array index in the `path`. For example, to mark the first phase of a release as complete, use the following request body:\n\n```\n  [\n    {\n      \"op\": \"replace\",\n      \"path\": \"/phase/0/complete\",\n      \"value\": true\n    }\n  ]\n```\n",
+		Use:   "update",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "flag-key",
+				In:          "path",
+				Description: "The flag key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/flags/{projectKey}/{flagKey}/release",
 		SupportsSemanticPatch: false,
 	})
 
@@ -3389,6 +5470,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes/{id}",
 		SupportsSemanticPatch: false,
@@ -3426,6 +5508,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes/{id}",
 		SupportsSemanticPatch: false,
@@ -3457,6 +5540,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes",
 		SupportsSemanticPatch: false,
@@ -3494,12 +5578,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "ignore-conflicts",
 				In:          "query",
-				Description: "Whether to succeed (`true`) or fail (`false`) when these new instructions conflict with existing scheduled changes",
+				Description: "Whether to succeed ('true') or fail ('false') when these new instructions conflict with existing scheduled changes",
 				Type:        "boolean",
 			},
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes/{id}",
 		SupportsSemanticPatch: true,
@@ -3531,12 +5616,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "ignore-conflicts",
 				In:          "query",
-				Description: "Whether to succeed (`true`) or fail (`false`) when these instructions conflict with existing scheduled changes",
+				Description: "Whether to succeed ('true') or fail ('false') when these instructions conflict with existing scheduled changes",
 				Type:        "boolean",
 			},
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes",
 		SupportsSemanticPatch: false,
@@ -3568,6 +5654,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}",
 		SupportsSemanticPatch: false,
@@ -3593,6 +5680,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/segments/evaluate",
 		SupportsSemanticPatch: false,
@@ -3624,6 +5712,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{segmentKey}/expiring-targets/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -3655,6 +5744,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{segmentKey}/expiring-user-targets/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -3686,6 +5776,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}",
 		SupportsSemanticPatch: false,
@@ -3723,6 +5814,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/contexts/{contextKey}",
 		SupportsSemanticPatch: false,
@@ -3760,6 +5852,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/users/{userKey}",
 		SupportsSemanticPatch: false,
@@ -3791,24 +5884,25 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are 'creationDate', 'name', 'lastModified'. Example: `sort=name` sort by names ascending or `sort=-name,creationDate` sort by names descending and creationDate ascending.",
+				Description: "Accepts sorting order and fields. Fields can be comma separated. Possible fields are 'creationDate', 'name', 'lastModified'. Example: 'sort=name' sort by names ascending or 'sort=-name,creationDate' sort by names descending and creationDate ascending.",
 				Type:        "string",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "Accepts filter by kind, query, tags, unbounded, external, or included and excluded segment keys. To filter by kind or query, use the `equals` operator. To filter by tags, use the `anyOf` operator. Query is a 'fuzzy' search across segment key, name, and description. Example: `filter=tags anyOf ['enterprise', 'beta'],query equals 'toggle'` returns segments with 'toggle' in their key, name, or description that also have 'enterprise' or 'beta' as a tag. To filter by unbounded, use the `equals` operator. Example: `filter=unbounded equals true`. To filter by external, use the `exists` operator. Example: `filter=external exists true`. To exclude segments from results, use `filter=excludedKeys anyOf ['segmentKey1', 'segmentKey2']`.",
+				Description: "Accepts filter by kind, query, tags, unbounded, external, or included and excluded segment keys. To filter by kind or query, use the 'equals' operator. To filter by tags, use the 'anyOf' operator. Query is a 'fuzzy' search across segment key, name, and description. Example: 'filter=tags anyOf ['enterprise', 'beta'],query equals 'toggle'' returns segments with 'toggle' in their key, name, or description that also have 'enterprise' or 'beta' as a tag. To filter by unbounded, use the 'equals' operator. Example: 'filter=unbounded equals true'. To filter by external, use the 'exists' operator. Example: 'filter=external exists true'. To exclude segments from results, use 'filter=excludedKeys anyOf ['segmentKey1', 'segmentKey2']'.",
 				Type:        "string",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -3840,6 +5934,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{segmentKey}/expiring-targets/{environmentKey}",
 		SupportsSemanticPatch: true,
@@ -3871,6 +5966,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{segmentKey}/expiring-user-targets/{environmentKey}",
 		SupportsSemanticPatch: true,
@@ -3902,6 +5998,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}",
 		SupportsSemanticPatch: true,
@@ -3927,6 +6024,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
@@ -3958,6 +6056,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/contexts",
 		SupportsSemanticPatch: false,
@@ -3989,8 +6088,149 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/users",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_SegmentsBetaResourceCmd, client, OperationData{
+		Short: "Create big segment export",
+		Long:  "Starts a new export process for a big segment. This is an export for a synced segment or a list-based segment that can include more than 15,000 entries.",
+		Use:   "create-big-export",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "segment-key",
+				In:          "path",
+				Description: "The segment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/exports",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_SegmentsBetaResourceCmd, client, OperationData{
+		Short: "Create big segment import",
+		Long:  "Start a new import process for a big segment. This is an import for a list-based segment that can include more than 15,000 entries.",
+		Use:   "create-big-import",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "segment-key",
+				In:          "path",
+				Description: "The segment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/imports",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_SegmentsBetaResourceCmd, client, OperationData{
+		Short: "Get big segment export",
+		Long:  "Returns information about a big segment export process. This is an export for a synced segment or a list-based segment that can include more than 15,000 entries.",
+		Use:   "get-big-export",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "segment-key",
+				In:          "path",
+				Description: "The segment key",
+				Type:        "string",
+			},
+			{
+				Name:        "export-id",
+				In:          "path",
+				Description: "The export ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/exports/{exportID}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_SegmentsBetaResourceCmd, client, OperationData{
+		Short: "Get big segment import",
+		Long:  "Returns information about a big segment import process. This is the import of a list-based segment that can include more than 15,000 entries.",
+		Use:   "get-big-import",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+			{
+				Name:        "segment-key",
+				In:          "path",
+				Description: "The segment key",
+				Type:        "string",
+			},
+			{
+				Name:        "import-id",
+				In:          "path",
+				Description: "The import ID",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/imports/{importID}",
 		SupportsSemanticPatch: false,
 	})
 
@@ -4002,7 +6242,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "kind",
 				In:          "query",
-				Description: "Fetch tags associated with the specified resource type. Options are `flag`, `project`, `environment`, `segment`. Returns all types by default.",
+				Description: "Fetch tags associated with the specified resource type. Options are 'flag', 'project', 'environment', 'segment'. Returns all types by default.",
 				Type:        "string",
 			},
 			{
@@ -4020,6 +6260,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/tags",
 		SupportsSemanticPatch: false,
@@ -4039,6 +6280,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams/{teamKey}",
 		SupportsSemanticPatch: false,
@@ -4064,6 +6306,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams/{teamKey}",
 		SupportsSemanticPatch: false,
@@ -4089,12 +6332,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams/{teamKey}/maintainers",
 		SupportsSemanticPatch: false,
@@ -4120,12 +6364,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. This is for use with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams/{teamKey}/roles",
 		SupportsSemanticPatch: false,
@@ -4145,13 +6390,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and returns the next `limit` items.",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and returns the next 'limit' items.",
 				Type:        "integer",
 			},
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. Each filter is constructed as `field:value`.",
+				Description: "A comma-separated list of filters. Each filter is constructed as 'field:value'.",
 				Type:        "string",
 			},
 			{
@@ -4163,6 +6408,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams",
 		SupportsSemanticPatch: false,
@@ -4188,6 +6434,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams/{teamKey}",
 		SupportsSemanticPatch: true,
@@ -4207,6 +6454,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams",
 		SupportsSemanticPatch: false,
@@ -4226,9 +6474,23 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams/{teamKey}/members",
 		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_TeamsBetaResourceCmd, client, OperationData{
+		Short:                 "Update teams",
+		Long:                  "Perform a partial update to multiple teams. Updating teams uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](/reference#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating teams.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating teams\u003c/strong\u003e\u003c/summary\u003e\n\n#### addMembersToTeams\n\nAdd the members to teams.\n\n##### Parameters\n\n- `memberIDs`: List of member IDs to add.\n- `teamKeys`: List of teams to update.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addMembersToTeams\",\n    \"memberIDs\": [\n      \"1234a56b7c89d012345e678f\"\n    ],\n    \"teamKeys\": [\n      \"example-team-1\",\n      \"example-team-2\"\n    ]\n  }]\n}\n```\n\n#### addAllMembersToTeams\n\nAdd all members to the team. Members that match any of the filters are **excluded** from the update.\n\n##### Parameters\n\n- `teamKeys`: List of teams to update.\n- `filterLastSeen`: (Optional) A JSON object with one of the following formats:\n  - `{\"never\": true}` - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.\n  - `{\"noData\": true}` - Members that have not been active since LaunchDarkly began recording last seen timestamps.\n  - `{\"before\": 1608672063611}` - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.\n- `filterQuery`: (Optional) A string that matches against the members' emails and names. It is not case sensitive.\n- `filterRoles`: (Optional) A `|` separated list of roles and custom roles. For the purposes of this filtering, `Owner` counts as `Admin`.\n- `filterTeamKey`: (Optional) A string that matches against the key of the team the members belong to. It is not case sensitive.\n- `ignoredMemberIDs`: (Optional) A list of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addAllMembersToTeams\",\n    \"teamKeys\": [\n      \"example-team-1\",\n      \"example-team-2\"\n    ],\n    \"filterLastSeen\": { \"never\": true }\n  }]\n}\n```\n\n\u003c/details\u003e\n",
+		Use:                   "update-multiple",
+		Params:                []Param{},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                true,
+		RequiresBody:          true,
+		Path:                  "/api/v2/teams",
+		SupportsSemanticPatch: true,
 	})
 
 	NewOperationCmd(gen_WebhooksResourceCmd, client, OperationData{
@@ -4245,6 +6507,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/webhooks/{id}",
 		SupportsSemanticPatch: false,
@@ -4257,6 +6520,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/webhooks",
 		SupportsSemanticPatch: false,
@@ -4276,6 +6540,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/webhooks/{id}",
 		SupportsSemanticPatch: false,
@@ -4295,6 +6560,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/webhooks/{id}",
 		SupportsSemanticPatch: false,
@@ -4307,6 +6573,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/webhooks",
 		SupportsSemanticPatch: false,
@@ -4319,6 +6586,7 @@ func AddAllResourceCmds(
 		Params:                []Param{},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/templates",
 		SupportsSemanticPatch: false,
@@ -4338,6 +6606,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/templates/{templateKey}",
 		SupportsSemanticPatch: false,
@@ -4363,6 +6632,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/templates",
 		SupportsSemanticPatch: false,
@@ -4400,6 +6670,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/workflows/{workflowId}",
 		SupportsSemanticPatch: false,
@@ -4437,6 +6708,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/workflows/{workflowId}",
 		SupportsSemanticPatch: false,
@@ -4468,13 +6740,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "status",
 				In:          "query",
-				Description: "Filter results by workflow status. Valid status filters are `active`, `completed`, and `failed`.",
+				Description: "Filter results by workflow status. Valid status filters are 'active', 'completed', and 'failed'.",
 				Type:        "string",
 			},
 			{
 				Name:        "sort",
 				In:          "query",
-				Description: "A field to sort the items by. Prefix field by a dash ( - ) to sort in descending order. This endpoint supports sorting by `creationDate` or `stopDate`.",
+				Description: "A field to sort the items by. Prefix field by a dash ( - ) to sort in descending order. This endpoint supports sorting by 'creationDate' or 'stopDate'.",
 				Type:        "string",
 			},
 			{
@@ -4486,12 +6758,13 @@ func AddAllResourceCmds(
 			{
 				Name:        "offset",
 				In:          "query",
-				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+				Description: "Where to start in the list. Defaults to 0. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
 				Type:        "integer",
 			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/workflows",
 		SupportsSemanticPatch: false,
@@ -4535,6 +6808,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/workflows",
 		SupportsSemanticPatch: false,

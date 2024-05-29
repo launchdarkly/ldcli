@@ -13,17 +13,24 @@ import (
 // we have certain tags that aren't a 1:1 match to their operation id names
 var mapTagToSchemaName = map[string]string{
 	"Account members":                     "Members",
+	"Account members (beta)":              "Members beta",
 	"Approvals":                           "Approval requests",
 	"Code references":                     "Code refs",
-	"User settings":                       "User flag settings",
-	"Relay Proxy configurations":          "Relay Proxy configs",
+	"Feature flags (beta)":                "Flags beta",
 	"Integration audit log subscriptions": "Integration subscriptions",
+	"Metrics (beta)":                      "Metric groups beta",
+	"Relay Proxy configurations":          "Relay Proxy configs",
+	"User settings":                       "User flag settings",
 }
 
 func getResourceNames(name string) (string, string) {
 	if mappedName, ok := mapTagToSchemaName[name]; ok {
 		name = mappedName
 	}
+
+	// remove parenthesis for (beta) endpoints
+	re := regexp.MustCompile(`\(([^)]+)\)`)
+	name = re.ReplaceAllString(name, "$1")
 
 	resourceKey := strcase.ToKebab(name)
 	// the operationIds use "FeatureFlag" so we want to keep that whole, but the command should just be `flags`
@@ -49,6 +56,7 @@ var mapOperationIdToCmdUse = map[string]string{
 	"getCustomWorkflow":                "get",
 	"getDestination":                   "get",
 	"getDestinations":                  "list",
+	"getExperimentationSettings":       "get-settings",
 	"getExpiringFlagsForUser":          "list-expiring",
 	"getFeatureFlagScheduledChange":    "get",
 	"getFlagConfigScheduledChanges":    "list",
@@ -66,7 +74,9 @@ var mapOperationIdToCmdUse = map[string]string{
 	"patchDestination":                 "update",
 	"patchExpiringFlagsForUser":        "update-expiring",
 	"patchFlagConfigScheduledChange":   "update",
+	"patchMembers":                     "update-multiple",
 	"patchRelayAutoConfig":             "update",
+	"patchTeams":                       "update-multiple",
 	"patchToken":                       "update",
 	"patchTriggerWorkflow":             "update",
 	"postDestination":                  "create",
@@ -74,6 +84,7 @@ var mapOperationIdToCmdUse = map[string]string{
 	"postRelayAutoConfig":              "create",
 	"postToken":                        "create",
 	"putContextFlagSetting":            "replace",
+	"putExperimentationSettings":       "replace-settings",
 	"putFlagFollowers":                 "replace",
 	"putFlagSetting":                   "replace",
 	"resetRelayAutoConfig":             "reset",
@@ -83,6 +94,7 @@ var mapOperationIdToCmdUse = map[string]string{
 
 func replaceMethodWithCmdUse(operationId string) string {
 	r := strings.NewReplacer(
+		"get-all", "list",
 		"post", "create",
 		"patch", "update",
 		"put", "replace",
@@ -92,16 +104,19 @@ func replaceMethodWithCmdUse(operationId string) string {
 }
 
 func removeResourceFromOperationId(resourceName, operationId string) string {
+	// strip the Beta tag from the resource name to properly remove it from the operation ID
+	resourceName = strings.TrimRight(resourceName, "Beta")
+
 	// operations use both singular (Team) and plural (Teams) resource names, whereas resource names are (usually) plural
-	var singularResourceName string
-	if strings.HasSuffix("teams", "s") {
-		singularResourceName = strings.TrimRight(resourceName, "s")
-	}
+	singularResourceName := strings.TrimRight(resourceName, "s")
 
 	r := strings.NewReplacer(
 		// a lot of "list" operations say "GetFor{ResourceName}"
 		fmt.Sprintf("For%s", singularResourceName), "",
 		fmt.Sprintf("For%s", resourceName), "",
+		"ByFlagKey", "",
+		"ById", "",
+		"ByKey", "",
 		"ByProject", "",
 		resourceName, "",
 		singularResourceName, "",
@@ -161,7 +176,6 @@ var mapParamToFlagName = map[string]string{
 func stripFlagName(flagName string) string {
 	r := strings.NewReplacer(
 		"-key", "",
-		"-id", "",
 	)
 
 	return r.Replace(flagName)
@@ -174,4 +188,8 @@ func getFlagName(paramName string) string {
 		flagName = mappedName
 	}
 	return flagName
+}
+
+func replaceBackticks(s string) string {
+	return strings.Replace(s, "`", "'", -1)
 }

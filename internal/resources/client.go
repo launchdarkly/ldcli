@@ -11,7 +11,7 @@ import (
 )
 
 type Client interface {
-	MakeRequest(accessToken, method, path, contentType string, query url.Values, data []byte) ([]byte, error)
+	MakeRequest(accessToken, method, path, contentType string, query url.Values, data []byte, isBeta bool) ([]byte, error)
 }
 
 type ResourcesClient struct {
@@ -24,13 +24,16 @@ func NewClient(cliVersion string) ResourcesClient {
 	return ResourcesClient{cliVersion: cliVersion}
 }
 
-func (c ResourcesClient) MakeRequest(accessToken, method, path, contentType string, query url.Values, data []byte) ([]byte, error) {
+func (c ResourcesClient) MakeRequest(accessToken, method, path, contentType string, query url.Values, data []byte, isBeta bool) ([]byte, error) {
 	client := http.Client{}
 
 	req, _ := http.NewRequest(method, path, bytes.NewReader(data))
 	req.Header.Add("Authorization", accessToken)
 	req.Header.Add("Content-type", contentType)
 	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.cliVersion))
+	if isBeta {
+		req.Header.Set("LD-API-Version", "beta")
+	}
 	req.URL.RawQuery = query.Encode()
 
 	res, err := client.Do(req)
