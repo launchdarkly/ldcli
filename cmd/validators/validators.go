@@ -46,7 +46,8 @@ func CmdError(err error, commandPath string, baseURI string) error {
 	if strings.Contains(err.Error(), cliflags.AccessTokenFlag) {
 		errorMessage += "\n\n"
 		if baseURI != "" {
-			errorMessage += fmt.Sprintf("Go to %s/settings/authorization to create an access token.\n", baseURI)
+			errorMessage += errs.AccessTokenInvalidErrMessage(baseURI)
+			errorMessage += "\n"
 		}
 		errorMessage += fmt.Sprintf("Use `ldcli config --set %s <value>` to configure the value to persist across CLI commands.\n\n", cliflags.AccessTokenFlag)
 	} else {

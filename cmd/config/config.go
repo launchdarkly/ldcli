@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -15,7 +16,7 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
-	"github.com/launchdarkly/ldcli/internal/errors"
+	errs "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/output"
 )
 
@@ -38,10 +39,10 @@ func (cmd ConfigCmd) HelpCalled() bool {
 	return cmd.helpCalled
 }
 
-func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
+func NewConfigCmd(service config.Service, analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 	cmd := &cobra.Command{
 		Long:  "View and modify specific configuration values",
-		RunE:  run(),
+		RunE:  run(service),
 		Short: "View and modify specific configuration values",
 		Use:   "config",
 		PreRun: func(cmd *cobra.Command, args []string) {
@@ -93,7 +94,7 @@ func NewConfigCmd(analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 	return &configCmd
 }
 
-func run() func(*cobra.Command, []string) error {
+func run(service config.Service) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		switch {
 		case viper.GetBool(ListFlag):
@@ -120,7 +121,7 @@ func run() func(*cobra.Command, []string) error {
 		case viper.GetBool(SetFlag):
 			// flag needs two arguments: a key and value
 			if len(args)%2 != 0 {
-				return errors.NewError("flag needs an argument: --set")
+				return errs.NewError("flag needs an argument: --set")
 			}
 
 			for i := 0; i < len(args)-1; i += 2 {
@@ -132,7 +133,7 @@ func run() func(*cobra.Command, []string) error {
 
 			rawConfig, v, err := getRawConfig()
 			if err != nil {
-				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
 			// add arg pairs to config where each argument is --set arg1 val1 --set arg2 val2
@@ -146,9 +147,29 @@ func run() func(*cobra.Command, []string) error {
 				}
 			}
 
+			var updatingAccessToken bool
+			for _, f := range newFields {
+				if f == cliflags.AccessTokenFlag {
+					updatingAccessToken = true
+					break
+				}
+			}
+			if updatingAccessToken {
+				if !service.VerifyAccessToken(
+					rawConfig[cliflags.AccessTokenFlag].(string),
+					viper.GetString(cliflags.BaseURIFlag),
+				) {
+					errorMessage := fmt.Sprintf("%s is invalid. ", cliflags.AccessTokenFlag)
+					errorMessage += errs.AccessTokenInvalidErrMessage(viper.GetString(cliflags.BaseURIFlag))
+					err := errors.New(errorMessage)
+
+					return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				}
+			}
+
 			configFile, err := config.NewConfig(rawConfig)
 			if err != nil {
-				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
 			setKeyFn := func(key string, value interface{}, v *viper.Viper) {
@@ -156,7 +177,7 @@ func run() func(*cobra.Command, []string) error {
 			}
 			err = writeConfig(configFile, v, setKeyFn)
 			if err != nil {
-				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
 			output, err := outputSetAction(newFields)
@@ -173,7 +194,7 @@ func run() func(*cobra.Command, []string) error {
 
 			config, v, err := getConfig()
 			if err != nil {
-				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
 			unsetKeyFn := func(key string, value interface{}, v *viper.Viper) {
@@ -183,7 +204,7 @@ func run() func(*cobra.Command, []string) error {
 			}
 			err = writeConfig(config, v, unsetKeyFn)
 			if err != nil {
-				return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 			}
 
 			output, err := outputUnsetAction(viper.GetString(UnsetFlag))
@@ -297,7 +318,7 @@ func writeConfig(
 }
 
 func newErr(flag string) error {
-	err := errors.NewError(
+	err := errs.NewError(
 		fmt.Sprintf(
 			`{
 				"message": "%s is not a valid configuration option"
@@ -306,7 +327,7 @@ func newErr(flag string) error {
 		),
 	)
 
-	return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+	return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
 }
 
 func writeAlphabetizedFlags(sb *strings.Builder) {
@@ -329,7 +350,7 @@ func outputSetAction(newFields []string) (string, error) {
 	fieldsJSON, _ := json.Marshal(fields)
 	output, err := output.CmdOutput("update", viper.GetString(cliflags.OutputFlag), fieldsJSON)
 	if err != nil {
-		return "", errors.NewError(err.Error())
+		return "", errs.NewError(err.Error())
 	}
 
 	return output, nil
@@ -344,7 +365,7 @@ func outputUnsetAction(newField string) (string, error) {
 	fieldJSON, _ := json.Marshal(field)
 	output, err := output.CmdOutput("delete", viper.GetString(cliflags.OutputFlag), fieldJSON)
 	if err != nil {
-		return "", errors.NewError(err.Error())
+		return "", errs.NewError(err.Error())
 	}
 
 	return output, nil

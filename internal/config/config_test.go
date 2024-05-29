@@ -1,12 +1,16 @@
 package config_test
 
 import (
+	"errors"
 	"fmt"
-	"github.com/launchdarkly/ldcli/internal/config"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/launchdarkly/ldcli/internal/config"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 func TestNewConfig(t *testing.T) {
@@ -130,5 +134,26 @@ func TestNewConfig(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "test-key", configFile.Project)
 		})
+	})
+}
+
+func TestService_VerifyAccessToken(t *testing.T) {
+	t.Run("is valid with a valid access token", func(t *testing.T) {
+		service := config.NewService(&resources.MockClient{})
+
+		isValid := service.VerifyAccessToken("valid-access-token", "http://test.com")
+
+		assert.True(t, isValid)
+	})
+
+	t.Run("is invalid with an invalid access token", func(t *testing.T) {
+		service := config.NewService(&resources.MockClient{
+			StatusCode: http.StatusUnauthorized,
+			Err:        errors.New("invalid access token"),
+		})
+
+		isValid := service.VerifyAccessToken("invalid-access-token", "http://test.com")
+
+		assert.False(t, isValid)
 	})
 }
