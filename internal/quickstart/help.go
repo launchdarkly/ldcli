@@ -45,6 +45,10 @@ var (
 		key.WithKeys("ctrl+c"),
 		key.WithHelp("ctrl+c", "quit"),
 	)
+	BindingFilter = key.NewBinding(
+		key.WithKeys("/"),
+		key.WithHelp("/", "filter"),
+	)
 )
 
 // keyMap defines all the possible key presses we would respond to
@@ -54,6 +58,7 @@ type keyMap struct {
 	CursorDown    key.Binding
 	CursorUp      key.Binding
 	Enter         key.Binding
+	Filter        key.Binding
 	GoToEnd       key.Binding
 	GoToStart     key.Binding
 	NextPage      key.Binding
@@ -71,7 +76,7 @@ func (k keyMap) FullHelp() [][]key.Binding {
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Back, k.Quit, k.ShowFullHelp}
+	return []key.Binding{k.Back, k.Filter, k.Quit, k.ShowFullHelp}
 }
 
 // pressableKeys are the possible key presses we support for all steps.

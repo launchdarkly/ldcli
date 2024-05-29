@@ -49,6 +49,7 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 		help: help.New(),
 		helpKeys: keyMap{
 			Back:          BindingBack,
+			Filter:        BindingFilter,
 			CursorUp:      BindingCursorUp,
 			CursorDown:    BindingCursorDown,
 			PrevPage:      BindingPrevPage,
