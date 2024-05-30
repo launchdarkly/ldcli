@@ -81,7 +81,7 @@ func (c *Client) sendEvent(eventName string, properties map[string]interface{}) 
 		return
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v2/tracking", c.baseURI), bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/internal/tracking", c.baseURI), bytes.NewBuffer(body))
 	if err != nil { //nolint:staticcheck
 		// TODO: log error
 		c.wg.Done()
