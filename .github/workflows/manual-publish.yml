@@ -12,12 +12,24 @@ on:
         description: 'Skip publishing to npm'
         required: false
         type: boolean
+      dry-run-test:
+        default: true
+        description: 'Skip hello world'
+        required: false
+        type: boolean
       tag:
         description: 'Tag to upload binary artifacts to'
         required: true
         type: string
 
 jobs:
+  hello-world:
+    runs-on: ubuntu-latest
+    if: ${{ dry-run-test == true }}
+    steps:
+      - run: echo "hello world"
+      - run: echo "job status is ${{ job.status }}."
+
   release-ldcli:
     permissions:
       id-token: write # Needed to obtain Docker tokens
