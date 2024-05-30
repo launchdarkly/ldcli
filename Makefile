@@ -14,3 +14,6 @@ test:
 
 vendor:
 	go mod tidy && go mod vendor
+
+install-hooks:
+	cp -r git/hooks/* .git/hooks/

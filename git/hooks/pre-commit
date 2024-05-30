@@ -1,0 +1,24 @@
+#!/bin/bash
+
+set -eo pipefail
+
+if [ -n "$(gofmt -l cmd)"  ]; then
+  echo "cmd/* is not formatted; run gofmt -w -s cmd"
+  exit 1
+fi
+
+if [ -n "$(gofmt -l internal)"  ]; then
+  echo "internal/* is not formatted; run gofmt -w -s internal"
+  exit 1
+fi
+
+if [ -n "$(gofmt -l ./*.go)"  ]; then
+  echo "*.go is not formatted; run gofmt -w -s *.go"
+  exit 1
+fi
+
+go mod tidy
+if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
+	echo "go.mod/go.sum is not tidy; run go mod tidy"
+	exit 1
+fi
