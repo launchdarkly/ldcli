@@ -3,14 +3,19 @@ on:
   workflow_dispatch:
     inputs:
       dry-run:
-        description: 'Skip publishing to DockerHub and Homebrew'
-        type: boolean
-        required: false
         default: true
+        description: 'Skip publishing to DockerHub and Homebrew'
+        required: false
+        type: boolean
+      dry-run-npm:
+        default: true
+        description: 'Skip publishing to npm'
+        required: false
+        type: boolean
       tag:
         description: 'Tag to upload binary artifacts to'
-        type: string
         required: true
+        type: string
 
 jobs:
   release-ldcli:
@@ -41,6 +46,7 @@ jobs:
           tag: ${{ inputs.tag }}
 
   release-ldcli-npm:
+    if: ${{ dry-run-npm == true }}
     runs-on: ubuntu-latest
     needs: ['release-ldcli']
     permissions:
