@@ -36,7 +36,7 @@ runs:
       uses: goreleaser/goreleaser-action@v5
       with:
         version: latest
-        args: release ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }} --config .goreleaser.yaml
+        args: release ${{ inputs.dry-run-gh == true && '--skip=publish' || '' }} --config .goreleaser.yaml
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
