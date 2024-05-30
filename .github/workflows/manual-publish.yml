@@ -25,7 +25,7 @@ on:
 jobs:
   hello-world:
     runs-on: ubuntu-latest
-    if: ${{ dry-run-test == true }}
+    if: ${{ inputs.dry-run-test == true }}
     steps:
       - run: echo "hello world"
       - run: echo "job status is ${{ job.status }}."
