@@ -1,4 +1,14 @@
-# .goreleaser.yaml
+builds:
+  - id: ldcli
+    binary: ldcli
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
 dockers:
   # AMD64
   - image_templates:
