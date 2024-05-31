@@ -3,6 +3,7 @@
 package resources
 
 import (
+	"github.com/charmbracelet/glamour"
 	"github.com/spf13/cobra"
 
 	"github.com/launchdarkly/ldcli/internal/analytics"
@@ -14,11 +15,25 @@ func AddAllResourceCmds(
   client resources.Client,
   analyticsTrackerFn analytics.TrackerFn,
 ) {
+	markdownRenderer, _ := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(0),
+		// remove default margin
+		glamour.WithStylesFromJSONBytes([]byte(
+			`{
+				"document": {
+					"margin": 0
+				}
+			}`,
+		)),
+	)
+
 	// Resource commands
 	{{ range $resKey, $resData := .Resources }}
 	gen_{{ $resData.GoName }}ResourceCmd := NewResourceCmd(
         rootCmd,
         analyticsTrackerFn,
+        markdownRenderer,
         "{{ $resKey }}",
         {{ $resData.Description }},
     )
@@ -26,7 +41,7 @@ func AddAllResourceCmds(
 
     // Operation commands
     {{ range $resName, $resData := .Resources }}{{ range $opName, $opData := $resData.Operations }}
-    NewOperationCmd(gen_{{ $resData.GoName }}ResourceCmd, client, OperationData{
+    NewOperationCmd(gen_{{ $resData.GoName }}ResourceCmd, client, markdownRenderer, OperationData{
             Short: {{ $opData.Short }},
             Long:  {{ $opData.Long }},
             Use:   "{{ $opData.Use }}",
