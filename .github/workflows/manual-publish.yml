@@ -2,11 +2,6 @@ name: Manually Publish Images and Artifacts
 on:
   workflow_dispatch:
     inputs:
-      dry-run-tmp:
-        default: true
-        description: 'dry-run-tmp'
-        required: false
-        type: boolean
       dry-run:
         default: true
         description: 'Skip publishing to DockerHub and Homebrew'
@@ -28,19 +23,6 @@ on:
         type: string
 
 jobs:
-  hello-world:
-    runs-on: ubuntu-latest
-    needs: [release-ldcli]
-    steps:
-      - uses: actions/checkout@v4
-        name: Checkout
-        with:
-          fetch-depth: 0
-      - uses: ./.github/actions/temp
-        id: temp
-        with:
-          dry-run-tmp: ${{ inputs.dry-run-tmp }}
-
   release-ldcli:
     permissions:
       id-token: write # Needed to obtain Docker tokens
@@ -63,7 +45,7 @@ jobs:
       - uses: ./.github/actions/publish
         id: publish
         with:
-          dry-run: ${{ inputs.dry-run }}
+          dry-run: ${{ inputs.dry-run-gh }}
           token: ${{ secrets.GITHUB_TOKEN }}
           homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
           tag: ${{ inputs.tag }}
