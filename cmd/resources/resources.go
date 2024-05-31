@@ -204,11 +204,13 @@ func shouldFilter(name string) bool {
 func NewResourceCmd(
 	parentCmd *cobra.Command,
 	analyticsTrackerFn analytics.TrackerFn,
+	markdownRenderer *glamour.TermRenderer,
 	resourceName, longDescription string,
 ) *cobra.Command {
+	longAsMarkdown, _ := markdownRenderer.Render(longDescription)
 	cmd := &cobra.Command{
 		Use:  resourceName,
-		Long: asMarkdown(longDescription),
+		Long: longAsMarkdown,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			tracker := analyticsTrackerFn(
 				viper.GetString(cliflags.AccessTokenFlag),
@@ -356,15 +358,21 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func NewOperationCmd(parentCmd *cobra.Command, client resources.Client, op OperationData) *cobra.Command {
+func NewOperationCmd(
+	parentCmd *cobra.Command,
+	client resources.Client,
+	markdownRenderer *glamour.TermRenderer,
+	op OperationData,
+) *cobra.Command {
 	opCmd := OperationCmd{
 		OperationData: op,
 		client:        client,
 	}
+	longAsMarkdown, _ := markdownRenderer.Render(op.Long)
 
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
-		Long:  asMarkdown(op.Long),
+		Long:  longAsMarkdown,
 		RunE:  opCmd.makeRequest,
 		Short: op.Short,
 		Use:   op.Use,
@@ -415,22 +423,4 @@ Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
-}
-
-func asMarkdown(s string) string {
-	renderer, _ := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(0),
-		// remove default margin
-		glamour.WithStylesFromJSONBytes([]byte(
-			`{
-				"document": {
-					"margin": 0
-				}
-			}`,
-		)),
-	)
-	md, _ := renderer.Render(s)
-
-	return md
 }
