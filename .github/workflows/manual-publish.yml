@@ -30,6 +30,7 @@ on:
 jobs:
   hello-world:
     runs-on: ubuntu-latest
+    needs: [release-ldcli]
     steps:
       - uses: ./.github/actions/temp
         id: temp
