@@ -11,4 +11,4 @@ runs:
     - name: step 1
       id: step-1
       shell: bash
-      run: echo "value: ${{ inputs.dry-run-tmp == true && ' is true' || ' is false'}}"
+      run: echo 'value: ${{ inputs.dry-run-tmp == true && " is true" || " is false"}}'
