@@ -32,16 +32,16 @@ runs:
       shell: bash
       run: |
         echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
-    - name: Run Goreleaser
-      uses: goreleaser/goreleaser-action@v5
-      with:
-        version: latest
-        args: release ${{ inputs.dry-run-gh == 'true' && '--skip=publish' || '' }} --config .goreleaser.yaml
-      env:
-        GITHUB_TOKEN: ${{ inputs.token }}
-        HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
-    - name: Hash build artifacts for provenance
-      id: hash
-      shell: bash
-      run: |
-        echo "hashes=$(sha256sum dist/*.tar.gz | base64 -w0)" >> "$GITHUB_OUTPUT"
+    # - name: Run Goreleaser
+    #   uses: goreleaser/goreleaser-action@v5
+    #   with:
+    #     version: latest
+    #     args: release ${{ inputs.dry-run-gh == 'true' && '--skip=publish' || '' }} --config .goreleaser.yaml
+    #   env:
+    #     GITHUB_TOKEN: ${{ inputs.token }}
+    #     HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
+    # - name: Hash build artifacts for provenance
+    #   id: hash
+    #   shell: bash
+    #   run: |
+    #     echo "hashes=$(sha256sum dist/*.tar.gz | base64 -w0)" >> "$GITHUB_OUTPUT"
