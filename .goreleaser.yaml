@@ -2,11 +2,9 @@ builds:
   - id: ldcli
     binary: ldcli
     goos:
-      - linux
       - darwin
-    goarch:
-      - amd64
-      - arm64
+      - linux
+      - windows
     env:
       - CGO_ENABLED=0
 dockers:
