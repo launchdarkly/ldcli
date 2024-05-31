@@ -29,6 +29,7 @@ on:
 
 jobs:
   hello-world:
+    runs-on: ubuntu-latest
     steps:
       - uses: ./.github/actions/temp
         id: temp
