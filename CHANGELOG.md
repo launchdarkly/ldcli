@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0](https://github.com/launchdarkly/ldcli/compare/v1.0.1...v1.1.0) (2024-05-31)
+
+
+### Features
+
+* add beta endpoints tor resource commands ([#307](https://github.com/launchdarkly/ldcli/issues/307)) ([03d71e3](https://github.com/launchdarkly/ldcli/commit/03d71e3ad5242e1d96e8e3d0941c1396ca54ebe4))
+* Filter SDKs with / ([#306](https://github.com/launchdarkly/ldcli/issues/306)) ([29cf3b3](https://github.com/launchdarkly/ldcli/commit/29cf3b327f7b97bfa758772b947759208e2d5c6a))
+* validate access token ([#308](https://github.com/launchdarkly/ldcli/issues/308)) ([5591a0a](https://github.com/launchdarkly/ldcli/commit/5591a0a9be9e463ce5e1355c61d1d4a847e5cfcf))
+
+
+### Bug Fixes
+
+* client request in config service ([#310](https://github.com/launchdarkly/ldcli/issues/310)) ([bc15520](https://github.com/launchdarkly/ldcli/commit/bc15520bba559aaa060537c2af751aee23cf863d))
+* Fix linux build with CGO_ENABLED=0 ([#311](https://github.com/launchdarkly/ldcli/issues/311)) ([6de74ca](https://github.com/launchdarkly/ldcli/commit/6de74caaa84e11296b4b344de00c7ea4cc1c9826))
+* Pass in markdown renderer to speed up command ([#313](https://github.com/launchdarkly/ldcli/issues/313)) ([699a980](https://github.com/launchdarkly/ldcli/commit/699a980fde8801acf4056aa50105939840d1d797))
+
 ## [1.0.1](https://github.com/launchdarkly/ldcli/compare/v1.0.0...v1.0.1) (2024-05-21)
 
 
