@@ -2,6 +2,11 @@ name: Manually Publish Images and Artifacts
 on:
   workflow_dispatch:
     inputs:
+      dry-run-tmp:
+        default: true
+        description: 'dry-run-tmp'
+        required: false
+        type: boolean
       dry-run:
         default: true
         description: 'Skip publishing to DockerHub and Homebrew'
@@ -23,6 +28,13 @@ on:
         type: string
 
 jobs:
+  hello-world:
+    steps:
+      - uses: ./.github/actions/temp
+        id: temp
+        with:
+          dry-run-tmp: ${{ inputs.dry-run-tmp }}
+
   release-ldcli:
     permissions:
       id-token: write # Needed to obtain Docker tokens
