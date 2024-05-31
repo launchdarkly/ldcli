@@ -7,11 +7,6 @@ on:
         description: 'Skip publishing to DockerHub and Homebrew'
         required: false
         type: boolean
-      dry-run-gh:
-        default: true
-        description: 'Skip publishing to github'
-        required: false
-        type: boolean
       dry-run-npm:
         default: true
         description: 'Skip publishing to npm'
@@ -45,7 +40,7 @@ jobs:
       - uses: ./.github/actions/publish
         id: publish
         with:
-          dry-run: ${{ inputs.dry-run-gh }}
+          dry-run: ${{ inputs.dry-run }}
           token: ${{ secrets.GITHUB_TOKEN }}
           homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
           tag: ${{ inputs.tag }}
