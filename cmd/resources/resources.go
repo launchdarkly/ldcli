@@ -310,8 +310,14 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 
 	if op.RequiresBody {
 		if viper.GetBool("interactive") {
+			f, err := tea.LogToFile("debug.log", "")
+			if err != nil {
+				fmt.Println("could not open file for debuggin", err)
+				os.Exit(1)
+			}
+			defer f.Close()
 			log.Println("Running in interactive mode")
-			_, err := tea.NewProgram(
+			_, err = tea.NewProgram(
 				interactive_mode.NewInteractiveInputModel(),
 				tea.WithAltScreen(),
 			).Run()
