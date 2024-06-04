@@ -1,7 +1,10 @@
 package interactive_mode
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
+	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -18,9 +21,15 @@ var (
 	focusedButton = focusedStyle.Copy().Render("[Submit]")
 )
 
-type Input struct {
-	Prompt   string
-	Required bool
+func callCmdWithData(resourceName, command, dataStr string) tea.Cmd {
+	c := exec.Command("ldcli", resourceName, command, "--data", dataStr) //nolint:gosec
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		return cmdFinishedMsg{err}
+	})
+}
+
+type cmdFinishedMsg struct {
+	err error
 }
 
 type inputModel struct {
@@ -30,15 +39,19 @@ type inputModel struct {
 }
 
 type model struct {
-	completed  bool
-	focusIndex int
-	inputs     []inputModel
-	formData   map[string]any
+	resourceName string
+	command      string
+	completed    bool
+	focusIndex   int
+	inputs       []inputModel
+	formData     map[string]any
 }
 
-func NewInteractiveInputModel() model {
+func NewInteractiveInputModel(resourceName, command string) model {
 	m := model{
-		formData: make(map[string]any),
+		resourceName: resourceName,
+		command:      command,
+		formData:     make(map[string]any),
 		inputs: []inputModel{
 			{
 				i:        textinput.New(),
@@ -97,7 +110,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "enter":
 			if m.completed {
-				return m, tea.Quit
+				dataJson, _ := json.Marshal(m.formData)
+				return m, callCmdWithData(m.resourceName, m.command, string(dataJson))
 			}
 			if m.focusIndex == len(m.inputs) {
 				for _, input := range m.inputs {
@@ -139,6 +153,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, tea.Batch(cmds...)
 		}
+	case cmdFinishedMsg:
+		if msg.err == nil {
+			return m, tea.Quit
+		} else {
+			// TODO: handle errors
+			log.Println(">>", msg.err)
+		}
+
 	}
 
 	// Handle character input and blinking
@@ -175,7 +197,7 @@ func (m model) View() string {
 	}
 
 	if m.completed {
-		s := "Press esc to quit"
+		s := "Press enter to submit, esc to quit"
 		button = &s
 		b.Reset()
 		for k, v := range m.formData {

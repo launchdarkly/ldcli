@@ -316,9 +316,8 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 				os.Exit(1)
 			}
 			defer f.Close()
-			log.Println("Running in interactive mode")
 			_, err = tea.NewProgram(
-				interactive_mode.NewInteractiveInputModel(),
+				interactive_mode.NewInteractiveInputModel(op.cmd.Parent().Use, op.cmd.Use),
 				tea.WithAltScreen(),
 			).Run()
 			if err != nil {
