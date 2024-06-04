@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/launchdarkly/ldcli/compare/v1.1.0...v1.1.1) (2024-06-04)
+
+
+### Bug Fixes
+
+* Build windows binary ([#314](https://github.com/launchdarkly/ldcli/issues/314)) ([282550e](https://github.com/launchdarkly/ldcli/commit/282550e5bd28d314d32e18fc73de184935266fe9))
+
 ## [1.1.0](https://github.com/launchdarkly/ldcli/compare/v1.0.1...v1.1.0) (2024-05-31)
 
 
