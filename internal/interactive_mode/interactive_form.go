@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,9 +18,9 @@ import (
 )
 
 var (
+	focusedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("fff"))
 	blurredStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	defaultStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	focusedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("fff"))
 	inputStyle    = lipgloss.NewStyle()
 	blurredButton = fmt.Sprintf("[%s]", blurredStyle.Render("Submit"))
 	focusedButton = focusedStyle.Copy().Render("[Submit]")
@@ -62,7 +66,8 @@ func NewInteractiveInputModel(resourceName, command string, formInputs []Input) 
 	for i := range m.inputs {
 		m.inputs[i].ti.PromptStyle = defaultStyle
 		m.inputs[i].ti.TextStyle = defaultStyle
-		m.inputs[i].ti.Prompt = m.inputs[i].input.Prompt
+		output := getDisplayPrompt(m.inputs[i].input.Prompt)
+		m.inputs[i].ti.Prompt = output
 		if m.inputs[i].input.Required {
 			m.inputs[i].ti.Prompt += " (required): "
 		} else {
@@ -74,6 +79,17 @@ func NewInteractiveInputModel(resourceName, command string, formInputs []Input) 
 	m.inputs[0].ti.TextStyle = focusedStyle
 
 	return m
+}
+
+func getDisplayPrompt(prompt string) string {
+	// Compile regex to find positions where a lowercase letter is followed by an uppercase letter
+	re := regexp.MustCompile("([a-z])([A-Z])")
+	// Replace matches with the lowercase letter, a space, and the uppercase letter
+	out := re.ReplaceAllString(prompt, "$1 $2")
+	// Capitalize the first letter of the result
+	caser := cases.Title(language.English)
+	out = caser.String(out)
+	return out
 }
 
 func (m model) Init() tea.Cmd {
