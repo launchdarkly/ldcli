@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/interactive_mode"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
@@ -346,6 +347,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/tokens/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccessTokensResourceCmd, client, markdownRenderer, OperationData{
@@ -366,6 +368,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/tokens/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccessTokensResourceCmd, client, markdownRenderer, OperationData{
@@ -398,6 +401,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/tokens",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccessTokensResourceCmd, client, markdownRenderer, OperationData{
@@ -418,6 +422,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/tokens/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccessTokensResourceCmd, client, markdownRenderer, OperationData{
@@ -431,6 +436,43 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/tokens",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "role",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "customRoleIds",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "inlineRole",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "serviceToken",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "defaultApiVersion",
+				Required: false,
+				Type:     "integer",
+			},
+			{
+				Prompt:   "name",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_AccessTokensResourceCmd, client, markdownRenderer, OperationData{
@@ -457,6 +499,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/tokens/{id}/reset",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -483,6 +526,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/data-export-events",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -533,6 +577,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/evaluations/{projectKey}/{environmentKey}/{featureFlagKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -565,6 +610,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/events/{type}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -591,6 +637,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/experimentation-keys",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -617,6 +664,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/experimentation-units",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -649,6 +697,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/mau/sdks",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -711,6 +760,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/mau",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -737,6 +787,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/mau/bycategory",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -763,6 +814,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/service-connections",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -801,6 +853,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/streams/{source}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -851,6 +904,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/streams/{source}/bysdkversion",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -871,6 +925,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/streams/{source}/sdkversions",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -891,6 +946,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/applications/{applicationKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -917,6 +973,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/applications/{applicationKey}/versions/{versionKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -943,6 +1000,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/applications/{applicationKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -987,6 +1045,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/applications/{applicationKey}/versions",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -1031,6 +1090,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/applications",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -1051,6 +1111,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/applications/{applicationKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApplicationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -1077,6 +1138,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/applications/{applicationKey}/versions/{versionKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1097,6 +1159,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/approval-requests/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1135,6 +1198,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1173,6 +1237,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1199,6 +1264,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/approval-requests/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1237,6 +1303,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/approval-requests",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1269,6 +1336,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1282,6 +1350,43 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/approval-requests",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "notifyMemberIds",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "notifyTeamKeys",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "integrationConfig",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "resourceId",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: true,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1302,6 +1407,13 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/approval-requests/{id}/apply",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1340,6 +1452,13 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{id}/apply",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1372,6 +1491,48 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "integrationConfig",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "notifyMemberIds",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "notifyTeamKeys",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "executionDate",
+				Required: false,
+				Type:     "integer",
+			},
+			{
+				Prompt:   "operatingOnId",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1392,6 +1553,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/approval-requests/{id}/reviews",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "kind",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1430,6 +1603,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests/{id}/reviews",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "kind",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
@@ -1462,6 +1647,43 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/approval-requests-flag-copy",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "notifyMemberIds",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "notifyTeamKeys",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "source",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "includedActions",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "excludedActions",
+				Required: false,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_AuditLogResourceCmd, client, markdownRenderer, OperationData{
@@ -1506,6 +1728,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/auditlog",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_AuditLogResourceCmd, client, markdownRenderer, OperationData{
@@ -1526,6 +1749,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/auditlog/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1546,6 +1770,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branch-delete-tasks",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1566,6 +1791,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories/{repo}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1604,6 +1830,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branches/{branch}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1624,6 +1851,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branches",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1674,6 +1902,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/extinctions",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1712,6 +1941,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1732,6 +1962,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/repositories/{repo}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1745,6 +1976,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/statistics",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1771,6 +2003,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/code-refs/statistics/{projectKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1791,6 +2024,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1817,6 +2051,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branches/{branch}/extinction-events",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1830,6 +2065,38 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "hunkUrlTemplate",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "type",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "defaultBranch",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "sourceLink",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "commitUrlTemplate",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_CodeRefsResourceCmd, client, markdownRenderer, OperationData{
@@ -1856,6 +2123,38 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/code-refs/repositories/{repo}/branches/{branch}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "head",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "updateSequenceId",
+				Required: false,
+				Type:     "integer",
+			},
+			{
+				Prompt:   "syncTime",
+				Required: true,
+				Type:     "integer",
+			},
+			{
+				Prompt:   "references",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "commitTime",
+				Required: false,
+				Type:     "integer",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ContextSettingsResourceCmd, client, markdownRenderer, OperationData{
@@ -1900,6 +2199,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/contexts/{contextKind}/{contextKey}/flags/{featureFlagKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "setting",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -1932,6 +2243,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-instances/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -1982,6 +2294,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/flags/evaluate",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -2014,6 +2327,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-attributes",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -2052,6 +2366,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-attributes/{attributeName}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -2114,6 +2429,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-instances/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -2134,6 +2450,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/context-kinds",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -2202,6 +2519,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/contexts/{kind}/{key}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -2228,6 +2546,33 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/context-kinds/{key}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "hideInTargeting",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "archived",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "version",
+				Required: false,
+				Type:     "integer",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -2284,6 +2629,28 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/context-instances/search",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "limit",
+				Required: false,
+				Type:     "integer",
+			},
+			{
+				Prompt:   "continuationToken",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "filter",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "sort",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ContextsResourceCmd, client, markdownRenderer, OperationData{
@@ -2340,6 +2707,28 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/contexts/search",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "continuationToken",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "filter",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "sort",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "limit",
+				Required: false,
+				Type:     "integer",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, markdownRenderer, OperationData{
@@ -2360,6 +2749,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/roles/{customRoleKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, markdownRenderer, OperationData{
@@ -2380,6 +2770,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/roles/{customRoleKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, markdownRenderer, OperationData{
@@ -2406,6 +2797,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/roles",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, markdownRenderer, OperationData{
@@ -2426,6 +2818,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/roles/{customRoleKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "patch",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_CustomRolesResourceCmd, client, markdownRenderer, OperationData{
@@ -2439,6 +2843,33 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/roles",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "policy",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "basePermissions",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
@@ -2471,6 +2902,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
@@ -2503,6 +2935,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
@@ -2516,6 +2949,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/destinations",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
@@ -2548,6 +2982,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
@@ -2574,6 +3009,28 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/destinations/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "config",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "on",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "name",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "kind",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -2600,6 +3057,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -2626,6 +3084,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -2670,6 +3129,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -2696,6 +3156,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -2716,6 +3177,63 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "secureMode",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "confirmChanges",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "requireComments",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "critical",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "color",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "defaultTtl",
+				Required: false,
+				Type:     "integer",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "defaultTrackEvents",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "source",
+				Required: false,
+				Type:     "object",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -2742,6 +3260,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/mobileKey",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -2774,6 +3293,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/apiKey",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -2800,6 +3320,33 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "iteration",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "maintainerId",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -2832,6 +3379,48 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}/iterations",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "flags",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "randomizationUnit",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "hypothesis",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "canReshuffleTraffic",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "metrics",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "primarySingleMetricKey",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "primaryFunnelKey",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "treatments",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -2870,6 +3459,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -2920,6 +3510,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}/metrics/{metricKey}/results",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -2964,6 +3555,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}/metric-groups/{metricGroupKey}/results",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -2984,6 +3576,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/experimentation-settings",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3040,6 +3633,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3090,6 +3684,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/experiments/{environmentKey}/{metricKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3122,6 +3717,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments/{experimentKey}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ExperimentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3142,6 +3749,13 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/experimentation-settings",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "randomizationUnits",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FlagLinksBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3168,6 +3782,43 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "metadata",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "key",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "integrationKey",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "timestamp",
+				Required: false,
+				Type:     "integer",
+			},
+			{
+				Prompt:   "deepLink",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "title",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FlagLinksBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3200,6 +3851,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FlagLinksBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3226,6 +3878,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FlagLinksBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3258,6 +3911,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flag-links/projects/{projectKey}/flags/{featureFlagKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, markdownRenderer, OperationData{
@@ -3290,6 +3944,23 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "instructions",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "integrationKey",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, markdownRenderer, OperationData{
@@ -3328,6 +3999,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, markdownRenderer, OperationData{
@@ -3366,6 +4038,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, markdownRenderer, OperationData{
@@ -3398,6 +4071,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FlagTriggersResourceCmd, client, markdownRenderer, OperationData{
@@ -3436,6 +4110,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/triggers/{environmentKey}/{id}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "instructions",
+				Required: false,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3462,6 +4148,33 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/copy",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "excludedActions",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "source",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "target",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "includedActions",
+				Required: false,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3488,6 +4201,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3520,6 +4234,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/expiring-targets/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3552,6 +4267,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/expiring-user-targets/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3590,6 +4306,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3622,6 +4339,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flag-statuses/{projectKey}/{environmentKey}/{featureFlagKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3654,6 +4372,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flag-status/{projectKey}/{featureFlagKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3680,6 +4399,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flag-statuses/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3754,6 +4474,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3786,6 +4507,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/expiring-targets/{environmentKey}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3818,6 +4551,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/expiring-user-targets/{environmentKey}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3844,6 +4589,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "patch",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3870,6 +4627,78 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "temporary",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "includeInSnippet",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "defaults",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "purpose",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "clientSideAvailability",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "customProperties",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "migrationSettings",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "maintainerId",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "maintainerTeamKey",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "variations",
+				Required: false,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FeatureFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3902,6 +4731,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{flagKey}/environments/{environmentKey}/migration-safety-issues",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_FlagsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3928,6 +4769,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{featureFlagKey}/dependent-flags",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FlagsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -3960,6 +4802,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{environmentKey}/{featureFlagKey}/dependent-flags",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -3998,6 +4841,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/followers/{memberId}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -4030,6 +4874,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/followers",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -4056,6 +4901,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/followers",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_FollowFlagsResourceCmd, client, markdownRenderer, OperationData{
@@ -4094,6 +4940,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/followers/{memberId}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4126,6 +4973,28 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "on",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "config",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "name",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4164,6 +5033,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4190,6 +5060,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4228,6 +5099,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4241,6 +5113,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integration-capabilities/featureStore",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4279,6 +5152,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationDeliveryConfigurationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4317,6 +5191,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integration-capabilities/featureStore/{projectKey}/{environmentKey}/{integrationKey}/{id}/validate",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, markdownRenderer, OperationData{
@@ -4337,6 +5212,43 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integrations/{integrationKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "statements",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "on",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "config",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "url",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "apiKey",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, markdownRenderer, OperationData{
@@ -4363,6 +5275,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integrations/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, markdownRenderer, OperationData{
@@ -4389,6 +5302,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integrations/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, markdownRenderer, OperationData{
@@ -4409,6 +5323,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integrations/{integrationKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationSubscriptionsResourceCmd, client, markdownRenderer, OperationData{
@@ -4435,6 +5350,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integrations/{integrationKey}/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4467,6 +5383,28 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integration-capabilities/big-segment-store/{projectKey}/{environmentKey}/{integrationKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "on",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "config",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "name",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4505,6 +5443,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integration-capabilities/big-segment-store/{projectKey}/{environmentKey}/{integrationKey}/{integrationId}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4543,6 +5482,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integration-capabilities/big-segment-store/{projectKey}/{environmentKey}/{integrationKey}/{integrationId}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4556,6 +5496,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/integration-capabilities/big-segment-store",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_IntegrationsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4594,6 +5535,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/integration-capabilities/big-segment-store/{projectKey}/{environmentKey}/{integrationKey}/{integrationId}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
@@ -4614,6 +5556,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/members/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
@@ -4634,6 +5577,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/members/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
@@ -4672,6 +5616,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/members",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
@@ -4692,6 +5637,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/members/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
@@ -4712,6 +5658,13 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/members/{id}/teams",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "teamKeys",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
@@ -4725,6 +5678,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/members",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MembersBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4738,6 +5692,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/members",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4758,6 +5724,43 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/metric-groups",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "metrics",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "kind",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "maintainerId",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "tags",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4784,6 +5787,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/metric-groups/{metricGroupKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4816,6 +5820,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/metric-groups/{metricGroupKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4842,6 +5847,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/metric-groups",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -4868,6 +5874,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/metric-groups/{metricGroupKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MetricsResourceCmd, client, markdownRenderer, OperationData{
@@ -4894,6 +5901,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/metrics/{projectKey}/{metricKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MetricsResourceCmd, client, markdownRenderer, OperationData{
@@ -4932,6 +5940,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/metrics/{projectKey}/{metricKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MetricsResourceCmd, client, markdownRenderer, OperationData{
@@ -4958,6 +5967,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/metrics/{projectKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MetricsResourceCmd, client, markdownRenderer, OperationData{
@@ -4984,6 +5994,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/metrics/{projectKey}/{metricKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_MetricsResourceCmd, client, markdownRenderer, OperationData{
@@ -5004,6 +6015,93 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/metrics/{projectKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "isActive",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "eventKey",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "isNumeric",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "randomizationUnits",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "eventDefault",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "name",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "selector",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "urls",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "unit",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "successCriteria",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "unitAggregationType",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "percentileValue",
+				Required: false,
+				Type:     "integer",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "kind",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "analysisType",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -5024,6 +6122,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -5044,6 +6143,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flag-defaults",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -5070,6 +6170,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -5114,6 +6215,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -5134,6 +6236,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flag-defaults",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -5154,6 +6257,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -5167,6 +6271,38 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "environments",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "includeInSnippetByDefault",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "defaultClientSideAvailability",
+				Required: false,
+				Type:     "object",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ProjectsResourceCmd, client, markdownRenderer, OperationData{
@@ -5187,6 +6323,28 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flag-defaults",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "booleanDefaults",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "defaultClientSideAvailability",
+				Required: true,
+				Type:     "object",
+			},
+			{
+				Prompt:   "tags",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "temporary",
+				Required: true,
+				Type:     "boolean",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, markdownRenderer, OperationData{
@@ -5207,6 +6365,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/account/relay-auto-configs/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, markdownRenderer, OperationData{
@@ -5227,6 +6386,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/account/relay-auto-configs/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, markdownRenderer, OperationData{
@@ -5240,6 +6400,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/account/relay-auto-configs",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, markdownRenderer, OperationData{
@@ -5260,6 +6421,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/account/relay-auto-configs/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "patch",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, markdownRenderer, OperationData{
@@ -5273,6 +6446,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/account/relay-auto-configs",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "policy",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_RelayProxyConfigsResourceCmd, client, markdownRenderer, OperationData{
@@ -5299,6 +6484,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/account/relay-auto-configs/{id}/reset",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -5325,6 +6511,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/release-pipelines/{pipelineKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -5363,6 +6550,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/release-pipelines",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -5389,6 +6577,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/release-pipelines/{pipelineKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -5415,6 +6604,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/release-pipelines/{pipelineKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ReleasePipelinesBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -5435,6 +6625,33 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/release-pipelines",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "phases",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ReleasesBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -5461,6 +6678,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/flags/{projectKey}/{flagKey}/release",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ReleasesBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -5487,6 +6705,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/flags/{projectKey}/{flagKey}/release",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, markdownRenderer, OperationData{
@@ -5525,6 +6744,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, markdownRenderer, OperationData{
@@ -5563,6 +6783,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, markdownRenderer, OperationData{
@@ -5595,6 +6816,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, markdownRenderer, OperationData{
@@ -5639,6 +6861,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes/{id}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, markdownRenderer, OperationData{
@@ -5677,6 +6911,23 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/scheduled-changes",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "executionDate",
+				Required: true,
+				Type:     "integer",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -5709,6 +6960,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -5735,6 +6987,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/segments/evaluate",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -5767,6 +7020,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{segmentKey}/expiring-targets/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -5799,6 +7053,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{segmentKey}/expiring-user-targets/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -5831,6 +7086,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -5869,6 +7125,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/contexts/{contextKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -5907,6 +7164,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/users/{userKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -5957,6 +7215,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -5989,6 +7248,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{segmentKey}/expiring-targets/{environmentKey}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -6021,6 +7292,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{segmentKey}/expiring-user-targets/{environmentKey}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -6053,6 +7336,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "patch",
+				Required: true,
+				Type:     "array",
+			},
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -6079,6 +7374,38 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "unbounded",
+				Required: false,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "unboundedContextKind",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -6111,6 +7438,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/contexts",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "included",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "excluded",
+				Required: false,
+				Type:     "object",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
@@ -6143,6 +7482,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/users",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "included",
+				Required: false,
+				Type:     "object",
+			},
+			{
+				Prompt:   "excluded",
+				Required: false,
+				Type:     "object",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_SegmentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -6175,6 +7526,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/exports",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -6207,6 +7559,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/imports",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -6245,6 +7598,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/exports/{exportID}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_SegmentsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -6283,6 +7637,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/segments/{projectKey}/{environmentKey}/{segmentKey}/imports/{importID}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_TagsResourceCmd, client, markdownRenderer, OperationData{
@@ -6315,6 +7670,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/tags",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -6335,6 +7691,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams/{teamKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -6361,6 +7718,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams/{teamKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -6393,6 +7751,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams/{teamKey}/maintainers",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -6425,6 +7784,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams/{teamKey}/roles",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -6463,6 +7823,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/teams",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -6489,6 +7850,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams/{teamKey}",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -6509,6 +7882,38 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "customRoleKeys",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "memberIDs",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "permissionGrants",
+				Required: false,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_TeamsResourceCmd, client, markdownRenderer, OperationData{
@@ -6529,6 +7934,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams/{teamKey}/members",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_TeamsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -6542,6 +7948,18 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/teams",
 		SupportsSemanticPatch: true,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "comment",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "instructions",
+				Required: true,
+				Type:     "array",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_WebhooksResourceCmd, client, markdownRenderer, OperationData{
@@ -6562,6 +7980,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/webhooks/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_WebhooksResourceCmd, client, markdownRenderer, OperationData{
@@ -6575,6 +7994,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/webhooks",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_WebhooksResourceCmd, client, markdownRenderer, OperationData{
@@ -6595,6 +8015,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/webhooks/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_WebhooksResourceCmd, client, markdownRenderer, OperationData{
@@ -6615,6 +8036,7 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/webhooks/{id}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_WebhooksResourceCmd, client, markdownRenderer, OperationData{
@@ -6628,6 +8050,43 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/webhooks",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "secret",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "statements",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "sign",
+				Required: true,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "on",
+				Required: true,
+				Type:     "boolean",
+			},
+			{
+				Prompt:   "tags",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "name",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "url",
+				Required: true,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_WorkflowTemplatesResourceCmd, client, markdownRenderer, OperationData{
@@ -6641,6 +8100,48 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/templates",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "workflowId",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "stages",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "projectKey",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "environmentKey",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "flagKey",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "key",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "name",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 	NewOperationCmd(gen_WorkflowTemplatesResourceCmd, client, markdownRenderer, OperationData{
@@ -6661,6 +8162,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/templates/{templateKey}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_WorkflowTemplatesResourceCmd, client, markdownRenderer, OperationData{
@@ -6687,6 +8189,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/templates",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_WorkflowsResourceCmd, client, markdownRenderer, OperationData{
@@ -6725,6 +8228,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/workflows/{workflowId}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_WorkflowsResourceCmd, client, markdownRenderer, OperationData{
@@ -6763,6 +8267,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/workflows/{workflowId}",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_WorkflowsResourceCmd, client, markdownRenderer, OperationData{
@@ -6819,6 +8324,7 @@ func AddAllResourceCmds(
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/workflows",
 		SupportsSemanticPatch: false,
+		FormInputs:            []interactive_mode.Input{},
 	})
 
 	NewOperationCmd(gen_WorkflowsResourceCmd, client, markdownRenderer, OperationData{
@@ -6863,6 +8369,33 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/flags/{featureFlagKey}/environments/{environmentKey}/workflows",
 		SupportsSemanticPatch: false,
+		FormInputs: []interactive_mode.Input{
+			{
+				Prompt:   "maintainerId",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "name",
+				Required: true,
+				Type:     "string",
+			},
+			{
+				Prompt:   "description",
+				Required: false,
+				Type:     "string",
+			},
+			{
+				Prompt:   "stages",
+				Required: false,
+				Type:     "array",
+			},
+			{
+				Prompt:   "templateKey",
+				Required: false,
+				Type:     "string",
+			},
+		},
 	})
 
 }

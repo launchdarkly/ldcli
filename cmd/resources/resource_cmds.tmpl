@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/interactive_mode"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
@@ -59,6 +60,14 @@ func AddAllResourceCmds(
             RequiresBody:          {{ $opData.RequiresBody }},
             Path:                  "{{ $opData.Path }}",
             SupportsSemanticPatch: {{ $opData.SupportsSemanticPatch }},
+            FormInputs:            []interactive_mode.Input{ {{ range $input := $opData.FormInputs }}
+                {
+                    Prompt:   "{{ $input.Prompt }}",
+                    Required: {{ $input.Required }},
+                    Type:     "{{ $input.Type }}",
+                }, {{ end }}
+         },
+
         })
 
 	{{ end }}{{ end }}

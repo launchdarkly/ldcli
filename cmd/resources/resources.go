@@ -67,6 +67,7 @@ type OperationData struct {
 	RequiresBody          bool
 	Path                  string
 	SupportsSemanticPatch bool
+	FormInputs            []interactive_mode.Input
 }
 
 type Param struct {
@@ -117,10 +118,11 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 			}
 
 			var hasBody, requiresBody bool
+			var formInputs []interactive_mode.Input
 			if op.RequestBody != nil {
 				hasBody = true
 				requiresBody = op.RequestBody.Value.Required
-
+				formInputs = getFormInputs(op, spec)
 			}
 
 			isBeta := strings.Contains(tag, "(beta)")
@@ -136,6 +138,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 				RequiresBody:          requiresBody,
 				Path:                  path,
 				SupportsSemanticPatch: supportsSemanticPatch,
+				FormInputs:            formInputs,
 			}
 
 			for _, p := range op.Parameters {
@@ -240,7 +243,7 @@ type OperationCmd struct {
 func (op *OperationCmd) initFlags() error {
 	if op.HasBody {
 		op.cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
-		op.cmd.Flags().BoolP(cliflags.InteractiveFlag, "i", false, "Enter data using form")
+		op.cmd.Flags().BoolP(cliflags.InteractiveFlag, "i", false, "Optionally enter data using a form")
 
 		if op.RequiresBody {
 			if true { // eventually we'll want to check if the request body is form-compatabile, probably
@@ -317,7 +320,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 			}
 			defer f.Close()
 			_, err = tea.NewProgram(
-				interactive_mode.NewInteractiveInputModel(op.cmd.Parent().Use, op.cmd.Use),
+				interactive_mode.NewInteractiveInputModel(op.cmd.Parent().Use, op.cmd.Use, op.FormInputs),
 				tea.WithAltScreen(),
 			).Run()
 			if err != nil {

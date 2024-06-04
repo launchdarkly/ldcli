@@ -8,6 +8,8 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/iancoleman/strcase"
+
+	"github.com/launchdarkly/ldcli/internal/interactive_mode"
 )
 
 // we have certain tags that aren't a 1:1 match to their operation id names
@@ -149,7 +151,7 @@ func isListResponse(op *openapi3.Operation, spec *openapi3.T) bool {
 		respCode, _ := strconv.Atoi(respType)
 		if respCode < 300 {
 			for _, s := range respInfo.Value.Content {
-				schemaName := strings.TrimPrefix(s.Schema.Ref, "#/components/schemas/")
+				schemaName := getSchemaNameFromRef(s.Schema.Ref)
 				schema = spec.Components.Schemas[schemaName]
 			}
 		}
@@ -167,6 +169,49 @@ func isListResponse(op *openapi3.Operation, spec *openapi3.T) bool {
 	}
 
 	return false
+}
+
+func getSchemaNameFromRef(refString string) string {
+	schemaName := strings.TrimPrefix(refString, "#/components/schemas/")
+	return schemaName
+}
+
+func getFormInputs(op *openapi3.Operation, spec *openapi3.T) []interactive_mode.Input {
+	formInputs := make([]interactive_mode.Input, 0)
+	schemaBlob := op.RequestBody.Value.GetMediaType("application/json")
+	if schemaBlob == nil {
+		return formInputs
+	}
+
+	schemaName := getSchemaNameFromRef(schemaBlob.Schema.Ref)
+	schema := spec.Components.Schemas[schemaName]
+	if schema == nil {
+		return formInputs
+	}
+
+	requiredFields := make(map[string]bool)
+	for _, requiredField := range schema.Value.Required {
+		requiredFields[requiredField] = true
+	}
+
+	for fieldName, field := range schema.Value.Properties {
+		t := "string" // type isn't always defined on our schemas
+		if field.Value.Type != nil {
+			types := *field.Value.Type
+			t = types[0]
+			if t == "boolean" {
+				fmt.Println(schemaName, fieldName)
+			}
+		}
+
+		formInputs = append(formInputs, interactive_mode.Input{
+			Prompt:   fieldName,
+			Required: requiredFields[fieldName],
+			Type:     t,
+		})
+	}
+
+	return formInputs
 }
 
 var mapParamToFlagName = map[string]string{

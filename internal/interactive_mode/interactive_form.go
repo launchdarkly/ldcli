@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -21,21 +22,19 @@ var (
 	focusedButton = focusedStyle.Copy().Render("[Submit]")
 )
 
-func callCmdWithData(resourceName, command, dataStr string) tea.Cmd {
-	c := exec.Command("ldcli", resourceName, command, "--data", dataStr) //nolint:gosec
-	return tea.ExecProcess(c, func(err error) tea.Msg {
-		return cmdFinishedMsg{err}
-	})
-}
-
 type cmdFinishedMsg struct {
 	err error
 }
 
+type Input struct {
+	Prompt   string
+	Required bool
+	Type     string
+}
+
 type inputModel struct {
-	prompt   string
-	required bool
-	i        textinput.Model
+	input Input
+	ti    textinput.Model
 }
 
 type model struct {
@@ -47,42 +46,32 @@ type model struct {
 	formData     map[string]any
 }
 
-func NewInteractiveInputModel(resourceName, command string) model {
+func NewInteractiveInputModel(resourceName, command string, formInputs []Input) model {
+	inputs := make([]inputModel, 0)
+	for _, input := range formInputs {
+		inputs = append(inputs, inputModel{ti: textinput.New(), input: input})
+	}
+
 	m := model{
 		resourceName: resourceName,
 		command:      command,
 		formData:     make(map[string]any),
-		inputs: []inputModel{
-			{
-				i:        textinput.New(),
-				prompt:   "name",
-				required: true,
-			},
-			{
-				i:        textinput.New(),
-				prompt:   "key",
-				required: true,
-			},
-			{
-				i:      textinput.New(),
-				prompt: "description",
-			},
-		},
+		inputs:       inputs,
 	}
 
 	for i := range m.inputs {
-		m.inputs[i].i.PromptStyle = defaultStyle
-		m.inputs[i].i.TextStyle = defaultStyle
-		m.inputs[i].i.Prompt = m.inputs[i].prompt
-		if m.inputs[i].required {
-			m.inputs[i].i.Prompt += " (required): "
+		m.inputs[i].ti.PromptStyle = defaultStyle
+		m.inputs[i].ti.TextStyle = defaultStyle
+		m.inputs[i].ti.Prompt = m.inputs[i].input.Prompt
+		if m.inputs[i].input.Required {
+			m.inputs[i].ti.Prompt += " (required): "
 		} else {
-			m.inputs[i].i.Prompt += ": "
+			m.inputs[i].ti.Prompt += ": "
 		}
 	}
-	m.inputs[0].i.Focus()
-	m.inputs[0].i.PromptStyle = focusedStyle
-	m.inputs[0].i.TextStyle = focusedStyle
+	m.inputs[0].ti.Focus()
+	m.inputs[0].ti.PromptStyle = focusedStyle
+	m.inputs[0].ti.TextStyle = focusedStyle
 
 	return m
 }
@@ -110,14 +99,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "enter":
 			if m.completed {
-				dataJson, _ := json.Marshal(m.formData)
-				return m, callCmdWithData(m.resourceName, m.command, string(dataJson))
+				return m, m.runCmd()
 			}
 			if m.focusIndex == len(m.inputs) {
-				for _, input := range m.inputs {
-					m.formData[input.prompt] = input.i.Value()
-				}
-				return m, completeForm()
+				return m.updateFormData()
 			}
 		// Set focus to next input
 		case "tab", "shift+tab", "up", "down":
@@ -140,15 +125,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i := 0; i <= len(m.inputs)-1; i++ {
 				if i == m.focusIndex {
 					// Set focused state
-					cmds[i] = m.inputs[i].i.Focus()
-					m.inputs[i].i.PromptStyle = focusedStyle
-					m.inputs[i].i.TextStyle = focusedStyle
+					cmds[i] = m.inputs[i].ti.Focus()
+					m.inputs[i].ti.PromptStyle = focusedStyle
+					m.inputs[i].ti.TextStyle = focusedStyle
 					continue
 				}
 				// Remove focused state
-				m.inputs[i].i.Blur()
-				m.inputs[i].i.PromptStyle = blurredStyle
-				m.inputs[i].i.TextStyle = blurredStyle
+				m.inputs[i].ti.Blur()
+				m.inputs[i].ti.PromptStyle = blurredStyle
+				m.inputs[i].ti.TextStyle = blurredStyle
 			}
 
 			return m, tea.Batch(cmds...)
@@ -169,23 +154,60 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m model) updateFormData() (tea.Model, tea.Cmd) {
+	for _, input := range m.inputs {
+		inputValue := input.ti.Value()
+		if inputValue != "" {
+			var val interface{}
+			switch input.input.Type {
+			case "string":
+				val = inputValue
+			case "array":
+				val = strings.Split(inputValue, ",")
+			case "boolean":
+				val, _ = strconv.ParseBool(inputValue)
+				// TODO: handle error
+			case "integer":
+				val, _ = strconv.Atoi(inputValue)
+				// TODO: handle error
+			case "object":
+				// TODO
+			}
+			m.formData[input.input.Prompt] = val
+		}
+
+	}
+	return m, completeForm()
+}
+
 func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 	cmds := make([]tea.Cmd, len(m.inputs))
 
 	// Only text inputs with Focus() set will respond, so it's safe to simply
 	// update all of them here without any further logic.
 	for i := range m.inputs {
-		m.inputs[i].i, cmds[i] = m.inputs[i].i.Update(msg)
+		m.inputs[i].ti, cmds[i] = m.inputs[i].ti.Update(msg)
 	}
 
 	return tea.Batch(cmds...)
+}
+
+func (m model) runCmd() tea.Cmd {
+	data, _ := json.Marshal(m.formData)
+	// TODO: handle error
+
+	log.Println("ldcli", m.resourceName, m.command, "--data", string(data))
+	c := exec.Command("ldcli", m.resourceName, m.command, "--data", string(data)) //nolint:gosec
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		return cmdFinishedMsg{err}
+	})
 }
 
 func (m model) View() string {
 	var b strings.Builder
 
 	for i := range m.inputs {
-		b.WriteString(inputStyle.Render(m.inputs[i].i.View()))
+		b.WriteString(inputStyle.Render(m.inputs[i].ti.View()))
 		if i < len(m.inputs)-1 {
 			b.WriteRune('\n')
 		}
