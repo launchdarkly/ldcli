@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/iancoleman/strcase"
@@ -20,6 +21,7 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/interactive_mode"
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
@@ -118,6 +120,7 @@ func GetTemplateData(fileName string) (TemplateData, error) {
 			if op.RequestBody != nil {
 				hasBody = true
 				requiresBody = op.RequestBody.Value.Required
+
 			}
 
 			isBeta := strings.Contains(tag, "(beta)")
@@ -237,12 +240,20 @@ type OperationCmd struct {
 func (op *OperationCmd) initFlags() error {
 	if op.HasBody {
 		op.cmd.Flags().StringP(cliflags.DataFlag, "d", "", "Input data in JSON")
+		op.cmd.Flags().BoolP(cliflags.InteractiveFlag, "i", false, "Enter data using form")
+
 		if op.RequiresBody {
-			err := op.cmd.MarkFlagRequired(cliflags.DataFlag)
-			if err != nil {
-				return err
+			if true { // eventually we'll want to check if the request body is form-compatabile, probably
+				op.cmd.MarkFlagsOneRequired(cliflags.DataFlag, cliflags.InteractiveFlag)
+			} else {
+				err := op.cmd.MarkFlagRequired(cliflags.DataFlag)
+				if err != nil {
+					return err
+				}
 			}
-			err = op.cmd.Flags().SetAnnotation(cliflags.DataFlag, "required", []string{"true"})
+
+			// still going to mark --data as required for the help template to display
+			err := op.cmd.Flags().SetAnnotation(cliflags.DataFlag, "required", []string{"true"})
 			if err != nil {
 				return err
 			}
@@ -296,11 +307,25 @@ func buildURLWithParams(baseURI, path string, urlParams []string) string {
 
 func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 	var data interface{}
+
 	if op.RequiresBody {
-		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &data)
-		if err != nil {
-			return err
+		if viper.GetBool("interactive") {
+			log.Println("Running in interactive mode")
+			_, err := tea.NewProgram(
+				interactive_mode.NewInteractiveInputModel(),
+				tea.WithAltScreen(),
+			).Run()
+			if err != nil {
+				log.Fatal(err)
+			}
+			return nil
+		} else {
+			err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &data)
+			if err != nil {
+				return err
+			}
 		}
+
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
