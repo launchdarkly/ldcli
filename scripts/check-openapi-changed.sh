@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DIFF=$(git diff ld-openapi.json)
+DIFF=$(git diff cmd/resources/resource_cmds.go)
 if [ "$DIFF" ]; then
   echo "The OpenAPI spec has been changed. Run 'make openapi-spec-update'."
   exit 1

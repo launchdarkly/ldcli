@@ -13,7 +13,7 @@ log:
 	tail -f *.log
 
 openapi-spec-check-updates:
-	make openapi-spec-download
+	make openapi-spec-update
 	./scripts/check-openapi-changed.sh
 
 openapi-spec-download:
