@@ -1,9 +1,8 @@
 name: Check OpenAPI updates
 
 on:
-  workflow_dispatch:
-  # schedule:
-  #   - cron: "*/5 * * * *" # every minute
+  schedule:
+    - cron: "*/5 * * * *" # every 5 minutes (for testing)
     # - cron: "0 16 * * *" # every day at 4pm UTC
 
 jobs:
