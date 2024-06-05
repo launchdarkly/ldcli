@@ -1,0 +1,14 @@
+name: Check OpenAPI updates
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # every 5 minutes (for testing)
+    # - cron: "0 16 * * *" # every day at 4pm UTC
+
+jobs:
+  check-open-api-spec-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check OpenAPI updates
+        run: make openapi-spec-check-updates
