@@ -10,4 +10,4 @@ jobs:
     - uses: actions/checkout@v4
     - name: Check OpenAPI updates
     - run: |
-      openapi-spec-check-updates
+      make openapi-spec-check-updates
