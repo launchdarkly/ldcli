@@ -27,7 +27,7 @@ brew install ldcli
 A Windows executable of `ldcli` is available on the [releases page](https://github.com/launchdarkly/ldcli/releases).
 
 ### Linux
-_Coming soon._
+A Linux executable of `ldcli` is available on the [releases page](https://github.com/launchdarkly/ldcli/releases).
 
 ### Additional installations
 
