@@ -14,6 +14,7 @@ Commands:
   {{rpad "setup" 29}} Create your first feature flag using a step-by-step guide
   {{rpad "config" 29}} View and modify specific configuration values
   {{rpad "completion" 29}} Enable command autocompletion within supported shells
+  {{rpad "login" 29}} Log in to your LaunchDarkly account
 
 Common resource commands:
   {{rpad "flags" 29}} List, create, and modify feature flags and their targeting
