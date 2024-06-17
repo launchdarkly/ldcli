@@ -133,7 +133,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 
 			rawConfig, v, err := getRawConfig()
 			if err != nil {
-				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 			}
 
 			// add arg pairs to config where each argument is --set arg1 val1 --set arg2 val2
@@ -163,13 +163,13 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 					errorMessage += errs.AccessTokenInvalidErrMessage(viper.GetString(cliflags.BaseURIFlag))
 					err := errors.New(errorMessage)
 
-					return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+					return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 				}
 			}
 
 			configFile, err := config.NewConfig(rawConfig)
 			if err != nil {
-				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 			}
 
 			setKeyFn := func(key string, value interface{}, v *viper.Viper) {
@@ -177,7 +177,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 			}
 			err = writeConfig(configFile, v, setKeyFn)
 			if err != nil {
-				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 			}
 
 			output, err := outputSetAction(newFields)
@@ -194,7 +194,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 
 			config, v, err := getConfig()
 			if err != nil {
-				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 			}
 
 			unsetKeyFn := func(key string, value interface{}, v *viper.Viper) {
@@ -204,7 +204,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 			}
 			err = writeConfig(config, v, unsetKeyFn)
 			if err != nil {
-				return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+				return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 			}
 
 			output, err := outputUnsetAction(viper.GetString(UnsetFlag))
@@ -327,7 +327,7 @@ func newErr(flag string) error {
 		),
 	)
 
-	return errs.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+	return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 }
 
 func writeAlphabetizedFlags(sb *strings.Builder) {

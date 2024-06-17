@@ -69,7 +69,7 @@ func runE(client resources.Client) func(*cobra.Command, []string) error {
 			false,
 		)
 		if err != nil {
-			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 		}
 
 		output, err := output.CmdOutput("update", viper.GetString(cliflags.OutputFlag), res)

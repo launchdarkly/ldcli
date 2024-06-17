@@ -10,7 +10,6 @@ import (
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
-	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/login"
 	"github.com/launchdarkly/ldcli/internal/output"
 )
@@ -62,7 +61,7 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.BaseURIFlag),
 		)
 		if err != nil {
-			return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 		}
 
 		var b strings.Builder
