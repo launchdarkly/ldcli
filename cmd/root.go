@@ -18,6 +18,7 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	configcmd "github.com/launchdarkly/ldcli/cmd/config"
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
+	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/analytics"
@@ -85,6 +86,7 @@ func NewRootCommand(
 				"completion",
 				"config",
 				"help",
+				"login",
 			} {
 				if cmd.HasParent() && cmd.Parent().Name() == name {
 					cmd.DisableFlagParsing = true
@@ -186,6 +188,7 @@ func NewRootCommand(
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
+	cmd.AddCommand(logincmd.NewLoginCmd(analyticsTrackerFn))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
