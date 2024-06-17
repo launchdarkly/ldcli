@@ -11,7 +11,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
-const clientID = "e6506150369268abae3ed46152687201"
+const ClientID = "e6506150369268abae3ed46152687201"
 
 type DeviceAuthorization struct {
 	DeviceCode      string `json:"deviceCode"`
@@ -30,6 +30,12 @@ type UnauthenticatedClient interface {
 
 type Client struct {
 	cliVersion string
+}
+
+func NewClient(cliVersion string) Client {
+	return Client{
+		cliVersion: cliVersion,
+	}
 }
 
 func (c Client) MakeRequest(
