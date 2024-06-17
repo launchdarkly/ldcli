@@ -75,7 +75,7 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 			),
 		)
 
-		fmt.Fprintf(cmd.OutOrStdout(), b.String())
+		fmt.Fprintln(cmd.OutOrStdout(), b.String())
 
 		return nil
 	}
