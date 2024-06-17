@@ -339,7 +339,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		op.IsBeta,
 	)
 	if err != nil {
-		return errors.NewError(output.CmdOutputError(viper.GetString(cliflags.OutputFlag), err))
+		return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 	}
 
 	if string(res) == "" {

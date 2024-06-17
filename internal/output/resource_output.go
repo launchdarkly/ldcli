@@ -136,6 +136,11 @@ func CmdOutputError(outputKind string, err error) string {
 	return ErrorPlaintextOutputFn(r)
 }
 
+// NewCmdOutputError builds error output based on the error and output kind.
+func NewCmdOutputError(err error, outputKind string) error {
+	return errs.NewError(CmdOutputError(outputKind, err))
+}
+
 func errJSON(s string) string {
 	return fmt.Sprintf(
 		`{
