@@ -70,7 +70,7 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 		b.WriteString("This code verifies your authentication with LaunchDarkly.\n")
 		b.WriteString(
 			fmt.Sprintf(
-				"Press Enter to open the browser or visit %s/%s (^C to quit)\n",
+				"Press Enter to open the browser or visit %s/%s (^C to quit)",
 				viper.GetString(cliflags.BaseURIFlag),
 				deviceAuthorization.VerificationURI,
 			),
