@@ -2,7 +2,6 @@ package login
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,7 +11,6 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
-	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/login"
 	"github.com/launchdarkly/ldcli/internal/output"
 )
@@ -57,12 +55,8 @@ func NewLoginCmd(
 
 func run(client login.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		config, err := config.NewConfigFromFile(viper.GetViper().ConfigFileUsed(), os.ReadFile)
-		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
-		}
-		if config.AccessToken != "" {
-			return errors.NewError("Your access token is already set. Remove it from the config if you wish to reset it.")
+		if ok, err := config.AccessTokenIsSet(viper.GetViper().ConfigFileUsed()); !ok {
+			return err
 		}
 
 		deviceAuthorization, err := login.FetchDeviceAuthorization(
