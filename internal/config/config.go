@@ -27,16 +27,18 @@ type ConfigFile struct {
 	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
 }
 
-func NewConfigFromFile(f string) (ConfigFile, error) {
-	data, err := os.ReadFile(f)
+type ReadFile func(name string) ([]byte, error)
+
+func NewConfigFromFile(f string, readFile ReadFile) (ConfigFile, error) {
+	data, err := readFile(f)
 	if err != nil {
-		return ConfigFile{}, err
+		return ConfigFile{}, errors.NewError("could not read config file")
 	}
 
 	var c ConfigFile
 	err = yaml.Unmarshal([]byte(data), &c)
 	if err != nil {
-		return ConfigFile{}, err
+		return ConfigFile{}, errors.NewError("config file is invalid yaml")
 	}
 
 	return c, nil

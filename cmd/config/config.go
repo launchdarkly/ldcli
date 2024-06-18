@@ -228,7 +228,7 @@ func getConfig() (config.ConfigFile, *viper.Viper, error) {
 		return config.ConfigFile{}, nil, err
 	}
 
-	c, err := config.NewConfigFromFile(v.ConfigFileUsed())
+	c, err := config.NewConfigFromFile(v.ConfigFileUsed(), os.ReadFile)
 	if err != nil {
 		return config.ConfigFile{}, nil, err
 	}
