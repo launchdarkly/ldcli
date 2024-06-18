@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/mitchellh/go-homedir"
+	"gopkg.in/yaml.v3"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/errors"
@@ -24,6 +25,21 @@ type ConfigFile struct {
 	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
 	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
+}
+
+func NewConfigFromFile(f string) (ConfigFile, error) {
+	data, err := os.ReadFile(f)
+	if err != nil {
+		return ConfigFile{}, err
+	}
+
+	var c ConfigFile
+	err = yaml.Unmarshal([]byte(data), &c)
+	if err != nil {
+		return ConfigFile{}, err
+	}
+
+	return c, nil
 }
 
 func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
