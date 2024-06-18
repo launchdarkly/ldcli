@@ -10,6 +10,7 @@ import (
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/login"
 	"github.com/launchdarkly/ldcli/internal/output"
 )
@@ -54,6 +55,10 @@ func NewLoginCmd(
 
 func run(client login.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
+		if ok, err := config.AccessTokenIsSet(viper.GetViper().ConfigFileUsed()); !ok {
+			return err
+		}
+
 		deviceAuthorization, err := login.FetchDeviceAuthorization(
 			client,
 			login.ClientID,

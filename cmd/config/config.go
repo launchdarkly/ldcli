@@ -228,13 +228,7 @@ func getConfig() (config.ConfigFile, *viper.Viper, error) {
 		return config.ConfigFile{}, nil, err
 	}
 
-	data, err := os.ReadFile(v.ConfigFileUsed())
-	if err != nil {
-		return config.ConfigFile{}, nil, err
-	}
-
-	var c config.ConfigFile
-	err = yaml.Unmarshal([]byte(data), &c)
+	c, err := config.NewConfigFromFile(v.ConfigFileUsed(), os.ReadFile)
 	if err != nil {
 		return config.ConfigFile{}, nil, err
 	}

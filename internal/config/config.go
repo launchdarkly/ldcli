@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/mitchellh/go-homedir"
+	"gopkg.in/yaml.v3"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/errors"
@@ -24,6 +25,23 @@ type ConfigFile struct {
 	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
 	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
+}
+
+type ReadFile func(name string) ([]byte, error)
+
+func NewConfigFromFile(f string, readFile ReadFile) (ConfigFile, error) {
+	data, err := readFile(f)
+	if err != nil {
+		return ConfigFile{}, errors.NewError("could not read config file")
+	}
+
+	var c ConfigFile
+	err = yaml.Unmarshal([]byte(data), &c)
+	if err != nil {
+		return ConfigFile{}, errors.NewError("config file is invalid yaml")
+	}
+
+	return c, nil
 }
 
 func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
@@ -90,4 +108,16 @@ func GetConfigFile() string {
 	configFilePath := filepath.Join(configPath, "ldcli")
 
 	return filepath.Join(configFilePath, "config.yml")
+}
+
+func AccessTokenIsSet(filename string) (bool, error) {
+	config, err := NewConfigFromFile(filename, os.ReadFile)
+	if err != nil {
+		return false, err
+	}
+	if config.AccessToken != "" {
+		return false, errors.NewError("Your access token is already set. Remove it from the config if you wish to reset it.")
+	}
+
+	return true, nil
 }

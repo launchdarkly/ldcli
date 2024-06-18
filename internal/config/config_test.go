@@ -8,10 +8,64 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
+
+type mockReadFile struct {
+	contents   []byte
+	successful bool
+}
+
+func (m mockReadFile) readFile(name string) ([]byte, error) {
+	if !m.successful {
+		return nil, errors.New("an error")
+	}
+
+	if m.contents != nil {
+		return yaml.Marshal(m.contents)
+	}
+
+	return yaml.Marshal(map[string]interface{}{
+		"access-token": "test-access-token",
+	})
+}
+
+func TestNewConfigFromFile(t *testing.T) {
+	t.Run("with valid input is a valid config", func(t *testing.T) {
+		mock := mockReadFile{
+			successful: true,
+		}
+
+		c, err := config.NewConfigFromFile("test-config-file", mock.readFile)
+
+		require.NoError(t, err)
+		assert.Equal(t, "test-access-token", c.AccessToken)
+	})
+
+	t.Run("with invalid file is an error", func(t *testing.T) {
+		mock := mockReadFile{
+			successful: false,
+		}
+
+		_, err := config.NewConfigFromFile("test-config-file", mock.readFile)
+
+		assert.EqualError(t, err, "could not read config file")
+	})
+
+	t.Run("with invalid formatting in the file contents is an error", func(t *testing.T) {
+		mock := mockReadFile{
+			contents:   []byte(`invalid`),
+			successful: true,
+		}
+
+		_, err := config.NewConfigFromFile("test-config-file", mock.readFile)
+
+		assert.EqualError(t, err, "config file is invalid yaml")
+	})
+}
 
 func TestNewConfig(t *testing.T) {
 	t.Run("analytics-opt-out", func(t *testing.T) {
