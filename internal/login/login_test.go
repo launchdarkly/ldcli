@@ -22,7 +22,7 @@ func (c *mockClient) MakeRequest(
 ) ([]byte, error) {
 	args := c.Called(method, path, data)
 
-	return data, args.Error(1)
+	return args.Get(0).([]byte), args.Error(1)
 }
 
 func TestFetchDeviceAuthorization(t *testing.T) {
@@ -38,15 +38,48 @@ func TestFetchDeviceAuthorization(t *testing.T) {
 		}`),
 	).Return([]byte(`{
 		"deviceCode": "test-device-code",
-		"expiresIn": 0000000001,
+		"expiresIn": 1,
 		"userCode": "0001",
 		"verificationUri": "/confirm-auth/test-device-code"
 	}`), nil)
-	expected := login.DeviceAuthorization{}
+	expected := login.DeviceAuthorization{
+		DeviceCode:      "test-device-code",
+		ExpiresIn:       1,
+		UserCode:        "0001",
+		VerificationURI: "/confirm-auth/test-device-code",
+	}
+
 	result, err := login.FetchDeviceAuthorization(
 		&mockClient,
 		"test-client-id",
 		"local-device",
+		baseURI,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, expected, result)
+}
+
+func TestFetchToken(t *testing.T) {
+	baseURI := "http://test.com"
+	mockClient := mockClient{}
+	mockClient.On(
+		"MakeRequest",
+		"POST",
+		"http://test.com/internal/device-authorization/token",
+		[]byte(`{
+			"deviceCode": "test-device-code"
+		}`),
+	).Return([]byte(`{
+		"accessToken": "test-access-token"
+	}`), nil)
+	expected := login.DeviceAuthorizationToken{
+		AccessToken: "test-access-token",
+	}
+
+	result, err := login.FetchToken(
+		&mockClient,
+		"test-device-code",
 		baseURI,
 	)
 

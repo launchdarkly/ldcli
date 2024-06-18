@@ -20,6 +20,10 @@ type DeviceAuthorization struct {
 	VerificationURI string `json:"verificationUri"`
 }
 
+type DeviceAuthorizationToken struct {
+	AccessToken string `json:"accessToken"`
+}
+
 type UnauthenticatedClient interface {
 	MakeRequest(
 		method string,
@@ -94,6 +98,32 @@ func FetchDeviceAuthorization(
 	}
 
 	return deviceAuthorization, nil
+}
+
+func FetchToken(
+	client UnauthenticatedClient,
+	deviceCode string,
+	baseURI string,
+) (DeviceAuthorizationToken, error) {
+	path := fmt.Sprintf("%s/internal/device-authorization/token", baseURI)
+	body := fmt.Sprintf(
+		`{
+			"deviceCode": %q
+		}`,
+		deviceCode,
+	)
+	res, err := client.MakeRequest("POST", path, []byte(body))
+	if err != nil {
+		return DeviceAuthorizationToken{}, err
+	}
+
+	var deviceAuthorizationToken DeviceAuthorizationToken
+	err = json.Unmarshal(res, &deviceAuthorizationToken)
+	if err != nil {
+		return DeviceAuthorizationToken{}, err
+	}
+
+	return deviceAuthorizationToken, nil
 }
 
 func GetDeviceName() string {
