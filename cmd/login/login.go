@@ -1,8 +1,11 @@
 package login
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -11,6 +14,7 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
+	errs "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/login"
 	"github.com/launchdarkly/ldcli/internal/output"
 )
@@ -79,8 +83,45 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 				deviceAuthorization.VerificationURI,
 			),
 		)
-
 		fmt.Fprintln(cmd.OutOrStdout(), b.String())
+
+		ticker := time.NewTicker(2000 * time.Millisecond)
+		var attempts int
+		maxAttempts := 3
+		var deviceAuthorizationToken login.DeviceAuthorizationToken
+		for {
+			if attempts >= maxAttempts {
+				return errors.New("request timed-out after too many attempts")
+			}
+			<-ticker.C
+			deviceAuthorizationToken, err = login.FetchToken(
+				client,
+				deviceAuthorization.DeviceCode,
+				viper.GetString(cliflags.BaseURIFlag),
+			)
+			if err == nil {
+				break
+			}
+			var e struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			err := json.Unmarshal([]byte(err.Error()), &e)
+			if err != nil {
+				return errs.NewErrorWrapped("error reading response", err)
+			}
+			switch e.Message {
+			case "authorization_pending":
+				attempts += 1
+			case "access_denied":
+				return errs.NewError("Your request has been denied. Please try logging in again.")
+			case "expired_token":
+				return errs.NewError("Your request has expired. Please try logging in again.")
+			default:
+				return errs.NewErrorWrapped("We cannot complete your request", err)
+			}
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Your token is %s\n", deviceAuthorizationToken.AccessToken)
 
 		return nil
 	}
