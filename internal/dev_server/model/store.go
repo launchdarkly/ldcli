@@ -7,7 +7,9 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const ctxKeyStore = "model.Store"
+type ctxKey string
+
+const ctxKeyStore = ctxKey("model.Store")
 
 type Store interface {
 	GetDevProjects(ctx context.Context) ([]string, error)

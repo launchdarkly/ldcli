@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const ctxKeyApi = "adapters.api"
+const ctxKeyApi = ctxKey("adapters.api")
 
 func WithApi(ctx context.Context, s Api) context.Context {
 	return context.WithValue(ctx, ctxKeyApi, s)

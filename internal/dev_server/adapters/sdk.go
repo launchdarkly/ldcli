@@ -9,7 +9,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 )
 
-const ctxKeySdk = "adapters.sdk"
+const ctxKeySdk = ctxKey("adapters.sdk")
 
 func WithSdk(ctx context.Context, s Sdk) context.Context {
 	return context.WithValue(ctx, ctxKeySdk, s)
