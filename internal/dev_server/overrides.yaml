@@ -9,11 +9,11 @@ info:
 servers:
   - url: 'http'
 paths:
-  /projects:
+  /dev/projects:
     get:
       summary: lists all projects that have been configured for the dev server
       responses: //WIP
-  /projects/{projectKey}:
+  /dev/projects/{projectKey}:
     get:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
       parameters:
@@ -29,7 +29,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/projectKey'
       responses: //WIP
-  /projects/{projectKey}/sourceEnvironment/{sourceEnvironmentKey}:
+  /dev/projects/{projectKey}/sourceEnvironment/{sourceEnvironmentKey}:
     put:
       summary: Change the source environment to the one specified.
       parameters:
@@ -49,7 +49,7 @@ paths:
                 schema:
                   type: string
                 example: Environment not found
-  /projects/{projectKey}/overrides:
+  /dev/projects/{projectKey}/overrides:
     get:
       summary: return all the flag overrides for the project
       parameters:
@@ -60,7 +60,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/projectKey'
       responses: // WIP
-  /projects/{projectKey}/overrides/{flagKey}:
+  /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
       parameters:
