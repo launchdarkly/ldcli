@@ -1,6 +1,6 @@
 module github.com/launchdarkly/ldcli
 
-go 1.20
+go 1.22
 
 require (
 	github.com/charmbracelet/bubbles v0.18.0

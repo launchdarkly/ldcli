@@ -36,7 +36,17 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 }
 
 func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
-	model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, nil)
+	project, err := model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, nil)
+	if err != nil {
+		return nil, err
+	}
+	return PostDevProjectsProjectKey201JSONResponse{
+		ProjectJSONResponse{
+			LastSyncedFromSource: project.LastSyncTime.Unix(),
+			Context:              project.Context,
+			SourceEnvironmentKey: project.SourceEnvironmentKey,
+		},
+	}, nil
 }
 
 func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
