@@ -12,43 +12,64 @@ paths:
   /dev/projects:
     get:
       summary: lists all projects that have been configured for the dev server
-      responses: //WIP
+      responses:
+        200:
+          description: OK. List of projects
+          content:
+            application/json:
+              schema:
+                description: list of project keys.
+                type: array
+                items:
+                  type: string
+                uniqueItems: true
   /dev/projects/{projectKey}:
     get:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
       parameters:
         - $ref: '#/components/parameters/projectKey'
-      responses: // WIP
+      responses:
+        200:
+          $ref: '#/components/responses/Project'
+
     delete:
       summary: remove the specified project from the dev server
       parameters:
         - $ref: '#/components/parameters/projectKey'
-      responses: //WIP
+      responses:
+        204:
+          description: OK. Project & overrides were removed
     post:
       summary: Add the project to the dev server
       parameters:
         - $ref: '#/components/parameters/projectKey'
-      responses: //WIP
-  /dev/projects/{projectKey}/sourceEnvironment/{sourceEnvironmentKey}:
-    put:
-      summary: Change the source environment to the one specified.
-      parameters:
-        - $ref: '#/components/parameters/projectKey'
-        - name: sourceEnvironmentKey
-          required: true
-          in: path
-          schema:
-            type: string
-      responses:
-          204:
-            description: OK
-          404:
-            description: Not Found
-            content:
-              text/plain:
-                schema:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceEnvironmentKey
+              properties:
+                sourceEnvironmentKey:
                   type: string
-                example: Environment not found
+                  description: environment to copy flag values from
+                context:
+                  type: object
+                  description: context object to use when evaluating flags in source environment
+                  default:
+                    key: "local-dev"
+                    kind: user
+      responses:
+        201:
+          $ref: '#/components/responses/Project'
+# WIP updates
+#    patch:
+#      summary: change configuration of the project
+#      parameters:
+#        - $ref: '#/components/parameters/projectKey'
+#      responses:
+
   /dev/projects/{projectKey}/overrides:
     get:
       summary: return all the flag overrides for the project
@@ -99,3 +120,27 @@ components:
       required: true
       schema:
         type: string
+  responses:
+    Project:
+      description: Project representation
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - sourceEnvironmentKey
+              - context
+              - _lastSyncedFromSource
+            properties:
+              sourceEnvironmentKey:
+                type: string
+                description: environment to copy flag values from
+              context:
+                type: object
+                description: context object to use when evaluating flags in source environment
+                default:
+                  key: "local-dev"
+                  kind: user
+              _lastSyncedFromSource:
+                type: number
+                description: unix timestamp for the lat time the flag values were synced from the source environment
