@@ -1,0 +1,101 @@
+openapi: 3.0.3
+info:
+  title: LaunchDarkly Dev Server
+  description: |
+    LaunchDarkly Dev Server provides a simplified, local feature flagging server that can be used with LanchDarkly SDKs.
+    This API allows for the syncing of flags with a remote LaunchDarkly project and to configure local overrides of 
+    those flags.
+  version: 1.0.0
+servers:
+  - url: 'http'
+paths:
+  /projects:
+    get:
+      summary: lists all projects that have been configured for the dev server
+      responses: //WIP
+  /projects/{projectKey}:
+    get:
+      summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+      responses: // WIP
+    delete:
+      summary: remove the specified project from the dev server
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+      responses: //WIP
+    post:
+      summary: Add the project to the dev server
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+      responses: //WIP
+  /projects/{projectKey}/sourceEnvironment/{sourceEnvironmentKey}:
+    put:
+      summary: Change the source environment to the one specified.
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+        - name: sourceEnvironmentKey
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+          204:
+            description: OK
+          404:
+            description: Not Found
+            content:
+              text/plain:
+                schema:
+                  type: string
+                example: Environment not found
+  /projects/{projectKey}/overrides:
+    get:
+      summary: return all the flag overrides for the project
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+      responses: // WIP
+    delete:
+      summary: clear all overrides for the project
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+      responses: // WIP
+  /projects/{projectKey}/overrides/{flagKey}:
+    put:
+      summary: override flag value with value provided in the body
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+        - $ref: '#/components/parameters/flagKey'
+      requestBody:
+        required: true
+        description: flag value to override flag with. Should just be the json representation of the variation value.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: string
+                - type: boolean
+                - type: number
+                - type: object
+      responses: // WIP
+    delete:
+      summary: remove override for flag
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+        - $ref: '#/components/parameters/flagKey'
+      responses: // WIP
+
+components:
+  parameters:
+    flagKey:
+      name: flagKey
+      in: path
+      required: true
+      schema:
+        type: string
+    projectKey:
+      name: projectKey
+      in: path
+      required: true
+      schema:
+        type: string
