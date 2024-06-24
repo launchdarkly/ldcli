@@ -1,8 +1,11 @@
 package login_test
 
 import (
+	"encoding/json"
 	"testing"
+	"time"
 
+	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/login"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -61,28 +64,87 @@ func TestFetchDeviceAuthorization(t *testing.T) {
 }
 
 func TestFetchToken(t *testing.T) {
-	baseURI := "http://test.com"
-	mockClient := mockClient{}
-	mockClient.On(
-		"MakeRequest",
-		"POST",
-		"http://test.com/internal/device-authorization/token",
-		[]byte(`{
-			"deviceCode": "test-device-code"
-		}`),
-	).Return([]byte(`{
-		"accessToken": "test-access-token"
-	}`), nil)
-	expected := login.DeviceAuthorizationToken{
-		AccessToken: "test-access-token",
+	t.Run("with a token response", func(t *testing.T) {
+		minimalDuration := 1 * time.Microsecond
+		minimalAttempts := 1
+		input, _ := json.Marshal(map[string]string{
+			"deviceCode": "test-device-code",
+		})
+		output, _ := json.Marshal(map[string]string{
+			"accessToken": "test-access-token",
+		})
+		mockClient := mockClient{}
+		mockClient.On(
+			"MakeRequest",
+			"POST",
+			"http://test.com/internal/device-authorization/token",
+			input,
+		).Return(output, nil)
+
+		result, err := login.FetchToken(
+			&mockClient,
+			"test-device-code",
+			"http://test.com",
+			minimalDuration,
+			minimalAttempts,
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, "test-access-token", result.AccessToken)
+	})
+}
+
+func TestFetchToken_WithError(t *testing.T) {
+	tests := map[string]struct {
+		errCode     string
+		expectedErr string
+	}{
+		"with an authorization pending response": {
+			errCode:     "authorization_pending",
+			expectedErr: "The request timed out after too many attempts.",
+		},
+		"with an access denied response": {
+			errCode:     "access_denied",
+			expectedErr: "Your request has been denied.",
+		},
+		"with an expired token response": {
+			errCode:     "expired_token",
+			expectedErr: "Your request has expired. Please try logging in again.",
+		},
+		"with an error response": {
+			errCode:     "error_code",
+			expectedErr: "We cannot complete your request.",
+		},
 	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			minimalDuration := 1 * time.Microsecond
+			minimalAttempts := 1
+			input, _ := json.Marshal(map[string]string{
+				"deviceCode": "test-device-code",
+			})
+			output, _ := json.Marshal(map[string]string{
+				"code":    tt.errCode,
+				"message": "error message",
+			})
+			responseErr := errors.NewError(string(output))
+			mockClient := mockClient{}
+			mockClient.On(
+				"MakeRequest",
+				"POST",
+				"http://test.com/internal/device-authorization/token",
+				input,
+			).Return([]byte(""), responseErr)
 
-	result, err := login.FetchToken(
-		&mockClient,
-		"test-device-code",
-		baseURI,
-	)
+			_, err := login.FetchToken(
+				&mockClient,
+				"test-device-code",
+				"http://test.com",
+				minimalDuration,
+				minimalAttempts,
+			)
 
-	require.NoError(t, err)
-	assert.Equal(t, expected, result)
+			assert.EqualError(t, err, tt.expectedErr)
+		})
+	}
 }

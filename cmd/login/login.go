@@ -12,7 +12,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/login"
-	"github.com/launchdarkly/ldcli/internal/output"
 )
 
 func NewLoginCmd(
@@ -66,7 +65,7 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.BaseURIFlag),
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return err
 		}
 
 		var b strings.Builder
@@ -79,8 +78,20 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 				deviceAuthorization.VerificationURI,
 			),
 		)
-
 		fmt.Fprintln(cmd.OutOrStdout(), b.String())
+
+		deviceAuthorizationToken, err := login.FetchToken(
+			client,
+			deviceAuthorization.DeviceCode,
+			viper.GetString(cliflags.BaseURIFlag),
+			login.TokenInterval,
+			login.MaxFetchTokenAttempts,
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), "Your token is %s\n", deviceAuthorizationToken.AccessToken)
 
 		return nil
 	}
