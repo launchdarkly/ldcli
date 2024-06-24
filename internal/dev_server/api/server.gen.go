@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/oapi-codegen/runtime"
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
@@ -49,10 +50,10 @@ type FlagOverride struct {
 // Project defines model for Project.
 type Project struct {
 	// LastSyncedFromSource unix timestamp for the lat time the flag values were synced from the source environment
-	LastSyncedFromSource int `json:"_lastSyncedFromSource"`
+	LastSyncedFromSource int64 `json:"_lastSyncedFromSource"`
 
 	// Context context object to use when evaluating flags in source environment
-	Context map[string]interface{} `json:"context"`
+	Context ldcontext.Context `json:"context"`
 
 	// SourceEnvironmentKey environment to copy flag values from
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
@@ -60,9 +61,6 @@ type Project struct {
 
 // PostDevProjectsProjectKeyJSONBody defines parameters for PostDevProjectsProjectKey.
 type PostDevProjectsProjectKeyJSONBody struct {
-	// Context context object to use when evaluating flags in source environment
-	Context *map[string]interface{} `json:"context,omitempty"`
-
 	// SourceEnvironmentKey environment to copy flag values from
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
 }
@@ -519,10 +517,10 @@ type FlagOverrideJSONResponse struct {
 
 type ProjectJSONResponse struct {
 	// LastSyncedFromSource unix timestamp for the lat time the flag values were synced from the source environment
-	LastSyncedFromSource int `json:"_lastSyncedFromSource"`
+	LastSyncedFromSource int64 `json:"_lastSyncedFromSource"`
 
 	// Context context object to use when evaluating flags in source environment
-	Context map[string]interface{} `json:"context"`
+	Context ldcontext.Context `json:"context"`
 
 	// SourceEnvironmentKey environment to copy flag values from
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`

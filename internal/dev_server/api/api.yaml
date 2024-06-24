@@ -54,12 +54,13 @@ paths:
                 sourceEnvironmentKey:
                   type: string
                   description: environment to copy flag values from
-                context:
-                  type: object
-                  description: context object to use when evaluating flags in source environment
-                  default:
-                    key: "local-dev"
-                    kind: user
+                # WIP be able to customize the context used
+                # context:
+                #   type: object
+                #   description: context object to use when evaluating flags in source environment
+                #   default:
+                #     key: "local-dev"
+                #     kind: user
       responses:
         201:
           $ref: '#/components/responses/Project'
@@ -166,6 +167,10 @@ components:
                 default:
                   key: "local-dev"
                   kind: user
+                x-go-type: ldcontext.Context
+                x-go-type-import:
+                    path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
               _lastSyncedFromSource:
                 type: integer
+                x-go-type: int64
                 description: unix timestamp for the lat time the flag values were synced from the source environment

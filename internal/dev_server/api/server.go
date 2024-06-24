@@ -7,17 +7,15 @@ import (
 )
 
 type Server struct {
-	store model.Store
 }
 
-func NewStrictServer(store model.Store) Server {
-	return Server{
-		store,
-	}
+func NewStrictServer() Server {
+	return Server{}
 }
 
 func (s Server) GetDevProjects(ctx context.Context, request GetDevProjectsRequestObject) (GetDevProjectsResponseObject, error) {
-	projectKeys, err := s.store.GetDevProjects(ctx)
+	store := model.StoreFromContext(ctx)
+	projectKeys, err := store.GetDevProjects(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +36,17 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 }
 
 func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
-	//TODO implement me
-	panic("implement me")
+	project, err := model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, nil)
+	if err != nil {
+		return nil, err
+	}
+	return PostDevProjectsProjectKey201JSONResponse{
+		ProjectJSONResponse{
+			LastSyncedFromSource: project.LastSyncTime.Unix(),
+			Context:              project.Context,
+			SourceEnvironmentKey: project.SourceEnvironmentKey,
+		},
+	}, nil
 }
 
 func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
