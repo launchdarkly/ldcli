@@ -4,15 +4,17 @@ import (
 	"github.com/spf13/cobra"
 
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
-	"github.com/launchdarkly/ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/internal/dev_server"
 )
 
-func NewDevServerCmd(client resources.Client) *cobra.Command {
+func NewDevServerCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dev-server",
 		Short: "Development server",
 		Long:  "Start and use a local development server for overriding flag values.",
 	}
+
+	client := dev_server.NewClient()
 
 	// Add subcommands here
 	cmd.AddCommand(NewStartServerCmd())

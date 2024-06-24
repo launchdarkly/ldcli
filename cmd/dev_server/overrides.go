@@ -3,16 +3,17 @@ package dev_server
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
+	"github.com/launchdarkly/ldcli/internal/dev_server"
 	"github.com/launchdarkly/ldcli/internal/output"
-	"github.com/launchdarkly/ldcli/internal/resources"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-func NewAddOverrideCmd(client resources.Client) *cobra.Command {
+func NewAddOverrideCmd(client dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "override flag value with value provided in the body",
@@ -41,7 +42,7 @@ func NewAddOverrideCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
-func addOverride(client resources.Client) func(*cobra.Command, []string) error {
+func addOverride(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		var data interface{}
 		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &data)
@@ -56,13 +57,9 @@ func addOverride(client resources.Client) func(*cobra.Command, []string) error {
 
 		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", DEV_SERVER, viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
 		res, err := client.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
 			"PUT",
 			path,
-			"application/json",
-			nil,
 			jsonData,
-			false,
 		)
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
@@ -74,7 +71,7 @@ func addOverride(client resources.Client) func(*cobra.Command, []string) error {
 	}
 }
 
-func NewRemoveOverrideCmd(client resources.Client) *cobra.Command {
+func NewRemoveOverrideCmd(client dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "remove override for flag",
@@ -98,17 +95,13 @@ func NewRemoveOverrideCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
-func removeOverride(client resources.Client) func(*cobra.Command, []string) error {
+func removeOverride(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", DEV_SERVER, viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
 		res, err := client.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
 			"DELETE",
 			path,
-			"application/json",
 			nil,
-			nil,
-			false,
 		)
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))

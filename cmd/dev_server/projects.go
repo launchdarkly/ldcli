@@ -3,19 +3,20 @@ package dev_server
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
+	"github.com/launchdarkly/ldcli/internal/dev_server"
 	"github.com/launchdarkly/ldcli/internal/output"
-	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 const DEV_SERVER = "http://0.0.0.0:8765"
 
-func NewListProjectsCmd(client resources.Client) *cobra.Command {
+func NewListProjectsCmd(client dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "lists all projects that have been configured for the dev server",
@@ -29,18 +30,14 @@ func NewListProjectsCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
-func listProjects(client resources.Client) func(*cobra.Command, []string) error {
+func listProjects(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects"
 		res, err := client.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
 			"GET",
 			path,
-			"application/json",
 			nil,
-			nil,
-			false,
 		)
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
@@ -52,7 +49,7 @@ func listProjects(client resources.Client) func(*cobra.Command, []string) error 
 	}
 }
 
-func NewGetProjectCmd(client resources.Client) *cobra.Command {
+func NewGetProjectCmd(client dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "get the specified project and its configuration for syncing from the LaunchDarkly Service",
@@ -71,18 +68,14 @@ func NewGetProjectCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
-func getProject(client resources.Client) func(*cobra.Command, []string) error {
+func getProject(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
 		res, err := client.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
 			"GET",
 			path,
-			"application/json",
 			nil,
-			nil,
-			false,
 		)
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
@@ -93,7 +86,7 @@ func getProject(client resources.Client) func(*cobra.Command, []string) error {
 	}
 }
 
-func NewRemoveProjectCmd(client resources.Client) *cobra.Command {
+func NewRemoveProjectCmd(client dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "remove the specified project from the dev server",
@@ -112,18 +105,14 @@ func NewRemoveProjectCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
-func deleteProject(client resources.Client) func(*cobra.Command, []string) error {
+func deleteProject(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
 		res, err := client.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
 			"DELETE",
 			path,
-			"application/json",
 			nil,
-			nil,
-			false,
 		)
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
@@ -135,7 +124,7 @@ func deleteProject(client resources.Client) func(*cobra.Command, []string) error
 	}
 }
 
-func NewAddProjectCmd(client resources.Client) *cobra.Command {
+func NewAddProjectCmd(client dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Add the project to the dev server",
@@ -177,7 +166,7 @@ type postBody struct {
 	context              context
 }
 
-func addProject(client resources.Client) func(*cobra.Command, []string) error {
+func addProject(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		body := postBody{sourceEnvironmentKey: viper.GetString("source")}
 		if viper.IsSet("context-key") {
@@ -194,13 +183,9 @@ func addProject(client resources.Client) func(*cobra.Command, []string) error {
 
 		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
 		res, err := client.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
 			"POST",
 			path,
-			"application/json",
-			nil,
 			jsonData,
-			false,
 		)
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
