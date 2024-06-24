@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/ldcli/cmd/resources"
+	"github.com/launchdarkly/ldcli/cmd/ldcli/resources"
 )
 
 func TestNewResourceData(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"log"
 	"text/template"
 
-	"github.com/launchdarkly/ldcli/cmd/resources"
+	"github.com/launchdarkly/ldcli/cmd/ldcli/resources"
 )
 
 const (

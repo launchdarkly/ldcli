@@ -9,7 +9,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"gopkg.in/yaml.v3"
 
-	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	"github.com/launchdarkly/ldcli/cmd/ldcli/cliflags"
 	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/output"
 )

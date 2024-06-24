@@ -6,9 +6,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/launchdarkly/ldcli/cmd/cliflags"
-	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
-	"github.com/launchdarkly/ldcli/cmd/validators"
+	"github.com/launchdarkly/ldcli/cmd/ldcli/cliflags"
+	resourcescmd "github.com/launchdarkly/ldcli/cmd/ldcli/resources"
+	"github.com/launchdarkly/ldcli/cmd/ldcli/validators"
 	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"

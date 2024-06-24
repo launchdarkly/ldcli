@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/launchdarkly/ldcli/cmd"
+	cmd "github.com/launchdarkly/ldcli/cmd/ldcli"
 )
 
 // main.version is set at build time via ldflags by go releaser https://goreleaser.com/cookbooks/using-main.version/

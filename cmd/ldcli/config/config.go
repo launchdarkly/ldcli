@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
-	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
-	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/ldcli/analytics"
+	"github.com/launchdarkly/ldcli/cmd/ldcli/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
 	errs "github.com/launchdarkly/ldcli/internal/errors"
