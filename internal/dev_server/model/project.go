@@ -17,11 +17,16 @@ type Project struct {
 	FlagState            flagstate.AllFlags
 }
 
-func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string, ldCtx ldcontext.Context) (Project, error) {
+// CreateProject creates a project and adds it to the database.
+func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string, ldCtx *ldcontext.Context) (Project, error) {
 	project := Project{}
 	project.Key = projectKey
 	project.SourceEnvironmentKey = sourceEnvironmentKey
-	project.Context = ldCtx
+	if ldCtx == nil {
+		project.Context = ldcontext.NewBuilder("user").Key("dev-environment").Build()
+	} else {
+		project.Context = *ldCtx
+	}
 
 	sdkAdapter := adapters.GetSdk(ctx)
 	apiAdapter := adapters.GetApi(ctx)
@@ -30,7 +35,7 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	if err != nil {
 		return Project{}, err
 	}
-	project.FlagState, err = sdkAdapter.GetAllFlagsState(ctx, ldCtx, sdkKey)
+	project.FlagState, err = sdkAdapter.GetAllFlagsState(ctx, project.Context, sdkKey)
 	if err != nil {
 		return Project{}, err
 	}

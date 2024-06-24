@@ -60,9 +60,6 @@ type Project struct {
 
 // PostDevProjectsProjectKeyJSONBody defines parameters for PostDevProjectsProjectKey.
 type PostDevProjectsProjectKeyJSONBody struct {
-	// Context context object to use when evaluating flags in source environment
-	Context *map[string]interface{} `json:"context,omitempty"`
-
 	// SourceEnvironmentKey environment to copy flag values from
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
 }

@@ -36,8 +36,7 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 }
 
 func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
-	//TODO implement me
-	panic("implement me")
+	model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, nil)
 }
 
 func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {

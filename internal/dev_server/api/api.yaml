@@ -54,12 +54,13 @@ paths:
                 sourceEnvironmentKey:
                   type: string
                   description: environment to copy flag values from
-                context:
-                  type: object
-                  description: context object to use when evaluating flags in source environment
-                  default:
-                    key: "local-dev"
-                    kind: user
+                # WIP be able to customize the context used
+                # context:
+                #   type: object
+                #   description: context object to use when evaluating flags in source environment
+                #   default:
+                #     key: "local-dev"
+                #     kind: user
       responses:
         201:
           $ref: '#/components/responses/Project'
