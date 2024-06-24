@@ -17,7 +17,8 @@ func NewDevServerCmd(client resources.Client) *cobra.Command {
 	cmd.AddCommand(NewStartServerCmd())
 	cmd.AddCommand(NewListProjectsCmd(client))
 	cmd.AddCommand(NewGetProjectCmd(client))
-
+	cmd.AddCommand(NewRemoveProjectCmd(client))
+	cmd.AddCommand(NewAddProjectCmd(client))
 	cmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())
 
 	return cmd
