@@ -14,7 +14,7 @@ import (
 
 const (
 	ClientID              = "e6506150369268abae3ed46152687201"
-	MaxFetchTokenAttempts = 120 // 2 minutes
+	MaxFetchTokenAttempts = 120 // two minutes assuming interval is one second
 	TokenInterval         = 1 * time.Second
 )
 
