@@ -90,116 +90,57 @@ func TestFetchToken(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "test-access-token", result.AccessToken)
 	})
+}
 
-	t.Run("with an authorization pending response", func(t *testing.T) {
-		input, _ := json.Marshal(map[string]string{
-			"deviceCode": "test-device-code",
+func TestFetchToken_WithError(t *testing.T) {
+	tests := map[string]struct {
+		errCode     string
+		expectedErr string
+	}{
+		"with an authorization pending response": {
+			errCode:     "authorization_pending",
+			expectedErr: "The request timed-out after too many attempts.",
+		},
+		"with an access denied response": {
+			errCode:     "access_denied",
+			expectedErr: "Your request has been denied. Please try logging in again.",
+		},
+		"with an expired token response": {
+			errCode:     "expired_token",
+			expectedErr: "Your request has expired. Please try logging in again.",
+		},
+		"with an error response": {
+			errCode:     "error_code",
+			expectedErr: "We cannot complete your request.",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			input, _ := json.Marshal(map[string]string{
+				"deviceCode": "test-device-code",
+			})
+			output, _ := json.Marshal(map[string]string{
+				"code":    tt.errCode,
+				"message": "error message",
+			})
+			responseErr := errors.NewError(string(output))
+			mockClient := mockClient{}
+			mockClient.On(
+				"MakeRequest",
+				"POST",
+				"http://test.com/internal/device-authorization/token",
+				input,
+			).Return([]byte(""), responseErr)
+
+			_, err := login.FetchToken(
+				&mockClient,
+				"test-device-code",
+				"http://test.com",
+				1*time.Microsecond,
+				2,
+			)
+
+			assert.EqualError(t, err, tt.expectedErr)
 		})
-		output, _ := json.Marshal(map[string]string{
-			"code":    "authorization_pending",
-			"message": "error message",
-		})
-		responseErr := errors.NewError(string(output))
-		mockClient := mockClient{}
-		mockClient.On(
-			"MakeRequest",
-			"POST",
-			"http://test.com/internal/device-authorization/token",
-			input,
-		).Return([]byte(""), responseErr)
-
-		_, err := login.FetchToken(
-			&mockClient,
-			"test-device-code",
-			"http://test.com",
-			1*time.Microsecond,
-			2,
-		)
-
-		assert.EqualError(t, err, "The request timed-out after too many attempts.")
-	})
-
-	t.Run("with an access denied response", func(t *testing.T) {
-		input, _ := json.Marshal(map[string]string{
-			"deviceCode": "test-device-code",
-		})
-		output, _ := json.Marshal(map[string]string{
-			"code":    "access_denied",
-			"message": "error message",
-		})
-		responseErr := errors.NewError(string(output))
-		mockClient := mockClient{}
-		mockClient.On(
-			"MakeRequest",
-			"POST",
-			"http://test.com/internal/device-authorization/token",
-			input,
-		).Return([]byte(""), responseErr)
-
-		_, err := login.FetchToken(
-			&mockClient,
-			"test-device-code",
-			"http://test.com",
-			1*time.Microsecond,
-			2,
-		)
-
-		assert.EqualError(t, err, "Your request has been denied. Please try logging in again.")
-	})
-
-	t.Run("with an expired token response", func(t *testing.T) {
-		input, _ := json.Marshal(map[string]string{
-			"deviceCode": "test-device-code",
-		})
-		output, _ := json.Marshal(map[string]string{
-			"code":    "expired_token",
-			"message": "error message",
-		})
-		responseErr := errors.NewError(string(output))
-		mockClient := mockClient{}
-		mockClient.On(
-			"MakeRequest",
-			"POST",
-			"http://test.com/internal/device-authorization/token",
-			input,
-		).Return([]byte(""), responseErr)
-
-		_, err := login.FetchToken(
-			&mockClient,
-			"test-device-code",
-			"http://test.com",
-			1*time.Microsecond,
-			2,
-		)
-
-		assert.EqualError(t, err, "Your request has expired. Please try logging in again.")
-	})
-
-	t.Run("with an error response", func(t *testing.T) {
-		input, _ := json.Marshal(map[string]string{
-			"deviceCode": "test-device-code",
-		})
-		output, _ := json.Marshal(map[string]string{
-			"code":    "error_code",
-			"message": "error message",
-		})
-		responseErr := errors.NewError(string(output))
-		mockClient := mockClient{}
-		mockClient.On(
-			"MakeRequest",
-			"POST",
-			"http://test.com/internal/device-authorization/token",
-			input,
-		).Return([]byte(""), responseErr)
-
-		_, err := login.FetchToken(
-			&mockClient,
-			"test-device-code",
-			"http://test.com",
-			1*time.Microsecond,
-			2,
-		)
-
-		assert.EqualError(t, err, "We cannot complete your request.")
-	})
+	}
 }
