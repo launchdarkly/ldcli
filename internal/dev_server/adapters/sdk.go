@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	ldsdk "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 )
 
@@ -26,9 +27,10 @@ func newSdk() Sdk {
 }
 
 func (s Sdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error) {
-	ldclient, err := ldsdk.MakeClient(sdkKey, 5*time.Second)
+	ldClient, err := ldsdk.MakeClient(sdkKey, 5*time.Second)
 	if err != nil {
 		return flagstate.AllFlags{}, nil
 	}
-	panic("shoot")
+	flags := ldClient.AllFlagsState(ldContext)
+	return flags, nil
 }
