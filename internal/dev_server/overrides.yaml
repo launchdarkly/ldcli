@@ -63,24 +63,25 @@ paths:
       responses:
         201:
           $ref: '#/components/responses/Project'
-# WIP updates
+# WIP updates can be added later
 #    patch:
 #      summary: change configuration of the project
 #      parameters:
 #        - $ref: '#/components/parameters/projectKey'
 #      responses:
 
-  /dev/projects/{projectKey}/overrides:
-    get:
-      summary: return all the flag overrides for the project
-      parameters:
-        - $ref: '#/components/parameters/projectKey'
-      responses: // WIP
-    delete:
-      summary: clear all overrides for the project
-      parameters:
-        - $ref: '#/components/parameters/projectKey'
-      responses: // WIP
+# WIP NOT SURE IF NEEDED TBH
+#  /dev/projects/{projectKey}/overrides:
+#    get:
+#      summary: return all the flag overrides for the project
+#      parameters:
+#        - $ref: '#/components/parameters/projectKey'
+#      responses: // WIP
+#    delete:
+#      summary: clear all overrides for the project
+#      parameters:
+#        - $ref: '#/components/parameters/projectKey'
+#      responses: // WIP
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
@@ -89,22 +90,23 @@ paths:
         - $ref: '#/components/parameters/flagKey'
       requestBody:
         required: true
-        description: flag value to override flag with. Should just be the json representation of the variation value.
+        description: flag value to override flag with. The json representation of the variation value.
         content:
           application/json:
             schema:
-              oneOf:
-                - type: string
-                - type: boolean
-                - type: number
-                - type: object
-      responses: // WIP
+                $ref: '#/components/schemas/FlagValue'
+      responses:
+        200:
+          $ref: '#/components/responses/FlagOverride'
+
     delete:
       summary: remove override for flag
       parameters:
         - $ref: '#/components/parameters/projectKey'
         - $ref: '#/components/parameters/flagKey'
-      responses: // WIP
+      responses:
+        200:
+          $ref: '#/components/responses/FlagOverride'
 
 components:
   parameters:
@@ -120,9 +122,29 @@ components:
       required: true
       schema:
         type: string
+  schemas:
+    FlagValue:
+      description: value of a feature flag variation
+      oneOf:
+        - type: string
+        - type: boolean
+        - type: number
+        - type: object
   responses:
+    FlagOverride:
+      description: Flag override
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              value:
+                $ref: '#/components/schemas/FlagValue'
+              override:
+                type: boolean
+                description: whether or not this is an overridden value or one from the source environment
     Project:
-      description: Project representation
+      description: Project
       content:
         application/json:
           schema:
