@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: LaunchDarkly Dev Server
+  description: |
+    LaunchDarkly Dev Server provides a simplified, local feature flagging server that can be used with LanchDarkly SDKs.
+    This API allows for the syncing of flags with a remote LaunchDarkly project and to configure local overrides of 
+    those flags.
+  version: 1.0.0
+servers:
+  - url: 'http'
+paths:
+  /dev/projects:
+    get:
+      summary: lists all projects that have been configured for the dev server
+      responses:
+        200:
+          description: OK. List of projects
+          content:
+            application/json:
+              schema:
+                description: list of project keys.
+                type: array
+                items:
+                  type: string
+                uniqueItems: true
+  /dev/projects/{projectKey}:
+    get:
+      summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+      responses:
+        200:
+          $ref: '#/components/responses/Project'
+
+    delete:
+      summary: remove the specified project from the dev server
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+      responses:
+        204:
+          description: OK. Project & overrides were removed
+    post:
+      summary: Add the project to the dev server
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceEnvironmentKey
+              properties:
+                sourceEnvironmentKey:
+                  type: string
+                  description: environment to copy flag values from
+                context:
+                  type: object
+                  description: context object to use when evaluating flags in source environment
+                  default:
+                    key: "local-dev"
+                    kind: user
+      responses:
+        201:
+          $ref: '#/components/responses/Project'
+# WIP updates can be added later
+#    patch:
+#      summary: change configuration of the project
+#      parameters:
+#        - $ref: '#/components/parameters/projectKey'
+#      responses:
+
+# WIP NOT SURE IF NEEDED TBH
+#  /dev/projects/{projectKey}/overrides:
+#    get:
+#      summary: return all the flag overrides for the project
+#      parameters:
+#        - $ref: '#/components/parameters/projectKey'
+#      responses: // WIP
+#    delete:
+#      summary: clear all overrides for the project
+#      parameters:
+#        - $ref: '#/components/parameters/projectKey'
+#      responses: // WIP
+  /dev/projects/{projectKey}/overrides/{flagKey}:
+    put:
+      summary: override flag value with value provided in the body
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+        - $ref: '#/components/parameters/flagKey'
+      requestBody:
+        required: true
+        description: flag value to override flag with. The json representation of the variation value.
+        content:
+          application/json:
+            schema:
+                $ref: '#/components/schemas/FlagValue'
+      responses:
+        200:
+          $ref: '#/components/responses/FlagOverride'
+
+    delete:
+      summary: remove override for flag
+      parameters:
+        - $ref: '#/components/parameters/projectKey'
+        - $ref: '#/components/parameters/flagKey'
+      responses:
+        200:
+          $ref: '#/components/responses/FlagOverride'
+
+components:
+  parameters:
+    flagKey:
+      name: flagKey
+      in: path
+      required: true
+      schema:
+        type: string
+    projectKey:
+      name: projectKey
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    FlagValue:
+      description: value of a feature flag variation
+      oneOf:
+        - type: string
+        - type: boolean
+        - type: number
+        - type: object
+  responses:
+    FlagOverride:
+      description: Flag override
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - override
+              - value
+            properties:
+              value:
+                $ref: '#/components/schemas/FlagValue'
+              override:
+                type: boolean
+                description: whether or not this is an overridden value or one from the source environment
+    Project:
+      description: Project
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - sourceEnvironmentKey
+              - context
+              - _lastSyncedFromSource
+            properties:
+              sourceEnvironmentKey:
+                type: string
+                description: environment to copy flag values from
+              context:
+                type: object
+                description: context object to use when evaluating flags in source environment
+                default:
+                  key: "local-dev"
+                  kind: user
+              _lastSyncedFromSource:
+                type: integer
+                description: unix timestamp for the lat time the flag values were synced from the source environment
