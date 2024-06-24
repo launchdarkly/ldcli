@@ -28,12 +28,15 @@ func NewAddOverrideCmd(client resources.Client) *cobra.Command {
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
+	cmd.Flags().String(cliflags.FlagFlag, "", "The flag key")
+	_ = cmd.MarkFlagRequired(cliflags.FlagFlag)
+	_ = cmd.Flags().SetAnnotation(cliflags.FlagFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
+
 	cmd.Flags().String(cliflags.DataFlag, "", "flag value to override flag with. The json representation of the variation value")
 	_ = cmd.MarkFlagRequired(cliflags.DataFlag)
 	_ = cmd.Flags().SetAnnotation(cliflags.DataFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.DataFlag, cmd.Flags().Lookup(cliflags.DataFlag))
-
-	cmd.MarkFlagsRequiredTogether("context-kind", "context-key")
 
 	return cmd
 }
@@ -51,7 +54,7 @@ func addOverride(client resources.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
+		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", DEV_SERVER, viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
 		res, err := client.MakeRequest(
 			viper.GetString(cliflags.AccessTokenFlag),
 			"PUT",
@@ -59,6 +62,52 @@ func addOverride(client resources.Client) func(*cobra.Command, []string) error {
 			"application/json",
 			nil,
 			jsonData,
+			false,
+		)
+		if err != nil {
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), string(res))
+
+		return nil
+	}
+}
+
+func NewRemoveOverrideCmd(client resources.Client) *cobra.Command {
+	cmd := &cobra.Command{
+		Args:  validators.Validate(),
+		Long:  "remove override for flag",
+		RunE:  removeOverride(client),
+		Short: "remove override",
+		Use:   "remove-override",
+	}
+
+	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
+
+	cmd.Flags().String(cliflags.ProjectFlag, "", "The project key")
+	_ = cmd.MarkFlagRequired(cliflags.ProjectFlag)
+	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
+
+	cmd.Flags().String(cliflags.FlagFlag, "", "The flag key")
+	_ = cmd.MarkFlagRequired(cliflags.FlagFlag)
+	_ = cmd.Flags().SetAnnotation(cliflags.FlagFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(cliflags.FlagFlag, cmd.Flags().Lookup(cliflags.FlagFlag))
+
+	return cmd
+}
+
+func removeOverride(client resources.Client) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", DEV_SERVER, viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
+		res, err := client.MakeRequest(
+			viper.GetString(cliflags.AccessTokenFlag),
+			"DELETE",
+			path,
+			"application/json",
+			nil,
+			nil,
 			false,
 		)
 		if err != nil {
