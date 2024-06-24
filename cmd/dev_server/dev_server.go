@@ -14,7 +14,7 @@ func NewDevServerCmd(client resources.Client) *cobra.Command {
 	}
 
 	// Add subcommands here
-	cmd.AddCommand(NewStartServerCmd(client))
+	cmd.AddCommand(NewStartServerCmd())
 
 	cmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())
 
