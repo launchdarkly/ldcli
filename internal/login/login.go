@@ -120,7 +120,7 @@ func FetchToken(
 	var attempts int
 	for {
 		if attempts > maxAttempts {
-			return DeviceAuthorizationToken{}, errors.NewError("The request timed-out after too many attempts.")
+			return DeviceAuthorizationToken{}, errors.NewError("The request timed out after too many attempts.")
 		}
 		deviceAuthorizationToken, err := fetchToken(
 			client,
@@ -143,7 +143,7 @@ func FetchToken(
 		case "authorization_pending":
 			attempts += 1
 		case "access_denied":
-			return DeviceAuthorizationToken{}, errors.NewError("Your request has been denied. Please try logging in again.")
+			return DeviceAuthorizationToken{}, errors.NewError("Your request has been denied.")
 		case "expired_token":
 			return DeviceAuthorizationToken{}, errors.NewError("Your request has expired. Please try logging in again.")
 		default:

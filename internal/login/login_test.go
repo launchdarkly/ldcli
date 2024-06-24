@@ -101,11 +101,11 @@ func TestFetchToken_WithError(t *testing.T) {
 	}{
 		"with an authorization pending response": {
 			errCode:     "authorization_pending",
-			expectedErr: "The request timed-out after too many attempts.",
+			expectedErr: "The request timed out after too many attempts.",
 		},
 		"with an access denied response": {
 			errCode:     "access_denied",
-			expectedErr: "Your request has been denied. Please try logging in again.",
+			expectedErr: "Your request has been denied.",
 		},
 		"with an expired token response": {
 			errCode:     "expired_token",
