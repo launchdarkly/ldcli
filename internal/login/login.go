@@ -76,6 +76,8 @@ func (c Client) MakeRequest(
 	return body, nil
 }
 
+// FetchDeviceAuthorization makes a request to create a device authorization that will later be
+// used to set a local access token if the user grants access.
 func FetchDeviceAuthorization(
 	client UnauthenticatedClient,
 	clientID string,
@@ -105,6 +107,9 @@ func FetchDeviceAuthorization(
 	return deviceAuthorization, nil
 }
 
+// FetchToken attempts to get an access token. It will continue to try while the user logs in to
+// verify their request. If the user denies the request or does nothing long enough for this call
+// to time out, we do not return an access token.
 func FetchToken(
 	client UnauthenticatedClient,
 	deviceCode string,
