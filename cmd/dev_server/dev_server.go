@@ -11,6 +11,7 @@ func NewDevServerCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dev-server",
 		Short: "Development server",
+		Long:  "Start and use a local development server for overriding flag values.",
 	}
 
 	// Add subcommands here
@@ -19,6 +20,9 @@ func NewDevServerCmd(client resources.Client) *cobra.Command {
 	cmd.AddCommand(NewGetProjectCmd(client))
 	cmd.AddCommand(NewRemoveProjectCmd(client))
 	cmd.AddCommand(NewAddProjectCmd(client))
+	cmd.AddCommand(NewAddOverrideCmd(client))
+	cmd.AddCommand(NewRemoveOverrideCmd(client))
+
 	cmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())
 
 	return cmd
