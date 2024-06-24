@@ -11,9 +11,9 @@ import (
 func NewStartServerCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
-		Long:  "Start the dev server",
+		Long:  "start the dev server",
 		RunE:  startServer(),
-		Short: "Start the dev server",
+		Short: "start the dev server",
 		Use:   "start",
 	}
 
