@@ -1,16 +1,30 @@
 package api
 
-import "context"
+import (
+	"context"
 
-type Server struct{}
+	"github.com/launchdarkly/ldcli/internal/dev_server/model"
+)
 
-func NewStrictServer() Server {
-	return Server{}
+type Server struct {
+	store model.Store
+}
+
+func NewStrictServer(store model.Store) Server {
+	return Server{
+		store,
+	}
 }
 
 func (s Server) GetDevProjects(ctx context.Context, request GetDevProjectsRequestObject) (GetDevProjectsResponseObject, error) {
-	//TODO implement me
-	panic("implement me")
+	projectKeys, err := s.store.GetDevProjects(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if projectKeys == nil {
+		projectKeys = make([]string, 0) // HACK to make the json behavior compatible with go.
+	}
+	return GetDevProjects200JSONResponse(projectKeys), nil
 }
 
 func (s Server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteDevProjectsProjectKeyRequestObject) (DeleteDevProjectsProjectKeyResponseObject, error) {

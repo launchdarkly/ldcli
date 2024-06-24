@@ -1,4 +1,4 @@
-package store
+package db
 
 import (
 	"context"
@@ -8,6 +8,23 @@ import _ "github.com/mattn/go-sqlite3"
 
 type Sqlite struct {
 	database *sql.DB
+}
+
+func (s Sqlite) GetDevProjects(ctx context.Context) ([]string, error) {
+	rows, err := s.database.Query("select key from projects")
+	if err != nil {
+		return nil, err
+	}
+	var keys []string
+	for rows.Next() {
+		var key string
+		err = rows.Scan(&key)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	return keys, nil
 }
 
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
@@ -30,7 +47,7 @@ func (s Sqlite) runMigrations(ctx context.Context) error {
 		return err
 	}
 	_, err = tx.Exec(`
-	CREATE TABLE projects (
+	CREATE TABLE IF NOT EXISTS projects (
 		key text PRIMARY KEY,
 		source_environment_key text NOT NULL,
 		context text NOT NULL,
@@ -40,5 +57,5 @@ func (s Sqlite) runMigrations(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit()
 }
