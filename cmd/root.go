@@ -5,7 +5,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/launchdarkly/ldcli/cmd/dev_server"
 	"log"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	configcmd "github.com/launchdarkly/ldcli/cmd/config"
+	"github.com/launchdarkly/ldcli/cmd/dev_server"
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
@@ -192,7 +192,7 @@ func NewRootCommand(
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(logincmd.NewLoginCmd(analyticsTrackerFn, login.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
-	cmd.AddCommand(dev_server.NewStartServerCmd(clients.ResourcesClient))
+	cmd.AddCommand(dev_server.NewDevServerCmd(clients.ResourcesClient))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	// add non-generated commands

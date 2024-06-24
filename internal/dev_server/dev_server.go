@@ -1,7 +1,9 @@
 package dev_server
 
-import "fmt"
+import (
+	"log"
+)
 
-func HelloWorld() {
-	fmt.Println("Hello world!")
+func HelloWorld(accessTokenStr string) {
+	log.Printf("Hello world! We'd be using %s as your access token.", accessTokenStr)
 }

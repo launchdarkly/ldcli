@@ -15,7 +15,7 @@ Commands:
   {{rpad "config" 29}} View and modify specific configuration values
   {{rpad "completion" 29}} Enable command autocompletion within supported shells
   {{rpad "login" 29}} Log in to your LaunchDarkly account
-  {{rpad "start-dev-server" 29}} Start a local development server for overriding flag values
+  {{rpad "dev-server" 29}} Start and use a local development server for overriding flag values
 
 Common resource commands:
   {{rpad "flags" 29}} List, create, and modify feature flags and their targeting
