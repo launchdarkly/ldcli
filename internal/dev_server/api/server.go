@@ -7,17 +7,15 @@ import (
 )
 
 type Server struct {
-	store model.Store
 }
 
-func NewStrictServer(store model.Store) Server {
-	return Server{
-		store,
-	}
+func NewStrictServer() Server {
+	return Server{}
 }
 
 func (s Server) GetDevProjects(ctx context.Context, request GetDevProjectsRequestObject) (GetDevProjectsResponseObject, error) {
-	projectKeys, err := s.store.GetDevProjects(ctx)
+	store := model.StoreFromContext(ctx)
+	projectKeys, err := store.GetDevProjects(ctx)
 	if err != nil {
 		return nil, err
 	}

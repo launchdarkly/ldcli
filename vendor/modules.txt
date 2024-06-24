@@ -129,6 +129,21 @@ github.com/josharian/intern
 # github.com/launchdarkly/api-client-go/v14 v14.0.0
 ## explicit; go 1.13
 github.com/launchdarkly/api-client-go/v14
+# github.com/launchdarkly/go-jsonstream/v3 v3.0.0
+## explicit; go 1.18
+github.com/launchdarkly/go-jsonstream/v3/jreader
+github.com/launchdarkly/go-jsonstream/v3/jwriter
+# github.com/launchdarkly/go-sdk-common/v3 v3.1.0
+## explicit; go 1.18
+github.com/launchdarkly/go-sdk-common/v3/ldattr
+github.com/launchdarkly/go-sdk-common/v3/ldcontext
+github.com/launchdarkly/go-sdk-common/v3/lderrors
+github.com/launchdarkly/go-sdk-common/v3/ldreason
+github.com/launchdarkly/go-sdk-common/v3/ldtime
+github.com/launchdarkly/go-sdk-common/v3/ldvalue
+# github.com/launchdarkly/go-server-sdk/v7 v7.4.1
+## explicit; go 1.21
+github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate
 # github.com/lucasb-eyer/go-colorful v1.2.0
 ## explicit; go 1.12
 github.com/lucasb-eyer/go-colorful
@@ -292,6 +307,7 @@ go.uber.org/multierr
 # golang.org/x/exp v0.0.0-20230905200255-921286631fa9
 ## explicit; go 1.20
 golang.org/x/exp/constraints
+golang.org/x/exp/maps
 golang.org/x/exp/slices
 golang.org/x/exp/slog
 golang.org/x/exp/slog/internal

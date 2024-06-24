@@ -3,8 +3,12 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/launchdarkly/ldcli/internal/dev_server/model"
+	"github.com/pkg/errors"
+
+	_ "github.com/mattn/go-sqlite3"
 )
-import _ "github.com/mattn/go-sqlite3"
 
 type Sqlite struct {
 	database *sql.DB
@@ -25,6 +29,24 @@ func (s Sqlite) GetDevProjects(ctx context.Context) ([]string, error) {
 		keys = append(keys, key)
 	}
 	return keys, nil
+}
+
+func (s Sqlite) InsertProject(ctx context.Context, project model.Project) error {
+	flagsStateJson, err := project.FlagState.MarshalJSON()
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal flags state when writing project")
+	}
+	_, err = s.database.Exec(`
+INSERT INTO projects (key, source_environment_key, context, last_sync_time, flag_state)
+VALUES (?, ?, ?, ?, ?)
+`,
+		project.Key,
+		project.SourceEnvironmentKey,
+		project.Context.JSONString(),
+		project.LastSyncTime,
+		string(flagsStateJson),
+	)
+	return err
 }
 
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
