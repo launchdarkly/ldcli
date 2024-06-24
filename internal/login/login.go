@@ -119,7 +119,7 @@ func FetchToken(
 ) (DeviceAuthorizationToken, error) {
 	var attempts int
 	for {
-		if attempts >= maxAttempts {
+		if attempts > maxAttempts {
 			return DeviceAuthorizationToken{}, errors.NewError("The request timed-out after too many attempts.")
 		}
 		deviceAuthorizationToken, err := fetchToken(

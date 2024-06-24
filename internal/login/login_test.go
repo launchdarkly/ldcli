@@ -65,6 +65,8 @@ func TestFetchDeviceAuthorization(t *testing.T) {
 
 func TestFetchToken(t *testing.T) {
 	t.Run("with a token response", func(t *testing.T) {
+		minimalDuration := 1 * time.Microsecond
+		minimalAttempts := 1
 		input, _ := json.Marshal(map[string]string{
 			"deviceCode": "test-device-code",
 		})
@@ -83,8 +85,8 @@ func TestFetchToken(t *testing.T) {
 			&mockClient,
 			"test-device-code",
 			"http://test.com",
-			1*time.Microsecond,
-			2,
+			minimalDuration,
+			minimalAttempts,
 		)
 
 		require.NoError(t, err)
@@ -116,6 +118,8 @@ func TestFetchToken_WithError(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
+			minimalDuration := 1 * time.Microsecond
+			minimalAttempts := 1
 			input, _ := json.Marshal(map[string]string{
 				"deviceCode": "test-device-code",
 			})
@@ -136,8 +140,8 @@ func TestFetchToken_WithError(t *testing.T) {
 				&mockClient,
 				"test-device-code",
 				"http://test.com",
-				1*time.Microsecond,
-				2,
+				minimalDuration,
+				minimalAttempts,
 			)
 
 			assert.EqualError(t, err, tt.expectedErr)
