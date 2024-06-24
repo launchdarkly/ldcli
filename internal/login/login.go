@@ -7,11 +7,16 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
-const ClientID = "e6506150369268abae3ed46152687201"
+const (
+	ClientID              = "e6506150369268abae3ed46152687201"
+	MaxFetchTokenAttempts = 120 // 2 minutes
+	TokenInterval         = 1 * time.Second
+)
 
 type DeviceAuthorization struct {
 	DeviceCode      string `json:"deviceCode"`
@@ -104,15 +109,55 @@ func FetchToken(
 	client UnauthenticatedClient,
 	deviceCode string,
 	baseURI string,
+	interval time.Duration,
+	maxAttempts int,
+) (DeviceAuthorizationToken, error) {
+	var attempts int
+	for {
+		if attempts >= maxAttempts {
+			return DeviceAuthorizationToken{}, errors.NewError("The request timed-out after too many attempts.")
+		}
+		deviceAuthorizationToken, err := fetchToken(
+			client,
+			deviceCode,
+			baseURI,
+		)
+		if err == nil {
+			return deviceAuthorizationToken, nil
+		}
+
+		var e struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		}
+		err = json.Unmarshal([]byte(err.Error()), &e)
+		if err != nil {
+			return DeviceAuthorizationToken{}, errors.NewErrorWrapped("error reading response", err)
+		}
+		switch e.Code {
+		case "authorization_pending":
+			attempts += 1
+		case "access_denied":
+			return DeviceAuthorizationToken{}, errors.NewError("Your request has been denied. Please try logging in again.")
+		case "expired_token":
+			return DeviceAuthorizationToken{}, errors.NewError("Your request has expired. Please try logging in again.")
+		default:
+			return DeviceAuthorizationToken{}, errors.NewErrorWrapped("We cannot complete your request.", err)
+		}
+		time.Sleep(interval)
+	}
+}
+
+func fetchToken(
+	client UnauthenticatedClient,
+	deviceCode string,
+	baseURI string,
 ) (DeviceAuthorizationToken, error) {
 	path := fmt.Sprintf("%s/internal/device-authorization/token", baseURI)
-	body := fmt.Sprintf(
-		`{
-			"deviceCode": %q
-		}`,
-		deviceCode,
-	)
-	res, err := client.MakeRequest("POST", path, []byte(body))
+	body, _ := json.Marshal(map[string]string{
+		"deviceCode": deviceCode,
+	})
+	res, err := client.MakeRequest("POST", path, body)
 	if err != nil {
 		return DeviceAuthorizationToken{}, err
 	}
