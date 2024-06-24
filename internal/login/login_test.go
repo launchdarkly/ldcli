@@ -63,33 +63,6 @@ func TestFetchDeviceAuthorization(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
-// func TestFetchToken(t *testing.T) {
-// 	baseURI := "http://test.com"
-// 	mockClient := mockClient{}
-// 	mockClient.On(
-// 		"MakeRequest",
-// 		"POST",
-// 		"http://test.com/internal/device-authorization/token",
-// 		[]byte(`{
-// 			"deviceCode": "test-device-code"
-// 		}`),
-// 	).Return([]byte(`{
-// 		"accessToken": "test-access-token"
-// 	}`), nil)
-// 	expected := login.DeviceAuthorizationToken{
-// 		AccessToken: "test-access-token",
-// 	}
-
-// 	result, err := login.FetchToken(
-// 		&mockClient,
-// 		"test-device-code",
-// 		baseURI,
-// 	)
-
-// 	require.NoError(t, err)
-// 	assert.Equal(t, expected, result)
-// }
-
 func TestFetchToken(t *testing.T) {
 	t.Run("with a token response", func(t *testing.T) {
 		input, _ := json.Marshal(map[string]string{
