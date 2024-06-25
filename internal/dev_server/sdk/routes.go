@@ -19,8 +19,12 @@ func BindRoutes(router *mux.Router) {
 	router.HandleFunc("/mobile/events/bulk", DevNull)
 	router.HandleFunc("/mobile/events/diagnostic", DevNull)
 
-	router.HandleFunc("/sdk/goals/{envId}", ConstantResponseHandler(http.StatusOK, "[]"))
-
+	clientsideSdkRouter := router.PathPrefix("/sdk").Subrouter()
+	clientsideSdkRouter.Use(CorsHeaders)
+	clientsideSdkRouter.Methods("OPTIONS").HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
+	clientsideSdkRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
+	clientsideSdkRouter.HandleFunc("/goals/{envId}", ConstantResponseHandler(http.StatusOK, "[]"))
+	clientsideSdkRouter.HandleFunc("/evalx/{envId}/contexts/{contextBase64}", GetClientFlags)
 	/*
 			/all	GET	stream.	SSE stream for all data
 		✅	/bulk	POST	events.	Receives analytics events from SDKs
