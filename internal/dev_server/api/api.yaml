@@ -31,6 +31,8 @@ paths:
       responses:
         200:
           $ref: '#/components/responses/Project'
+        404:
+          description: No project found
 
     delete:
       summary: remove the specified project from the dev server

@@ -31,8 +31,22 @@ func (s Server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteD
 }
 
 func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProjectsProjectKeyRequestObject) (GetDevProjectsProjectKeyResponseObject, error) {
-	//TODO implement me
-	panic("implement me")
+	store := model.StoreFromContext(ctx)
+	project, err := store.GetDevProject(ctx, request.ProjectKey)
+	if err != nil {
+		return nil, err
+	}
+	if project == nil {
+		return GetDevProjectsProjectKey404Response{}, nil
+	}
+
+	return GetDevProjectsProjectKey200JSONResponse{
+		ProjectJSONResponse{
+			LastSyncedFromSource: project.LastSyncTime.Unix(),
+			Context:              project.Context,
+			SourceEnvironmentKey: project.SourceEnvironmentKey,
+		},
+	}, nil
 }
 
 func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/pkg/errors"
@@ -29,6 +30,37 @@ func (s Sqlite) GetDevProjects(ctx context.Context) ([]string, error) {
 		keys = append(keys, key)
 	}
 	return keys, nil
+}
+
+func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, error) {
+	var project model.Project
+	var contextData string
+	var flagStateData string
+
+	row := s.database.QueryRowContext(ctx, `
+        SELECT key, source_environment_key, context, last_sync_time, flag_state 
+        FROM projects 
+        WHERE key = ?
+    `, key)
+
+	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &contextData, &project.LastSyncTime, &flagStateData); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No project found with the given key
+		}
+		return nil, err
+	}
+
+	// Parse the context JSON string
+	if err := json.Unmarshal([]byte(contextData), &project.Context); err != nil {
+		return nil, errors.Wrap(err, "unable to unmarshal context data")
+	}
+
+	// Parse the flag state JSON string
+	if err := json.Unmarshal([]byte(flagStateData), &project.FlagState); err != nil {
+		return nil, errors.Wrap(err, "unable to unmarshal flag state data")
+	}
+
+	return &project, nil
 }
 
 func (s Sqlite) InsertProject(ctx context.Context, project model.Project) error {

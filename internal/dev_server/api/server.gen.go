@@ -448,6 +448,14 @@ func (response GetDevProjectsProjectKey200JSONResponse) VisitGetDevProjectsProje
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetDevProjectsProjectKey404Response struct {
+}
+
+func (response GetDevProjectsProjectKey404Response) VisitGetDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(404)
+	return nil
+}
+
 type PostDevProjectsProjectKeyRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
 	Body       *PostDevProjectsProjectKeyJSONRequestBody
