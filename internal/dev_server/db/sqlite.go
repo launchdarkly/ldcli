@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"database/sql"
-
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/pkg/errors"
 
@@ -63,7 +62,10 @@ func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) err
 	_, err = s.database.Exec(`
 		INSERT INTO overrides (project_key, flag_key, value, active)
 		VALUES (?, ?, ?, ?)
-			ON CONFLICT(flag_key, project_key) DO UPDATE SET version=version+1;
+			ON CONFLICT(flag_key, project_key) DO UPDATE SET
+			    value=excluded.value,
+			    active=excluded.active,
+			    version=version+1;
 	`,
 		override.ProjectKey,
 		override.FlagKey,
@@ -71,6 +73,16 @@ func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) err
 		override.Active,
 	)
 
+	return err
+}
+
+func (s Sqlite) DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
+	_, err := s.database.Exec(`
+		UPDATE overrides set active = false where project_key = ? and flag_key = ?
+	`,
+		projectKey,
+		flagKey,
+	)
 	return err
 }
 

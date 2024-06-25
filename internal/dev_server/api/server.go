@@ -53,8 +53,9 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 }
 
 func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
-	//TODO implement me
-	panic("implement me")
+	store := model.StoreFromContext(ctx)
+	err := store.DeleteOverride(ctx, request.ProjectKey, request.FlagKey)
+	return DeleteDevProjectsProjectKeyOverridesFlagKey200JSONResponse{}, err
 }
 
 func (s Server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
