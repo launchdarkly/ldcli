@@ -8,15 +8,15 @@ import (
 	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
-type Client interface {
+type LocalClient interface {
 	MakeRequest(method, path string, data []byte) ([]byte, error)
 }
 
 type DevClient struct{}
 
-var _ Client = DevClient{}
+var _ LocalClient = DevClient{}
 
-func NewClient() DevClient {
+func NewLocalClient() DevClient {
 	return DevClient{}
 }
 

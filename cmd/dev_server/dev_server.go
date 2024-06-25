@@ -7,23 +7,21 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server"
 )
 
-func NewDevServerCmd() *cobra.Command {
+func NewDevServerCmd(localClient dev_server.LocalClient, ldClient dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dev-server",
 		Short: "Development server",
 		Long:  "Start and use a local development server for overriding flag values.",
 	}
 
-	client := dev_server.NewClient()
-
 	// Add subcommands here
-	cmd.AddCommand(NewStartServerCmd())
-	cmd.AddCommand(NewListProjectsCmd(client))
-	cmd.AddCommand(NewGetProjectCmd(client))
-	cmd.AddCommand(NewRemoveProjectCmd(client))
-	cmd.AddCommand(NewAddProjectCmd(client))
-	cmd.AddCommand(NewAddOverrideCmd(client))
-	cmd.AddCommand(NewRemoveOverrideCmd(client))
+	cmd.AddCommand(NewStartServerCmd(ldClient))
+	cmd.AddCommand(NewListProjectsCmd(localClient))
+	cmd.AddCommand(NewGetProjectCmd(localClient))
+	cmd.AddCommand(NewRemoveProjectCmd(localClient))
+	cmd.AddCommand(NewAddProjectCmd(localClient))
+	cmd.AddCommand(NewAddOverrideCmd(localClient))
+	cmd.AddCommand(NewRemoveOverrideCmd(localClient))
 
 	cmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())
 

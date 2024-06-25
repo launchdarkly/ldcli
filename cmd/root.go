@@ -17,13 +17,14 @@ import (
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	configcmd "github.com/launchdarkly/ldcli/cmd/config"
-	"github.com/launchdarkly/ldcli/cmd/dev_server"
+	devcmd "github.com/launchdarkly/ldcli/cmd/dev_server"
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
+	"github.com/launchdarkly/ldcli/internal/dev_server"
 	"github.com/launchdarkly/ldcli/internal/environments"
 	errs "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/flags"
@@ -34,8 +35,10 @@ import (
 )
 
 type APIClients struct {
+	DevClient          dev_server.Client
 	EnvironmentsClient environments.Client
 	FlagsClient        flags.Client
+	LocalClient        dev_server.LocalClient
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
 	ResourcesClient    resources.Client
@@ -192,7 +195,7 @@ func NewRootCommand(
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(logincmd.NewLoginCmd(analyticsTrackerFn, login.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
-	cmd.AddCommand(dev_server.NewDevServerCmd())
+	cmd.AddCommand(devcmd.NewDevServerCmd(dev_server.NewLocalClient(), dev_server.NewClient(version)))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	// add non-generated commands
@@ -214,8 +217,10 @@ func NewRootCommand(
 
 func Execute(version string) {
 	clients := APIClients{
+		DevClient:          dev_server.NewClient(version),
 		EnvironmentsClient: environments.NewClient(version),
 		FlagsClient:        flags.NewClient(version),
+		LocalClient:        dev_server.NewLocalClient(),
 		MembersClient:      members.NewClient(version),
 		ProjectsClient:     projects.NewClient(version),
 		ResourcesClient:    resources.NewClient(version),
