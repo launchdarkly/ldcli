@@ -162,13 +162,13 @@ func NewAddProjectCmd(client dev_server.LocalClient) *cobra.Command {
 //}
 
 type postBody struct {
-	sourceEnvironmentKey string
+	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
 	//context              context
 }
 
 func addProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		body := postBody{sourceEnvironmentKey: viper.GetString("source")}
+		body := postBody{SourceEnvironmentKey: viper.GetString("source")}
 		//if viper.IsSet("context-key") {
 		//	body.context = context{
 		//		key:  viper.GetString("context-key"),
