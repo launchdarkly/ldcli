@@ -2,6 +2,7 @@ package dev_server
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -41,6 +42,7 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 	r.Use(model.StoreMiddleware(sqlStore))
 	// TODO need a subrouter for relay endpoints
 	handler := api.HandlerFromMux(apiServer, r)
+	fmt.Println("Server running on 0.0.0.0:8765")
 	server := http.Server{
 		Addr:    "0.0.0.0:8765",
 		Handler: handler,
