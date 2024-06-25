@@ -84,5 +84,18 @@ func (s Sqlite) runMigrations(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	_, err = tx.Exec(`
+	CREATE TABLE IF NOT EXISTS overrides (
+		project_key text NOT NULL,
+		flag_key text NOT NULL,
+		value text NOT NULL,
+		active boolean NOT NULL default TRUE,
+		version integer NOT NULL default 0,
+		UNIQUE (project_key, flag_key) ON CONFLICT REPLACE
+	)`)
+	if err != nil {
+		return err
+	}
 	return tx.Commit()
 }
