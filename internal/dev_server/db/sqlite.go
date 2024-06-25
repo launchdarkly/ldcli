@@ -58,9 +58,7 @@ func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, 
 	}
 
 	// Parse the flag state JSON string
-	var err error
-	project.FlagState, err = UnmarshalFlagStateJSON([]byte(flagStateData))
-	if err != nil {
+	if err := json.Unmarshal([]byte(flagStateData), &project.FlagState); err != nil {
 		return nil, errors.Wrap(err, "unable to unmarshal flag state data")
 	}
 
