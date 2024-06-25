@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
 	"github.com/launchdarkly/ldcli/internal/client"
@@ -42,6 +44,8 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 	r.Use(model.StoreMiddleware(sqlStore))
 	// TODO need a subrouter for relay endpoints
 	handler := api.HandlerFromMux(apiServer, r)
+	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
+	handler = handlers.RecoveryHandler()(handler)
 	fmt.Println("Server running on 0.0.0.0:8765")
 	server := http.Server{
 		Addr:    "0.0.0.0:8765",
