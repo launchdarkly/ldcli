@@ -54,6 +54,26 @@ VALUES (?, ?, ?, ?, ?)
 	return err
 }
 
+func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) error {
+	valueJson, err := override.Value.MarshalJSON()
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal override value when writing override")
+	}
+
+	_, err = s.database.Exec(`
+		INSERT INTO overrides (project_key, flag_key, value, active)
+		VALUES (?, ?, ?, ?)
+			ON CONFLICT(flag_key, project_key) DO UPDATE SET version=version+1;
+	`,
+		override.ProjectKey,
+		override.FlagKey,
+		valueJson,
+		override.Active,
+	)
+
+	return err
+}
+
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
 	store := new(Sqlite)
 	db, err := sql.Open("sqlite3", dbPath)
@@ -91,7 +111,7 @@ func (s Sqlite) runMigrations(ctx context.Context) error {
 		flag_key text NOT NULL,
 		value text NOT NULL,
 		active boolean NOT NULL default TRUE,
-		version integer NOT NULL default 0,
+		version integer NOT NULL default 1,
 		UNIQUE (project_key, flag_key) ON CONFLICT REPLACE
 	)`)
 	if err != nil {

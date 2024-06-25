@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
@@ -59,6 +58,12 @@ func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context,
 }
 
 func (s Server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
-	//TODO implement me
-	panic("implement me")
+	override, err := model.UpsertOverride(ctx, request.ProjectKey, request.FlagKey, request.Body.String())
+	if err != nil {
+		return nil, err
+	}
+	return PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse{FlagOverrideJSONResponse{
+		Override: override.Active,
+		Value:    override.Value,
+	}}, nil
 }
