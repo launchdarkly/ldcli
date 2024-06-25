@@ -12,6 +12,7 @@ func BindRoutes(router *mux.Router) {
 	// events
 	router.HandleFunc("/bulk", DevNull)
 	router.HandleFunc("/diagnostic", DevNull)
+	// TODO need cors for events on client side
 	router.HandleFunc("/events/bulk/{envId}", DevNull)
 	router.HandleFunc("/events/diagnostic/{envId}", DevNull)
 	router.HandleFunc("/mobile", DevNull)
