@@ -12,7 +12,6 @@ type ctxKey string
 const ctxKeyStore = ctxKey("model.Store")
 
 type Store interface {
-	DeleteDevProject(ctx context.Context, projectKey string) error
 	DeleteOverride(ctx context.Context, projectKey, flagKey string) error
 	GetDevProjects(ctx context.Context) ([]string, error)
 	InsertProject(ctx context.Context, project Project) error
