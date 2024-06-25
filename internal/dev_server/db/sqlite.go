@@ -31,6 +31,11 @@ func (s Sqlite) GetDevProjects(ctx context.Context) ([]string, error) {
 	return keys, nil
 }
 
+func (s Sqlite) DeleteDevProject(ctx context.Context, projectKey string) error {
+	_, err := s.database.Exec("delete from projects where key = ?", projectKey)
+	return err
+}
+
 func (s Sqlite) InsertProject(ctx context.Context, project model.Project) error {
 	flagsStateJson, err := project.FlagState.MarshalJSON()
 	if err != nil {
