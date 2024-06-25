@@ -12,8 +12,7 @@ type Client interface {
 	MakeRequest(method, path string, data []byte) ([]byte, error)
 }
 
-type DevClient struct {
-}
+type DevClient struct{}
 
 var _ Client = DevClient{}
 
