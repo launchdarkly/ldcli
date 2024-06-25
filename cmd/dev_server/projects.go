@@ -16,7 +16,7 @@ import (
 
 const DEV_SERVER = "http://0.0.0.0:8765"
 
-func NewListProjectsCmd(client dev_server.Client) *cobra.Command {
+func NewListProjectsCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "lists all projects that have been configured for the dev server",
@@ -30,7 +30,7 @@ func NewListProjectsCmd(client dev_server.Client) *cobra.Command {
 	return cmd
 }
 
-func listProjects(client dev_server.Client) func(*cobra.Command, []string) error {
+func listProjects(client dev_server.LocalClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects"
@@ -49,7 +49,7 @@ func listProjects(client dev_server.Client) func(*cobra.Command, []string) error
 	}
 }
 
-func NewGetProjectCmd(client dev_server.Client) *cobra.Command {
+func NewGetProjectCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "get the specified project and its configuration for syncing from the LaunchDarkly Service",
@@ -68,7 +68,7 @@ func NewGetProjectCmd(client dev_server.Client) *cobra.Command {
 	return cmd
 }
 
-func getProject(client dev_server.Client) func(*cobra.Command, []string) error {
+func getProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
@@ -86,7 +86,7 @@ func getProject(client dev_server.Client) func(*cobra.Command, []string) error {
 	}
 }
 
-func NewRemoveProjectCmd(client dev_server.Client) *cobra.Command {
+func NewRemoveProjectCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "remove the specified project from the dev server",
@@ -105,7 +105,7 @@ func NewRemoveProjectCmd(client dev_server.Client) *cobra.Command {
 	return cmd
 }
 
-func deleteProject(client dev_server.Client) func(*cobra.Command, []string) error {
+func deleteProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
@@ -124,7 +124,7 @@ func deleteProject(client dev_server.Client) func(*cobra.Command, []string) erro
 	}
 }
 
-func NewAddProjectCmd(client dev_server.Client) *cobra.Command {
+func NewAddProjectCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "Add the project to the dev server",
@@ -166,7 +166,7 @@ type postBody struct {
 	//context              context
 }
 
-func addProject(client dev_server.Client) func(*cobra.Command, []string) error {
+func addProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		body := postBody{sourceEnvironmentKey: viper.GetString("source")}
 		//if viper.IsSet("context-key") {

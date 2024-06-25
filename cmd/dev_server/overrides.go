@@ -14,7 +14,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/output"
 )
 
-func NewAddOverrideCmd(client dev_server.Client) *cobra.Command {
+func NewAddOverrideCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "override flag value with value provided in the body",
@@ -43,7 +43,7 @@ func NewAddOverrideCmd(client dev_server.Client) *cobra.Command {
 	return cmd
 }
 
-func addOverride(client dev_server.Client) func(*cobra.Command, []string) error {
+func addOverride(client dev_server.LocalClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		var data interface{}
 		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &data)
@@ -72,7 +72,7 @@ func addOverride(client dev_server.Client) func(*cobra.Command, []string) error 
 	}
 }
 
-func NewRemoveOverrideCmd(client dev_server.Client) *cobra.Command {
+func NewRemoveOverrideCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Long:  "remove override for flag",
@@ -96,7 +96,7 @@ func NewRemoveOverrideCmd(client dev_server.Client) *cobra.Command {
 	return cmd
 }
 
-func removeOverride(client dev_server.Client) func(*cobra.Command, []string) error {
+func removeOverride(client dev_server.LocalClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", DEV_SERVER, viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
 		res, err := client.MakeRequest(
