@@ -131,6 +131,9 @@ components:
         - type: boolean
         - type: number
         - type: object
+      x-go-type: ldvalue.Value
+      x-go-type-import:
+        path: github.com/launchdarkly/go-sdk-common/v3/ldvalue
   responses:
     FlagOverride:
       description: Flag override

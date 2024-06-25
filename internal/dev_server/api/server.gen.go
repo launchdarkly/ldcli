@@ -11,26 +11,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/oapi-codegen/runtime"
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
 // FlagValue value of a feature flag variation
-type FlagValue struct {
-	union json.RawMessage
-}
-
-// FlagValue0 defines model for .
-type FlagValue0 = string
-
-// FlagValue1 defines model for .
-type FlagValue1 = bool
-
-// FlagValue2 defines model for .
-type FlagValue2 = float32
-
-// FlagValue3 defines model for .
-type FlagValue3 = map[string]interface{}
+type FlagValue = ldvalue.Value
 
 // FlagKey defines model for flagKey.
 type FlagKey = string
@@ -70,120 +57,6 @@ type PostDevProjectsProjectKeyJSONRequestBody PostDevProjectsProjectKeyJSONBody
 
 // PutDevProjectsProjectKeyOverridesFlagKeyJSONRequestBody defines body for PutDevProjectsProjectKeyOverridesFlagKey for application/json ContentType.
 type PutDevProjectsProjectKeyOverridesFlagKeyJSONRequestBody = FlagValue
-
-// AsFlagValue0 returns the union data inside the FlagValue as a FlagValue0
-func (t FlagValue) AsFlagValue0() (FlagValue0, error) {
-	var body FlagValue0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFlagValue0 overwrites any union data inside the FlagValue as the provided FlagValue0
-func (t *FlagValue) FromFlagValue0(v FlagValue0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFlagValue0 performs a merge with any union data inside the FlagValue, using the provided FlagValue0
-func (t *FlagValue) MergeFlagValue0(v FlagValue0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFlagValue1 returns the union data inside the FlagValue as a FlagValue1
-func (t FlagValue) AsFlagValue1() (FlagValue1, error) {
-	var body FlagValue1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFlagValue1 overwrites any union data inside the FlagValue as the provided FlagValue1
-func (t *FlagValue) FromFlagValue1(v FlagValue1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFlagValue1 performs a merge with any union data inside the FlagValue, using the provided FlagValue1
-func (t *FlagValue) MergeFlagValue1(v FlagValue1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFlagValue2 returns the union data inside the FlagValue as a FlagValue2
-func (t FlagValue) AsFlagValue2() (FlagValue2, error) {
-	var body FlagValue2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFlagValue2 overwrites any union data inside the FlagValue as the provided FlagValue2
-func (t *FlagValue) FromFlagValue2(v FlagValue2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFlagValue2 performs a merge with any union data inside the FlagValue, using the provided FlagValue2
-func (t *FlagValue) MergeFlagValue2(v FlagValue2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFlagValue3 returns the union data inside the FlagValue as a FlagValue3
-func (t FlagValue) AsFlagValue3() (FlagValue3, error) {
-	var body FlagValue3
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFlagValue3 overwrites any union data inside the FlagValue as the provided FlagValue3
-func (t *FlagValue) FromFlagValue3(v FlagValue3) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFlagValue3 performs a merge with any union data inside the FlagValue, using the provided FlagValue3
-func (t *FlagValue) MergeFlagValue3(v FlagValue3) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t FlagValue) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *FlagValue) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
