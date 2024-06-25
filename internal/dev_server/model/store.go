@@ -14,6 +14,7 @@ const ctxKeyStore = ctxKey("model.Store")
 type Store interface {
 	GetDevProjects(ctx context.Context) ([]string, error)
 	GetDevProject(ctx context.Context, projectKey string) (*Project, error)
+	DeleteDevProject(ctx context.Context, projectKey string) (bool, error)
 	InsertProject(ctx context.Context, project Project) error
 }
 

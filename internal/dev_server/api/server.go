@@ -26,8 +26,15 @@ func (s Server) GetDevProjects(ctx context.Context, request GetDevProjectsReques
 }
 
 func (s Server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteDevProjectsProjectKeyRequestObject) (DeleteDevProjectsProjectKeyResponseObject, error) {
-	//TODO implement me
-	panic("implement me")
+	store := model.StoreFromContext(ctx)
+	deleted, err := store.DeleteDevProject(ctx, request.ProjectKey)
+	if err != nil {
+		return nil, err
+	}
+	if !deleted {
+		return DeleteDevProjectsProjectKey404Response{}, nil
+	}
+	return DeleteDevProjectsProjectKey204Response{}, nil
 }
 
 func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProjectsProjectKeyRequestObject) (GetDevProjectsProjectKeyResponseObject, error) {

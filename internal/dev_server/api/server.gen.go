@@ -431,6 +431,14 @@ func (response DeleteDevProjectsProjectKey204Response) VisitDeleteDevProjectsPro
 	return nil
 }
 
+type DeleteDevProjectsProjectKey404Response struct {
+}
+
+func (response DeleteDevProjectsProjectKey404Response) VisitDeleteDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(404)
+	return nil
+}
+
 type GetDevProjectsProjectKeyRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
 }
