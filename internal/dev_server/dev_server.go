@@ -2,20 +2,16 @@ package dev_server
 
 import (
 	"context"
-	ldapi "github.com/launchdarkly/api-client-go/v14"
-	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
-	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
-<<<<<<< HEAD
-=======
+
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
->>>>>>> fa9c033 (create ldapi client in RunServer cmd)
 	"github.com/launchdarkly/ldcli/internal/dev_server/api"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
+	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
 type Client interface {
