@@ -3,10 +3,11 @@ package db
 import (
 	"context"
 	"database/sql"
-	"github.com/launchdarkly/ldcli/internal/dev_server/model"
-	"github.com/pkg/errors"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pkg/errors"
+
+	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
 type Sqlite struct {

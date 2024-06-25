@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
