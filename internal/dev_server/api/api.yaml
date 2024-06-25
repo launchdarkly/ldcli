@@ -41,6 +41,8 @@ paths:
       responses:
         204:
           description: OK. Project & overrides were removed
+        404:
+          description: no project found
     post:
       summary: Add the project to the dev server
       parameters:
