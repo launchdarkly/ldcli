@@ -20,16 +20,33 @@ func GetSdk(ctx context.Context) Sdk {
 }
 
 type Sdk struct {
+	eventsUrl    string
+	pollingUrl   string
+	streamingUrl string
 }
 
-func newSdk() Sdk {
-	return Sdk{}
+func newSdk(eventsUrl, pollingUrl, streamingUrl string) Sdk {
+	return Sdk{
+		eventsUrl:    eventsUrl,
+		pollingUrl:   pollingUrl,
+		streamingUrl: streamingUrl,
+	}
 }
 
 func (s Sdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error) {
-	ldClient, err := ldsdk.MakeClient(sdkKey, 5*time.Second)
+	config := ldsdk.Config{}
+	if s.pollingUrl != "" {
+		config.ServiceEndpoints.Polling = s.pollingUrl
+	}
+	if s.eventsUrl != "" {
+		config.ServiceEndpoints.Events = s.eventsUrl
+	}
+	if s.streamingUrl != "" {
+		config.ServiceEndpoints.Streaming = s.streamingUrl
+	}
+	ldClient, err := ldsdk.MakeCustomClient(sdkKey, config, 5*time.Second)
 	if err != nil {
-		return flagstate.AllFlags{}, nil
+		return flagstate.AllFlags{}, err
 	}
 	flags := ldClient.AllFlagsState(ldContext)
 	return flags, nil
