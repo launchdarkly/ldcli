@@ -37,7 +37,7 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 	ss := api.NewStrictServer()
 	apiServer := api.NewStrictHandler(ss, nil)
 	r := mux.NewRouter()
-	r.Use(adapters.Middleware(*ldClient))
+	r.Use(adapters.Middleware(*ldClient, "https://events.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com")) // TODO add to config
 	r.Use(model.StoreMiddleware(sqlStore))
 	// TODO need a subrouter for relay endpoints
 	handler := api.HandlerFromMux(apiServer, r)

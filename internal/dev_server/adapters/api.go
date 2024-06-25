@@ -4,7 +4,6 @@ import (
 	"context"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
-	"github.com/pkg/errors"
 )
 
 const ctxKeyApi = ctxKey("adapters.api")
@@ -26,14 +25,9 @@ func NewApi(client ldapi.APIClient) Api {
 }
 
 func (a Api) GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error) {
-	project, _, err := a.apiClient.ProjectsApi.GetProject(ctx, projectKey).Execute()
+	environment, _, err := a.apiClient.EnvironmentsApi.GetEnvironment(ctx, projectKey, environmentKey).Execute()
 	if err != nil {
 		return "", err
 	}
-	for _, environment := range project.Environments.Items {
-		if environment.Key == environmentKey {
-			return environment.ApiKey, nil
-		}
-	}
-	return "", errors.Errorf("environment, %s, not found", environmentKey)
+	return environment.ApiKey, nil
 }
