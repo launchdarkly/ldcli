@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/oapi-codegen/runtime"
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
@@ -41,6 +42,9 @@ type Project struct {
 
 	// Context context object to use when evaluating flags in source environment
 	Context ldcontext.Context `json:"context"`
+
+	// FlagsState flags and their values and version for a given project in the source environment
+	FlagsState *model.FlagsState `json:"flagsState,omitempty"`
 
 	// SourceEnvironmentKey environment to copy flag values from
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
@@ -394,6 +398,9 @@ type ProjectJSONResponse struct {
 
 	// Context context object to use when evaluating flags in source environment
 	Context ldcontext.Context `json:"context"`
+
+	// FlagsState flags and their values and version for a given project in the source environment
+	FlagsState *model.FlagsState `json:"flagsState,omitempty"`
 
 	// SourceEnvironmentKey environment to copy flag values from
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
