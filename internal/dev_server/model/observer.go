@@ -1,10 +1,9 @@
 package model
 
 import (
-	"context"
 	"log"
-	"net/http"
-	"slices"
+
+	"github.com/google/uuid"
 )
 
 type Observer interface {
@@ -12,52 +11,31 @@ type Observer interface {
 }
 
 type Observers struct {
-	observers []Observer
+	observers map[uuid.UUID]Observer
 }
 
 func NewObservers() *Observers {
-	return new(Observers)
+	observers := new(Observers)
+	observers.observers = make(map[uuid.UUID]Observer)
+	return observers
 }
 
-const observersKey = ctxKey("model.observers")
-
-func SetObserversOnContext(ctx context.Context, observers *Observers) context.Context {
-	return context.WithValue(ctx, observersKey, observers)
-}
-func GetObserversFromContext(ctx context.Context) *Observers {
-	return ctx.Value(observersKey).(*Observers)
-}
-func ObserversMiddleware(observers *Observers) func(handler http.Handler) http.Handler {
-	return func(handler http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
-			ctx = SetObserversOnContext(ctx, observers)
-			r = r.WithContext(ctx)
-			handler.ServeHTTP(w, r)
-		})
-	}
-}
-
-func (o *Observers) DeregisterObserver(observer Observer) bool {
-	log.Printf("DeregisterObserver: observer %+v", observer)
-	indexToDeregister := -1
-loop:
-	for i, knownObserver := range o.observers {
-		if observer == knownObserver {
-			indexToDeregister = i
-			break loop
+func (o *Observers) DeregisterObserver(observerId uuid.UUID) bool {
+	log.Printf("DeregisterObserver: observer %+v", observerId)
+	for key := range o.observers {
+		if key == observerId {
+			delete(o.observers, key)
+			return true
 		}
 	}
-	if indexToDeregister != -1 {
-		return false
-	}
-	o.observers = slices.Delete(o.observers, indexToDeregister, indexToDeregister)
-	return true
+	return false
 }
 
-func (o *Observers) RegisterObserver(observer Observer) {
+func (o *Observers) RegisterObserver(observer Observer) uuid.UUID {
 	log.Printf("RegisterObserver: observer %+v", observer)
-	o.observers = append(o.observers, observer)
+	id := uuid.New()
+	o.observers[id] = observer
+	return id
 }
 
 func (o *Observers) Notify(event interface{}) {

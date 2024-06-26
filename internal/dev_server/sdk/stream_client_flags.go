@@ -27,9 +27,9 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	defer close(updateChan)
 	observer := clientFlagsObserver(updateChan)
 	observers := model.GetObserversFromContext(ctx)
-	observers.RegisterObserver(observer)
+	observerId := observers.RegisterObserver(observer)
 	defer func() {
-		ok := observers.DeregisterObserver(observer)
+		ok := observers.DeregisterObserver(observerId)
 		if !ok {
 			log.Printf("unable to remove observer")
 		}
