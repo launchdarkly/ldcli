@@ -20,6 +20,8 @@ func BindRoutes(router *mux.Router) {
 	router.HandleFunc("/mobile/events/bulk", DevNull)
 	router.HandleFunc("/mobile/events/diagnostic", DevNull)
 
+	router.Handle("/all", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamServerAllPayload)))
+
 	evalRouter := router.PathPrefix("/eval").Subrouter()
 	evalRouter.Use(CorsHeaders)
 	evalRouter.Methods("OPTIONS").HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
@@ -38,7 +40,7 @@ func BindRoutes(router *mux.Router) {
 	clientsideSdkRouter.HandleFunc("/evalx/{envId}/users/{userBase64}", GetClientFlags)
 
 	/*
-			/all	GET	stream.	SSE stream for all data
+		✅	/all	GET	stream.	SSE stream for all data
 		✅	/bulk	POST	events.	Receives analytics events from SDKs
 		✅	/diagnostic	POST	events.	Receives diagnostic data from SDKs
 			/flags	GET	stream.	SSE stream for flag data (older SDKs)
