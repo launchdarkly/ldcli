@@ -5,9 +5,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
-	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
-	"github.com/pkg/errors"
 )
 
 type Project struct {
@@ -15,7 +13,7 @@ type Project struct {
 	SourceEnvironmentKey string
 	Context              ldcontext.Context
 	LastSyncTime         time.Time
-	FlagState            flagstate.AllFlags
+	FlagState            FlagsState
 }
 
 // CreateProject creates a project and adds it to the database.
@@ -36,10 +34,11 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	if err != nil {
 		return Project{}, err
 	}
-	project.FlagState, err = sdkAdapter.GetAllFlagsState(ctx, project.Context, sdkKey)
+	sdkFlags, err := sdkAdapter.GetAllFlagsState(ctx, project.Context, sdkKey)
 	if err != nil {
 		return Project{}, err
 	}
+	project.FlagState = FromAllFlags(sdkFlags)
 	project.LastSyncTime = time.Now()
 
 	err = store.InsertProject(ctx, project)
@@ -49,22 +48,13 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	return project, nil
 }
 
-func (p Project) GetDefaultStateForFlag(key string) (flagstate.FlagState, bool) {
-	return p.FlagState.GetFlag(key)
-}
-
-func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context, overrides Overrides) (flagstate.AllFlags, error) {
-	flags := p.FlagState.ToValuesMap()
-	stateBuilder := flagstate.NewAllFlagsBuilder()
-	for flagKey := range flags {
-		stateOfFlag, ok := p.FlagState.GetFlag(flagKey)
-		if !ok {
-			return flagstate.AllFlags{}, errors.Errorf("could not find flag, %s, in flag state", flagKey)
-		}
+func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context, overrides Overrides) FlagsState {
+	withOverrides := make(FlagsState, len(p.FlagState))
+	for flagKey, flagState := range p.FlagState {
 		if override, ok := overrides.GetFlag(flagKey); ok {
-			stateOfFlag = override.Apply(stateOfFlag)
+			flagState = override.Apply(flagState)
 		}
-		stateBuilder.AddFlag(flagKey, stateOfFlag)
+		withOverrides[flagKey] = flagState
 	}
-	return stateBuilder.Build(), nil
+	return withOverrides
 }

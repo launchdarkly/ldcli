@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
 
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
@@ -40,8 +43,10 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 	r := mux.NewRouter()
 	r.Use(adapters.Middleware(*ldClient, "https://events.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com")) // TODO add to config
 	r.Use(model.StoreMiddleware(sqlStore))
-	// TODO need a subrouter for relay endpoints
+	sdk.BindRoutes(r)
 	handler := api.HandlerFromMux(apiServer, r)
+	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
+	handler = handlers.RecoveryHandler()(handler)
 	fmt.Println("Server running on 0.0.0.0:8765")
 	server := http.Server{
 		Addr:    "0.0.0.0:8765",
