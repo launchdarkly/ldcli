@@ -5,10 +5,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
-// {"key":"ffffflag","on":false,"prerequisites":[],"targets":[],"rules":[],"fallthrough":{"variation":0},"offVariation":1,"variations":[true,false],"clientSideAvailability":{"
-//usingMobileKey":true,"usingEnvironmentId":true},"clientSide":true,"salt":"01e79597999049ab9ac1223835e3caa2","trackEvents":false,"trackEventsFallthrough":false,"debugEventsUntilDate":null,"v
-//ersion":2,"deleted":false}}
-
 type fallthroughRule struct {
 	Variation int `json:"variation"`
 }
