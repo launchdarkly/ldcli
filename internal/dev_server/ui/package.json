@@ -1,0 +1,36 @@
+{
+  "name": "ldcli-dev-server-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "prettier:write": "prettier . --write",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@launchpad-ui/components": "0.2.12",
+    "@launchpad-ui/core": "0.49.22",
+    "@launchpad-ui/icons": "0.18.4",
+    "@launchpad-ui/tokens": "0.9.12",
+    "launchdarkly-js-client-sdk": "3.4.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@typescript-eslint/eslint-plugin": "7.13.1",
+    "@typescript-eslint/parser": "7.13.1",
+    "@vitejs/plugin-react": "4.3.1",
+    "eslint": "8.57.0",
+    "eslint-plugin-react-hooks": "4.6.2",
+    "eslint-plugin-react-refresh": "0.4.7",
+    "prettier": "3.3.2",
+    "typescript": "5.2.2",
+    "vite": "5.3.1",
+    "vite-plugin-svgr": "^4.2.0"
+  }
+}

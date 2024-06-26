@@ -49,12 +49,28 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 		return GetDevProjectsProjectKey404Response{}, nil
 	}
 
+	response := ProjectJSONResponse{
+		LastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:              project.Context,
+		SourceEnvironmentKey: project.SourceEnvironmentKey,
+		FlagsState:           &project.FlagState,
+	}
+
+	if request.Params.Expand != nil {
+		for _, item := range *request.Params.Expand {
+			if item == "overrides" {
+				overrides, err := store.GetOverridesForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				response.Overrides = &overrides
+			}
+		}
+
+	}
+
 	return GetDevProjectsProjectKey200JSONResponse{
-		ProjectJSONResponse{
-			LastSyncedFromSource: project.LastSyncTime.Unix(),
-			Context:              project.Context,
-			SourceEnvironmentKey: project.SourceEnvironmentKey,
-		},
+		response,
 	}, nil
 }
 
@@ -68,6 +84,7 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 			LastSyncedFromSource: project.LastSyncTime.Unix(),
 			Context:              project.Context,
 			SourceEnvironmentKey: project.SourceEnvironmentKey,
+			FlagsState:           &project.FlagState,
 		},
 	}, nil
 }
