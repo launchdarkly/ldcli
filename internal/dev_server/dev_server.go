@@ -44,7 +44,7 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 		ResponseErrorHandlerFunc: ResponseErrorHandler,
 	})
 	r := mux.NewRouter()
-	r.Use(adapters.Middleware(*ldClient, "https://events.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com")) // TODO add to config
+	r.Use(adapters.Middleware(*ldClient, "https://relay-stg.ld.catamorphic.com")) // TODO add to config
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(model.NewObservers()))
 	sdk.BindRoutes(r)
