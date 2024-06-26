@@ -25,7 +25,7 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	}
 	updateChan, doneChan := OpenStream(w, r.Context().Done(), Message{"put", jsonBody}) // TODO Wireup updateChan
 	defer close(updateChan)
-	observer := clientFlagsObserver(updateChan)
+	observer := clientFlagsObserver{updateChan, projectKey}
 	observers := model.GetObserversFromContext(ctx)
 	observerId := observers.RegisterObserver(observer)
 	defer func() {
@@ -40,7 +40,10 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type clientFlagsObserver chan<- Message
+type clientFlagsObserver struct {
+	updateChan chan<- Message
+	projectKey string
+}
 
 func (c clientFlagsObserver) Handle(event interface{}) {
 	log.Printf("clientFlagsObserver: handling flag state event: %v", event)
@@ -54,7 +57,7 @@ func (c clientFlagsObserver) Handle(event interface{}) {
 		if err != nil {
 			panic(errors.Wrap(err, "failed to marshal flag state in observer"))
 		}
-		c <- Message{
+		c.updateChan <- Message{
 			Event: "patch",
 			Data:  data,
 		}

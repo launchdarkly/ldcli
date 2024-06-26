@@ -17,8 +17,9 @@ type Override struct {
 }
 
 type UpsertOverrideEvent struct {
-	FlagKey   string
-	FlagState FlagState
+	FlagKey    string
+	ProjectKey string
+	FlagState  FlagState
 }
 
 func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Override, error) {
@@ -50,8 +51,9 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Ove
 	}
 	flagState := override.Apply(project.FlagState[flagKey])
 	observers.Notify(UpsertOverrideEvent{
-		FlagKey:   flagKey,
-		FlagState: flagState,
+		FlagKey:    flagKey,
+		ProjectKey: projectKey,
+		FlagState:  flagState,
 	})
 
 	return override, err
