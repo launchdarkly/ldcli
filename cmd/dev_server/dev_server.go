@@ -15,13 +15,17 @@ func NewDevServerCmd(localClient dev_server.LocalClient, ldClient dev_server.Cli
 	}
 
 	// Add subcommands here
-	cmd.AddCommand(NewStartServerCmd(ldClient))
+	cmd.AddGroup(&cobra.Group{ID: "projects", Title: "Project commands:"})
 	cmd.AddCommand(NewListProjectsCmd(localClient))
 	cmd.AddCommand(NewGetProjectCmd(localClient))
+	cmd.AddCommand(NewSyncProjectCmd(localClient))
 	cmd.AddCommand(NewRemoveProjectCmd(localClient))
 	cmd.AddCommand(NewAddProjectCmd(localClient))
+	cmd.AddGroup(&cobra.Group{ID: "overrides", Title: "Override commands:"})
 	cmd.AddCommand(NewAddOverrideCmd(localClient))
 	cmd.AddCommand(NewRemoveOverrideCmd(localClient))
+	cmd.AddGroup(&cobra.Group{ID: "server", Title: "Server commands:"})
+	cmd.AddCommand(NewStartServerCmd(ldClient))
 
 	cmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())
 
