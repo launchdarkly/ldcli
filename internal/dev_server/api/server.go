@@ -28,13 +28,34 @@ func (s Server) GetDevProjects(ctx context.Context, request GetDevProjectsReques
 }
 
 func (s Server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteDevProjectsProjectKeyRequestObject) (DeleteDevProjectsProjectKeyResponseObject, error) {
-	//TODO implement me
-	panic("implement me")
+	store := model.StoreFromContext(ctx)
+	deleted, err := store.DeleteDevProject(ctx, request.ProjectKey)
+	if err != nil {
+		return nil, err
+	}
+	if !deleted {
+		return DeleteDevProjectsProjectKey404Response{}, nil
+	}
+	return DeleteDevProjectsProjectKey204Response{}, nil
 }
 
 func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProjectsProjectKeyRequestObject) (GetDevProjectsProjectKeyResponseObject, error) {
-	//TODO implement me
-	panic("implement me")
+	store := model.StoreFromContext(ctx)
+	project, err := store.GetDevProject(ctx, request.ProjectKey)
+	if err != nil {
+		return nil, err
+	}
+	if project == nil {
+		return GetDevProjectsProjectKey404Response{}, nil
+	}
+
+	return GetDevProjectsProjectKey200JSONResponse{
+		ProjectJSONResponse{
+			LastSyncedFromSource: project.LastSyncTime.Unix(),
+			Context:              project.Context,
+			SourceEnvironmentKey: project.SourceEnvironmentKey,
+		},
+	}, nil
 }
 
 func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {

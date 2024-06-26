@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
@@ -33,8 +34,55 @@ func (s Sqlite) GetDevProjects(ctx context.Context) ([]string, error) {
 	return keys, nil
 }
 
+func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, error) {
+	var project model.Project
+	var contextData string
+	var flagStateData string
+
+	row := s.database.QueryRowContext(ctx, `
+        SELECT key, source_environment_key, context, last_sync_time, flag_state 
+        FROM projects 
+        WHERE key = ?
+    `, key)
+
+	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &contextData, &project.LastSyncTime, &flagStateData); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No project found with the given key
+		}
+		return nil, err
+	}
+
+	// Parse the context JSON string
+	if err := json.Unmarshal([]byte(contextData), &project.Context); err != nil {
+		return nil, errors.Wrap(err, "unable to unmarshal context data")
+	}
+
+	// Parse the flag state JSON string
+	if err := json.Unmarshal([]byte(flagStateData), &project.FlagState); err != nil {
+		return nil, errors.Wrap(err, "unable to unmarshal flag state data")
+	}
+
+	return &project, nil
+}
+
+func (s Sqlite) DeleteDevProject(ctx context.Context, key string) (bool, error) {
+	result, err := s.database.Exec("DELETE FROM projects where key=?", key)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if rowsAffected == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
 func (s Sqlite) InsertProject(ctx context.Context, project model.Project) error {
-	flagsStateJson, err := project.FlagState.MarshalJSON()
+	flagsStateJson, err := json.Marshal(project.FlagState)
 	if err != nil {
 		return errors.Wrap(err, "unable to marshal flags state when writing project")
 	}
