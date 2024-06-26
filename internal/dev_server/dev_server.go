@@ -39,7 +39,10 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 		log.Fatal(err)
 	}
 	ss := api.NewStrictServer()
-	apiServer := api.NewStrictHandler(ss, nil)
+	apiServer := api.NewStrictHandlerWithOptions(ss, nil, api.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc:  RequestErrorHandler,
+		ResponseErrorHandlerFunc: ResponseErrorHandler,
+	})
 	r := mux.NewRouter()
 	r.Use(adapters.Middleware(*ldClient, "https://events.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com")) // TODO add to config
 	r.Use(model.StoreMiddleware(sqlStore))
@@ -53,4 +56,13 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 		Handler: handler,
 	}
 	log.Fatal(server.ListenAndServe())
+}
+
+func ResponseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("Error while serving response: %+v", err)
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+func RequestErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("Error while serving request: %+v", err)
+	http.Error(w, err.Error(), http.StatusBadRequest)
 }
