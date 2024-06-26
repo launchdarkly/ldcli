@@ -60,7 +60,11 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 		for _, item := range *request.Params.Expand {
 			if item == "overrides" {
 				//TODO: fetch overrides from db and put here
-				response.Overrides = &model.FlagsState{}
+				overrides, err := store.GetOverridesForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				response.Overrides = &overrides
 			}
 		}
 

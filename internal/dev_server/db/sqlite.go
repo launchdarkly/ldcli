@@ -8,6 +8,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
@@ -97,6 +98,50 @@ VALUES (?, ?, ?, ?, ?)
 		string(flagsStateJson),
 	)
 	return err
+}
+
+func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (model.FlagsState, error) {
+	rows, err := s.database.QueryContext(ctx, `
+        SELECT flag_key, value, version
+        FROM overrides 
+        WHERE project_key = ? AND active=1
+    `, projectKey)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	overrides := make(model.FlagsState)
+	for rows.Next() {
+		var flagKey string
+		var value string
+		var version int
+		var flagState model.FlagState
+
+		err = rows.Scan(&flagKey, &value, &version)
+		if err != nil {
+			return nil, err
+		}
+
+		var ldValue ldvalue.Value
+		err = json.Unmarshal([]byte(value), &ldValue)
+		if err != nil {
+			return nil, err
+		}
+
+		flagState = model.FlagState{
+			Value:   ldValue,
+			Version: version,
+		}
+		overrides[flagKey] = flagState
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return overrides, nil
 }
 
 func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) error {
