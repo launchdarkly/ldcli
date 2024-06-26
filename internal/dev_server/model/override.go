@@ -15,6 +15,8 @@ type Override struct {
 }
 
 func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Override, error) {
+	// TODO: validate flag exists within project, + if the flag type matches
+
 	var val ldvalue.Value
 	err := json.Unmarshal([]byte(value), &val)
 	if err != nil {
