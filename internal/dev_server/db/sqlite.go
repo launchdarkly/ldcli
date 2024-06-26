@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"github.com/launchdarkly/ldcli/internal/dev_server/model"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
+
+var ErrNotFound = errors.New("not found")
 
 type Sqlite struct {
 	database *sql.DB
@@ -97,6 +99,51 @@ VALUES (?, ?, ?, ?, ?)
 	return err
 }
 
+func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) error {
+	valueJson, err := override.Value.MarshalJSON()
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal override value when writing override")
+	}
+
+	_, err = s.database.Exec(`
+		INSERT INTO overrides (project_key, flag_key, value, active)
+		VALUES (?, ?, ?, ?)
+			ON CONFLICT(flag_key, project_key) DO UPDATE SET
+			    value=excluded.value,
+			    active=excluded.active,
+			    version=version+1;
+	`,
+		override.ProjectKey,
+		override.FlagKey,
+		valueJson,
+		override.Active,
+	)
+
+	return err
+}
+
+func (s Sqlite) DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
+	result, err := s.database.Exec(`
+		UPDATE overrides set active = false, version = version+1 where project_key = ? and flag_key = ? and active = true
+	`,
+		projectKey,
+		flagKey,
+	)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
 	store := new(Sqlite)
 	db, err := sql.Open("sqlite3", dbPath)
@@ -123,6 +170,19 @@ func (s Sqlite) runMigrations(ctx context.Context) error {
 		context text NOT NULL,
 		last_sync_time timestamp NOT NULL,
 		flag_state TEXT NOT NULL
+	)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(`
+	CREATE TABLE IF NOT EXISTS overrides (
+		project_key text NOT NULL,
+		flag_key text NOT NULL,
+		value text NOT NULL,
+		active boolean NOT NULL default TRUE,
+		version integer NOT NULL default 1,
+		UNIQUE (project_key, flag_key) ON CONFLICT REPLACE
 	)`)
 	if err != nil {
 		return err
