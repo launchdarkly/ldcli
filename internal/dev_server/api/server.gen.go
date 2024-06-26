@@ -17,8 +17,31 @@ import (
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
+// Defines values for GetDevProjectsProjectKeyParamsExpand.
+const (
+	Overrides GetDevProjectsProjectKeyParamsExpand = "overrides"
+)
+
 // FlagValue value of a feature flag variation
 type FlagValue = ldvalue.Value
+
+// Project Project
+type Project struct {
+	// LastSyncedFromSource unix timestamp for the lat time the flag values were synced from the source environment
+	LastSyncedFromSource int64 `json:"_lastSyncedFromSource"`
+
+	// Context context object to use when evaluating flags in source environment
+	Context ldcontext.Context `json:"context"`
+
+	// FlagsState flags and their values and version for a given project in the source environment
+	FlagsState *model.FlagsState `json:"flagsState,omitempty"`
+
+	// Overrides flags and their values and version for a given project in the source environment
+	Overrides *model.FlagsState `json:"overrides,omitempty"`
+
+	// SourceEnvironmentKey environment to copy flag values from
+	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
+}
 
 // FlagKey defines model for flagKey.
 type FlagKey = string
@@ -35,20 +58,14 @@ type FlagOverride struct {
 	Value FlagValue `json:"value"`
 }
 
-// Project defines model for Project.
-type Project struct {
-	// LastSyncedFromSource unix timestamp for the lat time the flag values were synced from the source environment
-	LastSyncedFromSource int64 `json:"_lastSyncedFromSource"`
-
-	// Context context object to use when evaluating flags in source environment
-	Context ldcontext.Context `json:"context"`
-
-	// FlagsState flags and their values and version for a given project in the source environment
-	FlagsState *model.FlagsState `json:"flagsState,omitempty"`
-
-	// SourceEnvironmentKey environment to copy flag values from
-	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
+// GetDevProjectsProjectKeyParams defines parameters for GetDevProjectsProjectKey.
+type GetDevProjectsProjectKeyParams struct {
+	// Expand Available expand options for this endpoint.
+	Expand *[]GetDevProjectsProjectKeyParamsExpand `form:"expand,omitempty" json:"expand,omitempty"`
 }
+
+// GetDevProjectsProjectKeyParamsExpand defines parameters for GetDevProjectsProjectKey.
+type GetDevProjectsProjectKeyParamsExpand string
 
 // PostDevProjectsProjectKeyJSONBody defines parameters for PostDevProjectsProjectKey.
 type PostDevProjectsProjectKeyJSONBody struct {
@@ -72,7 +89,7 @@ type ServerInterface interface {
 	DeleteDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
 	// get the specified project and its configuration for syncing from the LaunchDarkly Service
 	// (GET /dev/projects/{projectKey})
-	GetDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
+	GetDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetDevProjectsProjectKeyParams)
 	// Add the project to the dev server
 	// (POST /dev/projects/{projectKey})
 	PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
@@ -149,8 +166,19 @@ func (siw *ServerInterfaceWrapper) GetDevProjectsProjectKey(w http.ResponseWrite
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDevProjectsProjectKeyParams
+
+	// ------------- Optional query parameter "expand" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "expand", r.URL.Query(), &params.Expand)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expand", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetDevProjectsProjectKey(w, r, projectKey)
+		siw.Handler.GetDevProjectsProjectKey(w, r, projectKey, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -392,19 +420,7 @@ type FlagOverrideJSONResponse struct {
 	Value FlagValue `json:"value"`
 }
 
-type ProjectJSONResponse struct {
-	// LastSyncedFromSource unix timestamp for the lat time the flag values were synced from the source environment
-	LastSyncedFromSource int64 `json:"_lastSyncedFromSource"`
-
-	// Context context object to use when evaluating flags in source environment
-	Context ldcontext.Context `json:"context"`
-
-	// FlagsState flags and their values and version for a given project in the source environment
-	FlagsState *model.FlagsState `json:"flagsState,omitempty"`
-
-	// SourceEnvironmentKey environment to copy flag values from
-	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
-}
+type ProjectJSONResponse Project
 
 type GetDevProjectsRequestObject struct {
 }
@@ -448,6 +464,7 @@ func (response DeleteDevProjectsProjectKey404Response) VisitDeleteDevProjectsPro
 
 type GetDevProjectsProjectKeyRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
+	Params     GetDevProjectsProjectKeyParams
 }
 
 type GetDevProjectsProjectKeyResponseObject interface {
@@ -635,10 +652,11 @@ func (sh *strictHandler) DeleteDevProjectsProjectKey(w http.ResponseWriter, r *h
 }
 
 // GetDevProjectsProjectKey operation middleware
-func (sh *strictHandler) GetDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
+func (sh *strictHandler) GetDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetDevProjectsProjectKeyParams) {
 	var request GetDevProjectsProjectKeyRequestObject
 
 	request.ProjectKey = projectKey
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetDevProjectsProjectKey(ctx, request.(GetDevProjectsProjectKeyRequestObject))

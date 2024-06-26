@@ -28,6 +28,15 @@ paths:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
       parameters:
         - $ref: "#/components/parameters/projectKey"
+        - name: expand
+          description: Available expand options for this endpoint.
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - overrides
       responses:
         200:
           $ref: "#/components/responses/Project"
@@ -139,6 +148,42 @@ components:
       x-go-type: ldvalue.Value
       x-go-type-import:
         path: github.com/launchdarkly/go-sdk-common/v3/ldvalue
+    Project:
+      description: Project
+      type: object
+      required:
+        - sourceEnvironmentKey
+        - context
+        - _lastSyncedFromSource
+      properties:
+        sourceEnvironmentKey:
+          type: string
+          description: environment to copy flag values from
+        context:
+          type: object
+          description: context object to use when evaluating flags in source environment
+          default:
+            key: "local-dev"
+            kind: user
+          x-go-type: ldcontext.Context
+          x-go-type-import:
+            path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
+        flagsState:
+          type: object
+          description: flags and their values and version for a given project in the source environment
+          x-go-type: model.FlagsState
+          x-go-type-import:
+            path: github.com/launchdarkly/ldcli/internal/dev_server/model
+        overrides:
+          type: object
+          description: flags and their values and version for a given project in the source environment
+          x-go-type: model.FlagsState
+          x-go-type-import:
+            path: github.com/launchdarkly/ldcli/internal/dev_server/model
+        _lastSyncedFromSource:
+          type: integer
+          x-go-type: int64
+          description: unix timestamp for the lat time the flag values were synced from the source environment
   responses:
     FlagOverride:
       description: Flag override
@@ -160,31 +205,4 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - sourceEnvironmentKey
-              - context
-              - _lastSyncedFromSource
-            properties:
-              sourceEnvironmentKey:
-                type: string
-                description: environment to copy flag values from
-              context:
-                type: object
-                description: context object to use when evaluating flags in source environment
-                default:
-                  key: "local-dev"
-                  kind: user
-                x-go-type: ldcontext.Context
-                x-go-type-import:
-                  path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
-              flagsState:
-                type: object
-                description: flags and their values and version for a given project in the source environment
-                x-go-type: model.FlagsState
-                x-go-type-import:
-                  path: github.com/launchdarkly/ldcli/internal/dev_server/model
-              _lastSyncedFromSource:
-                type: integer
-                x-go-type: int64
-                description: unix timestamp for the lat time the flag values were synced from the source environment
+            $ref: "#/components/schemas/Project"
