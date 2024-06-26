@@ -29,3 +29,12 @@ ul.flags-list li {
   justify-content: space-between;
   align-items: center;
 }
+
+code {
+  background-color: var(--lp-color-bg-ui-secondary);
+  border: 1px solid var(--lp-color-border-ui-primary);
+  border-radius: 2px;
+  color: var(--lp-color-pink-600);
+  font-size: 87.5%;
+  padding: 0.125rem 0.25rem;
+}
