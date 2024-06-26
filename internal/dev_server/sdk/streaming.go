@@ -52,8 +52,12 @@ func OpenStream(w http.ResponseWriter, done <-chan struct{}, initialMessage Mess
 						return errors.Wrap(err, "unable to write response")
 					}
 					flusher.Flush()
-				case <-updateChan:
-					// TODO do stuff with updateChan
+				case msg := <-updateChan:
+					_, err = w.Write(msg.ToPayload())
+					if err != nil {
+						return errors.Wrap(err, "unable to write response")
+					}
+					flusher.Flush()
 				case <-done:
 					break loop
 				}

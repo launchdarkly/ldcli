@@ -144,27 +144,33 @@ func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (
 	return overrides, nil
 }
 
-func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) error {
+func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) (model.Override, error) {
 	valueJson, err := override.Value.MarshalJSON()
 	if err != nil {
-		return errors.Wrap(err, "unable to marshal override value when writing override")
+		return model.Override{}, errors.Wrap(err, "unable to marshal override value when writing override")
 	}
-
-	_, err = s.database.Exec(`
+	row := s.database.QueryRowContext(ctx, `
 		INSERT INTO overrides (project_key, flag_key, value, active)
 		VALUES (?, ?, ?, ?)
 			ON CONFLICT(flag_key, project_key) DO UPDATE SET
 			    value=excluded.value,
 			    active=excluded.active,
-			    version=version+1;
+			    version=version+1
+		RETURNING project_key, flag_key, active, value, version;
 	`,
 		override.ProjectKey,
 		override.FlagKey,
 		valueJson,
 		override.Active,
 	)
-
-	return err
+	var tempValue []byte
+	if err := row.Scan(&override.ProjectKey, &override.FlagKey, &override.Active, &tempValue, &override.Version); err != nil {
+		return model.Override{}, errors.Wrap(err, "unable to upsert override")
+	}
+	if err := json.Unmarshal(tempValue, &override.Value); err != nil {
+		return model.Override{}, errors.Wrap(err, "unable to unmarshal override value")
+	}
+	return override, nil
 }
 
 func (s Sqlite) DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
