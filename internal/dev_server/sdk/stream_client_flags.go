@@ -43,7 +43,7 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 type clientFlagsObserver chan<- Message
 
 func (c clientFlagsObserver) Handle(event interface{}) {
-	log.Printf("handling flag state event: %v", event)
+	log.Printf("clientFlagsObserver: handling flag state event: %v", event)
 	switch event := event.(type) {
 	case model.UpsertOverrideEvent:
 		data, err := json.Marshal(clientSidePatchData{
