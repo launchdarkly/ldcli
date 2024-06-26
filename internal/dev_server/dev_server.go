@@ -46,7 +46,7 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 	sdk.BindRoutes(r)
 	handler := api.HandlerFromMux(apiServer, r)
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
-	handler = handlers.RecoveryHandler()(handler)
+	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 	fmt.Println("Server running on 0.0.0.0:8765")
 	server := http.Server{
 		Addr:    "0.0.0.0:8765",

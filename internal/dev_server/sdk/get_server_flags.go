@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
+func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	store := model.StoreFromContext(ctx)
 	projectKey := GetProjectKeyFromContext(ctx)
@@ -17,7 +17,8 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 		panic(errors.Wrap(err, "unable to get dev project"))
 	}
 	allFlags := project.GetFlagStateWithOverridesForProject(ctx, nil) // TODO fetch overrides
-	jsonBody, err := json.Marshal(allFlags)
+	serverFlags := ServerAllPayloadFromFlagsState(allFlags)
+	jsonBody, err := json.Marshal(serverFlags)
 	if err != nil {
 		panic(errors.Wrap(err, "failed to marshal flag state"))
 	}
@@ -27,4 +28,5 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(errors.Wrap(err, "stream failure"))
 	}
+
 }
