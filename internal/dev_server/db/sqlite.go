@@ -10,6 +10,8 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
+var ErrNotFound = errors.New("not found")
+
 type Sqlite struct {
 	database *sql.DB
 }
@@ -73,13 +75,25 @@ func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) err
 }
 
 func (s Sqlite) DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
-	_, err := s.database.Exec(`
-		UPDATE overrides set active = false where project_key = ? and flag_key = ?
+	result, err := s.database.Exec(`
+		UPDATE overrides set active = false, version = version+1 where project_key = ? and flag_key = ? and active = true
 	`,
 		projectKey,
 		flagKey,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {

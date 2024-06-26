@@ -106,9 +106,10 @@ paths:
         - $ref: '#/components/parameters/projectKey'
         - $ref: '#/components/parameters/flagKey'
       responses:
-        200:
-          $ref: '#/components/responses/FlagOverride'
-
+        204:
+          description: OK. override removed
+        404:
+          description: no matching override found
 components:
   parameters:
     flagKey:

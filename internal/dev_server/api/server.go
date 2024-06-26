@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
-
+	"errors"
+	
+	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
@@ -52,7 +54,13 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	err := store.DeleteOverride(ctx, request.ProjectKey, request.FlagKey)
-	return DeleteDevProjectsProjectKeyOverridesFlagKey200JSONResponse{}, err
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return DeleteDevProjectsProjectKeyOverridesFlagKey404Response{}, nil
+		}
+		return nil, err
+	}
+	return DeleteDevProjectsProjectKeyOverridesFlagKey204Response{}, nil
 }
 
 func (s Server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {

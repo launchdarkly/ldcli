@@ -475,13 +475,20 @@ type DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject interface {
 	VisitDeleteDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error
 }
 
-type DeleteDevProjectsProjectKeyOverridesFlagKey200JSONResponse struct{ FlagOverrideJSONResponse }
+type DeleteDevProjectsProjectKeyOverridesFlagKey204Response struct {
+}
 
-func (response DeleteDevProjectsProjectKeyOverridesFlagKey200JSONResponse) VisitDeleteDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
+func (response DeleteDevProjectsProjectKeyOverridesFlagKey204Response) VisitDeleteDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
 
-	return json.NewEncoder(w).Encode(response)
+type DeleteDevProjectsProjectKeyOverridesFlagKey404Response struct {
+}
+
+func (response DeleteDevProjectsProjectKeyOverridesFlagKey404Response) VisitDeleteDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(404)
+	return nil
 }
 
 type PutDevProjectsProjectKeyOverridesFlagKeyRequestObject struct {
