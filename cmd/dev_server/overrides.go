@@ -16,11 +16,12 @@ import (
 
 func NewAddOverrideCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
-		Args:  validators.Validate(),
-		Long:  "override flag value with value provided in the body",
-		RunE:  addOverride(client),
-		Short: "override flag value",
-		Use:   "add-override",
+		GroupID: "overrides",
+		Args:    validators.Validate(),
+		Long:    "override flag value with value provided in the body",
+		RunE:    addOverride(client),
+		Short:   "override flag value",
+		Use:     "add-override",
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -74,11 +75,12 @@ func addOverride(client dev_server.LocalClient) func(*cobra.Command, []string) e
 
 func NewRemoveOverrideCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
-		Args:  validators.Validate(),
-		Long:  "remove override for flag",
-		RunE:  removeOverride(client),
-		Short: "remove override",
-		Use:   "remove-override",
+		GroupID: "overrides",
+		Args:    validators.Validate(),
+		Long:    "remove override for flag",
+		RunE:    removeOverride(client),
+		Short:   "remove override",
+		Use:     "remove-override",
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())

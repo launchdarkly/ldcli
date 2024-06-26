@@ -2,6 +2,7 @@ package dev_server
 
 import (
 	"context"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -13,11 +14,12 @@ import (
 
 func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
-		Args:  validators.Validate(),
-		Long:  "start the dev server",
-		RunE:  startServer(client),
-		Short: "start the dev server",
-		Use:   "start",
+		GroupID: "server",
+		Args:    validators.Validate(),
+		Long:    "start the dev server",
+		RunE:    startServer(client),
+		Short:   "start the dev server",
+		Use:     "start",
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())

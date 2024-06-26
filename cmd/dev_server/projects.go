@@ -18,11 +18,12 @@ const DEV_SERVER = "http://0.0.0.0:8765"
 
 func NewListProjectsCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
-		Args:  validators.Validate(),
-		Long:  "lists all projects that have been configured for the dev server",
-		RunE:  listProjects(client),
-		Short: "list all projects",
-		Use:   "list-projects",
+		GroupID: "projects",
+		Args:    validators.Validate(),
+		Long:    "lists all projects that have been configured for the dev server",
+		RunE:    listProjects(client),
+		Short:   "list all projects",
+		Use:     "list-projects",
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -51,11 +52,12 @@ func listProjects(client dev_server.LocalClient) func(*cobra.Command, []string) 
 
 func NewGetProjectCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
-		Args:  validators.Validate(),
-		Long:  "get the specified project and its configuration for syncing from the LaunchDarkly Service",
-		RunE:  getProject(client),
-		Short: "get a project",
-		Use:   "get-project",
+		GroupID: "projects",
+		Args:    validators.Validate(),
+		Long:    "get the specified project and its configuration for syncing from the LaunchDarkly Service",
+		RunE:    getProject(client),
+		Short:   "get a project",
+		Use:     "get-project",
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -86,13 +88,52 @@ func getProject(client dev_server.LocalClient) func(*cobra.Command, []string) er
 	}
 }
 
+func NewSyncProjectCmd(client dev_server.LocalClient) *cobra.Command {
+	cmd := &cobra.Command{
+		GroupID: "projects",
+		Args:    validators.Validate(),
+		Long:    "sync the specified project and its flag configuration with the LaunchDarkly Service",
+		RunE:    syncProject(client),
+		Short:   "sync project",
+		Use:     "sync-project",
+	}
+
+	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
+
+	cmd.Flags().String(cliflags.ProjectFlag, "", "The project key")
+	_ = cmd.MarkFlagRequired(cliflags.ProjectFlag)
+	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
+
+	return cmd
+}
+
+func syncProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+
+		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "sync"
+		res, err := client.MakeRequest(
+			"PUT",
+			path,
+			nil,
+		)
+		if err != nil {
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), string(res))
+
+		return nil
+	}
+}
+
 func NewRemoveProjectCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
-		Args:  validators.Validate(),
-		Long:  "remove the specified project from the dev server",
-		RunE:  deleteProject(client),
-		Short: "remove a project",
-		Use:   "remove-project",
+		GroupID: "projects",
+		Args:    validators.Validate(),
+		Long:    "remove the specified project from the dev server",
+		RunE:    deleteProject(client),
+		Short:   "remove a project",
+		Use:     "remove-project",
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -126,11 +167,12 @@ func deleteProject(client dev_server.LocalClient) func(*cobra.Command, []string)
 
 func NewAddProjectCmd(client dev_server.LocalClient) *cobra.Command {
 	cmd := &cobra.Command{
-		Args:  validators.Validate(),
-		Long:  "Add the project to the dev server",
-		RunE:  addProject(client),
-		Short: "add a project",
-		Use:   "add-project",
+		GroupID: "projects",
+		Args:    validators.Validate(),
+		Long:    "Add the project to the dev server",
+		RunE:    addProject(client),
+		Short:   "add a project",
+		Use:     "add-project",
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
