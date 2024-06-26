@@ -29,3 +29,13 @@ func GetProjectKeyFromEnvIdParameter(pathParameter string) func(handler http.Han
 		})
 	}
 }
+
+func GetProjectKeyFromAuthorizationHeader(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		ctx := request.Context()
+		projectKey := request.Header.Get("Authorization")
+		ctx = SetProjectKeyOnContext(ctx, projectKey)
+		request = request.WithContext(ctx)
+		handler.ServeHTTP(writer, request)
+	})
+}
