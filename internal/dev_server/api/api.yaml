@@ -7,7 +7,7 @@ info:
     those flags.
   version: 1.0.0
 servers:
-  - url: 'http'
+  - url: "http"
 paths:
   /dev/projects:
     get:
@@ -27,17 +27,17 @@ paths:
     get:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
       parameters:
-        - $ref: '#/components/parameters/projectKey'
+        - $ref: "#/components/parameters/projectKey"
       responses:
         200:
-          $ref: '#/components/responses/Project'
+          $ref: "#/components/responses/Project"
         404:
           description: No project found
 
     delete:
       summary: remove the specified project from the dev server
       parameters:
-        - $ref: '#/components/parameters/projectKey'
+        - $ref: "#/components/parameters/projectKey"
       responses:
         204:
           description: OK. Project & overrides were removed
@@ -46,7 +46,7 @@ paths:
     post:
       summary: Add the project to the dev server
       parameters:
-        - $ref: '#/components/parameters/projectKey'
+        - $ref: "#/components/parameters/projectKey"
       requestBody:
         content:
           application/json:
@@ -67,48 +67,48 @@ paths:
                 #     kind: user
       responses:
         201:
-          $ref: '#/components/responses/Project'
-# WIP updates can be added later
-#    patch:
-#      summary: change configuration of the project
-#      parameters:
-#        - $ref: '#/components/parameters/projectKey'
-#      responses:
+          $ref: "#/components/responses/Project"
+  # WIP updates can be added later
+  #    patch:
+  #      summary: change configuration of the project
+  #      parameters:
+  #        - $ref: '#/components/parameters/projectKey'
+  #      responses:
 
-# WIP NOT SURE IF NEEDED TBH
-#  /dev/projects/{projectKey}/overrides:
-#    get:
-#      summary: return all the flag overrides for the project
-#      parameters:
-#        - $ref: '#/components/parameters/projectKey'
-#      responses: // WIP
-#    delete:
-#      summary: clear all overrides for the project
-#      parameters:
-#        - $ref: '#/components/parameters/projectKey'
-#      responses: // WIP
+  # WIP NOT SURE IF NEEDED TBH
+  #  /dev/projects/{projectKey}/overrides:
+  #    get:
+  #      summary: return all the flag overrides for the project
+  #      parameters:
+  #        - $ref: '#/components/parameters/projectKey'
+  #      responses: // WIP
+  #    delete:
+  #      summary: clear all overrides for the project
+  #      parameters:
+  #        - $ref: '#/components/parameters/projectKey'
+  #      responses: // WIP
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
       parameters:
-        - $ref: '#/components/parameters/projectKey'
-        - $ref: '#/components/parameters/flagKey'
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/flagKey"
       requestBody:
         required: true
         description: flag value to override flag with. The json representation of the variation value.
         content:
           application/json:
             schema:
-                $ref: '#/components/schemas/FlagValue'
+              $ref: "#/components/schemas/FlagValue"
       responses:
         200:
-          $ref: '#/components/responses/FlagOverride'
+          $ref: "#/components/responses/FlagOverride"
 
     delete:
       summary: remove override for flag
       parameters:
-        - $ref: '#/components/parameters/projectKey'
-        - $ref: '#/components/parameters/flagKey'
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/flagKey"
       responses:
         204:
           description: OK. override removed
@@ -151,7 +151,7 @@ components:
               - value
             properties:
               value:
-                $ref: '#/components/schemas/FlagValue'
+                $ref: "#/components/schemas/FlagValue"
               override:
                 type: boolean
                 description: whether or not this is an overridden value or one from the source environment
@@ -177,7 +177,13 @@ components:
                   kind: user
                 x-go-type: ldcontext.Context
                 x-go-type-import:
-                    path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
+                  path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
+              flagsState:
+                type: object
+                description: flags and their values and version for a given project in the source environment
+                x-go-type: model.FlagsState
+                x-go-type-import:
+                  path: github.com/launchdarkly/ldcli/internal/dev_server/model
               _lastSyncedFromSource:
                 type: integer
                 x-go-type: int64

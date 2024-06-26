@@ -54,6 +54,7 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 			LastSyncedFromSource: project.LastSyncTime.Unix(),
 			Context:              project.Context,
 			SourceEnvironmentKey: project.SourceEnvironmentKey,
+			FlagsState:           &project.FlagState,
 		},
 	}, nil
 }
