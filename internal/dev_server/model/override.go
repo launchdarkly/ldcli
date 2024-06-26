@@ -3,7 +3,9 @@ package model
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/pkg/errors"
 )
 
 type Override struct {
@@ -12,6 +14,11 @@ type Override struct {
 	Value      ldvalue.Value
 	Active     bool
 	Version    int
+}
+
+type UpsertOverrideEvent struct {
+	FlagKey   string
+	FlagState FlagState
 }
 
 func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Override, error) {
@@ -31,10 +38,21 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Ove
 		Version:    1,
 	}
 	store := StoreFromContext(ctx)
-	err = store.UpsertOverride(ctx, override)
+	override, err = store.UpsertOverride(ctx, override)
 	if err != nil {
 		return Override{}, err
 	}
+
+	observers := GetObserversFromContext(ctx)
+	project, err := store.GetDevProject(ctx, projectKey)
+	if err != nil {
+		return Override{}, errors.Wrap(err, "unable to get project")
+	}
+	flagState := override.Apply(project.FlagState[flagKey])
+	observers.Notify(UpsertOverrideEvent{
+		FlagKey:   flagKey,
+		FlagState: flagState,
+	})
 
 	return override, err
 }

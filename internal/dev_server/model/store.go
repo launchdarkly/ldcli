@@ -17,7 +17,7 @@ type Store interface {
 	GetDevProject(ctx context.Context, projectKey string) (*Project, error)
 	DeleteDevProject(ctx context.Context, projectKey string) (bool, error)
 	InsertProject(ctx context.Context, project Project) error
-	UpsertOverride(ctx context.Context, override Override) error
+	UpsertOverride(ctx context.Context, override Override) (Override, error)
 }
 
 func ContextWithStore(ctx context.Context, store Store) context.Context {
