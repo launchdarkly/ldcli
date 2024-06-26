@@ -69,6 +69,7 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 			LastSyncedFromSource: project.LastSyncTime.Unix(),
 			Context:              project.Context,
 			SourceEnvironmentKey: project.SourceEnvironmentKey,
+			FlagsState:           &project.FlagState,
 		},
 	}, nil
 }
