@@ -104,7 +104,10 @@ func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context,
 func (s Server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
 	override, err := model.UpsertOverride(ctx, request.ProjectKey, request.FlagKey, request.Body.String())
 	if err != nil {
-		return nil, err
+		return PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse{InvalidRequestResponseJSONResponse{
+			Code:    "invalid_request",
+			Message: err.Error(),
+		}}, err
 	}
 	return PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse{FlagOverrideJSONResponse{
 		Override: override.Active,

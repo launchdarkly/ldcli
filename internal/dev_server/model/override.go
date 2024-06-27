@@ -3,6 +3,9 @@ package model
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/pkg/errors"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
 
@@ -15,12 +18,30 @@ type Override struct {
 }
 
 func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Override, error) {
-	// TODO: validate flag exists within project, + if the flag type matches
+	// TODO: validate if the flag type matches
 
 	var val ldvalue.Value
 	err := json.Unmarshal([]byte(value), &val)
 	if err != nil {
-		return Override{}, err
+		return Override{}, errors.New("invalid override value")
+	}
+
+	store := StoreFromContext(ctx)
+
+	project, err := store.GetDevProject(ctx, projectKey)
+	if err != nil || project == nil {
+		return Override{}, errors.New("project not found")
+	}
+
+	var flagExists bool
+	for flag, _ := range project.FlagState {
+		if flagKey == flag {
+			flagExists = true
+			break
+		}
+	}
+	if !flagExists {
+		return Override{}, errors.New("flag not found")
 	}
 
 	override := Override{
@@ -30,13 +51,13 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Ove
 		Active:     true,
 		Version:    1,
 	}
-	store := StoreFromContext(ctx)
+
 	err = store.UpsertOverride(ctx, override)
 	if err != nil {
 		return Override{}, err
 	}
 
-	return override, err
+	return override, nil
 }
 
 func (o Override) Apply(state FlagState) FlagState {
