@@ -64,3 +64,31 @@ func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context) (Flags
 	}
 	return withOverrides, nil
 }
+
+func SyncProject(ctx context.Context, projectKey string) (Project, error) {
+	store := StoreFromContext(ctx)
+	project, err := store.GetDevProject(ctx, projectKey)
+	if err != nil {
+		return Project{}, err
+	}
+	sdkAdapter := adapters.GetSdk(ctx)
+	apiAdapter := adapters.GetApi(ctx)
+	sdkKey, err := apiAdapter.GetSdkKey(ctx, projectKey, project.SourceEnvironmentKey)
+	if err != nil {
+		return Project{}, err
+	}
+	sdkFlags, err := sdkAdapter.GetAllFlagsState(ctx, project.Context, sdkKey)
+	if err != nil {
+		return Project{}, err
+	}
+	project.FlagState = FromAllFlags(sdkFlags)
+	project.LastSyncTime = time.Now()
+	updated, err := store.UpdateProject(ctx, *project)
+	if err != nil {
+		return Project{}, err
+	}
+	if !updated {
+		return Project{}, err
+	}
+	return *project, nil
+}

@@ -98,6 +98,41 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 	}, nil
 }
 
+func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request PatchDevProjectsProjectKeySyncRequestObject) (PatchDevProjectsProjectKeySyncResponseObject, error) {
+	store := model.StoreFromContext(ctx)
+	project, err := model.SyncProject(ctx, request.ProjectKey)
+	if err != nil {
+		return nil, err
+	}
+	if project.Key == "" && project.SourceEnvironmentKey == "" {
+		return PatchDevProjectsProjectKeySync404Response{}, nil
+	}
+
+	response := ProjectJSONResponse{
+		LastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:              project.Context,
+		SourceEnvironmentKey: project.SourceEnvironmentKey,
+		FlagsState:           &project.FlagState,
+	}
+
+	if request.Params.Expand != nil {
+		for _, item := range *request.Params.Expand {
+			if item == "overrides" {
+				overrides, err := store.GetOverridesForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				response.Overrides = &overrides
+			}
+		}
+
+	}
+
+	return PatchDevProjectsProjectKeySync200JSONResponse{
+		response,
+	}, nil
+}
+
 func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	err := store.DeleteOverride(ctx, request.ProjectKey, request.FlagKey)

@@ -15,6 +15,7 @@ type Store interface {
 	DeleteOverride(ctx context.Context, projectKey, flagKey string) error
 	GetDevProjects(ctx context.Context) ([]string, error)
 	GetDevProject(ctx context.Context, projectKey string) (*Project, error)
+	UpdateProject(ctx context.Context, project Project) (bool, error)
 	DeleteDevProject(ctx context.Context, projectKey string) (bool, error)
 	InsertProject(ctx context.Context, project Project) error
 	UpsertOverride(ctx context.Context, override Override) (Override, error)
