@@ -6,18 +6,16 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 
+	"github.com/adrg/xdg"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
-	"github.com/mitchellh/go-homedir"
-
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/api"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
+	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
 )
 
 type Client interface {
@@ -73,14 +71,9 @@ func RequestErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func getDBPath() string {
-	statePath := os.Getenv("XDG_STATE_HOME")
-	if statePath == "" {
-		home, _ := homedir.Dir()
-		statePath = filepath.Join(home, ".local/state")
-	}
-	ldStatePath := filepath.Join(statePath, "ldcli")
-	if err := os.MkdirAll(ldStatePath, 0700 /* only current user can access */); err != nil {
+	dbFilePath, err := xdg.StateFile("ldcli/dev_server.db")
+	if err != nil {
 		log.Fatalf("Unable to create state directory: %s", err)
 	}
-	return filepath.Join(ldStatePath, "dev_server.db")
+	return dbFilePath
 }
