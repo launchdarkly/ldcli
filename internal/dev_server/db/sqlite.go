@@ -100,11 +100,11 @@ VALUES (?, ?, ?, ?, ?)
 	return err
 }
 
-func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (model.FlagsState, error) {
+func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (model.Overrides, error) {
 	rows, err := s.database.QueryContext(ctx, `
-        SELECT flag_key, value, version
+        SELECT  flag_key, active, value, version
         FROM overrides 
-        WHERE project_key = ? AND active=1
+        WHERE project_key = ?
     `, projectKey)
 
 	if err != nil {
@@ -112,14 +112,14 @@ func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (
 	}
 	defer rows.Close()
 
-	overrides := make(model.FlagsState)
+	overrides := make(model.Overrides, 0)
 	for rows.Next() {
 		var flagKey string
+		var active bool
 		var value string
 		var version int
-		var flagState model.FlagState
 
-		err = rows.Scan(&flagKey, &value, &version)
+		err = rows.Scan(&flagKey, &active, &value, &version)
 		if err != nil {
 			return nil, err
 		}
@@ -129,12 +129,13 @@ func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (
 		if err != nil {
 			return nil, err
 		}
-
-		flagState = model.FlagState{
-			Value:   ldValue,
-			Version: version,
-		}
-		overrides[flagKey] = flagState
+		overrides = append(overrides, model.Override{
+			ProjectKey: projectKey,
+			FlagKey:    flagKey,
+			Value:      ldValue,
+			Active:     active,
+			Version:    version,
+		})
 	}
 
 	if err = rows.Err(); err != nil {
