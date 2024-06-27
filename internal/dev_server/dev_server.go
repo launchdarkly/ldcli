@@ -16,6 +16,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
+	"github.com/launchdarkly/ldcli/internal/dev_server/ui"
 )
 
 type Client interface {
@@ -49,6 +50,8 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 	r.Use(adapters.Middleware(*ldClient, "https://relay-stg.ld.catamorphic.com")) // TODO add to config
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(model.NewObservers()))
+	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
+	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
 	sdk.BindRoutes(r)
 	handler := api.HandlerFromMux(apiServer, r)
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
