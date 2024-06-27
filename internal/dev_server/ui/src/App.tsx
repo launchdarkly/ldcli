@@ -5,16 +5,19 @@ import {
   IconButton,
   Label,
   Switch,
+  Modal,
+  ModalOverlay,
+  DialogTrigger,
+  Dialog
 } from '@launchpad-ui/components';
 import {
   Box,
-  CopyToClipboard,
   InlineEdit,
   TextField,
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
 import './App.css';
-import { useEffect, useState } from 'react';
+import { FormEventHandler, useEffect, useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 
 function App() {
@@ -74,6 +77,12 @@ function App() {
         // todo
       });
   };
+
+  // const updateJSON = (e, key) => {
+  //   e.preventDefault()
+  //   console.log(e.target[0].value)
+  //   console.log(key)
+  // }
 
   // Fetch flags / overrides on mount
   useEffect(() => {
@@ -222,24 +231,45 @@ function App() {
                 break;
               default:
                 valueNode = (
-                  <InlineEdit
-                    defaultValue={JSON.stringify(
-                      hasOverride ? overrideValue : flagValue,
-                    )}
-                    onConfirm={(newValue: string) => {
-                      updateOverride(flagKey, JSON.parse(newValue));
-                    }}
-                    renderInput={<TextField id={`${flagKey}-override-input`} />}
-                  >
-                    <CopyToClipboard
-                      text={JSON.stringify(
-                        hasOverride ? overrideValue : flagValue,
-                      )}
-                      tooltip="Copy flag variation value"
-                    >
-                      {JSON.stringify(hasOverride ? overrideValue : flagValue)}
-                    </CopyToClipboard>
-                  </InlineEdit>
+                  <DialogTrigger >
+                    <Button style={{ border: 'none', padding: 0, margin: 0 }}>
+                      <textarea name='json' rows={8} readOnly={true} style={{ resize: 'none', overflowY: 'clip', cursor: 'pointer' }}
+                        value={JSON.stringify((hasOverride ? overrideValue : flagValue), null, 2)}>
+                      </textarea>
+                    </Button>
+                    <ModalOverlay>
+                      <Modal>
+                        <Dialog >
+                          <form onSubmit={(e: any) => {
+                            e.preventDefault();
+                            let newVal
+                            let error = false; 
+                            try {
+                              newVal = JSON.parse(e.target[0].value);
+                              }
+                              catch (err) {
+                                error = true
+                                }
+                            if (error) {
+                              window.alert("Incorrect JSON format")
+                              return;
+                            }
+                            updateOverride(flagKey, newVal)
+                            window.alert('JSON value updated')
+                          }}>
+                            <textarea name='json' style={{ width: '100%', height: '30rem' }}
+                              defaultValue={JSON.stringify((hasOverride ? overrideValue : flagValue), null, 2)} />
+
+                            <div>
+                              <Button variant='primary' type='submit'>
+                                Accept
+                              </Button>
+                            </div>
+                          </form>
+                        </Dialog>
+                      </Modal>
+                    </ModalOverlay>
+                  </DialogTrigger>
                 );
             }
 
