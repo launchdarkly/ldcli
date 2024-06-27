@@ -78,8 +78,9 @@ func getDBPath() string {
 		home, _ := homedir.Dir()
 		statePath = filepath.Join(home, ".local/state")
 	}
-	if err := os.MkdirAll(statePath, 0700 /* only current user can access */); err != nil {
+	ldStatePath := filepath.Join(statePath, "ldcli")
+	if err := os.MkdirAll(ldStatePath, 0700 /* only current user can access */); err != nil {
 		log.Fatalf("Unable to create state directory: %s", err)
 	}
-	return filepath.Join(statePath, "dev_server.db")
+	return filepath.Join(ldStatePath, "dev_server.db")
 }
