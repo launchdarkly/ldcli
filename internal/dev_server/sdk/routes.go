@@ -22,6 +22,8 @@ func BindRoutes(router *mux.Router) {
 
 	router.Handle("/all", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamServerAllPayload)))
 
+	router.PathPrefix("/meval").Handler(GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamClientFlags)))
+
 	evalRouter := router.PathPrefix("/eval").Subrouter()
 	evalRouter.Use(CorsHeaders)
 	evalRouter.Methods("OPTIONS").HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
@@ -34,10 +36,7 @@ func BindRoutes(router *mux.Router) {
 	clientsideSdkRouter.Methods("OPTIONS").HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
 	clientsideSdkRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
 	clientsideSdkRouter.HandleFunc("/goals/{envId}", ConstantResponseHandler(http.StatusOK, "[]"))
-	clientsideSdkRouter.HandleFunc("/evalx/{envId}/contexts/{contextBase64}", GetClientFlags)
-	clientsideSdkRouter.HandleFunc("/evalx/{envId}/contexts", GetClientFlags)
-	clientsideSdkRouter.HandleFunc("/evalx/{envId}/users", GetClientFlags)
-	clientsideSdkRouter.HandleFunc("/evalx/{envId}/users/{userBase64}", GetClientFlags)
+	clientsideSdkRouter.PathPrefix("/evalx/{envId}").HandlerFunc(GetClientFlags)
 
 	/*
 		✅	/all	GET	stream.	SSE stream for all data
@@ -47,8 +46,8 @@ func BindRoutes(router *mux.Router) {
 			/sdk/flags	GET	sdk.	Polling endpoint for PHP SDK
 			/sdk/flags/{flagKey}	GET	sdk.	Polling endpoint for PHP SDK
 			/sdk/segments/{segmentKey}	GET	sdk.	Polling endpoint for PHP SDK
-			/meval/{contextBase64}	GET	clientstream.	SSE stream of "ping" and other events
-			/meval	REPORT	clientstream.	Same as above, but request body is the evaluation context JSON object (not in base64)
+		✅	/meval/{contextBase64}	GET	clientstream.	SSE stream of "ping" and other events
+		✅	/meval	REPORT	clientstream.	Same as above, but request body is the evaluation context JSON object (not in base64)
 		✅	/mobile	POST	events.	For receiving events from mobile SDKs
 		✅	/mobile/events	POST	events.	Same as above
 		✅	/mobile/events/bulk	POST	events.	Same as above
