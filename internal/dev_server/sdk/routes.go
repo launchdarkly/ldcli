@@ -23,6 +23,7 @@ func BindRoutes(router *mux.Router) {
 	router.Handle("/all", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamServerAllPayload)))
 
 	router.PathPrefix("/meval").Handler(GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamClientFlags)))
+	router.PathPrefix("/msdk/evalx").Handler(GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(GetClientFlags)))
 
 	evalRouter := router.PathPrefix("/eval").Subrouter()
 	evalRouter.Use(CorsHeaders)
@@ -53,10 +54,10 @@ func BindRoutes(router *mux.Router) {
 		✅	/mobile/events/bulk	POST	events.	Same as above
 		✅	/mobile/events/diagnostic	POST	events.	Same as above
 			/mping	GET	clientstream.	SSE stream for older SDKs that issues "ping" events when flags have changed
-			/msdk/evalx/contexts/{contextBase64}	GET	clientsdk.	Polling endpoint, returns flag evaluation results for an evaluation context
-			/msdk/evalx/context	REPORT	clientsdk.	Same as above but request body is the evaluation context JSON object (not in base64)
-			/msdk/evalx/users/{contextBase64}	GET	clientsdk.	Alternate name for /msdk/evalx/contexts/{contextBase64} used by older SDKs
-			/msdk/evalx/user	REPORT	clientsdk.	Alternate name for /msdk/evalx/context used by older SDKs
+		✅	/msdk/evalx/contexts/{contextBase64}	GET	clientsdk.	Polling endpoint, returns flag evaluation results for an evaluation context
+		✅	/msdk/evalx/context	REPORT	clientsdk.	Same as above but request body is the evaluation context JSON object (not in base64)
+		✅	/msdk/evalx/users/{contextBase64}	GET	clientsdk.	Alternate name for /msdk/evalx/contexts/{contextBase64} used by older SDKs
+		✅	/msdk/evalx/user	REPORT	clientsdk.	Alternate name for /msdk/evalx/context used by older SDKs
 			/a/{envId}.gif?d=*events*	GET	events.	Alternative analytics event mechanism used if browser does not allow CORS
 		✅	/eval/{envId}/{contextBase64}	GET	clientstream.	SSE stream of "ping" and other events for JS and other client-side SDK listeners
 		✅	/eval/{envId}	REPORT	clientstream.	Same as above but request body is the evaluation context JSON object (not in base64)
