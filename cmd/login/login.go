@@ -73,14 +73,11 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 		var b strings.Builder
 		b.WriteString(fmt.Sprintf("Your code is %s\n", deviceAuthorization.UserCode))
 		b.WriteString("This code verifies your authentication with LaunchDarkly.\n")
-
-		err = browser.OpenURL(fullURL)
-		if err == nil {
-			b.WriteString("Please check your browser to confirm your login.\n")
-		} else {
-			b.WriteString(fmt.Sprintf("If your browser did not open to confirm your login, visit %s.\n", fullURL))
-		}
+		b.WriteString(fmt.Sprintf("Opening your browser to %s to finish verifying your login.\n", fullURL))
+		b.WriteString("If your browser does not open automatically, you can paste the above URL into your browser.")
 		fmt.Fprintln(cmd.OutOrStdout(), b.String())
+
+		_ = browser.OpenURL(fullURL)
 
 		deviceAuthorizationToken, err := login.FetchToken(
 			client,
