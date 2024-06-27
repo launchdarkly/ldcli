@@ -66,6 +66,29 @@ func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, 
 	return &project, nil
 }
 
+func (s Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool, error) {
+	flagsStateJson, err := json.Marshal(project.FlagState)
+	if err != nil {
+		return false, errors.Wrap(err, "unable to marshal flags state when updating project")
+	}
+
+	result, err := s.database.ExecContext(ctx, `
+		UPDATE projects
+		SET flag_state = ?, last_sync_time = ?
+		WHERE key = ?;
+	`, flagsStateJson, project.LastSyncTime, project.Key)
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if rowsAffected == 0 {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func (s Sqlite) DeleteDevProject(ctx context.Context, key string) (bool, error) {
 	result, err := s.database.Exec("DELETE FROM projects where key=?", key)
 	if err != nil {

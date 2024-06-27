@@ -19,7 +19,17 @@ import (
 
 // Defines values for GetDevProjectsProjectKeyParamsExpand.
 const (
-	Overrides GetDevProjectsProjectKeyParamsExpand = "overrides"
+	GetDevProjectsProjectKeyParamsExpandOverrides GetDevProjectsProjectKeyParamsExpand = "overrides"
+)
+
+// Defines values for PostDevProjectsProjectKeyParamsExpand.
+const (
+	PostDevProjectsProjectKeyParamsExpandOverrides PostDevProjectsProjectKeyParamsExpand = "overrides"
+)
+
+// Defines values for PatchDevProjectsProjectKeySyncParamsExpand.
+const (
+	Overrides PatchDevProjectsProjectKeySyncParamsExpand = "overrides"
 )
 
 // FlagValue value of a feature flag variation
@@ -37,7 +47,7 @@ type Project struct {
 	FlagsState *model.FlagsState `json:"flagsState,omitempty"`
 
 	// Overrides flags and their values and version for a given project in the source environment
-	Overrides *model.FlagsState `json:"overrides,omitempty"`
+	Overrides *model.Overrides `json:"overrides,omitempty"`
 
 	// SourceEnvironmentKey environment to copy flag values from
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
@@ -73,6 +83,24 @@ type PostDevProjectsProjectKeyJSONBody struct {
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
 }
 
+// PostDevProjectsProjectKeyParams defines parameters for PostDevProjectsProjectKey.
+type PostDevProjectsProjectKeyParams struct {
+	// Expand Available expand options for this endpoint.
+	Expand *[]PostDevProjectsProjectKeyParamsExpand `form:"expand,omitempty" json:"expand,omitempty"`
+}
+
+// PostDevProjectsProjectKeyParamsExpand defines parameters for PostDevProjectsProjectKey.
+type PostDevProjectsProjectKeyParamsExpand string
+
+// PatchDevProjectsProjectKeySyncParams defines parameters for PatchDevProjectsProjectKeySync.
+type PatchDevProjectsProjectKeySyncParams struct {
+	// Expand Available expand options for this endpoint.
+	Expand *[]PatchDevProjectsProjectKeySyncParamsExpand `form:"expand,omitempty" json:"expand,omitempty"`
+}
+
+// PatchDevProjectsProjectKeySyncParamsExpand defines parameters for PatchDevProjectsProjectKeySync.
+type PatchDevProjectsProjectKeySyncParamsExpand string
+
 // PostDevProjectsProjectKeyJSONRequestBody defines body for PostDevProjectsProjectKey for application/json ContentType.
 type PostDevProjectsProjectKeyJSONRequestBody PostDevProjectsProjectKeyJSONBody
 
@@ -92,13 +120,16 @@ type ServerInterface interface {
 	GetDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetDevProjectsProjectKeyParams)
 	// Add the project to the dev server
 	// (POST /dev/projects/{projectKey})
-	PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
+	PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostDevProjectsProjectKeyParams)
 	// remove override for flag
 	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
 	DeleteDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
 	// override flag value with value provided in the body
 	// (PUT /dev/projects/{projectKey}/overrides/{flagKey})
 	PutDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
+	// updates the flag state for the given project and source environment
+	// (PATCH /dev/projects/{projectKey}/sync)
+	PatchDevProjectsProjectKeySync(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchDevProjectsProjectKeySyncParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -203,8 +234,19 @@ func (siw *ServerInterfaceWrapper) PostDevProjectsProjectKey(w http.ResponseWrit
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostDevProjectsProjectKeyParams
+
+	// ------------- Optional query parameter "expand" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "expand", r.URL.Query(), &params.Expand)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expand", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostDevProjectsProjectKey(w, r, projectKey)
+		siw.Handler.PostDevProjectsProjectKey(w, r, projectKey, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -275,6 +317,43 @@ func (siw *ServerInterfaceWrapper) PutDevProjectsProjectKeyOverridesFlagKey(w ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutDevProjectsProjectKeyOverridesFlagKey(w, r, projectKey, flagKey)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// PatchDevProjectsProjectKeySync operation middleware
+func (siw *ServerInterfaceWrapper) PatchDevProjectsProjectKeySync(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "projectKey" -------------
+	var projectKey ProjectKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectKey", mux.Vars(r)["projectKey"], &projectKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectKey", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PatchDevProjectsProjectKeySyncParams
+
+	// ------------- Optional query parameter "expand" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "expand", r.URL.Query(), &params.Expand)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expand", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchDevProjectsProjectKeySync(w, r, projectKey, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -409,6 +488,8 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.PutDevProjectsProjectKeyOverridesFlagKey).Methods("PUT")
 
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/sync", wrapper.PatchDevProjectsProjectKeySync).Methods("PATCH")
+
 	return r
 }
 
@@ -490,6 +571,7 @@ func (response GetDevProjectsProjectKey404Response) VisitGetDevProjectsProjectKe
 
 type PostDevProjectsProjectKeyRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
+	Params     PostDevProjectsProjectKeyParams
 	Body       *PostDevProjectsProjectKeyJSONRequestBody
 }
 
@@ -550,6 +632,32 @@ func (response PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse) VisitPut
 	return json.NewEncoder(w).Encode(response)
 }
 
+type PatchDevProjectsProjectKeySyncRequestObject struct {
+	ProjectKey ProjectKey `json:"projectKey"`
+	Params     PatchDevProjectsProjectKeySyncParams
+}
+
+type PatchDevProjectsProjectKeySyncResponseObject interface {
+	VisitPatchDevProjectsProjectKeySyncResponse(w http.ResponseWriter) error
+}
+
+type PatchDevProjectsProjectKeySync200JSONResponse struct{ ProjectJSONResponse }
+
+func (response PatchDevProjectsProjectKeySync200JSONResponse) VisitPatchDevProjectsProjectKeySyncResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchDevProjectsProjectKeySync404Response struct {
+}
+
+func (response PatchDevProjectsProjectKeySync404Response) VisitPatchDevProjectsProjectKeySyncResponse(w http.ResponseWriter) error {
+	w.WriteHeader(404)
+	return nil
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// lists all projects that have been configured for the dev server
@@ -570,6 +678,9 @@ type StrictServerInterface interface {
 	// override flag value with value provided in the body
 	// (PUT /dev/projects/{projectKey}/overrides/{flagKey})
 	PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error)
+	// updates the flag state for the given project and source environment
+	// (PATCH /dev/projects/{projectKey}/sync)
+	PatchDevProjectsProjectKeySync(ctx context.Context, request PatchDevProjectsProjectKeySyncRequestObject) (PatchDevProjectsProjectKeySyncResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -679,10 +790,11 @@ func (sh *strictHandler) GetDevProjectsProjectKey(w http.ResponseWriter, r *http
 }
 
 // PostDevProjectsProjectKey operation middleware
-func (sh *strictHandler) PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
+func (sh *strictHandler) PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostDevProjectsProjectKeyParams) {
 	var request PostDevProjectsProjectKeyRequestObject
 
 	request.ProjectKey = projectKey
+	request.Params = params
 
 	var body PostDevProjectsProjectKeyJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -765,6 +877,33 @@ func (sh *strictHandler) PutDevProjectsProjectKeyOverridesFlagKey(w http.Respons
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutDevProjectsProjectKeyOverridesFlagKeyResponseObject); ok {
 		if err := validResponse.VisitPutDevProjectsProjectKeyOverridesFlagKeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchDevProjectsProjectKeySync operation middleware
+func (sh *strictHandler) PatchDevProjectsProjectKeySync(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchDevProjectsProjectKeySyncParams) {
+	var request PatchDevProjectsProjectKeySyncRequestObject
+
+	request.ProjectKey = projectKey
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PatchDevProjectsProjectKeySync(ctx, request.(PatchDevProjectsProjectKeySyncRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchDevProjectsProjectKeySync")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchDevProjectsProjectKeySyncResponseObject); ok {
+		if err := validResponse.VisitPatchDevProjectsProjectKeySyncResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
