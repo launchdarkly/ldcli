@@ -17,6 +17,12 @@ type Override struct {
 	Version    int
 }
 
+type UpsertOverrideEvent struct {
+	FlagKey    string
+	ProjectKey string
+	FlagState  FlagState
+}
+
 func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Override, error) {
 	// TODO: validate if the flag type matches
 
@@ -52,12 +58,23 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Ove
 		Version:    1,
 	}
 
-	err = store.UpsertOverride(ctx, override)
+	override, err = store.UpsertOverride(ctx, override)
 	if err != nil {
 		return Override{}, err
 	}
 
-	return override, nil
+	observers := GetObserversFromContext(ctx)
+	if err != nil {
+		return Override{}, errors.Wrap(err, "unable to get project")
+	}
+	flagState := override.Apply(project.FlagState[flagKey])
+	observers.Notify(UpsertOverrideEvent{
+		FlagKey:    flagKey,
+		ProjectKey: projectKey,
+		FlagState:  flagState,
+	})
+
+	return override, err
 }
 
 func (o Override) Apply(state FlagState) FlagState {

@@ -66,6 +66,29 @@ func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, 
 	return &project, nil
 }
 
+func (s Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool, error) {
+	flagsStateJson, err := json.Marshal(project.FlagState)
+	if err != nil {
+		return false, errors.Wrap(err, "unable to marshal flags state when updating project")
+	}
+
+	result, err := s.database.ExecContext(ctx, `
+		UPDATE projects
+		SET flag_state = ?, last_sync_time = ?
+		WHERE key = ?;
+	`, flagsStateJson, project.LastSyncTime, project.Key)
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if rowsAffected == 0 {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func (s Sqlite) DeleteDevProject(ctx context.Context, key string) (bool, error) {
 	result, err := s.database.Exec("DELETE FROM projects where key=?", key)
 	if err != nil {
@@ -100,11 +123,11 @@ VALUES (?, ?, ?, ?, ?)
 	return err
 }
 
-func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (model.FlagsState, error) {
+func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (model.Overrides, error) {
 	rows, err := s.database.QueryContext(ctx, `
-        SELECT flag_key, value, version
+        SELECT  flag_key, active, value, version
         FROM overrides 
-        WHERE project_key = ? AND active=1
+        WHERE project_key = ?
     `, projectKey)
 
 	if err != nil {
@@ -112,14 +135,14 @@ func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (
 	}
 	defer rows.Close()
 
-	overrides := make(model.FlagsState)
+	overrides := make(model.Overrides, 0)
 	for rows.Next() {
 		var flagKey string
+		var active bool
 		var value string
 		var version int
-		var flagState model.FlagState
 
-		err = rows.Scan(&flagKey, &value, &version)
+		err = rows.Scan(&flagKey, &active, &value, &version)
 		if err != nil {
 			return nil, err
 		}
@@ -129,12 +152,13 @@ func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (
 		if err != nil {
 			return nil, err
 		}
-
-		flagState = model.FlagState{
-			Value:   ldValue,
-			Version: version,
-		}
-		overrides[flagKey] = flagState
+		overrides = append(overrides, model.Override{
+			ProjectKey: projectKey,
+			FlagKey:    flagKey,
+			Value:      ldValue,
+			Active:     active,
+			Version:    version,
+		})
 	}
 
 	if err = rows.Err(); err != nil {
@@ -144,27 +168,33 @@ func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (
 	return overrides, nil
 }
 
-func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) error {
+func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) (model.Override, error) {
 	valueJson, err := override.Value.MarshalJSON()
 	if err != nil {
-		return errors.Wrap(err, "unable to marshal override value when writing override")
+		return model.Override{}, errors.Wrap(err, "unable to marshal override value when writing override")
 	}
-
-	_, err = s.database.Exec(`
+	row := s.database.QueryRowContext(ctx, `
 		INSERT INTO overrides (project_key, flag_key, value, active)
 		VALUES (?, ?, ?, ?)
 			ON CONFLICT(flag_key, project_key) DO UPDATE SET
 			    value=excluded.value,
 			    active=excluded.active,
-			    version=version+1;
+			    version=version+1
+		RETURNING project_key, flag_key, active, value, version;
 	`,
 		override.ProjectKey,
 		override.FlagKey,
 		valueJson,
 		override.Active,
 	)
-
-	return err
+	var tempValue []byte
+	if err := row.Scan(&override.ProjectKey, &override.FlagKey, &override.Active, &tempValue, &override.Version); err != nil {
+		return model.Override{}, errors.Wrap(err, "unable to upsert override")
+	}
+	if err := json.Unmarshal(tempValue, &override.Value); err != nil {
+		return model.Override{}, errors.Wrap(err, "unable to unmarshal override value")
+	}
+	return override, nil
 }
 
 func (s Sqlite) DeleteOverride(ctx context.Context, projectKey, flagKey string) error {

@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
-import { useEffect } from "react";
-import { IconContext } from "@launchpad-ui/icons";
-import sprite from "@launchpad-ui/icons/sprite.svg";
+import type { ReactNode } from 'react';
+import { useEffect } from 'react';
+import { IconContext } from '@launchpad-ui/icons';
+import sprite from '@launchpad-ui/icons/sprite.svg';
 
 export function IconProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -11,10 +11,10 @@ export function IconProvider({ children }: { children: ReactNode }) {
         const parser = new DOMParser();
         const content = parser.parseFromString(
           data,
-          "image/svg+xml",
+          'image/svg+xml',
         ).documentElement;
-        content.id = "lp-icons-sprite";
-        content.style.display = "none";
+        content.id = 'lp-icons-sprite';
+        content.style.display = 'none';
         document.body.appendChild(content);
       })
       .catch((_err) => {
@@ -23,6 +23,6 @@ export function IconProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <IconContext.Provider value={{ path: "" }}>{children}</IconContext.Provider>
+    <IconContext.Provider value={{ path: '' }}>{children}</IconContext.Provider>
   );
 }

@@ -1,6 +1,6 @@
-@import url("../node_modules/@launchpad-ui/tokens/dist/index.css");
-@import url("../node_modules/@launchpad-ui/tokens/dist/media-queries.css");
-@import url("../node_modules/@launchpad-ui/tokens/dist/themes.css");
+@import url('../node_modules/@launchpad-ui/tokens/dist/index.css');
+@import url('../node_modules/@launchpad-ui/tokens/dist/media-queries.css');
+@import url('../node_modules/@launchpad-ui/tokens/dist/themes.css');
 
 html,
 body,
@@ -14,11 +14,20 @@ body,
   padding: 2rem;
 }
 
+.container {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.only-show-overrides-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
 ul.flags-list {
   margin: 0;
   padding: 0;
-  max-width: 40rem;
-  margin: 0 auto;
 }
 
 ul.flags-list li {
@@ -30,11 +39,23 @@ ul.flags-list li {
   align-items: center;
 }
 
+ul.flags-list li .flag-value {
+  overflow-x: overlay;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 1;
+}
+
 code {
   background-color: var(--lp-color-bg-ui-secondary);
   border: 1px solid var(--lp-color-border-ui-primary);
   border-radius: 2px;
-  color: var(--lp-color-pink-600);
   font-size: 87.5%;
   padding: 0.125rem 0.25rem;
+}
+
+code.has-override {
+  color: var(--lp-color-pink-600);
 }

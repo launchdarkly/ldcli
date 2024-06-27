@@ -44,7 +44,7 @@ func listProjects(client dev_server.LocalClient) func(*cobra.Command, []string) 
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(res))
+		fmt.Fprint(cmd.OutOrStdout(), string(res))
 
 		return nil
 	}
@@ -82,7 +82,7 @@ func getProject(client dev_server.LocalClient) func(*cobra.Command, []string) er
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), string(res))
+		fmt.Fprint(cmd.OutOrStdout(), string(res))
 
 		return nil
 	}
@@ -111,16 +111,16 @@ func NewSyncProjectCmd(client dev_server.LocalClient) *cobra.Command {
 func syncProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
-		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "sync"
+		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "/sync"
 		res, err := client.MakeRequest(
-			"PUT",
+			"PATCH",
 			path,
 			nil,
 		)
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), string(res))
+		fmt.Fprint(cmd.OutOrStdout(), string(res))
 
 		return nil
 	}
@@ -159,7 +159,7 @@ func deleteProject(client dev_server.LocalClient) func(*cobra.Command, []string)
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(res))
+		fmt.Fprint(cmd.OutOrStdout(), string(res))
 
 		return nil
 	}
@@ -233,7 +233,7 @@ func addProject(client dev_server.LocalClient) func(*cobra.Command, []string) er
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), string(res))
+		fmt.Fprint(cmd.OutOrStdout(), string(res))
 
 		return nil
 	}

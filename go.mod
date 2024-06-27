@@ -3,6 +3,7 @@ module github.com/launchdarkly/ldcli
 go 1.22
 
 require (
+	github.com/adrg/xdg v0.4.0
 	github.com/charmbracelet/bubbles v0.18.0
 	github.com/charmbracelet/bubbletea v0.25.0
 	github.com/charmbracelet/glamour v0.6.0

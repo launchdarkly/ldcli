@@ -7,15 +7,16 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/adrg/xdg"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
-
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/api"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
+	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
+	"github.com/launchdarkly/ldcli/internal/dev_server/ui"
 )
 
 type Client interface {
@@ -34,15 +35,23 @@ func NewClient(cliVersion string) LDClient {
 
 func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 	ldClient := client.New(accessToken, baseURI, c.cliVersion)
-	sqlStore, err := db.NewSqlite(ctx, "devserver.db")
+	dbPath := getDBPath()
+	log.Printf("Using database at %s", dbPath)
+	sqlStore, err := db.NewSqlite(ctx, getDBPath())
 	if err != nil {
 		log.Fatal(err)
 	}
 	ss := api.NewStrictServer()
-	apiServer := api.NewStrictHandler(ss, nil)
+	apiServer := api.NewStrictHandlerWithOptions(ss, nil, api.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc:  RequestErrorHandler,
+		ResponseErrorHandlerFunc: ResponseErrorHandler,
+	})
 	r := mux.NewRouter()
-	r.Use(adapters.Middleware(*ldClient, "https://events.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com", "https://relay-stg.ld.catamorphic.com")) // TODO add to config
+	r.Use(adapters.Middleware(*ldClient, "https://relay-stg.ld.catamorphic.com")) // TODO add to config
 	r.Use(model.StoreMiddleware(sqlStore))
+	r.Use(model.ObserversMiddleware(model.NewObservers()))
+	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
+	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
 	sdk.BindRoutes(r)
 	handler := api.HandlerFromMux(apiServer, r)
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
@@ -53,4 +62,21 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 		Handler: handler,
 	}
 	log.Fatal(server.ListenAndServe())
+}
+
+func ResponseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("Error while serving response: %+v", err)
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+func RequestErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("Error while serving request: %+v", err)
+	http.Error(w, err.Error(), http.StatusBadRequest)
+}
+
+func getDBPath() string {
+	dbFilePath, err := xdg.StateFile("ldcli/dev_server.db")
+	if err != nil {
+		log.Fatalf("Unable to create state directory: %s", err)
+	}
+	return dbFilePath
 }

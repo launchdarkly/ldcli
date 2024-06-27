@@ -23,6 +23,25 @@ paths:
                 items:
                   type: string
                 uniqueItems: true
+  /dev/projects/{projectKey}/sync:
+    patch:
+      summary: updates the flag state for the given project and source environment
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - name: expand
+          description: Available expand options for this endpoint.
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - overrides
+      responses:
+        200:
+          $ref: "#/components/responses/Project"
+        404:
+          description: No project found
   /dev/projects/{projectKey}:
     get:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
@@ -56,6 +75,15 @@ paths:
       summary: Add the project to the dev server
       parameters:
         - $ref: "#/components/parameters/projectKey"
+        - name: expand
+          description: Available expand options for this endpoint.
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - overrides
       requestBody:
         content:
           application/json:
@@ -179,7 +207,7 @@ components:
         overrides:
           type: object
           description: flags and their values and version for a given project in the source environment
-          x-go-type: model.FlagsState
+          x-go-type: model.Overrides
           x-go-type-import:
             path: github.com/launchdarkly/ldcli/internal/dev_server/model
         _lastSyncedFromSource:
