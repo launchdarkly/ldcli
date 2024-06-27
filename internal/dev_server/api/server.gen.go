@@ -47,7 +47,7 @@ type Project struct {
 	FlagsState *model.FlagsState `json:"flagsState,omitempty"`
 
 	// Overrides flags and their values and version for a given project in the source environment
-	Overrides *model.Overrides `json:"overrides,omitempty"`
+	Overrides *model.FlagsState `json:"overrides,omitempty"`
 
 	// SourceEnvironmentKey environment to copy flag values from
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`

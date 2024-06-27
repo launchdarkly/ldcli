@@ -74,6 +74,7 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 						Version: override.Version,
 					}
 				}
+				response.Overrides = &respOverrides
 			}
 		}
 
@@ -105,7 +106,17 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 				if err != nil {
 					return nil, err
 				}
-				response.Overrides = &overrides
+				respOverrides := make(model.FlagsState)
+				for _, override := range overrides {
+					if !override.Active {
+						continue
+					}
+					respOverrides[override.FlagKey] = model.FlagState{
+						Value:   override.Value,
+						Version: override.Version,
+					}
+				}
+				response.Overrides = &respOverrides
 			}
 		}
 
@@ -140,7 +151,17 @@ func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request Patc
 				if err != nil {
 					return nil, err
 				}
-				response.Overrides = &overrides
+				respOverrides := make(model.FlagsState)
+				for _, override := range overrides {
+					if !override.Active {
+						continue
+					}
+					respOverrides[override.FlagKey] = model.FlagState{
+						Value:   override.Value,
+						Version: override.Version,
+					}
+				}
+				response.Overrides = &respOverrides
 			}
 		}
 

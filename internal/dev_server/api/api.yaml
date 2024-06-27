@@ -205,7 +205,7 @@ components:
         overrides:
           type: object
           description: flags and their values and version for a given project in the source environment
-          x-go-type: model.Overrides
+          x-go-type: model.FlagsState
           x-go-type-import:
             path: github.com/launchdarkly/ldcli/internal/dev_server/model
         _lastSyncedFromSource:
