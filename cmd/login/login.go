@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -68,17 +69,17 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
+		fullURL := fmt.Sprintf("%s/%s", viper.GetString(cliflags.BaseURIFlag), deviceAuthorization.VerificationURI)
 		var b strings.Builder
 		b.WriteString(fmt.Sprintf("Your code is %s\n", deviceAuthorization.UserCode))
 		b.WriteString("This code verifies your authentication with LaunchDarkly.\n")
-		b.WriteString(
-			fmt.Sprintf(
-				"Press Enter to open the browser or visit %s/%s (^C to quit)\n",
-				viper.GetString(cliflags.BaseURIFlag),
-				deviceAuthorization.VerificationURI,
-			),
-		)
+		b.WriteString(fmt.Sprintf("If your browser did not open to confirm your login, visit %s\n", fullURL))
 		fmt.Fprintln(cmd.OutOrStdout(), b.String())
+
+		err = browser.OpenURL(fullURL)
+		if err != nil {
+			return err
+		}
 
 		deviceAuthorizationToken, err := login.FetchToken(
 			client,

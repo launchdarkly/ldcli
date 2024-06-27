@@ -147,7 +147,7 @@ func FetchToken(
 		case "expired_token":
 			return DeviceAuthorizationToken{}, errors.NewError("Your request has expired. Please try logging in again.")
 		default:
-			return DeviceAuthorizationToken{}, errors.NewErrorWrapped("We cannot complete your request.", err)
+			return DeviceAuthorizationToken{}, errors.NewErrorWrapped(fmt.Sprintf("We cannot complete your request: %s", e.Message), err)
 		}
 		time.Sleep(interval)
 	}
