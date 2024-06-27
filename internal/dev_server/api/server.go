@@ -84,17 +84,34 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 }
 
 func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
+	store := model.StoreFromContext(ctx)
 	project, err := model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	response := ProjectJSONResponse{
+		LastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:              project.Context,
+		SourceEnvironmentKey: project.SourceEnvironmentKey,
+		FlagsState:           &project.FlagState,
+	}
+
+	if request.Params.Expand != nil {
+		for _, item := range *request.Params.Expand {
+			if item == "overrides" {
+				overrides, err := store.GetOverridesForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				response.Overrides = &overrides
+			}
+		}
+
+	}
+
 	return PostDevProjectsProjectKey201JSONResponse{
-		ProjectJSONResponse{
-			LastSyncedFromSource: project.LastSyncTime.Unix(),
-			Context:              project.Context,
-			SourceEnvironmentKey: project.SourceEnvironmentKey,
-			FlagsState:           &project.FlagState,
-		},
+		response,
 	}, nil
 }
 

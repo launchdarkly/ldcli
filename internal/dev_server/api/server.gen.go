@@ -22,9 +22,14 @@ const (
 	GetDevProjectsProjectKeyParamsExpandOverrides GetDevProjectsProjectKeyParamsExpand = "overrides"
 )
 
+// Defines values for PostDevProjectsProjectKeyParamsExpand.
+const (
+	PostDevProjectsProjectKeyParamsExpandOverrides PostDevProjectsProjectKeyParamsExpand = "overrides"
+)
+
 // Defines values for PatchDevProjectsProjectKeySyncParamsExpand.
 const (
-	PatchDevProjectsProjectKeySyncParamsExpandOverrides PatchDevProjectsProjectKeySyncParamsExpand = "overrides"
+	Overrides PatchDevProjectsProjectKeySyncParamsExpand = "overrides"
 )
 
 // FlagValue value of a feature flag variation
@@ -78,6 +83,15 @@ type PostDevProjectsProjectKeyJSONBody struct {
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
 }
 
+// PostDevProjectsProjectKeyParams defines parameters for PostDevProjectsProjectKey.
+type PostDevProjectsProjectKeyParams struct {
+	// Expand Available expand options for this endpoint.
+	Expand *[]PostDevProjectsProjectKeyParamsExpand `form:"expand,omitempty" json:"expand,omitempty"`
+}
+
+// PostDevProjectsProjectKeyParamsExpand defines parameters for PostDevProjectsProjectKey.
+type PostDevProjectsProjectKeyParamsExpand string
+
 // PatchDevProjectsProjectKeySyncParams defines parameters for PatchDevProjectsProjectKeySync.
 type PatchDevProjectsProjectKeySyncParams struct {
 	// Expand Available expand options for this endpoint.
@@ -106,7 +120,7 @@ type ServerInterface interface {
 	GetDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetDevProjectsProjectKeyParams)
 	// Add the project to the dev server
 	// (POST /dev/projects/{projectKey})
-	PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
+	PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostDevProjectsProjectKeyParams)
 	// remove override for flag
 	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
 	DeleteDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
@@ -220,8 +234,19 @@ func (siw *ServerInterfaceWrapper) PostDevProjectsProjectKey(w http.ResponseWrit
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostDevProjectsProjectKeyParams
+
+	// ------------- Optional query parameter "expand" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "expand", r.URL.Query(), &params.Expand)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expand", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostDevProjectsProjectKey(w, r, projectKey)
+		siw.Handler.PostDevProjectsProjectKey(w, r, projectKey, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -546,6 +571,7 @@ func (response GetDevProjectsProjectKey404Response) VisitGetDevProjectsProjectKe
 
 type PostDevProjectsProjectKeyRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
+	Params     PostDevProjectsProjectKeyParams
 	Body       *PostDevProjectsProjectKeyJSONRequestBody
 }
 
@@ -764,10 +790,11 @@ func (sh *strictHandler) GetDevProjectsProjectKey(w http.ResponseWriter, r *http
 }
 
 // PostDevProjectsProjectKey operation middleware
-func (sh *strictHandler) PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
+func (sh *strictHandler) PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostDevProjectsProjectKeyParams) {
 	var request PostDevProjectsProjectKeyRequestObject
 
 	request.ProjectKey = projectKey
+	request.Params = params
 
 	var body PostDevProjectsProjectKeyJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {

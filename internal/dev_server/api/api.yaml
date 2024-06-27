@@ -75,6 +75,15 @@ paths:
       summary: Add the project to the dev server
       parameters:
         - $ref: "#/components/parameters/projectKey"
+        - name: expand
+          description: Available expand options for this endpoint.
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - overrides
       requestBody:
         content:
           application/json:
