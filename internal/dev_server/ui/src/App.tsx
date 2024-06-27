@@ -1,88 +1,271 @@
-import { LDFlagSet, LDFlagValue } from "launchdarkly-js-client-sdk";
-import { Switch } from "@launchpad-ui/components";
-import { CopyToClipboard, InlineEdit, TextField } from "@launchpad-ui/core";
-import "./App.css";
-import { useEffect, useState } from "react";
+import { LDFlagSet, LDFlagValue } from 'launchdarkly-js-client-sdk';
+import {
+  Button,
+  Checkbox,
+  IconButton,
+  Label,
+  Switch,
+} from '@launchpad-ui/components';
+import {
+  Box,
+  CopyToClipboard,
+  InlineEdit,
+  TextField,
+} from '@launchpad-ui/core';
+import Theme from '@launchpad-ui/tokens';
+import './App.css';
+import { useEffect, useState } from 'react';
+import { Icon } from '@launchpad-ui/icons';
 
 function App() {
   const [flags, setFlags] = useState<LDFlagSet | null>(null);
+  const [overrides, setOverrides] = useState<Record<
+    string,
+    { value: LDFlagValue }
+  > | null>(null);
+  const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
+  const overridesPresent = overrides && Object.keys(overrides).length > 0;
 
-  useEffect(() => {
-    fetch("/api/dev/projects/default?expand=overrides")
+  const updateOverride = (flagKey: string, overrideValue: LDFlagValue) => {
+    fetch(`api/dev/projects/default/overrides/${flagKey}`, {
+      method: 'PUT',
+      body: JSON.stringify(overrideValue),
+    })
       .then(async (res) => {
-        if (res.ok) {
-          const flags = (await res.json()).flagsState;
-          const sortedFlags = Object.keys(flags)
-            .sort((a, b) => a.localeCompare(b))
-            .reduce<Record<string, LDFlagValue>>((accum, flagKey) => {
-              accum[flagKey] = flags[flagKey];
+        if (!res.ok) {
+          return; // todo
+        }
 
-              return accum;
-            }, {});
+        const updatedOverrides = {
+          ...overrides,
+          ...{
+            [flagKey]: {
+              value: overrideValue,
+            },
+          },
+        };
 
-          setFlags(sortedFlags);
+        setOverrides(updatedOverrides);
+      })
+      .catch((e) => {
+        // todo
+      });
+  };
+
+  const removeOverride = (flagKey: string, updateState: boolean = true) => {
+    return fetch(`api/dev/projects/default/overrides/${flagKey}`, {
+      method: 'DELETE',
+    })
+      .then((res) => {
+        // todo: clean this up.
+        //
+        // In the remove-all-override case, we need to fan out and make the
+        // request for every override, so we don't want to be interleaving
+        // local state updates. Expect the consumer to update the local state
+        // when all requests are done
+        if (res.ok && updateState) {
+          const updatedOverrides = { ...overrides };
+          delete updatedOverrides[flagKey];
+
+          setOverrides(updatedOverrides);
         }
       })
       .catch((e) => {
-        // todo: handle failure to load flag data
+        // todo
+      });
+  };
+
+  // Fetch flags / overrides on mount
+  useEffect(() => {
+    fetch('/api/dev/projects/default?expand=overrides')
+      .then(async (res) => {
+        if (!res.ok) {
+          return; // todo
+        }
+
+        const json = await res.json();
+        const { flagsState: flags, overrides } = json;
+        const sortedFlags = Object.keys(flags)
+          .sort((a, b) => a.localeCompare(b))
+          .reduce<Record<string, LDFlagValue>>((accum, flagKey) => {
+            accum[flagKey] = flags[flagKey];
+
+            return accum;
+          }, {});
+
+        setFlags(sortedFlags);
+        setOverrides(overrides);
+      })
+      .catch((e) => {
+        // todo
       });
   }, []);
 
+  if (!flags) {
+    return null;
+  }
+
   return (
     <>
-      <div>
-        <ul className="flags-list">
-          {flags &&
-            Object.entries(flags).map(([flagKey, { value: flagValue }]) => {
-              let valueNode;
+      <div className="container">
+        <Box
+          display="flex"
+          flexDirection="row"
+          justifyContent="space-between"
+          alignItems="center"
+          marginBottom="2rem"
+          padding="1rem"
+          background={Theme.color.blue[50]}
+          borderRadius={Theme.borderRadius.regular}
+        >
+          <Label
+            htmlFor="only-show-overrides"
+            className="only-show-overrides-label"
+          >
+            <Checkbox
+              id="only-show-overrides"
+              isSelected={onlyShowOverrides}
+              onChange={(newValue) => {
+                setOnlyShowOverrides(newValue);
+              }}
+              isDisabled={!overridesPresent}
+              style={{
+                display: 'inline-block',
+                marginRight: '.25rem',
+              }}
+            />
+            Only show flags with overrides
+          </Label>
+          <Button
+            variant="destructive"
+            isDisabled={!overridesPresent}
+            onPress={async () => {
+              // This button is disabled unless overrides are present, but the
+              // type is nullable
+              if (!overrides) {
+                return;
+              }
 
-              if (typeof flagValue === "boolean") {
+              const overrideKeys = Object.keys(overrides);
+
+              await Promise.all(
+                overrideKeys.map((flagKey) => {
+                  // Opt out of local state updates since we're bulk-removing
+                  // overrides async
+                  removeOverride(flagKey, false);
+                }),
+              );
+
+              // Winnow out removed overrides and update local state in a
+              // single pass
+              const updatedOverrides = overrideKeys.reduce(
+                (accum, flagKey) => {
+                  delete accum[flagKey];
+
+                  return accum;
+                },
+                { ...overrides },
+              );
+
+              setOverrides(updatedOverrides);
+              setOnlyShowOverrides(false);
+            }}
+          >
+            <Icon size="medium" name="cancel" />
+            Remove all overrides
+          </Button>
+        </Box>
+        <ul className="flags-list">
+          {Object.entries(flags).map(([flagKey, { value: flagValue }]) => {
+            const overrideValue = overrides?.[flagKey]?.value;
+            const hasOverride = overrideValue !== undefined;
+            let valueNode;
+
+            if (onlyShowOverrides && !hasOverride) {
+              return null;
+            }
+
+            switch (typeof flagValue) {
+              case 'boolean':
                 valueNode = (
                   <Switch
-                    isSelected={flagValue}
+                    isSelected={hasOverride ? overrideValue : flagValue}
                     onChange={(newValue) => {
-                      // todo
+                      updateOverride(flagKey, newValue);
                     }}
                   />
                 );
-              } else if (typeof flagValue === "number") {
+                break;
+              case 'number':
                 valueNode = (
                   <input
                     type="number"
-                    value={flagValue}
+                    value={hasOverride ? Number(overrideValue) : flagValue}
                     onChange={(e) => {
-                      // todo
+                      updateOverride(flagKey, Number(e.target.value));
                     }}
                   />
                 );
-              } else {
+                break;
+              case 'string':
                 valueNode = (
                   <InlineEdit
-                    defaultValue={JSON.stringify(flagValue)}
+                    defaultValue={hasOverride ? overrideValue : flagValue}
                     onConfirm={(newValue: string) => {
-                      // todo
+                      updateOverride(flagKey, newValue);
+                    }}
+                    renderInput={<TextField id={`${flagKey}-override-input`} />}
+                  >
+                    {hasOverride ? overrideValue : flagValue}
+                  </InlineEdit>
+                );
+                break;
+              default:
+                valueNode = (
+                  <InlineEdit
+                    defaultValue={JSON.stringify(
+                      hasOverride ? overrideValue : flagValue,
+                    )}
+                    onConfirm={(newValue: string) => {
+                      updateOverride(flagKey, JSON.parse(newValue));
                     }}
                     renderInput={<TextField id={`${flagKey}-override-input`} />}
                   >
                     <CopyToClipboard
-                      text={JSON.stringify(flagValue)}
+                      text={JSON.stringify(
+                        hasOverride ? overrideValue : flagValue,
+                      )}
                       tooltip="Copy flag variation value"
                     >
-                      {JSON.stringify(flagValue)}
+                      {JSON.stringify(hasOverride ? overrideValue : flagValue)}
                     </CopyToClipboard>
                   </InlineEdit>
                 );
-              }
+            }
 
-              return (
-                <li key={flagKey}>
-                  <span>
-                    <code>{flagKey}</code>
-                  </span>
-                  <div>{valueNode}</div>
-                </li>
-              );
-            })}
+            return (
+              <li key={flagKey}>
+                <Box whiteSpace="nowrap" flexGrow="1" paddingRight="1rem">
+                  <code className={hasOverride ? 'has-override' : ''}>
+                    {flagKey}
+                  </code>
+                </Box>
+                <div className="flag-value">{valueNode}</div>
+                <Box width="2rem" height="2rem" marginLeft="0.5rem">
+                  {hasOverride && (
+                    <IconButton
+                      icon="cancel"
+                      aria-label="Remove override"
+                      onPress={() => {
+                        removeOverride(flagKey);
+                      }}
+                      variant="destructive"
+                    />
+                  )}
+                </Box>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </>
