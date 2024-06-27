@@ -22,6 +22,7 @@ type ConfigFile struct {
 	AnalyticsOptOut *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
 	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
 	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
+	DevStreamURI    string `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
 	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
 	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
@@ -49,6 +50,7 @@ func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
 		accessToken     string
 		analyticsOptOut bool
 		baseURI         string
+		devStreamURI    string
 		environment     string
 		err             error
 		flag            string
@@ -83,11 +85,15 @@ func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
 	if rawConfig[cliflags.ProjectFlag] != nil {
 		project = rawConfig[cliflags.ProjectFlag].(string)
 	}
+	if rawConfig[cliflags.DevStreamURIFlag] != nil {
+		devStreamURI = rawConfig[cliflags.DevStreamURIFlag].(string)
+	}
 
 	return ConfigFile{
 		AccessToken:     accessToken,
 		AnalyticsOptOut: &analyticsOptOut,
 		BaseURI:         baseURI,
+		DevStreamURI:    devStreamURI,
 		Environment:     environment,
 		Flag:            flag,
 		Output:          outputKind.String(),

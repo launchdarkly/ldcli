@@ -20,7 +20,7 @@ import (
 )
 
 type Client interface {
-	RunServer(ctx context.Context, accessToken, baseURI string)
+	RunServer(ctx context.Context, accessToken, baseURI, devStreamURI string)
 }
 
 type LDClient struct {
@@ -33,7 +33,7 @@ func NewClient(cliVersion string) LDClient {
 	return LDClient{cliVersion: cliVersion}
 }
 
-func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
+func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI, devStreamURI string) {
 	ldClient := client.New(accessToken, baseURI, c.cliVersion)
 	dbPath := getDBPath()
 	log.Printf("Using database at %s", dbPath)
@@ -47,7 +47,7 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 		ResponseErrorHandlerFunc: ResponseErrorHandler,
 	})
 	r := mux.NewRouter()
-	r.Use(adapters.Middleware(*ldClient, "https://relay-stg.ld.catamorphic.com")) // TODO add to config
+	r.Use(adapters.Middleware(*ldClient, devStreamURI))
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(model.NewObservers()))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))

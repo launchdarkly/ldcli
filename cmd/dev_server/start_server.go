@@ -31,7 +31,12 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 
-		client.RunServer(ctx, viper.GetString(cliflags.AccessTokenFlag), viper.GetString(cliflags.BaseURIFlag))
+		client.RunServer(
+			ctx,
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetString(cliflags.DevStreamURIFlag),
+		)
 
 		return nil
 	}
