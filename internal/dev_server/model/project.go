@@ -6,6 +6,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
+	"github.com/pkg/errors"
 )
 
 type Project struct {
@@ -48,7 +49,12 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	return project, nil
 }
 
-func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context, overrides Overrides) FlagsState {
+func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context) (FlagsState, error) {
+	store := StoreFromContext(ctx)
+	overrides, err := store.GetOverridesForProject(ctx, p.Key)
+	if err != nil {
+		return FlagsState{}, errors.Wrapf(err, "unable to fetch overrides for project %s", p.Key)
+	}
 	withOverrides := make(FlagsState, len(p.FlagState))
 	for flagKey, flagState := range p.FlagState {
 		if override, ok := overrides.GetFlag(flagKey); ok {
@@ -56,5 +62,5 @@ func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context, overri
 		}
 		withOverrides[flagKey] = flagState
 	}
-	return withOverrides
+	return withOverrides, nil
 }
