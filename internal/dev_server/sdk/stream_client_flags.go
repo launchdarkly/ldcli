@@ -18,7 +18,10 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(errors.Wrap(err, "unable to get dev project"))
 	}
-	allFlags := project.GetFlagStateWithOverridesForProject(ctx, nil) // TODO fetch overrides
+	allFlags, err := project.GetFlagStateWithOverridesForProject(ctx)
+	if err != nil {
+		panic(errors.Wrap(err, "failed to get flag state"))
+	}
 	jsonBody, err := json.Marshal(allFlags)
 	if err != nil {
 		panic(errors.Wrap(err, "failed to marshal flag state"))
