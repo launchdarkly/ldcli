@@ -9,7 +9,7 @@
 //	❌ 	/flags	GET	stream.	SSE stream for flag data (older SDKs)
 //	❌ 	/sdk/flags	GET	sdk.	Polling endpoint for PHP SDK
 //	❌ 	/sdk/flags/{flagKey}	GET	sdk.	Polling endpoint for PHP SDK
-//	❌ 	/sdk/segments/{segmentKey}	GET	sdk.	Polling endpoint for PHP SDK
+//	⚠️ 	/sdk/segments/{segmentKey}	GET	sdk.	Polling endpoint for PHP SDK (Segments are not used in dev server)
 //
 // ✅	/meval/{contextBase64}	GET	clientstream.	SSE stream of "ping" and other events
 // ✅	/meval	REPORT	clientstream.	Same as above, but request body is the evaluation context JSON object (not in base64)
