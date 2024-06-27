@@ -6,10 +6,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
+	"github.com/mitchellh/go-homedir"
 
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
@@ -34,7 +36,9 @@ func NewClient(cliVersion string) LDClient {
 
 func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 	ldClient := client.New(accessToken, baseURI, c.cliVersion)
-	sqlStore, err := db.NewSqlite(ctx, "devserver.db")
+	dbPath := getDBPath()
+	log.Printf("Using database at %s", dbPath)
+	sqlStore, err := db.NewSqlite(ctx, getDBPath())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -66,4 +70,16 @@ func ResponseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 func RequestErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	log.Printf("Error while serving request: %+v", err)
 	http.Error(w, err.Error(), http.StatusBadRequest)
+}
+
+func getDBPath() string {
+	statePath := os.Getenv("XDG_STATE_HOME")
+	if statePath == "" {
+		home, _ := homedir.Dir()
+		statePath = filepath.Join(home, ".local/state")
+	}
+	if err := os.MkdirAll(statePath, 0700 /* only current user can access */); err != nil {
+		log.Fatalf("Unable to create state directory: %s", err)
+	}
+	return filepath.Join(statePath, "dev_server.db")
 }
