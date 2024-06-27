@@ -189,6 +189,19 @@ func TestNewConfig(t *testing.T) {
 			assert.Equal(t, "test-key", configFile.Project)
 		})
 	})
+
+	t.Run("dev-stream-uri", func(t *testing.T) {
+		t.Run("sets the given value", func(t *testing.T) {
+			rawConfig := map[string]interface{}{
+				"dev-stream-uri": "http://relay.com",
+			}
+
+			configFile, err := config.NewConfig(rawConfig)
+
+			require.NoError(t, err)
+			assert.Equal(t, "http://relay.com", configFile.DevStreamURI)
+		})
+	})
 }
 
 func TestService_VerifyAccessToken(t *testing.T) {

@@ -2,7 +2,9 @@ package dev_server
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
 )
@@ -14,6 +16,13 @@ func NewDevServerCmd(localClient dev_server.LocalClient, ldClient dev_server.Cli
 		Long:  "Start and use a local development server for overriding flag values.",
 	}
 
+	cmd.PersistentFlags().String(
+		cliflags.DevStreamURI,
+		cliflags.DevStreamURIDefault,
+		cliflags.DevStreamURIDescription,
+	)
+	_ = viper.BindPFlag(cliflags.DevStreamURI, cmd.PersistentFlags().Lookup(cliflags.DevStreamURI))
+
 	// Add subcommands here
 	cmd.AddGroup(&cobra.Group{ID: "projects", Title: "Project commands:"})
 	cmd.AddCommand(NewListProjectsCmd(localClient))
@@ -21,10 +30,12 @@ func NewDevServerCmd(localClient dev_server.LocalClient, ldClient dev_server.Cli
 	cmd.AddCommand(NewSyncProjectCmd(localClient))
 	cmd.AddCommand(NewRemoveProjectCmd(localClient))
 	cmd.AddCommand(NewAddProjectCmd(localClient))
+
 	cmd.AddGroup(&cobra.Group{ID: "overrides", Title: "Override commands:"})
 	cmd.AddCommand(NewAddOverrideCmd(localClient))
 	cmd.AddCommand(NewRemoveOverrideCmd(localClient))
 	cmd.AddGroup(&cobra.Group{ID: "server", Title: "Server commands:"})
+
 	cmd.AddCommand(NewStartServerCmd(ldClient))
 
 	cmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())

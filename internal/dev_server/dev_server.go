@@ -19,7 +19,7 @@ import (
 )
 
 type Client interface {
-	RunServer(ctx context.Context, accessToken, baseURI string)
+	RunServer(ctx context.Context, accessToken, baseURI, devStreamURI string)
 }
 
 type LDClient struct {
@@ -32,7 +32,7 @@ func NewClient(cliVersion string) LDClient {
 	return LDClient{cliVersion: cliVersion}
 }
 
-func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
+func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI, devStreamURI string) {
 	ldClient := client.New(accessToken, baseURI, c.cliVersion)
 	sqlStore, err := db.NewSqlite(ctx, "devserver.db")
 	if err != nil {
