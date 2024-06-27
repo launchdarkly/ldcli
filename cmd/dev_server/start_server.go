@@ -35,7 +35,7 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 			ctx,
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
-			viper.GetString(cliflags.DevStreamURI),
+			viper.GetString(cliflags.DevStreamURIFlag),
 		)
 
 		return nil

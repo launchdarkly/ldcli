@@ -17,11 +17,11 @@ func NewDevServerCmd(localClient dev_server.LocalClient, ldClient dev_server.Cli
 	}
 
 	cmd.PersistentFlags().String(
-		cliflags.DevStreamURI,
+		cliflags.DevStreamURIFlag,
 		cliflags.DevStreamURIDefault,
 		cliflags.DevStreamURIDescription,
 	)
-	_ = viper.BindPFlag(cliflags.DevStreamURI, cmd.PersistentFlags().Lookup(cliflags.DevStreamURI))
+	_ = viper.BindPFlag(cliflags.DevStreamURIFlag, cmd.PersistentFlags().Lookup(cliflags.DevStreamURIFlag))
 
 	// Add subcommands here
 	cmd.AddGroup(&cobra.Group{ID: "projects", Title: "Project commands:"})

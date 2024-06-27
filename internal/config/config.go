@@ -85,8 +85,8 @@ func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
 	if rawConfig[cliflags.ProjectFlag] != nil {
 		project = rawConfig[cliflags.ProjectFlag].(string)
 	}
-	if rawConfig[cliflags.DevStreamURI] != nil {
-		devStreamURI = rawConfig[cliflags.DevStreamURI].(string)
+	if rawConfig[cliflags.DevStreamURIFlag] != nil {
+		devStreamURI = rawConfig[cliflags.DevStreamURIFlag].(string)
 	}
 
 	return ConfigFile{

@@ -4,17 +4,17 @@ const (
 	BaseURIDefault      = "https://app.launchdarkly.com"
 	DevStreamURIDefault = "https://stream.launchdarkly.com"
 
-	AccessTokenFlag = "access-token"
-	AnalyticsOptOut = "analytics-opt-out"
-	BaseURIFlag     = "base-uri"
-	DataFlag        = "data"
-	DevStreamURI    = "dev-stream-uri"
-	EmailsFlag      = "emails"
-	EnvironmentFlag = "environment"
-	FlagFlag        = "flag"
-	OutputFlag      = "output"
-	ProjectFlag     = "project"
-	RoleFlag        = "role"
+	AccessTokenFlag  = "access-token"
+	AnalyticsOptOut  = "analytics-opt-out"
+	BaseURIFlag      = "base-uri"
+	DataFlag         = "data"
+	DevStreamURIFlag = "dev-stream-uri"
+	EmailsFlag       = "emails"
+	EnvironmentFlag  = "environment"
+	FlagFlag         = "flag"
+	OutputFlag       = "output"
+	ProjectFlag      = "project"
+	RoleFlag         = "role"
 
 	AccessTokenFlagDescription = "LaunchDarkly access token with write-level access"
 	AnalyticsOptOutDescription = "Opt out of analytics tracking"
@@ -28,13 +28,13 @@ const (
 
 func AllFlagsHelp() map[string]string {
 	return map[string]string{
-		AccessTokenFlag: AccessTokenFlagDescription,
-		AnalyticsOptOut: AnalyticsOptOutDescription,
-		BaseURIFlag:     BaseURIFlagDescription,
-		DevStreamURI:    DevStreamURIDescription,
-		EnvironmentFlag: EnvironmentFlagDescription,
-		FlagFlag:        FlagFlagDescription,
-		OutputFlag:      OutputFlagDescription,
-		ProjectFlag:     ProjectFlagDescription,
+		AccessTokenFlag:  AccessTokenFlagDescription,
+		AnalyticsOptOut:  AnalyticsOptOutDescription,
+		BaseURIFlag:      BaseURIFlagDescription,
+		DevStreamURIFlag: DevStreamURIDescription,
+		EnvironmentFlag:  EnvironmentFlagDescription,
+		FlagFlag:         FlagFlagDescription,
+		OutputFlag:       OutputFlagDescription,
+		ProjectFlag:      ProjectFlagDescription,
 	}
 }
