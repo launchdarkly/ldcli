@@ -43,6 +43,39 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	return project, nil
 }
 
+func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Context, sourceEnvironmentKey *string) (Project, error) {
+	store := StoreFromContext(ctx)
+	project, err := store.GetDevProject(ctx, projectKey)
+	if err != nil {
+		return Project{}, err
+	}
+	if context != nil {
+		project.Context = *context
+	}
+
+	if sourceEnvironmentKey != nil {
+		project.SourceEnvironmentKey = *sourceEnvironmentKey
+	}
+
+	if context != nil || sourceEnvironmentKey != nil {
+		flagsState, err := project.FetchFlagState(ctx)
+		if err != nil {
+			return Project{}, err
+		}
+		project.FlagState = flagsState
+		project.LastSyncTime = time.Now()
+	}
+
+	updated, err := store.UpdateProject(ctx, *project)
+	if err != nil {
+		return Project{}, err
+	}
+	if !updated {
+		return Project{}, err
+	}
+	return *project, nil
+}
+
 func SyncProject(ctx context.Context, projectKey string) (Project, error) {
 	store := StoreFromContext(ctx)
 	project, err := store.GetDevProject(ctx, projectKey)

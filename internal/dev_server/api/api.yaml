@@ -61,7 +61,35 @@ paths:
           $ref: "#/components/responses/Project"
         404:
           description: No project found
-
+    patch:
+      summary: updates the project context or sourceEnvironmentKey
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - name: expand
+          description: Available expand options for this endpoint.
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - overrides
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sourceEnvironmentKey:
+                  type: string
+                  description: environment to copy flag values from
+                context:
+                  $ref: "#/components/schemas/Context"
+      responses:
+        200:
+          $ref: "#/components/responses/Project"
+        404:
+          description: No project found
     delete:
       summary: remove the specified project from the dev server
       parameters:
@@ -95,13 +123,8 @@ paths:
                 sourceEnvironmentKey:
                   type: string
                   description: environment to copy flag values from
-                # WIP be able to customize the context used
-                # context:
-                #   type: object
-                #   description: context object to use when evaluating flags in source environment
-                #   default:
-                #     key: "local-dev"
-                #     kind: user
+                context:
+                  $ref: "#/components/schemas/Context"
       responses:
         201:
           $ref: "#/components/responses/Project"
@@ -176,6 +199,15 @@ components:
       x-go-type: ldvalue.Value
       x-go-type-import:
         path: github.com/launchdarkly/go-sdk-common/v3/ldvalue
+    Context:
+      type: object
+      description: context object to use when evaluating flags in source environment
+      x-go-type: ldcontext.Context
+      x-go-type-import:
+        path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
+      default:
+        key: "dev-environment"
+        kind: "user"
     Project:
       description: Project
       type: object
@@ -184,18 +216,11 @@ components:
         - context
         - _lastSyncedFromSource
       properties:
+        context:
+          $ref: "#/components/schemas/Context"
         sourceEnvironmentKey:
           type: string
           description: environment to copy flag values from
-        context:
-          type: object
-          description: context object to use when evaluating flags in source environment
-          default:
-            key: "local-dev"
-            kind: user
-          x-go-type: ldcontext.Context
-          x-go-type-import:
-            path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
         flagsState:
           type: object
           description: flags and their values and version for a given project in the source environment
