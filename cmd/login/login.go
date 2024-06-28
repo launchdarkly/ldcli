@@ -11,6 +11,7 @@ import (
 
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	configcmd "github.com/launchdarkly/ldcli/cmd/config"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/login"
@@ -100,59 +101,15 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		v, err := getViperWithConfigFile()
-		if err != nil {
-			return err
-		}
-		err = writeConfig2(conf, v, func(key string, value interface{}, v *viper.Viper) {
+		err = configcmd.Write(conf, func(key string, value interface{}, v *viper.Viper) {
 			v.Set(key, value)
 		})
 		if err != nil {
 			return err
 		}
+
 		fmt.Fprintln(cmd.OutOrStdout(), "Your token has been written to the configuration file")
 
 		return nil
 	}
-}
-
-func getViperWithConfigFile() (*viper.Viper, error) {
-	v := viper.GetViper()
-	if err := v.ReadInConfig(); err != nil {
-		newViper := viper.New()
-		configFile := config.GetConfigFile()
-		newViper.SetConfigType("yml")
-		newViper.SetConfigFile(configFile)
-
-		err = newViper.WriteConfig()
-		if err != nil {
-			return nil, err
-		}
-
-		return newViper, nil
-	}
-
-	return v, nil
-}
-
-func writeConfig2(
-	conf config.Config,
-	v *viper.Viper,
-	filterFn func(key string, value interface{}, v *viper.Viper),
-) error {
-	// create a new viper instance since the existing one has the command name and flags already set,
-	// and these will get written to the config file.
-	newViper := viper.New()
-	newViper.SetConfigFile(v.ConfigFileUsed())
-
-	for key, value := range conf.RawConfig {
-		filterFn(key, value, newViper)
-	}
-
-	err := newViper.WriteConfig()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
