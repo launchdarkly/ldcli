@@ -121,11 +121,11 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 		case viper.GetBool(SetFlag):
 			conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 			conf, updatedFields, err := conf.Update(args)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 			if isUpdatingAccessToken(updatedFields) {
 				if !service.VerifyAccessToken(conf.GetString(cliflags.AccessTokenFlag), viper.GetString(cliflags.BaseURIFlag)) {
@@ -133,24 +133,24 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 					errorMessage += errs.AccessTokenInvalidErrMessage(viper.GetString(cliflags.BaseURIFlag))
 					err := errors.New(errorMessage)
 
-					return newCmdErr(err)
+					return newErr(err.Error())
 				}
 			}
 			err = Write(conf, SetKey)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
 			output, err := outputSetAction(updatedFields)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 		case viper.IsSet(UnsetFlag):
 			_, ok := cliflags.AllFlagsHelp()[viper.GetString(UnsetFlag)]
 			if !ok {
-				return newErr(viper.GetString(UnsetFlag))
+				return newErr(fmt.Sprintf("%s is not a valid configuration option", viper.GetString(UnsetFlag)))
 			}
 
 			config, v, err := getConfig()
@@ -292,21 +292,21 @@ func writeConfig2(
 	return nil
 }
 
-func newErr(flag string) error {
+func newCmdErr(err error) error {
+	return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+}
+
+func newErr(message string) error {
 	err := errs.NewError(
 		fmt.Sprintf(
 			`{
-				"message": "%s is not a valid configuration option"
+				"message": %q
 			}`,
-			flag,
+			message,
 		),
 	)
 
 	return newCmdErr(err)
-}
-
-func newCmdErr(err error) error {
-	return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 }
 
 func writeAlphabetizedFlags(sb *strings.Builder) {
