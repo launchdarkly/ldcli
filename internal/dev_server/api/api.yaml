@@ -74,7 +74,7 @@ paths:
         204:
           description: OK. Project & overrides were removed
         404:
-          description: no project found
+          $ref: "#/components/responses/NotFoundErrorResp"
     post:
       summary: Add the project to the dev server
       parameters:
@@ -237,3 +237,17 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Project"
+    NotFoundErrorResp:
+      description: not found
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - code
+              - message
+            properties:
+              code:
+                type: string
+              message:
+                type: string
