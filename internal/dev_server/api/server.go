@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
@@ -221,7 +220,7 @@ func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context,
 	store := model.StoreFromContext(ctx)
 	err := store.DeleteOverride(ctx, request.ProjectKey, request.FlagKey)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, model.ErrNotFound) {
 			return DeleteDevProjectsProjectKeyOverridesFlagKey404Response{}, nil
 		}
 		return nil, err

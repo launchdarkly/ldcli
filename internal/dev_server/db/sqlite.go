@@ -12,8 +12,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
-var ErrNotFound = errors.New("not found")
-
 type Sqlite struct {
 	database *sql.DB
 }
@@ -47,8 +45,8 @@ func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, 
     `, key)
 
 	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &contextData, &project.LastSyncTime, &flagStateData); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil // No project found with the given key
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.Wrapf(model.ErrNotFound, "no project found with key, '%s'", key)
 		}
 		return nil, err
 	}
@@ -216,7 +214,7 @@ func (s Sqlite) DeleteOverride(ctx context.Context, projectKey, flagKey string) 
 		return err
 	}
 	if rowsAffected == 0 {
-		return ErrNotFound
+		return model.ErrNotFound
 	}
 
 	return nil
