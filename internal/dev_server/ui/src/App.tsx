@@ -71,6 +71,8 @@ function App() {
           delete updatedOverrides[flagKey];
 
           setOverrides(updatedOverrides);
+
+          if (Object.keys(updatedOverrides).length === 0) setOnlyShowOverrides(false)
         }
       })
       .catch((e) => {
@@ -78,11 +80,7 @@ function App() {
       });
   };
 
-  // const updateJSON = (e, key) => {
-  //   e.preventDefault()
-  //   console.log(e.target[0].value)
-  //   console.log(key)
-  // }
+
 
   // Fetch flags / overrides on mount
   useEffect(() => {
@@ -243,15 +241,15 @@ function App() {
                           <form onSubmit={(e: any) => {
                             e.preventDefault();
                             let newVal
-                            let error = false; 
+                            let error = false;
                             try {
                               newVal = JSON.parse(e.target[0].value);
-                              }
-                              catch (err) {
-                                error = true
-                                }
+                            }
+                            catch (err) {
+                              error = true
+                            }
                             if (error) {
-                              window.alert("Incorrect JSON format")
+                              window.alert("Incorrect JSON formatting")
                               return;
                             }
                             updateOverride(flagKey, newVal)
@@ -261,9 +259,11 @@ function App() {
                               defaultValue={JSON.stringify((hasOverride ? overrideValue : flagValue), null, 2)} />
 
                             <div>
-                              <Button variant='primary' type='submit'>
-                                Accept
-                              </Button>
+                              <DialogTrigger>
+                                <Button variant='primary' type='submit'>
+                                  Accept
+                                </Button>
+                              </DialogTrigger>
                             </div>
                           </form>
                         </Dialog>
