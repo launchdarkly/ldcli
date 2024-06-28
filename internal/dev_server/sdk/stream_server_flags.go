@@ -16,11 +16,13 @@ func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 	allFlags, err := GetAllFlagsFromContext(ctx)
 	if err != nil {
 		WriteError(ctx, w, errors.Wrap(err, "failed to get flag state"))
+		return
 	}
 	serverFlags := ServerAllPayloadFromFlagsState(allFlags)
 	jsonBody, err := json.Marshal(serverFlags)
 	if err != nil {
 		WriteError(ctx, w, errors.Wrap(err, "failed to marshal flag state"))
+		return
 	}
 	updateChan, doneChan := OpenStream(w, r.Context().Done(), Message{"put", jsonBody})
 	defer close(updateChan)
@@ -36,6 +38,7 @@ func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 	err = <-doneChan
 	if err != nil {
 		WriteError(ctx, w, errors.Wrap(err, "stream failure"))
+		return
 	}
 }
 

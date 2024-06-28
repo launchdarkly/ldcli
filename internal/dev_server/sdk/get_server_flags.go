@@ -13,6 +13,7 @@ func GetServerFlags(w http.ResponseWriter, r *http.Request) {
 	allFlags, err := GetAllFlagsFromContext(ctx)
 	if err != nil {
 		WriteError(ctx, w, errors.Wrap(err, "failed to get flag state"))
+		return
 	}
 	var body interface{}
 	if flagKey, ok := mux.Vars(r)["flagKey"]; ok {
@@ -26,10 +27,12 @@ func GetServerFlags(w http.ResponseWriter, r *http.Request) {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		WriteError(ctx, w, errors.Wrap(err, "failed to marshal flag state"))
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(jsonBody)
 	if err != nil {
 		WriteError(ctx, w, errors.Wrap(err, "unable to write response"))
+		return
 	}
 }
