@@ -119,46 +119,16 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 		case viper.GetBool(SetFlag):
-			// flag needs two arguments: a key and value
-			if len(args)%2 != 0 {
-				return errs.NewError("flag needs an argument: --set")
-			}
-
-			for i := 0; i < len(args)-1; i += 2 {
-				_, ok := cliflags.AllFlagsHelp()[args[i]]
-				if !ok {
-					return newErr(args[i])
-				}
-			}
-
-			rawConfig, v, err := getRawConfig()
+			conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
 			if err != nil {
-				return newCmdErr(err)
+				return err
 			}
-
-			// add arg pairs to config where each argument is --set arg1 val1 --set arg2 val2
-			newFields := make([]string, 0)
-			for i, a := range args {
-				if i%2 == 0 {
-					rawConfig[a] = struct{}{}
-					newFields = append(newFields, a)
-				} else {
-					rawConfig[args[i-1]] = a
-				}
+			conf, updatedFields, err := conf.Update(args)
+			if err != nil {
+				return err
 			}
-
-			var updatingAccessToken bool
-			for _, f := range newFields {
-				if f == cliflags.AccessTokenFlag {
-					updatingAccessToken = true
-					break
-				}
-			}
-			if updatingAccessToken {
-				if !service.VerifyAccessToken(
-					rawConfig[cliflags.AccessTokenFlag].(string),
-					viper.GetString(cliflags.BaseURIFlag),
-				) {
+			if isUpdatingAccessToken(updatedFields) {
+				if !service.VerifyAccessToken(conf.GetString(cliflags.AccessTokenFlag), viper.GetString(cliflags.BaseURIFlag)) {
 					errorMessage := fmt.Sprintf("%s is invalid. ", cliflags.AccessTokenFlag)
 					errorMessage += errs.AccessTokenInvalidErrMessage(viper.GetString(cliflags.BaseURIFlag))
 					err := errors.New(errorMessage)
@@ -166,21 +136,18 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 					return newCmdErr(err)
 				}
 			}
-
-			configFile, err := config.NewConfig(rawConfig)
+			v, err := getViperWithConfigFile()
 			if err != nil {
-				return newCmdErr(err)
+				return err
 			}
-
-			setKeyFn := func(key string, value interface{}, v *viper.Viper) {
+			err = writeConfig2(conf, v, func(key string, value interface{}, v *viper.Viper) {
 				v.Set(key, value)
-			}
-			err = writeConfig(configFile, v, setKeyFn)
+			})
 			if err != nil {
 				return newCmdErr(err)
 			}
 
-			output, err := outputSetAction(newFields)
+			output, err := outputSetAction(updatedFields)
 			if err != nil {
 				return err
 			}
@@ -236,27 +203,6 @@ func getConfig() (config.ConfigFile, *viper.Viper, error) {
 	return c, v, nil
 }
 
-// getRawConfig builds a map of the values in the config file.
-func getRawConfig() (map[string]interface{}, *viper.Viper, error) {
-	v, err := getViperWithConfigFile()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	data, err := os.ReadFile(v.ConfigFileUsed())
-	if err != nil {
-		return nil, nil, err
-	}
-
-	config := make(map[string]interface{}, 0)
-	err = yaml.Unmarshal([]byte(data), &config)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return config, v, nil
-}
-
 // getViperWithConfigFile ensures the viper instance has a config file written to the filesystem.
 // We want to write the file when someone runs a config command.
 func getViperWithConfigFile() (*viper.Viper, error) {
@@ -276,6 +222,28 @@ func getViperWithConfigFile() (*viper.Viper, error) {
 	}
 
 	return v, nil
+}
+
+func writeConfig2(
+	conf config.Config,
+	v *viper.Viper,
+	filterFn func(key string, value interface{}, v *viper.Viper),
+) error {
+	// create a new viper instance since the existing one has the command name and flags already set,
+	// and these will get written to the config file.
+	newViper := viper.New()
+	newViper.SetConfigFile(v.ConfigFileUsed())
+
+	for key, value := range conf.RawConfig {
+		filterFn(key, value, newViper)
+	}
+
+	err := newViper.WriteConfig()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // writeConfig writes the values in config to the config file based on the filter function.
@@ -367,4 +335,16 @@ func outputUnsetAction(newField string) (string, error) {
 	}
 
 	return output, nil
+}
+
+func isUpdatingAccessToken(fields []string) bool {
+	var updatingAccessToken bool
+	for _, f := range fields {
+		if f == cliflags.AccessTokenFlag {
+			updatingAccessToken = true
+			break
+		}
+	}
+
+	return updatingAccessToken
 }
