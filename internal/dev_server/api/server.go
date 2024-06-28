@@ -151,7 +151,17 @@ func (s Server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDev
 				if err != nil {
 					return nil, err
 				}
-				response.Overrides = &overrides
+				respOverrides := make(model.FlagsState)
+				for _, override := range overrides {
+					if !override.Active {
+						continue
+					}
+					respOverrides[override.FlagKey] = model.FlagState{
+						Value:   override.Value,
+						Version: override.Version,
+					}
+				}
+				response.Overrides = &respOverrides
 			}
 		}
 
