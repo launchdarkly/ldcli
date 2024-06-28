@@ -21,23 +21,30 @@ func BindRoutes(router *mux.Router) {
 
 	router.Handle("/all", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamServerAllPayload)))
 
+	router.PathPrefix("/sdk/flags").
+		Methods(http.MethodGet).
+		Handler(GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(GetServerFlags)))
+
 	router.PathPrefix("/meval").Handler(GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamClientFlags)))
 	router.PathPrefix("/msdk/evalx").Handler(GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(GetClientFlags)))
 
 	evalRouter := router.PathPrefix("/eval").Subrouter()
 	evalRouter.Use(CorsHeaders)
-	evalRouter.Methods("OPTIONS").HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
+	evalRouter.Methods(http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
 	evalRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
-	evalRouter.HandleFunc("/{envId}", StreamClientFlags)
-	evalRouter.HandleFunc("/{envId}/{contextBase64}", StreamClientFlags)
+	evalRouter.PathPrefix("/{envId}").
+		Methods(http.MethodGet, "REPORT").
+		HandlerFunc(StreamClientFlags)
 
-	clientsideSdkRouter := router.PathPrefix("/sdk").Subrouter()
-	clientsideSdkRouter.Use(CorsHeaders)
-	clientsideSdkRouter.Methods("OPTIONS").HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
-	clientsideSdkRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
-	clientsideSdkRouter.HandleFunc("/goals/{envId}", ConstantResponseHandler(http.StatusOK, "[]"))
-	clientsideSdkRouter.PathPrefix("/evalx/{envId}").HandlerFunc(GetClientFlags)
+	goalsRouter := router.Path("/sdk/goals/{envId}").Subrouter()
+	goalsRouter.Use(CorsHeaders)
+	goalsRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
+	goalsRouter.Methods(http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
+	goalsRouter.Methods(http.MethodGet).HandlerFunc(ConstantResponseHandler(http.StatusOK, "[]"))
 
-	/*
-	 */
+	evalXRouter := router.PathPrefix("/sdk/evalx/{envId}").Subrouter()
+	evalXRouter.Use(CorsHeaders)
+	evalXRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
+	evalXRouter.Methods(http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
+	evalXRouter.Methods(http.MethodGet, "REPORT").HandlerFunc(GetClientFlags)
 }
