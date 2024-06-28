@@ -88,12 +88,12 @@ function App() {
       newVal = JSON.parse(e.target.elements.json.value);
     }
     catch (err) {
-      window.alert("Incorrect JSON formatting")
+      window.alert("Incorrect JSON formatting");
       return;
     }
 
-    updateOverride(e.target.getAttribute("data-flagkey"), newVal)
-    window.alert('JSON value updated')
+    updateOverride(e.target.getAttribute("data-flagkey"), newVal);
+    window.alert('JSON value updated');
   }
 
   // Fetch flags / overrides on mount
