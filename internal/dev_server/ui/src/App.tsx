@@ -17,7 +17,7 @@ import {
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
 import './App.css';
-import { FormEventHandler, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 
 function App() {
@@ -80,7 +80,21 @@ function App() {
       });
   };
 
+  const updateJsonHandler = (e: any) => {
+    e.preventDefault();
+    let newVal;
 
+    try {
+      newVal = JSON.parse(e.target.elements.json.value);
+    }
+    catch (err) {
+      window.alert("Incorrect JSON formatting")
+      return;
+    }
+
+    updateOverride(e.target.getAttribute("data-flagkey"), newVal)
+    window.alert('JSON value updated')
+  }
 
   // Fetch flags / overrides on mount
   useEffect(() => {
@@ -238,23 +252,7 @@ function App() {
                     <ModalOverlay>
                       <Modal>
                         <Dialog >
-                          <form onSubmit={(e: any) => {
-                            e.preventDefault();
-                            let newVal
-                            let error = false;
-                            try {
-                              newVal = JSON.parse(e.target[0].value);
-                            }
-                            catch (err) {
-                              error = true
-                            }
-                            if (error) {
-                              window.alert("Incorrect JSON formatting")
-                              return;
-                            }
-                            updateOverride(flagKey, newVal)
-                            window.alert('JSON value updated')
-                          }}>
+                          <form data-flagkey={flagKey} onSubmit={updateJsonHandler}>
                             <textarea name='json' style={{ width: '100%', height: '30rem' }}
                               defaultValue={JSON.stringify((hasOverride ? overrideValue : flagValue), null, 2)} />
 
