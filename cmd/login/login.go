@@ -101,9 +101,7 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		err = configcmd.Write(conf, func(key string, value interface{}, v *viper.Viper) {
-			v.Set(key, value)
-		})
+		err = configcmd.Write(conf, configcmd.SetKey)
 		if err != nil {
 			return err
 		}

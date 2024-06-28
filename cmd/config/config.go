@@ -136,9 +136,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 					return newCmdErr(err)
 				}
 			}
-			err = Write(conf, func(key string, value interface{}, v *viper.Viper) {
-				v.Set(key, value)
-			})
+			err = Write(conf, SetKey)
 			if err != nil {
 				return err
 			}
@@ -160,12 +158,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 				return newCmdErr(err)
 			}
 
-			unsetKeyFn := func(key string, value interface{}, v *viper.Viper) {
-				if key != viper.GetString("unset") {
-					v.Set(key, value)
-				}
-			}
-			err = writeConfig(config, v, unsetKeyFn)
+			err = writeConfig(config, v, UnsetKey)
 			if err != nil {
 				return newCmdErr(err)
 			}
@@ -200,13 +193,26 @@ func getConfig() (config.ConfigFile, *viper.Viper, error) {
 }
 
 // Write takes a Config and lets viper write it to the config file.
-func Write(conf config.Config, filterFn func(key string, value interface{}, v *viper.Viper)) error {
+func Write(conf config.Config, filterFn filterFn) error {
 	v, err := getViperWithConfigFile()
 	if err != nil {
 		return err
 	}
 
 	return writeConfig2(conf, v, filterFn)
+}
+
+// filterFn decides how to write the in-memory config file to disk.
+type filterFn func(key string, value interface{}, v *viper.Viper)
+
+func SetKey(key string, value interface{}, v *viper.Viper) {
+	v.Set(key, value)
+}
+
+func UnsetKey(key string, value interface{}, v *viper.Viper) {
+	if key != viper.GetString("unset") {
+		v.Set(key, value)
+	}
 }
 
 // getViperWithConfigFile ensures the viper instance has a config file written to the filesystem.
@@ -234,7 +240,7 @@ func getViperWithConfigFile() (*viper.Viper, error) {
 func writeConfig(
 	conf config.ConfigFile,
 	v *viper.Viper,
-	filterFn func(key string, value interface{}, v *viper.Viper),
+	filterFn filterFn,
 ) error {
 	// create a new viper instance since the existing one has the command name and flags already set,
 	// and these will get written to the config file.
@@ -267,7 +273,7 @@ func writeConfig(
 func writeConfig2(
 	conf config.Config,
 	v *viper.Viper,
-	filterFn func(key string, value interface{}, v *viper.Viper),
+	filterFn filterFn,
 ) error {
 	// create a new viper instance since the existing one has the command name and flags already set,
 	// and these will get written to the config file.
