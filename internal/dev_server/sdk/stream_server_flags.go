@@ -12,20 +12,15 @@ import (
 
 func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	store := model.StoreFromContext(ctx)
 	projectKey := GetProjectKeyFromContext(ctx)
-	project, err := store.GetDevProject(ctx, projectKey)
+	allFlags, err := GetAllFlagsFromContext(ctx)
 	if err != nil {
-		panic(errors.Wrap(err, "unable to get dev project"))
-	}
-	allFlags, err := project.GetFlagStateWithOverridesForProject(ctx)
-	if err != nil {
-		panic(errors.Wrap(err, "failed to get flag state"))
+		WriteError(w, errors.Wrap(err, "failed to get flag state"))
 	}
 	serverFlags := ServerAllPayloadFromFlagsState(allFlags)
 	jsonBody, err := json.Marshal(serverFlags)
 	if err != nil {
-		panic(errors.Wrap(err, "failed to marshal flag state"))
+		WriteError(w, errors.Wrap(err, "failed to marshal flag state"))
 	}
 	updateChan, doneChan := OpenStream(w, r.Context().Done(), Message{"put", jsonBody})
 	defer close(updateChan)
@@ -40,7 +35,7 @@ func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 	}()
 	err = <-doneChan
 	if err != nil {
-		panic(errors.Wrap(err, "stream failure"))
+		WriteError(w, errors.Wrap(err, "stream failure"))
 	}
 }
 
