@@ -2,6 +2,8 @@ package sdk
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
@@ -12,10 +14,12 @@ import (
 // Two assumptions it's making
 //   - a panic handling middleware is in use
 //   - This is in the context of flag delivery which has pretty consistent semantics for what's an error across handlers.
-func WriteError(w http.ResponseWriter, err error) {
+func WriteError(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, model.ErrNotFound):
-		http.Error(w, "project not found", http.StatusNotFound)
+		message := fmt.Sprintf("project, %s, not found", GetProjectKeyFromContext(ctx))
+		log.Println(message)
+		http.Error(w, message, http.StatusNotFound)
 	case err != nil:
 		panic(err)
 	}

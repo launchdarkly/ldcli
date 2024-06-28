@@ -11,15 +11,15 @@ func GetClientFlags(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	allFlags, err := GetAllFlagsFromContext(ctx)
 	if err != nil {
-		WriteError(w, errors.Wrap(err, "failed to get flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to get flag state"))
 	}
 	jsonBody, err := json.Marshal(allFlags)
 	if err != nil {
-		WriteError(w, errors.Wrap(err, "failed to marshal flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to marshal flag state"))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(jsonBody)
 	if err != nil {
-		WriteError(w, errors.Wrap(err, "unable to write response"))
+		WriteError(ctx, w, errors.Wrap(err, "unable to write response"))
 	}
 }

@@ -14,11 +14,11 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	allFlags, err := GetAllFlagsFromContext(ctx)
 	if err != nil {
-		WriteError(w, errors.Wrap(err, "failed to get flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to get flag state"))
 	}
 	jsonBody, err := json.Marshal(allFlags)
 	if err != nil {
-		WriteError(w, errors.Wrap(err, "failed to marshal flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to marshal flag state"))
 	}
 	updateChan, doneChan := OpenStream(w, r.Context().Done(), Message{"put", jsonBody}) // TODO Wireup updateChan
 	defer close(updateChan)
@@ -34,7 +34,7 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	}()
 	err = <-doneChan
 	if err != nil {
-		WriteError(w, errors.Wrap(err, "stream failure"))
+		WriteError(ctx, w, errors.Wrap(err, "stream failure"))
 	}
 }
 
