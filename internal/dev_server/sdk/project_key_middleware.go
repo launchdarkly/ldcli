@@ -21,7 +21,11 @@ func GetProjectKeyFromContext(ctx context.Context) string {
 func GetProjectKeyFromEnvIdParameter(pathParameter string) func(handler http.Handler) http.Handler {
 	return func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			projectKey := mux.Vars(request)[pathParameter]
+			projectKey, ok := mux.Vars(request)[pathParameter]
+			if !ok {
+				http.Error(writer, "project key not on path", http.StatusNotFound)
+				return
+			}
 			ctx := request.Context()
 			ctx = SetProjectKeyOnContext(ctx, projectKey)
 			request = request.WithContext(ctx)
@@ -34,6 +38,10 @@ func GetProjectKeyFromAuthorizationHeader(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		ctx := request.Context()
 		projectKey := request.Header.Get("Authorization")
+		if projectKey == "" {
+			http.Error(writer, "project key not on Authorization header", http.StatusUnauthorized)
+			return
+		}
 		ctx = SetProjectKeyOnContext(ctx, projectKey)
 		request = request.WithContext(ctx)
 		handler.ServeHTTP(writer, request)

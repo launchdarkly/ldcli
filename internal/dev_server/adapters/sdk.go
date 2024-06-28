@@ -45,7 +45,9 @@ func (s Sdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, 
 	}
 	defer func() {
 		err := ldClient.Close()
-		log.Printf("error while closing SDK client: %+v", err)
+		if err != nil {
+			log.Printf("error while closing SDK client: %+v", err)
+		}
 	}()
 	flags := ldClient.AllFlagsState(ldContext)
 	return flags, nil

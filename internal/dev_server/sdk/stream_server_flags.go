@@ -58,7 +58,7 @@ func (c serverFlagsObserver) Handle(event interface{}) {
 		}
 		data, err := json.Marshal(serverSidePatchData{
 			Path: fmt.Sprintf("/flags/%s", event.FlagKey),
-			Data: ServerFlagFromFlagState(event.FlagKey, event.FlagState),
+			Data: serverFlagFromFlagState(event.FlagKey, event.FlagState),
 		})
 		if err != nil {
 			panic(errors.Wrap(err, "failed to marshal flag state in observer"))

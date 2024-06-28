@@ -53,12 +53,12 @@ func ServerAllPayloadFromFlagsState(state model.FlagsState) ServerAllPayload {
 func ServerFlagsFromFlagsState(flagsState model.FlagsState) ServerFlags {
 	serverFlags := make(map[string]ServerFlag, len(flagsState))
 	for flagKey, state := range flagsState {
-		serverFlags[flagKey] = ServerFlagFromFlagState(flagKey, state)
+		serverFlags[flagKey] = serverFlagFromFlagState(flagKey, state)
 	}
 	return serverFlags
 }
 
-func ServerFlagFromFlagState(key string, state model.FlagState) ServerFlag {
+func serverFlagFromFlagState(key string, state model.FlagState) ServerFlag {
 	return ServerFlag{
 		Key:                    key,
 		On:                     true,
