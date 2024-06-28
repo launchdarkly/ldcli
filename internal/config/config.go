@@ -27,7 +27,6 @@ type ConfigFile struct {
 	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
 }
 
-// ===
 type Config struct {
 	RawConfig map[string]interface{}
 	filename  string
@@ -90,12 +89,6 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 
 	return c, updatedFields, nil
 }
-
-func (c Config) Write() error {
-	return nil
-}
-
-// ===
 
 type ReadFile func(name string) ([]byte, error)
 
