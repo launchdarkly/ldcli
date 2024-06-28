@@ -77,6 +77,9 @@ func (s Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool,
 		SET flag_state = ?, last_sync_time = ?, context=?
 		WHERE key = ?;
 	`, flagsStateJson, project.LastSyncTime, project.Context.JSONString(), project.Key)
+	if err != nil {
+		return false, errors.Wrap(err, "unable to execute update project")
+	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
