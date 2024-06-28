@@ -61,6 +61,9 @@ type Project struct {
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
 }
 
+// Expand defines model for expand.
+type Expand = []string
+
 // FlagKey defines model for flagKey.
 type FlagKey = string
 
@@ -79,7 +82,7 @@ type FlagOverride struct {
 // GetDevProjectsProjectKeyParams defines parameters for GetDevProjectsProjectKey.
 type GetDevProjectsProjectKeyParams struct {
 	// Expand Available expand options for this endpoint.
-	Expand *[]GetDevProjectsProjectKeyParamsExpand `form:"expand,omitempty" json:"expand,omitempty"`
+	Expand *Expand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
 // GetDevProjectsProjectKeyParamsExpand defines parameters for GetDevProjectsProjectKey.
@@ -97,7 +100,7 @@ type PatchDevProjectsProjectKeyJSONBody struct {
 // PatchDevProjectsProjectKeyParams defines parameters for PatchDevProjectsProjectKey.
 type PatchDevProjectsProjectKeyParams struct {
 	// Expand Available expand options for this endpoint.
-	Expand *[]PatchDevProjectsProjectKeyParamsExpand `form:"expand,omitempty" json:"expand,omitempty"`
+	Expand *Expand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
 // PatchDevProjectsProjectKeyParamsExpand defines parameters for PatchDevProjectsProjectKey.
@@ -115,7 +118,7 @@ type PostDevProjectsProjectKeyJSONBody struct {
 // PostDevProjectsProjectKeyParams defines parameters for PostDevProjectsProjectKey.
 type PostDevProjectsProjectKeyParams struct {
 	// Expand Available expand options for this endpoint.
-	Expand *[]PostDevProjectsProjectKeyParamsExpand `form:"expand,omitempty" json:"expand,omitempty"`
+	Expand *Expand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
 // PostDevProjectsProjectKeyParamsExpand defines parameters for PostDevProjectsProjectKey.
@@ -124,7 +127,7 @@ type PostDevProjectsProjectKeyParamsExpand string
 // PatchDevProjectsProjectKeySyncParams defines parameters for PatchDevProjectsProjectKeySync.
 type PatchDevProjectsProjectKeySyncParams struct {
 	// Expand Available expand options for this endpoint.
-	Expand *[]PatchDevProjectsProjectKeySyncParamsExpand `form:"expand,omitempty" json:"expand,omitempty"`
+	Expand *Expand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
 // PatchDevProjectsProjectKeySyncParamsExpand defines parameters for PatchDevProjectsProjectKeySync.

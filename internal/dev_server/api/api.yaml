@@ -28,15 +28,7 @@ paths:
       summary: updates the flag state for the given project and source environment
       parameters:
         - $ref: "#/components/parameters/projectKey"
-        - name: expand
-          description: Available expand options for this endpoint.
-          in: query
-          schema:
-            type: array
-            items:
-              type: string
-              enum:
-                - overrides
+        - $ref: "#/components/parameters/expand"
       responses:
         200:
           $ref: "#/components/responses/Project"
@@ -47,15 +39,7 @@ paths:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
       parameters:
         - $ref: "#/components/parameters/projectKey"
-        - name: expand
-          description: Available expand options for this endpoint.
-          in: query
-          schema:
-            type: array
-            items:
-              type: string
-              enum:
-                - overrides
+        - $ref: "#/components/parameters/expand"
       responses:
         200:
           $ref: "#/components/responses/Project"
@@ -65,15 +49,7 @@ paths:
       summary: updates the project context or sourceEnvironmentKey
       parameters:
         - $ref: "#/components/parameters/projectKey"
-        - name: expand
-          description: Available expand options for this endpoint.
-          in: query
-          schema:
-            type: array
-            items:
-              type: string
-              enum:
-                - overrides
+        - $ref: "#/components/parameters/expand"
       requestBody:
         content:
           application/json:
@@ -103,15 +79,7 @@ paths:
       summary: Add the project to the dev server
       parameters:
         - $ref: "#/components/parameters/projectKey"
-        - name: expand
-          description: Available expand options for this endpoint.
-          in: query
-          schema:
-            type: array
-            items:
-              type: string
-              enum:
-                - overrides
+        - $ref: "#/components/parameters/expand"
       requestBody:
         content:
           application/json:
@@ -188,6 +156,16 @@ components:
       required: true
       schema:
         type: string
+    expand:
+      name: expand
+      description: Available expand options for this endpoint.
+      in: query
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - overrides
   schemas:
     FlagValue:
       description: value of a feature flag variation
