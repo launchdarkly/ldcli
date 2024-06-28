@@ -27,7 +27,6 @@ function App() {
     { value: LDFlagValue }
   > | null>(null);
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
-  const [showModal, setShowModal] = useState(false);
   const overridesPresent = overrides && Object.keys(overrides).length > 0;
 
   const updateOverride = (flagKey: string, overrideValue: LDFlagValue) => {
@@ -90,7 +89,7 @@ function App() {
       newVal = JSON.parse(form.elements.json.value);
     }
     catch (err) {
-      window.alert("Incorrect JSON formatting");
+      window.alert("Invalid JSON formatting");
       return;
     }
 
