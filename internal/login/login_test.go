@@ -113,7 +113,7 @@ func TestFetchToken_WithError(t *testing.T) {
 		},
 		"with an error response": {
 			errCode:     "error_code",
-			expectedErr: "We cannot complete your request.",
+			expectedErr: "We cannot complete your request: error message",
 		},
 	}
 	for name, tt := range tests {
