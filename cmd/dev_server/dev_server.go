@@ -37,6 +37,7 @@ func NewDevServerCmd(localClient dev_server.LocalClient, ldClient dev_server.Cli
 	cmd.AddGroup(&cobra.Group{ID: "server", Title: "Server commands:"})
 
 	cmd.AddCommand(NewStartServerCmd(ldClient))
+	cmd.AddCommand(NewUICmd())
 
 	cmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())
 

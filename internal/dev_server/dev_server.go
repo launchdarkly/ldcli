@@ -57,6 +57,7 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI, devStream
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 	fmt.Println("Server running on 0.0.0.0:8765")
+	fmt.Println("Access the UI for toggling overrides at http://localhost:8765/ui or by running `ldcli dev-server ui`")
 	server := http.Server{
 		Addr:    "0.0.0.0:8765",
 		Handler: handler,
