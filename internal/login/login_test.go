@@ -90,7 +90,7 @@ func TestFetchToken(t *testing.T) {
 		)
 
 		require.NoError(t, err)
-		assert.Equal(t, "test-access-token", result.AccessToken)
+		assert.Equal(t, "test-access-token", result)
 	})
 }
 

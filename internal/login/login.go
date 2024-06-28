@@ -116,11 +116,11 @@ func FetchToken(
 	baseURI string,
 	interval time.Duration,
 	maxAttempts int,
-) (DeviceAuthorizationToken, error) {
+) (string, error) {
 	var attempts int
 	for {
 		if attempts > maxAttempts {
-			return DeviceAuthorizationToken{}, errors.NewError("The request timed out after too many attempts.")
+			return "", errors.NewError("The request timed out after too many attempts.")
 		}
 		deviceAuthorizationToken, err := fetchToken(
 			client,
@@ -128,7 +128,7 @@ func FetchToken(
 			baseURI,
 		)
 		if err == nil {
-			return deviceAuthorizationToken, nil
+			return deviceAuthorizationToken.AccessToken, nil
 		}
 
 		var e struct {
@@ -137,17 +137,17 @@ func FetchToken(
 		}
 		err = json.Unmarshal([]byte(err.Error()), &e)
 		if err != nil {
-			return DeviceAuthorizationToken{}, errors.NewErrorWrapped("error reading response", err)
+			return "", errors.NewErrorWrapped("error reading response", err)
 		}
 		switch e.Code {
 		case "authorization_pending":
 			attempts += 1
 		case "access_denied":
-			return DeviceAuthorizationToken{}, errors.NewError("Your request has been denied.")
+			return "", errors.NewError("Your request has been denied.")
 		case "expired_token":
-			return DeviceAuthorizationToken{}, errors.NewError("Your request has expired. Please try logging in again.")
+			return "", errors.NewError("Your request has expired. Please try logging in again.")
 		default:
-			return DeviceAuthorizationToken{}, errors.NewErrorWrapped(fmt.Sprintf("We cannot complete your request: %s", e.Message), err)
+			return "", errors.NewErrorWrapped(fmt.Sprintf("We cannot complete your request: %s", e.Message), err)
 		}
 		time.Sleep(interval)
 	}
