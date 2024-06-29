@@ -79,6 +79,12 @@ type FlagOverride struct {
 	Value FlagValue `json:"value"`
 }
 
+// NotFoundErrorResp defines model for NotFoundErrorResp.
+type NotFoundErrorResp struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
 // GetDevProjectsProjectKeyParams defines parameters for GetDevProjectsProjectKey.
 type GetDevProjectsProjectKeyParams struct {
 	// Expand Available expand options for this endpoint.
@@ -578,6 +584,11 @@ type FlagOverrideJSONResponse struct {
 	Value FlagValue `json:"value"`
 }
 
+type NotFoundErrorRespJSONResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
 type ProjectJSONResponse Project
 
 type GetDevProjectsRequestObject struct {
@@ -612,12 +623,13 @@ func (response DeleteDevProjectsProjectKey204Response) VisitDeleteDevProjectsPro
 	return nil
 }
 
-type DeleteDevProjectsProjectKey404Response struct {
-}
+type DeleteDevProjectsProjectKey404JSONResponse struct{ NotFoundErrorRespJSONResponse }
 
-func (response DeleteDevProjectsProjectKey404Response) VisitDeleteDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+func (response DeleteDevProjectsProjectKey404JSONResponse) VisitDeleteDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
-	return nil
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type GetDevProjectsProjectKeyRequestObject struct {

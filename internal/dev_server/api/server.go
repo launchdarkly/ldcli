@@ -35,7 +35,10 @@ func (s Server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteD
 		return nil, err
 	}
 	if !deleted {
-		return DeleteDevProjectsProjectKey404Response{}, nil
+		return DeleteDevProjectsProjectKey404JSONResponse{NotFoundErrorRespJSONResponse{
+			Code:    "not_found",
+			Message: "project not found",
+		}}, nil
 	}
 	return DeleteDevProjectsProjectKey204Response{}, nil
 }
