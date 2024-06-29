@@ -17,9 +17,10 @@ import (
 func WriteError(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, model.ErrNotFound):
-		message := fmt.Sprintf("project, %s, not found", GetProjectKeyFromContext(ctx))
+		projectKey := GetProjectKeyFromContext(ctx)
+		message := fmt.Sprintf("project, %s, not found", projectKey)
 		log.Println(message)
-		log.Println("You may need to call ldcli dev-server add-project")
+		log.Printf("To add your project to the dev server, call `ldcli dev-server add-project --project %s --source {SOURCE_ENV_KEY}", projectKey)
 		http.Error(w, message, http.StatusNotFound)
 	case err != nil:
 		panic(err)
