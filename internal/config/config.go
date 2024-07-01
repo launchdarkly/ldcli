@@ -27,6 +27,69 @@ type ConfigFile struct {
 	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
 }
 
+type Config struct {
+	RawConfig map[string]interface{}
+	filename  string
+}
+
+func New(filename string, readFile ReadFile) (Config, error) {
+	data, err := readFile(filename)
+	if err != nil {
+		return Config{}, err
+	}
+
+	rawConfig := make(map[string]interface{}, 0)
+	err = yaml.Unmarshal([]byte(data), &rawConfig)
+	if err != nil {
+		return Config{}, err
+	}
+
+	return Config{
+		RawConfig: rawConfig,
+		filename:  filename,
+	}, nil
+}
+
+func (c Config) GetString(k string) string {
+	val, ok := c.RawConfig[k]
+	if !ok {
+		return ""
+	}
+
+	toStr, ok := val.(string)
+	if !ok {
+		return ""
+	}
+
+	return toStr
+}
+
+func (c Config) Update(kvs []string) (Config, []string, error) {
+	updatedFields := make([]string, 0, len(kvs))
+
+	if len(kvs)%2 != 0 {
+		return Config{}, updatedFields, errors.NewError("flag needs an argument: --set")
+	}
+	for i := 0; i < len(kvs)-1; i += 2 {
+		// TODO: move this list to this package?
+		_, ok := cliflags.AllFlagsHelp()[kvs[i]]
+		if !ok {
+			return Config{}, updatedFields, errors.NewError(fmt.Sprintf("%s is not a valid configuration option", kvs[i]))
+		}
+	}
+
+	for i, a := range kvs {
+		if i%2 == 0 {
+			c.RawConfig[a] = struct{}{}
+			updatedFields = append(updatedFields, a)
+		} else {
+			c.RawConfig[kvs[i-1]] = a
+		}
+	}
+
+	return c, updatedFields, nil
+}
+
 type ReadFile func(name string) ([]byte, error)
 
 func NewConfigFromFile(f string, readFile ReadFile) (ConfigFile, error) {
@@ -120,4 +183,46 @@ func AccessTokenIsSet(filename string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func Update(kvs []string, filename string) (ConfigFile, error) {
+	if len(kvs)%2 != 0 {
+		return ConfigFile{}, errors.NewError("flag needs an argument: --set")
+	}
+	for i := 0; i < len(kvs)-1; i += 2 {
+		_, ok := cliflags.AllFlagsHelp()[kvs[i]]
+		if !ok {
+			return ConfigFile{}, errors.NewError(fmt.Sprintf("%s is not a valid configuration option", kvs[i]))
+		}
+	}
+
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return ConfigFile{}, err
+	}
+	rawConfig := make(map[string]interface{}, 0)
+	err = yaml.Unmarshal([]byte(data), &rawConfig)
+	if err != nil {
+		return ConfigFile{}, err
+	}
+
+	// add arg pairs to config where each argument is --set arg1 val1 --set arg2 val2
+	for i, a := range kvs {
+		if i%2 == 0 {
+			rawConfig[a] = struct{}{}
+		} else {
+			rawConfig[kvs[i-1]] = a
+		}
+	}
+
+	for key, value := range rawConfig {
+		rawConfig[key] = value
+	}
+
+	configFile, err := NewConfig(rawConfig)
+	if err != nil {
+		return ConfigFile{}, err
+	}
+
+	return configFile, nil
 }

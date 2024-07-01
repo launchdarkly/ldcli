@@ -2,6 +2,7 @@ package login
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/pkg/browser"
@@ -10,6 +11,7 @@ import (
 
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	configcmd "github.com/launchdarkly/ldcli/cmd/config"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/login"
@@ -90,7 +92,21 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "Your token is %s\n", deviceAuthorizationToken.AccessToken)
+		conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
+		if err != nil {
+			return err
+		}
+		conf, _, err = conf.Update([]string{cliflags.AccessTokenFlag, deviceAuthorizationToken})
+		if err != nil {
+			return err
+		}
+
+		err = configcmd.Write(conf, configcmd.SetKey)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintln(cmd.OutOrStdout(), "Your token has been written to the configuration file")
 
 		return nil
 	}
