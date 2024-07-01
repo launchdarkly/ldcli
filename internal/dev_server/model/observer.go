@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -destination mock_observer/observer.go -package mock_observer . Observer
+
 type Observer interface {
 	Handle(interface{})
 }
