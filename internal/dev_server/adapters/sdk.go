@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	ldsdk "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
@@ -35,6 +36,7 @@ func (s Sdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, 
 	config := ldsdk.Config{
 		DiagnosticOptOut: true,
 		Events:           ldcomponents.NoEvents(),
+		Logging:          ldcomponents.Logging().MinLevel(ldlog.Debug),
 	}
 	if s.streamingUrl != "" {
 		config.ServiceEndpoints.Streaming = s.streamingUrl

@@ -4,29 +4,25 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/pkg/errors"
 )
 
 func GetClientFlags(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	store := model.StoreFromContext(ctx)
-	projectKey := GetProjectKeyFromContext(ctx)
-	project, err := store.GetDevProject(ctx, projectKey)
+	allFlags, err := GetAllFlagsFromContext(ctx)
 	if err != nil {
-		panic(errors.Wrap(err, "unable to get dev project"))
-	}
-	allFlags, err := project.GetFlagStateWithOverridesForProject(ctx)
-	if err != nil {
-		panic(errors.Wrap(err, "failed to get flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to get flag state"))
+		return
 	}
 	jsonBody, err := json.Marshal(allFlags)
 	if err != nil {
-		panic(errors.Wrap(err, "failed to marshal flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to marshal flag state"))
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(jsonBody)
 	if err != nil {
-		panic(errors.Wrap(err, "unable to write response"))
+		WriteError(ctx, w, errors.Wrap(err, "unable to write response"))
+		return
 	}
 }

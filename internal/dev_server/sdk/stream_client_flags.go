@@ -12,22 +12,19 @@ import (
 
 func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	store := model.StoreFromContext(ctx)
-	projectKey := GetProjectKeyFromContext(ctx)
-	project, err := store.GetDevProject(ctx, projectKey)
+	allFlags, err := GetAllFlagsFromContext(ctx)
 	if err != nil {
-		panic(errors.Wrap(err, "unable to get dev project"))
-	}
-	allFlags, err := project.GetFlagStateWithOverridesForProject(ctx)
-	if err != nil {
-		panic(errors.Wrap(err, "failed to get flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to get flag state"))
+		return
 	}
 	jsonBody, err := json.Marshal(allFlags)
 	if err != nil {
-		panic(errors.Wrap(err, "failed to marshal flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to marshal flag state"))
+		return
 	}
 	updateChan, doneChan := OpenStream(w, r.Context().Done(), Message{"put", jsonBody}) // TODO Wireup updateChan
 	defer close(updateChan)
+	projectKey := GetProjectKeyFromContext(ctx)
 	observer := clientFlagsObserver{updateChan, projectKey}
 	observers := model.GetObserversFromContext(ctx)
 	observerId := observers.RegisterObserver(observer)
@@ -39,7 +36,8 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	}()
 	err = <-doneChan
 	if err != nil {
-		panic(errors.Wrap(err, "stream failure"))
+		WriteError(ctx, w, errors.Wrap(err, "stream failure"))
+		return
 	}
 }
 

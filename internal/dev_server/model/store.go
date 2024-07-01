@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 )
 
 type ctxKey string
@@ -14,6 +15,7 @@ const ctxKeyStore = ctxKey("model.Store")
 type Store interface {
 	DeleteOverride(ctx context.Context, projectKey, flagKey string) error
 	GetDevProjects(ctx context.Context) ([]string, error)
+	// GetDevProject fetches the project based on the projectKey. If it doesn't exist, ErrNotFound is returned
 	GetDevProject(ctx context.Context, projectKey string) (*Project, error)
 	UpdateProject(ctx context.Context, project Project) (bool, error)
 	DeleteDevProject(ctx context.Context, projectKey string) (bool, error)
@@ -40,3 +42,5 @@ func StoreMiddleware(store Store) mux.MiddlewareFunc {
 		})
 	}
 }
+
+var ErrNotFound = errors.New("not found")
