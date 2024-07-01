@@ -158,7 +158,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 				return newCmdErr(err)
 			}
 
-			err = writeConfig(config, v, UnsetKey)
+			err = writeConfigFile(config, v, UnsetKey)
 			if err != nil {
 				return newCmdErr(err)
 			}
@@ -199,7 +199,7 @@ func Write(conf config.Config, filterFn filterFn) error {
 		return err
 	}
 
-	return writeConfig2(conf, v, filterFn)
+	return writeConfig(conf, v, filterFn)
 }
 
 // filterFn decides how to write the in-memory config file to disk.
@@ -236,8 +236,8 @@ func getViperWithConfigFile() (*viper.Viper, error) {
 	return v, nil
 }
 
-// writeConfig writes the values in config to the config file based on the filter function.
-func writeConfig(
+// writeConfigFile writes the values in config to the config file based on the filter function.
+func writeConfigFile(
 	conf config.ConfigFile,
 	v *viper.Viper,
 	filterFn filterFn,
@@ -270,7 +270,7 @@ func writeConfig(
 }
 
 // writeConfig writes the values in config to the config file based on the filter function.
-func writeConfig2(
+func writeConfig(
 	conf config.Config,
 	v *viper.Viper,
 	filterFn filterFn,
