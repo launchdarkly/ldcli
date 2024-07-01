@@ -5,10 +5,13 @@ import {
   IconButton,
   Label,
   Switch,
+  Modal,
+  ModalOverlay,
+  DialogTrigger,
+  Dialog
 } from '@launchpad-ui/components';
 import {
   Box,
-  CopyToClipboard,
   InlineEdit,
   TextField,
 } from '@launchpad-ui/core';
@@ -71,12 +74,42 @@ function App() {
           delete updatedOverrides[flagKey];
 
           setOverrides(updatedOverrides);
+
+          if (Object.keys(updatedOverrides).length === 0) setOnlyShowOverrides(false)
         }
       })
       .catch((_e) => {
         // todo
       });
   };
+
+  const updateJsonHandler = (e: any) => {
+    e.preventDefault();
+    const form = e.target
+    let newVal;
+
+    try {
+      newVal = JSON.parse(form.elements.json.value);
+    }
+    catch (err) {
+      window.alert("Invalid JSON formatting");
+      return;
+    }
+
+    updateOverride(e.target.getAttribute("data-flagkey"), newVal);
+
+    // hacky way to dismiss the modal by simulating esc keypress, since doing it the "right" way would take a lot more code
+    const escapeEvent = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      which: 27,
+      keyCode: 27,
+      code: "Escape",
+      bubbles: true
+    });
+    form.dispatchEvent(escapeEvent)
+
+    window.alert('JSON value updated');
+  }
 
   // Fetch flags / overrides on mount
   useEffect(() => {
@@ -225,24 +258,28 @@ function App() {
                 break;
               default:
                 valueNode = (
-                  <InlineEdit
-                    defaultValue={JSON.stringify(
-                      hasOverride ? overrideValue : flagValue,
-                    )}
-                    onConfirm={(newValue: string) => {
-                      updateOverride(flagKey, JSON.parse(newValue));
-                    }}
-                    renderInput={<TextField id={`${flagKey}-override-input`} />}
-                  >
-                    <CopyToClipboard
-                      text={JSON.stringify(
-                        hasOverride ? overrideValue : flagValue,
-                      )}
-                      tooltip="Copy flag variation value"
-                    >
-                      {JSON.stringify(hasOverride ? overrideValue : flagValue)}
-                    </CopyToClipboard>
-                  </InlineEdit>
+                  <DialogTrigger >
+                    <Button style={{ border: 'none', padding: 0, margin: 0 }}>
+                      <textarea name='json' rows={8} readOnly={true} style={{ resize: 'none', overflowY: 'clip', cursor: 'pointer' }}
+                        value={JSON.stringify((hasOverride ? overrideValue : flagValue), null, 2)}>
+                      </textarea>
+                    </Button>
+                    <ModalOverlay>
+                      <Modal>
+                        <Dialog >
+                          <form data-flagkey={flagKey} onSubmit={updateJsonHandler}>
+                            <textarea name='json' style={{ width: '100%', height: '30rem' }}
+                              defaultValue={JSON.stringify((hasOverride ? overrideValue : flagValue), null, 2)} />
+                            <div>
+                              <Button variant='primary' type='submit'>
+                                Accept
+                              </Button>
+                            </div>
+                          </form>
+                        </Dialog>
+                      </Modal>
+                    </ModalOverlay>
+                  </DialogTrigger>
                 );
             }
 
@@ -271,6 +308,7 @@ function App() {
           })}
         </ul>
       </div>
+
     </>
   );
 }
