@@ -98,14 +98,14 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		switch {
 		case viper.GetBool(ListFlag):
-			config, _, err := getConfig()
+			conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
-			configJSON, err := json.Marshal(config)
+			configJSON, err := json.Marshal(conf)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
 			output, err := output.CmdOutputSingular(
@@ -114,7 +114,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 				output.ConfigPlaintextOutputFn,
 			)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
@@ -148,24 +148,22 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 		case viper.IsSet(UnsetFlag):
-			_, ok := cliflags.AllFlagsHelp()[viper.GetString(UnsetFlag)]
-			if !ok {
-				return newErr(fmt.Sprintf("%s is not a valid configuration option", viper.GetString(UnsetFlag)))
-			}
-
-			config, v, err := getConfig()
+			conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
 			if err != nil {
-				return newCmdErr(err)
+				return newErr(err.Error())
 			}
-
-			err = writeConfigFile(config, v, UnsetKey)
+			conf, err = conf.Remove(viper.GetString(UnsetFlag))
 			if err != nil {
-				return newCmdErr(err)
+				return newErr(err.Error())
+			}
+			err = Write(conf, UnsetKey)
+			if err != nil {
+				return newErr(err.Error())
 			}
 
 			output, err := outputUnsetAction(viper.GetString(UnsetFlag))
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
@@ -175,21 +173,6 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 
 		return nil
 	}
-}
-
-// getConfig builds a struct type of the values in the config file.
-func getConfig() (config.ConfigFile, *viper.Viper, error) {
-	v, err := getViperWithConfigFile()
-	if err != nil {
-		return config.ConfigFile{}, nil, err
-	}
-
-	c, err := config.NewConfigFromFile(v.ConfigFileUsed(), os.ReadFile)
-	if err != nil {
-		return config.ConfigFile{}, nil, err
-	}
-
-	return c, v, nil
 }
 
 // Write takes a Config and lets viper write it to the config file.
@@ -234,39 +217,6 @@ func getViperWithConfigFile() (*viper.Viper, error) {
 	}
 
 	return v, nil
-}
-
-// writeConfigFile writes the values in config to the config file based on the filter function.
-func writeConfigFile(
-	conf config.ConfigFile,
-	v *viper.Viper,
-	filterFn filterFn,
-) error {
-	// create a new viper instance since the existing one has the command name and flags already set,
-	// and these will get written to the config file.
-	newViper := viper.New()
-	newViper.SetConfigFile(v.ConfigFileUsed())
-
-	configYAML, err := yaml.Marshal(conf)
-	if err != nil {
-		return err
-	}
-	rawConfig := make(map[string]interface{})
-	err = yaml.Unmarshal(configYAML, &rawConfig)
-	if err != nil {
-		return err
-	}
-
-	for key, value := range rawConfig {
-		filterFn(key, value, newViper)
-	}
-
-	err = newViper.WriteConfig()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // writeConfig writes the values in config to the config file based on the filter function.
