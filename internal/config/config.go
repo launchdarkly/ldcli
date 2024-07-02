@@ -21,15 +21,21 @@ type ConfigFile struct {
 	AccessToken     string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
 	AnalyticsOptOut *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
 	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
-	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
 	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
+	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
 	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
 	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
 }
 
 type Config struct {
-	RawConfig map[string]interface{}
-	filename  string
+	AccessToken     string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
+	AnalyticsOptOut *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
+	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
+	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
+	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
+	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
+	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
+	filename        string
 }
 
 func New(filename string, readFile ReadFile) (Config, error) {
@@ -38,30 +44,15 @@ func New(filename string, readFile ReadFile) (Config, error) {
 		return Config{}, err
 	}
 
-	rawConfig := make(map[string]interface{}, 0)
-	err = yaml.Unmarshal([]byte(data), &rawConfig)
+	c := Config{
+		filename: filename,
+	}
+	err = yaml.Unmarshal([]byte(data), &c)
 	if err != nil {
-		return Config{}, err
+		return Config{}, errors.NewError("config file is invalid yaml")
 	}
 
-	return Config{
-		RawConfig: rawConfig,
-		filename:  filename,
-	}, nil
-}
-
-func (c Config) GetString(k string) string {
-	val, ok := c.RawConfig[k]
-	if !ok {
-		return ""
-	}
-
-	toStr, ok := val.(string)
-	if !ok {
-		return ""
-	}
-
-	return toStr
+	return c, nil
 }
 
 func (c Config) Update(kvs []string) (Config, []string, error) {
@@ -78,12 +69,37 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 		}
 	}
 
-	for i, a := range kvs {
+	var currField string
+	for i, v := range kvs {
 		if i%2 == 0 {
-			c.RawConfig[a] = struct{}{}
-			updatedFields = append(updatedFields, a)
+			currField = v
+			updatedFields = append(updatedFields, v)
 		} else {
-			c.RawConfig[kvs[i-1]] = a
+			switch currField {
+			case cliflags.AccessTokenFlag:
+				c.AccessToken = v
+			case cliflags.AnalyticsOptOut:
+				val, err := strconv.ParseBool(v)
+				if err != nil {
+					return Config{}, nil, errors.NewError("analytics-opt-out must be true or false")
+				}
+
+				c.AnalyticsOptOut = &val
+			case cliflags.BaseURIFlag:
+				c.BaseURI = v
+			case cliflags.EnvironmentFlag:
+				c.Environment = v
+			case cliflags.FlagFlag:
+				c.Flag = v
+			case cliflags.OutputFlag:
+				val, err := output.NewOutputKind(v)
+				if err != nil {
+					return Config{}, nil, err
+				}
+				c.Output = val.String()
+			case cliflags.ProjectFlag:
+				c.Project = v
+			}
 		}
 	}
 
@@ -107,7 +123,7 @@ func NewConfigFromFile(f string, readFile ReadFile) (ConfigFile, error) {
 	return c, nil
 }
 
-func NewConfig(rawConfig map[string]interface{}) (ConfigFile, error) {
+func NewConfigFile(rawConfig map[string]interface{}) (ConfigFile, error) {
 	var (
 		accessToken     string
 		analyticsOptOut bool
@@ -219,7 +235,7 @@ func Update(kvs []string, filename string) (ConfigFile, error) {
 		rawConfig[key] = value
 	}
 
-	configFile, err := NewConfig(rawConfig)
+	configFile, err := NewConfigFile(rawConfig)
 	if err != nil {
 		return ConfigFile{}, err
 	}

@@ -128,7 +128,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 				return newErr(err.Error())
 			}
 			if isUpdatingAccessToken(updatedFields) {
-				if !service.VerifyAccessToken(conf.GetString(cliflags.AccessTokenFlag), viper.GetString(cliflags.BaseURIFlag)) {
+				if !service.VerifyAccessToken(conf.AccessToken, viper.GetString(cliflags.BaseURIFlag)) {
 					errorMessage := fmt.Sprintf("%s is invalid. ", cliflags.AccessTokenFlag)
 					errorMessage += errs.AccessTokenInvalidErrMessage(viper.GetString(cliflags.BaseURIFlag))
 					err := errors.New(errorMessage)
@@ -280,11 +280,21 @@ func writeConfig(
 	newViper := viper.New()
 	newViper.SetConfigFile(v.ConfigFileUsed())
 
-	for key, value := range conf.RawConfig {
+	configYAML, err := yaml.Marshal(conf)
+	if err != nil {
+		return err
+	}
+	rawConfig := make(map[string]interface{})
+	err = yaml.Unmarshal(configYAML, &rawConfig)
+	if err != nil {
+		return err
+	}
+
+	for key, value := range rawConfig {
 		filterFn(key, value, newViper)
 	}
 
-	err := newViper.WriteConfig()
+	err = newViper.WriteConfig()
 	if err != nil {
 		return err
 	}

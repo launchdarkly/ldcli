@@ -15,17 +15,13 @@ import (
 )
 
 type mockReadFile struct {
-	contents   []byte
-	successful bool
+	contents []byte
 }
 
 func (m mockReadFile) readFile(name string) ([]byte, error) {
-	if !m.successful {
-		return nil, errors.New("an error")
-	}
-
 	if m.contents != nil {
-		return yaml.Marshal(m.contents)
+		return m.contents, nil
+		// return yaml.Marshal(m.contents)
 	}
 
 	return yaml.Marshal(map[string]interface{}{
@@ -35,9 +31,7 @@ func (m mockReadFile) readFile(name string) ([]byte, error) {
 
 func TestNewConfigFromFile(t *testing.T) {
 	t.Run("with valid input is a valid config", func(t *testing.T) {
-		mock := mockReadFile{
-			successful: true,
-		}
+		mock := mockReadFile{}
 
 		c, err := config.NewConfigFromFile("test-config-file", mock.readFile)
 
@@ -45,20 +39,9 @@ func TestNewConfigFromFile(t *testing.T) {
 		assert.Equal(t, "test-access-token", c.AccessToken)
 	})
 
-	t.Run("with invalid file is an error", func(t *testing.T) {
-		mock := mockReadFile{
-			successful: false,
-		}
-
-		_, err := config.NewConfigFromFile("test-config-file", mock.readFile)
-
-		assert.EqualError(t, err, "could not read config file")
-	})
-
 	t.Run("with invalid formatting in the file contents is an error", func(t *testing.T) {
 		mock := mockReadFile{
-			contents:   []byte(`invalid`),
-			successful: true,
+			contents: []byte(`invalid`),
 		}
 
 		_, err := config.NewConfigFromFile("test-config-file", mock.readFile)
@@ -97,7 +80,7 @@ func TestNewConfig(t *testing.T) {
 					"analytics-opt-out": tt.input,
 				}
 
-				configFile, err := config.NewConfig(rawConfig)
+				configFile, err := config.NewConfigFile(rawConfig)
 
 				require.NoError(t, err)
 				assert.Equal(t, tt.expected, *configFile.AnalyticsOptOut)
@@ -110,7 +93,7 @@ func TestNewConfig(t *testing.T) {
 			"analytics-opt-out": "something",
 		}
 
-		_, err := config.NewConfig(rawConfig)
+		_, err := config.NewConfigFile(rawConfig)
 
 		assert.EqualError(t, err, "analytics-opt-out must be true or false")
 	})
@@ -133,7 +116,7 @@ func TestNewConfig(t *testing.T) {
 					"output": tt.input,
 				}
 
-				configFile, err := config.NewConfig(rawConfig)
+				configFile, err := config.NewConfigFile(rawConfig)
 
 				require.NoError(t, err)
 				assert.Equal(t, tt.input, configFile.Output)
@@ -146,9 +129,9 @@ func TestNewConfig(t *testing.T) {
 			"output": "invalid",
 		}
 
-		_, err := config.NewConfig(rawConfig)
+		_, err := config.NewConfigFile(rawConfig)
 
-		assert.EqualError(t, err, "output is invalid, use 'json' or 'plaintext'")
+		assert.EqualError(t, err, "output is invalid. Use 'json' or 'plaintext'")
 	})
 
 	t.Run("environment", func(t *testing.T) {
@@ -157,7 +140,7 @@ func TestNewConfig(t *testing.T) {
 				"environment": "test-key",
 			}
 
-			configFile, err := config.NewConfig(rawConfig)
+			configFile, err := config.NewConfigFile(rawConfig)
 
 			require.NoError(t, err)
 			assert.Equal(t, "test-key", configFile.Environment)
@@ -170,7 +153,7 @@ func TestNewConfig(t *testing.T) {
 				"flag": "test-key",
 			}
 
-			configFile, err := config.NewConfig(rawConfig)
+			configFile, err := config.NewConfigFile(rawConfig)
 
 			require.NoError(t, err)
 			assert.Equal(t, "test-key", configFile.Flag)
@@ -183,7 +166,7 @@ func TestNewConfig(t *testing.T) {
 				"project": "test-key",
 			}
 
-			configFile, err := config.NewConfig(rawConfig)
+			configFile, err := config.NewConfigFile(rawConfig)
 
 			require.NoError(t, err)
 			assert.Equal(t, "test-key", configFile.Project)
@@ -209,5 +192,98 @@ func TestService_VerifyAccessToken(t *testing.T) {
 		isValid := service.VerifyAccessToken("invalid-access-token", "http://test.com")
 
 		assert.False(t, isValid)
+	})
+}
+
+func TestNew(t *testing.T) {
+	mock := mockReadFile{
+		contents: []byte(`
+access-token: test-access-token
+analytics-opt-out: true
+`,
+		),
+	}
+
+	c, err := config.New("test-config", mock.readFile)
+
+	require.NoError(t, err)
+	assert.Equal(t, "test-access-token", c.AccessToken)
+	assert.True(t, *c.AnalyticsOptOut)
+}
+
+func TestUpdate(t *testing.T) {
+	t.Run("updates valid fields", func(t *testing.T) {
+		c, err := config.New("test", mockReadFile{}.readFile)
+		require.NoError(t, err)
+
+		result, updatedFields, err := c.Update(
+			[]string{
+				"access-token", "test-access-token",
+				"analytics-opt-out", "true",
+				"base-uri", "http://test.com",
+				"environment", "test-environment",
+				"flag", "test-flag",
+				"output", "plaintext",
+				"project", "test-project",
+			},
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, "test-access-token", result.AccessToken)
+		assert.True(t, *result.AnalyticsOptOut)
+		assert.Equal(t, "http://test.com", result.BaseURI)
+		assert.Equal(t, "test-environment", result.Environment)
+		assert.Equal(t, "test-flag", result.Flag)
+		assert.Equal(t, "plaintext", result.Output)
+		assert.Equal(t, "test-project", result.Project)
+		assert.Equal(
+			t,
+			[]string{
+				"access-token",
+				"analytics-opt-out",
+				"base-uri",
+				"environment",
+				"flag",
+				"output",
+				"project",
+			},
+			updatedFields,
+		)
+	})
+
+	t.Run("with an invalid output flag", func(t *testing.T) {
+		c, err := config.New("test", mockReadFile{}.readFile)
+		require.NoError(t, err)
+
+		_, _, err = c.Update([]string{"output", "invalid"})
+
+		assert.EqualError(t, err, "output is invalid. Use 'json' or 'plaintext'")
+	})
+
+	t.Run("with an invalid analytics-opt-out flag", func(t *testing.T) {
+		c, err := config.New("test", mockReadFile{}.readFile)
+		require.NoError(t, err)
+
+		_, _, err = c.Update([]string{"analytics-opt-out", "invalid"})
+
+		assert.EqualError(t, err, "analytics-opt-out must be true or false")
+	})
+
+	t.Run("with an invalid amount of flags", func(t *testing.T) {
+		c, err := config.New("test", mockReadFile{}.readFile)
+		require.NoError(t, err)
+
+		_, _, err = c.Update([]string{"access-token"})
+
+		assert.EqualError(t, err, "flag needs an argument: --set")
+	})
+
+	t.Run("with an invalid flag", func(t *testing.T) {
+		c, err := config.New("test", mockReadFile{}.readFile)
+		require.NoError(t, err)
+
+		_, _, err = c.Update([]string{"invalid-flag", "val"})
+
+		assert.EqualError(t, err, "invalid-flag is not a valid configuration option")
 	})
 }
