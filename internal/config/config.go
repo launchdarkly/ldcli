@@ -27,7 +27,6 @@ type Config struct {
 	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
 	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
 	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
-	filename        string
 }
 
 func New(filename string, readFile ReadFile) (Config, error) {
@@ -36,9 +35,7 @@ func New(filename string, readFile ReadFile) (Config, error) {
 		return Config{}, err
 	}
 
-	c := Config{
-		filename: filename,
-	}
+	var c Config
 	err = yaml.Unmarshal([]byte(data), &c)
 	if err != nil {
 		return Config{}, errors.NewError("config file is invalid yaml")
