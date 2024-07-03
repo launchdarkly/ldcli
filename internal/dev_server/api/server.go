@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 

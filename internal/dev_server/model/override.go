@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/pkg/errors"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
