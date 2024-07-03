@@ -39,7 +39,29 @@ func TestUpsertOverride(t *testing.T) {
 
 	observers.RegisterObserver(observer)
 	ctx = model.SetObserversOnContext(ctx, observers)
+
+	t.Run("store unable to get project, returns error", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(nil, errors.New("test 2"))
+
+		_, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "project does not exist within dev server")
+	})
+
+	t.Run("Returns error if flag does not exist in project", func(t *testing.T) {
+		badProj := model.Project{
+			Key:       projKey,
+			FlagState: model.FlagsState{},
+		}
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(&badProj, nil)
+
+		_, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "flag does not exist within dev project")
+	})
+
 	t.Run("store fails to upsert, returns error", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
 		store.EXPECT().UpsertOverride(gomock.Any(), gomock.Any()).Return(model.Override{}, errors.New("testy test"))
 
 		_, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
@@ -47,18 +69,9 @@ func TestUpsertOverride(t *testing.T) {
 		assert.Equal(t, "testy test", err.Error())
 	})
 
-	t.Run("store unable to get project, returns error", func(t *testing.T) {
-		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
-		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(nil, errors.New("test 2"))
-
-		_, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unable to get project")
-	})
-
 	t.Run("override is applied, observers are notified", func(t *testing.T) {
-		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
+		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
 		observer.
 			EXPECT().
 			Handle(model.UpsertOverrideEvent{

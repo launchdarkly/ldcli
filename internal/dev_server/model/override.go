@@ -31,7 +31,7 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 	}
 
 	var flagExists bool
-	for flag, _ := range project.FlagState {
+	for flag := range project.FlagState {
 		if flagKey == flag {
 			flagExists = true
 			break
