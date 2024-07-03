@@ -96,25 +96,6 @@ paths:
       responses:
         201:
           $ref: "#/components/responses/Project"
-  # WIP updates can be added later
-  #    patch:
-  #      summary: change configuration of the project
-  #      parameters:
-  #        - $ref: '#/components/parameters/projectKey'
-  #      responses:
-
-  # WIP NOT SURE IF NEEDED TBH
-  #  /dev/projects/{projectKey}/overrides:
-  #    get:
-  #      summary: return all the flag overrides for the project
-  #      parameters:
-  #        - $ref: '#/components/parameters/projectKey'
-  #      responses: // WIP
-  #    delete:
-  #      summary: clear all overrides for the project
-  #      parameters:
-  #        - $ref: '#/components/parameters/projectKey'
-  #      responses: // WIP
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
