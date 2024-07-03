@@ -2,6 +2,7 @@ package login
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -72,7 +73,10 @@ func run(client resources.UnauthenticatedClient) func(*cobra.Command, []string) 
 			return err
 		}
 
-		fullURL := fmt.Sprintf("%s/%s", viper.GetString(cliflags.BaseURIFlag), deviceAuthorization.VerificationURI)
+		fullURL, _ := url.JoinPath(
+			viper.GetString(cliflags.BaseURIFlag),
+			deviceAuthorization.VerificationURI,
+		)
 		var b strings.Builder
 		b.WriteString(fmt.Sprintf("Your code is %s\n", deviceAuthorization.UserCode))
 		b.WriteString("This code verifies your authentication with LaunchDarkly.\n")
