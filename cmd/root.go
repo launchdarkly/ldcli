@@ -37,7 +37,6 @@ type APIClients struct {
 	DevClient          dev_server.Client
 	EnvironmentsClient environments.Client
 	FlagsClient        flags.Client
-	LocalClient        dev_server.LocalClient
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
 	ResourcesClient    resources.Client
@@ -194,7 +193,7 @@ func NewRootCommand(
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(logincmd.NewLoginCmd(analyticsTrackerFn, resources.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
-	cmd.AddCommand(devcmd.NewDevServerCmd(dev_server.NewLocalClient(), dev_server.NewClient(version)))
+	cmd.AddCommand(devcmd.NewDevServerCmd(resources.NewClient(version), dev_server.NewClient(version)))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	// add non-generated commands
@@ -219,7 +218,6 @@ func Execute(version string) {
 		DevClient:          dev_server.NewClient(version),
 		EnvironmentsClient: environments.NewClient(version),
 		FlagsClient:        flags.NewClient(version),
-		LocalClient:        dev_server.NewLocalClient(),
 		MembersClient:      members.NewClient(version),
 		ProjectsClient:     projects.NewClient(version),
 		ResourcesClient:    resources.NewClient(version),

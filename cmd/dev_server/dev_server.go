@@ -1,6 +1,7 @@
 package dev_server
 
 import (
+	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server"
 )
 
-func NewDevServerCmd(localClient dev_server.LocalClient, ldClient dev_server.Client) *cobra.Command {
+func NewDevServerCmd(client resources.Client, ldClient dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dev-server",
 		Short: "Development server",
@@ -25,15 +26,15 @@ func NewDevServerCmd(localClient dev_server.LocalClient, ldClient dev_server.Cli
 
 	// Add subcommands here
 	cmd.AddGroup(&cobra.Group{ID: "projects", Title: "Project commands:"})
-	cmd.AddCommand(NewListProjectsCmd(localClient))
-	cmd.AddCommand(NewGetProjectCmd(localClient))
-	cmd.AddCommand(NewSyncProjectCmd(localClient))
-	cmd.AddCommand(NewRemoveProjectCmd(localClient))
-	cmd.AddCommand(NewAddProjectCmd(localClient))
+	cmd.AddCommand(NewListProjectsCmd(client))
+	cmd.AddCommand(NewGetProjectCmd(client))
+	cmd.AddCommand(NewSyncProjectCmd(client))
+	cmd.AddCommand(NewRemoveProjectCmd(client))
+	cmd.AddCommand(NewAddProjectCmd(client))
 
 	cmd.AddGroup(&cobra.Group{ID: "overrides", Title: "Override commands:"})
-	cmd.AddCommand(NewAddOverrideCmd(localClient))
-	cmd.AddCommand(NewRemoveOverrideCmd(localClient))
+	cmd.AddCommand(NewAddOverrideCmd(client))
+	cmd.AddCommand(NewRemoveOverrideCmd(client))
 	cmd.AddGroup(&cobra.Group{ID: "server", Title: "Server commands:"})
 
 	cmd.AddCommand(NewStartServerCmd(ldClient))

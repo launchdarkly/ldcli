@@ -3,6 +3,7 @@ package dev_server
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/launchdarkly/ldcli/internal/resources"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -10,13 +11,12 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
-	"github.com/launchdarkly/ldcli/internal/dev_server"
 	"github.com/launchdarkly/ldcli/internal/output"
 )
 
 const DEV_SERVER = "http://0.0.0.0:8765"
 
-func NewListProjectsCmd(client dev_server.LocalClient) *cobra.Command {
+func NewListProjectsCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "projects",
 		Args:    validators.Validate(),
@@ -31,11 +31,11 @@ func NewListProjectsCmd(client dev_server.LocalClient) *cobra.Command {
 	return cmd
 }
 
-func listProjects(client dev_server.LocalClient) func(*cobra.Command, []string) error {
+func listProjects(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects"
-		res, err := client.MakeRequest(
+		res, err := client.MakeUnauthenticatedRequest(
 			"GET",
 			path,
 			nil,
@@ -50,7 +50,7 @@ func listProjects(client dev_server.LocalClient) func(*cobra.Command, []string) 
 	}
 }
 
-func NewGetProjectCmd(client dev_server.LocalClient) *cobra.Command {
+func NewGetProjectCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "projects",
 		Args:    validators.Validate(),
@@ -70,11 +70,11 @@ func NewGetProjectCmd(client dev_server.LocalClient) *cobra.Command {
 	return cmd
 }
 
-func getProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
+func getProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
-		res, err := client.MakeRequest(
+		res, err := client.MakeUnauthenticatedRequest(
 			"GET",
 			path,
 			nil,
@@ -88,7 +88,7 @@ func getProject(client dev_server.LocalClient) func(*cobra.Command, []string) er
 	}
 }
 
-func NewSyncProjectCmd(client dev_server.LocalClient) *cobra.Command {
+func NewSyncProjectCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "projects",
 		Args:    validators.Validate(),
@@ -108,11 +108,11 @@ func NewSyncProjectCmd(client dev_server.LocalClient) *cobra.Command {
 	return cmd
 }
 
-func syncProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
+func syncProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "/sync"
-		res, err := client.MakeRequest(
+		res, err := client.MakeUnauthenticatedRequest(
 			"PATCH",
 			path,
 			nil,
@@ -126,7 +126,7 @@ func syncProject(client dev_server.LocalClient) func(*cobra.Command, []string) e
 	}
 }
 
-func NewRemoveProjectCmd(client dev_server.LocalClient) *cobra.Command {
+func NewRemoveProjectCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "projects",
 		Args:    validators.Validate(),
@@ -146,11 +146,11 @@ func NewRemoveProjectCmd(client dev_server.LocalClient) *cobra.Command {
 	return cmd
 }
 
-func deleteProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
+func deleteProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
-		res, err := client.MakeRequest(
+		res, err := client.MakeUnauthenticatedRequest(
 			"DELETE",
 			path,
 			nil,
@@ -165,7 +165,7 @@ func deleteProject(client dev_server.LocalClient) func(*cobra.Command, []string)
 	}
 }
 
-func NewAddProjectCmd(client dev_server.LocalClient) *cobra.Command {
+func NewAddProjectCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "projects",
 		Args:    validators.Validate(),
@@ -208,7 +208,7 @@ type postBody struct {
 	//context              context
 }
 
-func addProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
+func addProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		body := postBody{SourceEnvironmentKey: viper.GetString("source")}
 		//if viper.IsSet("context-key") {
@@ -224,7 +224,7 @@ func addProject(client dev_server.LocalClient) func(*cobra.Command, []string) er
 		}
 
 		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
-		res, err := client.MakeRequest(
+		res, err := client.MakeUnauthenticatedRequest(
 			"POST",
 			path,
 			jsonData,
