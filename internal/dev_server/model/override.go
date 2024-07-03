@@ -37,11 +37,12 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 		return Override{}, err
 	}
 
-	observers := GetObserversFromContext(ctx)
 	project, err := store.GetDevProject(ctx, projectKey)
 	if err != nil {
 		return Override{}, errors.Wrap(err, "unable to get project")
 	}
+
+	observers := GetObserversFromContext(ctx)
 	flagState := override.Apply(project.FlagState[flagKey])
 	observers.Notify(UpsertOverrideEvent{
 		FlagKey:    flagKey,
