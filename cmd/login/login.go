@@ -2,17 +2,19 @@ package login
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	configcmd "github.com/launchdarkly/ldcli/cmd/config"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/login"
-	"github.com/launchdarkly/ldcli/internal/output"
 )
 
 func NewLoginCmd(
@@ -66,21 +68,45 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 			viper.GetString(cliflags.BaseURIFlag),
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return err
 		}
 
+		fullURL := fmt.Sprintf("%s/%s", viper.GetString(cliflags.BaseURIFlag), deviceAuthorization.VerificationURI)
 		var b strings.Builder
 		b.WriteString(fmt.Sprintf("Your code is %s\n", deviceAuthorization.UserCode))
 		b.WriteString("This code verifies your authentication with LaunchDarkly.\n")
-		b.WriteString(
-			fmt.Sprintf(
-				"Press Enter to open the browser or visit %s/%s (^C to quit)\n",
-				viper.GetString(cliflags.BaseURIFlag),
-				deviceAuthorization.VerificationURI,
-			),
-		)
-
+		b.WriteString(fmt.Sprintf("Opening your browser to %s to finish verifying your login.\n", fullURL))
+		b.WriteString("If your browser does not open automatically, you can paste the above URL into your browser.")
 		fmt.Fprintln(cmd.OutOrStdout(), b.String())
+
+		_ = browser.OpenURL(fullURL)
+
+		deviceAuthorizationToken, err := login.FetchToken(
+			client,
+			deviceAuthorization.DeviceCode,
+			viper.GetString(cliflags.BaseURIFlag),
+			login.TokenInterval,
+			login.MaxFetchTokenAttempts,
+		)
+		if err != nil {
+			return err
+		}
+
+		conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
+		if err != nil {
+			return err
+		}
+		conf, _, err = conf.Update([]string{cliflags.AccessTokenFlag, deviceAuthorizationToken})
+		if err != nil {
+			return err
+		}
+
+		err = configcmd.Write(conf, configcmd.SetKey)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintln(cmd.OutOrStdout(), "Your token has been written to the configuration file")
 
 		return nil
 	}
