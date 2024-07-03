@@ -2,6 +2,7 @@ package flags
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -31,10 +32,9 @@ func NewArchiveCmd(client resources.Client) *cobra.Command {
 
 func makeArchiveRequest(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-
-		path := fmt.Sprintf(
-			"%s/api/v2/flags/%s/%s",
+		path, _ := url.JoinPath(
 			viper.GetString(cliflags.BaseURIFlag),
+			"api/v2/flags",
 			viper.GetString(cliflags.ProjectFlag),
 			viper.GetString(cliflags.FlagFlag),
 		)

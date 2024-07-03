@@ -28,3 +28,17 @@ func (c *MockClient) MakeRequest(
 
 	return c.Response, nil
 }
+
+func (c *MockClient) MakeUnauthenticatedRequest(
+	method string,
+	path string,
+	data []byte,
+) ([]byte, error) {
+	c.Input = data
+
+	if c.StatusCode > http.StatusBadRequest {
+		return c.Response, c.Err
+	}
+
+	return c.Response, nil
+}
