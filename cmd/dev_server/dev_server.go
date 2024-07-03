@@ -1,13 +1,13 @@
 package dev_server
 
 import (
-	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 func NewDevServerCmd(client resources.Client, ldClient dev_server.Client) *cobra.Command {

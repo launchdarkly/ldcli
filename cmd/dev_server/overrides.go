@@ -3,7 +3,6 @@ package dev_server
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/launchdarkly/ldcli/internal/resources"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -12,6 +11,7 @@ import (
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/output"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 func NewAddOverrideCmd(client resources.Client) *cobra.Command {
