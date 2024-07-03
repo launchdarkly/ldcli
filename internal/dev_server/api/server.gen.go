@@ -79,6 +79,15 @@ type FlagOverride struct {
 	Value FlagValue `json:"value"`
 }
 
+// InvalidRequestResponse defines model for InvalidRequestResponse.
+type InvalidRequestResponse struct {
+	// Code specific error code encountered
+	Code string `json:"code"`
+
+	// Message description of the error
+	Message string `json:"message"`
+}
+
 // NotFoundErrorResp defines model for NotFoundErrorResp.
 type NotFoundErrorResp struct {
 	Code    string `json:"code"`
@@ -584,6 +593,14 @@ type FlagOverrideJSONResponse struct {
 	Value FlagValue `json:"value"`
 }
 
+type InvalidRequestResponseJSONResponse struct {
+	// Code specific error code encountered
+	Code string `json:"code"`
+
+	// Message description of the error
+	Message string `json:"message"`
+}
+
 type NotFoundErrorRespJSONResponse struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -744,6 +761,17 @@ type PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse struct{ FlagOverrid
 func (response PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse) VisitPutDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse struct {
+	InvalidRequestResponseJSONResponse
+}
+
+func (response PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse) VisitPutDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
 
 	return json.NewEncoder(w).Encode(response)
 }

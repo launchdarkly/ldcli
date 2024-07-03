@@ -131,6 +131,8 @@ paths:
       responses:
         200:
           $ref: "#/components/responses/FlagOverride"
+        400:
+          $ref: "#/components/responses/InvalidRequestResponse"
 
     delete:
       summary: remove override for flag
@@ -237,6 +239,22 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Project"
+    InvalidRequestResponse:
+      description: Invalid request response
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - code
+              - message
+            properties:
+              code:
+                type: string
+                description: specific error code encountered
+              message:
+                type: string
+                description: description of the error
     NotFoundErrorResp:
       description: not found
       content:

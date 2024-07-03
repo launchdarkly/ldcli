@@ -237,6 +237,14 @@ func (s Server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, re
 	}
 	override, err := model.UpsertOverride(ctx, request.ProjectKey, request.FlagKey, *request.Body)
 	if err != nil {
+		if errors.As(err, &model.Error{}) {
+			return PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse{
+				InvalidRequestResponseJSONResponse{
+					Code:    "invalid_request",
+					Message: err.Error(),
+				},
+			}, nil
+		}
 		return nil, err
 	}
 	return PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse{FlagOverrideJSONResponse{
