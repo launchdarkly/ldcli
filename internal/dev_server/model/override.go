@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"encoding/json"
-
 	"github.com/pkg/errors"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -29,14 +28,14 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Ove
 	var val ldvalue.Value
 	err := json.Unmarshal([]byte(value), &val)
 	if err != nil {
-		return Override{}, errors.New("invalid override value")
+		return Override{}, NewError("invalid override value")
 	}
 
 	store := StoreFromContext(ctx)
 
 	project, err := store.GetDevProject(ctx, projectKey)
 	if err != nil || project == nil {
-		return Override{}, errors.New("project not found")
+		return Override{}, NewError("project does not exist within dev server")
 	}
 
 	var flagExists bool
@@ -47,7 +46,7 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Ove
 		}
 	}
 	if !flagExists {
-		return Override{}, errors.New("flag not found")
+		return Override{}, NewError("flag does not exist within dev project")
 	}
 
 	override := Override{
@@ -74,7 +73,7 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Ove
 		FlagState:  flagState,
 	})
 
-	return override, err
+	return override, nil
 }
 
 func (o Override) Apply(state FlagState) FlagState {

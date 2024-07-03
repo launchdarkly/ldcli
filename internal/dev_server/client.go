@@ -38,7 +38,7 @@ func (c DevClient) MakeRequest(method, path string, data []byte) ([]byte, error)
 	defer res.Body.Close()
 
 	if res.StatusCode >= 400 {
-		return body, errors.NewAPIError(body, errors.NewError(string(body)), []string{})
+		return body, errors.NewError(string(body))
 	}
 
 	return body, nil
