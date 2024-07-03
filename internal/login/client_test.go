@@ -12,12 +12,7 @@ import (
 
 func TestMakeRequest(t *testing.T) {
 	t.Run("with a successful response", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-			assert.Equal(t, "launchdarkly-cli/vtest-version", r.Header.Get("User-Agent"))
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"message": "success"}`))
-		}))
+		server := makeServer(t, http.StatusOK, `{"message": "success"}`)
 		defer server.Close()
 		c := login.NewClient("test-version")
 
@@ -28,12 +23,7 @@ func TestMakeRequest(t *testing.T) {
 	})
 
 	t.Run("with an error with a response body", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-			assert.Equal(t, "launchdarkly-cli/vtest-version", r.Header.Get("User-Agent"))
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"message": "an error"}`))
-		}))
+		server := makeServer(t, http.StatusBadRequest, `{"message": "an error"}`)
 		defer server.Close()
 		c := login.NewClient("test-version")
 
@@ -43,11 +33,7 @@ func TestMakeRequest(t *testing.T) {
 	})
 
 	t.Run("with a method not allowed status code and no body", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-			assert.Equal(t, "launchdarkly-cli/vtest-version", r.Header.Get("User-Agent"))
-			w.WriteHeader(http.StatusMethodNotAllowed)
-		}))
+		server := makeServer(t, http.StatusMethodNotAllowed, "")
 		defer server.Close()
 		c := login.NewClient("test-version")
 		expectedResponse := `{
@@ -57,6 +43,15 @@ func TestMakeRequest(t *testing.T) {
 
 		_, err := c.MakeRequest("POST", server.URL, []byte(`{}`))
 
-		assert.EqualError(t, err, expectedResponse)
+		assert.JSONEq(t, expectedResponse, err.Error())
 	})
+}
+
+func makeServer(t *testing.T, statusResponse int, responseBody string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		assert.Equal(t, "launchdarkly-cli/vtest-version", r.Header.Get("User-Agent"))
+		w.WriteHeader(statusResponse)
+		_, _ = w.Write([]byte(responseBody))
+	}))
 }

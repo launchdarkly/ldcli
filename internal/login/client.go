@@ -2,6 +2,7 @@ package login
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,11 +34,9 @@ func (c Client) MakeRequest(
 	data []byte,
 ) ([]byte, error) {
 	client := http.Client{}
-
 	req, _ := http.NewRequest(method, path, bytes.NewReader(data))
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.cliVersion))
-
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -59,10 +58,11 @@ func (c Client) MakeRequest(
 
 	switch res.StatusCode {
 	case http.StatusMethodNotAllowed:
-		return body, errors.NewError(`{
-			"code": "method_not_allowed",
-			"message": "method not allowed"
-		}`)
+		resp, _ := json.Marshal(map[string]string{
+			"code":    "method_not_allowed",
+			"message": "method not allowed",
+		})
+		return body, errors.NewError(string(resp))
 	default:
 		return body, errors.NewError(fmt.Sprintf("could not complete the request: %d", res.StatusCode))
 	}
