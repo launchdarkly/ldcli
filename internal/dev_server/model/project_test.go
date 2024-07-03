@@ -128,6 +128,111 @@ func TestUpdateProject(t *testing.T) {
 	})
 }
 
+func TestSyncProject(t *testing.T) {
+	mockController := gomock.NewController(t)
+	store := mocks.NewMockStore(mockController)
+	ctx := model.ContextWithStore(context.Background(), store)
+	ctx, api, sdk := adapters_mocks.WithMockApiAndSdk(ctx, mockController)
+
+	proj := model.Project{
+		Key:                  "projKey",
+		SourceEnvironmentKey: "srcEnvKey",
+		Context:              ldcontext.New(t.Name()),
+	}
+
+	t.Run("Returns error if GetDevProject fails", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&model.Project{}, errors.New("GetDevProject fails"))
+		_, err := model.SyncProject(ctx, proj.Key)
+		assert.NotNil(t, err)
+		assert.Equal(t, "GetDevProject fails", err.Error())
+	})
+
+	t.Run("returns error if FetchFlagState fails", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
+		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("", errors.New("FetchFlagState fails"))
+
+		_, err := model.SyncProject(ctx, proj.Key)
+		assert.NotNil(t, err)
+		assert.Equal(t, "FetchFlagState fails", err.Error())
+	})
+
+	t.Run("returns error if UpdateProject fails", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
+		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(flagstate.AllFlags{}, nil)
+		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(false, errors.New("UpdateProject fails"))
+
+		_, err := model.SyncProject(ctx, proj.Key)
+		assert.NotNil(t, err)
+		assert.Equal(t, "UpdateProject fails", err.Error())
+	})
+
+	t.Run("Returns error if project was not actually updated", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
+		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(flagstate.AllFlags{}, nil)
+		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(false, nil)
+
+		_, err := model.SyncProject(ctx, proj.Key)
+		assert.NotNil(t, err)
+		assert.Equal(t, "Project not updated", err.Error())
+	})
+
+	t.Run("Return successfully", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
+		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(flagstate.AllFlags{}, nil)
+		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(true, nil)
+
+		project, err := model.SyncProject(ctx, proj.Key)
+		assert.Nil(t, err)
+		assert.Equal(t, proj, project)
+	})
+}
+
+func TestGetFlagStateWithOverridesForProject(t *testing.T) {
+	mockController := gomock.NewController(t)
+	store := mocks.NewMockStore(mockController)
+	ctx := model.ContextWithStore(context.Background(), store)
+	flagKey := "flg"
+	proj := model.Project{
+		Key:       "projKey",
+		FlagState: model.FlagsState{flagKey: model.FlagState{Value: ldvalue.Bool(false), Version: 1}},
+	}
+
+	t.Run("Returns error if store fetch fails", func(t *testing.T) {
+		store.EXPECT().GetOverridesForProject(gomock.Any(), proj.Key).Return(model.Overrides{}, errors.New("fetch fails"))
+
+		_, err := proj.GetFlagStateWithOverridesForProject(ctx)
+		assert.NotNil(t, err)
+		assert.Equal(t, "unable to fetch overrides for project projKey: fetch fails", err.Error())
+	})
+
+	t.Run("Returns flag state with overrides successfully", func(t *testing.T) {
+		overrides := model.Overrides{
+			{
+				ProjectKey: proj.Key,
+				FlagKey:    flagKey,
+				Value:      ldvalue.Bool(true),
+				Active:     true,
+				Version:    1,
+			},
+		}
+
+		store.EXPECT().GetOverridesForProject(gomock.Any(), proj.Key).Return(overrides, nil)
+
+		withOverrides, err := proj.GetFlagStateWithOverridesForProject(ctx)
+		assert.Nil(t, err)
+
+		assert.Len(t, withOverrides, 1)
+
+		overriddenFlag, exists := withOverrides[flagKey]
+		assert.True(t, exists)
+		assert.True(t, overriddenFlag.Value.BoolValue())
+		assert.Equal(t, 2, overriddenFlag.Version)
+	})
+}
+
 func TestFetchFlagState(t *testing.T) {
 	ctx := context.Background()
 	mockController := gomock.NewController(t)

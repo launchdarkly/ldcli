@@ -97,7 +97,7 @@ func SyncProject(ctx context.Context, projectKey string) (Project, error) {
 		return Project{}, err
 	}
 	if !updated {
-		return Project{}, err
+		return Project{}, errors.New("Project not updated")
 	}
 	return *project, nil
 }
