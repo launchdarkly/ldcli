@@ -1,5 +1,7 @@
 package cliflags
 
+import "strings"
+
 const (
 	BaseURIDefault = "https://app.launchdarkly.com"
 
@@ -33,4 +35,8 @@ func AllFlagsHelp() map[string]string {
 		OutputFlag:      OutputFlagDescription,
 		ProjectFlag:     ProjectFlagDescription,
 	}
+}
+
+func GetBaseURI(uri string) string {
+	return strings.TrimSuffix(uri, "/")
 }

@@ -66,7 +66,7 @@ func run(client resources.UnauthenticatedClient) func(*cobra.Command, []string) 
 			client,
 			login.ClientID,
 			login.GetDeviceName(),
-			viper.GetString(cliflags.BaseURIFlag),
+			cliflags.GetBaseURI(viper.GetString(cliflags.BaseURIFlag)),
 		)
 		if err != nil {
 			return err
