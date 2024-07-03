@@ -1,11 +1,8 @@
 package login
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"time"
 
@@ -27,53 +24,6 @@ type DeviceAuthorization struct {
 
 type DeviceAuthorizationToken struct {
 	AccessToken string `json:"accessToken"`
-}
-
-type UnauthenticatedClient interface {
-	MakeRequest(
-		method string,
-		path string,
-		data []byte,
-	) ([]byte, error)
-}
-
-type Client struct {
-	cliVersion string
-}
-
-func NewClient(cliVersion string) Client {
-	return Client{
-		cliVersion: cliVersion,
-	}
-}
-
-func (c Client) MakeRequest(
-	method string,
-	path string,
-	data []byte,
-) ([]byte, error) {
-	client := http.Client{}
-
-	req, _ := http.NewRequest(method, path, bytes.NewReader(data))
-	req.Header.Add("Content-type", "application/json")
-	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.cliVersion))
-
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode >= 400 {
-		return body, errors.NewError(string(body))
-	}
-
-	return body, nil
 }
 
 // FetchDeviceAuthorization makes a request to create a device authorization that will later be
