@@ -3,6 +3,7 @@ package members
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -45,9 +46,9 @@ func runE(client resources.Client) func(*cobra.Command, []string) error {
 			return errors.NewError(err.Error())
 		}
 
-		path := fmt.Sprintf(
-			"%s/api/v2/members",
+		path, _ := url.JoinPath(
 			viper.GetString(cliflags.BaseURIFlag),
+			"api/v2/members",
 		)
 		res, err := client.MakeRequest(
 			viper.GetString(cliflags.AccessTokenFlag),
