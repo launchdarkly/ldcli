@@ -283,6 +283,7 @@ func (op *OperationCmd) initFlags() error {
 }
 
 func buildURLWithParams(baseURI, path string, urlParams []string) string {
+	baseURI = strings.TrimSuffix(baseURI, "/")
 	s := make([]interface{}, len(urlParams))
 	for i, v := range urlParams {
 		s[i] = v

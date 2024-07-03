@@ -28,7 +28,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/environments"
 	errs "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/flags"
-	"github.com/launchdarkly/ldcli/internal/login"
 	"github.com/launchdarkly/ldcli/internal/members"
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
@@ -193,7 +192,7 @@ func NewRootCommand(
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
-	cmd.AddCommand(logincmd.NewLoginCmd(analyticsTrackerFn, login.NewClient(version)))
+	cmd.AddCommand(logincmd.NewLoginCmd(analyticsTrackerFn, resources.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(dev_server.NewLocalClient(), dev_server.NewClient(version)))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)

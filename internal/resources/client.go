@@ -2,6 +2,7 @@ package resources
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,7 +11,16 @@ import (
 	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
+type UnauthenticatedClient interface {
+	MakeUnauthenticatedRequest(
+		method string,
+		path string,
+		data []byte,
+	) ([]byte, error)
+}
+
 type Client interface {
+	UnauthenticatedClient
 	MakeRequest(accessToken, method, path, contentType string, query url.Values, data []byte, isBeta bool) ([]byte, error)
 }
 
@@ -24,9 +34,21 @@ func NewClient(cliVersion string) ResourcesClient {
 	return ResourcesClient{cliVersion: cliVersion}
 }
 
-func (c ResourcesClient) MakeRequest(accessToken, method, path, contentType string, query url.Values, data []byte, isBeta bool) ([]byte, error) {
-	client := http.Client{}
+func (c ResourcesClient) MakeUnauthenticatedRequest(
+	method string,
+	path string,
+	data []byte,
+) ([]byte, error) {
+	return c.MakeRequest("", method, path, "application/json", nil, data, false)
+}
 
+func (c ResourcesClient) MakeRequest(
+	accessToken, method, path, contentType string,
+	query url.Values,
+	data []byte,
+	isBeta bool,
+) ([]byte, error) {
+	client := http.Client{}
 	req, _ := http.NewRequest(method, path, bytes.NewReader(data))
 	req.Header.Add("Authorization", accessToken)
 	req.Header.Add("Content-Type", contentType)
@@ -47,9 +69,22 @@ func (c ResourcesClient) MakeRequest(accessToken, method, path, contentType stri
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode >= 400 {
+	if res.StatusCode < http.StatusBadRequest {
+		return body, nil
+	}
+
+	if len(body) > 0 {
 		return body, errors.NewError(string(body))
 	}
 
-	return body, nil
+	switch res.StatusCode {
+	case http.StatusMethodNotAllowed:
+		resp, _ := json.Marshal(map[string]string{
+			"code":    "method_not_allowed",
+			"message": "method not allowed",
+		})
+		return body, errors.NewError(string(resp))
+	default:
+		return body, errors.NewError(fmt.Sprintf("could not complete the request: %d", res.StatusCode))
+	}
 }
