@@ -17,6 +17,9 @@ import './App.css';
 import { useEffect, useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 
+const API_BASE = import.meta.env.PROD ? '' : '/api';
+const apiRoute = (pathname: string) => `${API_BASE}${pathname}`
+
 function App() {
   const [flags, setFlags] = useState<LDFlagSet | null>(null);
   const [overrides, setOverrides] = useState<Record<
@@ -27,7 +30,7 @@ function App() {
   const overridesPresent = overrides && Object.keys(overrides).length > 0;
 
   const updateOverride = (flagKey: string, overrideValue: LDFlagValue) => {
-    fetch(`api/dev/projects/default/overrides/${flagKey}`, {
+    fetch(apiRoute(`/dev/projects/default/overrides/${flagKey}`), {
       method: 'PUT',
       body: JSON.stringify(overrideValue),
     })
@@ -47,13 +50,13 @@ function App() {
 
         setOverrides(updatedOverrides);
       })
-      .catch((e) => {
+      .catch((_e) => {
         // todo
       });
   };
 
   const removeOverride = (flagKey: string, updateState: boolean = true) => {
-    return fetch(`api/dev/projects/default/overrides/${flagKey}`, {
+    return fetch(apiRoute(`/dev/projects/default/overrides/${flagKey}`), {
       method: 'DELETE',
     })
       .then((res) => {
@@ -70,14 +73,14 @@ function App() {
           setOverrides(updatedOverrides);
         }
       })
-      .catch((e) => {
+      .catch((_e) => {
         // todo
       });
   };
 
   // Fetch flags / overrides on mount
   useEffect(() => {
-    fetch('/api/dev/projects/default?expand=overrides')
+    fetch(apiRoute('/dev/projects/default?expand=overrides'))
       .then(async (res) => {
         if (!res.ok) {
           return; // todo
@@ -96,7 +99,7 @@ function App() {
         setFlags(sortedFlags);
         setOverrides(overrides);
       })
-      .catch((e) => {
+      .catch((_e) => {
         // todo
       });
   }, []);

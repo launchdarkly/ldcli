@@ -12,20 +12,17 @@ import (
 
 func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	store := model.StoreFromContext(ctx)
 	projectKey := GetProjectKeyFromContext(ctx)
-	project, err := store.GetDevProject(ctx, projectKey)
+	allFlags, err := GetAllFlagsFromContext(ctx)
 	if err != nil {
-		panic(errors.Wrap(err, "unable to get dev project"))
-	}
-	allFlags, err := project.GetFlagStateWithOverridesForProject(ctx)
-	if err != nil {
-		panic(errors.Wrap(err, "failed to get flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to get flag state"))
+		return
 	}
 	serverFlags := ServerAllPayloadFromFlagsState(allFlags)
 	jsonBody, err := json.Marshal(serverFlags)
 	if err != nil {
-		panic(errors.Wrap(err, "failed to marshal flag state"))
+		WriteError(ctx, w, errors.Wrap(err, "failed to marshal flag state"))
+		return
 	}
 	updateChan, doneChan := OpenStream(w, r.Context().Done(), Message{"put", jsonBody})
 	defer close(updateChan)
@@ -40,7 +37,8 @@ func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 	}()
 	err = <-doneChan
 	if err != nil {
-		panic(errors.Wrap(err, "stream failure"))
+		WriteError(ctx, w, errors.Wrap(err, "stream failure"))
+		return
 	}
 }
 
@@ -58,7 +56,7 @@ func (c serverFlagsObserver) Handle(event interface{}) {
 		}
 		data, err := json.Marshal(serverSidePatchData{
 			Path: fmt.Sprintf("/flags/%s", event.FlagKey),
-			Data: ServerFlagFromFlagState(event.FlagKey, event.FlagState),
+			Data: serverFlagFromFlagState(event.FlagKey, event.FlagState),
 		})
 		if err != nil {
 			panic(errors.Wrap(err, "failed to marshal flag state in observer"))

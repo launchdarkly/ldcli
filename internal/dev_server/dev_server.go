@@ -20,7 +20,7 @@ import (
 )
 
 type Client interface {
-	RunServer(ctx context.Context, accessToken, baseURI string)
+	RunServer(ctx context.Context, accessToken, baseURI, devStreamURI string)
 }
 
 type LDClient struct {
@@ -33,7 +33,7 @@ func NewClient(cliVersion string) LDClient {
 	return LDClient{cliVersion: cliVersion}
 }
 
-func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
+func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI, devStreamURI string) {
 	ldClient := client.New(accessToken, baseURI, c.cliVersion)
 	dbPath := getDBPath()
 	log.Printf("Using database at %s", dbPath)
@@ -47,7 +47,7 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 		ResponseErrorHandlerFunc: ResponseErrorHandler,
 	})
 	r := mux.NewRouter()
-	r.Use(adapters.Middleware(*ldClient, "https://relay-stg.ld.catamorphic.com")) // TODO add to config
+	r.Use(adapters.Middleware(*ldClient, devStreamURI))
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(model.NewObservers()))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
@@ -57,6 +57,7 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI string) {
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 	fmt.Println("Server running on 0.0.0.0:8765")
+	fmt.Println("Access the UI for toggling overrides at http://localhost:8765/ui or by running `ldcli dev-server ui`")
 	server := http.Server{
 		Addr:    "0.0.0.0:8765",
 		Handler: handler,
