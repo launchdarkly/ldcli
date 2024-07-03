@@ -22,17 +22,22 @@ func GetSdk(ctx context.Context) Sdk {
 	return ctx.Value(ctxKeySdk).(Sdk)
 }
 
-type Sdk struct {
+//go:generate go run go.uber.org/mock/mockgen -destination mocks/sdk.go -package mocks . Sdk
+type Sdk interface {
+	GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error)
+}
+
+type streamingSdk struct {
 	streamingUrl string
 }
 
 func newSdk(streamingUrl string) Sdk {
-	return Sdk{
+	return streamingSdk{
 		streamingUrl: streamingUrl,
 	}
 }
 
-func (s Sdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error) {
+func (s streamingSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error) {
 	config := ldsdk.Config{
 		DiagnosticOptOut: true,
 		Events:           ldcomponents.NoEvents(),

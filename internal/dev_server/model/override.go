@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/pkg/errors"
 
@@ -23,14 +22,8 @@ type UpsertOverrideEvent struct {
 	FlagState  FlagState
 }
 
-func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Override, error) {
+func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldvalue.Value) (Override, error) {
 	// TODO: validate if the flag type matches
-
-	var val ldvalue.Value
-	err := json.Unmarshal([]byte(value), &val)
-	if err != nil {
-		return Override{}, NewError("invalid override value")
-	}
 
 	store := StoreFromContext(ctx)
 
@@ -53,7 +46,7 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Ove
 	override := Override{
 		ProjectKey: projectKey,
 		FlagKey:    flagKey,
-		Value:      val,
+		Value:      value,
 		Active:     true,
 		Version:    1,
 	}
