@@ -13,7 +13,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldclient "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
-	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters/mocks"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
@@ -42,10 +41,7 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 	ctx = model.SetObserversOnContext(ctx, observers)
 	// Mock the external LD APIs
 	mockController := gomock.NewController(t)
-	api := mocks.NewMockApi(mockController)
-	ctx = adapters.WithApi(ctx, api)
-	sdk := mocks.NewMockSdk(mockController)
-	ctx = adapters.WithSdk(ctx, sdk)
+	ctx, api, sdk := mocks.WithMockApiAndSdk(ctx, mockController)
 
 	api.EXPECT().GetSdkKey(gomock.Any(), projectKey, environmentKey).Return(testSdkKey, nil).AnyTimes()
 

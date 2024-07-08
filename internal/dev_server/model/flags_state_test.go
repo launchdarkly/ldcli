@@ -35,6 +35,8 @@ func TestFromAllFlags(t *testing.T) {
 			expectedVal = ldvalue.Float64(99.99)
 		case "jsonFlag":
 			expectedVal = ldvalue.CopyArbitraryValue(map[string]any{"cat": "hat"})
+		default:
+			assert.Failf(t, "unknown flag, %s", key)
 		}
 
 		assert.Equal(t, expectedVersion, state.Version)
