@@ -7,6 +7,7 @@ import (
 
 	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/login"
+	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -16,9 +17,9 @@ type mockClient struct {
 	mock.Mock
 }
 
-var _ login.UnauthenticatedClient = &mockClient{}
+var _ resources.UnauthenticatedClient = &mockClient{}
 
-func (c *mockClient) MakeRequest(
+func (c *mockClient) MakeUnauthenticatedRequest(
 	method string,
 	path string,
 	data []byte,
@@ -32,7 +33,7 @@ func TestFetchDeviceAuthorization(t *testing.T) {
 	baseURI := "http://test.com"
 	mockClient := mockClient{}
 	mockClient.On(
-		"MakeRequest",
+		"MakeUnauthenticatedRequest",
 		"POST",
 		"http://test.com/internal/device-authorization",
 		[]byte(`{
@@ -75,7 +76,7 @@ func TestFetchToken(t *testing.T) {
 		})
 		mockClient := mockClient{}
 		mockClient.On(
-			"MakeRequest",
+			"MakeUnauthenticatedRequest",
 			"POST",
 			"http://test.com/internal/device-authorization/token",
 			input,
@@ -130,7 +131,7 @@ func TestFetchToken_WithError(t *testing.T) {
 			responseErr := errors.NewError(string(output))
 			mockClient := mockClient{}
 			mockClient.On(
-				"MakeRequest",
+				"MakeUnauthenticatedRequest",
 				"POST",
 				"http://test.com/internal/device-authorization/token",
 				input,

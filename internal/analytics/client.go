@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -81,7 +82,11 @@ func (c *Client) sendEvent(eventName string, properties map[string]interface{}) 
 		return
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/internal/tracking", c.baseURI), bytes.NewBuffer(body))
+	path, _ := url.JoinPath(
+		c.baseURI,
+		"internal/tracking",
+	)
+	req, err := http.NewRequest("POST", path, bytes.NewBuffer(body))
 	if err != nil { //nolint:staticcheck
 		// TODO: log error
 		c.wg.Done()
