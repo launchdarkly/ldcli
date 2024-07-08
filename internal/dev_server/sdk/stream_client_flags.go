@@ -22,7 +22,11 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 		WriteError(ctx, w, errors.Wrap(err, "failed to marshal flag state"))
 		return
 	}
-	updateChan, doneChan := OpenStream(w, r.Context().Done(), Message{"put", jsonBody}) // TODO Wireup updateChan
+	updateChan, doneChan := OpenStream(
+		w,
+		r.Context().Done(),
+		Message{Event: TYPE_PUT, Data: jsonBody},
+	) // TODO Wireup updateChan
 	defer close(updateChan)
 	projectKey := GetProjectKeyFromContext(ctx)
 	observer := clientFlagsObserver{updateChan, projectKey}
