@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
+//go:generate oapi-codegen -config oapi-codegen-cfg.yaml api.yaml
 type Server struct {
 }
 
@@ -34,7 +34,10 @@ func (s Server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteD
 		return nil, err
 	}
 	if !deleted {
-		return DeleteDevProjectsProjectKey404Response{}, nil
+		return DeleteDevProjectsProjectKey404JSONResponse{NotFoundErrorRespJSONResponse{
+			Code:    "not_found",
+			Message: "project not found",
+		}}, nil
 	}
 	return DeleteDevProjectsProjectKey204Response{}, nil
 }
@@ -73,6 +76,7 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 						Version: override.Version,
 					}
 				}
+				response.Overrides = &respOverrides
 			}
 		}
 
@@ -84,17 +88,134 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 }
 
 func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
-	project, err := model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, nil)
+	store := model.StoreFromContext(ctx)
+	project, err := model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, request.Body.Context)
 	if err != nil {
 		return nil, err
 	}
+
+	response := ProjectJSONResponse{
+		LastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:              project.Context,
+		SourceEnvironmentKey: project.SourceEnvironmentKey,
+		FlagsState:           &project.FlagState,
+	}
+
+	if request.Params.Expand != nil {
+		for _, item := range *request.Params.Expand {
+			if item == "overrides" {
+				overrides, err := store.GetOverridesForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respOverrides := make(model.FlagsState)
+				for _, override := range overrides {
+					if !override.Active {
+						continue
+					}
+					respOverrides[override.FlagKey] = model.FlagState{
+						Value:   override.Value,
+						Version: override.Version,
+					}
+				}
+				response.Overrides = &respOverrides
+			}
+		}
+
+	}
+
 	return PostDevProjectsProjectKey201JSONResponse{
-		ProjectJSONResponse{
-			LastSyncedFromSource: project.LastSyncTime.Unix(),
-			Context:              project.Context,
-			SourceEnvironmentKey: project.SourceEnvironmentKey,
-			FlagsState:           &project.FlagState,
-		},
+		response,
+	}, nil
+}
+
+func (s Server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDevProjectsProjectKeyRequestObject) (PatchDevProjectsProjectKeyResponseObject, error) {
+	store := model.StoreFromContext(ctx)
+	project, err := model.UpdateProject(ctx, request.ProjectKey, request.Body.Context, request.Body.SourceEnvironmentKey)
+	if err != nil {
+		return nil, err
+	}
+	if project.Key == "" && project.SourceEnvironmentKey == "" {
+		return PatchDevProjectsProjectKey404Response{}, nil
+	}
+
+	response := ProjectJSONResponse{
+		LastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:              project.Context,
+		SourceEnvironmentKey: project.SourceEnvironmentKey,
+		FlagsState:           &project.FlagState,
+	}
+
+	if request.Params.Expand != nil {
+		for _, item := range *request.Params.Expand {
+			if item == "overrides" {
+				overrides, err := store.GetOverridesForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respOverrides := make(model.FlagsState)
+				for _, override := range overrides {
+					if !override.Active {
+						continue
+					}
+					respOverrides[override.FlagKey] = model.FlagState{
+						Value:   override.Value,
+						Version: override.Version,
+					}
+				}
+				response.Overrides = &respOverrides
+			}
+		}
+
+	}
+
+	return PatchDevProjectsProjectKey200JSONResponse{
+		response,
+	}, nil
+}
+
+func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request PatchDevProjectsProjectKeySyncRequestObject) (PatchDevProjectsProjectKeySyncResponseObject, error) {
+	store := model.StoreFromContext(ctx)
+	project, err := model.SyncProject(ctx, request.ProjectKey)
+	if err != nil {
+		return nil, err
+	}
+	if project.Key == "" && project.SourceEnvironmentKey == "" {
+		return PatchDevProjectsProjectKeySync404Response{}, nil
+	}
+
+	response := ProjectJSONResponse{
+		LastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:              project.Context,
+		SourceEnvironmentKey: project.SourceEnvironmentKey,
+		FlagsState:           &project.FlagState,
+	}
+
+	if request.Params.Expand != nil {
+		for _, item := range *request.Params.Expand {
+			if item == "overrides" {
+				overrides, err := store.GetOverridesForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respOverrides := make(model.FlagsState)
+				for _, override := range overrides {
+					if !override.Active {
+						continue
+					}
+					respOverrides[override.FlagKey] = model.FlagState{
+						Value:   override.Value,
+						Version: override.Version,
+					}
+				}
+				response.Overrides = &respOverrides
+			}
+		}
+
+	}
+
+	return PatchDevProjectsProjectKeySync200JSONResponse{
+		response,
 	}, nil
 }
 
@@ -102,7 +223,7 @@ func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context,
 	store := model.StoreFromContext(ctx)
 	err := store.DeleteOverride(ctx, request.ProjectKey, request.FlagKey)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, model.ErrNotFound) {
 			return DeleteDevProjectsProjectKeyOverridesFlagKey404Response{}, nil
 		}
 		return nil, err
@@ -111,8 +232,19 @@ func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context,
 }
 
 func (s Server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
-	override, err := model.UpsertOverride(ctx, request.ProjectKey, request.FlagKey, request.Body.String())
+	if request.Body == nil {
+		return nil, errors.New("empty override body")
+	}
+	override, err := model.UpsertOverride(ctx, request.ProjectKey, request.FlagKey, *request.Body)
 	if err != nil {
+		if errors.As(err, &model.Error{}) {
+			return PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse{
+				InvalidRequestResponseJSONResponse{
+					Code:    "invalid_request",
+					Message: err.Error(),
+				},
+			}, nil
+		}
 		return nil, err
 	}
 	return PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse{FlagOverrideJSONResponse{

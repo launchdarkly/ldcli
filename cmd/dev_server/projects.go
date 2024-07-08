@@ -111,9 +111,9 @@ func NewSyncProjectCmd(client dev_server.LocalClient) *cobra.Command {
 func syncProject(client dev_server.LocalClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
-		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "sync"
+		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "/sync"
 		res, err := client.MakeRequest(
-			"PUT",
+			"PATCH",
 			path,
 			nil,
 		)

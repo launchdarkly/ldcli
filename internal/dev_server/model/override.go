@@ -2,10 +2,8 @@ package model
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/pkg/errors"
 )
 
 type Override struct {
@@ -22,33 +20,41 @@ type UpsertOverrideEvent struct {
 	FlagState  FlagState
 }
 
-func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Override, error) {
-	// TODO: validate flag exists within project, + if the flag type matches
+func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldvalue.Value) (Override, error) {
+	// TODO: validate if the flag type matches
 
-	var val ldvalue.Value
-	err := json.Unmarshal([]byte(value), &val)
-	if err != nil {
-		return Override{}, err
+	store := StoreFromContext(ctx)
+
+	project, err := store.GetDevProject(ctx, projectKey)
+	if err != nil || project == nil {
+		return Override{}, NewError("project does not exist within dev server")
+	}
+
+	var flagExists bool
+	for flag := range project.FlagState {
+		if flagKey == flag {
+			flagExists = true
+			break
+		}
+	}
+	if !flagExists {
+		return Override{}, NewError("flag does not exist within dev project")
 	}
 
 	override := Override{
 		ProjectKey: projectKey,
 		FlagKey:    flagKey,
-		Value:      val,
+		Value:      value,
 		Active:     true,
 		Version:    1,
 	}
-	store := StoreFromContext(ctx)
+
 	override, err = store.UpsertOverride(ctx, override)
 	if err != nil {
 		return Override{}, err
 	}
 
 	observers := GetObserversFromContext(ctx)
-	project, err := store.GetDevProject(ctx, projectKey)
-	if err != nil {
-		return Override{}, errors.Wrap(err, "unable to get project")
-	}
 	flagState := override.Apply(project.FlagState[flagKey])
 	observers.Notify(UpsertOverrideEvent{
 		FlagKey:    flagKey,
@@ -56,7 +62,7 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey, value string) (Ove
 		FlagState:  flagState,
 	})
 
-	return override, err
+	return override, nil
 }
 
 func (o Override) Apply(state FlagState) FlagState {

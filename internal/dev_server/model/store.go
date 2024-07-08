@@ -5,16 +5,21 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 )
 
 type ctxKey string
 
 const ctxKeyStore = ctxKey("model.Store")
 
+//go:generate go run go.uber.org/mock/mockgen -destination mocks/store.go -package mocks . Store
+
 type Store interface {
 	DeleteOverride(ctx context.Context, projectKey, flagKey string) error
 	GetDevProjects(ctx context.Context) ([]string, error)
+	// GetDevProject fetches the project based on the projectKey. If it doesn't exist, ErrNotFound is returned
 	GetDevProject(ctx context.Context, projectKey string) (*Project, error)
+	UpdateProject(ctx context.Context, project Project) (bool, error)
 	DeleteDevProject(ctx context.Context, projectKey string) (bool, error)
 	InsertProject(ctx context.Context, project Project) error
 	UpsertOverride(ctx context.Context, override Override) (Override, error)
@@ -38,4 +43,26 @@ func StoreMiddleware(store Store) mux.MiddlewareFunc {
 			handler.ServeHTTP(writer, request)
 		})
 	}
+}
+
+var ErrNotFound = errors.New("not found")
+
+type Error struct {
+	err     error
+	message string
+}
+
+func (e Error) Error() string {
+	return e.message
+}
+
+func (e Error) Unwrap() error {
+	return e.err
+}
+
+func NewError(message string) error {
+	return errors.WithStack(Error{
+		err:     errors.New(message),
+		message: message,
+	})
 }

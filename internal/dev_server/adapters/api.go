@@ -16,15 +16,20 @@ func GetApi(ctx context.Context) Api {
 	return ctx.Value(ctxKeyApi).(Api)
 }
 
-type Api struct {
+//go:generate go run go.uber.org/mock/mockgen -destination mocks/api.go -package mocks . Api
+type Api interface {
+	GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error)
+}
+
+type apiClientApi struct {
 	apiClient ldapi.APIClient
 }
 
 func NewApi(client ldapi.APIClient) Api {
-	return Api{client}
+	return apiClientApi{client}
 }
 
-func (a Api) GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error) {
+func (a apiClientApi) GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error) {
 	environment, _, err := a.apiClient.EnvironmentsApi.GetEnvironment(ctx, projectKey, environmentKey).Execute()
 	if err != nil {
 		return "", err

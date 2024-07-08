@@ -98,14 +98,14 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		switch {
 		case viper.GetBool(ListFlag):
-			config, _, err := getConfig()
+			conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
-			configJSON, err := json.Marshal(config)
+			configJSON, err := json.Marshal(conf)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
 			output, err := output.CmdOutputSingular(
@@ -114,102 +114,56 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 				output.ConfigPlaintextOutputFn,
 			)
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 		case viper.GetBool(SetFlag):
-			// flag needs two arguments: a key and value
-			if len(args)%2 != 0 {
-				return errs.NewError("flag needs an argument: --set")
-			}
-
-			for i := 0; i < len(args)-1; i += 2 {
-				_, ok := cliflags.AllFlagsHelp()[args[i]]
-				if !ok {
-					return newErr(args[i])
-				}
-			}
-
-			rawConfig, v, err := getRawConfig()
+			conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
 			if err != nil {
-				return newCmdErr(err)
+				return newErr(err.Error())
 			}
-
-			// add arg pairs to config where each argument is --set arg1 val1 --set arg2 val2
-			newFields := make([]string, 0)
-			for i, a := range args {
-				if i%2 == 0 {
-					rawConfig[a] = struct{}{}
-					newFields = append(newFields, a)
-				} else {
-					rawConfig[args[i-1]] = a
-				}
+			conf, updatedFields, err := conf.Update(args)
+			if err != nil {
+				return newErr(err.Error())
 			}
-
-			var updatingAccessToken bool
-			for _, f := range newFields {
-				if f == cliflags.AccessTokenFlag {
-					updatingAccessToken = true
-					break
-				}
-			}
-			if updatingAccessToken {
-				if !service.VerifyAccessToken(
-					rawConfig[cliflags.AccessTokenFlag].(string),
-					viper.GetString(cliflags.BaseURIFlag),
-				) {
+			if isUpdatingAccessToken(updatedFields) {
+				if !service.VerifyAccessToken(conf.AccessToken, viper.GetString(cliflags.BaseURIFlag)) {
 					errorMessage := fmt.Sprintf("%s is invalid. ", cliflags.AccessTokenFlag)
 					errorMessage += errs.AccessTokenInvalidErrMessage(viper.GetString(cliflags.BaseURIFlag))
 					err := errors.New(errorMessage)
 
-					return newCmdErr(err)
+					return newErr(err.Error())
 				}
 			}
-
-			configFile, err := config.NewConfig(rawConfig)
+			err = Write(conf, SetKey)
 			if err != nil {
-				return newCmdErr(err)
+				return newErr(err.Error())
 			}
 
-			setKeyFn := func(key string, value interface{}, v *viper.Viper) {
-				v.Set(key, value)
-			}
-			err = writeConfig(configFile, v, setKeyFn)
+			output, err := outputSetAction(updatedFields)
 			if err != nil {
-				return newCmdErr(err)
-			}
-
-			output, err := outputSetAction(newFields)
-			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
 		case viper.IsSet(UnsetFlag):
-			_, ok := cliflags.AllFlagsHelp()[viper.GetString(UnsetFlag)]
-			if !ok {
-				return newErr(viper.GetString(UnsetFlag))
-			}
-
-			config, v, err := getConfig()
+			conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
 			if err != nil {
-				return newCmdErr(err)
+				return newErr(err.Error())
 			}
-
-			unsetKeyFn := func(key string, value interface{}, v *viper.Viper) {
-				if key != viper.GetString("unset") {
-					v.Set(key, value)
-				}
-			}
-			err = writeConfig(config, v, unsetKeyFn)
+			conf, err = conf.Remove(viper.GetString(UnsetFlag))
 			if err != nil {
-				return newCmdErr(err)
+				return newErr(err.Error())
+			}
+			err = Write(conf, UnsetKey)
+			if err != nil {
+				return newErr(err.Error())
 			}
 
 			output, err := outputUnsetAction(viper.GetString(UnsetFlag))
 			if err != nil {
-				return err
+				return newErr(err.Error())
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
@@ -221,40 +175,27 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 	}
 }
 
-// getConfig builds a struct type of the values in the config file.
-func getConfig() (config.ConfigFile, *viper.Viper, error) {
+// Write takes a Config and lets viper write it to the config file.
+func Write(conf config.Config, filterFn filterFn) error {
 	v, err := getViperWithConfigFile()
 	if err != nil {
-		return config.ConfigFile{}, nil, err
+		return err
 	}
 
-	c, err := config.NewConfigFromFile(v.ConfigFileUsed(), os.ReadFile)
-	if err != nil {
-		return config.ConfigFile{}, nil, err
-	}
-
-	return c, v, nil
+	return writeConfig(conf, v, filterFn)
 }
 
-// getRawConfig builds a map of the values in the config file.
-func getRawConfig() (map[string]interface{}, *viper.Viper, error) {
-	v, err := getViperWithConfigFile()
-	if err != nil {
-		return nil, nil, err
-	}
+// filterFn decides how to write the in-memory config file to disk.
+type filterFn func(key string, value interface{}, v *viper.Viper)
 
-	data, err := os.ReadFile(v.ConfigFileUsed())
-	if err != nil {
-		return nil, nil, err
-	}
+func SetKey(key string, value interface{}, v *viper.Viper) {
+	v.Set(key, value)
+}
 
-	config := make(map[string]interface{}, 0)
-	err = yaml.Unmarshal([]byte(data), &config)
-	if err != nil {
-		return nil, nil, err
+func UnsetKey(key string, value interface{}, v *viper.Viper) {
+	if key != viper.GetString("unset") {
+		v.Set(key, value)
 	}
-
-	return config, v, nil
 }
 
 // getViperWithConfigFile ensures the viper instance has a config file written to the filesystem.
@@ -280,9 +221,9 @@ func getViperWithConfigFile() (*viper.Viper, error) {
 
 // writeConfig writes the values in config to the config file based on the filter function.
 func writeConfig(
-	conf config.ConfigFile,
+	conf config.Config,
 	v *viper.Viper,
-	filterFn func(key string, value interface{}, v *viper.Viper),
+	filterFn filterFn,
 ) error {
 	// create a new viper instance since the existing one has the command name and flags already set,
 	// and these will get written to the config file.
@@ -311,21 +252,21 @@ func writeConfig(
 	return nil
 }
 
-func newErr(flag string) error {
+func newCmdErr(err error) error {
+	return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+}
+
+func newErr(message string) error {
 	err := errs.NewError(
 		fmt.Sprintf(
 			`{
-				"message": "%s is not a valid configuration option"
+				"message": %q
 			}`,
-			flag,
+			message,
 		),
 	)
 
 	return newCmdErr(err)
-}
-
-func newCmdErr(err error) error {
-	return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 }
 
 func writeAlphabetizedFlags(sb *strings.Builder) {
@@ -367,4 +308,16 @@ func outputUnsetAction(newField string) (string, error) {
 	}
 
 	return output, nil
+}
+
+func isUpdatingAccessToken(fields []string) bool {
+	var updatingAccessToken bool
+	for _, f := range fields {
+		if f == cliflags.AccessTokenFlag {
+			updatingAccessToken = true
+			break
+		}
+	}
+
+	return updatingAccessToken
 }

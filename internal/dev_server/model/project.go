@@ -19,34 +19,87 @@ type Project struct {
 
 // CreateProject creates a project and adds it to the database.
 func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string, ldCtx *ldcontext.Context) (Project, error) {
-	project := Project{}
-	project.Key = projectKey
-	project.SourceEnvironmentKey = sourceEnvironmentKey
+	project := Project{
+		Key:                  projectKey,
+		SourceEnvironmentKey: sourceEnvironmentKey,
+	}
+
 	if ldCtx == nil {
 		project.Context = ldcontext.NewBuilder("user").Key("dev-environment").Build()
 	} else {
 		project.Context = *ldCtx
 	}
 
-	sdkAdapter := adapters.GetSdk(ctx)
-	apiAdapter := adapters.GetApi(ctx)
-	store := StoreFromContext(ctx)
-	sdkKey, err := apiAdapter.GetSdkKey(ctx, projectKey, sourceEnvironmentKey)
+	flagsState, err := project.FetchFlagState(ctx)
 	if err != nil {
 		return Project{}, err
 	}
-	sdkFlags, err := sdkAdapter.GetAllFlagsState(ctx, project.Context, sdkKey)
-	if err != nil {
-		return Project{}, err
-	}
-	project.FlagState = FromAllFlags(sdkFlags)
+
+	project.FlagState = flagsState
 	project.LastSyncTime = time.Now()
 
+	store := StoreFromContext(ctx)
 	err = store.InsertProject(ctx, project)
 	if err != nil {
 		return Project{}, err
 	}
 	return project, nil
+}
+
+func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Context, sourceEnvironmentKey *string) (Project, error) {
+	store := StoreFromContext(ctx)
+	project, err := store.GetDevProject(ctx, projectKey)
+	if err != nil {
+		return Project{}, err
+	}
+	if context != nil {
+		project.Context = *context
+	}
+
+	if sourceEnvironmentKey != nil {
+		project.SourceEnvironmentKey = *sourceEnvironmentKey
+	}
+
+	if context != nil || sourceEnvironmentKey != nil {
+		flagsState, err := project.FetchFlagState(ctx)
+		if err != nil {
+			return Project{}, err
+		}
+		project.FlagState = flagsState
+		project.LastSyncTime = time.Now()
+	}
+
+	updated, err := store.UpdateProject(ctx, *project)
+	if err != nil {
+		return Project{}, err
+	}
+	if !updated {
+		return Project{}, errors.New("Project not updated")
+	}
+	return *project, nil
+}
+
+func SyncProject(ctx context.Context, projectKey string) (Project, error) {
+	store := StoreFromContext(ctx)
+	project, err := store.GetDevProject(ctx, projectKey)
+	if err != nil {
+		return Project{}, err
+	}
+	flagsState, err := project.FetchFlagState(ctx)
+	if err != nil {
+		return Project{}, err
+	}
+
+	project.FlagState = flagsState
+	project.LastSyncTime = time.Now()
+	updated, err := store.UpdateProject(ctx, *project)
+	if err != nil {
+		return Project{}, err
+	}
+	if !updated {
+		return Project{}, errors.New("Project not updated")
+	}
+	return *project, nil
 }
 
 func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context) (FlagsState, error) {
@@ -63,4 +116,22 @@ func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context) (Flags
 		withOverrides[flagKey] = flagState
 	}
 	return withOverrides, nil
+}
+
+func (p Project) FetchFlagState(ctx context.Context) (FlagsState, error) {
+	apiAdapter := adapters.GetApi(ctx)
+	sdkKey, err := apiAdapter.GetSdkKey(ctx, p.Key, p.SourceEnvironmentKey)
+	flagsState := make(FlagsState)
+	if err != nil {
+		return flagsState, err
+	}
+
+	sdkAdapter := adapters.GetSdk(ctx)
+	sdkFlags, err := sdkAdapter.GetAllFlagsState(ctx, p.Context, sdkKey)
+	if err != nil {
+		return flagsState, err
+	}
+
+	flagsState = FromAllFlags(sdkFlags)
+	return flagsState, nil
 }

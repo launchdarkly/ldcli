@@ -2,6 +2,10 @@ package dev_server
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"os/exec"
+	"runtime"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -31,7 +35,50 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 
-		client.RunServer(ctx, viper.GetString(cliflags.AccessTokenFlag), viper.GetString(cliflags.BaseURIFlag))
+		client.RunServer(
+			ctx,
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetString(cliflags.DevStreamURIFlag),
+		)
+
+		return nil
+	}
+}
+
+func NewUICmd() *cobra.Command {
+	cmd := &cobra.Command{
+		GroupID: "server",
+		Args:    validators.Validate(),
+		Long:    "open the dev ui in your default browser",
+		RunE:    openUI(),
+		Short:   "open the ui",
+		Use:     "ui",
+	}
+
+	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
+
+	return cmd
+}
+
+func openUI() func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		url := "http://localhost:8765/ui"
+
+		var err error
+		switch runtime.GOOS {
+		case "linux":
+			err = exec.Command("xdg-open", url).Start()
+		case "windows":
+			err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+		case "darwin":
+			err = exec.Command("open", url).Start()
+		default:
+			err = fmt.Errorf("unsupported platform")
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		return nil
 	}

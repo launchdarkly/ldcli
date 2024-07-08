@@ -23,26 +23,49 @@ paths:
                 items:
                   type: string
                 uniqueItems: true
-  /dev/projects/{projectKey}:
-    get:
-      summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
+  /dev/projects/{projectKey}/sync:
+    patch:
+      summary: updates the flag state for the given project and source environment
       parameters:
         - $ref: "#/components/parameters/projectKey"
-        - name: expand
-          description: Available expand options for this endpoint.
-          in: query
-          schema:
-            type: array
-            items:
-              type: string
-              enum:
-                - overrides
+        - $ref: "#/components/parameters/expand"
       responses:
         200:
           $ref: "#/components/responses/Project"
         404:
           description: No project found
-
+  /dev/projects/{projectKey}:
+    get:
+      summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/expand"
+      responses:
+        200:
+          $ref: "#/components/responses/Project"
+        404:
+          description: No project found
+    patch:
+      summary: updates the project context or sourceEnvironmentKey
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/expand"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sourceEnvironmentKey:
+                  type: string
+                  description: environment to copy flag values from
+                context:
+                  $ref: "#/components/schemas/Context"
+      responses:
+        200:
+          $ref: "#/components/responses/Project"
+        404:
+          description: No project found
     delete:
       summary: remove the specified project from the dev server
       parameters:
@@ -51,11 +74,12 @@ paths:
         204:
           description: OK. Project & overrides were removed
         404:
-          description: no project found
+          $ref: "#/components/responses/NotFoundErrorResp"
     post:
       summary: Add the project to the dev server
       parameters:
         - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/expand"
       requestBody:
         content:
           application/json:
@@ -67,35 +91,11 @@ paths:
                 sourceEnvironmentKey:
                   type: string
                   description: environment to copy flag values from
-                # WIP be able to customize the context used
-                # context:
-                #   type: object
-                #   description: context object to use when evaluating flags in source environment
-                #   default:
-                #     key: "local-dev"
-                #     kind: user
+                context:
+                  $ref: "#/components/schemas/Context"
       responses:
         201:
           $ref: "#/components/responses/Project"
-  # WIP updates can be added later
-  #    patch:
-  #      summary: change configuration of the project
-  #      parameters:
-  #        - $ref: '#/components/parameters/projectKey'
-  #      responses:
-
-  # WIP NOT SURE IF NEEDED TBH
-  #  /dev/projects/{projectKey}/overrides:
-  #    get:
-  #      summary: return all the flag overrides for the project
-  #      parameters:
-  #        - $ref: '#/components/parameters/projectKey'
-  #      responses: // WIP
-  #    delete:
-  #      summary: clear all overrides for the project
-  #      parameters:
-  #        - $ref: '#/components/parameters/projectKey'
-  #      responses: // WIP
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
@@ -112,6 +112,8 @@ paths:
       responses:
         200:
           $ref: "#/components/responses/FlagOverride"
+        400:
+          $ref: "#/components/responses/InvalidRequestResponse"
 
     delete:
       summary: remove override for flag
@@ -137,6 +139,16 @@ components:
       required: true
       schema:
         type: string
+    expand:
+      name: expand
+      description: Available expand options for this endpoint.
+      in: query
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - overrides
   schemas:
     FlagValue:
       description: value of a feature flag variation
@@ -148,6 +160,15 @@ components:
       x-go-type: ldvalue.Value
       x-go-type-import:
         path: github.com/launchdarkly/go-sdk-common/v3/ldvalue
+    Context:
+      type: object
+      description: context object to use when evaluating flags in source environment
+      x-go-type: ldcontext.Context
+      x-go-type-import:
+        path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
+      default:
+        key: "dev-environment"
+        kind: "user"
     Project:
       description: Project
       type: object
@@ -156,18 +177,11 @@ components:
         - context
         - _lastSyncedFromSource
       properties:
+        context:
+          $ref: "#/components/schemas/Context"
         sourceEnvironmentKey:
           type: string
           description: environment to copy flag values from
-        context:
-          type: object
-          description: context object to use when evaluating flags in source environment
-          default:
-            key: "local-dev"
-            kind: user
-          x-go-type: ldcontext.Context
-          x-go-type-import:
-            path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
         flagsState:
           type: object
           description: flags and their values and version for a given project in the source environment
@@ -206,3 +220,33 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Project"
+    InvalidRequestResponse:
+      description: Invalid request response
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - code
+              - message
+            properties:
+              code:
+                type: string
+                description: specific error code encountered
+              message:
+                type: string
+                description: description of the error
+    NotFoundErrorResp:
+      description: not found
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - code
+              - message
+            properties:
+              code:
+                type: string
+              message:
+                type: string

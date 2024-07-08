@@ -12,8 +12,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
-var ErrNotFound = errors.New("not found")
-
 type Sqlite struct {
 	database *sql.DB
 }
@@ -47,8 +45,8 @@ func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, 
     `, key)
 
 	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &contextData, &project.LastSyncTime, &flagStateData); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil // No project found with the given key
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.Wrapf(model.ErrNotFound, "no project found with key, '%s'", key)
 		}
 		return nil, err
 	}
@@ -64,6 +62,32 @@ func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, 
 	}
 
 	return &project, nil
+}
+
+func (s Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool, error) {
+	flagsStateJson, err := json.Marshal(project.FlagState)
+	if err != nil {
+		return false, errors.Wrap(err, "unable to marshal flags state when updating project")
+	}
+
+	result, err := s.database.ExecContext(ctx, `
+		UPDATE projects
+		SET flag_state = ?, last_sync_time = ?, context=?
+		WHERE key = ?;
+	`, flagsStateJson, project.LastSyncTime, project.Context.JSONString(), project.Key)
+	if err != nil {
+		return false, errors.Wrap(err, "unable to execute update project")
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if rowsAffected == 0 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (s Sqlite) DeleteDevProject(ctx context.Context, key string) (bool, error) {
@@ -190,7 +214,7 @@ func (s Sqlite) DeleteOverride(ctx context.Context, projectKey, flagKey string) 
 		return err
 	}
 	if rowsAffected == 0 {
-		return ErrNotFound
+		return model.ErrNotFound
 	}
 
 	return nil

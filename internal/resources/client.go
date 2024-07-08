@@ -29,7 +29,7 @@ func (c ResourcesClient) MakeRequest(accessToken, method, path, contentType stri
 
 	req, _ := http.NewRequest(method, path, bytes.NewReader(data))
 	req.Header.Add("Authorization", accessToken)
-	req.Header.Add("Content-type", contentType)
+	req.Header.Add("Content-Type", contentType)
 	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.cliVersion))
 	if isBeta {
 		req.Header.Set("LD-API-Version", "beta")

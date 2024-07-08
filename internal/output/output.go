@@ -6,7 +6,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
-var ErrInvalidOutputKind = errors.NewError("output is invalid, use 'json' or 'plaintext'")
+var ErrInvalidOutputKind = errors.NewError("output is invalid. Use 'json' or 'plaintext'")
 
 type OutputKind string
 

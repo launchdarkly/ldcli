@@ -88,7 +88,7 @@ To save a setting in the configuration file:
 ldcli config --set access-token api-00000000-0000-0000-0000-000000000000
 ```
 
-Running this command creates a configuration file located at `$HOME/.ldcli-config.yml` with the access token. Subsequent commands read from this file, so you do not need to specify the access token each time.
+Running this command creates a configuration file located at `$XDG_CONFIG_HOME/ldcli/config.yml` with the access token. Subsequent commands read from this file, so you do not need to specify the access token each time.
 
 ## Commands
 
