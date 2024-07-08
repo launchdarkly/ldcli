@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -8,8 +9,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+type MessageType string
+
+const (
+	TYPE_PUT   MessageType = "put"
+	TYPE_PATCH MessageType = "patch"
+)
+
 type Message struct {
-	Event string
+	Event MessageType
 	Data  []byte
 }
 
@@ -66,4 +74,22 @@ func OpenStream(w http.ResponseWriter, done <-chan struct{}, initialMessage Mess
 		}()
 	}()
 	return updateChan, errChan
+}
+
+func SendMessage(
+	updateChan chan<- Message,
+	msgType MessageType,
+	data interface{},
+) error {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	updateChan <- Message{
+		Event: msgType,
+		Data:  payload,
+	}
+
+	return nil
 }

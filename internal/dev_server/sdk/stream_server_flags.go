@@ -55,31 +55,21 @@ func (c serverFlagsObserver) Handle(event interface{}) {
 			return
 		}
 
-		data, err := json.Marshal(serverSidePatchData{
+		err := SendMessage(c.updateChan, TYPE_PATCH, serverSidePatchData{
 			Path: fmt.Sprintf("/flags/%s", event.FlagKey),
 			Data: serverFlagFromFlagState(event.FlagKey, event.FlagState),
 		})
 		if err != nil {
 			panic(errors.Wrap(err, "failed to marshal flag state in observer"))
 		}
-
-		c.updateChan <- Message{
-			Event: "patch",
-			Data:  data,
-		}
 	case model.SyncEvent:
 		if event.ProjectKey != c.projectKey {
 			return
 		}
 
-		data, err := json.Marshal(ServerAllPayloadFromFlagsState(event.AllFlagsState))
+		err := SendMessage(c.updateChan, TYPE_PUT, ServerAllPayloadFromFlagsState(event.AllFlagsState))
 		if err != nil {
 			panic(errors.Wrap(err, "failed to marshal flag state in observer"))
-		}
-
-		c.updateChan <- Message{
-			Event: "put",
-			Data:  data,
 		}
 	}
 }

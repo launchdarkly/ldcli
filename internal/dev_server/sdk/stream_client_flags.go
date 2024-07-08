@@ -50,18 +50,13 @@ func (c clientFlagsObserver) Handle(event interface{}) {
 	log.Printf("clientFlagsObserver: handling flag state event: %v", event)
 	switch event := event.(type) {
 	case model.UpsertOverrideEvent:
-		data, err := json.Marshal(clientFlag{
+		err := SendMessage(c.updateChan, TYPE_PATCH, clientFlag{
 			Key:     event.FlagKey,
 			Version: event.FlagState.Version,
 			Value:   event.FlagState.Value,
 		})
 		if err != nil {
 			panic(errors.Wrap(err, "failed to marshal flag state in observer"))
-		}
-
-		c.updateChan <- Message{
-			Event: "patch",
-			Data:  data,
 		}
 	case model.SyncEvent:
 		clientFlags := clientFlags{}
@@ -72,14 +67,9 @@ func (c clientFlagsObserver) Handle(event interface{}) {
 			}
 		}
 
-		data, err := json.Marshal(clientFlags)
+		err := SendMessage(c.updateChan, TYPE_PUT, clientFlags)
 		if err != nil {
 			panic(errors.Wrap(err, "failed to marshal flag state in observer"))
-		}
-
-		c.updateChan <- Message{
-			Event: "put",
-			Data:  data,
 		}
 	}
 }
