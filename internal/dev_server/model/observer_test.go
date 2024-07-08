@@ -1,8 +1,10 @@
 package model_test
 
 import (
+	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,5 +36,25 @@ func TestObservers(t *testing.T) {
 		assert.True(t, ok, "observer should be deregistered")
 		observers.Notify("lol")
 	})
-
+	t.Run("deregistering from multiple go routines should not panic", func(t *testing.T) {
+		observers := model.NewObservers()
+		observer := testObserver{handle: func(i interface{}) {
+			assert.Fail(t, "should not be called")
+		}}
+		ids := make([]uuid.UUID, 100)
+		for i := 0; i < 100; i++ {
+			i := i
+			ids[i] = observers.RegisterObserver(observer)
+		}
+		wg := sync.WaitGroup{}
+		for _, id := range ids {
+			id := id
+			wg.Add(1)
+			go func() {
+				observers.DeregisterObserver(id)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+	})
 }
