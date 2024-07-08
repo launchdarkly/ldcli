@@ -19,15 +19,17 @@ type Project struct {
 
 // CreateProject creates a project and adds it to the database.
 func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string, ldCtx *ldcontext.Context) (Project, error) {
-	store := StoreFromContext(ctx)
-	project := Project{}
-	project.Key = projectKey
-	project.SourceEnvironmentKey = sourceEnvironmentKey
+	project := Project{
+		Key:                  projectKey,
+		SourceEnvironmentKey: sourceEnvironmentKey,
+	}
+
 	if ldCtx == nil {
 		project.Context = ldcontext.NewBuilder("user").Key("dev-environment").Build()
 	} else {
 		project.Context = *ldCtx
 	}
+
 	flagsState, err := project.FetchFlagState(ctx)
 	if err != nil {
 		return Project{}, err
@@ -36,6 +38,7 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	project.FlagState = flagsState
 	project.LastSyncTime = time.Now()
 
+	store := StoreFromContext(ctx)
 	err = store.InsertProject(ctx, project)
 	if err != nil {
 		return Project{}, err
@@ -71,7 +74,7 @@ func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Co
 		return Project{}, err
 	}
 	if !updated {
-		return Project{}, err
+		return Project{}, errors.New("Project not updated")
 	}
 	return *project, nil
 }
@@ -94,7 +97,7 @@ func SyncProject(ctx context.Context, projectKey string) (Project, error) {
 		return Project{}, err
 	}
 	if !updated {
-		return Project{}, err
+		return Project{}, errors.New("Project not updated")
 	}
 	return *project, nil
 }
@@ -116,17 +119,19 @@ func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context) (Flags
 }
 
 func (p Project) FetchFlagState(ctx context.Context) (FlagsState, error) {
-	sdkAdapter := adapters.GetSdk(ctx)
 	apiAdapter := adapters.GetApi(ctx)
 	sdkKey, err := apiAdapter.GetSdkKey(ctx, p.Key, p.SourceEnvironmentKey)
 	flagsState := make(FlagsState)
 	if err != nil {
 		return flagsState, err
 	}
+
+	sdkAdapter := adapters.GetSdk(ctx)
 	sdkFlags, err := sdkAdapter.GetAllFlagsState(ctx, p.Context, sdkKey)
 	if err != nil {
 		return flagsState, err
 	}
+
 	flagsState = FromAllFlags(sdkFlags)
 	return flagsState, nil
 }

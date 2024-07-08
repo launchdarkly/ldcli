@@ -12,6 +12,8 @@ type ctxKey string
 
 const ctxKeyStore = ctxKey("model.Store")
 
+//go:generate go run go.uber.org/mock/mockgen -destination mocks/store.go -package mocks . Store
+
 type Store interface {
 	DeleteOverride(ctx context.Context, projectKey, flagKey string) error
 	GetDevProjects(ctx context.Context) ([]string, error)

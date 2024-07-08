@@ -3,8 +3,6 @@ package model
 import (
 	"context"
 
-	"github.com/pkg/errors"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
 
@@ -33,7 +31,7 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 	}
 
 	var flagExists bool
-	for flag, _ := range project.FlagState {
+	for flag := range project.FlagState {
 		if flagKey == flag {
 			flagExists = true
 			break
@@ -57,9 +55,6 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 	}
 
 	observers := GetObserversFromContext(ctx)
-	if err != nil {
-		return Override{}, errors.Wrap(err, "unable to get project")
-	}
 	flagState := override.Apply(project.FlagState[flagKey])
 	observers.Notify(UpsertOverrideEvent{
 		FlagKey:    flagKey,
