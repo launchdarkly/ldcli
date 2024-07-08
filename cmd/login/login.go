@@ -2,6 +2,7 @@ package login
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -15,11 +16,12 @@ import (
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/login"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 func NewLoginCmd(
 	analyticsTrackerFn analytics.TrackerFn,
-	client login.Client,
+	client resources.UnauthenticatedClient,
 ) *cobra.Command {
 	cmd := cobra.Command{
 		Long: "",
@@ -55,7 +57,7 @@ func NewLoginCmd(
 	return &cmd
 }
 
-func run(client login.Client) func(*cobra.Command, []string) error {
+func run(client resources.UnauthenticatedClient) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		if ok, err := config.AccessTokenIsSet(viper.GetViper().ConfigFileUsed()); !ok {
 			return err
@@ -71,7 +73,10 @@ func run(client login.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		fullURL := fmt.Sprintf("%s/%s", viper.GetString(cliflags.BaseURIFlag), deviceAuthorization.VerificationURI)
+		fullURL, _ := url.JoinPath(
+			viper.GetString(cliflags.BaseURIFlag),
+			deviceAuthorization.VerificationURI,
+		)
 		var b strings.Builder
 		b.WriteString(fmt.Sprintf("Your code is %s\n", deviceAuthorization.UserCode))
 		b.WriteString("This code verifies your authentication with LaunchDarkly.\n")

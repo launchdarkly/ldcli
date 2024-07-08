@@ -3,6 +3,7 @@ package errors
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/pkg/errors"
 
@@ -117,5 +118,7 @@ func normalizeUnauthorizedJSON() ([]byte, error) {
 }
 
 func AccessTokenInvalidErrMessage(baseURI string) string {
-	return fmt.Sprintf("Go to %s/settings/authorization to create an access token.", baseURI)
+	path, _ := url.JoinPath(baseURI, "settings/authorization")
+
+	return fmt.Sprintf("Go to %s to create an access token.", path)
 }

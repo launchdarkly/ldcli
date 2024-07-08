@@ -10,11 +10,11 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
-	"github.com/launchdarkly/ldcli/internal/dev_server"
 	"github.com/launchdarkly/ldcli/internal/output"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
-func NewAddOverrideCmd(client dev_server.LocalClient) *cobra.Command {
+func NewAddOverrideCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "overrides",
 		Args:    validators.Validate(),
@@ -44,7 +44,7 @@ func NewAddOverrideCmd(client dev_server.LocalClient) *cobra.Command {
 	return cmd
 }
 
-func addOverride(client dev_server.LocalClient) func(*cobra.Command, []string) error {
+func addOverride(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		var data interface{}
 		err := json.Unmarshal([]byte(viper.GetString(cliflags.DataFlag)), &data)
@@ -58,7 +58,7 @@ func addOverride(client dev_server.LocalClient) func(*cobra.Command, []string) e
 		}
 
 		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", DEV_SERVER, viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
-		res, err := client.MakeRequest(
+		res, err := client.MakeUnauthenticatedRequest(
 			"PUT",
 			path,
 			jsonData,
@@ -73,7 +73,7 @@ func addOverride(client dev_server.LocalClient) func(*cobra.Command, []string) e
 	}
 }
 
-func NewRemoveOverrideCmd(client dev_server.LocalClient) *cobra.Command {
+func NewRemoveOverrideCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "overrides",
 		Args:    validators.Validate(),
@@ -98,10 +98,10 @@ func NewRemoveOverrideCmd(client dev_server.LocalClient) *cobra.Command {
 	return cmd
 }
 
-func removeOverride(client dev_server.LocalClient) func(*cobra.Command, []string) error {
+func removeOverride(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", DEV_SERVER, viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
-		res, err := client.MakeRequest(
+		res, err := client.MakeUnauthenticatedRequest(
 			"DELETE",
 			path,
 			nil,
