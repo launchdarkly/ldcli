@@ -50,7 +50,7 @@ func (c clientFlagsObserver) Handle(event interface{}) {
 	log.Printf("clientFlagsObserver: handling flag state event: %v", event)
 	switch event := event.(type) {
 	case model.UpsertOverrideEvent:
-		data, err := json.Marshal(clientSidePatchData{
+		data, err := json.Marshal(clientFlag{
 			Key:     event.FlagKey,
 			Version: event.FlagState.Version,
 			Value:   event.FlagState.Value,
@@ -58,15 +58,36 @@ func (c clientFlagsObserver) Handle(event interface{}) {
 		if err != nil {
 			panic(errors.Wrap(err, "failed to marshal flag state in observer"))
 		}
+
 		c.updateChan <- Message{
 			Event: "patch",
+			Data:  data,
+		}
+	case model.SyncEvent:
+		clientFlags := clientFlags{}
+		for flagKey, flagState := range event.AllFlagsState {
+			clientFlags[flagKey] = clientFlag{
+				Version: flagState.Version,
+				Value:   flagState.Value,
+			}
+		}
+
+		data, err := json.Marshal(clientFlags)
+		if err != nil {
+			panic(errors.Wrap(err, "failed to marshal flag state in observer"))
+		}
+
+		c.updateChan <- Message{
+			Event: "put",
 			Data:  data,
 		}
 	}
 }
 
-type clientSidePatchData struct {
-	Key     string        `json:"key"`
+type clientFlag struct {
+	Key     string        `json:"key,omitempty"`
 	Version int           `json:"version"`
 	Value   ldvalue.Value `json:"value"`
 }
+
+type clientFlags map[string]clientFlag
