@@ -188,7 +188,7 @@ func NewRootCommand(
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
-	cmd.AddCommand(logincmd.NewLoginCmd(analyticsTrackerFn, resources.NewClient(version)))
+	cmd.AddCommand(logincmd.NewLoginCmd(resources.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 

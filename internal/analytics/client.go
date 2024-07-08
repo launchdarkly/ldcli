@@ -106,12 +106,12 @@ func (c *Client) sendEvent(eventName string, properties map[string]interface{}) 
 			c.wg.Done()
 			return
 		}
-		resp.Body.Close()
 
 		_, err = io.ReadAll(resp.Body)
 		if err != nil { //nolint:staticcheck
 			// TODO: log error
 		}
+		resp.Body.Close()
 		c.wg.Done()
 	}()
 }
