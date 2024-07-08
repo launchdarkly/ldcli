@@ -58,13 +58,13 @@ func TestCreateProject(t *testing.T) {
 			Key:                  projKey,
 			SourceEnvironmentKey: sourceEnvKey,
 			Context:              ldcontext.NewBuilder("user").Key("dev-environment").Build(),
-			FlagState:            model.FromAllFlags(allFlags),
+			AllFlagsState:        model.FromAllFlags(allFlags),
 		}
 
 		assert.Equal(t, expectedProj.Key, p.Key)
 		assert.Equal(t, expectedProj.SourceEnvironmentKey, p.SourceEnvironmentKey)
 		assert.Equal(t, expectedProj.Context, p.Context)
-		assert.Equal(t, expectedProj.FlagState, p.FlagState)
+		assert.Equal(t, expectedProj.AllFlagsState, p.AllFlagsState)
 	})
 }
 
@@ -134,6 +134,11 @@ func TestSyncProject(t *testing.T) {
 	ctx := model.ContextWithStore(context.Background(), store)
 	ctx, api, sdk := adapters_mocks.WithMockApiAndSdk(ctx, mockController)
 
+	observer := mocks.NewMockObserver(mockController)
+	observers := model.NewObservers()
+	observers.RegisterObserver(observer)
+	ctx = model.SetObserversOnContext(ctx, observers)
+
 	proj := model.Project{
 		Key:                  "projKey",
 		SourceEnvironmentKey: "srcEnvKey",
@@ -183,6 +188,12 @@ func TestSyncProject(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(flagstate.AllFlags{}, nil)
 		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(true, nil)
+		observer.
+			EXPECT().
+			Handle(model.SyncEvent{
+				ProjectKey:    proj.Key,
+				AllFlagsState: model.FlagsState{},
+			})
 
 		project, err := model.SyncProject(ctx, proj.Key)
 		assert.Nil(t, err)
@@ -196,8 +207,8 @@ func TestGetFlagStateWithOverridesForProject(t *testing.T) {
 	ctx := model.ContextWithStore(context.Background(), store)
 	flagKey := "flg"
 	proj := model.Project{
-		Key:       "projKey",
-		FlagState: model.FlagsState{flagKey: model.FlagState{Value: ldvalue.Bool(false), Version: 1}},
+		Key:           "projKey",
+		AllFlagsState: model.FlagsState{flagKey: model.FlagState{Value: ldvalue.Bool(false), Version: 1}},
 	}
 
 	t.Run("Returns error if store fetch fails", func(t *testing.T) {
