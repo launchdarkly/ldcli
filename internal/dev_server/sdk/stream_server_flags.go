@@ -52,7 +52,7 @@ type serverFlagsObserver struct {
 }
 
 func (c serverFlagsObserver) Handle(event interface{}) {
-	log.Printf("clientFlagsObserver: handling flag state event: %v", event)
+	log.Printf("serverFlagsObserver: handling flag state event: %v", event)
 	switch event := event.(type) {
 	case model.UpsertOverrideEvent:
 		if event.ProjectKey != c.projectKey {
