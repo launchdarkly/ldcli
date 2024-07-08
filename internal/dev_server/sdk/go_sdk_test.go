@@ -12,6 +12,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldclient "github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters/mocks"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
@@ -123,4 +124,25 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 			assert.Equal(t, value.AsArbitraryValue(), flagUpdate.NewValue.AsArbitraryValue())
 		})
 	}
+
+	t.Run("Sync sends full flag payload for project", func(t *testing.T) {
+		trackers := make(map[string]<-chan interfaces.FlagValueChangeEvent, len(updates))
+
+		for flagKey := range updates {
+			flagUpdateChan := ld.GetFlagTracker().AddFlagValueChangeListener(flagKey, ldContext, ldvalue.String("uh-oh"))
+			defer ld.GetFlagTracker().RemoveFlagValueChangeListener(flagUpdateChan)
+			trackers[flagKey] = flagUpdateChan
+		}
+
+		_, err := model.SyncProject(ctx, projectKey)
+		require.NoError(t, err)
+
+		for flagKey, value := range updates {
+			updateTracker, ok := trackers[flagKey]
+			require.True(t, ok)
+
+			update := <-updateTracker
+			assert.Equal(t, value.AsArbitraryValue(), update.NewValue.AsArbitraryValue())
+		}
+	})
 }
