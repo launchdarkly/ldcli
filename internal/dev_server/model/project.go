@@ -14,7 +14,7 @@ type Project struct {
 	SourceEnvironmentKey string
 	Context              ldcontext.Context
 	LastSyncTime         time.Time
-	FlagState            FlagsState
+	AllFlagsState        FlagsState
 }
 
 // CreateProject creates a project and adds it to the database.
@@ -35,7 +35,7 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 		return Project{}, err
 	}
 
-	project.FlagState = flagsState
+	project.AllFlagsState = flagsState
 	project.LastSyncTime = time.Now()
 
 	store := StoreFromContext(ctx)
@@ -65,7 +65,7 @@ func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Co
 		if err != nil {
 			return Project{}, err
 		}
-		project.FlagState = flagsState
+		project.AllFlagsState = flagsState
 		project.LastSyncTime = time.Now()
 	}
 
@@ -76,6 +76,7 @@ func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Co
 	if !updated {
 		return Project{}, errors.New("Project not updated")
 	}
+
 	return *project, nil
 }
 
@@ -90,8 +91,9 @@ func SyncProject(ctx context.Context, projectKey string) (Project, error) {
 		return Project{}, err
 	}
 
-	project.FlagState = flagsState
+	project.AllFlagsState = flagsState
 	project.LastSyncTime = time.Now()
+
 	updated, err := store.UpdateProject(ctx, *project)
 	if err != nil {
 		return Project{}, err
@@ -99,6 +101,16 @@ func SyncProject(ctx context.Context, projectKey string) (Project, error) {
 	if !updated {
 		return Project{}, errors.New("Project not updated")
 	}
+
+	allFlagsWithOverrides, err := project.GetFlagStateWithOverridesForProject(ctx)
+	if err != nil {
+		return Project{}, errors.Wrapf(err, "unable to get overrides for project, %s", projectKey)
+	}
+
+	GetObserversFromContext(ctx).Notify(SyncEvent{
+		ProjectKey:    project.Key,
+		AllFlagsState: allFlagsWithOverrides,
+	})
 	return *project, nil
 }
 
@@ -108,8 +120,8 @@ func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context) (Flags
 	if err != nil {
 		return FlagsState{}, errors.Wrapf(err, "unable to fetch overrides for project %s", p.Key)
 	}
-	withOverrides := make(FlagsState, len(p.FlagState))
-	for flagKey, flagState := range p.FlagState {
+	withOverrides := make(FlagsState, len(p.AllFlagsState))
+	for flagKey, flagState := range p.AllFlagsState {
 		if override, ok := overrides.GetFlag(flagKey); ok {
 			flagState = override.Apply(flagState)
 		}

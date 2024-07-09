@@ -12,6 +12,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldclient "github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters/mocks"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
@@ -106,8 +107,42 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 		assert.Equal(t, map[string]any{"cat": "hat"}, val.AsArbitraryValue())
 	})
 
+	// Mock scenario: we re-sync and the SDK returns new values and higher version numbers
+	updatedFlags := flagstate.NewAllFlagsBuilder().
+		AddFlag("boolFlag", flagstate.FlagState{Value: ldvalue.Bool(false), Version: 2}).
+		AddFlag("stringFlag", flagstate.FlagState{Value: ldvalue.String("pool"), Version: 2}).
+		AddFlag("intFlag", flagstate.FlagState{Value: ldvalue.Int(789), Version: 2}).
+		AddFlag("doubleFlag", flagstate.FlagState{Value: ldvalue.Float64(101.01), Version: 2}).
+		AddFlag("jsonFlag", flagstate.FlagState{Value: ldvalue.CopyArbitraryValue(map[string]any{"cat": "bababooey"}), Version: 2}).
+		Build()
+	valuesMap := updatedFlags.ToValuesMap()
+
+	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(updatedFlags, nil)
+
+	// This test is testing the "put" payload in a roundabout way by verifying each of the flags are in there.
+	t.Run("Sync sends full flag payload for project", func(t *testing.T) {
+		trackers := make(map[string]<-chan interfaces.FlagValueChangeEvent, len(valuesMap))
+
+		for flagKey := range valuesMap {
+			flagUpdateChan := ld.GetFlagTracker().AddFlagValueChangeListener(flagKey, ldContext, ldvalue.String("uh-oh"))
+			defer ld.GetFlagTracker().RemoveFlagValueChangeListener(flagUpdateChan)
+			trackers[flagKey] = flagUpdateChan
+		}
+
+		_, err := model.SyncProject(ctx, projectKey)
+		require.NoError(t, err)
+
+		for flagKey, value := range valuesMap {
+			updateTracker, ok := trackers[flagKey]
+			require.True(t, ok)
+
+			update := <-updateTracker
+			assert.Equal(t, value.AsArbitraryValue(), update.NewValue.AsArbitraryValue())
+		}
+	})
+
 	updates := map[string]ldvalue.Value{
-		"boolFlag":   ldvalue.Bool(false),
+		"boolFlag":   ldvalue.Bool(true),
 		"stringFlag": ldvalue.String("drool"),
 		"intFlag":    ldvalue.Int(456),
 		"doubleFlag": ldvalue.Float64(88.88),

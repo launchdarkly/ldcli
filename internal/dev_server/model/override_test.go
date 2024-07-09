@@ -28,8 +28,8 @@ func TestUpsertOverride(t *testing.T) {
 	}
 
 	project := &model.Project{
-		Key:       projKey,
-		FlagState: model.FlagsState{flagKey: model.FlagState{Value: ldvalue.Bool(false), Version: 1}},
+		Key:           projKey,
+		AllFlagsState: model.FlagsState{flagKey: model.FlagState{Value: ldvalue.Bool(false), Version: 1}},
 	}
 
 	ctx = model.ContextWithStore(ctx, store)
@@ -50,8 +50,8 @@ func TestUpsertOverride(t *testing.T) {
 
 	t.Run("Returns error if flag does not exist in project", func(t *testing.T) {
 		badProj := model.Project{
-			Key:       projKey,
-			FlagState: model.FlagsState{},
+			Key:           projKey,
+			AllFlagsState: model.FlagsState{},
 		}
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(&badProj, nil)
 
