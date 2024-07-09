@@ -125,23 +125,41 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 		})
 	}
 
-	t.Run("Sync sends full flag payload for project", func(t *testing.T) {
-		trackers := make(map[string]<-chan interfaces.FlagValueChangeEvent, len(updates))
+	newUpdates := map[string]ldvalue.Value{
+		"boolFlag":   ldvalue.Bool(true),
+		"stringFlag": ldvalue.String("fool"),
+		"intFlag":    ldvalue.Int(567),
+		"doubleFlag": ldvalue.Float64(99.99),
+		"jsonFlag":   ldvalue.CopyArbitraryValue(map[string]any{"tortoise": "hare"}),
+	}
 
-		for flagKey := range updates {
+	// This test is testing the "put" payload in a roundabout way by verifying each of the flags are in there.
+	t.Run("Sync sends full flag payload for project", func(t *testing.T) {
+		trackers := make(map[string]*<-chan interfaces.FlagValueChangeEvent, len(updates))
+
+		for flagKey, newValue := range newUpdates {
 			flagUpdateChan := ld.GetFlagTracker().AddFlagValueChangeListener(flagKey, ldContext, ldvalue.String("uh-oh"))
 			defer ld.GetFlagTracker().RemoveFlagValueChangeListener(flagUpdateChan)
-			trackers[flagKey] = flagUpdateChan
+			trackers[flagKey] = &flagUpdateChan
+
+			_, err := store.UpsertOverride(ctx, model.Override{
+				ProjectKey: projectKey,
+				FlagKey:    flagKey,
+				Value:      newValue,
+				Active:     true,
+				Version:    1,
+			})
+			require.NoError(t, err)
 		}
 
 		_, err := model.SyncProject(ctx, projectKey)
 		require.NoError(t, err)
 
-		for flagKey, value := range updates {
+		for flagKey, value := range newUpdates {
 			updateTracker, ok := trackers[flagKey]
 			require.True(t, ok)
 
-			update := <-updateTracker
+			update := <-*updateTracker
 			assert.Equal(t, value.AsArbitraryValue(), update.NewValue.AsArbitraryValue())
 		}
 	})
