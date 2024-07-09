@@ -38,7 +38,7 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 			AccessToken:  viper.GetString(cliflags.AccessTokenFlag),
 			BaseURI:      viper.GetString(cliflags.BaseURIFlag),
 			DevStreamURI: viper.GetString(cliflags.DevStreamURIFlag),
-			Port:         "8765",
+			Port:         viper.GetString(cliflags.PortFlag),
 		}
 
 		client.RunServer(ctx, params)

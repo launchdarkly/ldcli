@@ -3,6 +3,7 @@ package cliflags
 const (
 	BaseURIDefault      = "https://app.launchdarkly.com"
 	DevStreamURIDefault = "https://stream.launchdarkly.com"
+	PortDefault         = "8765"
 
 	AccessTokenFlag  = "access-token"
 	AnalyticsOptOut  = "analytics-opt-out"
@@ -13,6 +14,7 @@ const (
 	EnvironmentFlag  = "environment"
 	FlagFlag         = "flag"
 	OutputFlag       = "output"
+	PortFlag         = "port"
 	ProjectFlag      = "project"
 	RoleFlag         = "role"
 
@@ -23,6 +25,7 @@ const (
 	EnvironmentFlagDescription = "Default environment key"
 	FlagFlagDescription        = "Default feature flag key"
 	OutputFlagDescription      = "Command response output format in either JSON or plain text"
+	PortFlagDescription        = "Port for the dev server to run on"
 	ProjectFlagDescription     = "Default project key"
 )
 
@@ -36,5 +39,6 @@ func AllFlagsHelp() map[string]string {
 		FlagFlag:         FlagFlagDescription,
 		OutputFlag:       OutputFlagDescription,
 		ProjectFlag:      ProjectFlagDescription,
+		PortFlag:         PortFlagDescription,
 	}
 }
