@@ -63,7 +63,7 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 		AddFlag("jsonFlag", flagstate.FlagState{Value: ldvalue.CopyArbitraryValue(map[string]any{"cat": "hat"})}).
 		Build()
 
-	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(allFlags, nil).Times(2)
+	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(allFlags, nil)
 	_, err = model.CreateProject(ctx, projectKey, environmentKey, nil)
 	require.NoError(t, err)
 
@@ -107,8 +107,42 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 		assert.Equal(t, map[string]any{"cat": "hat"}, val.AsArbitraryValue())
 	})
 
+	// Mock scenario: we re-sync and the SDK returns new values and higher version numbers
+	updatedFlags := flagstate.NewAllFlagsBuilder().
+		AddFlag("boolFlag", flagstate.FlagState{Value: ldvalue.Bool(false), Version: 2}).
+		AddFlag("stringFlag", flagstate.FlagState{Value: ldvalue.String("pool"), Version: 2}).
+		AddFlag("intFlag", flagstate.FlagState{Value: ldvalue.Int(789), Version: 2}).
+		AddFlag("doubleFlag", flagstate.FlagState{Value: ldvalue.Float64(101.01), Version: 2}).
+		AddFlag("jsonFlag", flagstate.FlagState{Value: ldvalue.CopyArbitraryValue(map[string]any{"cat": "bababooey"}), Version: 2}).
+		Build()
+	valuesMap := updatedFlags.ToValuesMap()
+
+	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(updatedFlags, nil)
+
+	// This test is testing the "put" payload in a roundabout way by verifying each of the flags are in there.
+	t.Run("Sync sends full flag payload for project", func(t *testing.T) {
+		trackers := make(map[string]<-chan interfaces.FlagValueChangeEvent, len(valuesMap))
+
+		for flagKey := range valuesMap {
+			flagUpdateChan := ld.GetFlagTracker().AddFlagValueChangeListener(flagKey, ldContext, ldvalue.String("uh-oh"))
+			defer ld.GetFlagTracker().RemoveFlagValueChangeListener(flagUpdateChan)
+			trackers[flagKey] = flagUpdateChan
+		}
+
+		_, err := model.SyncProject(ctx, projectKey)
+		require.NoError(t, err)
+
+		for flagKey, value := range valuesMap {
+			updateTracker, ok := trackers[flagKey]
+			require.True(t, ok)
+
+			update := <-updateTracker
+			assert.Equal(t, value.AsArbitraryValue(), update.NewValue.AsArbitraryValue())
+		}
+	})
+
 	updates := map[string]ldvalue.Value{
-		"boolFlag":   ldvalue.Bool(false),
+		"boolFlag":   ldvalue.Bool(true),
 		"stringFlag": ldvalue.String("drool"),
 		"intFlag":    ldvalue.Int(456),
 		"doubleFlag": ldvalue.Float64(88.88),
@@ -124,45 +158,4 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 			assert.Equal(t, value.AsArbitraryValue(), flagUpdate.NewValue.AsArbitraryValue())
 		})
 	}
-
-	newUpdates := map[string]ldvalue.Value{
-		"boolFlag":   ldvalue.Bool(true),
-		"stringFlag": ldvalue.String("fool"),
-		"intFlag":    ldvalue.Int(567),
-		"doubleFlag": ldvalue.Float64(99.99),
-		"jsonFlag":   ldvalue.CopyArbitraryValue(map[string]any{"tortoise": "hare"}),
-	}
-
-	// This test is testing the "put" payload in a roundabout way by verifying each of the flags are in there.
-	// Note that the store.UpsertOverride is called directly so that updates for the overrides are not sent via
-	// patches.
-	t.Run("Sync sends full flag payload for project", func(t *testing.T) {
-		trackers := make(map[string]<-chan interfaces.FlagValueChangeEvent, len(updates))
-
-		for flagKey, newValue := range newUpdates {
-			flagUpdateChan := ld.GetFlagTracker().AddFlagValueChangeListener(flagKey, ldContext, ldvalue.String("uh-oh"))
-			defer ld.GetFlagTracker().RemoveFlagValueChangeListener(flagUpdateChan)
-			trackers[flagKey] = flagUpdateChan
-
-			_, err := store.UpsertOverride(ctx, model.Override{
-				ProjectKey: projectKey,
-				FlagKey:    flagKey,
-				Value:      newValue,
-				Active:     true,
-				Version:    1,
-			})
-			require.NoError(t, err)
-		}
-
-		_, err := model.SyncProject(ctx, projectKey)
-		require.NoError(t, err)
-
-		for flagKey, value := range newUpdates {
-			updateTracker, ok := trackers[flagKey]
-			require.True(t, ok)
-
-			update := <-updateTracker
-			assert.Equal(t, value.AsArbitraryValue(), update.NewValue.AsArbitraryValue())
-		}
-	})
 }
