@@ -134,6 +134,8 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 	}
 
 	// This test is testing the "put" payload in a roundabout way by verifying each of the flags are in there.
+	// Note that the store.UpsertOverride is called directly so that updates for the overrides are not sent via 
+	// patches.
 	t.Run("Sync sends full flag payload for project", func(t *testing.T) {
 		trackers := make(map[string]*<-chan interfaces.FlagValueChangeEvent, len(updates))
 
