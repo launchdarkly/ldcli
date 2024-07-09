@@ -38,7 +38,7 @@ func AllFlagsHelp() map[string]string {
 		EnvironmentFlag:  EnvironmentFlagDescription,
 		FlagFlag:         FlagFlagDescription,
 		OutputFlag:       OutputFlagDescription,
-		ProjectFlag:      ProjectFlagDescription,
 		PortFlag:         PortFlagDescription,
+		ProjectFlag:      ProjectFlagDescription,
 	}
 }
