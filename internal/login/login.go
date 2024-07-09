@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 const (
@@ -29,7 +30,7 @@ type DeviceAuthorizationToken struct {
 // FetchDeviceAuthorization makes a request to create a device authorization that will later be
 // used to set a local access token if the user grants access.
 func FetchDeviceAuthorization(
-	client UnauthenticatedClient,
+	client resources.UnauthenticatedClient,
 	clientID string,
 	deviceName string,
 	baseURI string,
@@ -43,7 +44,7 @@ func FetchDeviceAuthorization(
 		clientID,
 		deviceName,
 	)
-	res, err := client.MakeRequest("POST", path, []byte(body))
+	res, err := client.MakeUnauthenticatedRequest("POST", path, []byte(body))
 	if err != nil {
 		return DeviceAuthorization{}, err
 	}
@@ -61,7 +62,7 @@ func FetchDeviceAuthorization(
 // verify their request. If the user denies the request or does nothing long enough for this call
 // to time out, we do not return an access token.
 func FetchToken(
-	client UnauthenticatedClient,
+	client resources.UnauthenticatedClient,
 	deviceCode string,
 	baseURI string,
 	interval time.Duration,
@@ -104,7 +105,7 @@ func FetchToken(
 }
 
 func fetchToken(
-	client UnauthenticatedClient,
+	client resources.UnauthenticatedClient,
 	deviceCode string,
 	baseURI string,
 ) (DeviceAuthorizationToken, error) {
@@ -112,7 +113,7 @@ func fetchToken(
 	body, _ := json.Marshal(map[string]string{
 		"deviceCode": deviceCode,
 	})
-	res, err := client.MakeRequest("POST", path, body)
+	res, err := client.MakeUnauthenticatedRequest("POST", path, body)
 	if err != nil {
 		return DeviceAuthorizationToken{}, err
 	}

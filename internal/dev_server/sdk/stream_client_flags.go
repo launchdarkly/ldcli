@@ -26,7 +26,7 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 		w,
 		r.Context().Done(),
 		Message{Event: TYPE_PUT, Data: jsonBody},
-	) // TODO Wireup updateChan
+	)
 	defer close(updateChan)
 	projectKey := GetProjectKeyFromContext(ctx)
 	observer := clientFlagsObserver{updateChan, projectKey}
