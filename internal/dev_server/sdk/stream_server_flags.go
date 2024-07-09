@@ -24,7 +24,11 @@ func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 		WriteError(ctx, w, errors.Wrap(err, "failed to marshal flag state"))
 		return
 	}
-	updateChan, doneChan := OpenStream(w, r.Context().Done(), Message{"put", jsonBody})
+	updateChan, doneChan := OpenStream(
+		w,
+		r.Context().Done(),
+		Message{Event: TYPE_PUT, Data: jsonBody},
+	)
 	defer close(updateChan)
 	observer := serverFlagsObserver{updateChan, projectKey}
 	observers := model.GetObserversFromContext(ctx)
@@ -48,22 +52,28 @@ type serverFlagsObserver struct {
 }
 
 func (c serverFlagsObserver) Handle(event interface{}) {
-	log.Printf("clientFlagsObserver: handling flag state event: %v", event)
+	log.Printf("serverFlagsObserver: handling flag state event: %v", event)
 	switch event := event.(type) {
 	case model.UpsertOverrideEvent:
 		if event.ProjectKey != c.projectKey {
 			return
 		}
-		data, err := json.Marshal(serverSidePatchData{
+
+		err := SendMessage(c.updateChan, TYPE_PATCH, serverSidePatchData{
 			Path: fmt.Sprintf("/flags/%s", event.FlagKey),
 			Data: serverFlagFromFlagState(event.FlagKey, event.FlagState),
 		})
 		if err != nil {
 			panic(errors.Wrap(err, "failed to marshal flag state in observer"))
 		}
-		c.updateChan <- Message{
-			Event: "patch",
-			Data:  data,
+	case model.SyncEvent:
+		if event.ProjectKey != c.projectKey {
+			return
+		}
+
+		err := SendMessage(c.updateChan, TYPE_PUT, ServerAllPayloadFromFlagsState(event.AllFlagsState))
+		if err != nil {
+			panic(errors.Wrap(err, "failed to marshal flag state in observer"))
 		}
 	}
 }

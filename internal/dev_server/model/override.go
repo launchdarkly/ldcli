@@ -14,12 +14,6 @@ type Override struct {
 	Version    int
 }
 
-type UpsertOverrideEvent struct {
-	FlagKey    string
-	ProjectKey string
-	FlagState  FlagState
-}
-
 func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldvalue.Value) (Override, error) {
 	// TODO: validate if the flag type matches
 
@@ -31,7 +25,7 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 	}
 
 	var flagExists bool
-	for flag := range project.FlagState {
+	for flag := range project.AllFlagsState {
 		if flagKey == flag {
 			flagExists = true
 			break
@@ -54,9 +48,8 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 		return Override{}, err
 	}
 
-	observers := GetObserversFromContext(ctx)
-	flagState := override.Apply(project.FlagState[flagKey])
-	observers.Notify(UpsertOverrideEvent{
+	flagState := override.Apply(project.AllFlagsState[flagKey])
+	GetObserversFromContext(ctx).Notify(UpsertOverrideEvent{
 		FlagKey:    flagKey,
 		ProjectKey: projectKey,
 		FlagState:  flagState,

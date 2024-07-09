@@ -56,7 +56,7 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 		LastSyncedFromSource: project.LastSyncTime.Unix(),
 		Context:              project.Context,
 		SourceEnvironmentKey: project.SourceEnvironmentKey,
-		FlagsState:           &project.FlagState,
+		FlagsState:           &project.AllFlagsState,
 	}
 
 	if request.Params.Expand != nil {
@@ -98,7 +98,7 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 		LastSyncedFromSource: project.LastSyncTime.Unix(),
 		Context:              project.Context,
 		SourceEnvironmentKey: project.SourceEnvironmentKey,
-		FlagsState:           &project.FlagState,
+		FlagsState:           &project.AllFlagsState,
 	}
 
 	if request.Params.Expand != nil {
@@ -143,7 +143,7 @@ func (s Server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDev
 		LastSyncedFromSource: project.LastSyncTime.Unix(),
 		Context:              project.Context,
 		SourceEnvironmentKey: project.SourceEnvironmentKey,
-		FlagsState:           &project.FlagState,
+		FlagsState:           &project.AllFlagsState,
 	}
 
 	if request.Params.Expand != nil {
@@ -188,7 +188,7 @@ func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request Patc
 		LastSyncedFromSource: project.LastSyncTime.Unix(),
 		Context:              project.Context,
 		SourceEnvironmentKey: project.SourceEnvironmentKey,
-		FlagsState:           &project.FlagState,
+		FlagsState:           &project.AllFlagsState,
 	}
 
 	if request.Params.Expand != nil {
