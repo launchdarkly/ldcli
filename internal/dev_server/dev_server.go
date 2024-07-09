@@ -63,10 +63,12 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	handler := api.HandlerFromMux(apiServer, r)
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
-	fmt.Printf("Server running on %s", serverParams.Port)
-	fmt.Println("Access the UI for toggling overrides at http://localhost:8765/ui or by running `ldcli dev-server ui`")
+
+	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
+	fmt.Printf("Server running on %s", addr)
+	fmt.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
 	server := http.Server{
-		Addr:    serverParams.Port,
+		Addr:    addr,
 		Handler: handler,
 	}
 	log.Fatal(server.ListenAndServe())
