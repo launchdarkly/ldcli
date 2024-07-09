@@ -84,19 +84,19 @@ func (mr *MockStoreMockRecorder) GetDevProject(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProject", reflect.TypeOf((*MockStore)(nil).GetDevProject), arg0, arg1)
 }
 
-// GetDevProjects mocks base method.
-func (m *MockStore) GetDevProjects(arg0 context.Context) ([]string, error) {
+// GetDevProjectKeys mocks base method.
+func (m *MockStore) GetDevProjectKeys(arg0 context.Context) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDevProjects", arg0)
+	ret := m.ctrl.Call(m, "GetDevProjectKeys", arg0)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetDevProjects indicates an expected call of GetDevProjects.
-func (mr *MockStoreMockRecorder) GetDevProjects(arg0 any) *gomock.Call {
+// GetDevProjectKeys indicates an expected call of GetDevProjectKeys.
+func (mr *MockStoreMockRecorder) GetDevProjectKeys(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProjects", reflect.TypeOf((*MockStore)(nil).GetDevProjects), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProjectKeys", reflect.TypeOf((*MockStore)(nil).GetDevProjectKeys), arg0)
 }
 
 // GetOverridesForProject mocks base method.

@@ -17,7 +17,7 @@ func NewStrictServer() Server {
 
 func (s Server) GetDevProjects(ctx context.Context, request GetDevProjectsRequestObject) (GetDevProjectsResponseObject, error) {
 	store := model.StoreFromContext(ctx)
-	projectKeys, err := store.GetDevProjects(ctx)
+	projectKeys, err := store.GetDevProjectKeys(ctx)
 	if err != nil {
 		return nil, err
 	}

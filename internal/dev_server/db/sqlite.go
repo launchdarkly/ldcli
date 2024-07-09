@@ -16,7 +16,7 @@ type Sqlite struct {
 	database *sql.DB
 }
 
-func (s Sqlite) GetDevProjects(ctx context.Context) ([]string, error) {
+func (s Sqlite) GetDevProjectKeys(ctx context.Context) ([]string, error) {
 	rows, err := s.database.Query("select key from projects")
 	if err != nil {
 		return nil, err
