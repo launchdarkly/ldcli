@@ -102,9 +102,14 @@ func SyncProject(ctx context.Context, projectKey string) (Project, error) {
 		return Project{}, errors.New("Project not updated")
 	}
 
+	allFlagsWithOverrides, err := project.GetFlagStateWithOverridesForProject(ctx)
+	if err != nil {
+		return Project{}, errors.Wrapf(err, "unable to get overrides for project, %s", projectKey)
+	}
+
 	GetObserversFromContext(ctx).Notify(SyncEvent{
 		ProjectKey:    project.Key,
-		AllFlagsState: project.AllFlagsState,
+		AllFlagsState: allFlagsWithOverrides,
 	})
 	return *project, nil
 }
