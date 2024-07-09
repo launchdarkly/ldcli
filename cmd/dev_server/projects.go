@@ -187,36 +187,23 @@ func NewAddProjectCmd(client resources.Client) *cobra.Command {
 	_ = cmd.Flags().SetAnnotation("source", "required", []string{"true"})
 	_ = viper.BindPFlag("source", cmd.Flags().Lookup("source"))
 
-	//cmd.Flags().String("context-kind", "", "context kind of the context key to use when evaluating flags in source environment")
-	//_ = viper.BindPFlag("context-kind", cmd.Flags().Lookup("context-kind"))
-	//
-	//cmd.Flags().String("context-key", "", "context key to use when evaluating flags in source environment")
-	//_ = viper.BindPFlag("context-key", cmd.Flags().Lookup("context-key"))
-	//
-	//cmd.MarkFlagsRequiredTogether("context-kind", "context-key")
+	cmd.Flags().String("context", "", `Stringified JSON representation of your context object ex. {"user": { "email": "youremail@gmail.com", "username": "foo", "key": "bar"}}`)
+	_ = viper.BindPFlag("context", cmd.Flags().Lookup("context"))
 
 	return cmd
 }
 
-//type context struct {
-//	key  string
-//	kind string
-//}
-
 type postBody struct {
-	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
-	//context              context
+	SourceEnvironmentKey string          `json:"sourceEnvironmentKey"`
+	Context              json.RawMessage `json:"context,omitempty"`
 }
 
 func addProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		body := postBody{SourceEnvironmentKey: viper.GetString("source")}
-		//if viper.IsSet("context-key") {
-		//	body.context = context{
-		//		key:  viper.GetString("context-key"),
-		//		kind: viper.GetString("context-kind"),
-		//	}
-		//}
+		if viper.IsSet("context") {
+			body.Context = json.RawMessage(viper.GetString("context"))
+		}
 
 		jsonData, err := json.Marshal(body)
 		if err != nil {
