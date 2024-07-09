@@ -63,7 +63,7 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 		AddFlag("jsonFlag", flagstate.FlagState{Value: ldvalue.CopyArbitraryValue(map[string]any{"cat": "hat"})}).
 		Build()
 
-	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(allFlags, nil)
+	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(allFlags, nil).Times(2)
 	_, err = model.CreateProject(ctx, projectKey, environmentKey, nil)
 	require.NoError(t, err)
 
