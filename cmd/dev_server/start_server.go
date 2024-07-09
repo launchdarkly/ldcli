@@ -34,13 +34,14 @@ func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 func startServer(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
+		params := dev_server.ServerParams{
+			AccessToken:  viper.GetString(cliflags.AccessTokenFlag),
+			BaseURI:      viper.GetString(cliflags.BaseURIFlag),
+			DevStreamURI: viper.GetString(cliflags.DevStreamURIFlag),
+			Port:         viper.GetString(cliflags.PortFlag),
+		}
 
-		client.RunServer(
-			ctx,
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			viper.GetString(cliflags.DevStreamURIFlag),
-		)
+		client.RunServer(ctx, params)
 
 		return nil
 	}

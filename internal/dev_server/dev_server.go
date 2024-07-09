@@ -20,7 +20,14 @@ import (
 )
 
 type Client interface {
-	RunServer(ctx context.Context, accessToken, baseURI, devStreamURI string)
+	RunServer(ctx context.Context, serverParams ServerParams)
+}
+
+type ServerParams struct {
+	AccessToken  string
+	BaseURI      string
+	DevStreamURI string
+	Port         string
 }
 
 type LDClient struct {
@@ -33,8 +40,8 @@ func NewClient(cliVersion string) LDClient {
 	return LDClient{cliVersion: cliVersion}
 }
 
-func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI, devStreamURI string) {
-	ldClient := client.New(accessToken, baseURI, c.cliVersion)
+func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
+	ldClient := client.New(serverParams.AccessToken, serverParams.BaseURI, c.cliVersion)
 	dbPath := getDBPath()
 	log.Printf("Using database at %s", dbPath)
 	sqlStore, err := db.NewSqlite(ctx, getDBPath())
@@ -47,7 +54,7 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI, devStream
 		ResponseErrorHandlerFunc: ResponseErrorHandler,
 	})
 	r := mux.NewRouter()
-	r.Use(adapters.Middleware(*ldClient, devStreamURI))
+	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI))
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(model.NewObservers()))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
@@ -56,10 +63,12 @@ func (c LDClient) RunServer(ctx context.Context, accessToken, baseURI, devStream
 	handler := api.HandlerFromMux(apiServer, r)
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
-	fmt.Println("Server running on 0.0.0.0:8765")
-	fmt.Println("Access the UI for toggling overrides at http://localhost:8765/ui or by running `ldcli dev-server ui`")
+
+	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
+	fmt.Printf("Server running on %s", addr)
+	fmt.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
 	server := http.Server{
-		Addr:    "0.0.0.0:8765",
+		Addr:    addr,
 		Handler: handler,
 	}
 	log.Fatal(server.ListenAndServe())

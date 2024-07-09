@@ -24,6 +24,14 @@ func NewDevServerCmd(client resources.Client, ldClient dev_server.Client) *cobra
 	)
 	_ = viper.BindPFlag(cliflags.DevStreamURIFlag, cmd.PersistentFlags().Lookup(cliflags.DevStreamURIFlag))
 
+	cmd.PersistentFlags().String(
+		cliflags.PortFlag,
+		cliflags.PortDefault,
+		cliflags.PortFlagDescription,
+	)
+
+	_ = viper.BindPFlag(cliflags.PortFlag, cmd.PersistentFlags().Lookup(cliflags.PortFlag))
+
 	// Add subcommands here
 	cmd.AddGroup(&cobra.Group{ID: "projects", Title: "Project commands:"})
 	cmd.AddCommand(NewListProjectsCmd(client))
