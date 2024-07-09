@@ -87,4 +87,34 @@ func TestDBFunctions(t *testing.T) {
 		assert.Equal(t, expected.Context, p.Context)
 		assert.True(t, expected.LastSyncTime.Equal(p.LastSyncTime))
 	})
+
+	t.Run("UpdateProject updates flag state, sync time, context but not source environment key", func(t *testing.T) {
+		projects[0].Context = ldcontext.New(t.Name() + "blah")
+		projects[0].AllFlagsState = model.FlagsState{
+			"flag-1": model.FlagState{Value: ldvalue.Bool(false), Version: 3},
+			"flag-2": model.FlagState{Value: ldvalue.String("cool beeans"), Version: 3},
+		}
+		projects[0].LastSyncTime = time.Now().Add(time.Hour)
+		oldSourceEnvKey := projects[0].SourceEnvironmentKey
+		projects[0].SourceEnvironmentKey = "new-env"
+
+		updated, err := store.UpdateProject(ctx, projects[0])
+		assert.NoError(t, err)
+		assert.True(t, updated)
+
+		newProj, err := store.GetDevProject(ctx, projects[0].Key)
+		assert.NoError(t, err)
+		assert.NotNil(t, newProj)
+		assert.Equal(t, projects[0].Key, newProj.Key)
+		assert.Equal(t, projects[0].AllFlagsState, newProj.AllFlagsState)
+		assert.Equal(t, oldSourceEnvKey, newProj.SourceEnvironmentKey)
+		assert.Equal(t, projects[0].Context, newProj.Context)
+		assert.True(t, projects[0].LastSyncTime.Equal(newProj.LastSyncTime))
+	})
+
+	t.Run("UpdateProject returns false if project does not exist", func(t *testing.T) {
+		updated, err := store.UpdateProject(ctx, model.Project{Key: "nope"})
+		assert.NoError(t, err)
+		assert.False(t, updated)
+	})
 }
