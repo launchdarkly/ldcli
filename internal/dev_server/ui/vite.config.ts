@@ -10,7 +10,7 @@ export default defineConfig(({ command }) => {
   if (command === 'build') {
     plugins.push(viteSingleFile());
   }
-  
+
   return {
     plugins,
     server: {
@@ -22,5 +22,5 @@ export default defineConfig(({ command }) => {
         },
       },
     },
-  }
+  };
 });

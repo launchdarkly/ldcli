@@ -8,20 +8,16 @@ import {
   Modal,
   ModalOverlay,
   DialogTrigger,
-  Dialog
+  Dialog,
 } from '@launchpad-ui/components';
-import {
-  Box,
-  InlineEdit,
-  TextField,
-} from '@launchpad-ui/core';
+import { Box, InlineEdit, TextField } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
 import './App.css';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 
 const API_BASE = import.meta.env.PROD ? '' : '/api';
-const apiRoute = (pathname: string) => `${API_BASE}${pathname}`
+const apiRoute = (pathname: string) => `${API_BASE}${pathname}`;
 
 function App() {
   const [flags, setFlags] = useState<LDFlagSet | null>(null);
@@ -31,6 +27,7 @@ function App() {
   > | null>(null);
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
   const overridesPresent = overrides && Object.keys(overrides).length > 0;
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const updateOverride = (flagKey: string, overrideValue: LDFlagValue) => {
     fetch(apiRoute(`/dev/projects/default/overrides/${flagKey}`), {
@@ -75,41 +72,14 @@ function App() {
 
           setOverrides(updatedOverrides);
 
-          if (Object.keys(updatedOverrides).length === 0) setOnlyShowOverrides(false)
+          if (Object.keys(updatedOverrides).length === 0)
+            setOnlyShowOverrides(false);
         }
       })
       .catch((_e) => {
         // todo
       });
   };
-
-  const updateJsonHandler = (e: any) => {
-    e.preventDefault();
-    const form = e.target
-    let newVal;
-
-    try {
-      newVal = JSON.parse(form.elements.json.value);
-    }
-    catch (err) {
-      window.alert("Invalid JSON formatting");
-      return;
-    }
-
-    updateOverride(e.target.getAttribute("data-flagkey"), newVal);
-
-    // hacky way to dismiss the modal by simulating esc keypress, since doing it the "right" way would take a lot more code
-    const escapeEvent = new KeyboardEvent('keydown', {
-      key: 'Escape',
-      which: 27,
-      keyCode: 27,
-      code: "Escape",
-      bubbles: true
-    });
-    form.dispatchEvent(escapeEvent)
-
-    window.alert('JSON value updated');
-  }
 
   // Fetch flags / overrides on mount
   useEffect(() => {
@@ -258,24 +228,63 @@ function App() {
                 break;
               default:
                 valueNode = (
-                  <DialogTrigger >
+                  <DialogTrigger>
                     <Button style={{ border: 'none', padding: 0, margin: 0 }}>
-                      <textarea name='json' rows={8} readOnly={true} style={{ resize: 'none', overflowY: 'clip', cursor: 'pointer' }}
-                        value={JSON.stringify((hasOverride ? overrideValue : flagValue), null, 2)}>
-                      </textarea>
+                      <textarea
+                        rows={8}
+                        readOnly={true}
+                        style={{
+                          resize: 'none',
+                          overflowY: 'clip',
+                          cursor: 'pointer',
+                        }}
+                        value={JSON.stringify(
+                          hasOverride ? overrideValue : flagValue,
+                          null,
+                          2,
+                        )}
+                      ></textarea>
                     </Button>
                     <ModalOverlay>
                       <Modal>
-                        <Dialog >
-                          <form data-flagkey={flagKey} onSubmit={updateJsonHandler}>
-                            <textarea name='json' style={{ width: '100%', height: '30rem' }}
-                              defaultValue={JSON.stringify((hasOverride ? overrideValue : flagValue), null, 2)} />
-                            <div>
-                              <Button variant='primary' type='submit'>
-                                Accept
-                              </Button>
-                            </div>
-                          </form>
+                        <Dialog>
+                          {({ close }) => (
+                            <form
+                              onSubmit={() => {
+                                let newVal;
+
+                                try {
+                                  newVal = JSON.parse(
+                                    textAreaRef?.current?.value || '',
+                                  );
+                                } catch (err) {
+                                  window.alert('Invalid JSON formatting');
+                                  return;
+                                }
+
+                                updateOverride(flagKey, newVal);
+                              }}
+                            >
+                              <textarea
+                                ref={textAreaRef}
+                                style={{ width: '100%', height: '30rem' }}
+                                defaultValue={JSON.stringify(
+                                  hasOverride ? overrideValue : flagValue,
+                                  null,
+                                  2,
+                                )}
+                              />
+                              <div>
+                                <Button
+                                  variant="primary"
+                                  type="submit"
+                                  onPress={close}
+                                >
+                                  Accept
+                                </Button>
+                              </div>
+                            </form>
+                          )}
                         </Dialog>
                       </Modal>
                     </ModalOverlay>
@@ -308,7 +317,6 @@ function App() {
           })}
         </ul>
       </div>
-
     </>
   );
 }
