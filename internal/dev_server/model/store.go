@@ -15,8 +15,8 @@ const ctxKeyStore = ctxKey("model.Store")
 //go:generate go run go.uber.org/mock/mockgen -destination mocks/store.go -package mocks . Store
 
 type Store interface {
-	DeleteOverride(ctx context.Context, projectKey, flagKey string) error
-	GetDevProjects(ctx context.Context) ([]string, error)
+	DeactivateOverride(ctx context.Context, projectKey, flagKey string) error
+	GetDevProjectKeys(ctx context.Context) ([]string, error)
 	// GetDevProject fetches the project based on the projectKey. If it doesn't exist, ErrNotFound is returned
 	GetDevProject(ctx context.Context, projectKey string) (*Project, error)
 	UpdateProject(ctx context.Context, project Project) (bool, error)

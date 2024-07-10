@@ -16,7 +16,7 @@ type Sqlite struct {
 	database *sql.DB
 }
 
-func (s Sqlite) GetDevProjects(ctx context.Context) ([]string, error) {
+func (s Sqlite) GetDevProjectKeys(ctx context.Context) ([]string, error) {
 	rows, err := s.database.Query("select key from projects")
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) (mo
 	return override, nil
 }
 
-func (s Sqlite) DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
+func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey string) error {
 	result, err := s.database.Exec(`
 		UPDATE overrides set active = false, version = version+1 where project_key = ? and flag_key = ? and active = true
 	`,

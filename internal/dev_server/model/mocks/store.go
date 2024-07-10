@@ -40,6 +40,20 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
+// DeactivateOverride mocks base method.
+func (m *MockStore) DeactivateOverride(arg0 context.Context, arg1, arg2 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeactivateOverride", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeactivateOverride indicates an expected call of DeactivateOverride.
+func (mr *MockStoreMockRecorder) DeactivateOverride(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeactivateOverride", reflect.TypeOf((*MockStore)(nil).DeactivateOverride), arg0, arg1, arg2)
+}
+
 // DeleteDevProject mocks base method.
 func (m *MockStore) DeleteDevProject(arg0 context.Context, arg1 string) (bool, error) {
 	m.ctrl.T.Helper()
@@ -53,20 +67,6 @@ func (m *MockStore) DeleteDevProject(arg0 context.Context, arg1 string) (bool, e
 func (mr *MockStoreMockRecorder) DeleteDevProject(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDevProject", reflect.TypeOf((*MockStore)(nil).DeleteDevProject), arg0, arg1)
-}
-
-// DeleteOverride mocks base method.
-func (m *MockStore) DeleteOverride(arg0 context.Context, arg1, arg2 string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOverride", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteOverride indicates an expected call of DeleteOverride.
-func (mr *MockStoreMockRecorder) DeleteOverride(arg0, arg1, arg2 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOverride", reflect.TypeOf((*MockStore)(nil).DeleteOverride), arg0, arg1, arg2)
 }
 
 // GetDevProject mocks base method.
@@ -84,19 +84,19 @@ func (mr *MockStoreMockRecorder) GetDevProject(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProject", reflect.TypeOf((*MockStore)(nil).GetDevProject), arg0, arg1)
 }
 
-// GetDevProjects mocks base method.
-func (m *MockStore) GetDevProjects(arg0 context.Context) ([]string, error) {
+// GetDevProjectKeys mocks base method.
+func (m *MockStore) GetDevProjectKeys(arg0 context.Context) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDevProjects", arg0)
+	ret := m.ctrl.Call(m, "GetDevProjectKeys", arg0)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetDevProjects indicates an expected call of GetDevProjects.
-func (mr *MockStoreMockRecorder) GetDevProjects(arg0 any) *gomock.Call {
+// GetDevProjectKeys indicates an expected call of GetDevProjectKeys.
+func (mr *MockStoreMockRecorder) GetDevProjectKeys(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProjects", reflect.TypeOf((*MockStore)(nil).GetDevProjects), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProjectKeys", reflect.TypeOf((*MockStore)(nil).GetDevProjectKeys), arg0)
 }
 
 // GetOverridesForProject mocks base method.
