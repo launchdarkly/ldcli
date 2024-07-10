@@ -221,7 +221,7 @@ func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request Patc
 
 func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
 	store := model.StoreFromContext(ctx)
-	err := store.DeleteOverride(ctx, request.ProjectKey, request.FlagKey)
+	err := store.DeactivateOverride(ctx, request.ProjectKey, request.FlagKey)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			return DeleteDevProjectsProjectKeyOverridesFlagKey404Response{}, nil
