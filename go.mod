@@ -1,6 +1,6 @@
 module github.com/launchdarkly/ldcli
 
-go 1.21
+go 1.22.5
 
 require (
 	github.com/charmbracelet/bubbles v0.18.0
@@ -11,6 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/launchdarkly/api-client-go/v14 v14.0.0
+	github.com/launchdarkly/sdk-meta v0.0.0-20240710225545-354e78dac98b
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/muesli/reflow v0.3.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
@@ -71,7 +72,7 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/oauth2 v0.15.0 // indirect
+	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

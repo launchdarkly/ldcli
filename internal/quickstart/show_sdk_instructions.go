@@ -2,6 +2,7 @@ package quickstart
 
 import (
 	"fmt"
+	"github.com/launchdarkly/sdk-meta/products"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -39,7 +40,7 @@ type showSDKInstructionsModel struct {
 	help               help.Model
 	helpKeys           keyMap
 	instructions       string
-	sdkKind            string
+	sdkKind            products.Type
 	spinner            spinner.Model
 	url                string
 	viewport           viewport.Model
@@ -55,7 +56,7 @@ func NewShowSDKInstructionsModel(
 	canonicalName string,
 	displayName string,
 	url string,
-	sdkKind string,
+	sdkKind products.Type,
 	flagKey string,
 	environment *environment,
 ) tea.Model {

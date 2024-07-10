@@ -2,7 +2,11 @@ package quickstart
 
 import (
 	"fmt"
+	"github.com/launchdarkly/ldcli/internal/sdks"
 	"io"
+	"io/fs"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -10,6 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/launchdarkly/sdk-meta/products"
 )
 
 var (
@@ -65,11 +70,45 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 	}
 }
 
+var details []sdkDetail
+
+// Only certain SDKs have example links.
+var sdkExamples = map[string]string{
+	"react":        "https://github.com/launchdarkly/react-client-sdk/tree/main/examples/typescript",
+	"vue":          "https://github.com/launchdarkly/vue-client-sdk/tree/main/example",
+	"react-native": "https://github.com/launchdarkly/js-core/tree/main/packages/sdk/react-native/example",
+	"c-client":     "https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-client",
+	"c-server":     "https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-server",
+	"lua-server":   "https://github.com/launchdarkly/lua-server-sdk/tree/main/examples/hello-lua-server",
+}
+
 // initSDKs sets the index of each SDK based on place in list.
 func initSDKs() {
-	for i := range SDKs {
-		SDKs[i].index = i
+	items, err := sdks.InstructionFiles.ReadDir("sdk_instructions")
+	if err != nil {
+		panic("failed to load embedded SDK quickstart instructions: " + err.Error())
 	}
+
+	slices.SortFunc(items, func(a fs.DirEntry, b fs.DirEntry) int {
+		return strings.Compare(a.Name(), b.Name())
+	})
+
+	index := 0
+	for _, item := range items {
+		id, _, _ := strings.Cut(filepath.Base(item.Name()), ".")
+		if _, ok := products.Names[id]; !ok {
+			continue
+		}
+		details = append(details, sdkDetail{
+			id:          id,
+			index:       index,
+			displayName: products.Names[id],
+			kind:        products.Types[id],
+			url:         sdkExamples[id],
+		})
+		index += 1
+	}
+
 }
 
 // Init sends commands when the model is created that will:
@@ -116,145 +155,20 @@ func (m chooseSDKModel) View() string {
 }
 
 type sdkDetail struct {
-	canonicalName string
-	displayName   string
-	index         int
-	kind          string
-	url           string // custom URL if it differs from the other SDKs
+	id          string
+	displayName string
+	index       int
+	kind        products.Type
+	url         string // custom URL if it differs from the other SDKs
 }
 
 func (s sdkDetail) FilterValue() string { return s.displayName }
 
-var SDKs = []sdkDetail{
-	{
-		canonicalName: "react",
-		displayName:   "React",
-		kind:          clientSideSDK,
-		url:           "https://github.com/launchdarkly/react-client-sdk/tree/main/examples/typescript",
-	},
-	{
-		canonicalName: "node-server",
-		displayName:   "Node.js (server-side)",
-		kind:          serverSideSDK,
-	},
-	{
-		canonicalName: "python",
-		displayName:   "Python",
-		kind:          serverSideSDK,
-	},
-	{
-		canonicalName: "java",
-		displayName:   "Java",
-		kind:          serverSideSDK,
-	},
-	{
-		canonicalName: "dotnet-server",
-		displayName:   ".NET (server-side)",
-		kind:          serverSideSDK,
-	},
-	{
-		canonicalName: "js",
-		displayName:   "JavaScript",
-		kind:          clientSideSDK,
-	},
-	{
-		canonicalName: "vue",
-		displayName:   "Vue",
-		kind:          clientSideSDK,
-		url:           "https://github.com/launchdarkly/vue-client-sdk/tree/main/example",
-	},
-	{
-		canonicalName: "ios-swift",
-		displayName:   "iOS",
-		kind:          mobileSDK,
-	},
-	{
-		canonicalName: "go",
-		displayName:   "Go",
-		kind:          serverSideSDK,
-	},
-	{
-		canonicalName: "android",
-		displayName:   "Android",
-		kind:          mobileSDK,
-	},
-	{
-		canonicalName: "react-native",
-		displayName:   "React Native",
-		kind:          mobileSDK,
-		url:           "https://github.com/launchdarkly/js-core/tree/main/packages/sdk/react-native/example",
-	},
-	{
-		canonicalName: "ruby",
-		displayName:   "Ruby",
-		kind:          serverSideSDK,
-	},
-	{
-		canonicalName: "flutter",
-		displayName:   "Flutter",
-		kind:          mobileSDK,
-	},
-	{
-		canonicalName: "dotnet-client",
-		displayName:   ".NET (client-side)",
-		kind:          clientSideSDK,
-	},
-	{
-		canonicalName: "erlang",
-		displayName:   "Erlang",
-		kind:          serverSideSDK,
-	},
-	{
-		canonicalName: "rust",
-		displayName:   "Rust",
-		kind:          serverSideSDK,
-	},
-	{
-		canonicalName: "c-client",
-		displayName:   "C/C++ (client-side)",
-		kind:          clientSideSDK,
-		url:           "https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-client",
-	},
-	{
-		canonicalName: "roku",
-		displayName:   "Roku",
-		kind:          clientSideSDK,
-	},
-	{
-		canonicalName: "node-client",
-		displayName:   "Node.js (client-side)",
-		kind:          clientSideSDK,
-	},
-	{
-		canonicalName: "c-server",
-		displayName:   "C/C++ (server-side)",
-		kind:          serverSideSDK,
-		url:           "https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-server",
-	},
-	{
-		canonicalName: "lua-server",
-		displayName:   "Lua",
-		kind:          serverSideSDK,
-		url:           "https://github.com/launchdarkly/lua-server-sdk/tree/main/examples/hello-lua-server",
-	},
-	{
-		canonicalName: "haskell-server",
-		displayName:   "Haskell",
-		kind:          serverSideSDK,
-	},
-	{
-		canonicalName: "php",
-		displayName:   "PHP",
-		kind:          serverSideSDK,
-	},
-}
-
 func sdksToItems() []list.Item {
-	items := make([]list.Item, len(SDKs))
-	for i, sdk := range SDKs {
-		items[i] = list.Item(sdk)
+	items := make([]list.Item, len(details))
+	for _, info := range details {
+		items[info.index] = list.Item(info)
 	}
-
 	return items
 }
 

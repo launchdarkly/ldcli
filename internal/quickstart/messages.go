@@ -146,7 +146,7 @@ type choseSDKMsg struct {
 func chooseSDK(sdk sdkDetail) tea.Cmd {
 	return func() tea.Msg {
 		if sdk.url == "" {
-			sdk.url = fmt.Sprintf("https://github.com/launchdarkly/hello-%s", sdk.canonicalName)
+			sdk.url = fmt.Sprintf("https://github.com/launchdarkly/hello-%s", sdk.id)
 		}
 
 		return choseSDKMsg{
