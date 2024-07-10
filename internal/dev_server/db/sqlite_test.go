@@ -30,7 +30,7 @@ func TestDBFunctions(t *testing.T) {
 
 	projects := []model.Project{
 		{
-			Key:                  "proj-1",
+			Key:                  "main-test-proj",
 			SourceEnvironmentKey: "env-1",
 			Context:              ldContext,
 			LastSyncTime:         now,
@@ -40,7 +40,7 @@ func TestDBFunctions(t *testing.T) {
 			},
 		},
 		{
-			Key:                  "proj-2",
+			Key:                  "proj-to-delete",
 			SourceEnvironmentKey: "env-2",
 			Context:              ldContext,
 			LastSyncTime:         now,
@@ -116,5 +116,103 @@ func TestDBFunctions(t *testing.T) {
 		updated, err := store.UpdateProject(ctx, model.Project{Key: "nope"})
 		assert.NoError(t, err)
 		assert.False(t, updated)
+	})
+
+	t.Run("DeleteProject returns false if project does not exist", func(t *testing.T) {
+		deleted, err := store.DeleteDevProject(ctx, "nope")
+		assert.NoError(t, err)
+		assert.False(t, deleted)
+	})
+
+	t.Run("DeleteProject succeeds if project exists", func(t *testing.T) {
+		deleted, err := store.DeleteDevProject(ctx, projects[1].Key)
+		assert.NoError(t, err)
+		assert.True(t, deleted)
+	})
+
+	flagKeys := []string{"flag-1", "flag-2"}
+
+	overrides := map[string]model.Override{
+		flagKeys[0]: {
+			ProjectKey: projects[0].Key,
+			FlagKey:    flagKeys[0],
+			Value:      ldvalue.Bool(true),
+			Active:     true,
+			Version:    1,
+		},
+		flagKeys[1]: {
+			ProjectKey: projects[0].Key,
+			FlagKey:    flagKeys[1],
+			Value:      ldvalue.Int(100),
+			Active:     true,
+			Version:    1,
+		},
+	}
+
+	// test inserts
+	for _, o := range overrides {
+		_, err := store.UpsertOverride(ctx, o)
+		require.NoError(t, err)
+	}
+
+	overridesResult, err := store.GetOverridesForProject(ctx, projects[0].Key)
+	require.NoError(t, err)
+	require.Len(t, overridesResult, 2)
+
+	for _, r := range overridesResult {
+		originalOverride, ok := overrides[r.FlagKey]
+		require.True(t, ok)
+		require.Equal(t, originalOverride, r)
+	}
+
+	t.Run("UpsertOverride updates when override exists", func(t *testing.T) {
+		updated := overrides[flagKeys[1]]
+		updated.Value = ldvalue.Int(101)
+
+		_, err := store.UpsertOverride(ctx, updated)
+		assert.NoError(t, err)
+
+		overridesResult, err := store.GetOverridesForProject(ctx, projects[0].Key)
+		assert.NoError(t, err)
+		assert.Len(t, overridesResult, 2)
+
+		found := false // prevent test from erroneously succeeding because override not in array
+		for _, r := range overridesResult {
+			if r.FlagKey != flagKeys[1] {
+				continue
+			}
+
+			found = true
+			assert.Equal(t, updated.Value, r.Value)
+		}
+
+		assert.True(t, found)
+	})
+
+	t.Run("DeleteOverride returns error when project not found", func(t *testing.T) {
+		err := store.DeleteOverride(ctx, projects[0].Key, "nope")
+		assert.ErrorIs(t, err, model.ErrNotFound)
+	})
+
+	t.Run("DeleteOverride sets the override inactive", func(t *testing.T) {
+		toDelete := overrides[flagKeys[0]]
+		err := store.DeleteOverride(ctx, toDelete.ProjectKey, toDelete.FlagKey)
+		assert.NoError(t, err)
+
+		result, err := store.GetOverridesForProject(ctx, toDelete.ProjectKey)
+		assert.NoError(t, err)
+		assert.Len(t, result, 2)
+
+		found := false // prevent test from erroneously succeeding because override not in array
+		for _, r := range result {
+			if r.FlagKey != toDelete.FlagKey {
+				continue
+			}
+
+			found = true
+			assert.False(t, r.Active)
+		}
+
+		assert.True(t, found)
 	})
 }
