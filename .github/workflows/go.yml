@@ -10,16 +10,24 @@ on:
     branches: [ "main" ]
 
 jobs:
+  go-versions:
+    uses: ./.github/workflows/go-versions.yml
 
   build:
+    needs: go-versions
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ${{ fromJSON(needs.go-versions.outputs.matrix )}}
+
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.20'
+        go-version: ${{ matrix.go-version }}
 
     - name: Enforce formatting / go mod tidy
       run: |
