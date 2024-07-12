@@ -32,7 +32,9 @@ type Config struct {
 func New(filename string, readFile ReadFile) (Config, error) {
 	data, err := readFile(filename)
 	if err != nil {
-		return Config{}, err
+		return Config{}, errors.NewError(
+			fmt.Sprintf("unable to open config file. The file or directory may not exist: %s", filename),
+		)
 	}
 
 	var c Config
