@@ -88,6 +88,15 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 }
 
 func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
+	if request.Body.SourceEnvironmentKey == "" {
+		return PostDevProjectsProjectKey400JSONResponse{
+			InvalidRequestResponseJSONResponse{
+				Code:    "invalid_request",
+				Message: "sourceEnvironmentKey is required",
+			},
+		}, nil
+	}
+
 	store := model.StoreFromContext(ctx)
 	project, err := model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, request.Body.Context)
 	if err != nil {
