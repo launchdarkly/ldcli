@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.0](https://github.com/launchdarkly/ldcli/compare/v1.1.1...v1.2.0) (2024-07-15)
+
+
+### Features
+
+* Can fetch a token based on the device code ([#323](https://github.com/launchdarkly/ldcli/issues/323)) ([769b925](https://github.com/launchdarkly/ldcli/commit/769b925dc25ba52eedaa426b46de4a1a3843d281))
+* Create login command ([#319](https://github.com/launchdarkly/ldcli/issues/319)) ([f151a71](https://github.com/launchdarkly/ldcli/commit/f151a71d4981bfefd9913179b156c7f1f0139a20))
+* Open browser automatically during login command ([#351](https://github.com/launchdarkly/ldcli/issues/351)) ([846c5c3](https://github.com/launchdarkly/ldcli/commit/846c5c339c57be48ffb179ef7da1c77e7c880e1c))
+* sc-240964/fetch token ([#326](https://github.com/launchdarkly/ldcli/issues/326)) ([58dc226](https://github.com/launchdarkly/ldcli/commit/58dc2268fa153247b0dcc2649de560ea67938423))
+* sc-240965/check current access token ([#324](https://github.com/launchdarkly/ldcli/issues/324)) ([edb3d2d](https://github.com/launchdarkly/ldcli/commit/edb3d2d54397d46bdff5607bccc75a3b84b09599))
+
+
+### Bug Fixes
+
+* Create config file if it does not exist ([#379](https://github.com/launchdarkly/ldcli/issues/379)) ([3e672ab](https://github.com/launchdarkly/ldcli/commit/3e672ab7bbeb2f19f04869bba3cf2ee2b65f0b6f))
+* **deps:** use consistent Go version in builds and CI ([#377](https://github.com/launchdarkly/ldcli/issues/377)) ([83cf380](https://github.com/launchdarkly/ldcli/commit/83cf380596881f77ab0fe35f3d8305973475f3e2))
+* Update readme about where config file is stored ([#325](https://github.com/launchdarkly/ldcli/issues/325)) ([82c94e9](https://github.com/launchdarkly/ldcli/commit/82c94e9ba1ac67cb04611d34f724c417e6995bbd))
+
 ## [1.1.1](https://github.com/launchdarkly/ldcli/compare/v1.1.0...v1.1.1) (2024-06-04)
 
 
