@@ -290,7 +290,11 @@ func setFlagsFromConfig() error {
 		return err
 	}
 
-	_ = viper.ReadInConfig()
+	err = viper.ReadInConfig()
+	if err != nil {
+		// attempt to write config file if it does not exist
+		_ = viper.SafeWriteConfigAs(configFile)
+	}
 
 	return nil
 }
