@@ -721,6 +721,17 @@ func (response PostDevProjectsProjectKey201JSONResponse) VisitPostDevProjectsPro
 	return json.NewEncoder(w).Encode(response)
 }
 
+type PostDevProjectsProjectKey400JSONResponse struct {
+	InvalidRequestResponseJSONResponse
+}
+
+func (response PostDevProjectsProjectKey400JSONResponse) VisitPostDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
 	FlagKey    FlagKey    `json:"flagKey"`

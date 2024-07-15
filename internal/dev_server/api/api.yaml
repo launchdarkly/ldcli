@@ -96,6 +96,8 @@ paths:
       responses:
         201:
           $ref: "#/components/responses/Project"
+        400:
+          $ref: "#/components/responses/InvalidRequestResponse"
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
