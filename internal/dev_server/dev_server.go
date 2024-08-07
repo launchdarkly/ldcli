@@ -57,6 +57,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI))
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(model.NewObservers()))
+	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
 	sdk.BindRoutes(r)
