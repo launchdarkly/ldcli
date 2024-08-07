@@ -9,8 +9,11 @@ builds:
       - 386
       - amd64
       - arm64
-    env:
-      - CGO_ENABLED=0
+    ldflags:
+      - -s
+      - -w
+      - -linkmode external
+      - -extldflags -static
 dockers:
   # AMD64
   - image_templates:

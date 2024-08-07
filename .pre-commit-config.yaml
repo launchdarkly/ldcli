@@ -16,7 +16,7 @@ repos:
         exclude: '^vendor/|^.circleci/image/tools'
         name: run-go-tests
       - id: discarded-stacktrace
-        exclude: '(^vendor/)'
+        exclude: '(^vendor/|.*gen\.go)'
       - id: go-mod-tidy
       - id: go-mod-verify
       - id: go-mod-vendor-no-change

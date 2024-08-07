@@ -17,12 +17,14 @@ import (
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	configcmd "github.com/launchdarkly/ldcli/cmd/config"
+	devcmd "github.com/launchdarkly/ldcli/cmd/dev_server"
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
+	"github.com/launchdarkly/ldcli/internal/dev_server"
 	"github.com/launchdarkly/ldcli/internal/environments"
 	errs "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/flags"
@@ -32,6 +34,7 @@ import (
 )
 
 type APIClients struct {
+	DevClient          dev_server.Client
 	EnvironmentsClient environments.Client
 	FlagsClient        flags.Client
 	MembersClient      members.Client
@@ -190,6 +193,7 @@ func NewRootCommand(
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(logincmd.NewLoginCmd(resources.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
+	cmd.AddCommand(devcmd.NewDevServerCmd(resources.NewClient(version), dev_server.NewClient(version)))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	// add non-generated commands
@@ -211,6 +215,7 @@ func NewRootCommand(
 
 func Execute(version string) {
 	clients := APIClients{
+		DevClient:          dev_server.NewClient(version),
 		EnvironmentsClient: environments.NewClient(version),
 		FlagsClient:        flags.NewClient(version),
 		MembersClient:      members.NewClient(version),

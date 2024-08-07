@@ -1,0 +1,61 @@
+@import url('../node_modules/@launchpad-ui/tokens/dist/index.css');
+@import url('../node_modules/@launchpad-ui/tokens/dist/media-queries.css');
+@import url('../node_modules/@launchpad-ui/tokens/dist/themes.css');
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#root {
+  padding: 2rem;
+}
+
+.container {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.only-show-overrides-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+ul.flags-list {
+  margin: 0;
+  padding: 0;
+}
+
+ul.flags-list li {
+  list-style-type: none;
+  padding: 0.5rem 0;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+ul.flags-list li .flag-value {
+  overflow-x: overlay;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 1;
+}
+
+code {
+  background-color: var(--lp-color-bg-ui-secondary);
+  border: 1px solid var(--lp-color-border-ui-primary);
+  border-radius: 2px;
+  font-size: 87.5%;
+  padding: 0.125rem 0.25rem;
+}
+
+code.has-override {
+  color: var(--lp-color-pink-600);
+}
