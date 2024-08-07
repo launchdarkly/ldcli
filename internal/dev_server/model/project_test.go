@@ -188,6 +188,7 @@ func TestSyncProject(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(flagstate.AllFlags{}, nil)
 		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(true, nil)
+		store.EXPECT().GetOverridesForProject(gomock.Any(), proj.Key).Return(model.Overrides{}, nil)
 		observer.
 			EXPECT().
 			Handle(model.SyncEvent{

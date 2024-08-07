@@ -8,6 +8,7 @@ Supported settings:
 - `environment`: Default environment key
 - `flag`: Default feature flag key
 - `output`: Command response output format in either JSON or plain text
+- `port`: Port for the dev server to run on
 - `project`: Default project key
 
 Usage:

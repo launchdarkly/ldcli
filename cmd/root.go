@@ -191,7 +191,7 @@ func NewRootCommand(
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
-	cmd.AddCommand(logincmd.NewLoginCmd(analyticsTrackerFn, resources.NewClient(version)))
+	cmd.AddCommand(logincmd.NewLoginCmd(resources.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(resources.NewClient(version), dev_server.NewClient(version)))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
@@ -295,7 +295,11 @@ func setFlagsFromConfig() error {
 		return err
 	}
 
-	_ = viper.ReadInConfig()
+	err = viper.ReadInConfig()
+	if err != nil {
+		// attempt to write config file if it does not exist
+		_ = viper.SafeWriteConfigAs(configFile)
+	}
 
 	return nil
 }

@@ -10,49 +10,20 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	configcmd "github.com/launchdarkly/ldcli/cmd/config"
-	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/login"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
-func NewLoginCmd(
-	analyticsTrackerFn analytics.TrackerFn,
-	client resources.UnauthenticatedClient,
-) *cobra.Command {
+func NewLoginCmd(client resources.UnauthenticatedClient) *cobra.Command {
 	cmd := cobra.Command{
-		Long: "",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			analyticsTrackerFn(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				viper.GetBool(cliflags.AnalyticsOptOut),
-			).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, "login", nil))
-		},
+		Long:  "",
 		RunE:  run(client),
 		Short: "Log in to your LaunchDarkly account to set up the CLI",
 		Use:   "login",
 	}
-
-	helpFun := cmd.HelpFunc()
-	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		analyticsTrackerFn(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			viper.GetBool(cliflags.AnalyticsOptOut),
-		).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(
-			cmd,
-			"login",
-			map[string]interface{}{
-				"action": "help",
-			},
-		))
-
-		helpFun(cmd, args)
-	})
 
 	return &cmd
 }
