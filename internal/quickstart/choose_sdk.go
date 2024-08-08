@@ -71,12 +71,12 @@ var details []sdkDetail
 // Currently, there is no sdkmeta for code examples associated with each SDK, so we hard-code the examples here.
 // Once they are part of sdkmeta we can remove this list.
 var sdkExamples = map[string]string{
-	"react":        "https://github.com/launchdarkly/react-client-sdk/tree/main/examples/typescript",
-	"vue":          "https://github.com/launchdarkly/vue-client-sdk/tree/main/example",
-	"react-native": "https://github.com/launchdarkly/js-core/tree/main/packages/sdk/react-native/example",
-	"c-client":     "https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-client",
-	"c-server":     "https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-server",
-	"lua-server":   "https://github.com/launchdarkly/lua-server-sdk/tree/main/examples/hello-lua-server",
+	"react-client-sdk":  "https://github.com/launchdarkly/react-client-sdk/tree/main/examples/typescript",
+	"vue":               "https://github.com/launchdarkly/vue-client-sdk/tree/main/example",
+	"react-native":      "https://github.com/launchdarkly/js-core/tree/main/packages/sdk/react-native/example",
+	"cpp-client-sdk":    "https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-client",
+	"cpp-server-sdk":    "https://github.com/launchdarkly/cpp-sdks/tree/main/examples/hello-cpp-server",
+	"lua-server-server": "https://github.com/launchdarkly/lua-server-sdk/tree/main/examples/hello-lua-server",
 }
 
 // initSDKs is responsible for loading SDK quickstart instructions from the embedded filesystem.
