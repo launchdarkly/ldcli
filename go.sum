@@ -170,6 +170,8 @@ github.com/launchdarkly/sdk-meta v0.0.0-20240710225545-354e78dac98b h1:xnHjQRvq2
 github.com/launchdarkly/sdk-meta v0.0.0-20240710225545-354e78dac98b/go.mod h1:zEXz+iwSAo+0uP2eitH6PK7Cc3EvDTi2V4RH4xgi9/Q=
 github.com/launchdarkly/sdk-meta v0.0.0-20240711011504-8bba1c127ea2 h1:/jloHm5VqN3QpQRy4Kzz2IGpt4bvI1RwLiQUWnGDFRQ=
 github.com/launchdarkly/sdk-meta v0.0.0-20240711011504-8bba1c127ea2/go.mod h1:zEXz+iwSAo+0uP2eitH6PK7Cc3EvDTi2V4RH4xgi9/Q=
+github.com/launchdarkly/sdk-meta/api v0.1.1 h1:B9UaOFTDGQSDzbSTwqiBmaTN3xDfrlIu1JQ9LCs2UiA=
+github.com/launchdarkly/sdk-meta/api v0.1.1/go.mod h1:vXfR0z4XBz49IYT/2GDEza+Iat3PcuBCC438AZT6oDg=
 github.com/lucasb-eyer/go-colorful v1.2.0 h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
 github.com/lucasb-eyer/go-colorful v1.2.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/magiconair/properties v1.8.7 h1:IeQXZAiQcpL9mgcAe1Nu6cX9LLw6ExEHKjN0VQdvPDY=

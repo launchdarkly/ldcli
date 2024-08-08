@@ -2,7 +2,7 @@ package quickstart
 
 import (
 	"fmt"
-	"github.com/launchdarkly/sdk-meta/products"
+	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -130,10 +130,10 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func getLogType(sdkID string) string {
-	switch products.Types[sdkID] {
-	case products.ServerSideType, products.EdgeType:
+	switch sdkmeta.Types[sdkID] {
+	case sdkmeta.ServerSideType, sdkmeta.EdgeType:
 		return "application logs"
-	case products.ClientSideType:
+	case sdkmeta.ClientSideType:
 		if sdkID == "js-client-sdk" {
 			return "browser"
 		}

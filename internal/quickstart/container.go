@@ -128,7 +128,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.sdk.id,
 					m.sdk.displayName,
 					m.sdk.url,
-					m.sdk.kind,
+					m.sdk.sdkType,
 					m.flagKey,
 					m.environment,
 				)
@@ -156,7 +156,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.sdk.id,
 			msg.sdk.displayName,
 			msg.sdk.url,
-			msg.sdk.kind,
+			msg.sdk.sdkType,
 			m.flagKey,
 			m.environment,
 		)

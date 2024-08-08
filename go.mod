@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/launchdarkly/api-client-go/v14 v14.0.0
-	github.com/launchdarkly/sdk-meta v0.0.0-20240711011504-8bba1c127ea2
+	github.com/launchdarkly/sdk-meta/api v0.1.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/muesli/reflow v0.3.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c

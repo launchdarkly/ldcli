@@ -3,6 +3,7 @@ package quickstart
 import (
 	"fmt"
 	"github.com/launchdarkly/ldcli/internal/sdks"
+	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
 	"io"
 	"io/fs"
 	"path/filepath"
@@ -14,19 +15,12 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/launchdarkly/sdk-meta/products"
 )
 
 var (
 	sdkStyle             = lipgloss.NewStyle().PaddingLeft(4)
 	selectedSdkItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
 	titleBarStyle        = lipgloss.NewStyle().MarginBottom(1)
-)
-
-const (
-	clientSideSDK = "client"
-	mobileSDK     = "mobile"
-	serverSideSDK = "server"
 )
 
 type chooseSDKModel struct {
@@ -72,7 +66,10 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 
 var details []sdkDetail
 
-// Only certain SDKs have example links.
+// The CLI uses the sdkmeta project to obtain metadata about each SDK, including the display names
+// and types (client, server, etc.)
+// Currently, there is no sdkmeta for code examples associated with each SDK, so we hard-code the examples here.
+// Once they are part of sdkmeta we can remove this list.
 var sdkExamples = map[string]string{
 	"react":        "https://github.com/launchdarkly/react-client-sdk/tree/main/examples/typescript",
 	"vue":          "https://github.com/launchdarkly/vue-client-sdk/tree/main/example",
@@ -82,7 +79,13 @@ var sdkExamples = map[string]string{
 	"lua-server":   "https://github.com/launchdarkly/lua-server-sdk/tree/main/examples/hello-lua-server",
 }
 
-// initSDKs sets the index of each SDK based on place in list.
+// initSDKs is responsible for loading SDK quickstart instructions from the embedded filesystem.
+//
+// The names of the files are special: they are the ID of the SDK (e.g. react-native), and are used as an index or
+// key to lookup associated sdk metadata (display name, SDK type, etc.)
+//
+// Therefore, take care when naming the files. A list of valid SDK IDs can be found here:
+// https://github.com/launchdarkly/sdk-meta/blob/main/products/names.json
 func initSDKs() {
 	items, err := sdks.InstructionFiles.ReadDir("sdk_instructions")
 	if err != nil {
@@ -96,14 +99,14 @@ func initSDKs() {
 	index := 0
 	for _, item := range items {
 		id, _, _ := strings.Cut(filepath.Base(item.Name()), ".")
-		if _, ok := products.Names[id]; !ok {
+		if _, ok := sdkmeta.Names[id]; !ok {
 			continue
 		}
 		details = append(details, sdkDetail{
 			id:          id,
 			index:       index,
-			displayName: products.Names[id],
-			kind:        products.Types[id],
+			displayName: sdkmeta.Names[id],
+			sdkType:     sdkmeta.Types[id],
 			url:         sdkExamples[id],
 		})
 		index += 1
@@ -158,7 +161,7 @@ type sdkDetail struct {
 	id          string
 	displayName string
 	index       int
-	kind        products.Type
+	sdkType     sdkmeta.Type
 	url         string // custom URL if it differs from the other SDKs
 }
 
