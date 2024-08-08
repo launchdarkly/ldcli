@@ -123,6 +123,9 @@ github.com/josharian/intern
 # github.com/launchdarkly/api-client-go/v14 v14.0.0
 ## explicit; go 1.13
 github.com/launchdarkly/api-client-go/v14
+# github.com/launchdarkly/sdk-meta/api v0.1.1
+## explicit; go 1.20
+github.com/launchdarkly/sdk-meta/api/sdkmeta
 # github.com/lucasb-eyer/go-colorful v1.2.0
 ## explicit; go 1.12
 github.com/lucasb-eyer/go-colorful
@@ -285,7 +288,7 @@ golang.org/x/exp/slog/internal/buffer
 golang.org/x/net/context
 golang.org/x/net/html
 golang.org/x/net/html/atom
-# golang.org/x/oauth2 v0.15.0
+# golang.org/x/oauth2 v0.18.0
 ## explicit; go 1.18
 golang.org/x/oauth2
 golang.org/x/oauth2/internal

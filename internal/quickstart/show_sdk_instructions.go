@@ -2,6 +2,7 @@ package quickstart
 
 import (
 	"fmt"
+	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -39,7 +40,7 @@ type showSDKInstructionsModel struct {
 	help               help.Model
 	helpKeys           keyMap
 	instructions       string
-	sdkKind            string
+	sdkKind            sdkmeta.Type
 	spinner            spinner.Model
 	url                string
 	viewport           viewport.Model
@@ -55,7 +56,7 @@ func NewShowSDKInstructionsModel(
 	canonicalName string,
 	displayName string,
 	url string,
-	sdkKind string,
+	sdkKind sdkmeta.Type,
 	flagKey string,
 	environment *environment,
 ) tea.Model {
@@ -104,7 +105,7 @@ func (m showSDKInstructionsModel) Init() tea.Cmd {
 		cmds = append(cmds, fetchEnv(m.environmentsClient, m.accessToken, m.baseUri, defaultEnvKey, defaultProjKey))
 	}
 
-	if m.sdkKind == clientSideSDK {
+	if m.sdkKind == sdkmeta.ClientSideType {
 		cmds = append(cmds, updateClientSideFlag(m.flagsClient, m.accessToken, m.baseUri, m.flagKey))
 	}
 
@@ -169,7 +170,7 @@ func (m showSDKInstructionsModel) headerView() string {
 	return style.Render(
 		fmt.Sprintf(`
 Here are the steps to set up a test app to see feature flagging in action
-using the %s SDK in your Default project & Test environment.
+using the %s in your Default project & Test environment.
 
 You should have everything you need to get started, including the flag from
 the previous step and your environment key from your Test environment already
