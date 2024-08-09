@@ -1,0 +1,47 @@
+name: Publish Artifacts
+description: 'Publish artifacts to Github Release'
+inputs:
+  token:
+    description: 'Token to use for publishing.'
+    required: true
+  homebrew-gh-secret:
+    description: 'SSH private key used as a GitHub deploy key for publishing to homebrew-tap.'
+    required: true
+  dry-run:
+    description: 'Is this a dry run. If so no package will be published.'
+    required: false
+    default: 'true'
+  tag:
+    description: 'Tag to upload artifacts to.'
+    required: true
+outputs:
+  hashes:
+    description: sha256sum hashes of built artifacts
+    value: ${{ steps.hash.outputs.hashes }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64/v8,linux/arm/v7,linux/386
+    - name: Login to Docker
+      shell: bash
+      run: |
+        echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
+    - name: Run Goreleaser
+      uses: goreleaser/goreleaser-action@v5
+      with:
+        version: latest
+        args: build --snapshot --config .goreleaser.yaml
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
+    - name: Hash build artifacts for provenance
+      id: hash
+      shell: bash
+      run: |
+        echo "hashes=$(sha256sum dist/*.tar.gz | base64 -w0)" >> "$GITHUB_OUTPUT"
