@@ -70,17 +70,8 @@ type FlagKey = string
 // ProjectKey defines model for projectKey.
 type ProjectKey = string
 
-// FlagOverride defines model for FlagOverride.
-type FlagOverride struct {
-	// Override whether or not this is an overridden value or one from the source environment
-	Override bool `json:"override"`
-
-	// Value value of a feature flag variation
-	Value FlagValue `json:"value"`
-}
-
-// InvalidRequestResponse defines model for InvalidRequestResponse.
-type InvalidRequestResponse struct {
+// ErrorResponse defines model for ErrorResponse.
+type ErrorResponse struct {
 	// Code specific error code encountered
 	Code string `json:"code"`
 
@@ -88,10 +79,13 @@ type InvalidRequestResponse struct {
 	Message string `json:"message"`
 }
 
-// NotFoundErrorResp defines model for NotFoundErrorResp.
-type NotFoundErrorResp struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+// FlagOverride defines model for FlagOverride.
+type FlagOverride struct {
+	// Override whether or not this is an overridden value or one from the source environment
+	Override bool `json:"override"`
+
+	// Value value of a feature flag variation
+	Value FlagValue `json:"value"`
 }
 
 // GetDevProjectsProjectKeyParams defines parameters for GetDevProjectsProjectKey.
@@ -585,15 +579,7 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 	return r
 }
 
-type FlagOverrideJSONResponse struct {
-	// Override whether or not this is an overridden value or one from the source environment
-	Override bool `json:"override"`
-
-	// Value value of a feature flag variation
-	Value FlagValue `json:"value"`
-}
-
-type InvalidRequestResponseJSONResponse struct {
+type ErrorResponseJSONResponse struct {
 	// Code specific error code encountered
 	Code string `json:"code"`
 
@@ -601,9 +587,12 @@ type InvalidRequestResponseJSONResponse struct {
 	Message string `json:"message"`
 }
 
-type NotFoundErrorRespJSONResponse struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+type FlagOverrideJSONResponse struct {
+	// Override whether or not this is an overridden value or one from the source environment
+	Override bool `json:"override"`
+
+	// Value value of a feature flag variation
+	Value FlagValue `json:"value"`
 }
 
 type ProjectJSONResponse Project
@@ -640,7 +629,7 @@ func (response DeleteDevProjectsProjectKey204Response) VisitDeleteDevProjectsPro
 	return nil
 }
 
-type DeleteDevProjectsProjectKey404JSONResponse struct{ NotFoundErrorRespJSONResponse }
+type DeleteDevProjectsProjectKey404JSONResponse struct{ ErrorResponseJSONResponse }
 
 func (response DeleteDevProjectsProjectKey404JSONResponse) VisitDeleteDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -721,13 +710,26 @@ func (response PostDevProjectsProjectKey201JSONResponse) VisitPostDevProjectsPro
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PostDevProjectsProjectKey400JSONResponse struct {
-	InvalidRequestResponseJSONResponse
-}
+type PostDevProjectsProjectKey400JSONResponse struct{ ErrorResponseJSONResponse }
 
 func (response PostDevProjectsProjectKey400JSONResponse) VisitPostDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostDevProjectsProjectKey409JSONResponse struct {
+	// Code specific error code encountered
+	Code string `json:"code"`
+
+	// Message description of the error
+	Message string `json:"message"`
+}
+
+func (response PostDevProjectsProjectKey409JSONResponse) VisitPostDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -776,9 +778,7 @@ func (response PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse) VisitPut
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse struct {
-	InvalidRequestResponseJSONResponse
-}
+type PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse struct{ ErrorResponseJSONResponse }
 
 func (response PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse) VisitPutDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")

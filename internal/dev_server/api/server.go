@@ -34,7 +34,7 @@ func (s Server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteD
 		return nil, err
 	}
 	if !deleted {
-		return DeleteDevProjectsProjectKey404JSONResponse{NotFoundErrorRespJSONResponse{
+		return DeleteDevProjectsProjectKey404JSONResponse{ErrorResponseJSONResponse{
 			Code:    "not_found",
 			Message: "project not found",
 		}}, nil
@@ -90,7 +90,7 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
 	if request.Body.SourceEnvironmentKey == "" {
 		return PostDevProjectsProjectKey400JSONResponse{
-			InvalidRequestResponseJSONResponse{
+			ErrorResponseJSONResponse{
 				Code:    "invalid_request",
 				Message: "sourceEnvironmentKey is required",
 			},
@@ -248,7 +248,7 @@ func (s Server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, re
 	if err != nil {
 		if errors.As(err, &model.Error{}) {
 			return PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse{
-				InvalidRequestResponseJSONResponse{
+				ErrorResponseJSONResponse{
 					Code:    "invalid_request",
 					Message: err.Error(),
 				},
