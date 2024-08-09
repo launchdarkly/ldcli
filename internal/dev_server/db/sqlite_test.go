@@ -58,6 +58,11 @@ func TestDBFunctions(t *testing.T) {
 		actualProjectKeys[proj.Key] = true
 	}
 
+	t.Run("InsertProject returns ErrAlreadyExists if the project already exists", func(t *testing.T) {
+		err := store.InsertProject(ctx, projects[0])
+		assert.Equal(t, model.ErrAlreadyExists, err)
+	})
+
 	t.Run("GetDevProjectKeys returns keys in projects", func(t *testing.T) {
 		keys, err := store.GetDevProjectKeys(ctx)
 		assert.NoError(t, err)

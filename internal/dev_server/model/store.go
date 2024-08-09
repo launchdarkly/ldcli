@@ -21,6 +21,7 @@ type Store interface {
 	GetDevProject(ctx context.Context, projectKey string) (*Project, error)
 	UpdateProject(ctx context.Context, project Project) (bool, error)
 	DeleteDevProject(ctx context.Context, projectKey string) (bool, error)
+	// InsertProject inserts the project. If it already exists, ErrAlreadyExists is returned
 	InsertProject(ctx context.Context, project Project) error
 	UpsertOverride(ctx context.Context, override Override) (Override, error)
 	GetOverridesForProject(ctx context.Context, projectKey string) (Overrides, error)
