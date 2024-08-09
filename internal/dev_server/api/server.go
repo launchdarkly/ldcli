@@ -99,7 +99,13 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 
 	store := model.StoreFromContext(ctx)
 	project, err := model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, request.Body.Context)
-	if err != nil {
+	switch {
+	case errors.Is(err, model.ErrAlreadyExists):
+		return PostDevProjectsProjectKey409JSONResponse{
+			Code:    "conflict",
+			Message: "project already exists",
+		}, nil
+	case err != nil:
 		return nil, err
 	}
 
