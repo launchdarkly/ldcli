@@ -16,6 +16,9 @@ builds:
       - -extldflags -static
     env:
       - CGO_ENABLED=1
+    hooks:
+      pre:
+        apt-get install libc6-dev-i386
 dockers:
   # AMD64
   - image_templates:
