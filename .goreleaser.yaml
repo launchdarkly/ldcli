@@ -1,6 +1,6 @@
 before:
   hooks:
-    - sudo apt-get install libc6-dev-i386
+    - sudo apt-get install libc6-dev-i386 musl-tools
 builds:
   - id: ldcli
     binary: ldcli
@@ -19,6 +19,7 @@ builds:
       - -extldflags -static
     env:
       - CGO_ENABLED=1
+      - CC=musl-gcc
 dockers:
   # AMD64
   - image_templates:
