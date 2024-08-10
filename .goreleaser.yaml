@@ -6,8 +6,8 @@ builds:
     binary: ldcli
     goos:
       - linux
-      - darwin
-      - windows
+      # WIP - darwin
+      # WIP - windows
     goarch:
       - 386
       - amd64
@@ -20,7 +20,7 @@ builds:
     env:
       - CGO_ENABLED=1
       - >-
-        {{- if eq .Os "darwin" }}CC=o64h-clang{{- end }}
+        {{- if eq .Os "darwin" }}CC={{- end }}
         {{- if eq .Os "windows" }}CC={{- end }}
         {{- if eq .Os "linux" }}
           {{- if eq .Arch "386"}}CC=musl-gcc{{- end }}
