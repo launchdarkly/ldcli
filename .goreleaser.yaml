@@ -1,6 +1,6 @@
 before:
   hooks:
-    - sudo apt-get install build-essentials libc6-dev-i386 musl-tools musl-dev llvm clang lld mingw-w64
+    - sudo apt-get install libc6-dev-i386 musl-tools musl-dev
 builds:
   - id: ldcli
     binary: ldcli
