@@ -1,6 +1,6 @@
 before:
   hooks:
-    - sudo apt-get install libc6-dev-i386 musl-tools musl-dev llvm clang lld mingw-w64
+    - sudo apt-get install build-essentials libc6-dev-i386 musl-tools musl-dev llvm clang lld mingw-w64
 builds:
   - id: ldcli
     binary: ldcli
@@ -20,7 +20,7 @@ builds:
     env:
       - CGO_ENABLED=1
       - >-
-        {{- if eq .Os "darwin" }}CC=o64-clang{{- end }}
+        {{- if eq .Os "darwin" }}CC=o64h-clang{{- end }}
         {{- if eq .Os "windows" }}CC={{- end }}
         {{- if eq .Os "linux" }}
           {{- if eq .Arch "386"}}CC=musl-gcc{{- end }}
