@@ -1,6 +1,6 @@
 before:
   hooks:
-    - sudo apt-get install libc6-dev-i386 musl-tools musl-dev musl-dev-arm64
+    - sudo apt-get install libc6-dev-i386 musl-tools musl-dev
 builds:
   - id: ldcli
     binary: ldcli
