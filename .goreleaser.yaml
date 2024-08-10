@@ -1,11 +1,12 @@
 before:
   hooks:
-    - sudo apt-get install libc6-dev-i386 musl-tools
+    - sudo apt-get install libc6-dev-i386 musl-tools musl-dev musl-dev-arm64
 builds:
   - id: ldcli
     binary: ldcli
     goos:
       - linux
+      - darwin
       - windows
     goarch:
       - 386
@@ -18,21 +19,13 @@ builds:
       - -extldflags -static
     env:
       - CGO_ENABLED=1
-      - CC=musl-gcc
-  - id: ldcli-macos
-    binary: ldcli
-    goos:
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s
-      - -w
-      - -linkmode external
-      - -extldflags -static
-    env:
-      - CGO_ENABLED=1
+      - >-
+        {{- if eq .Os "darwin" }}CC={{- end }}
+        {{- if eq .Os "windows" }}CC={{- end }}
+        {{- if eq .Os "linux" }}
+          {{- if eq .Arch "amd64"}}CC=musl-gcc{{- end }}
+          {{- if eq .Arch "arm64"}}CC=aarch64-linux-musl-gcc{{- end }}
+        {{- end }}
 dockers:
   # AMD64
   - image_templates:
