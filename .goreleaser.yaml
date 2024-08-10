@@ -20,9 +20,10 @@ builds:
     env:
       - CGO_ENABLED=1
       - >-
-        {{- if eq .Os "darwin" }}CC={{- end }}
+        {{- if eq .Os "darwin" }}CC=o64-clang{{- end }}
         {{- if eq .Os "windows" }}CC={{- end }}
         {{- if eq .Os "linux" }}
+          {{- if eq .Arch "386"}}CC=musl-gcc{{- end }}
           {{- if eq .Arch "amd64"}}CC=musl-gcc{{- end }}
           {{- if eq .Arch "arm64"}}CC=aarch64-linux-musl-gcc{{- end }}
         {{- end }}
