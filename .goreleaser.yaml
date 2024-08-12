@@ -1,13 +1,10 @@
-before:
-  hooks:
-    - sudo apt-get install libc6-dev-i386 musl-tools musl-dev
 builds:
   - id: ldcli
     binary: ldcli
     goos:
       - linux
-      # WIP - darwin
-      # WIP - windows
+      # WIP issue with -x - darwin
+      - windows
     goarch:
       - 386
       - amd64
@@ -17,16 +14,22 @@ builds:
       - -w
       - -linkmode external
       - -extldflags -static
+    tags:
+      - netgo
+    flags:
+      - -x # log all commangs
+    buildmode:
+      pie
     env:
       - CGO_ENABLED=1
       - >-
-        {{- if eq .Os "darwin" }}CC={{- end }}
-        {{- if eq .Os "windows" }}CC={{- end }}
-        {{- if eq .Os "linux" }}
-          {{- if eq .Arch "386"}}CC=musl-gcc{{- end }}
-          {{- if eq .Arch "amd64"}}CC=musl-gcc{{- end }}
-          {{- if eq .Arch "arm64"}}CC=aarch64-linux-musl-gcc{{- end }}
-        {{- end }}
+        CC=zig cc -target
+        {{- if eq .Arch "arm64"}} aarch64{{end -}}
+        {{- if eq .Arch "amd64"}} x86_64{{end -}}
+        {{- if eq .Arch "386"}} x86{{end -}}-
+        {{- if eq .Os "darwin" }}macos-none{{end -}}
+        {{- if eq .Os "windows" }}windows-gnu{{end -}}
+        {{- if eq .Os "linux" }}linux-musl{{- end }}
 dockers:
   # AMD64
   - image_templates:

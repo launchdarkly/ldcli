@@ -41,7 +41,7 @@ runs:
       uses: goreleaser/goreleaser-action@v5
       with:
         version: latest
-        args: build --verbose --snapshot --config .goreleaser.zig.yaml
+        args: build --verbose --snapshot --config .goreleaser.yaml
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
