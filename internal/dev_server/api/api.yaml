@@ -74,7 +74,7 @@ paths:
         204:
           description: OK. Project & overrides were removed
         404:
-          $ref: "#/components/responses/NotFoundErrorResp"
+          $ref: "#/components/responses/ErrorResponse"
     post:
       summary: Add the project to the dev server
       parameters:
@@ -97,7 +97,9 @@ paths:
         201:
           $ref: "#/components/responses/Project"
         400:
-          $ref: "#/components/responses/InvalidRequestResponse"
+          $ref: "#/components/responses/ErrorResponse"
+        409:
+          $ref: "#/components/responses/ErrorResponse"
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
@@ -115,7 +117,7 @@ paths:
         200:
           $ref: "#/components/responses/FlagOverride"
         400:
-          $ref: "#/components/responses/InvalidRequestResponse"
+          $ref: "#/components/responses/ErrorResponse"
 
     delete:
       summary: remove override for flag
@@ -222,8 +224,8 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Project"
-    InvalidRequestResponse:
-      description: Invalid request response
+    ErrorResponse:
+      description: Error response object
       content:
         application/json:
           schema:
@@ -238,17 +240,3 @@ components:
               message:
                 type: string
                 description: description of the error
-    NotFoundErrorResp:
-      description: not found
-      content:
-        application/json:
-          schema:
-            type: object
-            required:
-              - code
-              - message
-            properties:
-              code:
-                type: string
-              message:
-                type: string

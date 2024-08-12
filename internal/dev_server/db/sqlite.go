@@ -106,12 +106,36 @@ func (s Sqlite) DeleteDevProject(ctx context.Context, key string) (bool, error) 
 	return true, nil
 }
 
-func (s Sqlite) InsertProject(ctx context.Context, project model.Project) error {
+func (s Sqlite) InsertProject(ctx context.Context, project model.Project) (err error) {
 	flagsStateJson, err := json.Marshal(project.AllFlagsState)
 	if err != nil {
 		return errors.Wrap(err, "unable to marshal flags state when writing project")
 	}
-	_, err = s.database.Exec(`
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	projects, err := tx.QueryContext(ctx, `
+SELECT 1 FROM projects WHERE key = ?
+`, project.Key)
+	if err != nil {
+		return
+	}
+	if projects.Next() {
+		err = model.ErrAlreadyExists
+		return
+	}
+	err = projects.Close()
+	if err != nil {
+		return
+	}
+	_, err = tx.Exec(`
 INSERT INTO projects (key, source_environment_key, context, last_sync_time, flag_state)
 VALUES (?, ?, ?, ?, ?)
 `,
@@ -121,7 +145,11 @@ VALUES (?, ?, ?, ?, ?)
 		project.LastSyncTime,
 		string(flagsStateJson),
 	)
-	return err
+	if err != nil {
+		return
+	}
+	err = tx.Commit()
+	return
 }
 
 func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (model.Overrides, error) {
