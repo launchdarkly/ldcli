@@ -38,14 +38,11 @@ runs:
       with:
         version: 0.13.0
 
-    - run: sudo apt-get install gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf
-      shell: bash
-
     - name: Run Goreleaser
       uses: goreleaser/goreleaser-action@v5
       with:
         version: latest
-        args: build --snapshot --config .goreleaser.yaml
+        args: build --snapshot --config .goreleaser.zig.yaml
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
