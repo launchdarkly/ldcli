@@ -1,0 +1,60 @@
+env:
+  - CGO_ENABLED=1
+builds:
+  - &default_config
+    id: ldcli-linux_amd64
+    binary: ldcli
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s
+      - -w
+    env:
+      - CC=x86_64-linux-gnu-gcc
+      - CXX=x86_64-linux-gnu-g++
+  - <<: *default_config
+    id: ldcli-linux_arm64
+    goarch:
+      - arm64
+    env:
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-gcc
+  - <<: *default_config
+    id: ldcli-linux_armhf
+    goarm:
+      - "7"
+    goarch:
+      - arm
+    env:
+      - CC=arm-linux-gnueabihf-gcc
+      - CXX=arm-linux-gnueabihf-g++
+  - <<: *default_config
+    id: ldcli-darwin_amd64
+    goarch:
+      - amd64
+    env:
+      - CC=o64-clang
+      - CXX=o64-clang++
+  - <<: *default_config
+    id: ldcli-darwin_arm64
+    goarch:
+      - arm64
+    env:
+      - CC=oa64-clang
+      - CXX=oa64-clang++
+  - <<: *default_config
+    id: ldcli-windows_amd64
+    goarch:
+      - amd64
+    env:
+      - CC=x86_64-w64-mingw32-gcc
+      - CXX=x86_64-w64-mingw32-g++
+  - <<: *default_config
+    id: ldcli-windows_arm64
+    goarch:
+      - arm64
+    env:
+      - CC=/llvm-mingw/bin/aarch64-w64-mingw32-gcc
+      - CXX=/llvm-mingw/bin/aarch64-w64-mingw32-g++
