@@ -1,0 +1,73 @@
+env:
+  - CGO_ENABLED=1
+builds:
+  - &default_config
+    id: ldcli-linux_amd64
+    binary: ldcli
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s
+      - -w
+      - -extldflags=-static
+    flags:
+      - -trimpath
+    tags:
+      - osusergo
+      - netgo
+      - sqlite_omit_load_extension
+    env:
+      - CC=zig cc -target x86_64-linux-musl
+      - CXX=zig c++ -target x86_64-linux-musl
+  - <<: *default_config
+    id: ldcli-linux_arm64
+    goarch:
+      - arm64
+    env:
+      - CC=zig cc -target aarch64-linux-musl
+      - CXX=zig c++ -target aarch64-linux-musl
+  - <<: *default_config
+    id: ldcli-linux_armhf
+    goarm:
+      - "7"
+    goarch:
+      - arm
+    env:
+      - CC=zig cc -target arm-linux-musl
+      - CXX=zig c++ -target arm-linux-musl
+  - <<: *default_config
+    id: ldcli-darwin_amd64
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+      - -buildmode=pie
+    env:
+      - CC=zig cc -target x86_64-macos-none
+      - CXX=zig c++ -target x86_64-macos-none
+  - <<: *default_config
+    id: ldcli-darwin_arm64
+    goarch:
+      - arm64
+    flags:
+      - -trimpath
+      - -buildmode=pie
+    env:
+      - CC=zig cc -target aarch64-macos-none
+      - CXX=zig c++ -target aarch64-macos-none
+  - <<: *default_config
+    id: ldcli-windows_amd64
+    goarch:
+      - amd64
+    env:
+      - CC=zig cc -target x86_64-windows-gnu
+      - CXX=zig c++ -target x86_64-windows-gnu
+  - <<: *default_config
+    id: ldcli-windows_arm64
+    goarch:
+      - arm64
+    env:
+      - CC=zig cc -target aarch64-windows-gnu
+      - CXX=zig c++ -target aarch64-windows-gnu
