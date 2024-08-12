@@ -14,8 +14,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
-const DEV_SERVER = "http://0.0.0.0:8765"
-
 func NewListProjectsCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "projects",
@@ -34,7 +32,7 @@ func NewListProjectsCmd(client resources.Client) *cobra.Command {
 func listProjects(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
-		path := DEV_SERVER + "/dev/projects"
+		path := getDevServerUrl() + "/dev/projects"
 		res, err := client.MakeUnauthenticatedRequest(
 			"GET",
 			path,
@@ -73,7 +71,7 @@ func NewGetProjectCmd(client resources.Client) *cobra.Command {
 func getProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
-		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
+		path := getDevServerUrl() + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
 		res, err := client.MakeUnauthenticatedRequest(
 			"GET",
 			path,
@@ -111,7 +109,7 @@ func NewSyncProjectCmd(client resources.Client) *cobra.Command {
 func syncProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
-		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "/sync"
+		path := getDevServerUrl() + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "/sync"
 		res, err := client.MakeUnauthenticatedRequest(
 			"PATCH",
 			path,
@@ -149,7 +147,7 @@ func NewRemoveProjectCmd(client resources.Client) *cobra.Command {
 func deleteProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
-		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
+		path := getDevServerUrl() + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
 		res, err := client.MakeUnauthenticatedRequest(
 			"DELETE",
 			path,
@@ -210,7 +208,7 @@ func addProject(client resources.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		path := DEV_SERVER + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
+		path := getDevServerUrl() + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
 		res, err := client.MakeUnauthenticatedRequest(
 			"POST",
 			path,

@@ -57,7 +57,7 @@ func addOverride(client resources.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", DEV_SERVER, viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
+		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", getDevServerUrl(), viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
 		res, err := client.MakeUnauthenticatedRequest(
 			"PUT",
 			path,
@@ -100,7 +100,7 @@ func NewRemoveOverrideCmd(client resources.Client) *cobra.Command {
 
 func removeOverride(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", DEV_SERVER, viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
+		path := fmt.Sprintf("%s/dev/projects/%s/overrides/%s", getDevServerUrl(), viper.GetString(cliflags.ProjectFlag), viper.GetString(cliflags.FlagFlag))
 		res, err := client.MakeUnauthenticatedRequest(
 			"DELETE",
 			path,

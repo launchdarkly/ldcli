@@ -64,7 +64,7 @@ func NewUICmd() *cobra.Command {
 
 func openUI() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		url := "http://localhost:8765/ui"
+		url := getDevServerUrl()
 
 		var err error
 		switch runtime.GOOS {

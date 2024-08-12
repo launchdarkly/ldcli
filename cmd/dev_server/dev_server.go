@@ -1,6 +1,8 @@
 package dev_server
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -51,4 +53,8 @@ func NewDevServerCmd(client resources.Client, ldClient dev_server.Client) *cobra
 	cmd.SetUsageTemplate(resourcecmd.SubcommandUsageTemplate())
 
 	return cmd
+}
+
+func getDevServerUrl() string {
+	return fmt.Sprintf("http://localhost:%s", viper.GetString(cliflags.PortFlag))
 }
