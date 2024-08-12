@@ -75,4 +75,3 @@ yarn ios
 You should see:
 
 `Feature flag my-flag-key is FALSE for this context`
-

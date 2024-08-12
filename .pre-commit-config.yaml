@@ -20,3 +20,8 @@ repos:
       - id: go-mod-tidy
       - id: go-mod-verify
       - id: go-mod-vendor-no-change
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+        exclude: '^vendor'
