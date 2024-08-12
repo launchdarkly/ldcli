@@ -18,7 +18,7 @@ export function IconProvider({ children }: { children: ReactNode }) {
         document.body.appendChild(content);
       })
       .catch((_err) => {
-        // :shrug:
+        console.log('unable to fetch icon', _err);
       });
   }, []);
 
