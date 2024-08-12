@@ -21,7 +21,7 @@ const (
 	AccessTokenFlagDescription = "LaunchDarkly access token with write-level access"
 	AnalyticsOptOutDescription = "Opt out of analytics tracking"
 	BaseURIFlagDescription     = "LaunchDarkly base URI"
-	DevStreamURIDescription    = "URI from which the dev server will stream flag configurations"
+	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
 	EnvironmentFlagDescription = "Default environment key"
 	FlagFlagDescription        = "Default feature flag key"
 	OutputFlagDescription      = "Command response output format in either JSON or plain text"
