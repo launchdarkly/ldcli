@@ -130,9 +130,15 @@ func initSDKs() []sdkDetail {
 		if _, ok := sdkmeta.Names[id]; !ok {
 			continue
 		}
+		index := slices.Index(sdkOrder, id)
+		if index == -1 {
+			// if we missed an SDK don't add it with an invalid index
+			continue
+		}
+
 		details = append(details, sdkDetail{
 			id:          id,
-			index:       slices.Index(sdkOrder, id),
+			index:       index,
 			displayName: sdkmeta.Names[id],
 			sdkType:     sdkmeta.Types[id],
 			url:         sdkExamples[id],
