@@ -10,6 +10,7 @@ import (
 	ldsdk "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/pkg/errors"
 )
 
 const ctxKeySdk = ctxKey("adapters.sdk")
@@ -48,7 +49,7 @@ func (s streamingSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.
 	}
 	ldClient, err := ldsdk.MakeCustomClient(sdkKey, config, 5*time.Second)
 	if err != nil {
-		return flagstate.AllFlags{}, err
+		return flagstate.AllFlags{}, errors.Wrap(err, "unable to get source flags from LD SDK")
 	}
 	defer func() {
 		err := ldClient.Close()

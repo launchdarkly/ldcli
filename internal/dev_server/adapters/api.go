@@ -4,6 +4,7 @@ import (
 	"context"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
+	"github.com/pkg/errors"
 )
 
 const ctxKeyApi = ctxKey("adapters.api")
@@ -32,7 +33,7 @@ func NewApi(client ldapi.APIClient) Api {
 func (a apiClientApi) GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error) {
 	environment, _, err := a.apiClient.EnvironmentsApi.GetEnvironment(ctx, projectKey, environmentKey).Execute()
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "unable to get SDK key from LD API")
 	}
 	return environment.ApiKey, nil
 }
