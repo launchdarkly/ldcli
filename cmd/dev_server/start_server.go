@@ -2,7 +2,7 @@ package dev_server
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
 	"os/exec"
 	"runtime"
@@ -75,10 +75,10 @@ func openUI() func(*cobra.Command, []string) error {
 		case "darwin":
 			err = exec.Command("open", url).Start()
 		default:
-			err = fmt.Errorf("unsupported platform")
+			err = errors.New("unsupported platform")
 		}
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Unable to open ui, %v", err)
 		}
 
 		return nil
