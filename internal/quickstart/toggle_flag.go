@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
 
 	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/flags"
@@ -30,7 +31,7 @@ type toggleFlagModel struct {
 	flagWasFetched bool
 	help           help.Model
 	helpKeys       keyMap
-	sdkKind        string
+	sdkID          string
 	spinner        spinner.Model
 
 	// Throttling fields to control how quickly a user can press (or hold) tab to toggle the flag.
@@ -42,7 +43,7 @@ type toggleFlagModel struct {
 	throttling         bool // flag to decide when the user is throttled
 }
 
-func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkKind string) tea.Model {
+func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string, flagKey string, sdkID string) tea.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Points
 
@@ -56,7 +57,7 @@ func NewToggleFlagModel(client flags.Client, accessToken string, baseUri string,
 			Back: BindingBack,
 			Quit: BindingQuit,
 		},
-		sdkKind: sdkKind,
+		sdkID:   sdkID,
 		spinner: s,
 	}
 }
@@ -128,10 +129,17 @@ func (m toggleFlagModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-var logTypeMap = map[string]string{
-	serverSideSDK: "application logs",
-	mobileSDK:     "application",
-	clientSideSDK: "browser",
+func getLogType(sdkID string) string {
+	switch sdkmeta.Types[sdkID] {
+	case sdkmeta.ServerSideType, sdkmeta.EdgeType:
+		return "application logs"
+	case sdkmeta.ClientSideType:
+		if sdkID == "js-client-sdk" {
+			return "browser"
+		}
+		return "application"
+	}
+	return "logs"
 }
 
 func (m toggleFlagModel) View() string {
@@ -151,7 +159,7 @@ func (m toggleFlagModel) View() string {
 	}
 
 	if m.flagWasEnabled && m.err == nil {
-		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", logTypeMap[m.sdkKind])
+		furtherInstructions = fmt.Sprintf("\n\nCheck your %s to see the change!", getLogType(m.sdkID))
 		furtherInstructions += "\nDidn't see this change in your application? Check https://docs.launchdarkly.com/home/flags/toggle#watch-for-changes-in-your-application for details."
 	}
 
