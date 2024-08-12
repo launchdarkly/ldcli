@@ -34,6 +34,7 @@ runs:
       run: |
         echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
 
+    - uses: mlugg/setup-zig@v1
     - name: Run Goreleaser
       uses: goreleaser/goreleaser-action@v5
       with:
