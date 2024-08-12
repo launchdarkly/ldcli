@@ -29,15 +29,6 @@ builds:
       - CC=zig cc -target aarch64-linux-musl
       - CXX=zig c++ -target aarch64-linux-musl
   - <<: *default_config
-    id: ldcli-linux_armhf
-    goarm:
-      - "7"
-    goarch:
-      - arm
-    env:
-      - CC=zig cc -target arm-linux-musl
-      - CXX=zig c++ -target arm-linux-musl
-  - <<: *default_config
     id: ldcli-darwin_amd64
     goarch:
       - amd64
