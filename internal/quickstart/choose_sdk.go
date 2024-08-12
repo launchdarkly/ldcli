@@ -2,13 +2,14 @@ package quickstart
 
 import (
 	"fmt"
-	"github.com/launchdarkly/ldcli/internal/sdks"
-	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
 	"io"
 	"io/fs"
 	"path/filepath"
-	"slices"
 	"strings"
+
+	"github.com/launchdarkly/ldcli/internal/sdks"
+	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
+	"golang.org/x/exp/slices"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -27,13 +28,14 @@ type chooseSDKModel struct {
 	help          help.Model
 	helpKeys      keyMap
 	list          list.Model
+	sdkDetails    []sdkDetail
 	selectedIndex int
 	selectedSDK   sdkDetail
 }
 
 func NewChooseSDKModel(selectedIndex int) tea.Model {
-	initSDKs()
-	l := list.New(sdksToItems(), sdkDelegate{}, 30, 9)
+	sdkDetails := initSDKs()
+	l := list.New(sdksToItems(sdkDetails), sdkDelegate{}, 30, 9)
 	l.FilterInput.PromptStyle = lipgloss.NewStyle()
 
 	l.Title = "Select your SDK:"
@@ -60,11 +62,10 @@ func NewChooseSDKModel(selectedIndex int) tea.Model {
 			Quit:          BindingQuit,
 		},
 		list:          l,
+		sdkDetails:    sdkDetails,
 		selectedIndex: selectedIndex,
 	}
 }
-
-var details []sdkDetail
 
 // The CLI uses the sdkmeta project to obtain metadata about each SDK, including the display names
 // and types (client, server, etc.)
@@ -86,7 +87,7 @@ var sdkExamples = map[string]string{
 //
 // Therefore, take care when naming the files. A list of valid SDK IDs can be found here:
 // https://github.com/launchdarkly/sdk-meta/blob/main/products/names.json
-func initSDKs() {
+func initSDKs() []sdkDetail {
 	items, err := sdks.InstructionFiles.ReadDir("sdk_instructions")
 	if err != nil {
 		panic("failed to load embedded SDK quickstart instructions: " + err.Error())
@@ -97,6 +98,7 @@ func initSDKs() {
 	})
 
 	index := 0
+	details := make([]sdkDetail, 0, len(items))
 	for _, item := range items {
 		id, _, _ := strings.Cut(filepath.Base(item.Name()), ".")
 		if _, ok := sdkmeta.Names[id]; !ok {
@@ -112,6 +114,7 @@ func initSDKs() {
 		index += 1
 	}
 
+	return details
 }
 
 // Init sends commands when the model is created that will:
@@ -167,9 +170,9 @@ type sdkDetail struct {
 
 func (s sdkDetail) FilterValue() string { return s.displayName }
 
-func sdksToItems() []list.Item {
-	items := make([]list.Item, len(details))
-	for _, info := range details {
+func sdksToItems(sdkDetails []sdkDetail) []list.Item {
+	items := make([]list.Item, len(sdkDetails))
+	for _, info := range sdkDetails {
 		items[info.index] = list.Item(info)
 	}
 	return items
