@@ -48,6 +48,11 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
+    - name: Upload assets
+      uses: actions/upload-artifact@v4
+      with:
+        name: ldcli-build
+        path: dist/*
     - name: Hash build artifacts for provenance
       id: hash
       shell: bash
