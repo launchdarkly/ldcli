@@ -1,64 +1,76 @@
-before:
-  hooks:
-    - sudo apt-get install libc6-dev-i386 musl-tools musl-dev
+version: 2
+
 builds:
   - id: ldcli
     binary: ldcli
     goos:
+      - darwin
       - linux
-      # WIP - darwin
-      # WIP - windows
+      - windows
     goarch:
-      - 386
+      - "386"
       - amd64
       - arm64
     ldflags:
       - -s
       - -w
-      - -linkmode external
-      - -extldflags -static
+
+    ignore:
+      - goos: linux
+        goarch: "386"
+      - goos: darwin
+        goarch: "386"
+
     env:
-      - CGO_ENABLED=1
       - >-
-        {{- if eq .Os "darwin" }}CC={{- end }}
-        {{- if eq .Os "windows" }}CC={{- end }}
-        {{- if eq .Os "linux" }}
-          {{- if eq .Arch "386"}}CC=musl-gcc{{- end }}
-          {{- if eq .Arch "amd64"}}CC=musl-gcc{{- end }}
-          {{- if eq .Arch "arm64"}}CC=aarch64-linux-musl-gcc{{- end }}
-        {{- end }}
+        TOOLCHAIN_BASE=
+        {{- if eq .Os "darwin" -}}
+          o
+          {{- if eq .Arch "arm64" -}}a{{- end -}}
+          64-clang
+        {{- else -}}
+          {{- if eq .Os "windows" -}}/llvm-mingw/bin/{{- end -}}
+          {{- if eq .Arch "386" -}}i686{{- end -}}
+          {{- if eq .Arch "arm64" -}}aarch64{{- end -}}
+          {{- if eq .Arch "amd64" -}}x86_64{{- end -}}
+          -
+          {{- if eq .Os "windows" -}}w64-mingw32{{- end -}}
+          {{- if eq .Os "linux" -}}linux-gnu{{- end -}}
+        {{- end -}}
+      - CC={{ .Env.TOOLCHAIN_BASE }}{{ if ne .Os "darwin" }}-gcc{{ end }}
+      - CXX={{ .Env.TOOLCHAIN_BASE }}{{ if eq .Os "darwin" }}++{{ else }}-g++{{ end }}
 dockers:
   # AMD64
   - image_templates:
-    - "launchdarkly/ldcli:{{ .Version }}-amd64"
-    - "launchdarkly/ldcli:v{{ .Major }}-amd64"
-    - "launchdarkly/ldcli:latest-amd64"
+      - "launchdarkly/ldcli:{{ .Version }}-amd64"
+      - "launchdarkly/ldcli:v{{ .Major }}-amd64"
+      - "launchdarkly/ldcli:latest-amd64"
     goos: linux
     goarch: amd64
     dockerfile: Dockerfile.goreleaser
     skip_push: false
     build_flag_templates:
-    - "--pull"
-    - "--platform=linux/amd64"
+      - "--pull"
+      - "--platform=linux/amd64"
 
   # ARM64v8
   - image_templates:
-    - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
-    - "launchdarkly/ldcli:v{{ .Major }}-arm64v8"
-    - "launchdarkly/ldcli:latest-arm64v8"
+      - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
+      - "launchdarkly/ldcli:v{{ .Major }}-arm64v8"
+      - "launchdarkly/ldcli:latest-arm64v8"
     goos: linux
     goarch: arm64
     dockerfile: Dockerfile.goreleaser
     skip_push: false
     build_flag_templates:
-    - "--pull"
-    - "--platform=linux/arm64/v8"
+      - "--pull"
+      - "--platform=linux/arm64/v8"
 docker_manifests:
   - name_template: "launchdarkly/ldcli:{{ .Version}}"
     skip_push: false
     image_templates:
-     - "launchdarkly/ldcli:{{ .Version }}-amd64"
-     - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
+      - "launchdarkly/ldcli:{{ .Version }}-amd64"
+      - "launchdarkly/ldcli:{{ .Version }}-arm64v8"
 
   - name_template: "launchdarkly/ldcli:v{{ .Major }}"
     skip_push: false
