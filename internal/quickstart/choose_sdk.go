@@ -80,33 +80,6 @@ var sdkExamples = map[string]string{
 	"lua-server-server": "https://github.com/launchdarkly/lua-server-sdk/tree/main/examples/hello-lua-server",
 }
 
-// sdkOrder is a list of IDs the SDKs in order that they should be rendered based on popularity.
-var sdkOrder = []string{
-	"react-client-sdk",
-	"node-server",
-	"python-server-sdk",
-	"java-server-sdk",
-	"dotnet-server-sdk",
-	"js-client-sdk",
-	"vue",
-	"swift-client-sdk",
-	"go-server-sdk",
-	"android",
-	"react-native",
-	"ruby-server-sdk",
-	"flutter-client-sdk",
-	"dotnet-client-sdk",
-	"erlang-server-sdk",
-	"rust-server-sdk",
-	"cpp-client-sdk",
-	"roku",
-	"node-client-sdk",
-	"cpp-server-sdk",
-	"lua-server-sdk",
-	"haskell-server-sdk",
-	"php-server-sdk",
-}
-
 // initSDKs is responsible for loading SDK quickstart instructions from the embedded filesystem.
 //
 // The names of the files are special: they are the ID of the SDK (e.g. react-native), and are used as an index or
@@ -130,15 +103,15 @@ func initSDKs() []sdkDetail {
 		if _, ok := sdkmeta.Names[id]; !ok {
 			continue
 		}
-		index := slices.Index(sdkOrder, id)
-		if index == -1 {
+		popularity, ok := sdkmeta.Popularity[id]
+		if !ok {
 			// if we missed an SDK don't add it with an invalid index
 			continue
 		}
 
 		details = append(details, sdkDetail{
 			id:          id,
-			index:       index,
+			index:       popularity - 1, // subtract one since popularity is one-indexed
 			displayName: sdkmeta.Names[id],
 			sdkType:     sdkmeta.Types[id],
 			url:         sdkExamples[id],

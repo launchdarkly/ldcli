@@ -31,6 +31,12 @@ var languagesJSON []byte
 // Languages is a map of SDK IDs to supported languages.
 var Languages map[string][]string
 
+//go:embed data/popularity.json
+var popularityJSON []byte
+
+// Popularity is a map of SDK IDs to popularity scores.
+var Popularity map[string]int
+
 //go:embed data/types.json
 var typesJSON []byte
 
@@ -112,4 +118,5 @@ func init() {
 	panicOnError(json.Unmarshal(languagesJSON, &Languages))
 	panicOnError(json.Unmarshal(typesJSON, &Types))
 	panicOnError(json.Unmarshal(releasesJSON, &Releases))
+	panicOnError(json.Unmarshal(popularityJSON, &Popularity))
 }
