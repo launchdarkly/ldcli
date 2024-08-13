@@ -38,7 +38,7 @@ runs:
       run: |
         docker run \
             --tty \
-            --rm 
+            --rm \
             --env GITHUB_TOKEN \
             --env HOMEBREW_DEPLOY_KEY \
             --volume "$PWD:$PWD" \
