@@ -2,22 +2,25 @@ builds:
   - id: ldcli
     binary: ldcli
     goos:
-      - linux
-      # WIP issue with -x - darwin
-      - windows
+      #- linux
+      - darwin
+      #- windows
     goarch:
       - 386
       - amd64
       - arm64
     ldflags:
-      - -s
+      - >-
+        {{ if ne .Os "darwin" }}-s{{ end }}
+      # -s causes -Wl, -x to be passed to zig for darwin builds
       - -w
+      - -v # log everything
       - -linkmode external
       - -extldflags -static
     tags:
       - netgo
     flags:
-      - -x # log all commangs
+      - -x # log all commands
     buildmode:
       pie
     env:
