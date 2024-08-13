@@ -1,5 +1,10 @@
 version: 2
 
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=1
+  - DOCKER_CLI_EXPERIMENTAL=enabled
+
 builds:
   - id: ldcli
     binary: ldcli
@@ -14,13 +19,12 @@ builds:
     ldflags:
       - -s
       - -w
-
+      - -X 'main.version={{.Version}}'
     ignore:
       - goos: linux
         goarch: "386"
       - goos: darwin
         goarch: "386"
-
     env:
       - >-
         TOOLCHAIN_BASE=
@@ -39,6 +43,7 @@ builds:
         {{- end -}}
       - CC={{ .Env.TOOLCHAIN_BASE }}{{ if ne .Os "darwin" }}-gcc{{ end }}
       - CXX={{ .Env.TOOLCHAIN_BASE }}{{ if eq .Os "darwin" }}++{{ else }}-g++{{ end }}
+
 dockers:
   # AMD64
   - image_templates:
