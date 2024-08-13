@@ -3,7 +3,6 @@ package quickstart
 import (
 	"fmt"
 
-	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -11,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
 
 	"github.com/launchdarkly/ldcli/internal/environments"
 	"github.com/launchdarkly/ldcli/internal/flags"
