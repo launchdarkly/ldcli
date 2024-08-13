@@ -2,37 +2,15 @@ builds:
   - id: ldcli
     binary: ldcli
     goos:
-      #- linux
       - darwin
-      #- windows
+      - linux
+      - windows
     goarch:
       - 386
       - amd64
       - arm64
-    ldflags:
-      - >-
-        {{ if ne .Os "darwin" }}-s{{ end }}
-      # -s causes -Wl, -x to be passed to zig for darwin builds
-      - -w
-      - -v # log everything
-      - -linkmode external
-      - -extldflags -static
-    tags:
-      - netgo
-    flags:
-      - -x # log all commands
-    buildmode:
-      pie
     env:
-      - CGO_ENABLED=1
-      - >-
-        CC=zig cc -target
-        {{- if eq .Arch "arm64"}} aarch64{{end -}}
-        {{- if eq .Arch "amd64"}} x86_64{{end -}}
-        {{- if eq .Arch "386"}} x86{{end -}}-
-        {{- if eq .Os "darwin" }}macos-none{{end -}}
-        {{- if eq .Os "windows" }}windows-gnu{{end -}}
-        {{- if eq .Os "linux" }}linux-musl{{- end }}
+      - CGO_ENABLED=0
 dockers:
   # AMD64
   - image_templates:
