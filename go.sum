@@ -166,8 +166,6 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/launchdarkly/api-client-go/v14 v14.0.0 h1:fZfi5zKwgjpaOgK4NKcU5mJT2C8sYsR8nnuJYTaFvNU=
 github.com/launchdarkly/api-client-go/v14 v14.0.0/go.mod h1:K7ejD5nn9ar94p/5qrQ0t9iJygdIQyH70U9M9rYvw5Y=
-github.com/launchdarkly/sdk-meta/api v0.1.1 h1:B9UaOFTDGQSDzbSTwqiBmaTN3xDfrlIu1JQ9LCs2UiA=
-github.com/launchdarkly/sdk-meta/api v0.1.1/go.mod h1:vXfR0z4XBz49IYT/2GDEza+Iat3PcuBCC438AZT6oDg=
 github.com/launchdarkly/sdk-meta/api v0.2.0 h1:bBUBGodr52+3ObGOu1tf9CHR/jNh6HcZ3/yYxGPR7JI=
 github.com/launchdarkly/sdk-meta/api v0.2.0/go.mod h1:vXfR0z4XBz49IYT/2GDEza+Iat3PcuBCC438AZT6oDg=
 github.com/lucasb-eyer/go-colorful v1.2.0 h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
