@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
+	_ "modernc.org/sqlite"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
@@ -222,7 +222,7 @@ func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey stri
 
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
 	store := new(Sqlite)
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return Sqlite{}, err
 	}
