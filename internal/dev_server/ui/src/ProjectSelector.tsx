@@ -8,6 +8,7 @@ import {
   MenuTrigger,
   Popover,
   ProgressBar,
+  Text,
   Tooltip,
   TooltipTrigger,
 } from '@launchpad-ui/components';
@@ -25,14 +26,20 @@ const fetchProjects = async () => {
 type Props = {
   selectedProject: string | null;
   setSelectedProject: (selectedProject: string) => void;
+  setShowBanner: (showBanner: boolean) => void;
 };
 
-function ProjectSelector({ selectedProject, setSelectedProject }: Props) {
+function ProjectSelector({
+  selectedProject,
+  setSelectedProject,
+  setShowBanner,
+}: Props) {
   const [projects, setProjects] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const setProjectsAndUpdateSelectedProject = (projects: string[]) => {
     setProjects(projects);
+    setShowBanner(projects.length == 0);
     if (projects.length == 1) {
       setSelectedProject(projects[0]);
     }
@@ -44,8 +51,9 @@ function ProjectSelector({ selectedProject, setSelectedProject }: Props) {
       .then(setProjectsAndUpdateSelectedProject)
       .catch((error) => {
         console.error(error);
-        setIsLoading(false);
+        setIsLoading(false); //bad
       });
+    setProjects([]);
   }, []);
 
   if (isLoading) {
@@ -94,7 +102,7 @@ function ProjectSelector({ selectedProject, setSelectedProject }: Props) {
   ) : (
     <Alert kind="error">
       <Heading>No projects.</Heading>
-      Add one via{' '}
+      <Text>Add one via</Text>
       <CopyToClipboard kind="basic" text="ldcli dev-server add-project --help">
         ldcli dev-server add-project --help
       </CopyToClipboard>

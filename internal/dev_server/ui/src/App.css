@@ -17,7 +17,7 @@
 	font-weight: 400;
 	font-display: swap;
 	src: url('Audimat3000-Regulier.var-subset.woff2') format('woff2');
-}  
+}
 
 html,
 body,
@@ -29,6 +29,19 @@ body,
 
 #root {
   padding: 2rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Audimat 3000 Regulier', sans-serif;
+} 
+
+span {
+  font-family: 'Inter', sans-serif;
 }
 
 .container {
