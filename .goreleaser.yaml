@@ -1,5 +1,7 @@
 version: 2
 
+project_name: ldcli
+
 env:
   - GO111MODULE=on
   - CGO_ENABLED=1
@@ -21,13 +23,10 @@ builds:
       - -w
       - -X 'main.version={{.Version}}'
     ignore:
-      - goos: linux
-        goarch: "386"
       - goos: darwin
         goarch: "386"
     env:
-      - >-
-        TOOLCHAIN_BASE=
+      - TOOLCHAIN_BASE=
         {{- if eq .Os "darwin" -}}
           o
           {{- if eq .Arch "arm64" -}}a{{- end -}}
@@ -89,8 +88,7 @@ docker_manifests:
       - "launchdarkly/ldcli:latest-amd64"
       - "launchdarkly/ldcli:latest-arm64v8"
 brews:
-  -
-    name: ldcli
+  - name: ldcli
     description: "The official command line interface for managing LaunchDarkly feature flags."
     homepage: "https://launchdarkly.com"
     repository:
