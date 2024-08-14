@@ -3,9 +3,13 @@ import { useState } from 'react';
 import Flags from './Flags.tsx';
 import ProjectSelector from './ProjectSelector.tsx';
 import { Box } from '@launchpad-ui/core';
+import SyncButton from './Sync.tsx';
+import { LDFlagSet } from 'launchdarkly-js-client-sdk';
 
 function App() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+
+  const [flags, setFlags] = useState<LDFlagSet | null>(null);
 
   return (
     <>
@@ -29,9 +33,14 @@ function App() {
             selectedProject={selectedProject}
             setSelectedProject={setSelectedProject}
           />
+          <SyncButton selectedProject={selectedProject} setFlags={setFlags} />
         </Box>
         {selectedProject != null ? (
-          <Flags selectedProject={selectedProject} />
+          <Flags
+            selectedProject={selectedProject}
+            flags={flags}
+            setFlags={setFlags}
+          />
         ) : (
           ''
         )}
