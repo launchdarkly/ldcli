@@ -8,8 +8,10 @@ import {
   MenuTrigger,
   Popover,
   ProgressBar,
+  Tooltip,
+  TooltipTrigger,
 } from '@launchpad-ui/components';
-import { Alert, CopyToClipboard } from '@launchpad-ui/core';
+import { Alert, CopyToClipboard, Inline } from '@launchpad-ui/core';
 
 const fetchProjects = async () => {
   const res = await fetch(apiRoute(`/dev/projects`));
@@ -61,15 +63,19 @@ function ProjectSelector({ selectedProject, setSelectedProject }: Props) {
 
   return projects.length > 0 ? (
     <MenuTrigger>
-      <Button>
-        {selectedProject == null ? (
-          'Select a project'
-        ) : (
-          <>
-            <strong>{selectedProject}</strong> project selected
-          </>
-        )}
-      </Button>
+      <Inline gap="1">
+        <TooltipTrigger>
+          <Button>
+            {selectedProject == null ? 'Select a project' : selectedProject}
+          </Button>
+          <Tooltip>
+            {selectedProject == null
+              ? 'Please select a project'
+              : 'This is the selected project'}
+          </Tooltip>
+        </TooltipTrigger>
+      </Inline>
+
       <Popover>
         <Menu>
           {projects.map((project) => (
