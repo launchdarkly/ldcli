@@ -88,14 +88,14 @@ github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.7.0
 ## explicit; go 1.17
 github.com/fsnotify/fsnotify
-# github.com/getkin/kin-openapi v0.124.0
+# github.com/getkin/kin-openapi v0.127.0
 ## explicit; go 1.20
 github.com/getkin/kin-openapi/openapi3
-# github.com/go-openapi/jsonpointer v0.20.2
-## explicit; go 1.19
+# github.com/go-openapi/jsonpointer v0.21.0
+## explicit; go 1.20
 github.com/go-openapi/jsonpointer
-# github.com/go-openapi/swag v0.22.8
-## explicit; go 1.19
+# github.com/go-openapi/swag v0.23.0
+## explicit; go 1.20
 github.com/go-openapi/swag
 # github.com/golang/protobuf v1.5.3
 ## explicit; go 1.9
@@ -133,7 +133,7 @@ github.com/iancoleman/strcase
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
-# github.com/invopop/yaml v0.2.0
+# github.com/invopop/yaml v0.3.1
 ## explicit; go 1.14
 github.com/invopop/yaml
 # github.com/josharian/intern v1.0.0
