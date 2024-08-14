@@ -125,10 +125,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.baseURI,
 					m.height,
 					m.width,
-					m.sdk.canonicalName,
+					m.sdk.id,
 					m.sdk.displayName,
 					m.sdk.url,
-					m.sdk.kind,
+					m.sdk.sdkType,
 					m.flagKey,
 					m.environment,
 				)
@@ -153,10 +153,10 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.baseURI,
 			m.height,
 			m.width,
-			msg.sdk.canonicalName,
+			msg.sdk.id,
 			msg.sdk.displayName,
 			msg.sdk.url,
-			msg.sdk.kind,
+			msg.sdk.sdkType,
 			m.flagKey,
 			m.environment,
 		)
@@ -196,7 +196,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.accessToken,
 			m.baseURI,
 			m.flagKey,
-			m.sdk.kind,
+			m.sdk.id,
 		)
 		cmd = m.currentModel.Init()
 		m.currentStep += 1
@@ -213,7 +213,7 @@ func (m ContainerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = tea.Batch(
 				cmd,
 				trackSetupStepStartedEvent(m.analyticsTracker, m.currentStep.String()),
-				trackSetupSDKSelectedEvent(m.analyticsTracker, m.sdk.canonicalName),
+				trackSetupSDKSelectedEvent(m.analyticsTracker, m.sdk.id),
 			)
 		case m.currentStep == stepToggleFlag && !m.flagToggled:
 			// the first time we get to the flag toggled view
