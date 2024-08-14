@@ -3,9 +3,9 @@ version: 2
 project_name: ldcli
 
 env:
-  - GO111MODULE=on
-  - CGO_ENABLED=1
-  - DOCKER_CLI_EXPERIMENTAL=enabled
+  - GO111MODULE=on # Ensure we aren't using anything in GOPATH when building
+  - CGO_ENABLED=1 # Needed for SQLite support
+  - DOCKER_CLI_EXPERIMENTAL=enabled # This is on by default in docker versions >= 20.10
 
 builds:
   - id: ldcli
@@ -19,13 +19,15 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s
-      - -w
+      - -s # Omit all symbol information to minimize binary size
+      - -w # Omit DWARF to minimize binary size
       - -X 'main.version={{.Version}}'
     ignore:
       - goos: darwin
         goarch: "386"
     env:
+      # The below environment variables set up the c compiler toolchain for CGO.
+      # Templates are used to vary the toolchain based on OS & platform.
       - TOOLCHAIN_BASE=
         {{- if eq .Os "darwin" -}}
           o
