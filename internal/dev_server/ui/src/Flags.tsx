@@ -9,8 +9,14 @@ import {
   ModalOverlay,
   DialogTrigger,
   Dialog,
+  TextArea,
 } from '@launchpad-ui/components';
-import { Box, InlineEdit, TextField } from '@launchpad-ui/core';
+import {
+  Box,
+  CopyToClipboard,
+  InlineEdit,
+  TextField,
+} from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
@@ -183,139 +189,155 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
           </Button>
         </Box>
         <ul className="flags-list">
-          {Object.entries(flags).map(([flagKey, { value: flagValue }]) => {
-            const overrideValue = overrides?.[flagKey]?.value;
-            const hasOverride = overrideValue !== undefined;
-            let valueNode;
+          {Object.entries(flags).map(
+            ([flagKey, { value: flagValue }], index) => {
+              const overrideValue = overrides?.[flagKey]?.value;
+              const hasOverride = overrideValue !== undefined;
+              let valueNode;
 
-            if (onlyShowOverrides && !hasOverride) {
-              return null;
-            }
+              if (onlyShowOverrides && !hasOverride) {
+                return null;
+              }
 
-            switch (typeof flagValue) {
-              case 'boolean':
-                valueNode = (
-                  <Switch
-                    isSelected={hasOverride ? overrideValue : flagValue}
-                    onChange={(newValue) => {
-                      updateOverride(flagKey, newValue);
-                    }}
-                  />
-                );
-                break;
-              case 'number':
-                valueNode = (
-                  <input
-                    type="number"
-                    value={hasOverride ? Number(overrideValue) : flagValue}
-                    onChange={(e) => {
-                      updateOverride(flagKey, Number(e.target.value));
-                    }}
-                  />
-                );
-                break;
-              case 'string':
-                valueNode = (
-                  <InlineEdit
-                    defaultValue={hasOverride ? overrideValue : flagValue}
-                    onConfirm={(newValue: string) => {
-                      updateOverride(flagKey, newValue);
-                    }}
-                    renderInput={<TextField id={`${flagKey}-override-input`} />}
-                  >
-                    {hasOverride ? overrideValue : flagValue}
-                  </InlineEdit>
-                );
-                break;
-              default:
-                valueNode = (
-                  <DialogTrigger>
-                    <Button style={{ border: 'none', padding: 0, margin: 0 }}>
-                      <textarea
-                        rows={8}
-                        readOnly={true}
-                        style={{
-                          resize: 'none',
-                          overflowY: 'clip',
-                          cursor: 'pointer',
-                        }}
-                        value={JSON.stringify(
-                          hasOverride ? overrideValue : flagValue,
-                          null,
-                          2,
-                        )}
-                      ></textarea>
-                    </Button>
-                    <ModalOverlay>
-                      <Modal>
-                        <Dialog>
-                          {({ close }) => (
-                            <form
-                              onSubmit={() => {
-                                let newVal;
-
-                                try {
-                                  newVal = JSON.parse(
-                                    textAreaRef?.current?.value || '',
-                                  );
-                                } catch (err) {
-                                  window.alert('Invalid JSON formatting');
-                                  return;
-                                }
-
-                                updateOverride(flagKey, newVal);
-                              }}
-                            >
-                              <textarea
-                                ref={textAreaRef}
-                                style={{ width: '100%', height: '30rem' }}
-                                defaultValue={JSON.stringify(
-                                  hasOverride ? overrideValue : flagValue,
-                                  null,
-                                  2,
-                                )}
-                              />
-                              <div>
-                                <Button
-                                  variant="primary"
-                                  type="submit"
-                                  onPress={close}
-                                >
-                                  Accept
-                                </Button>
-                              </div>
-                            </form>
-                          )}
-                        </Dialog>
-                      </Modal>
-                    </ModalOverlay>
-                  </DialogTrigger>
-                );
-            }
-
-            return (
-              <li key={flagKey}>
-                <Box whiteSpace="nowrap" flexGrow="1" paddingRight="1rem">
-                  <code className={hasOverride ? 'has-override' : ''}>
-                    {flagKey}
-                  </code>
-                </Box>
-                <div className="flag-value">{valueNode}</div>
-                <Box width="2rem" height="2rem" marginLeft="0.5rem">
-                  {hasOverride && (
-                    <IconButton
-                      icon="cancel"
-                      aria-label="Remove override"
-                      onPress={() => {
-                        removeOverride(flagKey);
+              switch (typeof flagValue) {
+                case 'boolean':
+                  valueNode = (
+                    <Switch
+                      isSelected={hasOverride ? overrideValue : flagValue}
+                      onChange={(newValue) => {
+                        updateOverride(flagKey, newValue);
                       }}
-                      variant="destructive"
                     />
-                  )}
-                </Box>
-              </li>
-            );
-          })}
+                  );
+                  break;
+                case 'number':
+                  valueNode = (
+                    <TextField
+                      type="number"
+                      value={hasOverride ? Number(overrideValue) : flagValue}
+                      onChange={(e) => {
+                        updateOverride(flagKey, Number(e.target.value));
+                      }}
+                    />
+                  );
+                  break;
+                case 'string':
+                  valueNode = (
+                    <InlineEdit
+                      defaultValue={hasOverride ? overrideValue : flagValue}
+                      onConfirm={(newValue: string) => {
+                        updateOverride(flagKey, newValue);
+                      }}
+                      renderInput={
+                        <TextField id={`${flagKey}-override-input`} />
+                      }
+                    >
+                      {hasOverride ? overrideValue : flagValue}
+                    </InlineEdit>
+                  );
+                  break;
+                default:
+                  valueNode = (
+                    <DialogTrigger>
+                      <Button style={{ border: 'none', padding: 0, margin: 0 }}>
+                        <TextArea
+                          rows={8}
+                          readOnly={true}
+                          style={{
+                            resize: 'none',
+                            overflowY: 'clip',
+                            cursor: 'pointer',
+                          }}
+                          value={JSON.stringify(
+                            hasOverride ? overrideValue : flagValue,
+                            null,
+                            2,
+                          )}
+                        ></TextArea>
+                      </Button>
+                      <ModalOverlay>
+                        <Modal>
+                          <Dialog>
+                            {({ close }) => (
+                              <form
+                                onSubmit={() => {
+                                  let newVal;
+
+                                  try {
+                                    newVal = JSON.parse(
+                                      textAreaRef?.current?.value || '',
+                                    );
+                                  } catch (err) {
+                                    window.alert('Invalid JSON formatting');
+                                    return;
+                                  }
+
+                                  updateOverride(flagKey, newVal);
+                                }}
+                              >
+                                <TextArea
+                                  ref={textAreaRef}
+                                  style={{ width: '100%', height: '30rem' }}
+                                  defaultValue={JSON.stringify(
+                                    hasOverride ? overrideValue : flagValue,
+                                    null,
+                                    2,
+                                  )}
+                                />
+                                <div>
+                                  <Button
+                                    variant="primary"
+                                    type="submit"
+                                    onPress={close}
+                                  >
+                                    Accept
+                                  </Button>
+                                </div>
+                              </form>
+                            )}
+                          </Dialog>
+                        </Modal>
+                      </ModalOverlay>
+                    </DialogTrigger>
+                  );
+              }
+
+              return (
+                <li
+                  key={flagKey}
+                  style={{
+                    backgroundColor: index % 2 === 0 ? 'white' : '#f8f8f8',
+                  }}
+                >
+                  <Box
+                    whiteSpace="nowrap"
+                    flexGrow="1"
+                    paddingLeft="1rem"
+                    paddingRight="1rem"
+                  >
+                    <CopyToClipboard asChild text={flagKey}>
+                      <code className={hasOverride ? 'has-override' : ''}>
+                        {flagKey}
+                      </code>
+                    </CopyToClipboard>
+                  </Box>
+                  <div className="flag-value">{valueNode}</div>
+                  <Box width="2rem" height="2rem" marginLeft="0.5rem">
+                    {hasOverride && (
+                      <IconButton
+                        icon="cancel"
+                        aria-label="Remove override"
+                        onPress={() => {
+                          removeOverride(flagKey);
+                        }}
+                        variant="destructive"
+                      />
+                    )}
+                  </Box>
+                </li>
+              );
+            },
+          )}
         </ul>
       </div>
     </>

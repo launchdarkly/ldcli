@@ -7,6 +7,8 @@ import {
 import { apiRoute, sortFlags } from './util.ts';
 import { LDFlagSet } from 'launchdarkly-js-client-sdk';
 import { useState } from 'react';
+import { Icon } from '@launchpad-ui/icons';
+import { Inline } from '@launchpad-ui/core';
 
 const syncProject = async (selectedProject: string) => {
   const res = await fetch(apiRoute(`/dev/projects/${selectedProject}/sync`), {
@@ -47,11 +49,20 @@ const SyncButton = ({
 
   return (
     <TooltipTrigger>
-      <Button onClick={handleClick} disabled={isLoading}>
+      <Button
+        onClick={handleClick}
+        disabled={isLoading}
+        style={{ backgroundColor: isLoading ? 'lightgray' : undefined }}
+      >
         {isLoading ? (
           <ProgressBar aria-label="loading" isIndeterminate />
         ) : (
-          'Sync'
+          <div>
+            <Inline gap="1">
+              <Icon name="sync" size="small" />
+              <span>Sync</span>
+            </Inline>
+          </div>
         )}
       </Button>
       <Tooltip>Sync the selected project from the source environment</Tooltip>

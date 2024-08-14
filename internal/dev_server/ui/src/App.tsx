@@ -12,40 +12,54 @@ function App() {
   const [flags, setFlags] = useState<LDFlagSet | null>(null);
 
   return (
-    <>
-      <Box
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <div
         style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          minWidth: '700px',
         }}
       >
         <Box
           display="flex"
-          flexDirection="row"
-          justifyContent="space-between"
-          alignItems="flex-start"
-          marginBottom="2rem"
+          flexDirection="column"
+          alignItems="center"
           padding="1rem"
-          gap="2rem"
+          maxWidth="1200px"
         >
-          <ProjectSelector
-            selectedProject={selectedProject}
-            setSelectedProject={setSelectedProject}
-          />
-          <SyncButton selectedProject={selectedProject} setFlags={setFlags} />
+          <Box
+            display="flex"
+            flexDirection="row"
+            justifyContent="space-between"
+            alignItems="center"
+            marginBottom="2rem"
+            width="100%"
+          >
+            <ProjectSelector
+              selectedProject={selectedProject}
+              setSelectedProject={setSelectedProject}
+            />
+            <SyncButton selectedProject={selectedProject} setFlags={setFlags} />
+          </Box>
+          {selectedProject && (
+            <Box width="100%">
+              <Flags
+                selectedProject={selectedProject}
+                flags={flags}
+                setFlags={setFlags}
+              />
+            </Box>
+          )}
         </Box>
-        {selectedProject != null ? (
-          <Flags
-            selectedProject={selectedProject}
-            flags={flags}
-            setFlags={setFlags}
-          />
-        ) : (
-          ''
-        )}
-      </Box>
-    </>
+      </div>
+    </div>
   );
 }
 
