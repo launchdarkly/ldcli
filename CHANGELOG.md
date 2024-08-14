@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/launchdarkly/ldcli/compare/v1.3.0...v1.4.0) (2024-08-14)
+
+
+### Features
+
+* Add project selector and sync button to LaunchDevly UI ([#392](https://github.com/launchdarkly/ldcli/issues/392)) ([aa0e1e3](https://github.com/launchdarkly/ldcli/commit/aa0e1e36beaa1c700f5f82dfb26e658cb87db879))
+
 ## [1.3.0](https://github.com/launchdarkly/ldcli/compare/v1.2.0...v1.3.0) (2024-08-14)
 
 
