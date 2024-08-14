@@ -74,6 +74,7 @@ func TestUpdate(t *testing.T) {
 				"access-token", "test-access-token",
 				"analytics-opt-out", "true",
 				"base-uri", "http://test.com",
+				"dev-stream-uri", "http://relay.com",
 				"environment", "test-environment",
 				"flag", "test-flag",
 				"output", "plaintext",
@@ -85,6 +86,7 @@ func TestUpdate(t *testing.T) {
 		assert.Equal(t, "test-access-token", result.AccessToken)
 		assert.True(t, *result.AnalyticsOptOut)
 		assert.Equal(t, "http://test.com", result.BaseURI)
+		assert.Equal(t, "http://relay.com", result.DevStreamURI)
 		assert.Equal(t, "test-environment", result.Environment)
 		assert.Equal(t, "test-flag", result.Flag)
 		assert.Equal(t, "plaintext", result.Output)
@@ -95,6 +97,7 @@ func TestUpdate(t *testing.T) {
 				"access-token",
 				"analytics-opt-out",
 				"base-uri",
+				"dev-stream-uri",
 				"environment",
 				"flag",
 				"output",

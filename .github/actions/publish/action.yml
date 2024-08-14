@@ -14,6 +14,7 @@ inputs:
   tag:
     description: 'Tag to upload artifacts to.'
     required: true
+
 outputs:
   hashes:
     description: sha256sum hashes of built artifacts
@@ -30,16 +31,44 @@ runs:
         platforms: linux/amd64,linux/arm64/v8,linux/arm/v7,linux/386
     - name: Login to Docker
       shell: bash
+      run: echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
+
+    - name: Set up goreleaser
+      # Note: that we're unable to use the normal goreleaser actions and have to use this docker image.
+      # This is because the dev server piece of the CLI uses SQLite which requires CGO and cross compilation.
+      # We're using the goreleaser-cross image to facilitate this. See also: https://github.com/goreleaser/goreleaser-cross
+      shell: bash
       run: |
-        echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
+        CONTAINER_ID="$(
+          docker run --detach \
+            --volume "$PWD:$PWD" \
+            --entrypoint tail \
+            ghcr.io/goreleaser/goreleaser-cross:latest \
+              -f /dev/null
+        )"
+        docker exec --tty "$CONTAINER_ID" dpkg --add-architecture i386
+        docker exec --tty "$CONTAINER_ID" apt-get update
+        docker exec --tty "$CONTAINER_ID" apt-get install --no-install-recommends -y -q crossbuild-essential-i386
+        docker exec --tty "$CONTAINER_ID" git config --global --add safe.directory '*'
+        echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
+
     - name: Run Goreleaser
-      uses: goreleaser/goreleaser-action@v5
-      with:
-        version: latest
-        args: release ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }} --config .goreleaser.yaml
+      shell: bash
+      run: docker exec
+        --env GITHUB_TOKEN
+        --env HOMEBREW_DEPLOY_KEY
+        --workdir "$PWD"
+        --tty
+        "$CONTAINER_ID"
+        goreleaser release ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }} --config .goreleaser.yaml
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
+    - name: Upload assets
+      uses: actions/upload-artifact@v4
+      with:
+        name: ldcli
+        path: dist/*
     - name: Hash build artifacts for provenance
       id: hash
       shell: bash

@@ -1,0 +1,242 @@
+openapi: 3.0.3
+info:
+  title: LaunchDarkly Dev Server
+  description: |
+    LaunchDarkly Dev Server provides a simplified, local feature flagging server that can be used with LanchDarkly SDKs.
+    This API allows for the syncing of flags with a remote LaunchDarkly project and to configure local overrides of 
+    those flags.
+  version: 1.0.0
+servers:
+  - url: "http"
+paths:
+  /dev/projects:
+    get:
+      summary: lists all projects that have been configured for the dev server
+      responses:
+        200:
+          description: OK. List of projects
+          content:
+            application/json:
+              schema:
+                description: list of project keys.
+                type: array
+                items:
+                  type: string
+                uniqueItems: true
+  /dev/projects/{projectKey}/sync:
+    patch:
+      summary: updates the flag state for the given project and source environment
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/expand"
+      responses:
+        200:
+          $ref: "#/components/responses/Project"
+        404:
+          description: No project found
+  /dev/projects/{projectKey}:
+    get:
+      summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/expand"
+      responses:
+        200:
+          $ref: "#/components/responses/Project"
+        404:
+          description: No project found
+    patch:
+      summary: updates the project context or sourceEnvironmentKey
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/expand"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sourceEnvironmentKey:
+                  type: string
+                  description: environment to copy flag values from
+                context:
+                  $ref: "#/components/schemas/Context"
+      responses:
+        200:
+          $ref: "#/components/responses/Project"
+        404:
+          description: No project found
+    delete:
+      summary: remove the specified project from the dev server
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+      responses:
+        204:
+          description: OK. Project & overrides were removed
+        404:
+          $ref: "#/components/responses/ErrorResponse"
+    post:
+      summary: Add the project to the dev server
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/expand"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceEnvironmentKey
+              properties:
+                sourceEnvironmentKey:
+                  type: string
+                  description: environment to copy flag values from
+                context:
+                  $ref: "#/components/schemas/Context"
+      responses:
+        201:
+          $ref: "#/components/responses/Project"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
+        409:
+          $ref: "#/components/responses/ErrorResponse"
+  /dev/projects/{projectKey}/overrides/{flagKey}:
+    put:
+      summary: override flag value with value provided in the body
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/flagKey"
+      requestBody:
+        required: true
+        description: flag value to override flag with. The json representation of the variation value.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlagValue"
+      responses:
+        200:
+          $ref: "#/components/responses/FlagOverride"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
+
+    delete:
+      summary: remove override for flag
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/flagKey"
+      responses:
+        204:
+          description: OK. override removed
+        404:
+          description: no matching override found
+components:
+  parameters:
+    flagKey:
+      name: flagKey
+      in: path
+      required: true
+      schema:
+        type: string
+    projectKey:
+      name: projectKey
+      in: path
+      required: true
+      schema:
+        type: string
+    expand:
+      name: expand
+      description: Available expand options for this endpoint.
+      in: query
+      schema:
+        type: array
+        items:
+          type: string
+          enum:
+            - overrides
+  schemas:
+    FlagValue:
+      description: value of a feature flag variation
+      oneOf:
+        - type: string
+        - type: boolean
+        - type: number
+        - type: object
+      x-go-type: ldvalue.Value
+      x-go-type-import:
+        path: github.com/launchdarkly/go-sdk-common/v3/ldvalue
+    Context:
+      type: object
+      description: context object to use when evaluating flags in source environment
+      x-go-type: ldcontext.Context
+      x-go-type-import:
+        path: github.com/launchdarkly/go-sdk-common/v3/ldcontext
+      default:
+        key: "dev-environment"
+        kind: "user"
+    Project:
+      description: Project
+      type: object
+      required:
+        - sourceEnvironmentKey
+        - context
+        - _lastSyncedFromSource
+      properties:
+        context:
+          $ref: "#/components/schemas/Context"
+        sourceEnvironmentKey:
+          type: string
+          description: environment to copy flag values from
+        flagsState:
+          type: object
+          description: flags and their values and version for a given project in the source environment
+          x-go-type: model.FlagsState
+          x-go-type-import:
+            path: github.com/launchdarkly/ldcli/internal/dev_server/model
+        overrides:
+          type: object
+          description: flags and their values and version for a given project in the source environment
+          x-go-type: model.FlagsState
+          x-go-type-import:
+            path: github.com/launchdarkly/ldcli/internal/dev_server/model
+        _lastSyncedFromSource:
+          type: integer
+          x-go-type: int64
+          description: unix timestamp for the lat time the flag values were synced from the source environment
+  responses:
+    FlagOverride:
+      description: Flag override
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - override
+              - value
+            properties:
+              value:
+                $ref: "#/components/schemas/FlagValue"
+              override:
+                type: boolean
+                description: whether or not this is an overridden value or one from the source environment
+    Project:
+      description: Project
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Project"
+    ErrorResponse:
+      description: Error response object
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - code
+              - message
+            properties:
+              code:
+                type: string
+                description: specific error code encountered
+              message:
+                type: string
+                description: description of the error

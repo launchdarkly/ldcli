@@ -4,9 +4,11 @@ Supported settings:
 - `access-token`: LaunchDarkly access token with write-level access
 - `analytics-opt-out`: Opt out of analytics tracking
 - `base-uri`: LaunchDarkly base URI
+- `dev-stream-uri`: Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint
 - `environment`: Default environment key
 - `flag`: Default feature flag key
 - `output`: Command response output format in either JSON or plain text
+- `port`: Port for the dev server to run on
 - `project`: Default project key
 
 Usage:
