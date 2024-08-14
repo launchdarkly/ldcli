@@ -14,12 +14,15 @@ import { Box, InlineEdit, TextField } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
-import { apiRoute } from './util.ts';
+import { apiRoute, sortFlags } from './util.ts';
 
-type FlagProps = { selectedProject: string };
+type FlagProps = {
+  selectedProject: string;
+  flags: LDFlagSet | null;
+  setFlags: (flags: LDFlagSet) => void;
+};
 
-function Flags({ selectedProject }: FlagProps) {
-  const [flags, setFlags] = useState<LDFlagSet | null>(null);
+function Flags({ selectedProject, flags, setFlags }: FlagProps) {
   const [overrides, setOverrides] = useState<Record<
     string,
     { value: LDFlagValue }
@@ -93,15 +96,8 @@ function Flags({ selectedProject }: FlagProps) {
     }
 
     const { flagsState: flags, overrides } = json;
-    const sortedFlags = Object.keys(flags)
-      .sort((a, b) => a.localeCompare(b))
-      .reduce<Record<string, LDFlagValue>>((accum, flagKey) => {
-        accum[flagKey] = flags[flagKey];
 
-        return accum;
-      }, {});
-
-    setFlags(sortedFlags);
+    setFlags(sortFlags(flags));
     setOverrides(overrides);
   };
 

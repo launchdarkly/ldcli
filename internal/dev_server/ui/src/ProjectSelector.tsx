@@ -7,6 +7,7 @@ import {
   MenuItem,
   MenuTrigger,
   Popover,
+  ProgressBar,
 } from '@launchpad-ui/components';
 import { Alert, CopyToClipboard } from '@launchpad-ui/core';
 
@@ -26,24 +27,48 @@ type Props = {
 
 function ProjectSelector({ selectedProject, setSelectedProject }: Props) {
   const [projects, setProjects] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const setProjectsAndUpdateSelectedProject = (projects: string[]) => {
     setProjects(projects);
     if (projects.length == 1) {
       setSelectedProject(projects[0]);
     }
+    setIsLoading(false);
   };
+
   useEffect(() => {
     fetchProjects()
       .then(setProjectsAndUpdateSelectedProject)
-      .catch(console.error);
+      .catch((error) => {
+        console.error(error);
+        setIsLoading(false);
+      });
   }, []);
+
+  if (isLoading) {
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <ProgressBar
+          aria-label="loading"
+          isIndeterminate
+          style={{ width: '100%', height: '2rem' }}
+        />
+        <p>Projects are loading</p>
+      </div>
+    );
+  }
 
   return projects.length > 0 ? (
     <MenuTrigger>
       <Button>
-        {selectedProject == null
-          ? 'Select a project'
-          : `${selectedProject} project selected`}
+        {selectedProject == null ? (
+          'Select a project'
+        ) : (
+          <>
+            <strong>{selectedProject}</strong> project selected
+          </>
+        )}
       </Button>
       <Popover>
         <Menu>
