@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/launchdarkly/ldcli/compare/v1.2.0...v1.3.0) (2024-08-14)
+
+
+### Features
+
+* Add dev server (AKA LaunchDevly) ([#364](https://github.com/launchdarkly/ldcli/issues/364)) ([373bb0a](https://github.com/launchdarkly/ldcli/commit/373bb0acd80009c8d5e90909ceed55d3c5f4ddb7))
+* use SDK metadata ([#378](https://github.com/launchdarkly/ldcli/issues/378)) ([b0e03ca](https://github.com/launchdarkly/ldcli/commit/b0e03cad4daa7614e747e4f7c83999f33cda3ed8))
+
+
+### Bug Fixes
+
+* Remove stutter from "fetching {sdk name} SDK SDK" ([#391](https://github.com/launchdarkly/ldcli/issues/391)) ([82bd8de](https://github.com/launchdarkly/ldcli/commit/82bd8debe1d7f93e4531eafb4a6d28c370699bd5))
+
 ## [1.2.0](https://github.com/launchdarkly/ldcli/compare/v1.1.1...v1.2.0) (2024-07-15)
 
 
