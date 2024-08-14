@@ -2,7 +2,6 @@ package quickstart
 
 import (
 	"fmt"
-	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -11,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/launchdarkly/sdk-meta/api/sdkmeta"
 
 	"github.com/launchdarkly/ldcli/internal/environments"
 	"github.com/launchdarkly/ldcli/internal/flags"
@@ -156,7 +156,7 @@ func (m showSDKInstructionsModel) View() string {
 	}
 
 	if m.instructions == "" || m.environment == nil {
-		return m.spinner.View() + fmt.Sprintf(" Fetching %s SDK instructions...\n", m.displayName) + footerView(m.help.View(m.helpKeys), nil)
+		return m.spinner.View() + fmt.Sprintf(" Fetching %s instructions...\n", m.displayName) + footerView(m.help.View(m.helpKeys), nil)
 	}
 
 	m.help.ShowAll = true
