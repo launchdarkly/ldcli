@@ -37,7 +37,7 @@ jobs:
       - uses: ./.github/actions/publish
         id: publish
         with:
-          dry-run: 'true'
+          dry-run: 'false'
           snapshot: 'true'
           token: ${{ secrets.GITHUB_TOKEN }}
           homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
