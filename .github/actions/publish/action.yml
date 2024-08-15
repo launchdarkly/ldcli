@@ -42,6 +42,7 @@ runs:
         CONTAINER_ID="$(
           docker run --detach \
             --volume "$PWD:$PWD" \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
             --entrypoint tail \
             ghcr.io/goreleaser/goreleaser-cross:latest \
               -f /dev/null
