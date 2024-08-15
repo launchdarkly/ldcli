@@ -11,6 +11,9 @@ inputs:
     description: 'Is this a dry run. If so no package will be published.'
     required: false
     default: 'true'
+  snapshot:
+    description: 'Create a snapshot release by passing --snapshot to goreleaser. See also `goreleaser release --help'
+    default: 'false'
   tag:
     description: 'Tag to upload artifacts to.'
     required: true
@@ -61,7 +64,10 @@ runs:
         --workdir "$PWD"
         --tty
         "$CONTAINER_ID"
-        goreleaser release ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }} --config .goreleaser.yaml
+        goreleaser release 
+            ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
+            ${{ inputs.snapshot == 'true' && '--snapshot' || '' }}
+            --config .goreleaser.yaml
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
