@@ -64,6 +64,7 @@ runs:
         --tty
         "$CONTAINER_ID"
         goreleaser release 
+            --verbose 
             ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
             ${{ inputs.snapshot == 'true' && '--snapshot' || '' }}
             ${{ inputs.skip == '' && '' || format('--skip={0}', inputs.skip) }}
