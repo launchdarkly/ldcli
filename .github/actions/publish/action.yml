@@ -54,7 +54,15 @@ runs:
         docker exec --tty "$CONTAINER_ID" git config --global --add safe.directory '*'
         docker exec --tty "$CONTAINER_ID" echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
-        
+
+    - name: check docker login
+      shell: bash
+      run: docker exec
+        --workdir "$PWD"
+        --tty
+        "$CONTAINER_ID"
+        cat /home/runner/.docker/config.json
+
     - name: Run Goreleaser
       shell: bash
       run: docker exec
