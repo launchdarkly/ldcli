@@ -14,6 +14,8 @@ inputs:
   snapshot:
     description: 'Create a snapshot release by passing --snapshot to goreleaser. See also `goreleaser release --help'
     default: 'false'
+  skip:
+    description: 'Set of steps for goreleaser to skip. See also `goreleaser --skip`'
   tag:
     description: 'Tag to upload artifacts to.'
     required: true
@@ -67,6 +69,7 @@ runs:
         goreleaser release 
             ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
             ${{ inputs.snapshot == 'true' && '--snapshot' || '' }}
+            ${{ inputs.skip == '' && '' || format('--skip={0}', inputs.skip) }}
             --config .goreleaser.yaml
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
