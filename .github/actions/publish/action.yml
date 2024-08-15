@@ -52,6 +52,7 @@ runs:
         docker exec --tty "$CONTAINER_ID" apt-get update
         docker exec --tty "$CONTAINER_ID" apt-get install --no-install-recommends -y -q crossbuild-essential-i386
         docker exec --tty "$CONTAINER_ID" git config --global --add safe.directory '*'
+        docker exec --tty "$CONTAINER_ID" ls -la ~
         docker exec --workdir "$PWD" --tty "$CONTAINER_ID" echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
 
