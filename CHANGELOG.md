@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/launchdarkly/ldcli/compare/v1.4.1...v1.4.2) (2024-08-16)
+
+
+### Bug Fixes
+
+* Use ubuntu for the base image ([#401](https://github.com/launchdarkly/ldcli/issues/401)) ([92aec6e](https://github.com/launchdarkly/ldcli/commit/92aec6ecfce63f7d16b22a0c71a8e030f3f31be7))
+
 ## [1.4.1](https://github.com/launchdarkly/ldcli/compare/v1.4.0...v1.4.1) (2024-08-16)
 
 
