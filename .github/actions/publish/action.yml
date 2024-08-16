@@ -11,6 +11,11 @@ inputs:
     description: 'Is this a dry run. If so no package will be published.'
     required: false
     default: 'true'
+  snapshot:
+    description: 'Create a snapshot release by passing --snapshot to goreleaser. See also `goreleaser release --help'
+    default: 'false'
+  skip:
+    description: 'Set of steps for goreleaser to skip. See also `goreleaser --skip`'
   tag:
     description: 'Tag to upload artifacts to.'
     required: true
@@ -29,10 +34,6 @@ runs:
       uses: docker/setup-buildx-action@v3
       with:
         platforms: linux/amd64,linux/arm64/v8,linux/arm/v7,linux/386
-    - name: Login to Docker
-      shell: bash
-      run: echo $DOCKER_TOKEN | docker login --username $DOCKER_USERNAME --password-stdin
-
     - name: Set up goreleaser
       # Note: that we're unable to use the normal goreleaser actions and have to use this docker image.
       # This is because the dev server piece of the CLI uses SQLite which requires CGO and cross compilation.
@@ -42,6 +43,7 @@ runs:
         CONTAINER_ID="$(
           docker run --detach \
             --volume "$PWD:$PWD" \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
             --entrypoint tail \
             ghcr.io/goreleaser/goreleaser-cross:latest \
               -f /dev/null
@@ -50,6 +52,7 @@ runs:
         docker exec --tty "$CONTAINER_ID" apt-get update
         docker exec --tty "$CONTAINER_ID" apt-get install --no-install-recommends -y -q crossbuild-essential-i386
         docker exec --tty "$CONTAINER_ID" git config --global --add safe.directory '*'
+        docker exec --workdir "$PWD" --tty "$CONTAINER_ID" docker login --username $DOCKER_USERNAME --password $DOCKER_TOKEN
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
 
     - name: Run Goreleaser
@@ -60,7 +63,11 @@ runs:
         --workdir "$PWD"
         --tty
         "$CONTAINER_ID"
-        goreleaser release ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }} --config .goreleaser.yaml
+        goreleaser release 
+            ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
+            ${{ inputs.snapshot == 'true' && '--snapshot' || '' }}
+            ${{ inputs.skip == '' && '' || format('--skip={0}', inputs.skip) }}
+            --config .goreleaser.yaml
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         HOMEBREW_DEPLOY_KEY: ${{ inputs.homebrew-gh-secret }}
