@@ -1,4 +1,5 @@
-FROM alpine:3.19.1
+FROM ubuntu:22.04
+# note that we're not using alpine because we need libresolv.
 
 COPY ldcli /ldcli
 
