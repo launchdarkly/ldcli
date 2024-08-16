@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/launchdarkly/ldcli/compare/v1.4.0...v1.4.1) (2024-08-16)
+
+
+### Bug Fixes
+
+* Attach the docker socket to the build container ([#399](https://github.com/launchdarkly/ldcli/issues/399)) ([03e9697](https://github.com/launchdarkly/ldcli/commit/03e96972363e5020186b9c9d295eea83f5cb3908))
+
 ## [1.4.0](https://github.com/launchdarkly/ldcli/compare/v1.3.0...v1.4.0) (2024-08-14)
 
 
