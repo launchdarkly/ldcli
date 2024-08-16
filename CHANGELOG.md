@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/launchdarkly/ldcli/compare/v1.4.2...v1.4.3) (2024-08-16)
+
+
+### Bug Fixes
+
+* rebuild UI to incorporate sync button ([#403](https://github.com/launchdarkly/ldcli/issues/403)) ([c28b34d](https://github.com/launchdarkly/ldcli/commit/c28b34db3012e18836967006c8d4cf0d0fd3da59))
+
 ## [1.4.2](https://github.com/launchdarkly/ldcli/compare/v1.4.1...v1.4.2) (2024-08-16)
 
 
