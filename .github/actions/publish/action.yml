@@ -50,9 +50,9 @@ runs:
               -f /dev/null
         )"
         docker exec --tty "$CONTAINER_ID" mkdir -p /musl
-        docker exec --tty "$CONTAINER_ID" curl -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz -o- | tar -zxvf - -C /musl --strip-components=1
-        docker exec --tty "$CONTAINER_ID" curl -fsSL https://musl.cc/i686-linux-musl-cross.tgz -o- | tar -zxvf - -C /musl --strip-components=1
-        docker exec --tty "$CONTAINER_ID" curl -fsSL https://musl.cc/x86_64-linux-musl-cross.tgz -o- | tar -zxvf - -C /musl --strip-components=1
+        docker exec --tty "$CONTAINER_ID" bash -c 'curl -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz -o- | tar -zxvf - -C /musl --strip-components=1'
+        docker exec --tty "$CONTAINER_ID" bash -c 'curl -fsSL https://musl.cc/i686-linux-musl-cross.tgz -o- | tar -zxvf - -C /musl --strip-components=1'
+        docker exec --tty "$CONTAINER_ID" bash -c 'curl -fsSL https://musl.cc/x86_64-linux-musl-cross.tgz -o- | tar -zxvf - -C /musl --strip-components=1'
         docker exec --tty "$CONTAINER_ID" git config --global --add safe.directory '*'
         docker exec --workdir "$PWD" --tty "$CONTAINER_ID" docker login --username $DOCKER_USERNAME --password $DOCKER_TOKEN
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
