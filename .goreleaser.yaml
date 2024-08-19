@@ -6,6 +6,25 @@ env:
   - GO111MODULE=on # Ensure we aren't using anything in GOPATH when building
   - CGO_ENABLED=1 # Needed for SQLite support
   - DOCKER_CLI_EXPERIMENTAL=enabled # This is on by default in docker versions >= 20.10
+  # Paths to compiler toolchains for each target OS/ARCH. If new items are added to GOOS/GOACH in the build,
+  # they should also be added here.
+  # In the future we can use musl for w64-mingw32 too, currently missing is only aarch64.
+  - CC_windows_386=/llvm-mingw/bin/i686-w64-mingw32-gcc
+  - CXX_windows_386=/llvm-mingw/bin/i686-w64-mingw32-g++
+  - CC_windows_amd64=/llvm-mingw/bin/x86_64-w64-mingw32-gcc
+  - CXX_windows_amd64=/llvm-mingw/bin/x86_64-w64-mingw32-g++
+  - CC_windows_arm64=/llvm-mingw/bin/aarch64-w64-mingw32-gcc
+  - CXX_windows_arm64=/llvm-mingw/bin/aarch64-w64-mingw32-g++
+  - CC_linux_386=/musl/bin/i686-linux-musl-gcc
+  - CXX_linux_386=/musl/bin/i686-linux-musl-g++
+  - CC_linux_amd64=/musl/bin/x86_64-linux-musl-gcc
+  - CXX_linux_amd64=/musl/bin/x86_64-linux-musl-g++
+  - CC_linux_arm64=/musl/bin/aarch64-linux-musl-gcc
+  - CXX_linux_arm64=/musl/bin/aarch64-linux-musl-g++
+  - CC_darwin_amd64=/usr/local/osxcross/bin/o64-clang
+  - CXX_darwin_amd64=/usr/local/osxcross/bin/o64-clang++
+  - CC_darwin_arm64=/usr/local/osxcross/bin/oa64-clang
+  - CXX_darwin_arm64=/usr/local/osxcross/bin/oa64-clang++
 
 builds:
   - id: ldcli
@@ -22,28 +41,16 @@ builds:
       - -s # Omit all symbol information to minimize binary size
       - -w # Omit DWARF to minimize binary size
       - -X 'main.version={{.Version}}'
+      - '{{ if eq .Os "linux" }}-extldflags "-static"{{ end }}'
     ignore:
       - goos: darwin
         goarch: "386"
     env:
       # The below environment variables set up the c compiler toolchain for CGO.
       # Templates are used to vary the toolchain based on OS & platform.
-      - TOOLCHAIN_BASE=
-        {{- if eq .Os "darwin" -}}
-          o
-          {{- if eq .Arch "arm64" -}}a{{- end -}}
-          64-clang
-        {{- else -}}
-          {{- if eq .Os "windows" -}}/llvm-mingw/bin/{{- end -}}
-          {{- if eq .Arch "386" -}}i686{{- end -}}
-          {{- if eq .Arch "arm64" -}}aarch64{{- end -}}
-          {{- if eq .Arch "amd64" -}}x86_64{{- end -}}
-          -
-          {{- if eq .Os "windows" -}}w64-mingw32{{- end -}}
-          {{- if eq .Os "linux" -}}linux-gnu{{- end -}}
-        {{- end -}}
-      - CC={{ .Env.TOOLCHAIN_BASE }}{{ if ne .Os "darwin" }}-gcc{{ end }}
-      - CXX={{ .Env.TOOLCHAIN_BASE }}{{ if eq .Os "darwin" }}++{{ else }}-g++{{ end }}
+      # The real values are defined by the CC_<OS>_<ARCH> env vars defined at the top `env` attribute.
+      - 'CC={{ index .Env (print "CC_" .Os "_" .Arch) }}'
+      - 'CXX={{ index .Env (print "CXX_" .Os "_" .Arch) }}'
 
 dockers:
   # AMD64

@@ -1,6 +1,7 @@
 name: Run Release Please
 
 on:
+  pull_request:
   push:
     branches:
       - main
@@ -11,6 +12,7 @@ jobs:
 
   release-please:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -25,7 +27,7 @@ jobs:
       id-token: write # Needed to obtain Docker tokens
       contents: write # Needed to upload release artifacts
     needs: [ release-please, go-versions ]
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'pull_request')
     runs-on: ubuntu-latest
     outputs:
       hashes: ${{ steps.publish.outputs.hashes }}
@@ -49,7 +51,8 @@ jobs:
       - uses: ./.github/actions/publish
         id: publish
         with:
-          dry-run: 'false'
+          dry-run: ${{ github.event_name == 'pull_request' }}
+          snapshot: ${{ github.event_name == 'pull_request' }}
           token: ${{ secrets.GITHUB_TOKEN }}
           homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
           tag: ${{ needs.release-please.outputs.tag_name }}
@@ -60,7 +63,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: always() && needs.release-please.outputs.release_created == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
@@ -76,7 +79,7 @@ jobs:
         name: Publish NPM Package
         uses: ./.github/actions/publish-npm
         with:
-          dry-run: 'false'
+          dry-run: ${{ github.event_name == 'pull_request' }}
           prerelease: 'false'
 
   release-ldcli-provenance:
