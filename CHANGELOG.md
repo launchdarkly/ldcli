@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.4](https://github.com/launchdarkly/ldcli/compare/v1.4.3...v1.4.4) (2024-08-19)
+
+
+### Bug Fixes
+
+* Use musl libs for static binary ([#407](https://github.com/launchdarkly/ldcli/issues/407)) ([d30fed0](https://github.com/launchdarkly/ldcli/commit/d30fed020e067c5be891dbe9653e9342082ffbcb))
+
+
+### Reverts
+
+* Use ubuntu for the base image ([#408](https://github.com/launchdarkly/ldcli/issues/408)) ([a164ca7](https://github.com/launchdarkly/ldcli/commit/a164ca774615020ff5667c36b8cb6c8143117162))
+
 ## [1.4.3](https://github.com/launchdarkly/ldcli/compare/v1.4.2...v1.4.3) (2024-08-16)
 
 
