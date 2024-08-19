@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
-	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
@@ -41,20 +40,11 @@ func (cmd ConfigCmd) HelpCalled() bool {
 
 func NewConfigCmd(service config.Service, analyticsTrackerFn analytics.TrackerFn) *ConfigCmd {
 	cmd := &cobra.Command{
-		Long:  "View and modify specific configuration values",
-		RunE:  run(service),
-		Short: "View and modify specific configuration values",
-		Use:   "config",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			// only track event if there are flags
-			if len(os.Args[1:]) > 1 {
-				analyticsTrackerFn(
-					viper.GetString(cliflags.AccessTokenFlag),
-					viper.GetString(cliflags.BaseURIFlag),
-					viper.GetBool(cliflags.AnalyticsOptOut),
-				).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, "config", nil))
-			}
-		},
+		Long:        "View and modify specific configuration values",
+		RunE:        run(service),
+		Short:       "View and modify specific configuration values",
+		Use:         "config",
+		Annotations: make(map[string]string),
 	}
 	configCmd := ConfigCmd{
 		cmd: cmd,
@@ -68,18 +58,7 @@ func NewConfigCmd(service config.Service, analyticsTrackerFn analytics.TrackerFn
 		sb.WriteString("\n\nSupported settings:\n")
 		writeAlphabetizedFlags(&sb)
 		cmd.Long += sb.String()
-
-		analyticsTrackerFn(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			viper.GetBool(cliflags.AnalyticsOptOut),
-		).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(
-			cmd,
-			"config",
-			map[string]interface{}{
-				"action": "help",
-			},
-		))
+		cmd.Annotations["action"] = "help"
 
 		helpFun(cmd, args)
 	})

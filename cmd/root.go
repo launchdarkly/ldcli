@@ -98,6 +98,12 @@ func NewRootCommand(
 					cmd.DisableFlagParsing = true
 				}
 			}
+			tracker := analyticsTrackerFn(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
+			)
+			tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd))
 		},
 		Annotations: make(map[string]string),
 		// Handle errors differently based on type.
@@ -116,18 +122,12 @@ func NewRootCommand(
 
 		// get the resource for the tracking event, not the action
 		resourceCommand := getResourceCommand(c)
-		analyticsTrackerFn(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			viper.GetBool(cliflags.AnalyticsOptOut),
-		).SendCommandRunEvent(
-			cmdAnalytics.CmdRunEventProperties(c,
-				resourceCommand.Name(),
-				map[string]interface{}{
-					"action": "help",
-				},
-			),
-		)
+
+		c.Annotations = resourceCommand.Annotations
+		if c.Annotations == nil {
+			c.Annotations = make(map[string]string)
+		}
+		c.Annotations["action"] = "help"
 		hf(c, args)
 	})
 

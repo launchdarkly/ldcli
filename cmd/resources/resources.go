@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/analytics"
@@ -211,17 +210,12 @@ func NewResourceCmd(
 	cmd := &cobra.Command{
 		Use:  resourceName,
 		Long: longAsMarkdown,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			tracker := analyticsTrackerFn(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				viper.GetBool(cliflags.AnalyticsOptOut),
-			)
-			tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, resourceName, nil))
-		},
 	}
 
 	cmd.SetUsageTemplate(SubcommandUsageTemplate())
+	cmd.Annotations = map[string]string{
+		"resource": resourceName,
+	}
 	parentCmd.AddCommand(cmd)
 	parentCmd.Annotations[resourceName] = "resource"
 

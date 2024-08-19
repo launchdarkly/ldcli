@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/analytics"
@@ -24,15 +23,8 @@ func NewQuickStartCmd(
 	flagsClient flags.Client,
 ) *cobra.Command {
 	return &cobra.Command{
-		Args: validators.Validate(),
-		Long: "",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			analyticsTrackerFn(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				viper.GetBool(cliflags.AnalyticsOptOut),
-			).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, "setup", nil))
-		},
+		Args:  validators.Validate(),
+		Long:  "",
 		RunE:  runQuickStart(analyticsTrackerFn, environmentsClient, flagsClient),
 		Short: "Setup guide to create your first feature flag",
 		Use:   "setup",

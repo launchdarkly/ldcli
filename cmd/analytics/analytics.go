@@ -10,8 +10,6 @@ import (
 
 func CmdRunEventProperties(
 	cmd *cobra.Command,
-	name string,
-	overrides map[string]interface{},
 ) map[string]interface{} {
 	baseURI := viper.GetString(cliflags.BaseURIFlag)
 	var flags []string
@@ -20,7 +18,7 @@ func CmdRunEventProperties(
 	})
 
 	properties := map[string]interface{}{
-		"name":   name,
+		"name":   cmd.Name(),
 		"action": cmd.CalledAs(),
 		"flags":  flags,
 	}
@@ -28,7 +26,7 @@ func CmdRunEventProperties(
 		properties["baseURI"] = baseURI
 	}
 
-	for k, v := range overrides {
+	for k, v := range cmd.Annotations {
 		properties[k] = v
 	}
 
