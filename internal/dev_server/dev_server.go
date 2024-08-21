@@ -2,6 +2,7 @@ package dev_server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -75,12 +76,21 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	log.Fatal(server.ListenAndServe())
 }
 
+// TODO move to api package
 func ResponseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	log.Printf("Error while serving response: %+v", err)
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+	err = json.NewEncoder(w).Encode(api.ErrorResponseJSONResponse{
+		Code:    "internal_server_error",
+		Message: err.Error(),
+	})
+	if err != nil {
+		log.Printf("Error while writing error response: %+v", err)
+	}
 }
 func RequestErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	log.Printf("Error while serving request: %+v", err)
+	log.Printf("Error while reading request: %+v", err)
 	http.Error(w, err.Error(), http.StatusBadRequest)
 }
 
