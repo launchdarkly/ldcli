@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -223,12 +222,10 @@ func Execute(version string) {
 		ResourcesClient:    resources.NewClient(version),
 	}
 	configService := config.NewService(resources.NewClient(version))
-	trackerFn := analytics.ClientFn{
-		ID: uuid.New().String(),
-	}
+	trackerFn := analytics.LogClientFn{}
 	rootCmd, err := NewRootCommand(
 		configService,
-		trackerFn.Tracker(version),
+		trackerFn.Tracker(),
 		clients,
 		version,
 		true,
@@ -266,7 +263,7 @@ See each command's help for details on how to use the generated script.`, rootCm
 		outcome = analytics.SUCCESS
 	}
 
-	analyticsClient := trackerFn.Tracker(version)(
+	analyticsClient := trackerFn.Tracker()(
 		viper.GetString(cliflags.AccessTokenFlag),
 		viper.GetString(cliflags.BaseURIFlag),
 		viper.GetBool(cliflags.AnalyticsOptOut),
