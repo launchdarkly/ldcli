@@ -77,6 +77,11 @@ func NewRootCommand(
 	version string,
 	useConfigFile bool,
 ) (*RootCmd, error) {
+	tracker := analyticsTrackerFn(
+		viper.GetString(cliflags.AccessTokenFlag),
+		viper.GetString(cliflags.BaseURIFlag),
+		viper.GetBool(cliflags.AnalyticsOptOut),
+	)
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -97,11 +102,6 @@ func NewRootCommand(
 					cmd.DisableFlagParsing = true
 				}
 			}
-			tracker := analyticsTrackerFn(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				viper.GetBool(cliflags.AnalyticsOptOut),
-			)
 			tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd))
 		},
 		Annotations: make(map[string]string),
@@ -127,6 +127,7 @@ func NewRootCommand(
 			c.Annotations = make(map[string]string)
 		}
 		c.Annotations["action"] = "help"
+		tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd))
 		hf(c, args)
 	})
 
