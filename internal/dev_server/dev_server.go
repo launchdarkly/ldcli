@@ -50,8 +50,8 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	}
 	ss := api.NewStrictServer()
 	apiServer := api.NewStrictHandlerWithOptions(ss, nil, api.StrictHTTPServerOptions{
-		RequestErrorHandlerFunc:  RequestErrorHandler,
-		ResponseErrorHandlerFunc: ResponseErrorHandler,
+		RequestErrorHandlerFunc:  api.RequestErrorHandler,
+		ResponseErrorHandlerFunc: api.ResponseErrorHandler,
 	})
 	r := mux.NewRouter()
 	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI))
@@ -73,15 +73,6 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 		Handler: handler,
 	}
 	log.Fatal(server.ListenAndServe())
-}
-
-func ResponseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	log.Printf("Error while serving response: %+v", err)
-	http.Error(w, err.Error(), http.StatusInternalServerError)
-}
-func RequestErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	log.Printf("Error while serving request: %+v", err)
-	http.Error(w, err.Error(), http.StatusBadRequest)
 }
 
 func getDBPath() string {
