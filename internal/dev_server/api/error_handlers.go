@@ -25,11 +25,15 @@ func (eh errorHandler) HandleError(w http.ResponseWriter, r *http.Request, err e
 }
 
 var RequestErrorHandler = errorHandler{
+	// HACK: This is really just repeating the status code.
+	// It'd be nice to make these be codes that are meaningful to the user.
 	code:       "bad_request",
 	statusCode: http.StatusBadRequest,
 }.HandleError
 
 var ResponseErrorHandler = errorHandler{
+	// HACK: This is really just repeating the status code.
+	// It'd be nice to make these be codes that are meaningful to the user.
 	code:       "internal_server_error",
 	statusCode: http.StatusInternalServerError,
 }.HandleError
