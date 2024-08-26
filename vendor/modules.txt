@@ -62,19 +62,29 @@ github.com/charmbracelet/bubbles/runeutil
 github.com/charmbracelet/bubbles/spinner
 github.com/charmbracelet/bubbles/textinput
 github.com/charmbracelet/bubbles/viewport
-# github.com/charmbracelet/bubbletea v0.25.0
-## explicit; go 1.17
+# github.com/charmbracelet/bubbletea v0.27.1
+## explicit; go 1.18
 github.com/charmbracelet/bubbletea
 # github.com/charmbracelet/glamour v0.6.0
 ## explicit; go 1.13
 github.com/charmbracelet/glamour
 github.com/charmbracelet/glamour/ansi
-# github.com/charmbracelet/lipgloss v0.10.0
+# github.com/charmbracelet/lipgloss v0.13.0
 ## explicit; go 1.18
 github.com/charmbracelet/lipgloss
-# github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81
-## explicit; go 1.13
-github.com/containerd/console
+# github.com/charmbracelet/x/ansi v0.1.4
+## explicit; go 1.18
+github.com/charmbracelet/x/ansi
+github.com/charmbracelet/x/ansi/parser
+# github.com/charmbracelet/x/input v0.1.0
+## explicit; go 1.18
+github.com/charmbracelet/x/input
+# github.com/charmbracelet/x/term v0.1.1
+## explicit; go 1.18
+github.com/charmbracelet/x/term
+# github.com/charmbracelet/x/windows v0.1.0
+## explicit; go 1.18
+github.com/charmbracelet/x/windows
 # github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 ## explicit
 github.com/davecgh/go-spew/spew
@@ -82,6 +92,9 @@ github.com/davecgh/go-spew/spew
 ## explicit
 github.com/dlclark/regexp2
 github.com/dlclark/regexp2/syntax
+# github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f
+## explicit; go 1.16
+github.com/erikgeiser/coninput
 # github.com/felixge/httpsnoop v1.0.3
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
@@ -231,7 +244,7 @@ github.com/mitchellh/mapstructure
 # github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 ## explicit
 github.com/mohae/deepcopy
-# github.com/muesli/ansi v0.0.0-20211018074035-2e021307bc4b
+# github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6
 ## explicit; go 1.17
 github.com/muesli/ansi
 github.com/muesli/ansi/compressor
@@ -245,7 +258,6 @@ github.com/muesli/reflow/indent
 github.com/muesli/reflow/padding
 github.com/muesli/reflow/truncate
 github.com/muesli/reflow/wordwrap
-github.com/muesli/reflow/wrap
 # github.com/muesli/termenv v0.15.2
 ## explicit; go 1.17
 github.com/muesli/termenv
@@ -339,6 +351,9 @@ github.com/stretchr/testify/require
 # github.com/subosito/gotenv v1.6.0
 ## explicit; go 1.18
 github.com/subosito/gotenv
+# github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+## explicit; go 1.19
+github.com/xo/terminfo
 # github.com/yuin/goldmark v1.5.2
 ## explicit; go 1.18
 github.com/yuin/goldmark
@@ -389,11 +404,11 @@ golang.org/x/net/html/atom
 ## explicit; go 1.18
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sync v0.7.0
+# golang.org/x/sync v0.8.0
 ## explicit; go 1.18
 golang.org/x/sync/errgroup
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.21.0
+# golang.org/x/sys v0.24.0
 ## explicit; go 1.18
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
