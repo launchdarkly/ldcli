@@ -12,24 +12,23 @@ import (
 )
 
 type ClientFn struct {
-	ID string
+	ID      string
+	Version string
 }
 
-func (fn ClientFn) Tracker(version string) TrackerFn {
-	return func(accessToken string, baseURI string, optOut bool) Tracker {
-		if optOut {
-			return &NoopClient{}
-		}
+func (fn ClientFn) Tracker(accessToken string, baseURI string, optOut bool) Tracker {
+	if optOut {
+		return &NoopClient{}
+	}
 
-		return &Client{
-			httpClient: &http.Client{
-				Timeout: time.Second * 3,
-			},
-			id:          fn.ID,
-			version:     version,
-			accessToken: accessToken,
-			baseURI:     baseURI,
-		}
+	return &Client{
+		httpClient: &http.Client{
+			Timeout: time.Second * 3,
+		},
+		id:          fn.ID,
+		version:     fn.Version,
+		accessToken: accessToken,
+		baseURI:     baseURI,
 	}
 }
 

@@ -4,10 +4,8 @@ import "log"
 
 type LogClientFn struct{}
 
-func (fn LogClientFn) Tracker() TrackerFn {
-	return func(_ string, _ string, _ bool) Tracker {
-		return &LogClient{}
-	}
+func (fn LogClientFn) Tracker(_ string, _ string, _ bool) Tracker {
+	return &LogClient{}
 }
 
 type LogClient struct{}

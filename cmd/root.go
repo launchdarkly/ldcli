@@ -224,11 +224,12 @@ func Execute(version string) {
 	}
 	configService := config.NewService(resources.NewClient(version))
 	trackerFn := analytics.ClientFn{
-		ID: uuid.New().String(),
+		ID:      uuid.New().String(),
+		Version: version,
 	}
 	rootCmd, err := NewRootCommand(
 		configService,
-		trackerFn.Tracker(version),
+		trackerFn.Tracker,
 		clients,
 		version,
 		true,
@@ -266,7 +267,7 @@ See each command's help for details on how to use the generated script.`, rootCm
 		outcome = analytics.SUCCESS
 	}
 
-	analyticsClient := trackerFn.Tracker(version)(
+	analyticsClient := trackerFn.Tracker(
 		viper.GetString(cliflags.AccessTokenFlag),
 		viper.GetString(cliflags.BaseURIFlag),
 		viper.GetBool(cliflags.AnalyticsOptOut),
