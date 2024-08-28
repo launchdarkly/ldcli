@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -77,11 +78,6 @@ func NewRootCommand(
 	version string,
 	useConfigFile bool,
 ) (*RootCmd, error) {
-	tracker := analyticsTrackerFn(
-		viper.GetString(cliflags.AccessTokenFlag),
-		viper.GetString(cliflags.BaseURIFlag),
-		viper.GetBool(cliflags.AnalyticsOptOut),
-	)
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -102,7 +98,6 @@ func NewRootCommand(
 					cmd.DisableFlagParsing = true
 				}
 			}
-			tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd))
 		},
 		Annotations: make(map[string]string),
 		// Handle errors differently based on type.
@@ -121,13 +116,18 @@ func NewRootCommand(
 
 		// get the resource for the tracking event, not the action
 		resourceCommand := getResourceCommand(c)
-
-		c.Annotations = resourceCommand.Annotations
-		if c.Annotations == nil {
-			c.Annotations = make(map[string]string)
-		}
-		c.Annotations["action"] = "help"
-		tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd))
+		analyticsTrackerFn(
+			viper.GetString(cliflags.AccessTokenFlag),
+			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetBool(cliflags.AnalyticsOptOut),
+		).SendCommandRunEvent(
+			cmdAnalytics.CmdRunEventProperties(c,
+				resourceCommand.Name(),
+				map[string]interface{}{
+					"action": "help",
+				},
+			),
+		)
 		hf(c, args)
 	})
 
@@ -223,10 +223,12 @@ func Execute(version string) {
 		ResourcesClient:    resources.NewClient(version),
 	}
 	configService := config.NewService(resources.NewClient(version))
-	trackerFn := analytics.LogClientFn{}
+	trackerFn := analytics.ClientFn{
+		ID: uuid.New().String(),
+	}
 	rootCmd, err := NewRootCommand(
 		configService,
-		trackerFn.Tracker(),
+		trackerFn.Tracker(version),
 		clients,
 		version,
 		true,
@@ -264,7 +266,7 @@ See each command's help for details on how to use the generated script.`, rootCm
 		outcome = analytics.SUCCESS
 	}
 
-	analyticsClient := trackerFn.Tracker()(
+	analyticsClient := trackerFn.Tracker(version)(
 		viper.GetString(cliflags.AccessTokenFlag),
 		viper.GetString(cliflags.BaseURIFlag),
 		viper.GetBool(cliflags.AnalyticsOptOut),
