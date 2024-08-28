@@ -193,7 +193,7 @@ func NewRootCommand(
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(logincmd.NewLoginCmd(resources.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
-	cmd.AddCommand(devcmd.NewDevServerCmd(resources.NewClient(version), dev_server.NewClient(version)))
+	cmd.AddCommand(devcmd.NewDevServerCmd(resources.NewClient(version), analyticsTrackerFn, dev_server.NewClient(version)))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	// add non-generated commands
