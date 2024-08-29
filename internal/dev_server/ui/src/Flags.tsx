@@ -44,7 +44,7 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
     })
       .then(async (res) => {
         if (!res.ok) {
-          return; // todo
+          throw new Error(`got ${res.status} ${res.statusText}. ${await res.text()}`)
         }
 
         const updatedOverrides = {
@@ -58,9 +58,7 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
 
         setOverrides(updatedOverrides);
       })
-      .catch((_e) => {
-        // todo
-      });
+      .catch( console.error.bind(console, "unable to update override"));
   };
 
   const removeOverride = (flagKey: string, updateState: boolean = true) => {
@@ -71,8 +69,6 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
       },
     )
       .then((res) => {
-        // todo: clean this up.
-        //
         // In the remove-all-override case, we need to fan out and make the
         // request for every override, so we don't want to be interleaving
         // local state updates. Expect the consumer to update the local state
@@ -87,9 +83,7 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
             setOnlyShowOverrides(false);
         }
       })
-      .catch((_e) => {
-        // todo
-      });
+      .catch( console.error.bind("unable to remove override") );
   };
 
   const fetchFlags = async () => {
