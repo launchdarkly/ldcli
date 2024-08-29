@@ -61,9 +61,10 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
-	r.PathPrefix("/proxy").
+	proxyPrefix := "/proxy"
+	r.PathPrefix(proxyPrefix).
 		Methods(http.MethodGet).
-		Handler(proxy.NewProxy(serverParams.AccessToken, serverParams.BaseURI, c.cliVersion))
+		Handler(proxy.NewProxy(serverParams.AccessToken, serverParams.BaseURI, c.cliVersion, proxyPrefix))
 	sdk.BindRoutes(r)
 	handler := api.HandlerFromMux(apiServer, r)
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)

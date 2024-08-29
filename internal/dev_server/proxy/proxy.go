@@ -10,7 +10,7 @@ import (
 )
 
 // NewProxy creates an http.Handler which will proxy requests to the baseUri and attach the provided accessToken
-func NewProxy(accessToken, baseUri, version string) http.Handler {
+func NewProxy(accessToken, baseUri, version, prefix string) http.Handler {
 	target, err := url.Parse(baseUri)
 	if err != nil {
 		log.Fatalf("unable to parse target url (%s): %v", baseUri, err)
@@ -20,7 +20,7 @@ func NewProxy(accessToken, baseUri, version string) http.Handler {
 		r.Out.Header.Set("Authorization", accessToken)
 		r.Out.Header.Set("User-Agent", fmt.Sprintf("ldcli/dev-server@%s", version))
 		r.SetURL(target)
-		r.Out.URL.Path = strings.TrimPrefix(r.In.URL.Path, "/proxy")
+		r.Out.URL.Path = strings.TrimPrefix(r.In.URL.Path, prefix)
 	}
 	return proxy
 }
