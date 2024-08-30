@@ -20,6 +20,11 @@ export default defineConfig(({ command }) => {
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api/, ''),
         },
+        '/proxy': {
+          target: 'http://localhost:8765',
+          changeOrigin: true,
+          //rewrite: (path: string) => path.replace(/^\/api/, ''),
+        },
       },
     },
   };

@@ -1,26 +1,12 @@
 import { LDFlagSet, LDFlagValue } from 'launchdarkly-js-client-sdk';
-import {
-  Button,
-  Checkbox,
-  IconButton,
-  Label,
-  Switch,
-  Modal,
-  ModalOverlay,
-  DialogTrigger,
-  Dialog,
-  TextArea,
-} from '@launchpad-ui/components';
-import {
-  Box,
-  CopyToClipboard,
-  InlineEdit,
-  TextField,
-} from '@launchpad-ui/core';
+import { Button, Checkbox, IconButton, Label } from '@launchpad-ui/components';
+import { Box, CopyToClipboard } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { apiRoute, sortFlags } from './util.ts';
+import { FlagsApiResponse, FlagVariation } from './api.ts';
+import VariationValues from './Flag.tsx';
 
 type FlagProps = {
   selectedProject: string;
@@ -29,13 +15,15 @@ type FlagProps = {
 };
 
 function Flags({ selectedProject, flags, setFlags }: FlagProps) {
-  const [overrides, setOverrides] = useState<Record<
-    string,
-    { value: LDFlagValue }
-  > | null>(null);
+  const [overrides, setOverrides] = useState<
+    Record<string, { value: LDFlagValue }>
+  >({});
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
+  const [availableVariations, setAvailableVariations] = useState<
+    Record<string, FlagVariation[]>
+  >({});
+
   const overridesPresent = overrides && Object.keys(overrides).length > 0;
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const updateOverride = (flagKey: string, overrideValue: LDFlagValue) => {
     fetch(apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`), {
@@ -44,7 +32,9 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
     })
       .then(async (res) => {
         if (!res.ok) {
-          throw new Error(`got ${res.status} ${res.statusText}. ${await res.text()}`)
+          throw new Error(
+            `got ${res.status} ${res.statusText}. ${await res.text()}`,
+          );
         }
 
         const updatedOverrides = {
@@ -58,7 +48,7 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
 
         setOverrides(updatedOverrides);
       })
-      .catch( console.error.bind(console, "unable to update override"));
+      .catch(console.error.bind(console, 'unable to update override'));
   };
 
   const removeOverride = (flagKey: string, updateState: boolean = true) => {
@@ -83,10 +73,10 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
             setOnlyShowOverrides(false);
         }
       })
-      .catch( console.error.bind("unable to remove override") );
+      .catch(console.error.bind('unable to remove override'));
   };
 
-  const fetchFlags = async () => {
+  const fetchDevFlags = async () => {
     const res = await fetch(
       apiRoute(`/dev/projects/${selectedProject}?expand=overrides`),
     );
@@ -101,17 +91,43 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
     setOverrides(overrides);
   };
 
+  const fetchFlags = async (
+    path?: string,
+  ): Promise<Record<string, FlagVariation[]>> => {
+    if (!path)
+      path = `/api/v2/flags/${selectedProject}?summary=false&limit=100`;
+    const res = await fetch(`/proxy${path}`);
+    if (!res.ok) {
+      throw new Error(`Got ${res.status}, ${res.statusText} from flags fetch`);
+    }
+    const json :FlagsApiResponse= await res.json();
+    const flagKeys: string[] = json.items.map((i) => i.key);
+    const flagVariations: FlagVariation[][] = json.items.map((i) => i.variations);
+    const newAvailableVariations: Record<string,FlagVariation[]> = {};
+    for (let i = 0; i < flagKeys.length; i++) {
+      newAvailableVariations[flagKeys[i]] = flagVariations[i];
+    }
+    if (json._links.next)
+      return {
+        ...(await fetchFlags(json._links.next.href)),
+        ...newAvailableVariations,
+      };
+    else return newAvailableVariations;
+  };
+
   // Fetch flags / overrides on mount
   useEffect(() => {
-    fetchFlags().catch(
-      console.error.bind(console, 'error when fetching flags'),
-    );
+    Promise.all([
+      fetchDevFlags(),
+      fetchFlags().then((av) => setAvailableVariations(av)),
+    ]).catch(console.error.bind(console, 'error when fetching flags'));
   }, [selectedProject]);
 
   if (!flags) {
     return null;
   }
 
+  console.log(availableVariations);
   return (
     <>
       <div className="container">
@@ -185,115 +201,12 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
         <ul className="flags-list">
           {Object.entries(flags).map(
             ([flagKey, { value: flagValue }], index) => {
-              const overrideValue = overrides?.[flagKey]?.value;
-              const hasOverride = overrideValue !== undefined;
-              let valueNode;
+              const overrideValue = overrides[flagKey]?.value;
+              const hasOverride = flagKey in overrides;
+              const currentValue = hasOverride ? overrideValue : flagValue;
 
               if (onlyShowOverrides && !hasOverride) {
                 return null;
-              }
-
-              switch (typeof flagValue) {
-                case 'boolean':
-                  valueNode = (
-                    <Switch
-                      isSelected={hasOverride ? overrideValue : flagValue}
-                      onChange={(newValue) => {
-                        updateOverride(flagKey, newValue);
-                      }}
-                    />
-                  );
-                  break;
-                case 'number':
-                  valueNode = (
-                    <TextField
-                      type="number"
-                      value={hasOverride ? Number(overrideValue) : flagValue}
-                      onChange={(e) => {
-                        updateOverride(flagKey, Number(e.target.value));
-                      }}
-                    />
-                  );
-                  break;
-                case 'string':
-                  valueNode = (
-                    <InlineEdit
-                      defaultValue={hasOverride ? overrideValue : flagValue}
-                      onConfirm={(newValue: string) => {
-                        updateOverride(flagKey, newValue);
-                      }}
-                      renderInput={
-                        <TextField id={`${flagKey}-override-input`} />
-                      }
-                    >
-                      {hasOverride ? overrideValue : flagValue}
-                    </InlineEdit>
-                  );
-                  break;
-                default:
-                  valueNode = (
-                    <DialogTrigger>
-                      <Button style={{ border: 'none', padding: 0, margin: 0 }}>
-                        <TextArea
-                          rows={8}
-                          readOnly={true}
-                          style={{
-                            resize: 'none',
-                            overflowY: 'clip',
-                            cursor: 'pointer',
-                          }}
-                          value={JSON.stringify(
-                            hasOverride ? overrideValue : flagValue,
-                            null,
-                            2,
-                          )}
-                        ></TextArea>
-                      </Button>
-                      <ModalOverlay>
-                        <Modal>
-                          <Dialog>
-                            {({ close }) => (
-                              <form
-                                onSubmit={() => {
-                                  let newVal;
-
-                                  try {
-                                    newVal = JSON.parse(
-                                      textAreaRef?.current?.value || '',
-                                    );
-                                  } catch (err) {
-                                    window.alert('Invalid JSON formatting');
-                                    return;
-                                  }
-
-                                  updateOverride(flagKey, newVal);
-                                }}
-                              >
-                                <TextArea
-                                  ref={textAreaRef}
-                                  style={{ width: '100%', height: '30rem' }}
-                                  defaultValue={JSON.stringify(
-                                    hasOverride ? overrideValue : flagValue,
-                                    null,
-                                    2,
-                                  )}
-                                />
-                                <div>
-                                  <Button
-                                    variant="primary"
-                                    type="submit"
-                                    onPress={close}
-                                  >
-                                    Accept
-                                  </Button>
-                                </div>
-                              </form>
-                            )}
-                          </Dialog>
-                        </Modal>
-                      </ModalOverlay>
-                    </DialogTrigger>
-                  );
               }
 
               return (
@@ -315,7 +228,19 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
                       </code>
                     </CopyToClipboard>
                   </Box>
-                  <div className="flag-value">{valueNode}</div>
+                  <div className="flag-value">
+                    <VariationValues
+                      availableVariations={
+                        availableVariations[flagKey]
+                          ? availableVariations[flagKey]
+                          : []
+                      }
+                      currentValue={currentValue}
+                      flagValue={flagValue}
+                      flagKey={flagKey}
+                      updateOverride={updateOverride}
+                    />
+                  </div>
                   <Box width="2rem" height="2rem" marginLeft="0.5rem">
                     {hasOverride && (
                       <IconButton
