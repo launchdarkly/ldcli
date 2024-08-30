@@ -16,3 +16,33 @@ To install the repo's git hooks, run `make install-hooks`.
 
 The pre-commit hook checks that relevant project files are formatted with `go fmt`, and that
 the `go.mod/go.sum` files are tidy.
+
+## Adding a new command
+
+There are a few things you need to do in order to wire up a new top-level command.
+
+1. Add your command to the root command by calling `cmd.AddComand` in the `NewRootCommand` method of the `cmd` package.
+2. Update the root command's usage template by modifying the `getUsageTemplate` method in the `cmd` package.
+3. Instrument your command by setting a `PreRun` or `PersistentPreRun` on your command which calls `tracker.SendCommandRunEvent`. Example below.
+```go
+cmd := &cobra.Command{
+    Use:   "dev-server",
+    Short: "Development server",
+    Long:  "Start and use a local development server for overriding flag values.",
+    PersistentPreRun: func(cmd *cobra.Command, args []string) {
+
+        tracker := analyticsTrackerFn(
+            viper.GetString(cliflags.AccessTokenFlag),
+            viper.GetString(cliflags.BaseURIFlag),
+            viper.GetBool(cliflags.AnalyticsOptOut),
+        )
+        tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(
+            cmd,
+            "dev-server",
+            map[string]interface{}{
+                "action": cmd.Name(),
+            }))
+    },
+}
+
+```

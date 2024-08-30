@@ -9,49 +9,27 @@ import (
 	"net/url"
 	"sync"
 	"time"
-
-	"github.com/stretchr/testify/mock"
 )
 
-type TrackerFn func(accessToken string, baseURI string, optOut bool) Tracker
-
 type ClientFn struct {
-	ID string
+	ID      string
+	Version string
 }
 
-func (fn ClientFn) Tracker(version string) TrackerFn {
-	return func(accessToken string, baseURI string, optOut bool) Tracker {
-		if optOut {
-			return &NoopClient{}
-		}
-
-		return &Client{
-			httpClient: &http.Client{
-				Timeout: time.Second * 3,
-			},
-			id:          fn.ID,
-			version:     version,
-			accessToken: accessToken,
-			baseURI:     baseURI,
-		}
-	}
-}
-
-type NoopClientFn struct{}
-
-func (fn NoopClientFn) Tracker() TrackerFn {
-	return func(_ string, _ string, _ bool) Tracker {
+func (fn ClientFn) Tracker(accessToken string, baseURI string, optOut bool) Tracker {
+	if optOut {
 		return &NoopClient{}
 	}
-}
 
-type Tracker interface {
-	SendCommandRunEvent(properties map[string]interface{})
-	SendCommandCompletedEvent(outcome string)
-	SendSetupStepStartedEvent(step string)
-	SendSetupSDKSelectedEvent(sdk string)
-	SendSetupFlagToggledEvent(on bool, count int, duration_ms int64)
-	Wait()
+	return &Client{
+		httpClient: &http.Client{
+			Timeout: time.Second * 3,
+		},
+		id:          fn.ID,
+		version:     fn.Version,
+		accessToken: accessToken,
+		baseURI:     baseURI,
+	}
 }
 
 type Client struct {
@@ -164,69 +142,3 @@ func (c *Client) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64
 func (a *Client) Wait() {
 	a.wg.Wait()
 }
-
-type NoopClient struct{}
-
-func (c *NoopClient) SendCommandRunEvent(properties map[string]interface{})           {}
-func (c *NoopClient) SendCommandCompletedEvent(outcome string)                        {}
-func (c *NoopClient) SendSetupStepStartedEvent(step string)                           {}
-func (c *NoopClient) SendSetupSDKSelectedEvent(sdk string)                            {}
-func (c *NoopClient) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64) {}
-func (a *NoopClient) Wait()                                                           {}
-
-type MockTracker struct {
-	mock.Mock
-	ID string
-}
-
-func (m *MockTracker) sendEvent(eventName string, properties map[string]interface{}) {
-	properties["id"] = m.ID
-	m.Called(eventName, properties)
-}
-
-func (m *MockTracker) SendCommandRunEvent(properties map[string]interface{}) {
-	m.sendEvent(
-		"CLI Command Run",
-		properties,
-	)
-}
-
-func (m *MockTracker) SendCommandCompletedEvent(outcome string) {
-	m.sendEvent(
-		"CLI Command Completed",
-		map[string]interface{}{
-			"outcome": outcome,
-		},
-	)
-}
-
-func (m *MockTracker) SendSetupStepStartedEvent(step string) {
-	m.sendEvent(
-		"CLI Setup Step Started",
-		map[string]interface{}{
-			"step": step,
-		},
-	)
-}
-
-func (m *MockTracker) SendSetupSDKSelectedEvent(sdk string) {
-	m.sendEvent(
-		"CLI Setup SDK Selected",
-		map[string]interface{}{
-			"sdk": sdk,
-		},
-	)
-}
-
-func (m *MockTracker) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64) {
-	m.sendEvent(
-		"CLI Setup Flag Toggled",
-		map[string]interface{}{
-			"on":          on,
-			"count":       count,
-			"duration_ms": duration_ms,
-		},
-	)
-}
-
-func (a *MockTracker) Wait() {}
