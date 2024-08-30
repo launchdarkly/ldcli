@@ -46,11 +46,10 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
             `got ${res.status} ${res.statusText}. ${await res.text()}`,
           );
         }
-
       })
       .catch((err) => {
-        setOverrides(overrides)
-        console.error('unable to update override', err)
+        setOverrides(overrides);
+        console.error('unable to update override', err);
       });
   };
 
@@ -65,7 +64,8 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
         apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`),
         {
           method: 'DELETE',
-        });
+        },
+      );
       if (!res.ok) {
         throw new Error(
           `got ${res.status} ${res.statusText}. ${await res.text()}`,
@@ -101,10 +101,12 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
     if (!res.ok) {
       throw new Error(`Got ${res.status}, ${res.statusText} from flags fetch`);
     }
-    const json :FlagsApiResponse= await res.json();
+    const json: FlagsApiResponse = await res.json();
     const flagKeys: string[] = json.items.map((i) => i.key);
-    const flagVariations: FlagVariation[][] = json.items.map((i) => i.variations);
-    const newAvailableVariations: Record<string,FlagVariation[]> = {};
+    const flagVariations: FlagVariation[][] = json.items.map(
+      (i) => i.variations,
+    );
+    const newAvailableVariations: Record<string, FlagVariation[]> = {};
     for (let i = 0; i < flagKeys.length; i++) {
       newAvailableVariations[flagKeys[i]] = flagVariations[i];
     }

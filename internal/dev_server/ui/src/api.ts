@@ -6,15 +6,15 @@ export type FlagVariation = {
 };
 
 export type ApiFlag = {
-  key: string
-  variations: FlagVariation[]
-}
+  key: string;
+  variations: FlagVariation[];
+};
 
 type Links = {
-  next?: { href: string }
-}
+  next?: { href: string };
+};
 
 export type FlagsApiResponse = {
-  items: ApiFlag[]
-  _links: Links
-}
+  items: ApiFlag[];
+  _links: Links;
+};
