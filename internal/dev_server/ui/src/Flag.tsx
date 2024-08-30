@@ -72,8 +72,7 @@ const VariationValues = ({
       };
 
       //TODO:
-      // Popover for edit button to explain
-      // content in the edit modal
+      // Grow the text area when editing local override
       return (
         <>
           <Box width="2rem" height="2rem" marginRight="0.5rem">
@@ -88,7 +87,7 @@ const VariationValues = ({
                     {({ close }) => (
                       <Form onSubmit={onSubmit(close)}>
                         <TextField
-                          defaultValue={JSON.stringify(currentValue)}
+                          defaultValue={JSON.stringify(currentValue, null, 2)}
                           name="value"
                           validate={(value) => {
                             try {
@@ -104,7 +103,11 @@ const VariationValues = ({
                           }}
                         >
                           <Label>{`${flagKey} value`}</Label>
-                          <TextArea />
+                          <TextArea
+                            style={{
+                              fontFamily: 'monospace',
+                            }}
+                          />
                           <Text slot="description">
                             Update the value as JSON
                           </Text>
