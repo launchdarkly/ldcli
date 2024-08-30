@@ -26,6 +26,16 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
   const overridesPresent = overrides && Object.keys(overrides).length > 0;
 
   const updateOverride = (flagKey: string, overrideValue: LDFlagValue) => {
+    const updatedOverrides = {
+      ...overrides,
+      ...{
+        [flagKey]: {
+          value: overrideValue,
+        },
+      },
+    };
+
+    setOverrides(updatedOverrides);
     fetch(apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`), {
       method: 'PUT',
       body: JSON.stringify(overrideValue),
@@ -37,43 +47,34 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
           );
         }
 
-        const updatedOverrides = {
-          ...overrides,
-          ...{
-            [flagKey]: {
-              value: overrideValue,
-            },
-          },
-        };
-
-        setOverrides(updatedOverrides);
       })
-      .catch(console.error.bind(console, 'unable to update override'));
+      .catch((err) => {
+        setOverrides(overrides)
+        console.error('unable to update override', err)
+      });
   };
 
-  const removeOverride = (flagKey: string, updateState: boolean = true) => {
-    return fetch(
-      apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`),
-      {
-        method: 'DELETE',
-      },
-    )
-      .then((res) => {
-        // In the remove-all-override case, we need to fan out and make the
-        // request for every override, so we don't want to be interleaving
-        // local state updates. Expect the consumer to update the local state
-        // when all requests are done
-        if (res.ok && updateState) {
-          const updatedOverrides = { ...overrides };
-          delete updatedOverrides[flagKey];
+  const removeOverride = async (flagKey: string) => {
+    const updatedOverrides = { ...overrides };
+    delete updatedOverrides[flagKey];
 
-          setOverrides(updatedOverrides);
+    setOverrides(updatedOverrides);
 
-          if (Object.keys(updatedOverrides).length === 0)
-            setOnlyShowOverrides(false);
-        }
-      })
-      .catch(console.error.bind('unable to remove override'));
+    try {
+      const res = await fetch(
+        apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`),
+        {
+          method: 'DELETE',
+        });
+      if (!res.ok) {
+        throw new Error(
+          `got ${res.status} ${res.statusText}. ${await res.text()}`,
+        );
+      }
+    } catch (err) {
+      console.error('unable to remove override', err);
+      setOverrides(overrides);
+    }
   };
 
   const fetchDevFlags = async () => {
@@ -127,7 +128,6 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
     return null;
   }
 
-  console.log(availableVariations);
   return (
     <>
       <div className="container">
@@ -175,7 +175,7 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
                 overrideKeys.map((flagKey) => {
                   // Opt out of local state updates since we're bulk-removing
                   // overrides async
-                  removeOverride(flagKey, false);
+                  removeOverride(flagKey);
                 }),
               );
 

@@ -43,7 +43,7 @@ const VariationValues = ({
       );
       if (selectedVariationIndex === -1) {
         variations = [
-          { _id: 'OVERRIDE', name: 'local override', value: currentValue },
+          { _id: 'OVERRIDE', name: 'Local Override', value: currentValue },
           ...variations,
         ];
         selectedVariationIndex = 0;
@@ -71,6 +71,10 @@ const VariationValues = ({
                 {variations.map((fv, index) => (
                   <ListBoxItem key={index} id={index}>
                     {fv.name ? fv.name : JSON.stringify(fv.value)}
+                    {fv._id === "OVERRIDE" ?
+                      <Icon name="devices" size="small"/>
+                      : null
+                    }
                   </ListBoxItem>
                 ))}
               </ListBox>
