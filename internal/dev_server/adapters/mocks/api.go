@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -37,6 +38,21 @@ func NewMockApi(ctrl *gomock.Controller) *MockApi {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockApi) EXPECT() *MockApiMockRecorder {
 	return m.recorder
+}
+
+// GetAllFlags mocks base method.
+func (m *MockApi) GetAllFlags(arg0 context.Context, arg1 string) ([]ldapi.FeatureFlag, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllFlags", arg0, arg1)
+	ret0, _ := ret[0].([]ldapi.FeatureFlag)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllFlags indicates an expected call of GetAllFlags.
+func (mr *MockApiMockRecorder) GetAllFlags(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllFlags", reflect.TypeOf((*MockApi)(nil).GetAllFlags), arg0, arg1)
 }
 
 // GetSdkKey mocks base method.
