@@ -1,6 +1,20 @@
 import { LDFlagSet, LDFlagValue } from 'launchdarkly-js-client-sdk';
-import { Button, Checkbox, IconButton, Label } from '@launchpad-ui/components';
-import { Box, CopyToClipboard } from '@launchpad-ui/core';
+import {
+  Button,
+  Checkbox,
+  IconButton,
+  Label,
+  Input,
+  SearchField,
+  Group,
+} from '@launchpad-ui/components';
+import {
+  Box,
+  CopyToClipboard,
+  Inline,
+  Pagination,
+  Stack,
+} from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Icon } from '@launchpad-ui/icons';
@@ -28,11 +42,46 @@ function Flags({
   const [availableVariations, setAvailableVariations] = useState<
     Record<string, FlagVariation[]>
   >({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(0); // Change initial page to 0
+  const flagsPerPage = 20;
 
   const overridesPresent = useMemo(
     () => overrides && Object.keys(overrides).length > 0,
     [overrides],
   );
+
+  const filteredFlags = useMemo(() => {
+    if (!flags) return [];
+    const flagEntries = Object.entries(flags);
+    const filtered = flagEntries.filter(([flagKey]) => {
+      const search = searchTerm.toLowerCase();
+      const key = flagKey.toLowerCase();
+      let searchIndex = 0;
+
+      // Fuzzy search :P
+      for (let i = 0; i < key.length; i++) {
+        if (
+          key[i] === search[searchIndex] ||
+          ((key[i] == '-' || key[i] == '_' || key[i] == '.') &&
+            search[searchIndex] == ' ')
+        ) {
+          searchIndex++;
+        }
+        if (searchIndex === search.length) {
+          return true;
+        }
+      }
+      return false;
+    });
+    return filtered;
+  }, [flags, searchTerm]);
+
+  const paginatedFlags = useMemo(() => {
+    const startIndex = currentPage * flagsPerPage; // Adjust startIndex calculation
+    const endIndex = startIndex + flagsPerPage;
+    return filteredFlags.slice(startIndex, endIndex);
+  }, [filteredFlags, currentPage]);
 
   const updateOverride = useCallback(
     (flagKey: string, overrideValue: LDFlagValue) => {
@@ -149,136 +198,202 @@ function Flags({
     return null;
   }
 
+  const totalPages = Math.ceil(filteredFlags.length / flagsPerPage);
+
+  const handlePageChange = (direction: string) => {
+    switch (direction) {
+      case 'next':
+        setCurrentPage(
+          (prevPage) => Math.min(prevPage + 1, totalPages - 1), // Adjust page increment
+        );
+        break;
+      case 'prev':
+        setCurrentPage((prevPage) => Math.max(prevPage - 1, 0)); // Adjust page decrement
+        break;
+      case 'first':
+        setCurrentPage(0); // Adjust first page
+        break;
+      case 'last':
+        setCurrentPage(totalPages - 1); // Adjust last page
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <>
-      <div className="container">
-        <Box
-          display="flex"
-          flexDirection="row"
-          justifyContent="space-between"
-          alignItems="center"
-          marginBottom="2rem"
-          padding="1rem"
-          background={Theme.color.blue[50]}
-          borderRadius={Theme.borderRadius.regular}
+      <Box
+        display="flex"
+        flexDirection="row"
+        justifyContent="space-between"
+        alignItems="center"
+        marginBottom="2rem"
+        padding="1rem"
+        background={Theme.color.blue[50]}
+        borderRadius={Theme.borderRadius.regular}
+      >
+        <Label
+          htmlFor="only-show-overrides"
+          className="only-show-overrides-label"
         >
-          <Label
-            htmlFor="only-show-overrides"
-            className="only-show-overrides-label"
-          >
-            <Checkbox
-              id="only-show-overrides"
-              isSelected={onlyShowOverrides}
-              onChange={(newValue) => {
-                setOnlyShowOverrides(newValue);
-              }}
-              isDisabled={!overridesPresent}
-              style={{
-                display: 'inline-block',
-                marginRight: '.25rem',
-              }}
-            />
-            Only show flags with overrides
-          </Label>
-          <Button
-            variant="destructive"
-            isDisabled={!overridesPresent}
-            onPress={async () => {
-              // This button is disabled unless overrides are present, but the
-              // type is nullable
-              if (!overrides) {
-                return;
-              }
-
-              const overrideKeys = Object.keys(overrides);
-
-              await Promise.all(
-                overrideKeys.map((flagKey) => {
-                  // Opt out of local state updates since we're bulk-removing
-                  // overrides async
-                  removeOverride(flagKey);
-                }),
-              );
-
-              // Winnow out removed overrides and update local state in a
-              // single pass
-              const updatedOverrides = overrideKeys.reduce(
-                (accum, flagKey) => {
-                  delete accum[flagKey];
-
-                  return accum;
-                },
-                { ...overrides },
-              );
-
-              setOverrides(updatedOverrides);
-              setOnlyShowOverrides(false);
+          <Checkbox
+            id="only-show-overrides"
+            isSelected={onlyShowOverrides}
+            onChange={(newValue) => {
+              setOnlyShowOverrides(newValue);
             }}
-          >
-            <Icon size="medium" name="cancel" />
-            Remove all overrides
-          </Button>
-        </Box>
+            isDisabled={!overridesPresent}
+            style={{
+              display: 'inline-block',
+              marginRight: '.25rem',
+            }}
+          />
+          Only show flags with overrides
+        </Label>
+        <Button
+          variant="destructive"
+          isDisabled={!overridesPresent}
+          onPress={async () => {
+            // This button is disabled unless overrides are present, but the
+            // type is nullable
+            if (!overrides) {
+              return;
+            }
+
+            const overrideKeys = Object.keys(overrides);
+
+            await Promise.all(
+              overrideKeys.map((flagKey) => {
+                // Opt out of local state updates since we're bulk-removing
+                // overrides async
+                removeOverride(flagKey);
+              }),
+            );
+
+            // Winnow out removed overrides and update local state in a
+            // single pass
+            const updatedOverrides = overrideKeys.reduce(
+              (accum, flagKey) => {
+                delete accum[flagKey];
+
+                return accum;
+              },
+              { ...overrides },
+            );
+
+            setOverrides(updatedOverrides);
+            setOnlyShowOverrides(false);
+          }}
+        >
+          <Icon size="medium" name="cancel" />
+          Remove all overrides
+        </Button>
+      </Box>
+      <Stack gap="4">
+        <Inline gap="4">
+          <SearchField>
+            <Group>
+              <Icon name="search" size="small" />
+              <Input
+                placeholder="Search flags"
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(0); // Reset pagination
+                }}
+              />
+              <IconButton
+                aria-label="clear"
+                icon="cancel-circle-outline"
+                size="small"
+                variant="minimal"
+              />
+            </Group>
+          </SearchField>
+        </Inline>
         <ul className="flags-list">
-          {Object.entries(flags).map(
-            ([flagKey, { value: flagValue }], index) => {
-              const overrideValue = overrides[flagKey]?.value;
-              const hasOverride = flagKey in overrides;
-              const currentValue = hasOverride ? overrideValue : flagValue;
+          {paginatedFlags.map(([flagKey, { value: flagValue }], index) => {
+            const overrideValue = overrides[flagKey]?.value;
+            const hasOverride = flagKey in overrides;
+            const currentValue = hasOverride ? overrideValue : flagValue;
 
-              if (onlyShowOverrides && !hasOverride) {
-                return null;
-              }
+            if (onlyShowOverrides && !hasOverride) {
+              return null;
+            }
 
-              return (
-                <li
-                  key={flagKey}
-                  style={{
-                    backgroundColor: index % 2 === 0 ? 'white' : '#f8f8f8',
-                  }}
-                >
-                  <Box
-                    whiteSpace="nowrap"
-                    flexGrow="1"
-                    paddingLeft="1rem"
-                    paddingRight="1rem"
-                  >
+            return (
+              <li
+                key={flagKey}
+                style={{
+                  backgroundColor: index % 2 === 0 ? 'white' : '#f8f8f8',
+                  height: '2rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <Box whiteSpace="nowrap" paddingLeft="1rem" paddingRight="1rem">
+                  <Inline gap="2">
                     <CopyToClipboard asChild text={flagKey}>
                       <code className={hasOverride ? 'has-override' : ''}>
                         {flagKey}
                       </code>
                     </CopyToClipboard>
-                  </Box>
-                  <div className="flag-value">
-                    <VariationValues
-                      availableVariations={
-                        availableVariations[flagKey]
-                          ? availableVariations[flagKey]
-                          : []
-                      }
-                      currentValue={currentValue}
-                      flagValue={flagValue}
-                      flagKey={flagKey}
-                      updateOverride={updateOverride}
-                    />
-                  </div>
-                  <Box width="2rem" height="2rem" marginLeft="0.5rem">
+
                     {hasOverride && (
-                      <IconButton
+                      <Button
                         icon="cancel"
                         aria-label="Remove override"
                         onPress={() => {
                           removeOverride(flagKey);
                         }}
                         variant="destructive"
-                      />
+                      >
+                        <Inline gap="2">
+                          <Icon name="cancel" size="small" />
+                          Remove override
+                        </Inline>
+                      </Button>
                     )}
-                  </Box>
-                </li>
-              );
-            },
-          )}
+                  </Inline>
+                </Box>
+                <Box
+                  alignItems="center"
+                  paddingRight="1rem"
+                  overflow="hidden"
+                  flexShrink={0}
+                >
+                  <VariationValues
+                    availableVariations={
+                      availableVariations[flagKey]
+                        ? availableVariations[flagKey]
+                        : []
+                    }
+                    currentValue={currentValue}
+                    flagValue={flagValue}
+                    flagKey={flagKey}
+                    updateOverride={updateOverride}
+                  />
+                </Box>
+              </li>
+            );
+          })}
         </ul>
+      </Stack>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginTop: '1rem',
+        }}
+      >
+        <Pagination
+          currentOffset={currentPage * flagsPerPage}
+          isReady
+          onChange={(e) => handlePageChange(e as string)}
+          pageSize={flagsPerPage}
+          resourceName="flags"
+          totalCount={filteredFlags.length}
+        />
       </div>
     </>
   );
