@@ -2,13 +2,24 @@ import './App.css';
 import { useState } from 'react';
 import Flags from './Flags.tsx';
 import ProjectSelector from './ProjectSelector.tsx';
-import { Box, Alert, CopyToClipboard } from '@launchpad-ui/core';
+import { Box, Alert, CopyToClipboard, Inline } from '@launchpad-ui/core';
 import SyncButton from './Sync.tsx';
 import { LDFlagSet } from 'launchdarkly-js-client-sdk';
-import { Heading, Text } from '@launchpad-ui/components';
+import {
+  Button,
+  Heading,
+  Text,
+  Tooltip,
+  TooltipTrigger,
+  Pressable,
+} from '@launchpad-ui/components';
+import { Icon } from '@launchpad-ui/icons';
 
 function App() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [sourceEnvironmentKey, setSourceEnvironmentKey] = useState<
+    string | null
+  >(null);
   const [flags, setFlags] = useState<LDFlagSet | null>(null);
   const [showBanner, setShowBanner] = useState(false);
 
@@ -63,6 +74,16 @@ function App() {
                 setSelectedProject={setSelectedProject}
                 setShowBanner={setShowBanner}
               />
+              <TooltipTrigger>
+                <Pressable>
+                  <Inline gap="1">
+                    <Icon name="bullseye-arrow" size="medium" />
+                    <Text>{sourceEnvironmentKey}</Text>
+                  </Inline>
+                </Pressable>
+
+                <Tooltip>Source Environment Key</Tooltip>
+              </TooltipTrigger>
               <SyncButton
                 selectedProject={selectedProject}
                 setFlags={setFlags}
@@ -75,6 +96,7 @@ function App() {
                 selectedProject={selectedProject}
                 flags={flags}
                 setFlags={setFlags}
+                setSourceEnvironmentKey={setSourceEnvironmentKey}
               />
             </Box>
           )}
