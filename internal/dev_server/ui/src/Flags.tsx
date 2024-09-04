@@ -2,7 +2,7 @@ import { LDFlagSet, LDFlagValue } from 'launchdarkly-js-client-sdk';
 import { Button, Checkbox, IconButton, Label } from '@launchpad-ui/components';
 import { Box, CopyToClipboard } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { apiRoute, sortFlags } from './util.ts';
 import { FlagsApiResponse, FlagVariation } from './api.ts';
@@ -12,9 +12,15 @@ type FlagProps = {
   selectedProject: string;
   flags: LDFlagSet | null;
   setFlags: (flags: LDFlagSet) => void;
+  setSourceEnvironmentKey: (sourceEnvironmentKey: string) => void;
 };
 
-function Flags({ selectedProject, flags, setFlags }: FlagProps) {
+function Flags({
+  selectedProject,
+  flags,
+  setFlags,
+  setSourceEnvironmentKey,
+}: FlagProps) {
   const [overrides, setOverrides] = useState<
     Record<string, { value: LDFlagValue }>
   >({});
@@ -23,61 +29,70 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
     Record<string, FlagVariation[]>
   >({});
 
-  const overridesPresent = overrides && Object.keys(overrides).length > 0;
+  const overridesPresent = useMemo(
+    () => overrides && Object.keys(overrides).length > 0,
+    [overrides],
+  );
 
-  const updateOverride = (flagKey: string, overrideValue: LDFlagValue) => {
-    const updatedOverrides = {
-      ...overrides,
-      ...{
-        [flagKey]: {
-          value: overrideValue,
+  const updateOverride = useCallback(
+    (flagKey: string, overrideValue: LDFlagValue) => {
+      const updatedOverrides = {
+        ...overrides,
+        ...{
+          [flagKey]: {
+            value: overrideValue,
+          },
         },
-      },
-    };
+      };
 
-    setOverrides(updatedOverrides);
-    fetch(apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`), {
-      method: 'PUT',
-      body: JSON.stringify(overrideValue),
-    })
-      .then(async (res) => {
+      setOverrides(updatedOverrides);
+      fetch(apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`), {
+        method: 'PUT',
+        body: JSON.stringify(overrideValue),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            throw new Error(
+              `got ${res.status} ${res.statusText}. ${await res.text()}`,
+            );
+          }
+        })
+        .catch((err) => {
+          setOverrides(overrides);
+          console.error('unable to update override', err);
+        });
+    },
+    [overrides, selectedProject],
+  );
+
+  const removeOverride = useCallback(
+    async (flagKey: string) => {
+      const updatedOverrides = { ...overrides };
+      delete updatedOverrides[flagKey];
+
+      setOverrides(updatedOverrides);
+
+      try {
+        const res = await fetch(
+          apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`),
+          {
+            method: 'DELETE',
+          },
+        );
         if (!res.ok) {
           throw new Error(
             `got ${res.status} ${res.statusText}. ${await res.text()}`,
           );
         }
-      })
-      .catch((err) => {
+      } catch (err) {
+        console.error('unable to remove override', err);
         setOverrides(overrides);
-        console.error('unable to update override', err);
-      });
-  };
-
-  const removeOverride = async (flagKey: string) => {
-    const updatedOverrides = { ...overrides };
-    delete updatedOverrides[flagKey];
-
-    setOverrides(updatedOverrides);
-
-    try {
-      const res = await fetch(
-        apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`),
-        {
-          method: 'DELETE',
-        },
-      );
-      if (!res.ok) {
-        throw new Error(
-          `got ${res.status} ${res.statusText}. ${await res.text()}`,
-        );
       }
-    } catch (err) {
-      console.error('unable to remove override', err);
-      setOverrides(overrides);
-    }
-  };
+    },
+    [overrides, selectedProject],
+  );
 
-  const fetchDevFlags = async () => {
+  const fetchDevFlags = useCallback(async () => {
     const res = await fetch(
       apiRoute(`/dev/projects/${selectedProject}?expand=overrides`),
     );
@@ -86,37 +101,41 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
       throw new Error(`Got ${res.status}, ${res.statusText} from flag fetch`);
     }
 
-    const { flagsState: flags, overrides } = json;
+    const { flagsState: flags, overrides, sourceEnvironmentKey } = json;
 
     setFlags(sortFlags(flags));
     setOverrides(overrides);
-  };
+    setSourceEnvironmentKey(sourceEnvironmentKey);
+  }, [selectedProject, setFlags, setSourceEnvironmentKey]);
 
-  const fetchFlags = async (
-    path?: string,
-  ): Promise<Record<string, FlagVariation[]>> => {
-    if (!path)
-      path = `/api/v2/flags/${selectedProject}?summary=false&limit=100`;
-    const res = await fetch(`/proxy${path}`);
-    if (!res.ok) {
-      throw new Error(`Got ${res.status}, ${res.statusText} from flags fetch`);
-    }
-    const json: FlagsApiResponse = await res.json();
-    const flagKeys: string[] = json.items.map((i) => i.key);
-    const flagVariations: FlagVariation[][] = json.items.map(
-      (i) => i.variations,
-    );
-    const newAvailableVariations: Record<string, FlagVariation[]> = {};
-    for (let i = 0; i < flagKeys.length; i++) {
-      newAvailableVariations[flagKeys[i]] = flagVariations[i];
-    }
-    if (json._links.next)
-      return {
-        ...(await fetchFlags(json._links.next.href)),
-        ...newAvailableVariations,
-      };
-    else return newAvailableVariations;
-  };
+  const fetchFlags = useCallback(
+    async (path?: string): Promise<Record<string, FlagVariation[]>> => {
+      if (!path)
+        path = `/api/v2/flags/${selectedProject}?summary=false&limit=100`;
+      const res = await fetch(`/proxy${path}`);
+      if (!res.ok) {
+        throw new Error(
+          `Got ${res.status}, ${res.statusText} from flags fetch`,
+        );
+      }
+      const json: FlagsApiResponse = await res.json();
+      const flagKeys: string[] = json.items.map((i) => i.key);
+      const flagVariations: FlagVariation[][] = json.items.map(
+        (i) => i.variations,
+      );
+      const newAvailableVariations: Record<string, FlagVariation[]> = {};
+      for (let i = 0; i < flagKeys.length; i++) {
+        newAvailableVariations[flagKeys[i]] = flagVariations[i];
+      }
+      if (json._links.next)
+        return {
+          ...(await fetchFlags(json._links.next.href)),
+          ...newAvailableVariations,
+        };
+      else return newAvailableVariations;
+    },
+    [selectedProject],
+  );
 
   // Fetch flags / overrides on mount
   useEffect(() => {
@@ -124,7 +143,7 @@ function Flags({ selectedProject, flags, setFlags }: FlagProps) {
       fetchDevFlags(),
       fetchFlags().then((av) => setAvailableVariations(av)),
     ]).catch(console.error.bind(console, 'error when fetching flags'));
-  }, [selectedProject]);
+  }, [fetchDevFlags, fetchFlags]);
 
   if (!flags) {
     return null;
