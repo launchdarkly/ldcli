@@ -72,13 +72,40 @@ func (s Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool,
 		return false, errors.Wrap(err, "unable to marshal flags state when updating project")
 	}
 
-	result, err := s.database.ExecContext(ctx, `
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	result, err := tx.ExecContext(ctx, `
 		UPDATE projects
 		SET flag_state = ?, last_sync_time = ?, context=?
 		WHERE key = ?;
 	`, flagsStateJson, project.LastSyncTime, project.Context.JSONString(), project.Key)
 	if err != nil {
 		return false, errors.Wrap(err, "unable to execute update project")
+	}
+
+	// Delete all and add all new variations. Definitely room for optimization...
+	_, err = tx.ExecContext(ctx, `
+		DELETE FROM available_variations
+		WHERE project_key = ?
+	`, project.Key)
+	if err != nil {
+		return false, err
+	}
+
+	err = InsertAvailableVariations(ctx, tx, project)
+	if err != nil {
+		return false, err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return false, err
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -106,6 +133,24 @@ func (s Sqlite) DeleteDevProject(ctx context.Context, key string) (bool, error) 
 		return false, nil
 	}
 	return true, nil
+}
+
+func InsertAvailableVariations(ctx context.Context, tx *sql.Tx, project model.Project) (err error) {
+	for _, variation := range project.AvailableVariations {
+		jsonValue, err := variation.Value.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO available_variations
+				(project_key, flag_key, id, value, description, name)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, project.Key, variation.FlagKey, variation.Id, string(jsonValue), variation.Description, variation.Name)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s Sqlite) InsertProject(ctx context.Context, project model.Project) (err error) {
@@ -151,27 +196,9 @@ VALUES (?, ?, ?, ?, ?)
 		return
 	}
 
-	// TODO put in update
-	// _, err = tx.ExecContext(ctx, `
-	// 	DELETE FROM available_variations
-	// 	WHERE project_key = ?
-	// `, project.Key)
-	// if err != nil {
-	// 	return
-	// }
-	for _, variation := range project.AvailableVariations {
-		jsonValue, err := variation.Value.MarshalJSON()
-		if err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `
-			INSERT INTO available_variations
-				(project_key, flag_key, id, value, description, name)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, project.Key, variation.FlagKey, variation.Id, string(jsonValue), variation.Description, variation.Name)
-		if err != nil {
-			return err
-		}
+	err = InsertAvailableVariations(ctx, tx, project)
+	if err != nil {
+		return err
 	}
 	return tx.Commit()
 }

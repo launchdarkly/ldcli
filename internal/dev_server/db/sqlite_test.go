@@ -135,48 +135,6 @@ func TestDBFunctions(t *testing.T) {
 		assert.True(t, expected.LastSyncTime.Equal(p.LastSyncTime))
 	})
 
-	t.Run("UpdateProject updates flag state, sync time, context but not source environment key", func(t *testing.T) {
-		projects[0].Context = ldcontext.New(t.Name() + "blah")
-		projects[0].AllFlagsState = model.FlagsState{
-			"flag-1": model.FlagState{Value: ldvalue.Bool(false), Version: 3},
-			"flag-2": model.FlagState{Value: ldvalue.String("cool beeans"), Version: 3},
-		}
-		projects[0].LastSyncTime = time.Now().Add(time.Hour)
-		oldSourceEnvKey := projects[0].SourceEnvironmentKey
-		projects[0].SourceEnvironmentKey = "new-env"
-
-		updated, err := store.UpdateProject(ctx, projects[0])
-		assert.NoError(t, err)
-		assert.True(t, updated)
-
-		newProj, err := store.GetDevProject(ctx, projects[0].Key)
-		assert.NoError(t, err)
-		assert.NotNil(t, newProj)
-		assert.Equal(t, projects[0].Key, newProj.Key)
-		assert.Equal(t, projects[0].AllFlagsState, newProj.AllFlagsState)
-		assert.Equal(t, oldSourceEnvKey, newProj.SourceEnvironmentKey)
-		assert.Equal(t, projects[0].Context, newProj.Context)
-		assert.True(t, projects[0].LastSyncTime.Equal(newProj.LastSyncTime))
-	})
-
-	t.Run("UpdateProject returns false if project does not exist", func(t *testing.T) {
-		updated, err := store.UpdateProject(ctx, model.Project{Key: "nope"})
-		assert.NoError(t, err)
-		assert.False(t, updated)
-	})
-
-	t.Run("DeleteProject returns false if project does not exist", func(t *testing.T) {
-		deleted, err := store.DeleteDevProject(ctx, "nope")
-		assert.NoError(t, err)
-		assert.False(t, deleted)
-	})
-
-	t.Run("DeleteProject succeeds if project exists", func(t *testing.T) {
-		deleted, err := store.DeleteDevProject(ctx, projects[1].Key)
-		assert.NoError(t, err)
-		assert.True(t, deleted)
-	})
-
 	t.Run("GetAvailableVariations returns variations", func(t *testing.T) {
 		availableVariations, err := store.GetAvailableVariationsForProject(ctx, projects[0].Key)
 		require.NoError(t, err)
@@ -199,6 +157,89 @@ func TestDBFunctions(t *testing.T) {
 				assert.Equal(t, expectedFlagVariations[1].Variation, variation)
 			}
 		}
+	})
+
+	t.Run("UpdateProject updates flag state, sync time, context but not source environment key", func(t *testing.T) {
+		project := projects[0]
+		project.Context = ldcontext.New(t.Name() + "blah")
+		project.AllFlagsState = model.FlagsState{
+			"flag-1": model.FlagState{Value: ldvalue.Bool(false), Version: 3},
+			"flag-2": model.FlagState{Value: ldvalue.String("cool beeans"), Version: 3},
+		}
+		project.LastSyncTime = time.Now().Add(time.Hour)
+		oldSourceEnvKey := projects[0].SourceEnvironmentKey
+		project.SourceEnvironmentKey = "new-env"
+		project.AvailableVariations = []model.FlagVariation{
+			{
+				FlagKey: "flag-1",
+				Variation: model.Variation{
+					Id:    "1",
+					Value: ldvalue.Bool(true),
+				},
+			},
+			{
+				FlagKey: "flag-1",
+				Variation: model.Variation{
+					Id:    "2",
+					Value: ldvalue.Bool(false),
+				},
+			},
+			{
+				FlagKey: "flag-2",
+				Variation: model.Variation{
+					Id:          "3",
+					Description: lo.ToPtr("cool description"),
+					Name:        lo.ToPtr("cool name"),
+					Value:       ldvalue.String("cool beans"),
+				},
+			},
+		}
+
+		updated, err := store.UpdateProject(ctx, project)
+		assert.NoError(t, err)
+		assert.True(t, updated)
+
+		newProj, err := store.GetDevProject(ctx, project.Key)
+		assert.NoError(t, err)
+		assert.NotNil(t, newProj)
+		assert.Equal(t, project.Key, newProj.Key)
+		assert.Equal(t, project.AllFlagsState, newProj.AllFlagsState)
+		assert.Equal(t, oldSourceEnvKey, newProj.SourceEnvironmentKey)
+		assert.Equal(t, project.Context, newProj.Context)
+		assert.True(t, project.LastSyncTime.Equal(newProj.LastSyncTime))
+
+		availableVariations, err := store.GetAvailableVariationsForProject(ctx, projects[0].Key)
+		require.NoError(t, err)
+		require.Len(t, availableVariations, 2)
+		flag1Variations := availableVariations["flag-1"]
+		assert.Len(t, flag1Variations, 2)
+		flag2Variations := availableVariations["flag-2"]
+		assert.Len(t, flag2Variations, 1)
+
+		expectedFlagVariation := project.AvailableVariations[2]
+		assert.Equal(t, expectedFlagVariation.Id, flag2Variations[0].Id)
+		assert.Equal(t, *expectedFlagVariation.Name, *flag2Variations[0].Name)
+		assert.Equal(t, *expectedFlagVariation.Description, *flag2Variations[0].Description)
+		assert.Equal(t, expectedFlagVariation.Value.String(), flag2Variations[0].Value.String())
+		assert.Equal(t, ldvalue.StringType, flag2Variations[0].Value.Type())
+	})
+
+	t.Run("UpdateProject returns false if project does not exist", func(t *testing.T) {
+		updated, err := store.UpdateProject(ctx, model.Project{Key: "nope"})
+		assert.NoError(t, err)
+		assert.False(t, updated)
+	})
+
+	t.Run("DeleteProject returns false if project does not exist", func(t *testing.T) {
+		deleted, err := store.DeleteDevProject(ctx, "nope")
+		assert.NoError(t, err)
+		assert.False(t, deleted)
+	})
+
+	t.Run("DeleteProject succeeds if project exists", func(t *testing.T) {
+		deleted, err := store.DeleteDevProject(ctx, projects[1].Key)
+		assert.NoError(t, err)
+		assert.True(t, deleted)
 	})
 
 	flagKeys := []string{"flag-1", "flag-2"}
