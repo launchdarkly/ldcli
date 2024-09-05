@@ -12,7 +12,9 @@ import (
 	adapters_mocks "github.com/launchdarkly/ldcli/internal/dev_server/adapters/mocks"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model/mocks"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -103,6 +105,12 @@ func TestUpdateProject(t *testing.T) {
 	store := mocks.NewMockStore(mockController)
 	ctx := model.ContextWithStore(context.Background(), store)
 	ctx, api, sdk := adapters_mocks.WithMockApiAndSdk(ctx, mockController)
+
+	observer := mocks.NewMockObserver(mockController)
+	observers := model.NewObservers()
+	observers.RegisterObserver(observer)
+	ctx = model.SetObserversOnContext(ctx, observers)
+
 	ldCtx := ldcontext.New(t.Name())
 	newSrcEnv := "newEnv"
 
@@ -112,6 +120,22 @@ func TestUpdateProject(t *testing.T) {
 		Context:              ldcontext.New(t.Name()),
 	}
 
+	allFlagsState := flagstate.NewAllFlagsBuilder().
+		AddFlag("stringFlag", flagstate.FlagState{Value: ldvalue.String("cool")}).
+		Build()
+
+	allFlags := []ldapi.FeatureFlag{{
+		Name: "string flag",
+		Kind: "multivariate",
+		Key:  "stringFlag",
+		Variations: []ldapi.Variation{
+			{
+				Id:    lo.ToPtr("string"),
+				Value: "cool",
+			},
+		},
+	}}
+
 	t.Run("Returns error if GetDevProject fails", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&model.Project{}, errors.New("GetDevProject fails"))
 		_, err := model.UpdateProject(ctx, proj.Key, nil, nil)
@@ -119,7 +143,7 @@ func TestUpdateProject(t *testing.T) {
 		assert.Equal(t, "GetDevProject fails", err.Error())
 	})
 
-	t.Run("Passing in context triggers FetchFlagState, returns error if the fetch fails", func(t *testing.T) {
+	t.Run("returns error if the fetch flag state fails", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
 		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("", errors.New("FetchFlagState fails"))
 
@@ -128,10 +152,11 @@ func TestUpdateProject(t *testing.T) {
 		assert.Equal(t, "FetchFlagState fails", err.Error())
 	})
 
-	t.Run("Passing in sourceEnvironmentKey triggers FetchFlagState, returns error if UpdateProject fails", func(t *testing.T) {
+	t.Run("Returns error if UpdateProject fails", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
 		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, newSrcEnv).Return("sdkKey", nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(flagstate.AllFlags{}, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, nil)
+		api.EXPECT().GetAllFlags(gomock.Any(), proj.Key).Return(allFlags, nil)
 		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(false, errors.New("UpdateProject fails"))
 
 		_, err := model.UpdateProject(ctx, proj.Key, nil, &newSrcEnv)
@@ -141,6 +166,9 @@ func TestUpdateProject(t *testing.T) {
 
 	t.Run("Returns error if project was not actually updated", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
+		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, nil)
+		api.EXPECT().GetAllFlags(gomock.Any(), proj.Key).Return(allFlags, nil)
 		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(false, nil)
 
 		_, err := model.UpdateProject(ctx, proj.Key, nil, nil)
@@ -150,84 +178,20 @@ func TestUpdateProject(t *testing.T) {
 
 	t.Run("Return successfully", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
-		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(true, nil)
-
-		project, err := model.UpdateProject(ctx, proj.Key, nil, nil)
-		assert.Nil(t, err)
-		assert.Equal(t, proj, project)
-	})
-}
-
-func TestSyncProject(t *testing.T) {
-	mockController := gomock.NewController(t)
-	store := mocks.NewMockStore(mockController)
-	ctx := model.ContextWithStore(context.Background(), store)
-	ctx, api, sdk := adapters_mocks.WithMockApiAndSdk(ctx, mockController)
-
-	observer := mocks.NewMockObserver(mockController)
-	observers := model.NewObservers()
-	observers.RegisterObserver(observer)
-	ctx = model.SetObserversOnContext(ctx, observers)
-
-	proj := model.Project{
-		Key:                  "projKey",
-		SourceEnvironmentKey: "srcEnvKey",
-		Context:              ldcontext.New(t.Name()),
-	}
-
-	t.Run("Returns error if GetDevProject fails", func(t *testing.T) {
-		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&model.Project{}, errors.New("GetDevProject fails"))
-		_, err := model.SyncProject(ctx, proj.Key)
-		assert.NotNil(t, err)
-		assert.Equal(t, "GetDevProject fails", err.Error())
-	})
-
-	t.Run("returns error if FetchFlagState fails", func(t *testing.T) {
-		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
-		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("", errors.New("FetchFlagState fails"))
-
-		_, err := model.SyncProject(ctx, proj.Key)
-		assert.NotNil(t, err)
-		assert.Equal(t, "FetchFlagState fails", err.Error())
-	})
-
-	t.Run("returns error if UpdateProject fails", func(t *testing.T) {
-		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
 		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(flagstate.AllFlags{}, nil)
-		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(false, errors.New("UpdateProject fails"))
-
-		_, err := model.SyncProject(ctx, proj.Key)
-		assert.NotNil(t, err)
-		assert.Equal(t, "UpdateProject fails", err.Error())
-	})
-
-	t.Run("Returns error if project was not actually updated", func(t *testing.T) {
-		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
-		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(flagstate.AllFlags{}, nil)
-		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(false, nil)
-
-		_, err := model.SyncProject(ctx, proj.Key)
-		assert.NotNil(t, err)
-		assert.Equal(t, "Project not updated", err.Error())
-	})
-
-	t.Run("Return successfully", func(t *testing.T) {
-		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
-		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(flagstate.AllFlags{}, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, nil)
+		api.EXPECT().GetAllFlags(gomock.Any(), proj.Key).Return(allFlags, nil)
 		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(true, nil)
 		store.EXPECT().GetOverridesForProject(gomock.Any(), proj.Key).Return(model.Overrides{}, nil)
 		observer.
 			EXPECT().
 			Handle(model.SyncEvent{
 				ProjectKey:    proj.Key,
-				AllFlagsState: model.FlagsState{},
+				AllFlagsState: model.FromAllFlags(allFlagsState),
 			})
 
-		project, err := model.SyncProject(ctx, proj.Key)
-		assert.Nil(t, err)
+		project, err := model.UpdateProject(ctx, proj.Key, nil, nil)
+		require.Nil(t, err)
 		assert.Equal(t, proj, project)
 	})
 }

@@ -132,7 +132,7 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 			trackers[flagKey] = flagUpdateChan
 		}
 
-		_, err := model.SyncProject(ctx, projectKey)
+		_, err := model.UpdateProject(ctx, projectKey, nil, nil)
 		require.NoError(t, err)
 
 		for flagKey, value := range valuesMap {
