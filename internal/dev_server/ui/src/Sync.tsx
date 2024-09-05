@@ -14,6 +14,7 @@ const syncProject = async (selectedProject: string) => {
   const res = await fetch(apiRoute(`/dev/projects/${selectedProject}/sync`), {
     method: 'PATCH',
   });
+  // TODO include availableVariations
 
   const json = await res.json();
   if (!res.ok) {
