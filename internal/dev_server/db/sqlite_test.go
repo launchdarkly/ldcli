@@ -10,6 +10,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,6 +39,31 @@ func TestDBFunctions(t *testing.T) {
 				"flag-1": model.FlagState{Value: ldvalue.Bool(true), Version: 2},
 				"flag-2": model.FlagState{Value: ldvalue.String("cool"), Version: 2},
 			},
+			AvailableVariations: []model.FlagVariation{
+				{
+					FlagKey: "flag-1",
+					Variation: model.Variation{
+						Id:    "1",
+						Value: ldvalue.Bool(true),
+					},
+				},
+				{
+					FlagKey: "flag-1",
+					Variation: model.Variation{
+						Id:    "2",
+						Value: ldvalue.Bool(false),
+					},
+				},
+				{
+					FlagKey: "flag-2",
+					Variation: model.Variation{
+						Id:          "3",
+						Description: lo.ToPtr("cool description"),
+						Name:        lo.ToPtr("cool name"),
+						Value:       ldvalue.String("Cool"),
+					},
+				},
+			},
 		},
 		{
 			Key:                  "proj-to-delete",
@@ -47,6 +73,22 @@ func TestDBFunctions(t *testing.T) {
 			AllFlagsState: model.FlagsState{
 				"flag-1": model.FlagState{Value: ldvalue.Int(123), Version: 2},
 				"flag-2": model.FlagState{Value: ldvalue.Float64(99.99), Version: 2},
+			},
+			AvailableVariations: []model.FlagVariation{
+				{
+					FlagKey: "flag-1",
+					Variation: model.Variation{
+						Id:    "1",
+						Value: ldvalue.Int(123),
+					},
+				},
+				{
+					FlagKey: "flag-2",
+					Variation: model.Variation{
+						Id:    "2",
+						Value: ldvalue.Float64(99.99),
+					},
+				},
 			},
 		},
 	}
@@ -133,6 +175,30 @@ func TestDBFunctions(t *testing.T) {
 		deleted, err := store.DeleteDevProject(ctx, projects[1].Key)
 		assert.NoError(t, err)
 		assert.True(t, deleted)
+	})
+
+	t.Run("GetAvailableVariations returns variations", func(t *testing.T) {
+		availableVariations, err := store.GetAvailableVariationsForProject(ctx, projects[0].Key)
+		require.NoError(t, err)
+		require.Len(t, availableVariations, 2)
+		flag1Variations := availableVariations["flag-1"]
+		assert.Len(t, flag1Variations, 2)
+		flag2Variations := availableVariations["flag-2"]
+		assert.Len(t, flag2Variations, 1)
+
+		expectedFlagVariations := projects[0].AvailableVariations
+		assert.Equal(t, expectedFlagVariations[2].Id, flag2Variations[0].Id)
+		assert.Equal(t, *expectedFlagVariations[2].Name, *flag2Variations[0].Name)
+		assert.Equal(t, *expectedFlagVariations[2].Description, *flag2Variations[0].Description)
+		assert.Equal(t, expectedFlagVariations[2].Value.String(), flag2Variations[0].Value.String())
+		assert.Equal(t, ldvalue.StringType, flag2Variations[0].Value.Type())
+		for _, variation := range flag1Variations {
+			if variation.Value.BoolValue() {
+				assert.Equal(t, expectedFlagVariations[0].Variation, variation)
+			} else {
+				assert.Equal(t, expectedFlagVariations[1].Variation, variation)
+			}
+		}
 	})
 
 	flagKeys := []string{"flag-1", "flag-2"}

@@ -195,7 +195,7 @@ func (s Sqlite) GetAvailableVariationsForProject(ctx context.Context, projectKey
 		var descriptionNullable sql.NullString
 		var valueJson string
 
-		err = rows.Scan(&flagKey, &id, &nameNullable, &nameNullable, &valueJson)
+		err = rows.Scan(&flagKey, &id, &nameNullable, &descriptionNullable, &valueJson)
 		if err != nil {
 			return nil, err
 		}
