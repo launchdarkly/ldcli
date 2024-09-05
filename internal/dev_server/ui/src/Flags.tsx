@@ -19,7 +19,7 @@ import Theme from '@launchpad-ui/tokens';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { apiRoute, sortFlags } from './util.ts';
-import { FlagsApiResponse, FlagVariation } from './api.ts';
+import { FlagVariation } from './api.ts';
 import VariationValues from './Flag.tsx';
 import fuzzysort from 'fuzzysort';
 
@@ -128,14 +128,21 @@ function Flags({
 
   const fetchDevFlags = useCallback(async () => {
     const res = await fetch(
-      apiRoute(`/dev/projects/${selectedProject}?expand=overrides&expand=availableVariations`),
+      apiRoute(
+        `/dev/projects/${selectedProject}?expand=overrides&expand=availableVariations`,
+      ),
     );
     const json = await res.json();
     if (!res.ok) {
       throw new Error(`Got ${res.status}, ${res.statusText} from flag fetch`);
     }
 
-    const { flagsState: flags, overrides, sourceEnvironmentKey, availableVariations } = json;
+    const {
+      flagsState: flags,
+      overrides,
+      sourceEnvironmentKey,
+      availableVariations,
+    } = json;
 
     setFlags(sortFlags(flags));
     setOverrides(overrides);
@@ -145,9 +152,9 @@ function Flags({
 
   // Fetch flags / overrides on mount
   useEffect(() => {
-    Promise.all([
-      fetchDevFlags(),
-    ]).catch(console.error.bind(console, 'error when fetching flags'));
+    Promise.all([fetchDevFlags()]).catch(
+      console.error.bind(console, 'error when fetching flags'),
+    );
   }, [fetchDevFlags]);
 
   if (!flags) {

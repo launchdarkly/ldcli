@@ -6,7 +6,6 @@ import { Box, Alert, CopyToClipboard, Inline } from '@launchpad-ui/core';
 import SyncButton from './Sync.tsx';
 import { LDFlagSet } from 'launchdarkly-js-client-sdk';
 import {
-  Button,
   Heading,
   Text,
   Tooltip,

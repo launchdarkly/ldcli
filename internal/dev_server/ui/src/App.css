@@ -4,7 +4,8 @@
 
 @font-face {
   font-family: inter;
-  src: url('https://fonts.gstatic.com/s/inter/v7/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2') format('woff2');
+  src: url('https://fonts.gstatic.com/s/inter/v7/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2')
+    format('woff2');
   font-display: swap;
   font-weight: 300 700;
 }
@@ -12,14 +13,14 @@
 html,
 body,
 #root {
-  box-sizing: border-box; 
+  box-sizing: border-box;
 
   font-family: var(--lp-font-family-base);
   font-size: var(--lp-font-size-300);
   line-height: var(--lp-line-height-300);
 
   background-color: var(--lp-color-bg-ui-primary);
-} 
+}
 
 .only-show-overrides-label {
   display: flex;
