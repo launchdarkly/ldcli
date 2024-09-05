@@ -21,6 +21,7 @@ import { Icon } from '@launchpad-ui/icons';
 import { apiRoute, sortFlags } from './util.ts';
 import { FlagsApiResponse, FlagVariation } from './api.ts';
 import VariationValues from './Flag.tsx';
+import fuzzysort from 'fuzzysort';
 
 type FlagProps = {
   selectedProject: string;
@@ -54,26 +55,10 @@ function Flags({
   const filteredFlags = useMemo(() => {
     if (!flags) return [];
     const flagEntries = Object.entries(flags);
-    const filtered = flagEntries.filter(([flagKey]) => {
-      const search = searchTerm.toLowerCase();
-      const key = flagKey.toLowerCase();
-      let searchIndex = 0;
-
-      // Fuzzy search :P
-      for (let i = 0; i < key.length; i++) {
-        if (
-          key[i] === search[searchIndex] ||
-          ((key[i] == '-' || key[i] == '_' || key[i] == '.') &&
-            search[searchIndex] == ' ')
-        ) {
-          searchIndex++;
-        }
-        if (searchIndex === search.length) {
-          return true;
-        }
-      }
-      return false;
-    });
+    const search = searchTerm.toLowerCase();
+    const filtered = fuzzysort
+      .go(search, flagEntries, { all: true, key: '0', threshold: 0.7 })
+      .map((result) => result.obj);
     return filtered;
   }, [flags, searchTerm]);
 
@@ -217,7 +202,7 @@ function Flags({
         setCurrentPage(totalPages - 1); // Adjust last page
         break;
       default:
-        break;
+        console.error('invalid page change direction.');
     }
   };
 
@@ -230,7 +215,8 @@ function Flags({
         alignItems="center"
         marginBottom="2rem"
         padding="1rem"
-        background={Theme.color.blue[50]}
+        background={'var(--lp-color-bg-feedback-info)'}
+        border={'100px solid var(--lp-color-border-feedback-info)'}
         borderRadius={Theme.borderRadius.regular}
       >
         <Label
@@ -325,7 +311,10 @@ function Flags({
               <li
                 key={flagKey}
                 style={{
-                  backgroundColor: index % 2 === 0 ? 'white' : '#f8f8f8',
+                  backgroundColor:
+                    index % 2 === 0
+                      ? 'var(--lp-color-bg-ui-primary)'
+                      : 'var(--lp-color-bg-ui-secondary)',
                   height: '2rem',
                   display: 'flex',
                   alignItems: 'center',

@@ -26,7 +26,7 @@ import { Icon } from '@launchpad-ui/icons';
 import { LDFlagValue } from 'launchdarkly-js-client-sdk';
 import { FlagVariation } from './api.ts';
 import { Box, Inline } from '@launchpad-ui/core';
-import _ from 'lodash';
+import { isEqual } from 'lodash';
 
 type VariationValuesProps = {
   availableVariations: FlagVariation[];
@@ -55,7 +55,7 @@ const VariationValues = ({
     default:
       let variations = availableVariations;
       let selectedVariationIndex = variations.findIndex((variation) =>
-        _.isEqual(variation.value, currentValue),
+        isEqual(variation.value, currentValue),
       );
       if (selectedVariationIndex === -1) {
         variations = [
@@ -130,7 +130,7 @@ const VariationValues = ({
                             </Inline>
                           </div>
                         ) : (
-                          <div>{text}</div>
+                          text
                         )}
                       </ListBoxItem>
                     );
