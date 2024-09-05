@@ -32,7 +32,7 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 		project.Context = *ldCtx
 	}
 
-	flagsState, err := project.FetchFlagState(ctx)
+	flagsState, err := project.fetchFlagState(ctx)
 	if err != nil {
 		return Project{}, err
 	}
@@ -68,7 +68,7 @@ func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Co
 	}
 
 	if context != nil || sourceEnvironmentKey != nil {
-		flagsState, err := project.FetchFlagState(ctx)
+		flagsState, err := project.fetchFlagState(ctx)
 		if err != nil {
 			return Project{}, err
 		}
@@ -93,7 +93,7 @@ func SyncProject(ctx context.Context, projectKey string) (Project, error) {
 	if err != nil {
 		return Project{}, err
 	}
-	flagsState, err := project.FetchFlagState(ctx)
+	flagsState, err := project.fetchFlagState(ctx)
 	if err != nil {
 		return Project{}, err
 	}
@@ -161,7 +161,7 @@ func (p Project) fetchAvailableVariations(ctx context.Context) ([]FlagVariation,
 	return allVariations, nil
 }
 
-func (p Project) FetchFlagState(ctx context.Context) (FlagsState, error) {
+func (p Project) fetchFlagState(ctx context.Context) (FlagsState, error) {
 	apiAdapter := adapters.GetApi(ctx)
 	sdkKey, err := apiAdapter.GetSdkKey(ctx, p.Key, p.SourceEnvironmentKey)
 	flagsState := make(FlagsState)
