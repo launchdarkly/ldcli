@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"log"
 	"net/url"
 	"strconv"
 
@@ -34,6 +35,7 @@ func NewApi(client ldapi.APIClient) Api {
 }
 
 func (a apiClientApi) GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error) {
+	log.Printf("GetSdkKey - projectKey: %s, environmentKey: %s", projectKey, environmentKey)
 	environment, _, err := a.apiClient.EnvironmentsApi.GetEnvironment(ctx, projectKey, environmentKey).Execute()
 	if err != nil {
 		return "", errors.Wrap(err, "unable to get SDK key from LD API")
@@ -42,6 +44,7 @@ func (a apiClientApi) GetSdkKey(ctx context.Context, projectKey, environmentKey 
 }
 
 func (a apiClientApi) GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error) {
+	log.Printf("Fetching all flags for project '%s'", projectKey)
 	flags, err := a.getFlags(ctx, projectKey, nil)
 	if err != nil {
 		err = errors.Wrap(err, "unable to get all flags from LD API")
