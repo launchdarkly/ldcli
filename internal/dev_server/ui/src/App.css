@@ -3,38 +3,23 @@
 @import url('../node_modules/@launchpad-ui/tokens/dist/themes.css');
 
 @font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 300 800;
+  font-family: inter;
+  src: url('https://fonts.gstatic.com/s/inter/v7/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2') format('woff2');
   font-display: swap;
-  src: url('https://fonts.gstatic.com/s/inter/v7/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2')
-    format('woff2');
-}
-
-@font-face {
-  font-family: 'Audimat 3000 Regulier';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('Audimat3000-Regulier.var-subset.woff2') format('woff2');
+  font-weight: 300 700;
 }
 
 html,
 body,
 #root {
-  height: 100%;
-  box-sizing: border-box;
-  font-family: 'Inter', sans-serif;
-}
+  box-sizing: border-box; 
 
-#root {
-  padding: 2rem;
+  font-family: var(--lp-font-family-base);
+  font-size: var(--lp-font-size-300);
+  line-height: var(--lp-line-height-300);
+
+  background-color: var(--lp-color-bg-ui-primary);
 } 
-
-.container {
-  max-width: 40rem;
-  margin: 0 auto;
-}
 
 .only-show-overrides-label {
   display: flex;
@@ -63,6 +48,7 @@ ul.flags-list li .flag-value {
   flex-direction: row;
   align-items: center;
   flex-shrink: 1;
+  padding-right: 1rem;
 }
 
 code {

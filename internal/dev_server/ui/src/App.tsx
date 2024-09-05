@@ -29,25 +29,22 @@ function App() {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
+        padding: '1rem',
       }}
     >
-      <div
+      <Box
         style={{
-          display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
-          minWidth: '700px',
+          width: '100%',
+          maxWidth: '900px',
+          minWidth: '600px',
+          padding: '2rem',
+          boxSizing: 'border-box',
         }}
       >
-        <Box
-          display="flex"
-          flexDirection="column"
-          alignItems="center"
-          padding="1rem"
-          maxWidth="1200px"
-        >
+        <Box display="flex" flexDirection="column" padding="1rem" width="100%">
           {showBanner && (
-            <Box margin="0rem 0rem 2rem 0rem" width="100%">
+            <Box marginBottom="2rem" width="100%">
               <Alert kind="error">
                 <Heading>No projects.</Heading>
                 <Text>Add one via</Text>
@@ -101,7 +98,7 @@ function App() {
             </Box>
           )}
         </Box>
-      </div>
+      </Box>
     </div>
   );
 }
