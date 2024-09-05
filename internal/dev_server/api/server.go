@@ -83,19 +83,7 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 				if err != nil {
 					return nil, err
 				}
-				respAvailableVariations := make(map[string][]Variation, len(availableVariations))
-				for flagKey, variationsForFlag := range availableVariations {
-					respVariationsForFlag := make([]Variation, len(variationsForFlag))
-					for _, variation := range variationsForFlag {
-						respVariationsForFlag = append(respVariationsForFlag, Variation{
-							Id:          variation.Id,
-							Description: variation.Description,
-							Name:        variation.Name,
-							Value:       variation.Value,
-						})
-					}
-					respAvailableVariations[flagKey] = respVariationsForFlag
-				}
+				respAvailableVariations := availableVariationsToResponseFormat(availableVariations)
 				response.AvailableVariations = &respAvailableVariations
 			}
 		}
@@ -155,6 +143,14 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 				}
 				response.Overrides = &respOverrides
 			}
+			if item == "availableVariations" {
+				availableVariations, err := store.GetAvailableVariationsForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respAvailableVariations := availableVariationsToResponseFormat(availableVariations)
+				response.AvailableVariations = &respAvailableVariations
+			}
 		}
 
 	}
@@ -200,6 +196,14 @@ func (s Server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDev
 				}
 				response.Overrides = &respOverrides
 			}
+			if item == "availableVariations" {
+				availableVariations, err := store.GetAvailableVariationsForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respAvailableVariations := availableVariationsToResponseFormat(availableVariations)
+				response.AvailableVariations = &respAvailableVariations
+			}
 		}
 
 	}
@@ -244,6 +248,14 @@ func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request Patc
 					}
 				}
 				response.Overrides = &respOverrides
+			}
+			if item == "availableVariations" {
+				availableVariations, err := store.GetAvailableVariationsForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respAvailableVariations := availableVariationsToResponseFormat(availableVariations)
+				response.AvailableVariations = &respAvailableVariations
 			}
 		}
 
