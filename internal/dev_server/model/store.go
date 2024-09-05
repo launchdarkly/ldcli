@@ -25,6 +25,7 @@ type Store interface {
 	InsertProject(ctx context.Context, project Project) error
 	UpsertOverride(ctx context.Context, override Override) (Override, error)
 	GetOverridesForProject(ctx context.Context, projectKey string) (Overrides, error)
+	GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]Variation, error)
 }
 
 func ContextWithStore(ctx context.Context, store Store) context.Context {

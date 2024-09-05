@@ -16,6 +16,8 @@ type Sqlite struct {
 	database *sql.DB
 }
 
+var _ model.Store = Sqlite{}
+
 func (s Sqlite) GetDevProjectKeys(ctx context.Context) ([]string, error) {
 	rows, err := s.database.Query("select key from projects")
 	if err != nil {
@@ -148,8 +150,77 @@ VALUES (?, ?, ?, ?, ?)
 	if err != nil {
 		return
 	}
-	err = tx.Commit()
-	return
+
+	// TODO put in update
+	// _, err = tx.ExecContext(ctx, `
+	// 	DELETE FROM available_variations
+	// 	WHERE project_key = ?
+	// `, project.Key)
+	// if err != nil {
+	// 	return
+	// }
+	for _, variation := range project.AvailableVariations {
+		jsonValue, err := variation.Value.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO available_variations
+				(project_key, flag_key, id, value, description, name)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, project.Key, variation.FlagKey, variation.Id, string(jsonValue), variation.Description, variation.Name)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (s Sqlite) GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]model.Variation, error) {
+	rows, err := s.database.QueryContext(ctx, `
+			SELECT flag_key, id, name, description, value
+			FROM available_variations
+			WHERE project_key = ?
+		`, projectKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	availableVariations := make(map[string][]model.Variation)
+	for rows.Next() {
+		var flagKey string
+		var id string
+		var nameNullable sql.NullString
+		var descriptionNullable sql.NullString
+		var valueJson string
+
+		err = rows.Scan(&flagKey, &id, &nameNullable, &nameNullable, &valueJson)
+		if err != nil {
+			return nil, err
+		}
+
+		var value ldvalue.Value
+		err = json.Unmarshal([]byte(valueJson), &value)
+		if err != nil {
+			return nil, err
+		}
+
+		var name, description *string
+		if nameNullable.Valid {
+			name = &nameNullable.String
+		}
+		if descriptionNullable.Valid {
+			description = &descriptionNullable.String
+		}
+		availableVariations[flagKey] = append(availableVariations[flagKey], model.Variation{
+			Id:          id,
+			Name:        name,
+			Description: description,
+			Value:       value,
+		})
+	}
+	return availableVariations, nil
 }
 
 func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (model.Overrides, error) {
@@ -267,6 +338,11 @@ func (s Sqlite) runMigrations(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
 	_, err = tx.Exec(`
 	CREATE TABLE IF NOT EXISTS projects (
 		key text PRIMARY KEY,
@@ -291,5 +367,21 @@ func (s Sqlite) runMigrations(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	_, err = tx.Exec(`
+	CREATE TABLE IF NOT EXISTS available_variations (
+		project_key text NOT NULL,
+		flag_key text NOT NULL,
+		id text NOT NULL,
+		value text NOT NULL, 
+		description text,
+		name text,
+		FOREIGN KEY (project_key) REFERENCES projects (key) ON DELETE CASCADE,
+		UNIQUE (project_key, flag_key, id) ON CONFLICT REPLACE
+	)`)
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }

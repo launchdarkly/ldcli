@@ -69,6 +69,21 @@ func (mr *MockStoreMockRecorder) DeleteDevProject(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDevProject", reflect.TypeOf((*MockStore)(nil).DeleteDevProject), arg0, arg1)
 }
 
+// GetAvailableVariationsForProject mocks base method.
+func (m *MockStore) GetAvailableVariationsForProject(arg0 context.Context, arg1 string) (map[string][]model.Variation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAvailableVariationsForProject", arg0, arg1)
+	ret0, _ := ret[0].(map[string][]model.Variation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAvailableVariationsForProject indicates an expected call of GetAvailableVariationsForProject.
+func (mr *MockStoreMockRecorder) GetAvailableVariationsForProject(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailableVariationsForProject", reflect.TypeOf((*MockStore)(nil).GetAvailableVariationsForProject), arg0, arg1)
+}
+
 // GetDevProject mocks base method.
 func (m *MockStore) GetDevProject(arg0 context.Context, arg1 string) (*model.Project, error) {
 	m.ctrl.T.Helper()

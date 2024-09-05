@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
@@ -25,9 +26,26 @@ func TestCreateProject(t *testing.T) {
 	sourceEnvKey := "env"
 	sdkKey := "thing"
 
-	allFlags := flagstate.NewAllFlagsBuilder().
+	allFlagsState := flagstate.NewAllFlagsBuilder().
 		AddFlag("boolFlag", flagstate.FlagState{Value: ldvalue.Bool(true)}).
 		Build()
+
+	trueVariationId, falseVariationId := "true", "false"
+	allFlags := []ldapi.FeatureFlag{{
+		Name: "bool flag",
+		Kind: "bool",
+		Key:  "boolFlag",
+		Variations: []ldapi.Variation{
+			{
+				Id:    &trueVariationId,
+				Value: true,
+			},
+			{
+				Id:    &falseVariationId,
+				Value: false,
+			},
+		},
+	}}
 
 	t.Run("Returns error if it cant fetch flag state", func(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return("", errors.New("fetch flag state fails"))
@@ -36,9 +54,19 @@ func TestCreateProject(t *testing.T) {
 		assert.Equal(t, "fetch flag state fails", err.Error())
 	})
 
+	t.Run("Returns error if it can't fetch flags", func(t *testing.T) {
+		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
+		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(nil, errors.New("fetch flags failed"))
+		_, err := model.CreateProject(ctx, projKey, sourceEnvKey, nil)
+		assert.NotNil(t, err)
+		assert.Equal(t, "fetch flags failed", err.Error())
+	})
+
 	t.Run("Returns error if it fails to insert the project", func(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlags, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
+		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(errors.New("insert fails"))
 
 		_, err := model.CreateProject(ctx, projKey, sourceEnvKey, nil)
@@ -48,7 +76,8 @@ func TestCreateProject(t *testing.T) {
 
 	t.Run("Successfully creates project", func(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlags, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
+		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(nil)
 
 		p, err := model.CreateProject(ctx, projKey, sourceEnvKey, nil)
@@ -58,13 +87,14 @@ func TestCreateProject(t *testing.T) {
 			Key:                  projKey,
 			SourceEnvironmentKey: sourceEnvKey,
 			Context:              ldcontext.NewBuilder("user").Key("dev-environment").Build(),
-			AllFlagsState:        model.FromAllFlags(allFlags),
+			AllFlagsState:        model.FromAllFlags(allFlagsState),
 		}
 
 		assert.Equal(t, expectedProj.Key, p.Key)
 		assert.Equal(t, expectedProj.SourceEnvironmentKey, p.SourceEnvironmentKey)
 		assert.Equal(t, expectedProj.Context, p.Context)
 		assert.Equal(t, expectedProj.AllFlagsState, p.AllFlagsState)
+		//TODO add assertion on AvailableVariations
 	})
 }
 
