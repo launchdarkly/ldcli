@@ -94,56 +94,27 @@ function Flags({
 
   const fetchDevFlags = useCallback(async () => {
     const res = await fetch(
-      apiRoute(`/dev/projects/${selectedProject}?expand=overrides`),
+      apiRoute(`/dev/projects/${selectedProject}?expand=overrides&expand=availableVariations`),
     );
     const json = await res.json();
     if (!res.ok) {
       throw new Error(`Got ${res.status}, ${res.statusText} from flag fetch`);
     }
 
-    const { flagsState: flags, overrides, sourceEnvironmentKey } = json;
+    const { flagsState: flags, overrides, sourceEnvironmentKey, availableVariations } = json;
 
     setFlags(sortFlags(flags));
     setOverrides(overrides);
     setSourceEnvironmentKey(sourceEnvironmentKey);
+    setAvailableVariations(availableVariations);
   }, [selectedProject, setFlags, setSourceEnvironmentKey]);
-
-  const fetchFlags = useCallback(
-    async (path?: string): Promise<Record<string, FlagVariation[]>> => {
-      if (!path)
-        path = `/api/v2/flags/${selectedProject}?summary=false&limit=100`;
-      const res = await fetch(`/proxy${path}`);
-      if (!res.ok) {
-        throw new Error(
-          `Got ${res.status}, ${res.statusText} from flags fetch`,
-        );
-      }
-      const json: FlagsApiResponse = await res.json();
-      const flagKeys: string[] = json.items.map((i) => i.key);
-      const flagVariations: FlagVariation[][] = json.items.map(
-        (i) => i.variations,
-      );
-      const newAvailableVariations: Record<string, FlagVariation[]> = {};
-      for (let i = 0; i < flagKeys.length; i++) {
-        newAvailableVariations[flagKeys[i]] = flagVariations[i];
-      }
-      if (json._links.next)
-        return {
-          ...(await fetchFlags(json._links.next.href)),
-          ...newAvailableVariations,
-        };
-      else return newAvailableVariations;
-    },
-    [selectedProject],
-  );
 
   // Fetch flags / overrides on mount
   useEffect(() => {
     Promise.all([
       fetchDevFlags(),
-      fetchFlags().then((av) => setAvailableVariations(av)),
     ]).catch(console.error.bind(console, 'error when fetching flags'));
-  }, [fetchDevFlags, fetchFlags]);
+  }, [fetchDevFlags]);
 
   if (!flags) {
     return null;
