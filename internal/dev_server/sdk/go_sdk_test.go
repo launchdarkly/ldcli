@@ -45,6 +45,9 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 	ctx, api, sdk := mocks.WithMockApiAndSdk(ctx, mockController)
 
 	api.EXPECT().GetSdkKey(gomock.Any(), projectKey, environmentKey).Return(testSdkKey, nil).AnyTimes()
+	api.EXPECT().GetAllFlags(gomock.Any(), projectKey).
+		Return(nil, nil). // Available variations are not used for evaluation
+		AnyTimes()
 
 	// Wire up sdk routes in test server
 	router := mux.NewRouter()
@@ -129,7 +132,7 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 			trackers[flagKey] = flagUpdateChan
 		}
 
-		_, err := model.SyncProject(ctx, projectKey)
+		_, err := model.UpdateProject(ctx, projectKey, nil, nil)
 		require.NoError(t, err)
 
 		for flagKey, value := range valuesMap {

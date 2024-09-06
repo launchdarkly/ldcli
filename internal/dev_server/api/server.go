@@ -78,6 +78,14 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 				}
 				response.Overrides = &respOverrides
 			}
+			if item == "availableVariations" {
+				availableVariations, err := store.GetAvailableVariationsForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respAvailableVariations := availableVariationsToResponseFormat(availableVariations)
+				response.AvailableVariations = &respAvailableVariations
+			}
 		}
 
 	}
@@ -135,6 +143,14 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 				}
 				response.Overrides = &respOverrides
 			}
+			if item == "availableVariations" {
+				availableVariations, err := store.GetAvailableVariationsForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respAvailableVariations := availableVariationsToResponseFormat(availableVariations)
+				response.AvailableVariations = &respAvailableVariations
+			}
 		}
 
 	}
@@ -180,6 +196,14 @@ func (s Server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDev
 				}
 				response.Overrides = &respOverrides
 			}
+			if item == "availableVariations" {
+				availableVariations, err := store.GetAvailableVariationsForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respAvailableVariations := availableVariationsToResponseFormat(availableVariations)
+				response.AvailableVariations = &respAvailableVariations
+			}
 		}
 
 	}
@@ -191,7 +215,7 @@ func (s Server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDev
 
 func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request PatchDevProjectsProjectKeySyncRequestObject) (PatchDevProjectsProjectKeySyncResponseObject, error) {
 	store := model.StoreFromContext(ctx)
-	project, err := model.SyncProject(ctx, request.ProjectKey)
+	project, err := model.UpdateProject(ctx, request.ProjectKey, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -224,6 +248,14 @@ func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request Patc
 					}
 				}
 				response.Overrides = &respOverrides
+			}
+			if item == "availableVariations" {
+				availableVariations, err := store.GetAvailableVariationsForProject(ctx, request.ProjectKey)
+				if err != nil {
+					return nil, err
+				}
+				respAvailableVariations := availableVariationsToResponseFormat(availableVariations)
+				response.AvailableVariations = &respAvailableVariations
 			}
 		}
 

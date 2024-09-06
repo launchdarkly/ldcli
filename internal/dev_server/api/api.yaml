@@ -28,7 +28,7 @@ paths:
       summary: updates the flag state for the given project and source environment
       parameters:
         - $ref: "#/components/parameters/projectKey"
-        - $ref: "#/components/parameters/expand"
+        - $ref: "#/components/parameters/projectExpand"
       responses:
         200:
           $ref: "#/components/responses/Project"
@@ -39,7 +39,7 @@ paths:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
       parameters:
         - $ref: "#/components/parameters/projectKey"
-        - $ref: "#/components/parameters/expand"
+        - $ref: "#/components/parameters/projectExpand"
       responses:
         200:
           $ref: "#/components/responses/Project"
@@ -49,7 +49,7 @@ paths:
       summary: updates the project context or sourceEnvironmentKey
       parameters:
         - $ref: "#/components/parameters/projectKey"
-        - $ref: "#/components/parameters/expand"
+        - $ref: "#/components/parameters/projectExpand"
       requestBody:
         content:
           application/json:
@@ -79,7 +79,7 @@ paths:
       summary: Add the project to the dev server
       parameters:
         - $ref: "#/components/parameters/projectKey"
-        - $ref: "#/components/parameters/expand"
+        - $ref: "#/components/parameters/projectExpand"
       requestBody:
         content:
           application/json:
@@ -143,7 +143,7 @@ components:
       required: true
       schema:
         type: string
-    expand:
+    projectExpand:
       name: expand
       description: Available expand options for this endpoint.
       in: query
@@ -153,6 +153,7 @@ components:
           type: string
           enum:
             - overrides
+            - availableVariations
   schemas:
     FlagValue:
       description: value of a feature flag variation
@@ -173,6 +174,20 @@ components:
       default:
         key: "dev-environment"
         kind: "user"
+    Variation:
+      description: variation of a flag
+      required:
+        - _id
+        - value
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        value:
+          $ref: '#/components/schemas/FlagValue'
     Project:
       description: Project
       type: object
@@ -194,10 +209,17 @@ components:
             path: github.com/launchdarkly/ldcli/internal/dev_server/model
         overrides:
           type: object
-          description: flags and their values and version for a given project in the source environment
+          description: overridden flags for the project
           x-go-type: model.FlagsState
           x-go-type-import:
             path: github.com/launchdarkly/ldcli/internal/dev_server/model
+        availableVariations:
+          type: object
+          description: variations
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/Variation'
         _lastSyncedFromSource:
           type: integer
           x-go-type: int64

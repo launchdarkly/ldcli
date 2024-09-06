@@ -9,11 +9,17 @@ import { LDFlagSet } from 'launchdarkly-js-client-sdk';
 import { useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { Inline } from '@launchpad-ui/core';
+import { FlagVariation } from './api.ts';
 
 const syncProject = async (selectedProject: string) => {
-  const res = await fetch(apiRoute(`/dev/projects/${selectedProject}/sync`), {
-    method: 'PATCH',
-  });
+  const res = await fetch(
+    apiRoute(
+      `/dev/projects/${selectedProject}/sync?expand=availableVariations`,
+    ),
+    {
+      method: 'PATCH',
+    },
+  );
 
   const json = await res.json();
   if (!res.ok) {
@@ -22,19 +28,26 @@ const syncProject = async (selectedProject: string) => {
   return json;
 };
 
+type Props = {
+  selectedProject: string | null;
+  setFlags: (flags: LDFlagSet) => void;
+  setAvailableVariations: (
+    availableVariations: Record<string, FlagVariation[]>,
+  ) => void;
+};
+
 const SyncButton = ({
   selectedProject,
   setFlags,
-}: {
-  selectedProject: string | null;
-  setFlags: (flags: LDFlagSet) => void;
-}) => {
+  setAvailableVariations,
+}: Props) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleClick = async () => {
     setIsLoading(true);
     try {
       const result = await syncProject(selectedProject!);
+      setAvailableVariations(result.availableVariations);
       setFlags(sortFlags(result.flagsState));
     } catch (error) {
       console.error('Sync failed:', error);

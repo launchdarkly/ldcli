@@ -19,22 +19,26 @@ import (
 
 // Defines values for GetDevProjectsProjectKeyParamsExpand.
 const (
-	GetDevProjectsProjectKeyParamsExpandOverrides GetDevProjectsProjectKeyParamsExpand = "overrides"
+	GetDevProjectsProjectKeyParamsExpandAvailableVariations GetDevProjectsProjectKeyParamsExpand = "availableVariations"
+	GetDevProjectsProjectKeyParamsExpandOverrides           GetDevProjectsProjectKeyParamsExpand = "overrides"
 )
 
 // Defines values for PatchDevProjectsProjectKeyParamsExpand.
 const (
-	PatchDevProjectsProjectKeyParamsExpandOverrides PatchDevProjectsProjectKeyParamsExpand = "overrides"
+	PatchDevProjectsProjectKeyParamsExpandAvailableVariations PatchDevProjectsProjectKeyParamsExpand = "availableVariations"
+	PatchDevProjectsProjectKeyParamsExpandOverrides           PatchDevProjectsProjectKeyParamsExpand = "overrides"
 )
 
 // Defines values for PostDevProjectsProjectKeyParamsExpand.
 const (
-	PostDevProjectsProjectKeyParamsExpandOverrides PostDevProjectsProjectKeyParamsExpand = "overrides"
+	PostDevProjectsProjectKeyParamsExpandAvailableVariations PostDevProjectsProjectKeyParamsExpand = "availableVariations"
+	PostDevProjectsProjectKeyParamsExpandOverrides           PostDevProjectsProjectKeyParamsExpand = "overrides"
 )
 
 // Defines values for PatchDevProjectsProjectKeySyncParamsExpand.
 const (
-	PatchDevProjectsProjectKeySyncParamsExpandOverrides PatchDevProjectsProjectKeySyncParamsExpand = "overrides"
+	PatchDevProjectsProjectKeySyncParamsExpandAvailableVariations PatchDevProjectsProjectKeySyncParamsExpand = "availableVariations"
+	PatchDevProjectsProjectKeySyncParamsExpandOverrides           PatchDevProjectsProjectKeySyncParamsExpand = "overrides"
 )
 
 // Context context object to use when evaluating flags in source environment
@@ -48,24 +52,37 @@ type Project struct {
 	// LastSyncedFromSource unix timestamp for the lat time the flag values were synced from the source environment
 	LastSyncedFromSource int64 `json:"_lastSyncedFromSource"`
 
+	// AvailableVariations variations
+	AvailableVariations *map[string][]Variation `json:"availableVariations,omitempty"`
+
 	// Context context object to use when evaluating flags in source environment
 	Context Context `json:"context"`
 
 	// FlagsState flags and their values and version for a given project in the source environment
 	FlagsState *model.FlagsState `json:"flagsState,omitempty"`
 
-	// Overrides flags and their values and version for a given project in the source environment
+	// Overrides overridden flags for the project
 	Overrides *model.FlagsState `json:"overrides,omitempty"`
 
 	// SourceEnvironmentKey environment to copy flag values from
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
 }
 
-// Expand defines model for expand.
-type Expand = []string
+// Variation variation of a flag
+type Variation struct {
+	Id          string  `json:"_id"`
+	Description *string `json:"description,omitempty"`
+	Name        *string `json:"name,omitempty"`
+
+	// Value value of a feature flag variation
+	Value FlagValue `json:"value"`
+}
 
 // FlagKey defines model for flagKey.
 type FlagKey = string
+
+// ProjectExpand defines model for projectExpand.
+type ProjectExpand = []string
 
 // ProjectKey defines model for projectKey.
 type ProjectKey = string
@@ -91,7 +108,7 @@ type FlagOverride struct {
 // GetDevProjectsProjectKeyParams defines parameters for GetDevProjectsProjectKey.
 type GetDevProjectsProjectKeyParams struct {
 	// Expand Available expand options for this endpoint.
-	Expand *Expand `form:"expand,omitempty" json:"expand,omitempty"`
+	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
 // GetDevProjectsProjectKeyParamsExpand defines parameters for GetDevProjectsProjectKey.
@@ -109,7 +126,7 @@ type PatchDevProjectsProjectKeyJSONBody struct {
 // PatchDevProjectsProjectKeyParams defines parameters for PatchDevProjectsProjectKey.
 type PatchDevProjectsProjectKeyParams struct {
 	// Expand Available expand options for this endpoint.
-	Expand *Expand `form:"expand,omitempty" json:"expand,omitempty"`
+	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
 // PatchDevProjectsProjectKeyParamsExpand defines parameters for PatchDevProjectsProjectKey.
@@ -127,7 +144,7 @@ type PostDevProjectsProjectKeyJSONBody struct {
 // PostDevProjectsProjectKeyParams defines parameters for PostDevProjectsProjectKey.
 type PostDevProjectsProjectKeyParams struct {
 	// Expand Available expand options for this endpoint.
-	Expand *Expand `form:"expand,omitempty" json:"expand,omitempty"`
+	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
 // PostDevProjectsProjectKeyParamsExpand defines parameters for PostDevProjectsProjectKey.
@@ -136,7 +153,7 @@ type PostDevProjectsProjectKeyParamsExpand string
 // PatchDevProjectsProjectKeySyncParams defines parameters for PatchDevProjectsProjectKeySync.
 type PatchDevProjectsProjectKeySyncParams struct {
 	// Expand Available expand options for this endpoint.
-	Expand *Expand `form:"expand,omitempty" json:"expand,omitempty"`
+	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
 // PatchDevProjectsProjectKeySyncParamsExpand defines parameters for PatchDevProjectsProjectKeySync.

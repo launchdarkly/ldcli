@@ -4,335 +4,328 @@ import {
   Checkbox,
   IconButton,
   Label,
-  Switch,
-  Modal,
-  ModalOverlay,
-  DialogTrigger,
-  Dialog,
-  TextArea,
+  Input,
+  SearchField,
+  Group,
 } from '@launchpad-ui/components';
 import {
   Box,
   CopyToClipboard,
-  InlineEdit,
-  TextField,
+  Inline,
+  Pagination,
+  Stack,
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useEffect, useRef, useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Icon } from '@launchpad-ui/icons';
-import { apiRoute, sortFlags } from './util.ts';
+import { apiRoute } from './util.ts';
+import { FlagVariation } from './api.ts';
+import VariationValues from './Flag.tsx';
+import fuzzysort from 'fuzzysort';
 
 type FlagProps = {
+  availableVariations: Record<string, FlagVariation[]>;
   selectedProject: string;
   flags: LDFlagSet | null;
-  setFlags: (flags: LDFlagSet) => void;
+  overrides: Record<string, { value: LDFlagValue }>;
+  setOverrides: (overrides: Record<string, { value: LDFlagValue }>) => void;
 };
 
-function Flags({ selectedProject, flags, setFlags }: FlagProps) {
-  const [overrides, setOverrides] = useState<Record<
-    string,
-    { value: LDFlagValue }
-  > | null>(null);
+function Flags({
+  availableVariations,
+  selectedProject,
+  flags,
+  overrides,
+  setOverrides,
+}: FlagProps) {
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
-  const overridesPresent = overrides && Object.keys(overrides).length > 0;
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(0); // Change initial page to 0
+  const flagsPerPage = 20;
 
-  const updateOverride = (flagKey: string, overrideValue: LDFlagValue) => {
-    fetch(apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`), {
-      method: 'PUT',
-      body: JSON.stringify(overrideValue),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`got ${res.status} ${res.statusText}. ${await res.text()}`)
-        }
+  const overridesPresent = useMemo(
+    () => overrides && Object.keys(overrides).length > 0,
+    [overrides],
+  );
 
-        const updatedOverrides = {
-          ...overrides,
-          ...{
-            [flagKey]: {
-              value: overrideValue,
-            },
+  const filteredFlags = useMemo(() => {
+    if (!flags) return [];
+    const flagEntries = Object.entries(flags);
+    const search = searchTerm.toLowerCase();
+    const filtered = fuzzysort
+      .go(search, flagEntries, { all: true, key: '0', threshold: 0.7 })
+      .map((result) => result.obj);
+    return filtered;
+  }, [flags, searchTerm]);
+
+  const paginatedFlags = useMemo(() => {
+    const startIndex = currentPage * flagsPerPage; // Adjust startIndex calculation
+    const endIndex = startIndex + flagsPerPage;
+    return filteredFlags.slice(startIndex, endIndex);
+  }, [filteredFlags, currentPage]);
+
+  const updateOverride = useCallback(
+    (flagKey: string, overrideValue: LDFlagValue) => {
+      const updatedOverrides = {
+        ...overrides,
+        ...{
+          [flagKey]: {
+            value: overrideValue,
           },
-        };
+        },
+      };
 
-        setOverrides(updatedOverrides);
+      setOverrides(updatedOverrides);
+      fetch(apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`), {
+        method: 'PUT',
+        body: JSON.stringify(overrideValue),
       })
-      .catch( console.error.bind(console, "unable to update override"));
-  };
+        .then(async (res) => {
+          if (!res.ok) {
+            throw new Error(
+              `got ${res.status} ${res.statusText}. ${await res.text()}`,
+            );
+          }
+        })
+        .catch((err) => {
+          setOverrides(overrides);
+          console.error('unable to update override', err);
+        });
+    },
+    [overrides, selectedProject],
+  );
 
-  const removeOverride = (flagKey: string, updateState: boolean = true) => {
-    return fetch(
-      apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`),
-      {
-        method: 'DELETE',
-      },
-    )
-      .then((res) => {
-        // In the remove-all-override case, we need to fan out and make the
-        // request for every override, so we don't want to be interleaving
-        // local state updates. Expect the consumer to update the local state
-        // when all requests are done
-        if (res.ok && updateState) {
-          const updatedOverrides = { ...overrides };
-          delete updatedOverrides[flagKey];
+  const removeOverride = useCallback(
+    async (flagKey: string) => {
+      const updatedOverrides = { ...overrides };
+      delete updatedOverrides[flagKey];
 
-          setOverrides(updatedOverrides);
+      setOverrides(updatedOverrides);
 
-          if (Object.keys(updatedOverrides).length === 0)
-            setOnlyShowOverrides(false);
+      try {
+        const res = await fetch(
+          apiRoute(`/dev/projects/${selectedProject}/overrides/${flagKey}`),
+          {
+            method: 'DELETE',
+          },
+        );
+        if (!res.ok) {
+          throw new Error(
+            `got ${res.status} ${res.statusText}. ${await res.text()}`,
+          );
         }
-      })
-      .catch( console.error.bind("unable to remove override") );
-  };
-
-  const fetchFlags = async () => {
-    const res = await fetch(
-      apiRoute(`/dev/projects/${selectedProject}?expand=overrides`),
-    );
-    const json = await res.json();
-    if (!res.ok) {
-      throw new Error(`Got ${res.status}, ${res.statusText} from flag fetch`);
-    }
-
-    const { flagsState: flags, overrides } = json;
-
-    setFlags(sortFlags(flags));
-    setOverrides(overrides);
-  };
-
-  // Fetch flags / overrides on mount
-  useEffect(() => {
-    fetchFlags().catch(
-      console.error.bind(console, 'error when fetching flags'),
-    );
-  }, [selectedProject]);
+      } catch (err) {
+        console.error('unable to remove override', err);
+        setOverrides(overrides);
+      }
+    },
+    [overrides, selectedProject],
+  );
 
   if (!flags) {
     return null;
   }
 
+  const totalPages = Math.ceil(filteredFlags.length / flagsPerPage);
+
+  const handlePageChange = (direction: string) => {
+    switch (direction) {
+      case 'next':
+        setCurrentPage(
+          (prevPage) => Math.min(prevPage + 1, totalPages - 1), // Adjust page increment
+        );
+        break;
+      case 'prev':
+        setCurrentPage((prevPage) => Math.max(prevPage - 1, 0)); // Adjust page decrement
+        break;
+      case 'first':
+        setCurrentPage(0); // Adjust first page
+        break;
+      case 'last':
+        setCurrentPage(totalPages - 1); // Adjust last page
+        break;
+      default:
+        console.error('invalid page change direction.');
+    }
+  };
+
   return (
     <>
-      <div className="container">
-        <Box
-          display="flex"
-          flexDirection="row"
-          justifyContent="space-between"
-          alignItems="center"
-          marginBottom="2rem"
-          padding="1rem"
-          background={Theme.color.blue[50]}
-          borderRadius={Theme.borderRadius.regular}
+      <Box
+        display="flex"
+        flexDirection="row"
+        justifyContent="space-between"
+        alignItems="center"
+        marginBottom="2rem"
+        padding="1rem"
+        background={'var(--lp-color-bg-feedback-info)'}
+        border={'100px solid var(--lp-color-border-feedback-info)'}
+        borderRadius={Theme.borderRadius.regular}
+      >
+        <Label
+          htmlFor="only-show-overrides"
+          className="only-show-overrides-label"
         >
-          <Label
-            htmlFor="only-show-overrides"
-            className="only-show-overrides-label"
-          >
-            <Checkbox
-              id="only-show-overrides"
-              isSelected={onlyShowOverrides}
-              onChange={(newValue) => {
-                setOnlyShowOverrides(newValue);
-              }}
-              isDisabled={!overridesPresent}
-              style={{
-                display: 'inline-block',
-                marginRight: '.25rem',
-              }}
-            />
-            Only show flags with overrides
-          </Label>
-          <Button
-            variant="destructive"
-            isDisabled={!overridesPresent}
-            onPress={async () => {
-              // This button is disabled unless overrides are present, but the
-              // type is nullable
-              if (!overrides) {
-                return;
-              }
-
-              const overrideKeys = Object.keys(overrides);
-
-              await Promise.all(
-                overrideKeys.map((flagKey) => {
-                  // Opt out of local state updates since we're bulk-removing
-                  // overrides async
-                  removeOverride(flagKey, false);
-                }),
-              );
-
-              // Winnow out removed overrides and update local state in a
-              // single pass
-              const updatedOverrides = overrideKeys.reduce(
-                (accum, flagKey) => {
-                  delete accum[flagKey];
-
-                  return accum;
-                },
-                { ...overrides },
-              );
-
-              setOverrides(updatedOverrides);
-              setOnlyShowOverrides(false);
+          <Checkbox
+            id="only-show-overrides"
+            isSelected={onlyShowOverrides}
+            onChange={(newValue) => {
+              setOnlyShowOverrides(newValue);
             }}
-          >
-            <Icon size="medium" name="cancel" />
-            Remove all overrides
-          </Button>
-        </Box>
+            isDisabled={!overridesPresent}
+            style={{
+              display: 'inline-block',
+              marginRight: '.25rem',
+            }}
+          />
+          Only show flags with overrides
+        </Label>
+        <Button
+          variant="destructive"
+          isDisabled={!overridesPresent}
+          onPress={async () => {
+            // This button is disabled unless overrides are present, but the
+            // type is nullable
+            if (!overrides) {
+              return;
+            }
+
+            const overrideKeys = Object.keys(overrides);
+
+            await Promise.all(
+              overrideKeys.map((flagKey) => {
+                // Opt out of local state updates since we're bulk-removing
+                // overrides async
+                removeOverride(flagKey);
+              }),
+            );
+
+            // Winnow out removed overrides and update local state in a
+            // single pass
+            const updatedOverrides = overrideKeys.reduce(
+              (accum, flagKey) => {
+                delete accum[flagKey];
+
+                return accum;
+              },
+              { ...overrides },
+            );
+
+            setOverrides(updatedOverrides);
+            setOnlyShowOverrides(false);
+          }}
+        >
+          <Icon size="medium" name="cancel" />
+          Remove all overrides
+        </Button>
+      </Box>
+      <Stack gap="4">
+        <Inline gap="4">
+          <SearchField>
+            <Group>
+              <Icon name="search" size="small" />
+              <Input
+                placeholder="Search flags"
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(0); // Reset pagination
+                }}
+              />
+              <IconButton
+                aria-label="clear"
+                icon="cancel-circle-outline"
+                size="small"
+                variant="minimal"
+              />
+            </Group>
+          </SearchField>
+        </Inline>
         <ul className="flags-list">
-          {Object.entries(flags).map(
-            ([flagKey, { value: flagValue }], index) => {
-              const overrideValue = overrides?.[flagKey]?.value;
-              const hasOverride = overrideValue !== undefined;
-              let valueNode;
+          {paginatedFlags.map(([flagKey, { value: flagValue }], index) => {
+            const overrideValue = overrides[flagKey]?.value;
+            const hasOverride = flagKey in overrides;
+            const currentValue = hasOverride ? overrideValue : flagValue;
 
-              if (onlyShowOverrides && !hasOverride) {
-                return null;
-              }
+            if (onlyShowOverrides && !hasOverride) {
+              return null;
+            }
 
-              switch (typeof flagValue) {
-                case 'boolean':
-                  valueNode = (
-                    <Switch
-                      isSelected={hasOverride ? overrideValue : flagValue}
-                      onChange={(newValue) => {
-                        updateOverride(flagKey, newValue);
-                      }}
-                    />
-                  );
-                  break;
-                case 'number':
-                  valueNode = (
-                    <TextField
-                      type="number"
-                      value={hasOverride ? Number(overrideValue) : flagValue}
-                      onChange={(e) => {
-                        updateOverride(flagKey, Number(e.target.value));
-                      }}
-                    />
-                  );
-                  break;
-                case 'string':
-                  valueNode = (
-                    <InlineEdit
-                      defaultValue={hasOverride ? overrideValue : flagValue}
-                      onConfirm={(newValue: string) => {
-                        updateOverride(flagKey, newValue);
-                      }}
-                      renderInput={
-                        <TextField id={`${flagKey}-override-input`} />
-                      }
-                    >
-                      {hasOverride ? overrideValue : flagValue}
-                    </InlineEdit>
-                  );
-                  break;
-                default:
-                  valueNode = (
-                    <DialogTrigger>
-                      <Button style={{ border: 'none', padding: 0, margin: 0 }}>
-                        <TextArea
-                          rows={8}
-                          readOnly={true}
-                          style={{
-                            resize: 'none',
-                            overflowY: 'clip',
-                            cursor: 'pointer',
-                          }}
-                          value={JSON.stringify(
-                            hasOverride ? overrideValue : flagValue,
-                            null,
-                            2,
-                          )}
-                        ></TextArea>
-                      </Button>
-                      <ModalOverlay>
-                        <Modal>
-                          <Dialog>
-                            {({ close }) => (
-                              <form
-                                onSubmit={() => {
-                                  let newVal;
-
-                                  try {
-                                    newVal = JSON.parse(
-                                      textAreaRef?.current?.value || '',
-                                    );
-                                  } catch (err) {
-                                    window.alert('Invalid JSON formatting');
-                                    return;
-                                  }
-
-                                  updateOverride(flagKey, newVal);
-                                }}
-                              >
-                                <TextArea
-                                  ref={textAreaRef}
-                                  style={{ width: '100%', height: '30rem' }}
-                                  defaultValue={JSON.stringify(
-                                    hasOverride ? overrideValue : flagValue,
-                                    null,
-                                    2,
-                                  )}
-                                />
-                                <div>
-                                  <Button
-                                    variant="primary"
-                                    type="submit"
-                                    onPress={close}
-                                  >
-                                    Accept
-                                  </Button>
-                                </div>
-                              </form>
-                            )}
-                          </Dialog>
-                        </Modal>
-                      </ModalOverlay>
-                    </DialogTrigger>
-                  );
-              }
-
-              return (
-                <li
-                  key={flagKey}
-                  style={{
-                    backgroundColor: index % 2 === 0 ? 'white' : '#f8f8f8',
-                  }}
-                >
-                  <Box
-                    whiteSpace="nowrap"
-                    flexGrow="1"
-                    paddingLeft="1rem"
-                    paddingRight="1rem"
-                  >
+            return (
+              <li
+                key={flagKey}
+                style={{
+                  backgroundColor:
+                    index % 2 === 0
+                      ? 'var(--lp-color-bg-ui-primary)'
+                      : 'var(--lp-color-bg-ui-secondary)',
+                  height: '2rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <Box whiteSpace="nowrap" paddingLeft="1rem" paddingRight="1rem">
+                  <Inline gap="2">
                     <CopyToClipboard asChild text={flagKey}>
                       <code className={hasOverride ? 'has-override' : ''}>
                         {flagKey}
                       </code>
                     </CopyToClipboard>
-                  </Box>
-                  <div className="flag-value">{valueNode}</div>
-                  <Box width="2rem" height="2rem" marginLeft="0.5rem">
+
                     {hasOverride && (
-                      <IconButton
+                      <Button
                         icon="cancel"
                         aria-label="Remove override"
                         onPress={() => {
                           removeOverride(flagKey);
                         }}
                         variant="destructive"
-                      />
+                      >
+                        <Inline gap="2">
+                          <Icon name="cancel" size="small" />
+                          Remove override
+                        </Inline>
+                      </Button>
                     )}
-                  </Box>
-                </li>
-              );
-            },
-          )}
+                  </Inline>
+                </Box>
+                <Box
+                  alignItems="center"
+                  paddingRight="1rem"
+                  overflow="hidden"
+                  flexShrink={0}
+                >
+                  <VariationValues
+                    availableVariations={
+                      availableVariations[flagKey]
+                        ? availableVariations[flagKey]
+                        : []
+                    }
+                    currentValue={currentValue}
+                    flagValue={flagValue}
+                    flagKey={flagKey}
+                    updateOverride={updateOverride}
+                  />
+                </Box>
+              </li>
+            );
+          })}
         </ul>
+      </Stack>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginTop: '1rem',
+        }}
+      >
+        <Pagination
+          currentOffset={currentPage * flagsPerPage}
+          isReady
+          onChange={(e) => handlePageChange(e as string)}
+          pageSize={flagsPerPage}
+          resourceName="flags"
+          totalCount={filteredFlags.length}
+        />
       </div>
     </>
   );

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/pkg/errors"
 )
@@ -15,6 +16,7 @@ type Project struct {
 	Context              ldcontext.Context
 	LastSyncTime         time.Time
 	AllFlagsState        FlagsState
+	AvailableVariations  []FlagVariation
 }
 
 // CreateProject creates a project and adds it to the database.
@@ -29,21 +31,32 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	} else {
 		project.Context = *ldCtx
 	}
-
-	flagsState, err := project.FetchFlagState(ctx)
+	err := project.refreshExternalState(ctx)
 	if err != nil {
 		return Project{}, err
 	}
-
-	project.AllFlagsState = flagsState
-	project.LastSyncTime = time.Now()
-
 	store := StoreFromContext(ctx)
 	err = store.InsertProject(ctx, project)
 	if err != nil {
 		return Project{}, err
 	}
 	return project, nil
+}
+
+func (project *Project) refreshExternalState(ctx context.Context) error {
+	flagsState, err := project.fetchFlagState(ctx)
+	if err != nil {
+		return err
+	}
+	project.AllFlagsState = flagsState
+	project.LastSyncTime = time.Now()
+
+	availableVariations, err := project.fetchAvailableVariations(ctx)
+	if err != nil {
+		return err
+	}
+	project.AvailableVariations = availableVariations
+	return nil
 }
 
 func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Context, sourceEnvironmentKey *string) (Project, error) {
@@ -60,39 +73,10 @@ func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Co
 		project.SourceEnvironmentKey = *sourceEnvironmentKey
 	}
 
-	if context != nil || sourceEnvironmentKey != nil {
-		flagsState, err := project.FetchFlagState(ctx)
-		if err != nil {
-			return Project{}, err
-		}
-		project.AllFlagsState = flagsState
-		project.LastSyncTime = time.Now()
-	}
-
-	updated, err := store.UpdateProject(ctx, *project)
+	err = project.refreshExternalState(ctx)
 	if err != nil {
 		return Project{}, err
 	}
-	if !updated {
-		return Project{}, errors.New("Project not updated")
-	}
-
-	return *project, nil
-}
-
-func SyncProject(ctx context.Context, projectKey string) (Project, error) {
-	store := StoreFromContext(ctx)
-	project, err := store.GetDevProject(ctx, projectKey)
-	if err != nil {
-		return Project{}, err
-	}
-	flagsState, err := project.FetchFlagState(ctx)
-	if err != nil {
-		return Project{}, err
-	}
-
-	project.AllFlagsState = flagsState
-	project.LastSyncTime = time.Now()
 
 	updated, err := store.UpdateProject(ctx, *project)
 	if err != nil {
@@ -114,14 +98,14 @@ func SyncProject(ctx context.Context, projectKey string) (Project, error) {
 	return *project, nil
 }
 
-func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context) (FlagsState, error) {
+func (project Project) GetFlagStateWithOverridesForProject(ctx context.Context) (FlagsState, error) {
 	store := StoreFromContext(ctx)
-	overrides, err := store.GetOverridesForProject(ctx, p.Key)
+	overrides, err := store.GetOverridesForProject(ctx, project.Key)
 	if err != nil {
-		return FlagsState{}, errors.Wrapf(err, "unable to fetch overrides for project %s", p.Key)
+		return FlagsState{}, errors.Wrapf(err, "unable to fetch overrides for project %s", project.Key)
 	}
-	withOverrides := make(FlagsState, len(p.AllFlagsState))
-	for flagKey, flagState := range p.AllFlagsState {
+	withOverrides := make(FlagsState, len(project.AllFlagsState))
+	for flagKey, flagState := range project.AllFlagsState {
 		if override, ok := overrides.GetFlag(flagKey); ok {
 			flagState = override.Apply(flagState)
 		}
@@ -130,16 +114,40 @@ func (p Project) GetFlagStateWithOverridesForProject(ctx context.Context) (Flags
 	return withOverrides, nil
 }
 
-func (p Project) FetchFlagState(ctx context.Context) (FlagsState, error) {
+func (project Project) fetchAvailableVariations(ctx context.Context) ([]FlagVariation, error) {
 	apiAdapter := adapters.GetApi(ctx)
-	sdkKey, err := apiAdapter.GetSdkKey(ctx, p.Key, p.SourceEnvironmentKey)
+	flags, err := apiAdapter.GetAllFlags(ctx, project.Key)
+	if err != nil {
+		return nil, err
+	}
+	var allVariations []FlagVariation
+	for _, flag := range flags {
+		flagKey := flag.Key
+		for _, variation := range flag.Variations {
+			allVariations = append(allVariations, FlagVariation{
+				FlagKey: flagKey,
+				Variation: Variation{
+					Id:          *variation.Id,
+					Description: variation.Description,
+					Name:        variation.Name,
+					Value:       ldvalue.CopyArbitraryValue(variation.Value),
+				},
+			})
+		}
+	}
+	return allVariations, nil
+}
+
+func (project Project) fetchFlagState(ctx context.Context) (FlagsState, error) {
+	apiAdapter := adapters.GetApi(ctx)
+	sdkKey, err := apiAdapter.GetSdkKey(ctx, project.Key, project.SourceEnvironmentKey)
 	flagsState := make(FlagsState)
 	if err != nil {
 		return flagsState, err
 	}
 
 	sdkAdapter := adapters.GetSdk(ctx)
-	sdkFlags, err := sdkAdapter.GetAllFlagsState(ctx, p.Context, sdkKey)
+	sdkFlags, err := sdkAdapter.GetAllFlagsState(ctx, project.Context, sdkKey)
 	if err != nil {
 		return flagsState, err
 	}
