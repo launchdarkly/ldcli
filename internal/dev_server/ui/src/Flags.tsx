@@ -24,15 +24,19 @@ import VariationValues from './Flag.tsx';
 import fuzzysort from 'fuzzysort';
 
 type FlagProps = {
+  availableVariations: Record<string, FlagVariation[]>
   selectedProject: string;
   flags: LDFlagSet | null;
+  setAvailableVariations: (availableVariations: Record<string, FlagVariation[]>) => void;
   setFlags: (flags: LDFlagSet) => void;
   setSourceEnvironmentKey: (sourceEnvironmentKey: string) => void;
 };
 
 function Flags({
+  availableVariations,
   selectedProject,
   flags,
+  setAvailableVariations,
   setFlags,
   setSourceEnvironmentKey,
 }: FlagProps) {
@@ -40,9 +44,6 @@ function Flags({
     Record<string, { value: LDFlagValue }>
   >({});
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
-  const [availableVariations, setAvailableVariations] = useState<
-    Record<string, FlagVariation[]>
-  >({});
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(0); // Change initial page to 0
   const flagsPerPage = 20;

@@ -13,12 +13,16 @@ import {
   Pressable,
 } from '@launchpad-ui/components';
 import { Icon } from '@launchpad-ui/icons';
+import { FlagVariation } from './api.ts';
 
 function App() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [sourceEnvironmentKey, setSourceEnvironmentKey] = useState<
     string | null
   >(null);
+  const [availableVariations, setAvailableVariations] = useState<
+    Record<string, FlagVariation[]>
+  >({});
   const [flags, setFlags] = useState<LDFlagSet | null>(null);
   const [showBanner, setShowBanner] = useState(false);
 
@@ -83,14 +87,17 @@ function App() {
               <SyncButton
                 selectedProject={selectedProject}
                 setFlags={setFlags}
+                setAvailableVariations={setAvailableVariations}
               />
             </Box>
           )}
           {selectedProject && (
             <Box width="100%">
               <Flags
+                availableVariations={availableVariations}
                 selectedProject={selectedProject}
                 flags={flags}
+                setAvailableVariations={setAvailableVariations}
                 setFlags={setFlags}
                 setSourceEnvironmentKey={setSourceEnvironmentKey}
               />
