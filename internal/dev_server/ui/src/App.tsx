@@ -1,10 +1,10 @@
 import './App.css';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Flags from './Flags.tsx';
 import ProjectSelector from './ProjectSelector.tsx';
 import { Box, Alert, CopyToClipboard, Inline } from '@launchpad-ui/core';
 import SyncButton from './Sync.tsx';
-import { LDFlagSet } from 'launchdarkly-js-client-sdk';
+import { LDFlagSet, LDFlagValue } from 'launchdarkly-js-client-sdk';
 import {
   Heading,
   Text,
@@ -14,18 +14,55 @@ import {
 } from '@launchpad-ui/components';
 import { Icon } from '@launchpad-ui/icons';
 import { FlagVariation } from './api.ts';
+import { apiRoute, sortFlags } from './util.ts';
 
 function App() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [sourceEnvironmentKey, setSourceEnvironmentKey] = useState<
     string | null
   >(null);
+  const [overrides, setOverrides] = useState<
+    Record<string, { value: LDFlagValue }>
+  >({});
   const [availableVariations, setAvailableVariations] = useState<
     Record<string, FlagVariation[]>
   >({});
   const [flags, setFlags] = useState<LDFlagSet | null>(null);
   const [showBanner, setShowBanner] = useState(false);
 
+  const fetchDevFlags = useCallback(async () => {
+    if (!selectedProject) {
+      return
+    }
+    const res = await fetch(
+      apiRoute(
+        `/dev/projects/${selectedProject}?expand=overrides&expand=availableVariations`,
+      ),
+    );
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(`Got ${res.status}, ${res.statusText} from flag fetch`);
+    }
+
+    const {
+      flagsState: flags,
+      overrides,
+      sourceEnvironmentKey,
+      availableVariations,
+    } = json;
+
+    setFlags(sortFlags(flags));
+    setOverrides(overrides);
+    setSourceEnvironmentKey(sourceEnvironmentKey);
+    setAvailableVariations(availableVariations);
+  }, [selectedProject, setFlags, setSourceEnvironmentKey]);
+
+  // Fetch flags / overrides on mount
+  useEffect(() => {
+    Promise.all([fetchDevFlags()]).catch(
+      console.error.bind(console, 'error when fetching flags'),
+    );
+  }, [fetchDevFlags]);
   return (
     <div
       style={{
@@ -97,9 +134,8 @@ function App() {
                 availableVariations={availableVariations}
                 selectedProject={selectedProject}
                 flags={flags}
-                setAvailableVariations={setAvailableVariations}
-                setFlags={setFlags}
-                setSourceEnvironmentKey={setSourceEnvironmentKey}
+                overrides={overrides}
+                setOverrides={setOverrides}
               />
             </Box>
           )}

@@ -16,9 +16,9 @@ import {
   Stack,
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Icon } from '@launchpad-ui/icons';
-import { apiRoute, sortFlags } from './util.ts';
+import { apiRoute } from './util.ts';
 import { FlagVariation } from './api.ts';
 import VariationValues from './Flag.tsx';
 import fuzzysort from 'fuzzysort';
@@ -27,22 +27,17 @@ type FlagProps = {
   availableVariations: Record<string, FlagVariation[]>
   selectedProject: string;
   flags: LDFlagSet | null;
-  setAvailableVariations: (availableVariations: Record<string, FlagVariation[]>) => void;
-  setFlags: (flags: LDFlagSet) => void;
-  setSourceEnvironmentKey: (sourceEnvironmentKey: string) => void;
+  overrides: Record<string, { value: LDFlagValue }>;
+  setOverrides: (overrides: Record<string, { value: LDFlagValue }>) => void;
 };
 
 function Flags({
   availableVariations,
   selectedProject,
   flags,
-  setAvailableVariations,
-  setFlags,
-  setSourceEnvironmentKey,
+  overrides,
+  setOverrides,
 }: FlagProps) {
-  const [overrides, setOverrides] = useState<
-    Record<string, { value: LDFlagValue }>
-  >({});
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(0); // Change initial page to 0
@@ -126,37 +121,6 @@ function Flags({
     },
     [overrides, selectedProject],
   );
-
-  const fetchDevFlags = useCallback(async () => {
-    const res = await fetch(
-      apiRoute(
-        `/dev/projects/${selectedProject}?expand=overrides&expand=availableVariations`,
-      ),
-    );
-    const json = await res.json();
-    if (!res.ok) {
-      throw new Error(`Got ${res.status}, ${res.statusText} from flag fetch`);
-    }
-
-    const {
-      flagsState: flags,
-      overrides,
-      sourceEnvironmentKey,
-      availableVariations,
-    } = json;
-
-    setFlags(sortFlags(flags));
-    setOverrides(overrides);
-    setSourceEnvironmentKey(sourceEnvironmentKey);
-    setAvailableVariations(availableVariations);
-  }, [selectedProject, setFlags, setSourceEnvironmentKey]);
-
-  // Fetch flags / overrides on mount
-  useEffect(() => {
-    Promise.all([fetchDevFlags()]).catch(
-      console.error.bind(console, 'error when fetching flags'),
-    );
-  }, [fetchDevFlags]);
 
   if (!flags) {
     return null;
