@@ -24,7 +24,7 @@ import VariationValues from './Flag.tsx';
 import fuzzysort from 'fuzzysort';
 
 type FlagProps = {
-  availableVariations: Record<string, FlagVariation[]>
+  availableVariations: Record<string, FlagVariation[]>;
   selectedProject: string;
   flags: LDFlagSet | null;
   overrides: Record<string, { value: LDFlagValue }>;

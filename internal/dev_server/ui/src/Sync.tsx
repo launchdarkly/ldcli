@@ -12,9 +12,14 @@ import { Inline } from '@launchpad-ui/core';
 import { FlagVariation } from './api.ts';
 
 const syncProject = async (selectedProject: string) => {
-  const res = await fetch(apiRoute(`/dev/projects/${selectedProject}/sync?expand=availableVariations`), {
-    method: 'PATCH',
-  });
+  const res = await fetch(
+    apiRoute(
+      `/dev/projects/${selectedProject}/sync?expand=availableVariations`,
+    ),
+    {
+      method: 'PATCH',
+    },
+  );
 
   const json = await res.json();
   if (!res.ok) {
@@ -26,8 +31,10 @@ const syncProject = async (selectedProject: string) => {
 type Props = {
   selectedProject: string | null;
   setFlags: (flags: LDFlagSet) => void;
-  setAvailableVariations: (availableVariations: Record<string, FlagVariation[]>) => void;
-}
+  setAvailableVariations: (
+    availableVariations: Record<string, FlagVariation[]>,
+  ) => void;
+};
 
 const SyncButton = ({
   selectedProject,
@@ -40,7 +47,7 @@ const SyncButton = ({
     setIsLoading(true);
     try {
       const result = await syncProject(selectedProject!);
-      setAvailableVariations(result.availableVariations)
+      setAvailableVariations(result.availableVariations);
       setFlags(sortFlags(result.flagsState));
     } catch (error) {
       console.error('Sync failed:', error);

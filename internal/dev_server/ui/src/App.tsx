@@ -32,7 +32,7 @@ function App() {
 
   const fetchDevFlags = useCallback(async () => {
     if (!selectedProject) {
-      return
+      return;
     }
     const res = await fetch(
       apiRoute(
