@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.0](https://github.com/launchdarkly/ldcli/compare/v1.4.4...v1.5.0) (2024-09-06)
+
+
+### Features
+
+* Pick from list of real variations ([#420](https://github.com/launchdarkly/ldcli/issues/420)) ([91e8cbf](https://github.com/launchdarkly/ldcli/commit/91e8cbf8ba82cdff1625914a0e8b7fad5605da39))
+
+
+### Bug Fixes
+
+* Add dev server to usage template ([#411](https://github.com/launchdarkly/ldcli/issues/411)) ([66a6a25](https://github.com/launchdarkly/ldcli/commit/66a6a25fb20b8c4bafd8730b4d45b97882adb8c3))
+* dev server commands emit events ([#410](https://github.com/launchdarkly/ldcli/issues/410)) ([2019b77](https://github.com/launchdarkly/ldcli/commit/2019b772cab8fd585bed6b58e3625fc873e1fa84))
+* Handle unhandled errors in dev server UI ([#416](https://github.com/launchdarkly/ldcli/issues/416)) ([afe5281](https://github.com/launchdarkly/ldcli/commit/afe5281868e26839f36eb91b4b3c7254aa98f7dc))
+* Propagate dev server errors in CLI compatible format ([#412](https://github.com/launchdarkly/ldcli/issues/412)) ([67cc93a](https://github.com/launchdarkly/ldcli/commit/67cc93a6b3129956b228fe1d1506d277abc3b0b1))
+
 ## [1.4.4](https://github.com/launchdarkly/ldcli/compare/v1.4.3...v1.4.4) (2024-08-19)
 
 
