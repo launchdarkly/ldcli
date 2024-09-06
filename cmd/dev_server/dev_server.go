@@ -3,6 +3,8 @@ package dev_server
 import (
 	"fmt"
 
+	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
+	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -12,11 +14,25 @@ import (
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
-func NewDevServerCmd(client resources.Client, ldClient dev_server.Client) *cobra.Command {
+func NewDevServerCmd(client resources.Client, analyticsTrackerFn analytics.TrackerFn, ldClient dev_server.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dev-server",
 		Short: "Development server",
 		Long:  "Start and use a local development server for overriding flag values.",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+
+			tracker := analyticsTrackerFn(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
+			)
+			tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(
+				cmd,
+				"dev-server",
+				map[string]interface{}{
+					"action": cmd.Name(),
+				}))
+		},
 	}
 
 	cmd.PersistentFlags().String(
