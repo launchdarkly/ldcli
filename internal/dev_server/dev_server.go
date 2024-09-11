@@ -10,6 +10,7 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/api"
@@ -66,7 +67,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 
 	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
-	log.Printf("Server running on %s", addr)
+	log.Printf("server running on %s", addr)
 	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
 	server := http.Server{
 		Addr:    addr,
@@ -77,6 +78,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 
 func getDBPath() string {
 	dbFilePath, err := xdg.StateFile("ldcli/dev_server.db")
+	log.Printf("Using database at %s", dbFilePath)
 	if err != nil {
 		log.Fatalf("Unable to create state directory: %s", err)
 	}

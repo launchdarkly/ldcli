@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
-	"github.com/samber/lo"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDBFunctions(t *testing.T) {
@@ -159,7 +160,7 @@ func TestDBFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("UpdateProject updates flag state, sync time, context but not source environment key", func(t *testing.T) {
+	t.Run("UpdateProject updates flag state, sync time, context and source environment key", func(t *testing.T) {
 		project := projects[0]
 		project.Context = ldcontext.New(t.Name() + "blah")
 		project.AllFlagsState = model.FlagsState{
@@ -167,7 +168,6 @@ func TestDBFunctions(t *testing.T) {
 			"flag-2": model.FlagState{Value: ldvalue.String("cool beeans"), Version: 3},
 		}
 		project.LastSyncTime = time.Now().Add(time.Hour)
-		oldSourceEnvKey := projects[0].SourceEnvironmentKey
 		project.SourceEnvironmentKey = "new-env"
 		project.AvailableVariations = []model.FlagVariation{
 			{
@@ -204,7 +204,7 @@ func TestDBFunctions(t *testing.T) {
 		assert.NotNil(t, newProj)
 		assert.Equal(t, project.Key, newProj.Key)
 		assert.Equal(t, project.AllFlagsState, newProj.AllFlagsState)
-		assert.Equal(t, oldSourceEnvKey, newProj.SourceEnvironmentKey)
+		assert.Equal(t, project.SourceEnvironmentKey, newProj.SourceEnvironmentKey)
 		assert.Equal(t, project.Context, newProj.Context)
 		assert.True(t, project.LastSyncTime.Equal(newProj.LastSyncTime))
 

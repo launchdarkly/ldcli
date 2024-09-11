@@ -6,8 +6,9 @@ import (
 	"net/url"
 	"strconv"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/pkg/errors"
+
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 )
 
 const ctxKeyApi = ctxKey("adapters.api")
@@ -24,6 +25,7 @@ func GetApi(ctx context.Context) Api {
 type Api interface {
 	GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error)
 	GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error)
+	GetProjectEnvironments(ctx context.Context, projectKey string) ([]ldapi.Environment, error)
 }
 
 type apiClientApi struct {
@@ -50,6 +52,15 @@ func (a apiClientApi) GetAllFlags(ctx context.Context, projectKey string) ([]lda
 		err = errors.Wrap(err, "unable to get all flags from LD API")
 	}
 	return flags, err
+}
+
+func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey string) ([]ldapi.Environment, error) {
+	log.Printf("Fetching all environments for project '%s'", projectKey)
+	environments, err := a.getEnvironments(ctx, projectKey)
+	if err != nil {
+		err = errors.Wrap(err, "unable to get environments from LD API")
+	}
+	return environments, err
 }
 
 func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *string) ([]ldapi.FeatureFlag, error) {
@@ -85,6 +96,14 @@ func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *str
 		flags = append(flags, newFlags...)
 	}
 	return flags, nil
+}
+
+func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string) ([]ldapi.Environment, error) {
+	environments, _, err := a.apiClient.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey).Limit(1000).Execute()
+	if err != nil {
+		return nil, err
+	}
+	return environments.Items, nil
 }
 
 func parseHref(href string) (limit, offset int64, err error) {
