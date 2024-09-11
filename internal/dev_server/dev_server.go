@@ -67,7 +67,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 
 	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
-	log.Printf("server running on %s", addr)
+	log.Printf("Server running on %s", addr)
 	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
 	server := http.Server{
 		Addr:    addr,
