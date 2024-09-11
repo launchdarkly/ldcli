@@ -17,7 +17,6 @@ import { FlagVariation } from './api.ts';
 import { apiRoute, sortFlags } from './util.ts';
 import { ProjectEditor } from './ProjectEditor';
 
-// Add this interface
 interface Environment {
   key: string;
   name: string;
