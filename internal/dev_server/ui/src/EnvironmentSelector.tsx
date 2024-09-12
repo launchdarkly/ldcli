@@ -62,6 +62,8 @@ export function EnvironmentSelector({
     return <span>Loading environments...</span>;
   }
 
+  console.log(searchQuery);
+
   return (
     <Stack gap="3">
       <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -77,8 +79,12 @@ export function EnvironmentSelector({
           <Input
             id="environmentSearch"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              console.log(e.target.value);
+              setSearchQuery(e.target.value || '');
+            }}
             placeholder="Search environments..."
+            aria-label="Search environments"
           />
         </div>
         <span
