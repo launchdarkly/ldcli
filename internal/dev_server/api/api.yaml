@@ -129,6 +129,27 @@ paths:
           description: OK. override removed
         404:
           description: no matching override found
+  /dev/projects/{projectKey}/environments:
+    get:
+      operationId: getProjectsEnvironments
+      summary: list all environments for the given project
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+      responses:
+        200:
+          description: OK. List of environments
+          content:
+            application/json:
+              schema:
+                description: list of environments
+                type: array
+                items:
+                  $ref: "#/components/schemas/Environment"
+                uniqueItems: true
+        404:
+          $ref: "#/components/responses/ErrorResponse"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
 components:
   parameters:
     flagKey:
@@ -224,6 +245,17 @@ components:
           type: integer
           x-go-type: int64
           description: unix timestamp for the lat time the flag values were synced from the source environment
+    Environment:
+      description: Environment
+      type: object
+      required:
+        - key
+        - name
+      properties:
+        key:
+          type: string
+        name:
+          type: string
   responses:
     FlagOverride:
       description: Flag override

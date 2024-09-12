@@ -8,14 +8,16 @@ import (
 )
 
 //go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen -config oapi-codegen-cfg.yaml api.yaml
-type Server struct {
+var _ StrictServerInterface = server{}
+
+type server struct {
 }
 
-func NewStrictServer() Server {
-	return Server{}
+func NewStrictServer() StrictServerInterface {
+	return server{}
 }
 
-func (s Server) GetDevProjects(ctx context.Context, request GetDevProjectsRequestObject) (GetDevProjectsResponseObject, error) {
+func (s server) GetDevProjects(ctx context.Context, request GetDevProjectsRequestObject) (GetDevProjectsResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	projectKeys, err := store.GetDevProjectKeys(ctx)
 	if err != nil {
@@ -27,7 +29,7 @@ func (s Server) GetDevProjects(ctx context.Context, request GetDevProjectsReques
 	return GetDevProjects200JSONResponse(projectKeys), nil
 }
 
-func (s Server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteDevProjectsProjectKeyRequestObject) (DeleteDevProjectsProjectKeyResponseObject, error) {
+func (s server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteDevProjectsProjectKeyRequestObject) (DeleteDevProjectsProjectKeyResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	deleted, err := store.DeleteDevProject(ctx, request.ProjectKey)
 	if err != nil {
@@ -42,7 +44,7 @@ func (s Server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteD
 	return DeleteDevProjectsProjectKey204Response{}, nil
 }
 
-func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProjectsProjectKeyRequestObject) (GetDevProjectsProjectKeyResponseObject, error) {
+func (s server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProjectsProjectKeyRequestObject) (GetDevProjectsProjectKeyResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	project, err := store.GetDevProject(ctx, request.ProjectKey)
 	if err != nil {
@@ -95,7 +97,7 @@ func (s Server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 	}, nil
 }
 
-func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
+func (s server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
 	if request.Body.SourceEnvironmentKey == "" {
 		return PostDevProjectsProjectKey400JSONResponse{
 			ErrorResponseJSONResponse{
@@ -160,7 +162,7 @@ func (s Server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 	}, nil
 }
 
-func (s Server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDevProjectsProjectKeyRequestObject) (PatchDevProjectsProjectKeyResponseObject, error) {
+func (s server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDevProjectsProjectKeyRequestObject) (PatchDevProjectsProjectKeyResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	project, err := model.UpdateProject(ctx, request.ProjectKey, request.Body.Context, request.Body.SourceEnvironmentKey)
 	if err != nil {
@@ -213,7 +215,7 @@ func (s Server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDev
 	}, nil
 }
 
-func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request PatchDevProjectsProjectKeySyncRequestObject) (PatchDevProjectsProjectKeySyncResponseObject, error) {
+func (s server) PatchDevProjectsProjectKeySync(ctx context.Context, request PatchDevProjectsProjectKeySyncRequestObject) (PatchDevProjectsProjectKeySyncResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	project, err := model.UpdateProject(ctx, request.ProjectKey, nil, nil)
 	if err != nil {
@@ -266,7 +268,7 @@ func (s Server) PatchDevProjectsProjectKeySync(ctx context.Context, request Patc
 	}, nil
 }
 
-func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
+func (s server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	err := store.DeactivateOverride(ctx, request.ProjectKey, request.FlagKey)
 	if err != nil {
@@ -278,7 +280,7 @@ func (s Server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context,
 	return DeleteDevProjectsProjectKeyOverridesFlagKey204Response{}, nil
 }
 
-func (s Server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
+func (s server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
 	if request.Body == nil {
 		return nil, errors.New("empty override body")
 	}
@@ -298,4 +300,30 @@ func (s Server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, re
 		Override: override.Active,
 		Value:    override.Value,
 	}}, nil
+}
+
+func (s server) GetProjectsEnvironments(ctx context.Context, request GetProjectsEnvironmentsRequestObject) (GetProjectsEnvironmentsResponseObject, error) {
+	store := model.StoreFromContext(ctx)
+	project, err := store.GetDevProject(ctx, request.ProjectKey)
+	if err != nil {
+		return nil, err
+	}
+	if project == nil {
+		return GetProjectsEnvironments404JSONResponse{}, nil
+	}
+
+	environments, err := model.GetEnvironmentsForProject(ctx, project.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	var envReps []Environment
+	for _, env := range environments {
+		envReps = append(envReps, Environment{
+			Key:  env.Key,
+			Name: env.Name,
+		})
+	}
+
+	return GetProjectsEnvironments200JSONResponse(envReps), nil
 }

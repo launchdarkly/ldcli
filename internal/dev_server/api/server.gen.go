@@ -44,6 +44,12 @@ const (
 // Context context object to use when evaluating flags in source environment
 type Context = ldcontext.Context
 
+// Environment Environment
+type Environment struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
 // FlagValue value of a feature flag variation
 type FlagValue = ldvalue.Value
 
@@ -185,6 +191,9 @@ type ServerInterface interface {
 	// Add the project to the dev server
 	// (POST /dev/projects/{projectKey})
 	PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostDevProjectsProjectKeyParams)
+	// list all environments for the given project
+	// (GET /dev/projects/{projectKey}/environments)
+	GetProjectsEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
 	// remove override for flag
 	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
 	DeleteDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
@@ -348,6 +357,32 @@ func (siw *ServerInterfaceWrapper) PostDevProjectsProjectKey(w http.ResponseWrit
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostDevProjectsProjectKey(w, r, projectKey, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetProjectsEnvironments operation middleware
+func (siw *ServerInterfaceWrapper) GetProjectsEnvironments(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "projectKey" -------------
+	var projectKey ProjectKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectKey", mux.Vars(r)["projectKey"], &projectKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectKey", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProjectsEnvironments(w, r, projectKey)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -587,6 +622,8 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.PostDevProjectsProjectKey).Methods("POST")
 
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/environments", wrapper.GetProjectsEnvironments).Methods("GET")
+
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.DeleteDevProjectsProjectKeyOverridesFlagKey).Methods("DELETE")
 
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.PutDevProjectsProjectKeyOverridesFlagKey).Methods("PUT")
@@ -751,6 +788,47 @@ func (response PostDevProjectsProjectKey409JSONResponse) VisitPostDevProjectsPro
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetProjectsEnvironmentsRequestObject struct {
+	ProjectKey ProjectKey `json:"projectKey"`
+}
+
+type GetProjectsEnvironmentsResponseObject interface {
+	VisitGetProjectsEnvironmentsResponse(w http.ResponseWriter) error
+}
+
+type GetProjectsEnvironments200JSONResponse []Environment
+
+func (response GetProjectsEnvironments200JSONResponse) VisitGetProjectsEnvironmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProjectsEnvironments400JSONResponse struct{ ErrorResponseJSONResponse }
+
+func (response GetProjectsEnvironments400JSONResponse) VisitGetProjectsEnvironmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetProjectsEnvironments404JSONResponse struct {
+	// Code specific error code encountered
+	Code string `json:"code"`
+
+	// Message description of the error
+	Message string `json:"message"`
+}
+
+func (response GetProjectsEnvironments404JSONResponse) VisitGetProjectsEnvironmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
 	FlagKey    FlagKey    `json:"flagKey"`
@@ -847,6 +925,9 @@ type StrictServerInterface interface {
 	// Add the project to the dev server
 	// (POST /dev/projects/{projectKey})
 	PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error)
+	// list all environments for the given project
+	// (GET /dev/projects/{projectKey}/environments)
+	GetProjectsEnvironments(ctx context.Context, request GetProjectsEnvironmentsRequestObject) (GetProjectsEnvironmentsResponseObject, error)
 	// remove override for flag
 	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
 	DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error)
@@ -1025,6 +1106,32 @@ func (sh *strictHandler) PostDevProjectsProjectKey(w http.ResponseWriter, r *htt
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostDevProjectsProjectKeyResponseObject); ok {
 		if err := validResponse.VisitPostDevProjectsProjectKeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProjectsEnvironments operation middleware
+func (sh *strictHandler) GetProjectsEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
+	var request GetProjectsEnvironmentsRequestObject
+
+	request.ProjectKey = projectKey
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProjectsEnvironments(ctx, request.(GetProjectsEnvironmentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProjectsEnvironments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProjectsEnvironmentsResponseObject); ok {
+		if err := validResponse.VisitGetProjectsEnvironmentsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

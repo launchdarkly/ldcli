@@ -27,8 +27,10 @@ type FlagProps = {
   availableVariations: Record<string, FlagVariation[]>;
   selectedProject: string;
   flags: LDFlagSet | null;
-  overrides: Record<string, { value: LDFlagValue }>;
-  setOverrides: (overrides: Record<string, { value: LDFlagValue }>) => void;
+  overrides: Record<string, { value: LDFlagValue; version: number }>;
+  setOverrides: (
+    overrides: Record<string, { value: LDFlagValue; version: number }>,
+  ) => void;
 };
 
 function Flags({
@@ -68,10 +70,9 @@ function Flags({
     (flagKey: string, overrideValue: LDFlagValue) => {
       const updatedOverrides = {
         ...overrides,
-        ...{
-          [flagKey]: {
-            value: overrideValue,
-          },
+        [flagKey]: {
+          value: overrideValue,
+          version: overrides[flagKey]?.version || 0,
         },
       };
 
