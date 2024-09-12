@@ -16,7 +16,7 @@ import {
   Stack,
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { apiRoute } from './util.ts';
 import { FlagVariation } from './api.ts';
@@ -42,13 +42,19 @@ function Flags({
 }: FlagProps) {
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(0); // Change initial page to 0
+  const [currentPage, setCurrentPage] = useState(0);
   const flagsPerPage = 20;
 
   const overridesPresent = useMemo(
     () => overrides && Object.keys(overrides).length > 0,
     [overrides],
   );
+
+  useEffect(() => {
+    if (!overridesPresent && onlyShowOverrides) {
+      setOnlyShowOverrides(false);
+    }
+  }, [overridesPresent, onlyShowOverrides]);
 
   const filteredFlags = useMemo(() => {
     if (!flags) return [];
@@ -58,7 +64,7 @@ function Flags({
         if (!searchTerm) return true;
         const [flagKey] = entry;
         const result = fuzzysort.single(searchTerm.toLowerCase(), flagKey);
-        return result && result.score > -5000; // Adjust threshold as needed
+        return result && result.score > -5000;
       })
       .filter((entry) => {
         const [flagKey] = entry;
@@ -70,10 +76,10 @@ function Flags({
 
         return true;
       });
-  }, [flags, searchTerm, onlyShowOverrides]);
+  }, [flags, searchTerm, onlyShowOverrides, overrides]);
 
   const paginatedFlags = useMemo(() => {
-    const startIndex = currentPage * flagsPerPage; // Adjust startIndex calculation
+    const startIndex = currentPage * flagsPerPage;
     const endIndex = startIndex + flagsPerPage;
     return filteredFlags.slice(startIndex, endIndex);
   }, [filteredFlags, currentPage]);
@@ -144,18 +150,16 @@ function Flags({
   const handlePageChange = (direction: string) => {
     switch (direction) {
       case 'next':
-        setCurrentPage(
-          (prevPage) => Math.min(prevPage + 1, totalPages - 1), // Adjust page increment
-        );
+        setCurrentPage((prevPage) => Math.min(prevPage + 1, totalPages - 1));
         break;
       case 'prev':
-        setCurrentPage((prevPage) => Math.max(prevPage - 1, 0)); // Adjust page decrement
+        setCurrentPage((prevPage) => Math.max(prevPage - 1, 0));
         break;
       case 'first':
-        setCurrentPage(0); // Adjust first page
+        setCurrentPage(0);
         break;
       case 'last':
-        setCurrentPage(totalPages - 1); // Adjust last page
+        setCurrentPage(totalPages - 1);
         break;
       default:
         console.error('invalid page change direction.');
@@ -197,8 +201,6 @@ function Flags({
           variant="destructive"
           isDisabled={!overridesPresent}
           onPress={async () => {
-            // This button is disabled unless overrides are present, but the
-            // type is nullable
             if (!overrides) {
               return;
             }
@@ -207,24 +209,11 @@ function Flags({
 
             await Promise.all(
               overrideKeys.map((flagKey) => {
-                // Opt out of local state updates since we're bulk-removing
-                // overrides async
-                removeOverride(flagKey);
+                return removeOverride(flagKey);
               }),
             );
 
-            // Winnow out removed overrides and update local state in a
-            // single pass
-            const updatedOverrides = overrideKeys.reduce(
-              (accum, flagKey) => {
-                delete accum[flagKey];
-
-                return accum;
-              },
-              { ...overrides },
-            );
-
-            setOverrides(updatedOverrides);
+            setOverrides({});
             setOnlyShowOverrides(false);
           }}
         >
@@ -238,10 +227,10 @@ function Flags({
             <Group>
               <Icon name="search" size="small" />
               <Input
-                placeholder="Search flags"
+                placeholder="Search flags by key"
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  setCurrentPage(0); // Reset pagination
+                  setCurrentPage(0);
                 }}
                 value={searchTerm}
                 aria-label="Search flags input"
