@@ -226,7 +226,6 @@ function App() {
   );
 }
 
-// Add this function at the end of the file
 async function fetchEnvironments(projectKey: string) {
   const res = await fetch(apiRoute(`/dev/projects/${projectKey}/environments`));
   if (!res.ok) {
