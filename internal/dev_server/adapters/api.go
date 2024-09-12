@@ -56,7 +56,7 @@ func (a apiClientApi) GetAllFlags(ctx context.Context, projectKey string) ([]lda
 
 func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey string) ([]ldapi.Environment, error) {
 	log.Printf("Fetching all environments for project '%s'", projectKey)
-	environments, err := a.getEnvironments(ctx, projectKey)
+	environments, err := a.getEnvironments(ctx, projectKey, nil)
 	if err != nil {
 		err = errors.Wrap(err, "unable to get environments from LD API")
 	}
@@ -98,12 +98,39 @@ func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *str
 	return flags, nil
 }
 
-func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string) ([]ldapi.Environment, error) {
-	environments, _, err := a.apiClient.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey).Limit(1000).Execute()
-	if err != nil {
-		return nil, err
+func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string, href *string) ([]ldapi.Environment, error) {
+	var environments *ldapi.Environments
+	var err error
+	if href == nil {
+		environments, _, err = a.apiClient.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey).Execute()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		limit, offset, err := parseHref(*href)
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to parse href for next link: %s", *href)
+		}
+		environments, _, err = a.apiClient.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey).
+			Limit(limit).
+			Offset(offset).
+			Execute()
+		if err != nil {
+			return nil, err
+		}
 	}
-	return environments.Items, nil
+	envs := environments.Items
+	if environments.Links != nil {
+		links := *environments.Links
+		if next, ok := links["next"]; ok && next.Href != nil {
+			newEnvs, err := a.getEnvironments(ctx, projectKey, next.Href)
+			if err != nil {
+				return nil, err
+			}
+			envs = append(envs, newEnvs...)
+		}
+	}
+	return envs, nil
 }
 
 func parseHref(href string) (limit, offset int64, err error) {

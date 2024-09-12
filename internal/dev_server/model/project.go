@@ -139,24 +139,6 @@ func (project Project) fetchAvailableVariations(ctx context.Context) ([]FlagVari
 	return allVariations, nil
 }
 
-func (project Project) Environments(ctx context.Context) ([]Environment, error) {
-	apiAdapter := adapters.GetApi(ctx)
-	environments, err := apiAdapter.GetProjectEnvironments(ctx, project.Key)
-	if err != nil {
-		return nil, err
-	}
-
-	var allEnvironments []Environment
-	for _, environment := range environments {
-		allEnvironments = append(allEnvironments, Environment{
-			Key:  environment.Key,
-			Name: environment.Name,
-		})
-	}
-
-	return allEnvironments, nil
-}
-
 func (project Project) fetchFlagState(ctx context.Context) (FlagsState, error) {
 	apiAdapter := adapters.GetApi(ctx)
 	sdkKey, err := apiAdapter.GetSdkKey(ctx, project.Key, project.SourceEnvironmentKey)

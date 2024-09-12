@@ -312,7 +312,7 @@ func (s server) GetProjectsEnvironments(ctx context.Context, request GetProjects
 		return GetProjectsEnvironments404JSONResponse{}, nil
 	}
 
-	environments, err := project.Environments(ctx)
+	environments, err := model.GetEnvironmentsForProject(ctx, project.Key)
 	if err != nil {
 		return nil, err
 	}
