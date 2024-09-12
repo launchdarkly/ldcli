@@ -13,8 +13,3 @@ type FlagVariation struct {
 	FlagKey string
 	Variation
 }
-
-type Environment struct {
-	Key  string
-	Name string
-}
