@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.0](https://github.com/launchdarkly/ldcli/compare/v1.5.0...v1.6.0) (2024-09-13)
+
+
+### Features
+
+* Implement environment update functionality in launchdevly ui ([#423](https://github.com/launchdarkly/ldcli/issues/423)) ([216dc95](https://github.com/launchdarkly/ldcli/commit/216dc95aa93d4866e5ada2eb69749d8eb5644956))
+
+
+### Bug Fixes
+
+* LaunchDevly: Cleanup code and remove only show overrides when there are no overrides ([#427](https://github.com/launchdarkly/ldcli/issues/427)) ([860b657](https://github.com/launchdarkly/ldcli/commit/860b6579baf488cf692a892e5d82e8c664c29f4a))
+* LaunchDevly: Pagination for 'Only show flags with overrides' ([#426](https://github.com/launchdarkly/ldcli/issues/426)) ([28bfb60](https://github.com/launchdarkly/ldcli/commit/28bfb60cbd5a29f1dd9aea5a36c5e2759e7546af))
+* LaunchDevly: Search clear not clearing filter ([#424](https://github.com/launchdarkly/ldcli/issues/424)) ([dd9df47](https://github.com/launchdarkly/ldcli/commit/dd9df474413f068b7579288f155a9dc51d9baf0e))
+
 ## [1.5.0](https://github.com/launchdarkly/ldcli/compare/v1.4.4...v1.5.0) (2024-09-06)
 
 
