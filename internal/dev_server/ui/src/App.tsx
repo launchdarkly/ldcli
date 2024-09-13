@@ -2,17 +2,10 @@ import './App.css';
 import { useCallback, useEffect, useState } from 'react';
 import Flags from './Flags.tsx';
 import ProjectSelector from './ProjectSelector.tsx';
-import { Box, Alert, CopyToClipboard, Inline } from '@launchpad-ui/core';
+import { Box, Alert, CopyToClipboard } from '@launchpad-ui/core';
 import SyncButton from './Sync.tsx';
 import { LDFlagSet, LDFlagValue } from 'launchdarkly-js-client-sdk';
-import {
-  Heading,
-  Text,
-  Tooltip,
-  TooltipTrigger,
-  Pressable,
-} from '@launchpad-ui/components';
-import { Icon } from '@launchpad-ui/icons';
+import { Heading, Text } from '@launchpad-ui/components';
 import { FlagVariation } from './api.ts';
 import { apiRoute, sortFlags } from './util.ts';
 import { ProjectEditor } from './ProjectEditor';
