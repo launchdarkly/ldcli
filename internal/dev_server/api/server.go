@@ -17,7 +17,7 @@ func NewStrictServer() StrictServerInterface {
 	return server{}
 }
 
-func (s server) GetDevProjects(ctx context.Context, request GetDevProjectsRequestObject) (GetDevProjectsResponseObject, error) {
+func (s server) GetProjects(ctx context.Context, request GetProjectsRequestObject) (GetProjectsResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	projectKeys, err := store.GetDevProjectKeys(ctx)
 	if err != nil {
@@ -26,32 +26,32 @@ func (s server) GetDevProjects(ctx context.Context, request GetDevProjectsReques
 	if projectKeys == nil {
 		projectKeys = make([]string, 0) // HACK to make the json behavior compatible with go.
 	}
-	return GetDevProjects200JSONResponse(projectKeys), nil
+	return GetProjects200JSONResponse(projectKeys), nil
 }
 
-func (s server) DeleteDevProjectsProjectKey(ctx context.Context, request DeleteDevProjectsProjectKeyRequestObject) (DeleteDevProjectsProjectKeyResponseObject, error) {
+func (s server) DeleteProject(ctx context.Context, request DeleteProjectRequestObject) (DeleteProjectResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	deleted, err := store.DeleteDevProject(ctx, request.ProjectKey)
 	if err != nil {
 		return nil, err
 	}
 	if !deleted {
-		return DeleteDevProjectsProjectKey404JSONResponse{ErrorResponseJSONResponse{
+		return DeleteProject404JSONResponse{ErrorResponseJSONResponse{
 			Code:    "not_found",
 			Message: "project not found",
 		}}, nil
 	}
-	return DeleteDevProjectsProjectKey204Response{}, nil
+	return DeleteProject204Response{}, nil
 }
 
-func (s server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProjectsProjectKeyRequestObject) (GetDevProjectsProjectKeyResponseObject, error) {
+func (s server) GetProject(ctx context.Context, request GetProjectRequestObject) (GetProjectResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	project, err := store.GetDevProject(ctx, request.ProjectKey)
 	if err != nil {
 		return nil, err
 	}
 	if project == nil {
-		return GetDevProjectsProjectKey404Response{}, nil
+		return GetProject404Response{}, nil
 	}
 
 	response := ProjectJSONResponse{
@@ -92,14 +92,14 @@ func (s server) GetDevProjectsProjectKey(ctx context.Context, request GetDevProj
 
 	}
 
-	return GetDevProjectsProjectKey200JSONResponse{
+	return GetProject200JSONResponse{
 		response,
 	}, nil
 }
 
-func (s server) PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error) {
+func (s server) PostAddProject(ctx context.Context, request PostAddProjectRequestObject) (PostAddProjectResponseObject, error) {
 	if request.Body.SourceEnvironmentKey == "" {
-		return PostDevProjectsProjectKey400JSONResponse{
+		return PostAddProject400JSONResponse{
 			ErrorResponseJSONResponse{
 				Code:    "invalid_request",
 				Message: "sourceEnvironmentKey is required",
@@ -111,7 +111,7 @@ func (s server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 	project, err := model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, request.Body.Context)
 	switch {
 	case errors.Is(err, model.ErrAlreadyExists):
-		return PostDevProjectsProjectKey409JSONResponse{
+		return PostAddProject409JSONResponse{
 			Code:    "conflict",
 			Message: "project already exists",
 		}, nil
@@ -157,19 +157,19 @@ func (s server) PostDevProjectsProjectKey(ctx context.Context, request PostDevPr
 
 	}
 
-	return PostDevProjectsProjectKey201JSONResponse{
+	return PostAddProject201JSONResponse{
 		response,
 	}, nil
 }
 
-func (s server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDevProjectsProjectKeyRequestObject) (PatchDevProjectsProjectKeyResponseObject, error) {
+func (s server) PatchProject(ctx context.Context, request PatchProjectRequestObject) (PatchProjectResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	project, err := model.UpdateProject(ctx, request.ProjectKey, request.Body.Context, request.Body.SourceEnvironmentKey)
 	if err != nil {
 		return nil, err
 	}
 	if project.Key == "" && project.SourceEnvironmentKey == "" {
-		return PatchDevProjectsProjectKey404Response{}, nil
+		return PatchProject404Response{}, nil
 	}
 
 	response := ProjectJSONResponse{
@@ -210,19 +210,19 @@ func (s server) PatchDevProjectsProjectKey(ctx context.Context, request PatchDev
 
 	}
 
-	return PatchDevProjectsProjectKey200JSONResponse{
+	return PatchProject200JSONResponse{
 		response,
 	}, nil
 }
 
-func (s server) PatchDevProjectsProjectKeySync(ctx context.Context, request PatchDevProjectsProjectKeySyncRequestObject) (PatchDevProjectsProjectKeySyncResponseObject, error) {
+func (s server) PatchSyncProject(ctx context.Context, request PatchSyncProjectRequestObject) (PatchSyncProjectResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	project, err := model.UpdateProject(ctx, request.ProjectKey, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	if project.Key == "" && project.SourceEnvironmentKey == "" {
-		return PatchDevProjectsProjectKeySync404Response{}, nil
+		return PatchSyncProject404Response{}, nil
 	}
 
 	response := ProjectJSONResponse{
@@ -263,31 +263,31 @@ func (s server) PatchDevProjectsProjectKeySync(ctx context.Context, request Patc
 
 	}
 
-	return PatchDevProjectsProjectKeySync200JSONResponse{
+	return PatchSyncProject200JSONResponse{
 		response,
 	}, nil
 }
 
-func (s server) DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
+func (s server) DeleteFlagOverride(ctx context.Context, request DeleteFlagOverrideRequestObject) (DeleteFlagOverrideResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	err := store.DeactivateOverride(ctx, request.ProjectKey, request.FlagKey)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
-			return DeleteDevProjectsProjectKeyOverridesFlagKey404Response{}, nil
+			return DeleteFlagOverride404Response{}, nil
 		}
 		return nil, err
 	}
-	return DeleteDevProjectsProjectKeyOverridesFlagKey204Response{}, nil
+	return DeleteFlagOverride204Response{}, nil
 }
 
-func (s server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error) {
+func (s server) PutOverrideFlag(ctx context.Context, request PutOverrideFlagRequestObject) (PutOverrideFlagResponseObject, error) {
 	if request.Body == nil {
 		return nil, errors.New("empty override body")
 	}
 	override, err := model.UpsertOverride(ctx, request.ProjectKey, request.FlagKey, *request.Body)
 	if err != nil {
 		if errors.As(err, &model.Error{}) {
-			return PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse{
+			return PutOverrideFlag400JSONResponse{
 				ErrorResponseJSONResponse{
 					Code:    "invalid_request",
 					Message: err.Error(),
@@ -296,20 +296,20 @@ func (s server) PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, re
 		}
 		return nil, err
 	}
-	return PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse{FlagOverrideJSONResponse{
+	return PutOverrideFlag200JSONResponse{FlagOverrideJSONResponse{
 		Override: override.Active,
 		Value:    override.Value,
 	}}, nil
 }
 
-func (s server) GetProjectsEnvironments(ctx context.Context, request GetProjectsEnvironmentsRequestObject) (GetProjectsEnvironmentsResponseObject, error) {
+func (s server) GetProjectEnvironments(ctx context.Context, request GetProjectEnvironmentsRequestObject) (GetProjectEnvironmentsResponseObject, error) {
 	store := model.StoreFromContext(ctx)
 	project, err := store.GetDevProject(ctx, request.ProjectKey)
 	if err != nil {
 		return nil, err
 	}
 	if project == nil {
-		return GetProjectsEnvironments404JSONResponse{}, nil
+		return GetProjectEnvironments404JSONResponse{}, nil
 	}
 
 	environments, err := model.GetEnvironmentsForProject(ctx, project.Key)
@@ -325,5 +325,5 @@ func (s server) GetProjectsEnvironments(ctx context.Context, request GetProjects
 		})
 	}
 
-	return GetProjectsEnvironments200JSONResponse(envReps), nil
+	return GetProjectEnvironments200JSONResponse(envReps), nil
 }
