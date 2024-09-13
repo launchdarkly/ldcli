@@ -53,12 +53,24 @@ function Flags({
   const filteredFlags = useMemo(() => {
     if (!flags) return [];
     const flagEntries = Object.entries(flags);
-    const search = searchTerm.toLowerCase();
-    const filtered = fuzzysort
-      .go(search, flagEntries, { all: true, key: '0', threshold: 0.7 })
-      .map((result) => result.obj);
-    return filtered;
-  }, [flags, searchTerm]);
+    return flagEntries
+      .filter((entry) => {
+        if (!searchTerm) return true;
+        const [flagKey] = entry;
+        const result = fuzzysort.single(searchTerm.toLowerCase(), flagKey);
+        return result && result.score > -5000; // Adjust threshold as needed
+      })
+      .filter((entry) => {
+        const [flagKey] = entry;
+        const hasOverride = flagKey in overrides;
+
+        if (onlyShowOverrides && !hasOverride) {
+          return false;
+        }
+
+        return true;
+      });
+  }, [flags, searchTerm, onlyShowOverrides]);
 
   const paginatedFlags = useMemo(() => {
     const startIndex = currentPage * flagsPerPage; // Adjust startIndex calculation
@@ -231,6 +243,7 @@ function Flags({
                   setSearchTerm(e.target.value);
                   setCurrentPage(0); // Reset pagination
                 }}
+                value={searchTerm}
                 aria-label="Search flags input"
               />
               <IconButton
@@ -248,10 +261,6 @@ function Flags({
             const overrideValue = overrides[flagKey]?.value;
             const hasOverride = flagKey in overrides;
             const currentValue = hasOverride ? overrideValue : flagValue;
-
-            if (onlyShowOverrides && !hasOverride) {
-              return null;
-            }
 
             return (
               <li
