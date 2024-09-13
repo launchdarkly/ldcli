@@ -77,8 +77,9 @@ export function EnvironmentSelector({
           <Input
             id="environmentSearch"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value || '')}
             placeholder="Search environments..."
+            aria-label="Search environments"
           />
         </div>
         <span
