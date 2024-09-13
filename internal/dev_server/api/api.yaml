@@ -12,6 +12,7 @@ paths:
   /dev/projects:
     get:
       summary: lists all projects that have been configured for the dev server
+      operationId: getProjects
       responses:
         200:
           description: OK. List of projects
@@ -26,6 +27,7 @@ paths:
   /dev/projects/{projectKey}/sync:
     patch:
       summary: updates the flag state for the given project and source environment
+      operationId: patchSyncProject
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
@@ -37,6 +39,7 @@ paths:
   /dev/projects/{projectKey}:
     get:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
+      operationId: getProject
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
@@ -47,6 +50,7 @@ paths:
           description: No project found
     patch:
       summary: updates the project context or sourceEnvironmentKey
+      operationId: patchProject
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
@@ -68,6 +72,7 @@ paths:
           description: No project found
     delete:
       summary: remove the specified project from the dev server
+      operationId: deleteProject
       parameters:
         - $ref: "#/components/parameters/projectKey"
       responses:
@@ -77,6 +82,7 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
     post:
       summary: Add the project to the dev server
+      operationId: postAddProject
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
@@ -103,6 +109,7 @@ paths:
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
+      operationId: putOverrideFlag
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/flagKey"
@@ -121,6 +128,7 @@ paths:
 
     delete:
       summary: remove override for flag
+      operationId: deleteFlagOverride
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/flagKey"
@@ -131,7 +139,7 @@ paths:
           description: no matching override found
   /dev/projects/{projectKey}/environments:
     get:
-      operationId: getProjectsEnvironments
+      operationId: getEnvironments
       summary: list all environments for the given project
       parameters:
         - $ref: "#/components/parameters/projectKey"
