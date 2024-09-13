@@ -234,7 +234,7 @@ function Flags({
       </Box>
       <Stack gap="4">
         <Inline gap="4">
-          <SearchField>
+          <SearchField aria-label="Search flags">
             <Group>
               <Icon name="search" size="small" />
               <Input
@@ -244,12 +244,14 @@ function Flags({
                   setCurrentPage(0); // Reset pagination
                 }}
                 value={searchTerm}
+                aria-label="Search flags input"
               />
               <IconButton
                 aria-label="clear"
                 icon="cancel-circle-outline"
                 size="small"
                 variant="minimal"
+                onPress={() => setSearchTerm('')}
               />
             </Group>
           </SearchField>
