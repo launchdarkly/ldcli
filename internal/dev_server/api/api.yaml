@@ -139,7 +139,7 @@ paths:
           description: no matching override found
   /dev/projects/{projectKey}/environments:
     get:
-      operationId: getProjectEnvironments
+      operationId: getEnvironments
       summary: list all environments for the given project
       parameters:
         - $ref: "#/components/parameters/projectKey"

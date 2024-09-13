@@ -193,7 +193,7 @@ type ServerInterface interface {
 	PostAddProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostAddProjectParams)
 	// list all environments for the given project
 	// (GET /dev/projects/{projectKey}/environments)
-	GetProjectEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
+	GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
 	// remove override for flag
 	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
 	DeleteFlagOverride(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
@@ -366,8 +366,8 @@ func (siw *ServerInterfaceWrapper) PostAddProject(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// GetProjectEnvironments operation middleware
-func (siw *ServerInterfaceWrapper) GetProjectEnvironments(w http.ResponseWriter, r *http.Request) {
+// GetEnvironments operation middleware
+func (siw *ServerInterfaceWrapper) GetEnvironments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -382,7 +382,7 @@ func (siw *ServerInterfaceWrapper) GetProjectEnvironments(w http.ResponseWriter,
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetProjectEnvironments(w, r, projectKey)
+		siw.Handler.GetEnvironments(w, r, projectKey)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -622,7 +622,7 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.PostAddProject).Methods("POST")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/environments", wrapper.GetProjectEnvironments).Methods("GET")
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/environments", wrapper.GetEnvironments).Methods("GET")
 
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.DeleteFlagOverride).Methods("DELETE")
 
@@ -788,33 +788,33 @@ func (response PostAddProject409JSONResponse) VisitPostAddProjectResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetProjectEnvironmentsRequestObject struct {
+type GetEnvironmentsRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
 }
 
-type GetProjectEnvironmentsResponseObject interface {
-	VisitGetProjectEnvironmentsResponse(w http.ResponseWriter) error
+type GetEnvironmentsResponseObject interface {
+	VisitGetEnvironmentsResponse(w http.ResponseWriter) error
 }
 
-type GetProjectEnvironments200JSONResponse []Environment
+type GetEnvironments200JSONResponse []Environment
 
-func (response GetProjectEnvironments200JSONResponse) VisitGetProjectEnvironmentsResponse(w http.ResponseWriter) error {
+func (response GetEnvironments200JSONResponse) VisitGetEnvironmentsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetProjectEnvironments400JSONResponse struct{ ErrorResponseJSONResponse }
+type GetEnvironments400JSONResponse struct{ ErrorResponseJSONResponse }
 
-func (response GetProjectEnvironments400JSONResponse) VisitGetProjectEnvironmentsResponse(w http.ResponseWriter) error {
+func (response GetEnvironments400JSONResponse) VisitGetEnvironmentsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetProjectEnvironments404JSONResponse struct {
+type GetEnvironments404JSONResponse struct {
 	// Code specific error code encountered
 	Code string `json:"code"`
 
@@ -822,7 +822,7 @@ type GetProjectEnvironments404JSONResponse struct {
 	Message string `json:"message"`
 }
 
-func (response GetProjectEnvironments404JSONResponse) VisitGetProjectEnvironmentsResponse(w http.ResponseWriter) error {
+func (response GetEnvironments404JSONResponse) VisitGetEnvironmentsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
 
@@ -927,7 +927,7 @@ type StrictServerInterface interface {
 	PostAddProject(ctx context.Context, request PostAddProjectRequestObject) (PostAddProjectResponseObject, error)
 	// list all environments for the given project
 	// (GET /dev/projects/{projectKey}/environments)
-	GetProjectEnvironments(ctx context.Context, request GetProjectEnvironmentsRequestObject) (GetProjectEnvironmentsResponseObject, error)
+	GetEnvironments(ctx context.Context, request GetEnvironmentsRequestObject) (GetEnvironmentsResponseObject, error)
 	// remove override for flag
 	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
 	DeleteFlagOverride(ctx context.Context, request DeleteFlagOverrideRequestObject) (DeleteFlagOverrideResponseObject, error)
@@ -1113,25 +1113,25 @@ func (sh *strictHandler) PostAddProject(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
-// GetProjectEnvironments operation middleware
-func (sh *strictHandler) GetProjectEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
-	var request GetProjectEnvironmentsRequestObject
+// GetEnvironments operation middleware
+func (sh *strictHandler) GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
+	var request GetEnvironmentsRequestObject
 
 	request.ProjectKey = projectKey
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetProjectEnvironments(ctx, request.(GetProjectEnvironmentsRequestObject))
+		return sh.ssi.GetEnvironments(ctx, request.(GetEnvironmentsRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetProjectEnvironments")
+		handler = middleware(handler, "GetEnvironments")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetProjectEnvironmentsResponseObject); ok {
-		if err := validResponse.VisitGetProjectEnvironmentsResponse(w); err != nil {
+	} else if validResponse, ok := response.(GetEnvironmentsResponseObject); ok {
+		if err := validResponse.VisitGetEnvironmentsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
