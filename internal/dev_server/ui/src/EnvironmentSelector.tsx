@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Label, ListBox, ListBoxItem, Input } from '@launchpad-ui/components';
-import { Box, Inline, Stack } from '@launchpad-ui/core';
+import { Box, Stack } from '@launchpad-ui/core';
 import { fetchEnvironments } from './api';
 import { Environment } from './types';
 
