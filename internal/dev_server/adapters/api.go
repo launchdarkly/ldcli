@@ -65,7 +65,7 @@ func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey str
 
 func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *string) ([]ldapi.FeatureFlag, error) {
 	return getPaginatedItems(ctx, projectKey, href, func(ctx context.Context, projectKey string, limit, offset *int64) (*ldapi.FeatureFlags, error) {
-		query := a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey)
+		query := a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).Limit(100)
 
 		if limit != nil {
 			query = query.Limit(*limit)
