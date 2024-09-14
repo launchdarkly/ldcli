@@ -13,11 +13,10 @@ import { FlagVariation } from './api.ts';
 
 const syncProject = async (selectedProject: string) => {
   const res = await fetch(
-    apiRoute(
-      `/dev/projects/${selectedProject}/sync?expand=availableVariations`,
-    ),
+    apiRoute(`/dev/projects/${selectedProject}?expand=availableVariations`),
     {
       method: 'PATCH',
+      body: JSON.stringify({}),
     },
   );
 

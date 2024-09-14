@@ -3,10 +3,11 @@ package dev_server
 import (
 	"fmt"
 
-	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
-	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
+	"github.com/launchdarkly/ldcli/internal/analytics"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
