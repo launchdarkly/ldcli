@@ -24,18 +24,6 @@ paths:
                 items:
                   type: string
                 uniqueItems: true
-  /dev/projects/{projectKey}/sync:
-    patch:
-      summary: updates the flag state for the given project and source environment
-      operationId: patchSyncProject
-      parameters:
-        - $ref: "#/components/parameters/projectKey"
-        - $ref: "#/components/parameters/projectExpand"
-      responses:
-        200:
-          $ref: "#/components/responses/Project"
-        404:
-          description: No project found
   /dev/projects/{projectKey}:
     get:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
@@ -49,7 +37,7 @@ paths:
         404:
           description: No project found
     patch:
-      summary: updates the project context or sourceEnvironmentKey
+      summary: updates the project context or sourceEnvironmentKey then syncs.  Input an empty body to only force a sync.
       operationId: patchProject
       parameters:
         - $ref: "#/components/parameters/projectKey"

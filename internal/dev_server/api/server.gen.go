@@ -31,14 +31,8 @@ const (
 
 // Defines values for PostAddProjectParamsExpand.
 const (
-	PostAddProjectParamsExpandAvailableVariations PostAddProjectParamsExpand = "availableVariations"
-	PostAddProjectParamsExpandOverrides           PostAddProjectParamsExpand = "overrides"
-)
-
-// Defines values for PatchSyncProjectParamsExpand.
-const (
-	PatchSyncProjectParamsExpandAvailableVariations PatchSyncProjectParamsExpand = "availableVariations"
-	PatchSyncProjectParamsExpandOverrides           PatchSyncProjectParamsExpand = "overrides"
+	AvailableVariations PostAddProjectParamsExpand = "availableVariations"
+	Overrides           PostAddProjectParamsExpand = "overrides"
 )
 
 // Context context object to use when evaluating flags in source environment
@@ -156,15 +150,6 @@ type PostAddProjectParams struct {
 // PostAddProjectParamsExpand defines parameters for PostAddProject.
 type PostAddProjectParamsExpand string
 
-// PatchSyncProjectParams defines parameters for PatchSyncProject.
-type PatchSyncProjectParams struct {
-	// Expand Available expand options for this endpoint.
-	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
-}
-
-// PatchSyncProjectParamsExpand defines parameters for PatchSyncProject.
-type PatchSyncProjectParamsExpand string
-
 // PatchProjectJSONRequestBody defines body for PatchProject for application/json ContentType.
 type PatchProjectJSONRequestBody PatchProjectJSONBody
 
@@ -185,7 +170,7 @@ type ServerInterface interface {
 	// get the specified project and its configuration for syncing from the LaunchDarkly Service
 	// (GET /dev/projects/{projectKey})
 	GetProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetProjectParams)
-	// updates the project context or sourceEnvironmentKey
+	// updates the project context or sourceEnvironmentKey then syncs.  Input an empty body to only force a sync.
 	// (PATCH /dev/projects/{projectKey})
 	PatchProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchProjectParams)
 	// Add the project to the dev server
@@ -200,9 +185,6 @@ type ServerInterface interface {
 	// override flag value with value provided in the body
 	// (PUT /dev/projects/{projectKey}/overrides/{flagKey})
 	PutOverrideFlag(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
-	// updates the flag state for the given project and source environment
-	// (PATCH /dev/projects/{projectKey}/sync)
-	PatchSyncProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchSyncProjectParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -462,43 +444,6 @@ func (siw *ServerInterfaceWrapper) PutOverrideFlag(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PatchSyncProject operation middleware
-func (siw *ServerInterfaceWrapper) PatchSyncProject(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var err error
-
-	// ------------- Path parameter "projectKey" -------------
-	var projectKey ProjectKey
-
-	err = runtime.BindStyledParameterWithOptions("simple", "projectKey", mux.Vars(r)["projectKey"], &projectKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectKey", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params PatchSyncProjectParams
-
-	// ------------- Optional query parameter "expand" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "expand", r.URL.Query(), &params.Expand)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expand", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PatchSyncProject(w, r, projectKey, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r.WithContext(ctx))
-}
-
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -627,8 +572,6 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.DeleteFlagOverride).Methods("DELETE")
 
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.PutOverrideFlag).Methods("PUT")
-
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/sync", wrapper.PatchSyncProject).Methods("PATCH")
 
 	return r
 }
@@ -882,32 +825,6 @@ func (response PutOverrideFlag400JSONResponse) VisitPutOverrideFlagResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PatchSyncProjectRequestObject struct {
-	ProjectKey ProjectKey `json:"projectKey"`
-	Params     PatchSyncProjectParams
-}
-
-type PatchSyncProjectResponseObject interface {
-	VisitPatchSyncProjectResponse(w http.ResponseWriter) error
-}
-
-type PatchSyncProject200JSONResponse struct{ ProjectJSONResponse }
-
-func (response PatchSyncProject200JSONResponse) VisitPatchSyncProjectResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
-type PatchSyncProject404Response struct {
-}
-
-func (response PatchSyncProject404Response) VisitPatchSyncProjectResponse(w http.ResponseWriter) error {
-	w.WriteHeader(404)
-	return nil
-}
-
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// lists all projects that have been configured for the dev server
@@ -919,7 +836,7 @@ type StrictServerInterface interface {
 	// get the specified project and its configuration for syncing from the LaunchDarkly Service
 	// (GET /dev/projects/{projectKey})
 	GetProject(ctx context.Context, request GetProjectRequestObject) (GetProjectResponseObject, error)
-	// updates the project context or sourceEnvironmentKey
+	// updates the project context or sourceEnvironmentKey then syncs.  Input an empty body to only force a sync.
 	// (PATCH /dev/projects/{projectKey})
 	PatchProject(ctx context.Context, request PatchProjectRequestObject) (PatchProjectResponseObject, error)
 	// Add the project to the dev server
@@ -934,9 +851,6 @@ type StrictServerInterface interface {
 	// override flag value with value provided in the body
 	// (PUT /dev/projects/{projectKey}/overrides/{flagKey})
 	PutOverrideFlag(ctx context.Context, request PutOverrideFlagRequestObject) (PutOverrideFlagResponseObject, error)
-	// updates the flag state for the given project and source environment
-	// (PATCH /dev/projects/{projectKey}/sync)
-	PatchSyncProject(ctx context.Context, request PatchSyncProjectRequestObject) (PatchSyncProjectResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -1193,33 +1107,6 @@ func (sh *strictHandler) PutOverrideFlag(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutOverrideFlagResponseObject); ok {
 		if err := validResponse.VisitPutOverrideFlagResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// PatchSyncProject operation middleware
-func (sh *strictHandler) PatchSyncProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchSyncProjectParams) {
-	var request PatchSyncProjectRequestObject
-
-	request.ProjectKey = projectKey
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.PatchSyncProject(ctx, request.(PatchSyncProjectRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PatchSyncProject")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(PatchSyncProjectResponseObject); ok {
-		if err := validResponse.VisitPatchSyncProjectResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
