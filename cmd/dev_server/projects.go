@@ -108,17 +108,21 @@ func NewSyncProjectCmd(client resources.Client) *cobra.Command {
 
 func syncProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-
-		path := getDevServerUrl() + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "/sync"
-		res, err := client.MakeUnauthenticatedRequest(
+		project := viper.GetString(cliflags.ProjectFlag)
+		path := fmt.Sprintf("%s/dev/projects/%s", getDevServerUrl(), project)
+		_, err := client.MakeUnauthenticatedRequest(
 			"PATCH",
 			path,
-			nil,
+			// An empty body sent to the patch project endpoint = sync project
+			[]byte("{}"),
 		)
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 		}
-		fmt.Fprint(cmd.OutOrStdout(), string(res))
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "'%s' project synced successfully\n", project)
+		if err != nil {
+			return err
+		}
 
 		return nil
 	}
