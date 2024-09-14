@@ -184,13 +184,13 @@ func NewAddProjectCmd(client resources.Client) *cobra.Command {
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
-	cmd.Flags().String("source", "", "environment to copy flag values from")
-	_ = cmd.MarkFlagRequired("source")
-	_ = cmd.Flags().SetAnnotation("source", "required", []string{"true"})
-	_ = viper.BindPFlag("source", cmd.Flags().Lookup("source"))
+	cmd.Flags().String(SourceEnvironmentFlag, "", "environment to copy flag values from")
+	_ = cmd.MarkFlagRequired(SourceEnvironmentFlag)
+	_ = cmd.Flags().SetAnnotation(SourceEnvironmentFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(SourceEnvironmentFlag, cmd.Flags().Lookup(SourceEnvironmentFlag))
 
-	cmd.Flags().String("context", "", `Stringified JSON representation of your context object ex. {"user": { "email": "youremail@gmail.com", "username": "foo", "key": "bar"}}`)
-	_ = viper.BindPFlag("context", cmd.Flags().Lookup("context"))
+	cmd.Flags().String(ContextFlag, "", `Stringified JSON representation of your context object ex. {"user": { "email": "youremail@gmail.com", "username": "foo", "key": "bar"}}`)
+	_ = viper.BindPFlag(ContextFlag, cmd.Flags().Lookup(ContextFlag))
 
 	return cmd
 }
@@ -223,6 +223,79 @@ func addProject(client resources.Client) func(*cobra.Command, []string) error {
 		}
 
 		fmt.Fprint(cmd.OutOrStdout(), string(res))
+
+		return nil
+	}
+}
+
+func NewUpdateProjectCmd(client resources.Client) *cobra.Command {
+	cmd := &cobra.Command{
+		GroupID: "projects",
+		Args:    validators.Validate(),
+		Long:    "update the specified project and its flag configuration with the LaunchDarkly Service",
+		RunE:    updateProject(client),
+		Short:   "update project",
+		Use:     "update-project",
+	}
+
+	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
+
+	cmd.Flags().String(cliflags.ProjectFlag, "", "The project key")
+	_ = cmd.MarkFlagRequired(cliflags.ProjectFlag)
+	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
+
+	cmd.Flags().String(SourceEnvironmentFlag, "", "environment to copy flag values from")
+	_ = viper.BindPFlag(SourceEnvironmentFlag, cmd.Flags().Lookup(SourceEnvironmentFlag))
+
+	cmd.Flags().String(ContextFlag, "", `Stringified JSON representation of your context object ex. {"user": { "email": "test@gmail.com", "username": "foo", "key": "bar"}}`)
+	_ = viper.BindPFlag(ContextFlag, cmd.Flags().Lookup(ContextFlag))
+
+	return cmd
+}
+
+type patchBody struct {
+	SourceEnvironmentKey string          `json:"sourceEnvironmentKey,omitempty"`
+	Context              json.RawMessage `json:"context,omitempty"`
+}
+
+func updateProject(client resources.Client) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		body := patchBody{}
+		if viper.IsSet(ContextFlag) {
+			body.Context = json.RawMessage(viper.GetString(ContextFlag))
+		}
+
+		if viper.IsSet(SourceEnvironmentFlag) {
+			body.SourceEnvironmentKey = viper.GetString(SourceEnvironmentFlag)
+		}
+
+		jsonData, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+
+		path := getDevServerUrl() + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
+		_, err = client.MakeUnauthenticatedRequest(
+			"PATCH",
+			path,
+			jsonData,
+		)
+		if err != nil {
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+
+		switch true {
+		case !viper.IsSet(ContextFlag) && !viper.IsSet(SourceEnvironmentFlag):
+			fmt.Fprint(cmd.OutOrStdout(), "No input given, project synced successfully\n")
+		case viper.IsSet(ContextFlag):
+			fmt.Fprintf(cmd.OutOrStdout(), "Context updated successfully to %s\n", viper.GetString(ContextFlag))
+			fallthrough
+		case viper.IsSet(SourceEnvironmentFlag):
+			fmt.Fprintf(cmd.OutOrStdout(), "Source environment updated successfully to %s\n", viper.GetString(SourceEnvironmentFlag))
+		default:
+			fmt.Fprint(cmd.OutOrStdout(), "Project updated successfully\n")
+		}
 
 		return nil
 	}
