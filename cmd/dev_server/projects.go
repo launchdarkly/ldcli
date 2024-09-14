@@ -255,15 +255,24 @@ func NewUpdateProjectCmd(client resources.Client) *cobra.Command {
 }
 
 type patchBody struct {
-	SourceEnvironmentKey string          `json:"sourceEnvironmentKey,omitempty"`
-	Context              json.RawMessage `json:"context,omitempty"`
+	SourceEnvironmentKey string                 `json:"sourceEnvironmentKey,omitempty"`
+	Context              map[string]interface{} `json:"context,omitempty"`
+}
+
+type patchResponse struct {
+	SourceEnvironmentKey string                 `json:"sourceEnvironmentKey"`
+	Context              map[string]interface{} `json:"context"`
 }
 
 func updateProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		body := patchBody{}
 		if viper.IsSet(ContextFlag) {
-			body.Context = json.RawMessage(viper.GetString(ContextFlag))
+			contextString := viper.GetString(ContextFlag)
+			err := json.Unmarshal([]byte(contextString), &body.Context)
+			if err != nil {
+				return err
+			}
 		}
 
 		if viper.IsSet(SourceEnvironmentFlag) {
@@ -276,7 +285,7 @@ func updateProject(client resources.Client) func(*cobra.Command, []string) error
 		}
 
 		path := getDevServerUrl() + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
-		_, err = client.MakeUnauthenticatedRequest(
+		res, err := client.MakeUnauthenticatedRequest(
 			"PATCH",
 			path,
 			jsonData,
@@ -285,14 +294,26 @@ func updateProject(client resources.Client) func(*cobra.Command, []string) error
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
 		}
 
+		var response patchResponse
+		err = json.Unmarshal(res, &response)
+		if err != nil {
+			return err
+		}
+
 		switch true {
 		case !viper.IsSet(ContextFlag) && !viper.IsSet(SourceEnvironmentFlag):
 			fmt.Fprint(cmd.OutOrStdout(), "No input given, project synced successfully\n")
-		case viper.IsSet(ContextFlag):
-			fmt.Fprintf(cmd.OutOrStdout(), "Context updated successfully to %s\n", viper.GetString(ContextFlag))
-			fallthrough
 		case viper.IsSet(SourceEnvironmentFlag):
-			fmt.Fprintf(cmd.OutOrStdout(), "Source environment updated successfully to %s\n", viper.GetString(SourceEnvironmentFlag))
+			fmt.Fprintf(cmd.OutOrStdout(), "Source environment updated successfully to '%s'\n", response.SourceEnvironmentKey)
+			fallthrough
+		case viper.IsSet(ContextFlag):
+			// pretty print context
+			context, err := json.MarshalIndent(response.Context, "", "  ")
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Context updated successfully to:\n%s\n", string(context))
 		default:
 			fmt.Fprint(cmd.OutOrStdout(), "Project updated successfully\n")
 		}
