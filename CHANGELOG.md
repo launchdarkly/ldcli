@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/launchdarkly/ldcli/compare/v1.6.0...v1.7.0) (2024-09-16)
+
+
+### Features
+
+* Add command to launchDevly to update the project environment and context ([#433](https://github.com/launchdarkly/ldcli/issues/433)) ([1415e4a](https://github.com/launchdarkly/ldcli/commit/1415e4a7c8061a8745981cc3a7781bf56d420a8a))
+* Remove the sync endpoint in favor of patch project endpoint ([#431](https://github.com/launchdarkly/ldcli/issues/431)) ([d3622a0](https://github.com/launchdarkly/ldcli/commit/d3622a07f7b502be6eca35686bdbd1a9f863695a))
+
 ## [1.6.0](https://github.com/launchdarkly/ldcli/compare/v1.5.0...v1.6.0) (2024-09-13)
 
 
