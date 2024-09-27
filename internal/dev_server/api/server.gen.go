@@ -150,6 +150,12 @@ type PostAddProjectParams struct {
 // PostAddProjectParamsExpand defines parameters for PostAddProject.
 type PostAddProjectParamsExpand string
 
+// GetEnvironmentsParams defines parameters for GetEnvironments.
+type GetEnvironmentsParams struct {
+	// Name filter by environment name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+}
+
 // PatchProjectJSONRequestBody defines body for PatchProject for application/json ContentType.
 type PatchProjectJSONRequestBody PatchProjectJSONBody
 
@@ -178,7 +184,7 @@ type ServerInterface interface {
 	PostAddProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostAddProjectParams)
 	// list all environments for the given project
 	// (GET /dev/projects/{projectKey}/environments)
-	GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
+	GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetEnvironmentsParams)
 	// remove override for flag
 	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
 	DeleteFlagOverride(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
@@ -363,8 +369,19 @@ func (siw *ServerInterfaceWrapper) GetEnvironments(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetEnvironmentsParams
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "name", r.URL.Query(), &params.Name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetEnvironments(w, r, projectKey)
+		siw.Handler.GetEnvironments(w, r, projectKey, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -733,6 +750,7 @@ func (response PostAddProject409JSONResponse) VisitPostAddProjectResponse(w http
 
 type GetEnvironmentsRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
+	Params     GetEnvironmentsParams
 }
 
 type GetEnvironmentsResponseObject interface {
@@ -1028,10 +1046,11 @@ func (sh *strictHandler) PostAddProject(w http.ResponseWriter, r *http.Request, 
 }
 
 // GetEnvironments operation middleware
-func (sh *strictHandler) GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
+func (sh *strictHandler) GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetEnvironmentsParams) {
 	var request GetEnvironmentsRequestObject
 
 	request.ProjectKey = projectKey
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetEnvironments(ctx, request.(GetEnvironmentsRequestObject))

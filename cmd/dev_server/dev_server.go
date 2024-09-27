@@ -7,10 +7,9 @@ import (
 	"github.com/spf13/viper"
 
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
-	"github.com/launchdarkly/ldcli/internal/analytics"
-
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )

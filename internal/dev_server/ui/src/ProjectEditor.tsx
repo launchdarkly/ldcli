@@ -62,18 +62,23 @@ export function ProjectEditor({
     }
   };
 
+  const handleClose = () => {
+    setTempSelectedEnvironment(selectedEnvironment);
+    setTempContext(context);
+  };
+
   return (
     <DialogTrigger>
       <TooltipTrigger>
         <ProjectEditButton
           isSubmitting={isSubmitting}
-          selectedEnvironment={selectedEnvironment}
+          selectedEnvironment={sourceEnvironmentKey}
         />
         <Tooltip>
           <span>Current environment. Click to update.</span>
         </Tooltip>
       </TooltipTrigger>
-      <ModalOverlay>
+      <ModalOverlay isDismissable={false}>
         <Modal>
           <Dialog>
             {({ close }) => (
@@ -115,7 +120,10 @@ export function ProjectEditor({
                 </Stack>
                 <ButtonGroup style={{ justifyContent: 'flex-end' }}>
                   <Button
-                    onPress={close}
+                    onPress={() => {
+                      handleClose();
+                      close();
+                    }}
                     variant="destructive"
                     isDisabled={isSubmitting}
                   >

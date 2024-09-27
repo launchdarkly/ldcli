@@ -16,7 +16,12 @@ func (s server) GetEnvironments(ctx context.Context, request GetEnvironmentsRequ
 		return GetEnvironments404JSONResponse{}, nil
 	}
 
-	environments, err := model.GetEnvironmentsForProject(ctx, project.Key)
+	var query string
+	if request.Params.Name != nil {
+		query = *request.Params.Name
+	}
+
+	environments, err := model.GetEnvironmentsForProject(ctx, project.Key, query)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/url"
 	"strconv"
@@ -25,7 +26,7 @@ func GetApi(ctx context.Context) Api {
 type Api interface {
 	GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error)
 	GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error)
-	GetProjectEnvironments(ctx context.Context, projectKey string) ([]ldapi.Environment, error)
+	GetProjectEnvironments(ctx context.Context, projectKey string, query string) ([]ldapi.Environment, error)
 }
 
 type apiClientApi struct {
@@ -54,9 +55,9 @@ func (a apiClientApi) GetAllFlags(ctx context.Context, projectKey string) ([]lda
 	return flags, err
 }
 
-func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey string) ([]ldapi.Environment, error) {
+func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey string, query string) ([]ldapi.Environment, error) {
 	log.Printf("Fetching all environments for project '%s'", projectKey)
-	environments, err := a.getEnvironments(ctx, projectKey, nil)
+	environments, err := a.getEnvironments(ctx, projectKey, nil, query)
 	if err != nil {
 		err = errors.Wrap(err, "unable to get environments from LD API")
 	}
@@ -81,21 +82,24 @@ func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *str
 	})
 }
 
-func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string, href *string) ([]ldapi.Environment, error) {
-	return getPaginatedItems(ctx, projectKey, href, func(ctx context.Context, projectKey string, limit, offset *int64) (*ldapi.Environments, error) {
-		request := a.apiClient.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey)
-		if limit != nil {
-			request = request.Limit(*limit)
-		}
+func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string, href *string, query string) ([]ldapi.Environment, error) {
+	request := a.apiClient.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey)
 
-		if offset != nil {
-			request = request.Offset(*offset)
-		}
+	if query != "" {
+		request = request.Sort("name").Filter(fmt.Sprintf("query:%s", query))
+	}
 
-		envs, _, err := request.
-			Execute()
-		return envs, err
-	})
+	envs, _, err := request.
+		Execute()
+	if err != nil {
+		return nil, err
+	}
+
+	if envs == nil {
+		return []ldapi.Environment{}, nil
+	}
+
+	return envs.Items, nil
 }
 
 func getPaginatedItems[T any, R interface {

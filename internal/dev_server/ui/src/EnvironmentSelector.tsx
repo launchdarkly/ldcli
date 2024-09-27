@@ -1,8 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Label, ListBox, ListBoxItem, Input } from '@launchpad-ui/components';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Label,
+  ListBox,
+  ListBoxItem,
+  Input,
+  ProgressBar,
+} from '@launchpad-ui/components';
 import { Box, Stack } from '@launchpad-ui/core';
 import { fetchEnvironments } from './api';
 import { Environment } from './types';
+import debounce from 'lodash/debounce';
 
 type Props = {
   projectKey: string;
@@ -17,50 +24,58 @@ export function EnvironmentSelector({
   selectedEnvironment,
   setSelectedEnvironment,
 }: Props) {
-  const [environments, setEnvironments] = useState<Environment[]>([]);
+  const [environments, setEnvironments] = useState<Environment[] | null>(null);
   const [filteredEnvironments, setFilteredEnvironments] = useState<
-    Environment[]
+    Environment[] | null
   >([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    setIsLoading(true);
-    fetchEnvironments(projectKey)
-      .then((envs) => {
-        setEnvironments(envs);
-        setFilteredEnvironments(envs);
-        if (!selectedEnvironment) {
-          const sourceEnv = envs.find(
-            (env) => env.key === sourceEnvironmentKey,
-          );
-          if (sourceEnv) {
-            setSelectedEnvironment(sourceEnv);
-          } else if (envs.length > 0) {
-            setSelectedEnvironment(envs[0]);
+  const fetchEnvironmentsDebounced = useCallback(
+    debounce((query: string) => {
+      setIsLoading(true);
+      fetchEnvironments(projectKey, query)
+        .then((envs) => {
+          setEnvironments(envs);
+          setFilteredEnvironments(envs);
+          if (!selectedEnvironment) {
+            const sourceEnv = envs.find(
+              (env) => env.key === sourceEnvironmentKey,
+            );
+            if (sourceEnv) {
+              setSelectedEnvironment(sourceEnv);
+            } else if (envs.length > 0) {
+              setSelectedEnvironment(envs[0]);
+            }
           }
-        }
-      })
-      .catch((error) => {
-        console.error('Error fetching environments:', error);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [projectKey, sourceEnvironmentKey]); // Remove selectedEnvironment and setSelectedEnvironment from dependencies
+        })
+        .catch((error) => {
+          console.error('Error fetching environments:', error);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    }, 300),
+    [
+      projectKey,
+      sourceEnvironmentKey,
+      selectedEnvironment,
+      setSelectedEnvironment,
+    ],
+  );
 
   useEffect(() => {
-    const filtered = environments.filter(
+    fetchEnvironmentsDebounced(searchQuery);
+  }, [fetchEnvironmentsDebounced, searchQuery]);
+
+  useEffect(() => {
+    const filtered = environments?.filter(
       (env) =>
         env.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         env.key.toLowerCase().includes(searchQuery.toLowerCase()),
     );
-    setFilteredEnvironments(filtered);
+    setFilteredEnvironments(filtered || []);
   }, [searchQuery, environments]);
-
-  if (isLoading) {
-    return <span>Loading environments...</span>;
-  }
 
   return (
     <Stack gap="3">
@@ -73,7 +88,7 @@ export function EnvironmentSelector({
         </Label>
       </Box>
       <Box display="flex" justifyContent="space-between" alignItems="center">
-        <div>
+        <div style={{ position: 'relative', flexGrow: 1 }}>
           <Input
             id="environmentSearch"
             value={searchQuery}
@@ -81,6 +96,18 @@ export function EnvironmentSelector({
             placeholder="Search environments..."
             aria-label="Search environments"
           />
+          {isLoading && (
+            <Box
+              style={{
+                position: 'absolute',
+                right: '0.5rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+              }}
+            >
+              <ProgressBar size="small" aria-label="Loading environments" />
+            </Box>
+          )}
         </div>
         <span
           style={{
@@ -108,7 +135,7 @@ export function EnvironmentSelector({
           selectedKeys={[selectedEnvironment?.key || '']}
           onSelectionChange={(keys) => {
             const selectedKey = Array.from(keys)[0] as string;
-            const selected = environments.find(
+            const selected = environments?.find(
               (env) => env.key === selectedKey,
             );
             if (selected) {
@@ -116,7 +143,7 @@ export function EnvironmentSelector({
             }
           }}
         >
-          {filteredEnvironments.map((env) => (
+          {filteredEnvironments?.map((env) => (
             <ListBoxItem key={env.key} id={env.key}>
               {env.name}
             </ListBoxItem>
