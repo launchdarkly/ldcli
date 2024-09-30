@@ -21,7 +21,7 @@ func (s server) GetEnvironments(ctx context.Context, request GetEnvironmentsRequ
 		query = *request.Params.Name
 	}
 
-	environments, err := model.GetEnvironmentsForProject(ctx, project.Key, query)
+	environments, err := model.GetEnvironmentsForProject(ctx, project.Key, query, request.Params.Limit)
 	if err != nil {
 		return nil, err
 	}

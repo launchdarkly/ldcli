@@ -154,6 +154,9 @@ type PostAddProjectParamsExpand string
 type GetEnvironmentsParams struct {
 	// Name filter by environment name
 	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Limit limit the number of environments returned
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // PatchProjectJSONRequestBody defines body for PatchProject for application/json ContentType.
@@ -377,6 +380,14 @@ func (siw *ServerInterfaceWrapper) GetEnvironments(w http.ResponseWriter, r *htt
 	err = runtime.BindQueryParameter("form", true, false, "name", r.URL.Query(), &params.Name)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
 		return
 	}
 

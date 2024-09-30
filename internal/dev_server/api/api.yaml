@@ -137,6 +137,12 @@ paths:
           required: false
           schema:
             type: string
+        - name: limit
+          in: query
+          description: limit the number of environments returned
+          required: false
+          schema:
+              type: integer
       responses:
         200:
           description: OK. List of environments

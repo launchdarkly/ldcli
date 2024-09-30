@@ -26,7 +26,7 @@ func GetApi(ctx context.Context) Api {
 type Api interface {
 	GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error)
 	GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error)
-	GetProjectEnvironments(ctx context.Context, projectKey string, query string) ([]ldapi.Environment, error)
+	GetProjectEnvironments(ctx context.Context, projectKey string, query string, limit *int) ([]ldapi.Environment, error)
 }
 
 type apiClientApi struct {
@@ -55,9 +55,9 @@ func (a apiClientApi) GetAllFlags(ctx context.Context, projectKey string) ([]lda
 	return flags, err
 }
 
-func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey string, query string) ([]ldapi.Environment, error) {
+func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey string, query string, limit *int) ([]ldapi.Environment, error) {
 	log.Printf("Fetching all environments for project '%s'", projectKey)
-	environments, err := a.getEnvironments(ctx, projectKey, nil, query)
+	environments, err := a.getEnvironments(ctx, projectKey, nil, query, limit)
 	if err != nil {
 		err = errors.Wrap(err, "unable to get environments from LD API")
 	}
@@ -82,8 +82,12 @@ func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *str
 	})
 }
 
-func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string, href *string, query string) ([]ldapi.Environment, error) {
+func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string, href *string, query string, limit *int) ([]ldapi.Environment, error) {
 	request := a.apiClient.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey)
+
+	if limit != nil {
+		request = request.Limit(int64(*limit))
+	}
 
 	if query != "" {
 		request = request.Sort("name").Filter(fmt.Sprintf("query:%s", query))
