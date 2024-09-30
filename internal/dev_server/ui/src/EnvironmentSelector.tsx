@@ -25,9 +25,7 @@ export function EnvironmentSelector({
   setSelectedEnvironment,
 }: Props) {
   const [environments, setEnvironments] = useState<Environment[] | null>(null);
-  const [filteredEnvironments, setFilteredEnvironments] = useState<
-    Environment[] | null
-  >([]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -37,7 +35,6 @@ export function EnvironmentSelector({
       fetchEnvironments(projectKey, query)
         .then((envs) => {
           setEnvironments(envs);
-          setFilteredEnvironments(envs);
           if (!selectedEnvironment) {
             const sourceEnv = envs.find(
               (env) => env.key === sourceEnvironmentKey,
@@ -67,15 +64,6 @@ export function EnvironmentSelector({
   useEffect(() => {
     fetchEnvironmentsDebounced(searchQuery);
   }, [fetchEnvironmentsDebounced, searchQuery]);
-
-  useEffect(() => {
-    const filtered = environments?.filter(
-      (env) =>
-        env.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        env.key.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-    setFilteredEnvironments(filtered || []);
-  }, [searchQuery, environments]);
 
   return (
     <Stack gap="3">
@@ -143,7 +131,7 @@ export function EnvironmentSelector({
             }
           }}
         >
-          {filteredEnvironments?.map((env) => (
+          {environments?.map((env) => (
             <ListBoxItem key={env.key} id={env.key}>
               {env.name}
             </ListBoxItem>
