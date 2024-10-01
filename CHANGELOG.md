@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/launchdarkly/ldcli/compare/v1.7.0...v1.7.1) (2024-10-01)
+
+
+### Bug Fixes
+
+* Context updating, environment rate limiting, toggle styling ([#437](https://github.com/launchdarkly/ldcli/issues/437)) ([c7832d5](https://github.com/launchdarkly/ldcli/commit/c7832d5061f93caff2cb1ed23fdc2fb393e08c13))
+
 ## [1.7.0](https://github.com/launchdarkly/ldcli/compare/v1.6.0...v1.7.0) (2024-09-16)
 
 
