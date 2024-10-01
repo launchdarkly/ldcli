@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/launchdarkly/ldcli/compare/v1.7.1...v1.7.2) (2024-10-01)
+
+
+### Bug Fixes
+
+* LaunchDevly UI: Add testing framework ([#442](https://github.com/launchdarkly/ldcli/issues/442)) ([eac35d5](https://github.com/launchdarkly/ldcli/commit/eac35d5b7254f9910c8accc42d6fe15077246479))
+
 ## [1.7.1](https://github.com/launchdarkly/ldcli/compare/v1.7.0...v1.7.1) (2024-10-01)
 
 
