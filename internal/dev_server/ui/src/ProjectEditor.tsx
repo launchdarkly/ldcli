@@ -107,11 +107,9 @@ export function ProjectEditor({
                     setSelectedEnvironment={setTempSelectedEnvironment}
                   />
                   <Box
-                    style={{
-                      height: '1px',
-                      backgroundColor: 'var(--lp-color-border-ui-primary)',
-                      margin: '1rem 0',
-                    }}
+                    height="1px"
+                    backgroundColor="var(--lp-color-border-ui-primary)"
+                    margin="1rem 0"
                   />
                   <ContextEditor
                     context={tempContext}
@@ -135,14 +133,12 @@ export function ProjectEditor({
                     isDisabled={isSubmitting}
                   >
                     {isSubmitting ? (
-                      <Inline gap="2" style={{ alignItems: 'center' }}>
-                        <Box display="flex" alignItems="center">
-                          <ProgressBar
-                            aria-label="loading"
-                            isIndeterminate
-                            style={{ width: '16px', height: '16px' }}
-                          />
-                        </Box>
+                      <Inline gap="2">
+                        <ProgressBar
+                          aria-label="loading"
+                          isIndeterminate
+                          style={{ width: '16px', height: '16px' }}
+                        />
                         <span>Updating...</span>
                       </Inline>
                     ) : (

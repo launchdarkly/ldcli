@@ -140,14 +140,13 @@ function App() {
       }}
     >
       <Box
-        style={{
-          alignItems: 'center',
-          width: '100%',
-          maxWidth: '900px',
-          minWidth: '600px',
-          padding: '2rem',
-          boxSizing: 'border-box',
-        }}
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        width="100%"
+        maxWidth="900px"
+        minWidth="600px"
+        padding="2rem"
       >
         <Box display="flex" flexDirection="column" padding="1rem" width="100%">
           {showBanner && (

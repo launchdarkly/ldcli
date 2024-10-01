@@ -4,7 +4,7 @@ repos:
     hooks:
       - id: golangci-lint
         entry: golangci-lint run
-        exclude: '^(vendor/|.circleci/)'
+        exclude: "^(vendor/|.circleci/)"
         language: golang
         require_serial: true
         types: [go]
@@ -13,7 +13,7 @@ repos:
     hooks:
       - id: compile-go-tests
         entry: bin/run-script run-on-dirs "go test ./..."
-        exclude: '^vendor/|^.circleci/image/tools'
+        exclude: "^vendor/|^.circleci/image/tools"
         name: run-go-tests
       - id: discarded-stacktrace
         exclude: '(^vendor/|.*gen\.go)'
@@ -24,4 +24,18 @@ repos:
     rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
-        exclude: '^vendor'
+        exclude: "^vendor"
+  - repo: local
+    hooks:
+      - id: ui-tests
+        name: Run UI tests
+        entry: bash -c 'cd internal/dev_server/ui && npm test'
+        language: system
+        files: \.(jsx|tsx)$
+        pass_filenames: false
+      - id: ui-build
+        name: Build UI
+        entry: bash -c 'cd internal/dev_server/ui && npm run build'
+        language: system
+        files: \.(jsx|tsx)$
+        pass_filenames: false

@@ -62,8 +62,8 @@ const SyncButton = ({
   return (
     <TooltipTrigger>
       <Button
-        onClick={handleClick}
-        disabled={isLoading}
+        onPress={handleClick}
+        isDisabled={isLoading}
         style={{ backgroundColor: isLoading ? 'lightgray' : undefined }}
       >
         {isLoading ? (
