@@ -131,6 +131,18 @@ paths:
       summary: list all environments for the given project
       parameters:
         - $ref: "#/components/parameters/projectKey"
+        - name: name
+          in: query
+          description: filter by environment name
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: limit the number of environments returned
+          required: false
+          schema:
+              type: integer
       responses:
         200:
           description: OK. List of environments

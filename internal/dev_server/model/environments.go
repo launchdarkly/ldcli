@@ -11,9 +11,9 @@ type Environment struct {
 	Name string
 }
 
-func GetEnvironmentsForProject(ctx context.Context, projectKey string) ([]Environment, error) {
+func GetEnvironmentsForProject(ctx context.Context, projectKey string, query string, limit *int) ([]Environment, error) {
 	apiAdapter := adapters.GetApi(ctx)
-	environments, err := apiAdapter.GetProjectEnvironments(ctx, projectKey)
+	environments, err := apiAdapter.GetProjectEnvironments(ctx, projectKey, query, limit)
 	if err != nil {
 		return nil, err
 	}

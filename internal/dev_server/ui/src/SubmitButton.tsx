@@ -1,11 +1,10 @@
 import { Button, ProgressBar } from '@launchpad-ui/components';
 import { Box, Inline } from '@launchpad-ui/core';
 import { Icon } from '@launchpad-ui/icons';
-import { Environment } from './types';
 
 type Props = {
   isSubmitting: boolean;
-  selectedEnvironment?: Environment | null;
+  selectedEnvironment: string | null;
 };
 
 export function ProjectEditButton({
@@ -28,7 +27,7 @@ export function ProjectEditButton({
       ) : selectedEnvironment ? (
         <Inline gap="2">
           <Icon name="bullseye-arrow" size="medium" />
-          <span>{selectedEnvironment.name}</span>
+          <span>{selectedEnvironment}</span>
         </Inline>
       ) : (
         'Environment'

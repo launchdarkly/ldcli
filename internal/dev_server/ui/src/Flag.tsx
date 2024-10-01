@@ -14,7 +14,6 @@ import {
   Popover,
   Select,
   SelectValue,
-  Switch,
   Text,
   TextArea,
   TextField,
@@ -27,6 +26,8 @@ import { LDFlagValue } from 'launchdarkly-js-client-sdk';
 import { FlagVariation } from './api.ts';
 import { Box, Inline } from '@launchpad-ui/core';
 import { isEqual } from 'lodash';
+import { Switch } from 'react-aria-components';
+import './Switch.css';
 
 type VariationValuesProps = {
   availableVariations: FlagVariation[];
@@ -35,6 +36,7 @@ type VariationValuesProps = {
   flagKey: string;
   updateOverride: (flagKey: string, overrideValue: LDFlagValue) => void;
 };
+
 const VariationValues = ({
   availableVariations,
   currentValue,
@@ -45,12 +47,18 @@ const VariationValues = ({
   switch (typeof flagValue) {
     case 'boolean':
       return (
-        <Switch
-          isSelected={currentValue}
-          onChange={(newValue) => {
-            updateOverride(flagKey, newValue);
-          }}
-        />
+        <div className="animated-switch-container">
+          <Switch
+            className="animated-switch"
+            isSelected={currentValue}
+            onChange={(newValue) => {
+              updateOverride(flagKey, newValue);
+            }}
+          >
+            <span className="switch-text switch-text-false">False</span>
+            <span className="switch-text switch-text-true">True</span>
+          </Switch>
+        </div>
       );
     default:
       let variations = availableVariations;
