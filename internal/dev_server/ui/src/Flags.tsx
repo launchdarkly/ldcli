@@ -176,7 +176,9 @@ function Flags({
         marginBottom="2rem"
         padding="1rem"
         background={'var(--lp-color-bg-feedback-info)'}
-        border={'100px solid var(--lp-color-border-feedback-info)'}
+        borderStyle="solid"
+        borderWidth="0.0625rem"
+        borderColor="var(--lp-color-border-feedback-info)"
         borderRadius={Theme.borderRadius.regular}
       >
         <Label
@@ -274,7 +276,6 @@ function Flags({
 
                     {hasOverride && (
                       <Button
-                        icon="cancel"
                         aria-label="Remove override"
                         onPress={() => {
                           removeOverride(flagKey);

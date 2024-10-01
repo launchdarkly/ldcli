@@ -86,12 +86,10 @@ export function EnvironmentSelector({
           />
           {isLoading && (
             <Box
-              style={{
-                position: 'absolute',
-                right: '0.5rem',
-                top: '50%',
-                transform: 'translateY(-50%)',
-              }}
+              position="absolute"
+              right="0.5rem"
+              top="50%"
+              transform="translateY(-50%)"
             >
               <ProgressBar size="small" aria-label="Loading environments" />
             </Box>
@@ -109,13 +107,14 @@ export function EnvironmentSelector({
       </Box>
 
       <Box
-        style={{
-          height: '12.5rem',
-          overflowY: 'auto',
-          backgroundColor: 'var(--lp-color-bg-ui-secondary)',
-          borderRadius: '0.5rem',
-          border: '0.0625rem solid var(--lp-color-border-ui-primary)',
-        }}
+        position="relative"
+        height="12.5rem"
+        overflow="auto"
+        backgroundColor="var(--lp-color-bg-ui-secondary)"
+        borderRadius="0.5rem"
+        borderStyle="solid"
+        borderWidth="0.0625rem"
+        borderColor="var(--lp-color-border-ui-primary)"
       >
         <ListBox
           aria-label="Environments"

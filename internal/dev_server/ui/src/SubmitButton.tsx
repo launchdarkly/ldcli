@@ -14,19 +14,19 @@ export function ProjectEditButton({
   return (
     <Button variant="primary" type="submit" isDisabled={isSubmitting}>
       {isSubmitting ? (
-        <Inline gap="2" style={{ alignItems: 'center' }}>
+        <Inline gap="2">
           <Box display="flex" alignItems="center">
-            <ProgressBar
-              aria-label="loading"
-              isIndeterminate
-              style={{ width: '16px', height: '16px' }}
-            />
-            <span>Updating...</span>
+            <ProgressBar aria-label="loading" isIndeterminate />
+            <span style={{ marginLeft: '0.5rem' }}>Updating...</span>
           </Box>
         </Inline>
       ) : selectedEnvironment ? (
         <Inline gap="2">
-          <Icon name="bullseye-arrow" size="medium" />
+          <Icon
+            name="bullseye-arrow"
+            size="medium"
+            data-testid="icon-bullseye-arrow"
+          />
           <span>{selectedEnvironment}</span>
         </Inline>
       ) : (
