@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.3](https://github.com/launchdarkly/ldcli/compare/v1.7.2...v1.7.3) (2024-10-07)
+
+
+### Bug Fixes
+
+* Retry when there are 429s on flag metadata fetches ([#446](https://github.com/launchdarkly/ldcli/issues/446)) ([e5da2e9](https://github.com/launchdarkly/ldcli/commit/e5da2e95b62ac34d47a3e686b275c7a64702612e))
+
 ## [1.7.2](https://github.com/launchdarkly/ldcli/compare/v1.7.1...v1.7.2) (2024-10-01)
 
 
