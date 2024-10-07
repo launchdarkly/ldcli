@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
-	"strconv"
 
+	"github.com/launchdarkly/ldcli/internal/dev_server/adapters/internal"
 	"github.com/pkg/errors"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
@@ -65,7 +64,8 @@ func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey str
 }
 
 func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *string) ([]ldapi.FeatureFlag, error) {
-	return getPaginatedItems(ctx, projectKey, href, func(ctx context.Context, projectKey string, limit, offset *int64) (*ldapi.FeatureFlags, error) {
+	return internal.GetPaginatedItems(ctx, projectKey, href, func(ctx context.Context, projectKey string, limit, offset *int64) (flags *ldapi.FeatureFlags, err error) {
+		// loop until we do not get rate limited
 		query := a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).Limit(100)
 
 		if limit != nil {
@@ -75,10 +75,7 @@ func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *str
 		if offset != nil {
 			query = query.Offset(*offset)
 		}
-
-		flags, _, err := query.
-			Execute()
-		return flags, err
+		return internal.Retry429s(query.Execute)
 	})
 }
 
@@ -104,61 +101,4 @@ func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string, hr
 	}
 
 	return envs.Items, nil
-}
-
-func getPaginatedItems[T any, R interface {
-	GetItems() []T
-	GetLinks() map[string]ldapi.Link
-}](ctx context.Context, projectKey string, href *string, fetchFunc func(context.Context, string, *int64, *int64) (R, error)) ([]T, error) {
-	var result R
-	var err error
-
-	if href == nil {
-		result, err = fetchFunc(ctx, projectKey, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		limit, offset, err := parseHref(*href)
-		if err != nil {
-			return nil, errors.Wrapf(err, "unable to parse href for next link: %s", *href)
-		}
-		result, err = fetchFunc(ctx, projectKey, &limit, &offset)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	items := result.GetItems()
-
-	if links := result.GetLinks(); links != nil {
-		if next, ok := links["next"]; ok && next.Href != nil {
-			newItems, err := getPaginatedItems(ctx, projectKey, next.Href, fetchFunc)
-			if err != nil {
-				return nil, err
-			}
-			items = append(items, newItems...)
-		}
-	}
-
-	return items, nil
-}
-
-func parseHref(href string) (limit, offset int64, err error) {
-	parsedUrl, err := url.Parse(href)
-	if err != nil {
-		return
-	}
-	l, err := strconv.Atoi(parsedUrl.Query().Get("limit"))
-	if err != nil {
-		return
-	}
-	o, err := strconv.Atoi(parsedUrl.Query().Get("offset"))
-	if err != nil {
-		return
-	}
-
-	limit = int64(l)
-	offset = int64(o)
-	return
 }
