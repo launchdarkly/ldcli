@@ -42,7 +42,10 @@ export function EnvironmentSelector({
             if (sourceEnv) {
               setSelectedEnvironment(sourceEnv);
             } else if (envs.length > 0) {
-              setSelectedEnvironment(envs[0]);
+              setSelectedEnvironment({
+                name: '',
+                key: sourceEnvironmentKey || '',
+              });
             }
           }
         })
@@ -102,7 +105,11 @@ export function EnvironmentSelector({
             marginLeft: '0.5rem',
           }}
         >
-          {selectedEnvironment?.name || 'No environment selected'}
+          {selectedEnvironment?.name ? (
+            selectedEnvironment.name
+          ) : (
+            <code>{selectedEnvironment?.key}</code>
+          )}
         </span>
       </Box>
 

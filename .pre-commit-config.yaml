@@ -28,13 +28,13 @@ repos:
   - repo: local
     hooks:
       - id: ui-tests
-        name: Run UI tests
+        name: Run dev-server UI tests
         entry: bash -c 'cd internal/dev_server/ui && npm test'
         language: system
         files: \.(jsx|tsx)$
         pass_filenames: false
       - id: ui-build
-        name: Build UI
+        name: Build dev-server UI
         entry: bash -c 'cd internal/dev_server/ui && npm run build'
         language: system
         files: \.(jsx|tsx)$
