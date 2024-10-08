@@ -17,6 +17,8 @@ To install the repo's git hooks, run `make install-hooks`.
 The pre-commit hook checks that relevant project files are formatted with `go fmt`, and that
 the `go.mod/go.sum` files are tidy.
 
+In addition, pre-commit will run dev server UI tests and build the project to make sure an up-to-date build is being checked in. You will need to install npm.
+
 ## Adding a new command
 
 There are a few things you need to do in order to wire up a new top-level command.
@@ -24,6 +26,7 @@ There are a few things you need to do in order to wire up a new top-level comman
 1. Add your command to the root command by calling `cmd.AddComand` in the `NewRootCommand` method of the `cmd` package.
 2. Update the root command's usage template by modifying the `getUsageTemplate` method in the `cmd` package.
 3. Instrument your command by setting a `PreRun` or `PersistentPreRun` on your command which calls `tracker.SendCommandRunEvent`. Example below.
+
 ```go
 cmd := &cobra.Command{
     Use:   "dev-server",
