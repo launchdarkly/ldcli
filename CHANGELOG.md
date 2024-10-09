@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.4](https://github.com/launchdarkly/ldcli/compare/v1.7.3...v1.7.4) (2024-10-08)
+
+
+### Bug Fixes
+
+* First open of the environment selector it can sometimes show a diff environment as selected ([#448](https://github.com/launchdarkly/ldcli/issues/448)) ([fca0b66](https://github.com/launchdarkly/ldcli/commit/fca0b66b577a9843e7e94f5bf3a0ba29fdc72efb))
+
 ## [1.7.3](https://github.com/launchdarkly/ldcli/compare/v1.7.2...v1.7.3) (2024-10-07)
 
 
