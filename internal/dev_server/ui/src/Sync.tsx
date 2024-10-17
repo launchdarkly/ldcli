@@ -3,6 +3,7 @@ import {
   Tooltip,
   TooltipTrigger,
   ProgressBar,
+  ToastQueue,
 } from '@launchpad-ui/components';
 import { apiRoute, sortFlags } from './util.ts';
 import { LDFlagSet } from 'launchdarkly-js-client-sdk';
@@ -49,8 +50,10 @@ const SyncButton = ({
       setAvailableVariations(result.availableVariations);
       setFlags(sortFlags(result.flagsState));
     } catch (error) {
+      ToastQueue.warning('Sync failed');
       console.error('Sync failed:', error);
     } finally {
+      ToastQueue.success('Sync successful');
       setIsLoading(false);
     }
   };

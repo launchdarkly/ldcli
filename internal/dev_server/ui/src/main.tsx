@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { IconProvider } from './IconProvider.tsx';
+import { ToastContainer } from '@launchpad-ui/components';
 
 const Root = () => {
   useEffect(() => {
@@ -28,6 +29,7 @@ const Root = () => {
     <React.StrictMode>
       <IconProvider>
         <App />
+        <ToastContainer />
       </IconProvider>
     </React.StrictMode>
   );
