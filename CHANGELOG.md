@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/launchdarkly/ldcli/compare/v1.7.4...v1.8.0) (2024-10-17)
+
+
+### Features
+
+* **dev-server:** Add toast for successful sync and warning for failure ([#450](https://github.com/launchdarkly/ldcli/issues/450)) ([2831519](https://github.com/launchdarkly/ldcli/commit/2831519f6ac4da7beaa415a5512a06ef5b961ab8))
+
 ## [1.7.4](https://github.com/launchdarkly/ldcli/compare/v1.7.3...v1.7.4) (2024-10-08)
 
 
