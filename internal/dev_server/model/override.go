@@ -58,6 +58,12 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 	return override, nil
 }
 
+func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
+	store := StoreFromContext(ctx)
+	err := store.DeactivateOverride(ctx, projectKey, flagKey)
+	return err
+}
+
 func (o Override) Apply(state FlagState) FlagState {
 	flagVersion := state.Version + o.Version
 	flagValue := state.Value
