@@ -60,7 +60,7 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 
 func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
 	store := StoreFromContext(ctx)
-	err := store.DeactivateOverride(ctx, projectKey, flagKey)
+	_, err := store.DeactivateOverride(ctx, projectKey, flagKey)
 	return err
 }
 
