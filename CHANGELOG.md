@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/launchdarkly/ldcli/compare/v1.8.0...v1.8.1) (2024-10-29)
+
+
+### Bug Fixes
+
+* Trigger change events when overrides are deleted ([#455](https://github.com/launchdarkly/ldcli/issues/455)) ([6548beb](https://github.com/launchdarkly/ldcli/commit/6548beb2ddff67ffc55b5dae0373f1deb70cbafd))
+
 ## [1.8.0](https://github.com/launchdarkly/ldcli/compare/v1.7.4...v1.8.0) (2024-10-17)
 
 
