@@ -14,14 +14,15 @@ type Override struct {
 	Version    int
 }
 
-func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldvalue.Value) (Override, error) {
-	// TODO: validate if the flag type matches
-
+// getFlagStateForFlagAndProject fetches state from the store so that it can later be used to apply an override and
+// construct an update. You want to call this before you write the override so that written overrides don't
+// less often don't cause updates.
+func getFlagStateForFlagAndProject(ctx context.Context, projectKey, flagKey string) (FlagState, error) {
 	store := StoreFromContext(ctx)
 
 	project, err := store.GetDevProject(ctx, projectKey)
-	if err != nil || project == nil {
-		return Override{}, NewError("project does not exist within dev server")
+	if err != nil {
+		return FlagState{}, err
 	}
 
 	var flagExists bool
@@ -32,7 +33,15 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 		}
 	}
 	if !flagExists {
-		return Override{}, NewError("flag does not exist within dev project")
+		return FlagState{}, ErrNotFound
+	}
+	return project.AllFlagsState[flagKey], nil
+}
+
+func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldvalue.Value) (Override, error) {
+	flagState, err := getFlagStateForFlagAndProject(ctx, projectKey, flagKey)
+	if err != nil {
+		return Override{}, err
 	}
 
 	override := Override{
@@ -43,24 +52,42 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 		Version:    1,
 	}
 
+	store := StoreFromContext(ctx)
 	override, err = store.UpsertOverride(ctx, override)
 	if err != nil {
 		return Override{}, err
 	}
 
-	flagState := override.Apply(project.AllFlagsState[flagKey])
 	GetObserversFromContext(ctx).Notify(OverrideEvent{
 		FlagKey:    flagKey,
 		ProjectKey: projectKey,
-		FlagState:  flagState,
+		FlagState:  override.Apply(flagState),
 	})
-
 	return override, nil
 }
 
 func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
+	flagState, err := getFlagStateForFlagAndProject(ctx, projectKey, flagKey)
+	if err != nil {
+		return err
+	}
 	store := StoreFromContext(ctx)
-	_, err := store.DeactivateOverride(ctx, projectKey, flagKey)
+	version, err := store.DeactivateOverride(ctx, projectKey, flagKey)
+	if err != nil {
+		return err
+	}
+	override := Override{
+		ProjectKey: projectKey,
+		FlagKey:    flagKey,
+		Value:      ldvalue.Null(), // since inactive, will get use the one from flagState
+		Active:     false,
+		Version:    version,
+	}
+	GetObserversFromContext(ctx).Notify(OverrideEvent{
+		FlagKey:    flagKey,
+		ProjectKey: projectKey,
+		FlagState:  override.Apply(flagState),
+	})
 	return err
 }
 
