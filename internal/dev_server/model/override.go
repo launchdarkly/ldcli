@@ -49,7 +49,7 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 	}
 
 	flagState := override.Apply(project.AllFlagsState[flagKey])
-	GetObserversFromContext(ctx).Notify(UpsertOverrideEvent{
+	GetObserversFromContext(ctx).Notify(OverrideEvent{
 		FlagKey:    flagKey,
 		ProjectKey: projectKey,
 		FlagState:  flagState,

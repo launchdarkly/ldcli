@@ -74,7 +74,7 @@ func TestUpsertOverride(t *testing.T) {
 		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
 		observer.
 			EXPECT().
-			Handle(model.UpsertOverrideEvent{
+			Handle(model.OverrideEvent{
 				FlagKey:    flagKey,
 				ProjectKey: projKey,
 				FlagState:  model.FlagState{Value: ldvalue.Bool(true), Version: 2},

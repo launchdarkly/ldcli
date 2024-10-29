@@ -1,7 +1,7 @@
 package model
 
 // Event for individual flag overrides
-type UpsertOverrideEvent struct {
+type OverrideEvent struct {
 	FlagKey    string
 	ProjectKey string
 	FlagState  FlagState
