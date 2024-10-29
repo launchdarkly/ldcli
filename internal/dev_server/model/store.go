@@ -2,10 +2,10 @@ package model
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/pkg/errors"
 )
 
 type ctxKey string
@@ -15,7 +15,9 @@ const ctxKeyStore = ctxKey("model.Store")
 //go:generate go run go.uber.org/mock/mockgen -destination mocks/store.go -package mocks . Store
 
 type Store interface {
-	DeactivateOverride(ctx context.Context, projectKey, flagKey string) error
+	// DeactivateOverride deactivates the override for the flag, returning the updated version of the override.
+	// ErrNotFound is returned if there isn't an override for the flag.
+	DeactivateOverride(ctx context.Context, projectKey, flagKey string) (int, error)
 	GetDevProjectKeys(ctx context.Context) ([]string, error)
 	// GetDevProject fetches the project based on the projectKey. If it doesn't exist, ErrNotFound is returned
 	GetDevProject(ctx context.Context, projectKey string) (*Project, error)

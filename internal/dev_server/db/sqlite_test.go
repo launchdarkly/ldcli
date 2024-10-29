@@ -302,13 +302,13 @@ func TestDBFunctions(t *testing.T) {
 	})
 
 	t.Run("DeactivateOverride returns error when override not found", func(t *testing.T) {
-		err := store.DeactivateOverride(ctx, projects[0].Key, "nope")
+		_, err := store.DeactivateOverride(ctx, projects[0].Key, "nope")
 		assert.ErrorIs(t, err, model.ErrNotFound)
 	})
 
-	t.Run("DeactivateOverride sets the override inactive", func(t *testing.T) {
+	t.Run("DeactivateOverride sets the override inactive and returns the current version", func(t *testing.T) {
 		toDelete := overrides[flagKeys[0]]
-		err := store.DeactivateOverride(ctx, toDelete.ProjectKey, toDelete.FlagKey)
+		version, err := store.DeactivateOverride(ctx, toDelete.ProjectKey, toDelete.FlagKey)
 		assert.NoError(t, err)
 
 		result, err := store.GetOverridesForProject(ctx, toDelete.ProjectKey)
@@ -323,6 +323,7 @@ func TestDBFunctions(t *testing.T) {
 
 			found = true
 			assert.False(t, r.Active)
+			assert.Equal(t, version, r.Version)
 		}
 
 		assert.True(t, found)
