@@ -2,6 +2,7 @@ package dev_server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"os/exec"
@@ -45,12 +46,20 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 		ctx := context.Background()
 
 		var initialSetting dev_server.InitialProjectSettings
-		//ldContext := viper.GetString(ContextFlag)
 
 		if viper.IsSet(cliflags.ProjectFlag) && viper.IsSet(SourceEnvironmentFlag) {
+
 			initialSetting = dev_server.InitialProjectSettings{
+				Enabled:    true,
 				ProjectKey: viper.GetString(cliflags.ProjectFlag),
 				EnvKey:     viper.GetString(SourceEnvironmentFlag),
+			}
+			if viper.IsSet(ContextFlag) {
+				contextString := viper.GetString(ContextFlag)
+				err := json.Unmarshal([]byte(contextString), &initialSetting.Context)
+				if err != nil {
+					return err
+				}
 			}
 		}
 

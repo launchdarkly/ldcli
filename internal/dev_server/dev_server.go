@@ -34,9 +34,10 @@ type ServerParams struct {
 }
 
 type InitialProjectSettings struct {
+	Enabled    bool
 	ProjectKey string
 	EnvKey     string
-	Context    *ldcontext.Context
+	Context    ldcontext.Context
 }
 
 type LDClient struct {
