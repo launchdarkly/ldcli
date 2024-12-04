@@ -28,17 +28,38 @@ func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
+	cmd.Flags().String(cliflags.ProjectFlag, "", "The project key")
+	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
+
+	cmd.Flags().String(SourceEnvironmentFlag, "", "environment to copy flag values from")
+	_ = viper.BindPFlag(SourceEnvironmentFlag, cmd.Flags().Lookup(SourceEnvironmentFlag))
+
+	cmd.Flags().String(ContextFlag, "", `Stringified JSON representation of your context object ex. {"user": { "email": "test@gmail.com", "username": "foo", "key": "bar"}}`)
+	_ = viper.BindPFlag(ContextFlag, cmd.Flags().Lookup(ContextFlag))
+
 	return cmd
 }
 
 func startServer(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
+
+		var initialSetting dev_server.InitialProjectSettings
+		//ldContext := viper.GetString(ContextFlag)
+
+		if viper.IsSet(cliflags.ProjectFlag) && viper.IsSet(SourceEnvironmentFlag) {
+			initialSetting = dev_server.InitialProjectSettings{
+				ProjectKey: viper.GetString(cliflags.ProjectFlag),
+				EnvKey:     viper.GetString(SourceEnvironmentFlag),
+			}
+		}
+
 		params := dev_server.ServerParams{
-			AccessToken:  viper.GetString(cliflags.AccessTokenFlag),
-			BaseURI:      viper.GetString(cliflags.BaseURIFlag),
-			DevStreamURI: viper.GetString(cliflags.DevStreamURIFlag),
-			Port:         viper.GetString(cliflags.PortFlag),
+			AccessToken:            viper.GetString(cliflags.AccessTokenFlag),
+			BaseURI:                viper.GetString(cliflags.BaseURIFlag),
+			DevStreamURI:           viper.GetString(cliflags.DevStreamURIFlag),
+			Port:                   viper.GetString(cliflags.PortFlag),
+			InitialProjectSettings: initialSetting,
 		}
 
 		client.RunServer(ctx, params)

@@ -3,6 +3,7 @@ package dev_server
 import (
 	"context"
 	"fmt"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"log"
 	"net/http"
 	"os"
@@ -25,10 +26,17 @@ type Client interface {
 }
 
 type ServerParams struct {
-	AccessToken  string
-	BaseURI      string
-	DevStreamURI string
-	Port         string
+	AccessToken            string
+	BaseURI                string
+	DevStreamURI           string
+	Port                   string
+	InitialProjectSettings InitialProjectSettings
+}
+
+type InitialProjectSettings struct {
+	ProjectKey string
+	EnvKey     string
+	Context    *ldcontext.Context
 }
 
 type LDClient struct {
