@@ -59,6 +59,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	observers := model.NewObservers()
 	ss := api.NewStrictServer()
 	apiServer := api.NewStrictHandlerWithOptions(ss, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  api.RequestErrorHandler,
@@ -67,7 +68,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r := mux.NewRouter()
 	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI))
 	r.Use(model.StoreMiddleware(sqlStore))
-	r.Use(model.ObserversMiddleware(model.NewObservers()))
+	r.Use(model.ObserversMiddleware(observers))
 	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
@@ -77,8 +78,9 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 
 	if serverParams.InitialProjectSettings.Enabled {
-		log.Printf("Initial project settings enabled" + serverParams.InitialProjectSettings.ProjectKey)
+		log.Printf("Initial project [%s] with env [%s]", serverParams.InitialProjectSettings.ProjectKey, serverParams.InitialProjectSettings.EnvKey)
 		ctx = adapters.WithLdApi(ctx, *ldClient, serverParams.DevStreamURI)
+		ctx = model.SetObserversOnContext(ctx, observers)
 		ctx = model.ContextWithStore(ctx, sqlStore)
 		syncErr := task.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings.ProjectKey, serverParams.InitialProjectSettings.EnvKey, serverParams.InitialProjectSettings.Context)
 		if syncErr != nil {
