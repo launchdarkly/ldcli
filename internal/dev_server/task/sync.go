@@ -43,6 +43,13 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 			return createError
 		}
 	}
+	for flagKey, val := range settings.Overrides {
+		_, err := model.UpsertOverride(ctx, settings.ProjectKey, flagKey, val)
+		if err != nil {
+			return err
+		}
+	}
+
 	log.Printf("Successfully synced Initial project [%s]", project.Key)
 	return nil
 }

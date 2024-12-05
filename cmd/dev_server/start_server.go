@@ -2,6 +2,7 @@ package dev_server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"os/exec"
@@ -39,6 +40,9 @@ func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 	cmd.Flags().String(ContextFlag, "", `Stringified JSON representation of your context object ex. {"user": { "email": "test@gmail.com", "username": "foo", "key": "bar"}}`)
 	_ = viper.BindPFlag(ContextFlag, cmd.Flags().Lookup(ContextFlag))
 
+	cmd.Flags().String(OverrideFlag, "", `Stringified JSON representation of flag overrides ex. {"flagName": true, "stringFlagName": "test" }`)
+	_ = viper.BindPFlag(OverrideFlag, cmd.Flags().Lookup(OverrideFlag))
+
 	return cmd
 }
 
@@ -63,6 +67,16 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 					return err
 				}
 				initialSetting.Context = &c
+			}
+
+			if viper.IsSet(OverrideFlag) {
+				var override map[string]task.FlagValue
+				overrideString := viper.GetString(OverrideFlag)
+				err := json.Unmarshal([]byte(overrideString), &override)
+				if err != nil {
+					return err
+				}
+				initialSetting.Overrides = override
 			}
 		}
 
