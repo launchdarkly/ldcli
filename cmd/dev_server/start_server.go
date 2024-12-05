@@ -2,8 +2,8 @@ package dev_server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"log"
 	"os/exec"
 	"runtime"
@@ -55,11 +55,13 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 				EnvKey:     viper.GetString(SourceEnvironmentFlag),
 			}
 			if viper.IsSet(ContextFlag) {
+				var c ldcontext.Context
 				contextString := viper.GetString(ContextFlag)
-				err := json.Unmarshal([]byte(contextString), &initialSetting.Context)
+				err := c.UnmarshalJSON([]byte(contextString))
 				if err != nil {
 					return err
 				}
+				initialSetting.Context = &c
 			}
 		}
 
