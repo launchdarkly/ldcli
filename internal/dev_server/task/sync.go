@@ -16,6 +16,7 @@ func CreateOrSyncProject(ctx context.Context, projKey string, sourceEnvironmentK
 	project, createError := model.CreateProject(ctx, projKey, sourceEnvironmentKey, ldCtx)
 	if createError != nil {
 		if errors.Is(createError, model.ErrAlreadyExists) {
+			log.Printf("Project [%s] exists, refreshing data", project.Key)
 			var updateErr error
 			project, updateErr = model.UpdateProject(ctx, projKey, ldCtx, &sourceEnvironmentKey)
 			if updateErr != nil {
@@ -26,6 +27,6 @@ func CreateOrSyncProject(ctx context.Context, projKey string, sourceEnvironmentK
 			return createError
 		}
 	}
-	log.Printf("Successfully synced Initial project [%s], ", project.Key)
+	log.Printf("Successfully synced Initial project [%s]", project.Key)
 	return nil
 }
