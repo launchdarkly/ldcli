@@ -16,7 +16,7 @@ import (
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
-	"github.com/launchdarkly/ldcli/internal/dev_server/task"
+	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
 func NewStartServerCmd(client dev_server.Client) *cobra.Command {
@@ -50,11 +50,11 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 
-		var initialSetting task.InitialProjectSettings
+		var initialSetting model.InitialProjectSettings
 
 		if viper.IsSet(cliflags.ProjectFlag) && viper.IsSet(SourceEnvironmentFlag) {
 
-			initialSetting = task.InitialProjectSettings{
+			initialSetting = model.InitialProjectSettings{
 				Enabled:    true,
 				ProjectKey: viper.GetString(cliflags.ProjectFlag),
 				EnvKey:     viper.GetString(SourceEnvironmentFlag),
@@ -70,7 +70,7 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 			}
 
 			if viper.IsSet(OverrideFlag) {
-				var override map[string]task.FlagValue
+				var override map[string]model.FlagValue
 				overrideString := viper.GetString(OverrideFlag)
 				err := json.Unmarshal([]byte(overrideString), &override)
 				if err != nil {

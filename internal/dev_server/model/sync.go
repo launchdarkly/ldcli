@@ -1,12 +1,10 @@
-package task
+package model
 
 import (
 	"context"
 	"log"
 
 	"github.com/pkg/errors"
-
-	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -28,13 +26,13 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 	}
 
 	log.Printf("Initial project [%s] with env [%s]", settings.ProjectKey, settings.EnvKey)
-	var project model.Project
-	project, createError := model.CreateProject(ctx, settings.ProjectKey, settings.EnvKey, settings.Context)
+	var project Project
+	project, createError := CreateProject(ctx, settings.ProjectKey, settings.EnvKey, settings.Context)
 	if createError != nil {
-		if errors.Is(createError, model.ErrAlreadyExists) {
+		if errors.Is(createError, ErrAlreadyExists) {
 			log.Printf("Project [%s] exists, refreshing data", settings.ProjectKey)
 			var updateErr error
-			project, updateErr = model.UpdateProject(ctx, settings.ProjectKey, settings.Context, &settings.EnvKey)
+			project, updateErr = UpdateProject(ctx, settings.ProjectKey, settings.Context, &settings.EnvKey)
 			if updateErr != nil {
 				return updateErr
 			}
@@ -44,7 +42,7 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 		}
 	}
 	for flagKey, val := range settings.Overrides {
-		_, err := model.UpsertOverride(ctx, settings.ProjectKey, flagKey, val)
+		_, err := UpsertOverride(ctx, settings.ProjectKey, flagKey, val)
 		if err != nil {
 			return err
 		}

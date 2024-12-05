@@ -1,4 +1,4 @@
-package task_test
+package model_test
 
 import (
 	"context"
@@ -15,7 +15,6 @@ import (
 	adapters_mocks "github.com/launchdarkly/ldcli/internal/dev_server/adapters/mocks"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model/mocks"
-	"github.com/launchdarkly/ldcli/internal/dev_server/task"
 )
 
 func TestInitialSync(t *testing.T) {
@@ -53,27 +52,27 @@ func TestInitialSync(t *testing.T) {
 	}}
 
 	t.Run("Returns no error if disabled", func(t *testing.T) {
-		input := task.InitialProjectSettings{
+		input := model.InitialProjectSettings{
 			Enabled:    false,
 			ProjectKey: projKey,
 			EnvKey:     sourceEnvKey,
 			Context:    nil,
 			Overrides:  nil,
 		}
-		err := task.CreateOrSyncProject(ctx, input)
+		err := model.CreateOrSyncProject(ctx, input)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Returns error if it cant fetch flag state", func(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return("", errors.New("fetch flag state fails"))
-		input := task.InitialProjectSettings{
+		input := model.InitialProjectSettings{
 			Enabled:    true,
 			ProjectKey: projKey,
 			EnvKey:     sourceEnvKey,
 			Context:    nil,
 			Overrides:  nil,
 		}
-		err := task.CreateOrSyncProject(ctx, input)
+		err := model.CreateOrSyncProject(ctx, input)
 		assert.NotNil(t, err)
 		assert.Equal(t, "fetch flag state fails", err.Error())
 	})
@@ -82,14 +81,14 @@ func TestInitialSync(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
 		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(nil, errors.New("fetch flags failed"))
-		input := task.InitialProjectSettings{
+		input := model.InitialProjectSettings{
 			Enabled:    true,
 			ProjectKey: projKey,
 			EnvKey:     sourceEnvKey,
 			Context:    nil,
 			Overrides:  nil,
 		}
-		err := task.CreateOrSyncProject(ctx, input)
+		err := model.CreateOrSyncProject(ctx, input)
 		assert.NotNil(t, err)
 		assert.Equal(t, "fetch flags failed", err.Error())
 	})
@@ -100,14 +99,14 @@ func TestInitialSync(t *testing.T) {
 		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(errors.New("insert fails"))
 
-		input := task.InitialProjectSettings{
+		input := model.InitialProjectSettings{
 			Enabled:    true,
 			ProjectKey: projKey,
 			EnvKey:     sourceEnvKey,
 			Context:    nil,
 			Overrides:  nil,
 		}
-		err := task.CreateOrSyncProject(ctx, input)
+		err := model.CreateOrSyncProject(ctx, input)
 		assert.NotNil(t, err)
 		assert.Equal(t, "insert fails", err.Error())
 	})
@@ -118,14 +117,14 @@ func TestInitialSync(t *testing.T) {
 		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(nil)
 
-		input := task.InitialProjectSettings{
+		input := model.InitialProjectSettings{
 			Enabled:    true,
 			ProjectKey: projKey,
 			EnvKey:     sourceEnvKey,
 			Context:    nil,
 			Overrides:  nil,
 		}
-		err := task.CreateOrSyncProject(ctx, input)
+		err := model.CreateOrSyncProject(ctx, input)
 
 		assert.NoError(t, err)
 	})
@@ -157,16 +156,16 @@ func TestInitialSync(t *testing.T) {
 		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(&proj, nil)
 
-		input := task.InitialProjectSettings{
+		input := model.InitialProjectSettings{
 			Enabled:    true,
 			ProjectKey: projKey,
 			EnvKey:     sourceEnvKey,
 			Context:    nil,
-			Overrides: map[string]task.FlagValue{
+			Overrides: map[string]model.FlagValue{
 				"boolFlag": ldvalue.Bool(true),
 			},
 		}
-		err := task.CreateOrSyncProject(ctx, input)
+		err := model.CreateOrSyncProject(ctx, input)
 
 		assert.NoError(t, err)
 	})

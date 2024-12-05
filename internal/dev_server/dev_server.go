@@ -17,7 +17,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
-	"github.com/launchdarkly/ldcli/internal/dev_server/task"
 	"github.com/launchdarkly/ldcli/internal/dev_server/ui"
 )
 
@@ -30,7 +29,7 @@ type ServerParams struct {
 	BaseURI                string
 	DevStreamURI           string
 	Port                   string
-	InitialProjectSettings task.InitialProjectSettings
+	InitialProjectSettings model.InitialProjectSettings
 }
 
 type LDClient struct {
@@ -72,7 +71,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	ctx = adapters.WithLdApi(ctx, *ldClient, serverParams.DevStreamURI)
 	ctx = model.SetObserversOnContext(ctx, observers)
 	ctx = model.ContextWithStore(ctx, sqlStore)
-	syncErr := task.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings)
+	syncErr := model.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings)
 	if syncErr != nil {
 		log.Fatal(syncErr)
 	}
