@@ -13,8 +13,7 @@ func Middleware(client ldapi.APIClient, streamingUrl string) func(handler http.H
 	return func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			ctx := request.Context()
-			ctx = WithSdk(ctx, newSdk(streamingUrl))
-			ctx = WithApi(ctx, NewApi(client))
+			ctx = WithLdApi(ctx, client, streamingUrl)
 			request = request.WithContext(ctx)
 			handler.ServeHTTP(writer, request)
 		})

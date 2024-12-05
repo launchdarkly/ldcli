@@ -18,6 +18,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
+	"github.com/launchdarkly/ldcli/internal/dev_server/task"
 	"github.com/launchdarkly/ldcli/internal/dev_server/ui"
 )
 
@@ -75,13 +76,19 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 
+	if serverParams.InitialProjectSettings.Enabled {
+		log.Printf("Initial project settings enabled" + serverParams.InitialProjectSettings.ProjectKey)
+		ctx = adapters.WithLdApi(ctx, *ldClient, serverParams.DevStreamURI)
+		ctx = model.ContextWithStore(ctx, sqlStore)
+		syncErr := task.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings.ProjectKey, serverParams.InitialProjectSettings.EnvKey, serverParams.InitialProjectSettings.Context)
+		if syncErr != nil {
+			log.Fatal(syncErr)
+		}
+	}
+
 	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
 	log.Printf("Server running on %s", addr)
 	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
-
-	if serverParams.InitialProjectSettings.Enabled {
-		log.Printf("Initial project settings enabled" + serverParams.InitialProjectSettings.ProjectKey)
-	}
 
 	server := http.Server{
 		Addr:    addr,
