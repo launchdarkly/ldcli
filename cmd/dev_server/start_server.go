@@ -3,7 +3,6 @@ package dev_server
 import (
 	"context"
 	"errors"
-	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"log"
 	"os/exec"
 	"runtime"
@@ -11,10 +10,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
+	"github.com/launchdarkly/ldcli/internal/dev_server/task"
 )
 
 func NewStartServerCmd(client dev_server.Client) *cobra.Command {
@@ -45,11 +46,11 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 
-		var initialSetting dev_server.InitialProjectSettings
+		var initialSetting task.InitialProjectSettings
 
 		if viper.IsSet(cliflags.ProjectFlag) && viper.IsSet(SourceEnvironmentFlag) {
 
-			initialSetting = dev_server.InitialProjectSettings{
+			initialSetting = task.InitialProjectSettings{
 				Enabled:    true,
 				ProjectKey: viper.GetString(cliflags.ProjectFlag),
 				EnvKey:     viper.GetString(SourceEnvironmentFlag),

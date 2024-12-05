@@ -11,7 +11,6 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/api"
@@ -31,14 +30,7 @@ type ServerParams struct {
 	BaseURI                string
 	DevStreamURI           string
 	Port                   string
-	InitialProjectSettings InitialProjectSettings
-}
-
-type InitialProjectSettings struct {
-	Enabled    bool
-	ProjectKey string
-	EnvKey     string
-	Context    *ldcontext.Context `json:"context,omitempty"`
+	InitialProjectSettings task.InitialProjectSettings
 }
 
 type LDClient struct {
@@ -77,15 +69,12 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 
-	if serverParams.InitialProjectSettings.Enabled {
-		log.Printf("Initial project [%s] with env [%s]", serverParams.InitialProjectSettings.ProjectKey, serverParams.InitialProjectSettings.EnvKey)
-		ctx = adapters.WithLdApi(ctx, *ldClient, serverParams.DevStreamURI)
-		ctx = model.SetObserversOnContext(ctx, observers)
-		ctx = model.ContextWithStore(ctx, sqlStore)
-		syncErr := task.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings.ProjectKey, serverParams.InitialProjectSettings.EnvKey, serverParams.InitialProjectSettings.Context)
-		if syncErr != nil {
-			log.Fatal(syncErr)
-		}
+	ctx = adapters.WithLdApi(ctx, *ldClient, serverParams.DevStreamURI)
+	ctx = model.SetObserversOnContext(ctx, observers)
+	ctx = model.ContextWithStore(ctx, sqlStore)
+	syncErr := task.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings)
+	if syncErr != nil {
+		log.Fatal(syncErr)
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
