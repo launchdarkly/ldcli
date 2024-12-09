@@ -68,7 +68,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 
-	ctx = adapters.WithLdApi(ctx, *ldClient, serverParams.DevStreamURI)
+	ctx = adapters.WithApiAndSdk(ctx, *ldClient, serverParams.DevStreamURI)
 	ctx = model.SetObserversOnContext(ctx, observers)
 	ctx = model.ContextWithStore(ctx, sqlStore)
 	syncErr := model.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings)
