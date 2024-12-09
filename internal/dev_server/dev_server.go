@@ -25,10 +25,11 @@ type Client interface {
 }
 
 type ServerParams struct {
-	AccessToken  string
-	BaseURI      string
-	DevStreamURI string
-	Port         string
+	AccessToken            string
+	BaseURI                string
+	DevStreamURI           string
+	Port                   string
+	InitialProjectSettings model.InitialProjectSettings
 }
 
 type LDClient struct {
@@ -49,6 +50,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	observers := model.NewObservers()
 	ss := api.NewStrictServer()
 	apiServer := api.NewStrictHandlerWithOptions(ss, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  api.RequestErrorHandler,
@@ -57,7 +59,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r := mux.NewRouter()
 	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI))
 	r.Use(model.StoreMiddleware(sqlStore))
-	r.Use(model.ObserversMiddleware(model.NewObservers()))
+	r.Use(model.ObserversMiddleware(observers))
 	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
@@ -66,9 +68,18 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 
+	ctx = adapters.WithApiAndSdk(ctx, *ldClient, serverParams.DevStreamURI)
+	ctx = model.SetObserversOnContext(ctx, observers)
+	ctx = model.ContextWithStore(ctx, sqlStore)
+	syncErr := model.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings)
+	if syncErr != nil {
+		log.Fatal(syncErr)
+	}
+
 	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
 	log.Printf("Server running on %s", addr)
 	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
+
 	server := http.Server{
 		Addr:    addr,
 		Handler: handler,
