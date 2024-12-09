@@ -37,7 +37,7 @@ func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 	cmd.Flags().String(SourceEnvironmentFlag, "", "environment to copy flag values from")
 	_ = viper.BindPFlag(SourceEnvironmentFlag, cmd.Flags().Lookup(SourceEnvironmentFlag))
 
-	cmd.Flags().String(ContextFlag, "", `Stringified JSON representation of your context object ex. {"user": { "email": "test@gmail.com", "username": "foo", "key": "bar"}}`)
+	cmd.Flags().String(ContextFlag, "", `Stringified JSON representation of your context object ex. {"kind": "multi", "user": { "email": "test@gmail.com", "username": "foo", "key": "bar"}`)
 	_ = viper.BindPFlag(ContextFlag, cmd.Flags().Lookup(ContextFlag))
 
 	cmd.Flags().String(OverrideFlag, "", `Stringified JSON representation of flag overrides ex. {"flagName": true, "stringFlagName": "test" }`)
