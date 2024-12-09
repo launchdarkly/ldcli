@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/launchdarkly/ldcli/compare/v1.8.1...v1.9.0) (2024-12-09)
+
+
+### Features
+
+* Add options to sync environment at dev-server startup ([#463](https://github.com/launchdarkly/ldcli/issues/463)) ([a9f61c5](https://github.com/launchdarkly/ldcli/commit/a9f61c5d4051c2664e57e19f9d4a82d682f78a3c))
+
 ## [1.8.1](https://github.com/launchdarkly/ldcli/compare/v1.8.0...v1.8.1) (2024-10-29)
 
 
