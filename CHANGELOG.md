@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/launchdarkly/ldcli/compare/v1.9.0...v1.9.1) (2025-01-02)
+
+
+### Bug Fixes
+
+* Adjust payload format for PHP endpoints ([#467](https://github.com/launchdarkly/ldcli/issues/467)) ([80d8be2](https://github.com/launchdarkly/ldcli/commit/80d8be2238544305646d6425e011ec1ab6c88493))
+
 ## [1.9.0](https://github.com/launchdarkly/ldcli/compare/v1.8.1...v1.9.0) (2024-12-09)
 
 
