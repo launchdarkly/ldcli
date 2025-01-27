@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/launchdarkly/ldcli/compare/v1.9.1...v1.10.0) (2025-01-27)
+
+
+### Features
+
+* **dev-server:** Support polling API ([#466](https://github.com/launchdarkly/ldcli/issues/466)) ([8917573](https://github.com/launchdarkly/ldcli/commit/89175734102307592ca7055f8393d33ce30fcd41))
+
 ## [1.9.1](https://github.com/launchdarkly/ldcli/compare/v1.9.0...v1.9.1) (2025-01-02)
 
 
