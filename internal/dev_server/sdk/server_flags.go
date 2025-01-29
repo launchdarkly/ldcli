@@ -36,7 +36,8 @@ type ServerFlag struct {
 type ServerFlags map[string]ServerFlag
 
 type data struct {
-	Flags ServerFlags `json:"flags"`
+	Flags    ServerFlags `json:"flags"`
+	Segments struct{}    `json:"segments"` // We need to send an empty object over the wire for compatibility with some SDKs
 }
 type ServerAllPayload struct {
 	Path string `json:"path"`
@@ -46,7 +47,7 @@ type ServerAllPayload struct {
 func ServerAllPayloadFromFlagsState(state model.FlagsState) ServerAllPayload {
 	return ServerAllPayload{
 		Path: "",
-		Data: data{ServerFlagsFromFlagsState(state)},
+		Data: data{Flags: ServerFlagsFromFlagsState(state)},
 	}
 }
 
