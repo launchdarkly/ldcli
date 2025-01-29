@@ -9,6 +9,10 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldclient "github.com/launchdarkly/go-server-sdk/v7"
@@ -17,9 +21,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters/mocks"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestSdkRoutesViaGoSDK is an integration test. It hooks up a real go SDK to our SDK routes and makes changes to the

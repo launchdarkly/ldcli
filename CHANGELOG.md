@@ -1,5 +1,112 @@
 # Changelog
 
+## [1.10.1](https://github.com/launchdarkly/ldcli/compare/v1.10.0...v1.10.1) (2025-01-29)
+
+
+### Bug Fixes
+
+* Add empty segments to streaming response ([#473](https://github.com/launchdarkly/ldcli/issues/473)) ([9f0f407](https://github.com/launchdarkly/ldcli/commit/9f0f4073edcdb49f18a774b923519325f225c672))
+
+## [1.10.0](https://github.com/launchdarkly/ldcli/compare/v1.9.1...v1.10.0) (2025-01-27)
+
+
+### Features
+
+* **dev-server:** Support polling API ([#466](https://github.com/launchdarkly/ldcli/issues/466)) ([8917573](https://github.com/launchdarkly/ldcli/commit/89175734102307592ca7055f8393d33ce30fcd41))
+
+## [1.9.1](https://github.com/launchdarkly/ldcli/compare/v1.9.0...v1.9.1) (2025-01-02)
+
+
+### Bug Fixes
+
+* Adjust payload format for PHP endpoints ([#467](https://github.com/launchdarkly/ldcli/issues/467)) ([80d8be2](https://github.com/launchdarkly/ldcli/commit/80d8be2238544305646d6425e011ec1ab6c88493))
+
+## [1.9.0](https://github.com/launchdarkly/ldcli/compare/v1.8.1...v1.9.0) (2024-12-09)
+
+
+### Features
+
+* Add options to sync environment at dev-server startup ([#463](https://github.com/launchdarkly/ldcli/issues/463)) ([a9f61c5](https://github.com/launchdarkly/ldcli/commit/a9f61c5d4051c2664e57e19f9d4a82d682f78a3c))
+
+## [1.8.1](https://github.com/launchdarkly/ldcli/compare/v1.8.0...v1.8.1) (2024-10-29)
+
+
+### Bug Fixes
+
+* Trigger change events when overrides are deleted ([#455](https://github.com/launchdarkly/ldcli/issues/455)) ([6548beb](https://github.com/launchdarkly/ldcli/commit/6548beb2ddff67ffc55b5dae0373f1deb70cbafd))
+
+## [1.8.0](https://github.com/launchdarkly/ldcli/compare/v1.7.4...v1.8.0) (2024-10-17)
+
+
+### Features
+
+* **dev-server:** Add toast for successful sync and warning for failure ([#450](https://github.com/launchdarkly/ldcli/issues/450)) ([2831519](https://github.com/launchdarkly/ldcli/commit/2831519f6ac4da7beaa415a5512a06ef5b961ab8))
+
+## [1.7.4](https://github.com/launchdarkly/ldcli/compare/v1.7.3...v1.7.4) (2024-10-08)
+
+
+### Bug Fixes
+
+* First open of the environment selector it can sometimes show a diff environment as selected ([#448](https://github.com/launchdarkly/ldcli/issues/448)) ([fca0b66](https://github.com/launchdarkly/ldcli/commit/fca0b66b577a9843e7e94f5bf3a0ba29fdc72efb))
+
+## [1.7.3](https://github.com/launchdarkly/ldcli/compare/v1.7.2...v1.7.3) (2024-10-07)
+
+
+### Bug Fixes
+
+* Retry when there are 429s on flag metadata fetches ([#446](https://github.com/launchdarkly/ldcli/issues/446)) ([e5da2e9](https://github.com/launchdarkly/ldcli/commit/e5da2e95b62ac34d47a3e686b275c7a64702612e))
+
+## [1.7.2](https://github.com/launchdarkly/ldcli/compare/v1.7.1...v1.7.2) (2024-10-01)
+
+
+### Bug Fixes
+
+* LaunchDevly UI: Add testing framework ([#442](https://github.com/launchdarkly/ldcli/issues/442)) ([eac35d5](https://github.com/launchdarkly/ldcli/commit/eac35d5b7254f9910c8accc42d6fe15077246479))
+
+## [1.7.1](https://github.com/launchdarkly/ldcli/compare/v1.7.0...v1.7.1) (2024-10-01)
+
+
+### Bug Fixes
+
+* Context updating, environment rate limiting, toggle styling ([#437](https://github.com/launchdarkly/ldcli/issues/437)) ([c7832d5](https://github.com/launchdarkly/ldcli/commit/c7832d5061f93caff2cb1ed23fdc2fb393e08c13))
+
+## [1.7.0](https://github.com/launchdarkly/ldcli/compare/v1.6.0...v1.7.0) (2024-09-16)
+
+
+### Features
+
+* Add command to launchDevly to update the project environment and context ([#433](https://github.com/launchdarkly/ldcli/issues/433)) ([1415e4a](https://github.com/launchdarkly/ldcli/commit/1415e4a7c8061a8745981cc3a7781bf56d420a8a))
+* Remove the sync endpoint in favor of patch project endpoint ([#431](https://github.com/launchdarkly/ldcli/issues/431)) ([d3622a0](https://github.com/launchdarkly/ldcli/commit/d3622a07f7b502be6eca35686bdbd1a9f863695a))
+
+## [1.6.0](https://github.com/launchdarkly/ldcli/compare/v1.5.0...v1.6.0) (2024-09-13)
+
+
+### Features
+
+* Implement environment update functionality in launchdevly ui ([#423](https://github.com/launchdarkly/ldcli/issues/423)) ([216dc95](https://github.com/launchdarkly/ldcli/commit/216dc95aa93d4866e5ada2eb69749d8eb5644956))
+
+
+### Bug Fixes
+
+* LaunchDevly: Cleanup code and remove only show overrides when there are no overrides ([#427](https://github.com/launchdarkly/ldcli/issues/427)) ([860b657](https://github.com/launchdarkly/ldcli/commit/860b6579baf488cf692a892e5d82e8c664c29f4a))
+* LaunchDevly: Pagination for 'Only show flags with overrides' ([#426](https://github.com/launchdarkly/ldcli/issues/426)) ([28bfb60](https://github.com/launchdarkly/ldcli/commit/28bfb60cbd5a29f1dd9aea5a36c5e2759e7546af))
+* LaunchDevly: Search clear not clearing filter ([#424](https://github.com/launchdarkly/ldcli/issues/424)) ([dd9df47](https://github.com/launchdarkly/ldcli/commit/dd9df474413f068b7579288f155a9dc51d9baf0e))
+
+## [1.5.0](https://github.com/launchdarkly/ldcli/compare/v1.4.4...v1.5.0) (2024-09-06)
+
+
+### Features
+
+* Pick from list of real variations ([#420](https://github.com/launchdarkly/ldcli/issues/420)) ([91e8cbf](https://github.com/launchdarkly/ldcli/commit/91e8cbf8ba82cdff1625914a0e8b7fad5605da39))
+
+
+### Bug Fixes
+
+* Add dev server to usage template ([#411](https://github.com/launchdarkly/ldcli/issues/411)) ([66a6a25](https://github.com/launchdarkly/ldcli/commit/66a6a25fb20b8c4bafd8730b4d45b97882adb8c3))
+* dev server commands emit events ([#410](https://github.com/launchdarkly/ldcli/issues/410)) ([2019b77](https://github.com/launchdarkly/ldcli/commit/2019b772cab8fd585bed6b58e3625fc873e1fa84))
+* Handle unhandled errors in dev server UI ([#416](https://github.com/launchdarkly/ldcli/issues/416)) ([afe5281](https://github.com/launchdarkly/ldcli/commit/afe5281868e26839f36eb91b4b3c7254aa98f7dc))
+* Propagate dev server errors in CLI compatible format ([#412](https://github.com/launchdarkly/ldcli/issues/412)) ([67cc93a](https://github.com/launchdarkly/ldcli/commit/67cc93a6b3129956b228fe1d1506d277abc3b0b1))
+
 ## [1.4.4](https://github.com/launchdarkly/ldcli/compare/v1.4.3...v1.4.4) (2024-08-19)
 
 

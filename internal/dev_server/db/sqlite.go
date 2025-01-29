@@ -83,9 +83,9 @@ func (s Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool,
 	}()
 	result, err := tx.ExecContext(ctx, `
 		UPDATE projects
-		SET flag_state = ?, last_sync_time = ?, context=?
+		SET flag_state = ?, last_sync_time = ?, context=?, source_environment_key=?
 		WHERE key = ?;
-	`, flagsStateJson, project.LastSyncTime, project.Context.JSONString(), project.Key)
+	`, flagsStateJson, project.LastSyncTime, project.Context.JSONString(), project.SourceEnvironmentKey, project.Key)
 	if err != nil {
 		return false, errors.Wrap(err, "unable to execute update project")
 	}
@@ -324,26 +324,25 @@ func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) (mo
 	return override, nil
 }
 
-func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey string) error {
-	result, err := s.database.Exec(`
-		UPDATE overrides set active = false, version = version+1 where project_key = ? and flag_key = ? and active = true
+func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey string) (int, error) {
+	row := s.database.QueryRowContext(ctx, `
+		UPDATE overrides
+		set active = false, version = version+1
+		where project_key = ? and flag_key = ? and active = true
+		returning version
 	`,
 		projectKey,
 		flagKey,
 	)
-	if err != nil {
-		return err
+	var version int
+	if err := row.Scan(&version); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, errors.Wrapf(model.ErrNotFound, "no override found for flag with key, '%s', in project with key, '%s'", projectKey, flagKey)
+		}
+		return 0, err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return model.ErrNotFound
-	}
-
-	return nil
+	return version, nil
 }
 
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {

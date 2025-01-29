@@ -16,7 +16,7 @@ import {
   Stack,
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { apiRoute } from './util.ts';
 import { FlagVariation } from './api.ts';
@@ -27,8 +27,10 @@ type FlagProps = {
   availableVariations: Record<string, FlagVariation[]>;
   selectedProject: string;
   flags: LDFlagSet | null;
-  overrides: Record<string, { value: LDFlagValue }>;
-  setOverrides: (overrides: Record<string, { value: LDFlagValue }>) => void;
+  overrides: Record<string, { value: LDFlagValue; version: number }>;
+  setOverrides: (
+    overrides: Record<string, { value: LDFlagValue; version: number }>,
+  ) => void;
 };
 
 function Flags({
@@ -40,7 +42,7 @@ function Flags({
 }: FlagProps) {
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(0); // Change initial page to 0
+  const [currentPage, setCurrentPage] = useState(0);
   const flagsPerPage = 20;
 
   const overridesPresent = useMemo(
@@ -48,18 +50,36 @@ function Flags({
     [overrides],
   );
 
+  useEffect(() => {
+    if (!overridesPresent && onlyShowOverrides) {
+      setOnlyShowOverrides(false);
+    }
+  }, [overridesPresent, onlyShowOverrides]);
+
   const filteredFlags = useMemo(() => {
     if (!flags) return [];
     const flagEntries = Object.entries(flags);
-    const search = searchTerm.toLowerCase();
-    const filtered = fuzzysort
-      .go(search, flagEntries, { all: true, key: '0', threshold: 0.7 })
-      .map((result) => result.obj);
-    return filtered;
-  }, [flags, searchTerm]);
+    return flagEntries
+      .filter((entry) => {
+        if (!searchTerm) return true;
+        const [flagKey] = entry;
+        const result = fuzzysort.single(searchTerm.toLowerCase(), flagKey);
+        return result && result.score > -5000;
+      })
+      .filter((entry) => {
+        const [flagKey] = entry;
+        const hasOverride = flagKey in overrides;
+
+        if (onlyShowOverrides && !hasOverride) {
+          return false;
+        }
+
+        return true;
+      });
+  }, [flags, searchTerm, onlyShowOverrides, overrides]);
 
   const paginatedFlags = useMemo(() => {
-    const startIndex = currentPage * flagsPerPage; // Adjust startIndex calculation
+    const startIndex = currentPage * flagsPerPage;
     const endIndex = startIndex + flagsPerPage;
     return filteredFlags.slice(startIndex, endIndex);
   }, [filteredFlags, currentPage]);
@@ -68,10 +88,9 @@ function Flags({
     (flagKey: string, overrideValue: LDFlagValue) => {
       const updatedOverrides = {
         ...overrides,
-        ...{
-          [flagKey]: {
-            value: overrideValue,
-          },
+        [flagKey]: {
+          value: overrideValue,
+          version: overrides[flagKey]?.version || 0,
         },
       };
 
@@ -131,18 +150,16 @@ function Flags({
   const handlePageChange = (direction: string) => {
     switch (direction) {
       case 'next':
-        setCurrentPage(
-          (prevPage) => Math.min(prevPage + 1, totalPages - 1), // Adjust page increment
-        );
+        setCurrentPage((prevPage) => Math.min(prevPage + 1, totalPages - 1));
         break;
       case 'prev':
-        setCurrentPage((prevPage) => Math.max(prevPage - 1, 0)); // Adjust page decrement
+        setCurrentPage((prevPage) => Math.max(prevPage - 1, 0));
         break;
       case 'first':
-        setCurrentPage(0); // Adjust first page
+        setCurrentPage(0);
         break;
       case 'last':
-        setCurrentPage(totalPages - 1); // Adjust last page
+        setCurrentPage(totalPages - 1);
         break;
       default:
         console.error('invalid page change direction.');
@@ -159,7 +176,9 @@ function Flags({
         marginBottom="2rem"
         padding="1rem"
         background={'var(--lp-color-bg-feedback-info)'}
-        border={'100px solid var(--lp-color-border-feedback-info)'}
+        borderStyle="solid"
+        borderWidth="0.0625rem"
+        borderColor="var(--lp-color-border-feedback-info)"
         borderRadius={Theme.borderRadius.regular}
       >
         <Label
@@ -184,8 +203,6 @@ function Flags({
           variant="destructive"
           isDisabled={!overridesPresent}
           onPress={async () => {
-            // This button is disabled unless overrides are present, but the
-            // type is nullable
             if (!overrides) {
               return;
             }
@@ -194,24 +211,11 @@ function Flags({
 
             await Promise.all(
               overrideKeys.map((flagKey) => {
-                // Opt out of local state updates since we're bulk-removing
-                // overrides async
-                removeOverride(flagKey);
+                return removeOverride(flagKey);
               }),
             );
 
-            // Winnow out removed overrides and update local state in a
-            // single pass
-            const updatedOverrides = overrideKeys.reduce(
-              (accum, flagKey) => {
-                delete accum[flagKey];
-
-                return accum;
-              },
-              { ...overrides },
-            );
-
-            setOverrides(updatedOverrides);
+            setOverrides({});
             setOnlyShowOverrides(false);
           }}
         >
@@ -221,21 +225,24 @@ function Flags({
       </Box>
       <Stack gap="4">
         <Inline gap="4">
-          <SearchField>
+          <SearchField aria-label="Search flags">
             <Group>
               <Icon name="search" size="small" />
               <Input
-                placeholder="Search flags"
+                placeholder="Search flags by key"
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  setCurrentPage(0); // Reset pagination
+                  setCurrentPage(0);
                 }}
+                value={searchTerm}
+                aria-label="Search flags input"
               />
               <IconButton
                 aria-label="clear"
                 icon="cancel-circle-outline"
                 size="small"
                 variant="minimal"
+                onPress={() => setSearchTerm('')}
               />
             </Group>
           </SearchField>
@@ -245,10 +252,6 @@ function Flags({
             const overrideValue = overrides[flagKey]?.value;
             const hasOverride = flagKey in overrides;
             const currentValue = hasOverride ? overrideValue : flagValue;
-
-            if (onlyShowOverrides && !hasOverride) {
-              return null;
-            }
 
             return (
               <li
@@ -273,7 +276,6 @@ function Flags({
 
                     {hasOverride && (
                       <Button
-                        icon="cancel"
                         aria-label="Remove override"
                         onPress={() => {
                           removeOverride(flagKey);

@@ -12,6 +12,7 @@ paths:
   /dev/projects:
     get:
       summary: lists all projects that have been configured for the dev server
+      operationId: getProjects
       responses:
         200:
           description: OK. List of projects
@@ -23,20 +24,10 @@ paths:
                 items:
                   type: string
                 uniqueItems: true
-  /dev/projects/{projectKey}/sync:
-    patch:
-      summary: updates the flag state for the given project and source environment
-      parameters:
-        - $ref: "#/components/parameters/projectKey"
-        - $ref: "#/components/parameters/projectExpand"
-      responses:
-        200:
-          $ref: "#/components/responses/Project"
-        404:
-          description: No project found
   /dev/projects/{projectKey}:
     get:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
+      operationId: getProject
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
@@ -46,7 +37,8 @@ paths:
         404:
           description: No project found
     patch:
-      summary: updates the project context or sourceEnvironmentKey
+      summary: updates the project context or sourceEnvironmentKey then syncs.  Input an empty body to only force a sync.
+      operationId: patchProject
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
@@ -68,6 +60,7 @@ paths:
           description: No project found
     delete:
       summary: remove the specified project from the dev server
+      operationId: deleteProject
       parameters:
         - $ref: "#/components/parameters/projectKey"
       responses:
@@ -77,6 +70,7 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
     post:
       summary: Add the project to the dev server
+      operationId: postAddProject
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
@@ -103,6 +97,7 @@ paths:
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
+      operationId: putOverrideFlag
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/flagKey"
@@ -121,6 +116,7 @@ paths:
 
     delete:
       summary: remove override for flag
+      operationId: deleteFlagOverride
       parameters:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/flagKey"
@@ -129,6 +125,39 @@ paths:
           description: OK. override removed
         404:
           description: no matching override found
+  /dev/projects/{projectKey}/environments:
+    get:
+      operationId: getEnvironments
+      summary: list all environments for the given project
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - name: name
+          in: query
+          description: filter by environment name
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: limit the number of environments returned
+          required: false
+          schema:
+              type: integer
+      responses:
+        200:
+          description: OK. List of environments
+          content:
+            application/json:
+              schema:
+                description: list of environments
+                type: array
+                items:
+                  $ref: "#/components/schemas/Environment"
+                uniqueItems: true
+        404:
+          $ref: "#/components/responses/ErrorResponse"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
 components:
   parameters:
     flagKey:
@@ -224,6 +253,17 @@ components:
           type: integer
           x-go-type: int64
           description: unix timestamp for the lat time the flag values were synced from the source environment
+    Environment:
+      description: Environment
+      type: object
+      required:
+        - key
+        - name
+      properties:
+        key:
+          type: string
+        name:
+          type: string
   responses:
     FlagOverride:
       description: Flag override

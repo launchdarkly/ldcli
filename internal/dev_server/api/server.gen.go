@@ -17,32 +17,32 @@ import (
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
-// Defines values for GetDevProjectsProjectKeyParamsExpand.
+// Defines values for GetProjectParamsExpand.
 const (
-	GetDevProjectsProjectKeyParamsExpandAvailableVariations GetDevProjectsProjectKeyParamsExpand = "availableVariations"
-	GetDevProjectsProjectKeyParamsExpandOverrides           GetDevProjectsProjectKeyParamsExpand = "overrides"
+	GetProjectParamsExpandAvailableVariations GetProjectParamsExpand = "availableVariations"
+	GetProjectParamsExpandOverrides           GetProjectParamsExpand = "overrides"
 )
 
-// Defines values for PatchDevProjectsProjectKeyParamsExpand.
+// Defines values for PatchProjectParamsExpand.
 const (
-	PatchDevProjectsProjectKeyParamsExpandAvailableVariations PatchDevProjectsProjectKeyParamsExpand = "availableVariations"
-	PatchDevProjectsProjectKeyParamsExpandOverrides           PatchDevProjectsProjectKeyParamsExpand = "overrides"
+	PatchProjectParamsExpandAvailableVariations PatchProjectParamsExpand = "availableVariations"
+	PatchProjectParamsExpandOverrides           PatchProjectParamsExpand = "overrides"
 )
 
-// Defines values for PostDevProjectsProjectKeyParamsExpand.
+// Defines values for PostAddProjectParamsExpand.
 const (
-	PostDevProjectsProjectKeyParamsExpandAvailableVariations PostDevProjectsProjectKeyParamsExpand = "availableVariations"
-	PostDevProjectsProjectKeyParamsExpandOverrides           PostDevProjectsProjectKeyParamsExpand = "overrides"
-)
-
-// Defines values for PatchDevProjectsProjectKeySyncParamsExpand.
-const (
-	PatchDevProjectsProjectKeySyncParamsExpandAvailableVariations PatchDevProjectsProjectKeySyncParamsExpand = "availableVariations"
-	PatchDevProjectsProjectKeySyncParamsExpandOverrides           PatchDevProjectsProjectKeySyncParamsExpand = "overrides"
+	AvailableVariations PostAddProjectParamsExpand = "availableVariations"
+	Overrides           PostAddProjectParamsExpand = "overrides"
 )
 
 // Context context object to use when evaluating flags in source environment
 type Context = ldcontext.Context
+
+// Environment Environment
+type Environment struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
 
 // FlagValue value of a feature flag variation
 type FlagValue = ldvalue.Value
@@ -105,17 +105,17 @@ type FlagOverride struct {
 	Value FlagValue `json:"value"`
 }
 
-// GetDevProjectsProjectKeyParams defines parameters for GetDevProjectsProjectKey.
-type GetDevProjectsProjectKeyParams struct {
+// GetProjectParams defines parameters for GetProject.
+type GetProjectParams struct {
 	// Expand Available expand options for this endpoint.
 	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
-// GetDevProjectsProjectKeyParamsExpand defines parameters for GetDevProjectsProjectKey.
-type GetDevProjectsProjectKeyParamsExpand string
+// GetProjectParamsExpand defines parameters for GetProject.
+type GetProjectParamsExpand string
 
-// PatchDevProjectsProjectKeyJSONBody defines parameters for PatchDevProjectsProjectKey.
-type PatchDevProjectsProjectKeyJSONBody struct {
+// PatchProjectJSONBody defines parameters for PatchProject.
+type PatchProjectJSONBody struct {
 	// Context context object to use when evaluating flags in source environment
 	Context *Context `json:"context,omitempty"`
 
@@ -123,17 +123,17 @@ type PatchDevProjectsProjectKeyJSONBody struct {
 	SourceEnvironmentKey *string `json:"sourceEnvironmentKey,omitempty"`
 }
 
-// PatchDevProjectsProjectKeyParams defines parameters for PatchDevProjectsProjectKey.
-type PatchDevProjectsProjectKeyParams struct {
+// PatchProjectParams defines parameters for PatchProject.
+type PatchProjectParams struct {
 	// Expand Available expand options for this endpoint.
 	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
-// PatchDevProjectsProjectKeyParamsExpand defines parameters for PatchDevProjectsProjectKey.
-type PatchDevProjectsProjectKeyParamsExpand string
+// PatchProjectParamsExpand defines parameters for PatchProject.
+type PatchProjectParamsExpand string
 
-// PostDevProjectsProjectKeyJSONBody defines parameters for PostDevProjectsProjectKey.
-type PostDevProjectsProjectKeyJSONBody struct {
+// PostAddProjectJSONBody defines parameters for PostAddProject.
+type PostAddProjectJSONBody struct {
 	// Context context object to use when evaluating flags in source environment
 	Context *Context `json:"context,omitempty"`
 
@@ -141,59 +141,59 @@ type PostDevProjectsProjectKeyJSONBody struct {
 	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
 }
 
-// PostDevProjectsProjectKeyParams defines parameters for PostDevProjectsProjectKey.
-type PostDevProjectsProjectKeyParams struct {
+// PostAddProjectParams defines parameters for PostAddProject.
+type PostAddProjectParams struct {
 	// Expand Available expand options for this endpoint.
 	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
 }
 
-// PostDevProjectsProjectKeyParamsExpand defines parameters for PostDevProjectsProjectKey.
-type PostDevProjectsProjectKeyParamsExpand string
+// PostAddProjectParamsExpand defines parameters for PostAddProject.
+type PostAddProjectParamsExpand string
 
-// PatchDevProjectsProjectKeySyncParams defines parameters for PatchDevProjectsProjectKeySync.
-type PatchDevProjectsProjectKeySyncParams struct {
-	// Expand Available expand options for this endpoint.
-	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
+// GetEnvironmentsParams defines parameters for GetEnvironments.
+type GetEnvironmentsParams struct {
+	// Name filter by environment name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Limit limit the number of environments returned
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// PatchDevProjectsProjectKeySyncParamsExpand defines parameters for PatchDevProjectsProjectKeySync.
-type PatchDevProjectsProjectKeySyncParamsExpand string
+// PatchProjectJSONRequestBody defines body for PatchProject for application/json ContentType.
+type PatchProjectJSONRequestBody PatchProjectJSONBody
 
-// PatchDevProjectsProjectKeyJSONRequestBody defines body for PatchDevProjectsProjectKey for application/json ContentType.
-type PatchDevProjectsProjectKeyJSONRequestBody PatchDevProjectsProjectKeyJSONBody
+// PostAddProjectJSONRequestBody defines body for PostAddProject for application/json ContentType.
+type PostAddProjectJSONRequestBody PostAddProjectJSONBody
 
-// PostDevProjectsProjectKeyJSONRequestBody defines body for PostDevProjectsProjectKey for application/json ContentType.
-type PostDevProjectsProjectKeyJSONRequestBody PostDevProjectsProjectKeyJSONBody
-
-// PutDevProjectsProjectKeyOverridesFlagKeyJSONRequestBody defines body for PutDevProjectsProjectKeyOverridesFlagKey for application/json ContentType.
-type PutDevProjectsProjectKeyOverridesFlagKeyJSONRequestBody = FlagValue
+// PutOverrideFlagJSONRequestBody defines body for PutOverrideFlag for application/json ContentType.
+type PutOverrideFlagJSONRequestBody = FlagValue
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// lists all projects that have been configured for the dev server
 	// (GET /dev/projects)
-	GetDevProjects(w http.ResponseWriter, r *http.Request)
+	GetProjects(w http.ResponseWriter, r *http.Request)
 	// remove the specified project from the dev server
 	// (DELETE /dev/projects/{projectKey})
-	DeleteDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
+	DeleteProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
 	// get the specified project and its configuration for syncing from the LaunchDarkly Service
 	// (GET /dev/projects/{projectKey})
-	GetDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetDevProjectsProjectKeyParams)
-	// updates the project context or sourceEnvironmentKey
+	GetProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetProjectParams)
+	// updates the project context or sourceEnvironmentKey then syncs.  Input an empty body to only force a sync.
 	// (PATCH /dev/projects/{projectKey})
-	PatchDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchDevProjectsProjectKeyParams)
+	PatchProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchProjectParams)
 	// Add the project to the dev server
 	// (POST /dev/projects/{projectKey})
-	PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostDevProjectsProjectKeyParams)
+	PostAddProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostAddProjectParams)
+	// list all environments for the given project
+	// (GET /dev/projects/{projectKey}/environments)
+	GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetEnvironmentsParams)
 	// remove override for flag
 	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
-	DeleteDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
+	DeleteFlagOverride(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
 	// override flag value with value provided in the body
 	// (PUT /dev/projects/{projectKey}/overrides/{flagKey})
-	PutDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
-	// updates the flag state for the given project and source environment
-	// (PATCH /dev/projects/{projectKey}/sync)
-	PatchDevProjectsProjectKeySync(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchDevProjectsProjectKeySyncParams)
+	PutOverrideFlag(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -205,12 +205,12 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
-// GetDevProjects operation middleware
-func (siw *ServerInterfaceWrapper) GetDevProjects(w http.ResponseWriter, r *http.Request) {
+// GetProjects operation middleware
+func (siw *ServerInterfaceWrapper) GetProjects(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetDevProjects(w, r)
+		siw.Handler.GetProjects(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -220,34 +220,8 @@ func (siw *ServerInterfaceWrapper) GetDevProjects(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// DeleteDevProjectsProjectKey operation middleware
-func (siw *ServerInterfaceWrapper) DeleteDevProjectsProjectKey(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var err error
-
-	// ------------- Path parameter "projectKey" -------------
-	var projectKey ProjectKey
-
-	err = runtime.BindStyledParameterWithOptions("simple", "projectKey", mux.Vars(r)["projectKey"], &projectKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectKey", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteDevProjectsProjectKey(w, r, projectKey)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r.WithContext(ctx))
-}
-
-// GetDevProjectsProjectKey operation middleware
-func (siw *ServerInterfaceWrapper) GetDevProjectsProjectKey(w http.ResponseWriter, r *http.Request) {
+// DeleteProject operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -261,19 +235,8 @@ func (siw *ServerInterfaceWrapper) GetDevProjectsProjectKey(w http.ResponseWrite
 		return
 	}
 
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetDevProjectsProjectKeyParams
-
-	// ------------- Optional query parameter "expand" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "expand", r.URL.Query(), &params.Expand)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expand", Err: err})
-		return
-	}
-
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetDevProjectsProjectKey(w, r, projectKey, params)
+		siw.Handler.DeleteProject(w, r, projectKey)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -283,8 +246,8 @@ func (siw *ServerInterfaceWrapper) GetDevProjectsProjectKey(w http.ResponseWrite
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PatchDevProjectsProjectKey operation middleware
-func (siw *ServerInterfaceWrapper) PatchDevProjectsProjectKey(w http.ResponseWriter, r *http.Request) {
+// GetProject operation middleware
+func (siw *ServerInterfaceWrapper) GetProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -299,7 +262,7 @@ func (siw *ServerInterfaceWrapper) PatchDevProjectsProjectKey(w http.ResponseWri
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params PatchDevProjectsProjectKeyParams
+	var params GetProjectParams
 
 	// ------------- Optional query parameter "expand" -------------
 
@@ -310,7 +273,7 @@ func (siw *ServerInterfaceWrapper) PatchDevProjectsProjectKey(w http.ResponseWri
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PatchDevProjectsProjectKey(w, r, projectKey, params)
+		siw.Handler.GetProject(w, r, projectKey, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -320,8 +283,8 @@ func (siw *ServerInterfaceWrapper) PatchDevProjectsProjectKey(w http.ResponseWri
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PostDevProjectsProjectKey operation middleware
-func (siw *ServerInterfaceWrapper) PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request) {
+// PatchProject operation middleware
+func (siw *ServerInterfaceWrapper) PatchProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -336,7 +299,7 @@ func (siw *ServerInterfaceWrapper) PostDevProjectsProjectKey(w http.ResponseWrit
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params PostDevProjectsProjectKeyParams
+	var params PatchProjectParams
 
 	// ------------- Optional query parameter "expand" -------------
 
@@ -347,7 +310,7 @@ func (siw *ServerInterfaceWrapper) PostDevProjectsProjectKey(w http.ResponseWrit
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostDevProjectsProjectKey(w, r, projectKey, params)
+		siw.Handler.PatchProject(w, r, projectKey, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -357,8 +320,90 @@ func (siw *ServerInterfaceWrapper) PostDevProjectsProjectKey(w http.ResponseWrit
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// DeleteDevProjectsProjectKeyOverridesFlagKey operation middleware
-func (siw *ServerInterfaceWrapper) DeleteDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request) {
+// PostAddProject operation middleware
+func (siw *ServerInterfaceWrapper) PostAddProject(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "projectKey" -------------
+	var projectKey ProjectKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectKey", mux.Vars(r)["projectKey"], &projectKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectKey", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostAddProjectParams
+
+	// ------------- Optional query parameter "expand" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "expand", r.URL.Query(), &params.Expand)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expand", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAddProject(w, r, projectKey, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetEnvironments operation middleware
+func (siw *ServerInterfaceWrapper) GetEnvironments(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "projectKey" -------------
+	var projectKey ProjectKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectKey", mux.Vars(r)["projectKey"], &projectKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectKey", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetEnvironmentsParams
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "name", r.URL.Query(), &params.Name)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetEnvironments(w, r, projectKey, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// DeleteFlagOverride operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFlagOverride(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -382,7 +427,7 @@ func (siw *ServerInterfaceWrapper) DeleteDevProjectsProjectKeyOverridesFlagKey(w
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteDevProjectsProjectKeyOverridesFlagKey(w, r, projectKey, flagKey)
+		siw.Handler.DeleteFlagOverride(w, r, projectKey, flagKey)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -392,8 +437,8 @@ func (siw *ServerInterfaceWrapper) DeleteDevProjectsProjectKeyOverridesFlagKey(w
 	handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// PutDevProjectsProjectKeyOverridesFlagKey operation middleware
-func (siw *ServerInterfaceWrapper) PutDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request) {
+// PutOverrideFlag operation middleware
+func (siw *ServerInterfaceWrapper) PutOverrideFlag(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var err error
@@ -417,44 +462,7 @@ func (siw *ServerInterfaceWrapper) PutDevProjectsProjectKeyOverridesFlagKey(w ht
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PutDevProjectsProjectKeyOverridesFlagKey(w, r, projectKey, flagKey)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r.WithContext(ctx))
-}
-
-// PatchDevProjectsProjectKeySync operation middleware
-func (siw *ServerInterfaceWrapper) PatchDevProjectsProjectKeySync(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var err error
-
-	// ------------- Path parameter "projectKey" -------------
-	var projectKey ProjectKey
-
-	err = runtime.BindStyledParameterWithOptions("simple", "projectKey", mux.Vars(r)["projectKey"], &projectKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectKey", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params PatchDevProjectsProjectKeySyncParams
-
-	// ------------- Optional query parameter "expand" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "expand", r.URL.Query(), &params.Expand)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expand", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PatchDevProjectsProjectKeySync(w, r, projectKey, params)
+		siw.Handler.PutOverrideFlag(w, r, projectKey, flagKey)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -577,21 +585,21 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
-	r.HandleFunc(options.BaseURL+"/dev/projects", wrapper.GetDevProjects).Methods("GET")
+	r.HandleFunc(options.BaseURL+"/dev/projects", wrapper.GetProjects).Methods("GET")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.DeleteDevProjectsProjectKey).Methods("DELETE")
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.DeleteProject).Methods("DELETE")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.GetDevProjectsProjectKey).Methods("GET")
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.GetProject).Methods("GET")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.PatchDevProjectsProjectKey).Methods("PATCH")
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.PatchProject).Methods("PATCH")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.PostDevProjectsProjectKey).Methods("POST")
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.PostAddProject).Methods("POST")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.DeleteDevProjectsProjectKeyOverridesFlagKey).Methods("DELETE")
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/environments", wrapper.GetEnvironments).Methods("GET")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.PutDevProjectsProjectKeyOverridesFlagKey).Methods("PUT")
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.DeleteFlagOverride).Methods("DELETE")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/sync", wrapper.PatchDevProjectsProjectKeySync).Methods("PATCH")
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.PutOverrideFlag).Methods("PUT")
 
 	return r
 }
@@ -614,129 +622,129 @@ type FlagOverrideJSONResponse struct {
 
 type ProjectJSONResponse Project
 
-type GetDevProjectsRequestObject struct {
+type GetProjectsRequestObject struct {
 }
 
-type GetDevProjectsResponseObject interface {
-	VisitGetDevProjectsResponse(w http.ResponseWriter) error
+type GetProjectsResponseObject interface {
+	VisitGetProjectsResponse(w http.ResponseWriter) error
 }
 
-type GetDevProjects200JSONResponse []string
+type GetProjects200JSONResponse []string
 
-func (response GetDevProjects200JSONResponse) VisitGetDevProjectsResponse(w http.ResponseWriter) error {
+func (response GetProjects200JSONResponse) VisitGetProjectsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type DeleteDevProjectsProjectKeyRequestObject struct {
+type DeleteProjectRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
 }
 
-type DeleteDevProjectsProjectKeyResponseObject interface {
-	VisitDeleteDevProjectsProjectKeyResponse(w http.ResponseWriter) error
+type DeleteProjectResponseObject interface {
+	VisitDeleteProjectResponse(w http.ResponseWriter) error
 }
 
-type DeleteDevProjectsProjectKey204Response struct {
+type DeleteProject204Response struct {
 }
 
-func (response DeleteDevProjectsProjectKey204Response) VisitDeleteDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+func (response DeleteProject204Response) VisitDeleteProjectResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
 	return nil
 }
 
-type DeleteDevProjectsProjectKey404JSONResponse struct{ ErrorResponseJSONResponse }
+type DeleteProject404JSONResponse struct{ ErrorResponseJSONResponse }
 
-func (response DeleteDevProjectsProjectKey404JSONResponse) VisitDeleteDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+func (response DeleteProject404JSONResponse) VisitDeleteProjectResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetDevProjectsProjectKeyRequestObject struct {
+type GetProjectRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
-	Params     GetDevProjectsProjectKeyParams
+	Params     GetProjectParams
 }
 
-type GetDevProjectsProjectKeyResponseObject interface {
-	VisitGetDevProjectsProjectKeyResponse(w http.ResponseWriter) error
+type GetProjectResponseObject interface {
+	VisitGetProjectResponse(w http.ResponseWriter) error
 }
 
-type GetDevProjectsProjectKey200JSONResponse struct{ ProjectJSONResponse }
+type GetProject200JSONResponse struct{ ProjectJSONResponse }
 
-func (response GetDevProjectsProjectKey200JSONResponse) VisitGetDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-
-	return json.NewEncoder(w).Encode(response)
-}
-
-type GetDevProjectsProjectKey404Response struct {
-}
-
-func (response GetDevProjectsProjectKey404Response) VisitGetDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
-	w.WriteHeader(404)
-	return nil
-}
-
-type PatchDevProjectsProjectKeyRequestObject struct {
-	ProjectKey ProjectKey `json:"projectKey"`
-	Params     PatchDevProjectsProjectKeyParams
-	Body       *PatchDevProjectsProjectKeyJSONRequestBody
-}
-
-type PatchDevProjectsProjectKeyResponseObject interface {
-	VisitPatchDevProjectsProjectKeyResponse(w http.ResponseWriter) error
-}
-
-type PatchDevProjectsProjectKey200JSONResponse struct{ ProjectJSONResponse }
-
-func (response PatchDevProjectsProjectKey200JSONResponse) VisitPatchDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+func (response GetProject200JSONResponse) VisitGetProjectResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PatchDevProjectsProjectKey404Response struct {
+type GetProject404Response struct {
 }
 
-func (response PatchDevProjectsProjectKey404Response) VisitPatchDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+func (response GetProject404Response) VisitGetProjectResponse(w http.ResponseWriter) error {
 	w.WriteHeader(404)
 	return nil
 }
 
-type PostDevProjectsProjectKeyRequestObject struct {
+type PatchProjectRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
-	Params     PostDevProjectsProjectKeyParams
-	Body       *PostDevProjectsProjectKeyJSONRequestBody
+	Params     PatchProjectParams
+	Body       *PatchProjectJSONRequestBody
 }
 
-type PostDevProjectsProjectKeyResponseObject interface {
-	VisitPostDevProjectsProjectKeyResponse(w http.ResponseWriter) error
+type PatchProjectResponseObject interface {
+	VisitPatchProjectResponse(w http.ResponseWriter) error
 }
 
-type PostDevProjectsProjectKey201JSONResponse struct{ ProjectJSONResponse }
+type PatchProject200JSONResponse struct{ ProjectJSONResponse }
 
-func (response PostDevProjectsProjectKey201JSONResponse) VisitPostDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+func (response PatchProject200JSONResponse) VisitPatchProjectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchProject404Response struct {
+}
+
+func (response PatchProject404Response) VisitPatchProjectResponse(w http.ResponseWriter) error {
+	w.WriteHeader(404)
+	return nil
+}
+
+type PostAddProjectRequestObject struct {
+	ProjectKey ProjectKey `json:"projectKey"`
+	Params     PostAddProjectParams
+	Body       *PostAddProjectJSONRequestBody
+}
+
+type PostAddProjectResponseObject interface {
+	VisitPostAddProjectResponse(w http.ResponseWriter) error
+}
+
+type PostAddProject201JSONResponse struct{ ProjectJSONResponse }
+
+func (response PostAddProject201JSONResponse) VisitPostAddProjectResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(201)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PostDevProjectsProjectKey400JSONResponse struct{ ErrorResponseJSONResponse }
+type PostAddProject400JSONResponse struct{ ErrorResponseJSONResponse }
 
-func (response PostDevProjectsProjectKey400JSONResponse) VisitPostDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+func (response PostAddProject400JSONResponse) VisitPostAddProjectResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PostDevProjectsProjectKey409JSONResponse struct {
+type PostAddProject409JSONResponse struct {
 	// Code specific error code encountered
 	Code string `json:"code"`
 
@@ -744,118 +752,134 @@ type PostDevProjectsProjectKey409JSONResponse struct {
 	Message string `json:"message"`
 }
 
-func (response PostDevProjectsProjectKey409JSONResponse) VisitPostDevProjectsProjectKeyResponse(w http.ResponseWriter) error {
+func (response PostAddProject409JSONResponse) VisitPostAddProjectResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject struct {
+type GetEnvironmentsRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
-	FlagKey    FlagKey    `json:"flagKey"`
+	Params     GetEnvironmentsParams
 }
 
-type DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject interface {
-	VisitDeleteDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error
+type GetEnvironmentsResponseObject interface {
+	VisitGetEnvironmentsResponse(w http.ResponseWriter) error
 }
 
-type DeleteDevProjectsProjectKeyOverridesFlagKey204Response struct {
-}
+type GetEnvironments200JSONResponse []Environment
 
-func (response DeleteDevProjectsProjectKeyOverridesFlagKey204Response) VisitDeleteDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type DeleteDevProjectsProjectKeyOverridesFlagKey404Response struct {
-}
-
-func (response DeleteDevProjectsProjectKeyOverridesFlagKey404Response) VisitDeleteDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
-	w.WriteHeader(404)
-	return nil
-}
-
-type PutDevProjectsProjectKeyOverridesFlagKeyRequestObject struct {
-	ProjectKey ProjectKey `json:"projectKey"`
-	FlagKey    FlagKey    `json:"flagKey"`
-	Body       *PutDevProjectsProjectKeyOverridesFlagKeyJSONRequestBody
-}
-
-type PutDevProjectsProjectKeyOverridesFlagKeyResponseObject interface {
-	VisitPutDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error
-}
-
-type PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse struct{ FlagOverrideJSONResponse }
-
-func (response PutDevProjectsProjectKeyOverridesFlagKey200JSONResponse) VisitPutDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
+func (response GetEnvironments200JSONResponse) VisitGetEnvironmentsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse struct{ ErrorResponseJSONResponse }
+type GetEnvironments400JSONResponse struct{ ErrorResponseJSONResponse }
 
-func (response PutDevProjectsProjectKeyOverridesFlagKey400JSONResponse) VisitPutDevProjectsProjectKeyOverridesFlagKeyResponse(w http.ResponseWriter) error {
+func (response GetEnvironments400JSONResponse) VisitGetEnvironmentsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PatchDevProjectsProjectKeySyncRequestObject struct {
+type GetEnvironments404JSONResponse struct {
+	// Code specific error code encountered
+	Code string `json:"code"`
+
+	// Message description of the error
+	Message string `json:"message"`
+}
+
+func (response GetEnvironments404JSONResponse) VisitGetEnvironmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteFlagOverrideRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
-	Params     PatchDevProjectsProjectKeySyncParams
+	FlagKey    FlagKey    `json:"flagKey"`
 }
 
-type PatchDevProjectsProjectKeySyncResponseObject interface {
-	VisitPatchDevProjectsProjectKeySyncResponse(w http.ResponseWriter) error
+type DeleteFlagOverrideResponseObject interface {
+	VisitDeleteFlagOverrideResponse(w http.ResponseWriter) error
 }
 
-type PatchDevProjectsProjectKeySync200JSONResponse struct{ ProjectJSONResponse }
+type DeleteFlagOverride204Response struct {
+}
 
-func (response PatchDevProjectsProjectKeySync200JSONResponse) VisitPatchDevProjectsProjectKeySyncResponse(w http.ResponseWriter) error {
+func (response DeleteFlagOverride204Response) VisitDeleteFlagOverrideResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteFlagOverride404Response struct {
+}
+
+func (response DeleteFlagOverride404Response) VisitDeleteFlagOverrideResponse(w http.ResponseWriter) error {
+	w.WriteHeader(404)
+	return nil
+}
+
+type PutOverrideFlagRequestObject struct {
+	ProjectKey ProjectKey `json:"projectKey"`
+	FlagKey    FlagKey    `json:"flagKey"`
+	Body       *PutOverrideFlagJSONRequestBody
+}
+
+type PutOverrideFlagResponseObject interface {
+	VisitPutOverrideFlagResponse(w http.ResponseWriter) error
+}
+
+type PutOverrideFlag200JSONResponse struct{ FlagOverrideJSONResponse }
+
+func (response PutOverrideFlag200JSONResponse) VisitPutOverrideFlagResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type PatchDevProjectsProjectKeySync404Response struct {
-}
+type PutOverrideFlag400JSONResponse struct{ ErrorResponseJSONResponse }
 
-func (response PatchDevProjectsProjectKeySync404Response) VisitPatchDevProjectsProjectKeySyncResponse(w http.ResponseWriter) error {
-	w.WriteHeader(404)
-	return nil
+func (response PutOverrideFlag400JSONResponse) VisitPutOverrideFlagResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// lists all projects that have been configured for the dev server
 	// (GET /dev/projects)
-	GetDevProjects(ctx context.Context, request GetDevProjectsRequestObject) (GetDevProjectsResponseObject, error)
+	GetProjects(ctx context.Context, request GetProjectsRequestObject) (GetProjectsResponseObject, error)
 	// remove the specified project from the dev server
 	// (DELETE /dev/projects/{projectKey})
-	DeleteDevProjectsProjectKey(ctx context.Context, request DeleteDevProjectsProjectKeyRequestObject) (DeleteDevProjectsProjectKeyResponseObject, error)
+	DeleteProject(ctx context.Context, request DeleteProjectRequestObject) (DeleteProjectResponseObject, error)
 	// get the specified project and its configuration for syncing from the LaunchDarkly Service
 	// (GET /dev/projects/{projectKey})
-	GetDevProjectsProjectKey(ctx context.Context, request GetDevProjectsProjectKeyRequestObject) (GetDevProjectsProjectKeyResponseObject, error)
-	// updates the project context or sourceEnvironmentKey
+	GetProject(ctx context.Context, request GetProjectRequestObject) (GetProjectResponseObject, error)
+	// updates the project context or sourceEnvironmentKey then syncs.  Input an empty body to only force a sync.
 	// (PATCH /dev/projects/{projectKey})
-	PatchDevProjectsProjectKey(ctx context.Context, request PatchDevProjectsProjectKeyRequestObject) (PatchDevProjectsProjectKeyResponseObject, error)
+	PatchProject(ctx context.Context, request PatchProjectRequestObject) (PatchProjectResponseObject, error)
 	// Add the project to the dev server
 	// (POST /dev/projects/{projectKey})
-	PostDevProjectsProjectKey(ctx context.Context, request PostDevProjectsProjectKeyRequestObject) (PostDevProjectsProjectKeyResponseObject, error)
+	PostAddProject(ctx context.Context, request PostAddProjectRequestObject) (PostAddProjectResponseObject, error)
+	// list all environments for the given project
+	// (GET /dev/projects/{projectKey}/environments)
+	GetEnvironments(ctx context.Context, request GetEnvironmentsRequestObject) (GetEnvironmentsResponseObject, error)
 	// remove override for flag
 	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
-	DeleteDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject) (DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject, error)
+	DeleteFlagOverride(ctx context.Context, request DeleteFlagOverrideRequestObject) (DeleteFlagOverrideResponseObject, error)
 	// override flag value with value provided in the body
 	// (PUT /dev/projects/{projectKey}/overrides/{flagKey})
-	PutDevProjectsProjectKeyOverridesFlagKey(ctx context.Context, request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject) (PutDevProjectsProjectKeyOverridesFlagKeyResponseObject, error)
-	// updates the flag state for the given project and source environment
-	// (PATCH /dev/projects/{projectKey}/sync)
-	PatchDevProjectsProjectKeySync(ctx context.Context, request PatchDevProjectsProjectKeySyncRequestObject) (PatchDevProjectsProjectKeySyncResponseObject, error)
+	PutOverrideFlag(ctx context.Context, request PutOverrideFlagRequestObject) (PutOverrideFlagResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -887,23 +911,23 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
-// GetDevProjects operation middleware
-func (sh *strictHandler) GetDevProjects(w http.ResponseWriter, r *http.Request) {
-	var request GetDevProjectsRequestObject
+// GetProjects operation middleware
+func (sh *strictHandler) GetProjects(w http.ResponseWriter, r *http.Request) {
+	var request GetProjectsRequestObject
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetDevProjects(ctx, request.(GetDevProjectsRequestObject))
+		return sh.ssi.GetProjects(ctx, request.(GetProjectsRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetDevProjects")
+		handler = middleware(handler, "GetProjects")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetDevProjectsResponseObject); ok {
-		if err := validResponse.VisitGetDevProjectsResponse(w); err != nil {
+	} else if validResponse, ok := response.(GetProjectsResponseObject); ok {
+		if err := validResponse.VisitGetProjectsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -911,25 +935,25 @@ func (sh *strictHandler) GetDevProjects(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// DeleteDevProjectsProjectKey operation middleware
-func (sh *strictHandler) DeleteDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
-	var request DeleteDevProjectsProjectKeyRequestObject
+// DeleteProject operation middleware
+func (sh *strictHandler) DeleteProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
+	var request DeleteProjectRequestObject
 
 	request.ProjectKey = projectKey
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.DeleteDevProjectsProjectKey(ctx, request.(DeleteDevProjectsProjectKeyRequestObject))
+		return sh.ssi.DeleteProject(ctx, request.(DeleteProjectRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeleteDevProjectsProjectKey")
+		handler = middleware(handler, "DeleteProject")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(DeleteDevProjectsProjectKeyResponseObject); ok {
-		if err := validResponse.VisitDeleteDevProjectsProjectKeyResponse(w); err != nil {
+	} else if validResponse, ok := response.(DeleteProjectResponseObject); ok {
+		if err := validResponse.VisitDeleteProjectResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -937,41 +961,41 @@ func (sh *strictHandler) DeleteDevProjectsProjectKey(w http.ResponseWriter, r *h
 	}
 }
 
-// GetDevProjectsProjectKey operation middleware
-func (sh *strictHandler) GetDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetDevProjectsProjectKeyParams) {
-	var request GetDevProjectsProjectKeyRequestObject
-
-	request.ProjectKey = projectKey
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetDevProjectsProjectKey(ctx, request.(GetDevProjectsProjectKeyRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetDevProjectsProjectKey")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetDevProjectsProjectKeyResponseObject); ok {
-		if err := validResponse.VisitGetDevProjectsProjectKeyResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// PatchDevProjectsProjectKey operation middleware
-func (sh *strictHandler) PatchDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchDevProjectsProjectKeyParams) {
-	var request PatchDevProjectsProjectKeyRequestObject
+// GetProject operation middleware
+func (sh *strictHandler) GetProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetProjectParams) {
+	var request GetProjectRequestObject
 
 	request.ProjectKey = projectKey
 	request.Params = params
 
-	var body PatchDevProjectsProjectKeyJSONRequestBody
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProject(ctx, request.(GetProjectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProject")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProjectResponseObject); ok {
+		if err := validResponse.VisitGetProjectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchProject operation middleware
+func (sh *strictHandler) PatchProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchProjectParams) {
+	var request PatchProjectRequestObject
+
+	request.ProjectKey = projectKey
+	request.Params = params
+
+	var body PatchProjectJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
 		return
@@ -979,18 +1003,18 @@ func (sh *strictHandler) PatchDevProjectsProjectKey(w http.ResponseWriter, r *ht
 	request.Body = &body
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.PatchDevProjectsProjectKey(ctx, request.(PatchDevProjectsProjectKeyRequestObject))
+		return sh.ssi.PatchProject(ctx, request.(PatchProjectRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PatchDevProjectsProjectKey")
+		handler = middleware(handler, "PatchProject")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(PatchDevProjectsProjectKeyResponseObject); ok {
-		if err := validResponse.VisitPatchDevProjectsProjectKeyResponse(w); err != nil {
+	} else if validResponse, ok := response.(PatchProjectResponseObject); ok {
+		if err := validResponse.VisitPatchProjectResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -998,14 +1022,14 @@ func (sh *strictHandler) PatchDevProjectsProjectKey(w http.ResponseWriter, r *ht
 	}
 }
 
-// PostDevProjectsProjectKey operation middleware
-func (sh *strictHandler) PostDevProjectsProjectKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostDevProjectsProjectKeyParams) {
-	var request PostDevProjectsProjectKeyRequestObject
+// PostAddProject operation middleware
+func (sh *strictHandler) PostAddProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostAddProjectParams) {
+	var request PostAddProjectRequestObject
 
 	request.ProjectKey = projectKey
 	request.Params = params
 
-	var body PostDevProjectsProjectKeyJSONRequestBody
+	var body PostAddProjectJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
 		return
@@ -1013,18 +1037,18 @@ func (sh *strictHandler) PostDevProjectsProjectKey(w http.ResponseWriter, r *htt
 	request.Body = &body
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.PostDevProjectsProjectKey(ctx, request.(PostDevProjectsProjectKeyRequestObject))
+		return sh.ssi.PostAddProject(ctx, request.(PostAddProjectRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PostDevProjectsProjectKey")
+		handler = middleware(handler, "PostAddProject")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(PostDevProjectsProjectKeyResponseObject); ok {
-		if err := validResponse.VisitPostDevProjectsProjectKeyResponse(w); err != nil {
+	} else if validResponse, ok := response.(PostAddProjectResponseObject); ok {
+		if err := validResponse.VisitPostAddProjectResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1032,26 +1056,53 @@ func (sh *strictHandler) PostDevProjectsProjectKey(w http.ResponseWriter, r *htt
 	}
 }
 
-// DeleteDevProjectsProjectKeyOverridesFlagKey operation middleware
-func (sh *strictHandler) DeleteDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey) {
-	var request DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject
+// GetEnvironments operation middleware
+func (sh *strictHandler) GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetEnvironmentsParams) {
+	var request GetEnvironmentsRequestObject
+
+	request.ProjectKey = projectKey
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetEnvironments(ctx, request.(GetEnvironmentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetEnvironments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetEnvironmentsResponseObject); ok {
+		if err := validResponse.VisitGetEnvironmentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFlagOverride operation middleware
+func (sh *strictHandler) DeleteFlagOverride(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey) {
+	var request DeleteFlagOverrideRequestObject
 
 	request.ProjectKey = projectKey
 	request.FlagKey = flagKey
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.DeleteDevProjectsProjectKeyOverridesFlagKey(ctx, request.(DeleteDevProjectsProjectKeyOverridesFlagKeyRequestObject))
+		return sh.ssi.DeleteFlagOverride(ctx, request.(DeleteFlagOverrideRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeleteDevProjectsProjectKeyOverridesFlagKey")
+		handler = middleware(handler, "DeleteFlagOverride")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(DeleteDevProjectsProjectKeyOverridesFlagKeyResponseObject); ok {
-		if err := validResponse.VisitDeleteDevProjectsProjectKeyOverridesFlagKeyResponse(w); err != nil {
+	} else if validResponse, ok := response.(DeleteFlagOverrideResponseObject); ok {
+		if err := validResponse.VisitDeleteFlagOverrideResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1059,14 +1110,14 @@ func (sh *strictHandler) DeleteDevProjectsProjectKeyOverridesFlagKey(w http.Resp
 	}
 }
 
-// PutDevProjectsProjectKeyOverridesFlagKey operation middleware
-func (sh *strictHandler) PutDevProjectsProjectKeyOverridesFlagKey(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey) {
-	var request PutDevProjectsProjectKeyOverridesFlagKeyRequestObject
+// PutOverrideFlag operation middleware
+func (sh *strictHandler) PutOverrideFlag(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey) {
+	var request PutOverrideFlagRequestObject
 
 	request.ProjectKey = projectKey
 	request.FlagKey = flagKey
 
-	var body PutDevProjectsProjectKeyOverridesFlagKeyJSONRequestBody
+	var body PutOverrideFlagJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
 		return
@@ -1074,45 +1125,18 @@ func (sh *strictHandler) PutDevProjectsProjectKeyOverridesFlagKey(w http.Respons
 	request.Body = &body
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.PutDevProjectsProjectKeyOverridesFlagKey(ctx, request.(PutDevProjectsProjectKeyOverridesFlagKeyRequestObject))
+		return sh.ssi.PutOverrideFlag(ctx, request.(PutOverrideFlagRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PutDevProjectsProjectKeyOverridesFlagKey")
+		handler = middleware(handler, "PutOverrideFlag")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(PutDevProjectsProjectKeyOverridesFlagKeyResponseObject); ok {
-		if err := validResponse.VisitPutDevProjectsProjectKeyOverridesFlagKeyResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// PatchDevProjectsProjectKeySync operation middleware
-func (sh *strictHandler) PatchDevProjectsProjectKeySync(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchDevProjectsProjectKeySyncParams) {
-	var request PatchDevProjectsProjectKeySyncRequestObject
-
-	request.ProjectKey = projectKey
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.PatchDevProjectsProjectKeySync(ctx, request.(PatchDevProjectsProjectKeySyncRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PatchDevProjectsProjectKeySync")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(PatchDevProjectsProjectKeySyncResponseObject); ok {
-		if err := validResponse.VisitPatchDevProjectsProjectKeySyncResponse(w); err != nil {
+	} else if validResponse, ok := response.(PutOverrideFlagResponseObject); ok {
+		if err := validResponse.VisitPutOverrideFlagResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

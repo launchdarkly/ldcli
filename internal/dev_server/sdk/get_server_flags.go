@@ -22,7 +22,7 @@ func GetServerFlags(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "flag not found", http.StatusNotFound)
 		}
 	} else {
-		body = ServerAllPayloadFromFlagsState(allFlags)
+		body = ServerFlagsFromFlagsState(allFlags)
 	}
 	jsonBody, err := json.Marshal(body)
 	if err != nil {

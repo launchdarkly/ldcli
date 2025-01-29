@@ -13,10 +13,12 @@ import (
 )
 
 func TestUpsertOverride(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	mockController := gomock.NewController(t)
+	defer mockController.Finish()
 	store := mocks.NewMockStore(mockController)
-	projKey := "proj"
+	projKey := t.Name()
 	flagKey := "flg"
 	ldValue := ldvalue.Bool(true)
 	override := model.Override{
@@ -45,7 +47,6 @@ func TestUpsertOverride(t *testing.T) {
 
 		_, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "project does not exist within dev server")
 	})
 
 	t.Run("Returns error if flag does not exist in project", func(t *testing.T) {
@@ -57,7 +58,7 @@ func TestUpsertOverride(t *testing.T) {
 
 		_, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "flag does not exist within dev project")
+		assert.ErrorIs(t, model.ErrNotFound, err)
 	})
 
 	t.Run("store fails to upsert, returns error", func(t *testing.T) {
@@ -74,7 +75,7 @@ func TestUpsertOverride(t *testing.T) {
 		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
 		observer.
 			EXPECT().
-			Handle(model.UpsertOverrideEvent{
+			Handle(model.OverrideEvent{
 				FlagKey:    flagKey,
 				ProjectKey: projKey,
 				FlagState:  model.FlagState{Value: ldvalue.Bool(true), Version: 2},
@@ -83,6 +84,63 @@ func TestUpsertOverride(t *testing.T) {
 		o, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
 		assert.Nil(t, err)
 		assert.Equal(t, override, o)
+	})
+}
+
+func TestDeleteOverride(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	mockController := gomock.NewController(t)
+	defer mockController.Finish()
+	store := mocks.NewMockStore(mockController)
+	projKey := t.Name()
+	flagKey := "flg"
+	ldValue := ldvalue.Bool(true)
+
+	project := &model.Project{
+		Key:           projKey,
+		AllFlagsState: model.FlagsState{flagKey: model.FlagState{Value: ldvalue.Bool(false), Version: 1}},
+	}
+
+	ctx = model.ContextWithStore(ctx, store)
+
+	observers := model.NewObservers()
+	observer := mocks.NewMockObserver(mockController)
+
+	observers.RegisterObserver(observer)
+	ctx = model.SetObserversOnContext(ctx, observers)
+
+	t.Run("store unable to get project, returns error", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(nil, errors.New("test 2"))
+
+		_, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
+		assert.Error(t, err)
+	})
+
+	t.Run("Returns error if store errors on delete", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
+		store.EXPECT().DeactivateOverride(gomock.Any(), projKey, flagKey).Return(0, errors.New("store error on deactive override"))
+
+		err := model.DeleteOverride(ctx, projKey, flagKey)
+		assert.Error(t, err)
+	})
+
+	t.Run("override is applied, observers are notified", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
+		store.EXPECT().DeactivateOverride(gomock.Any(), projKey, flagKey).Return(2, nil)
+		observer.
+			EXPECT().
+			Handle(model.OverrideEvent{
+				FlagKey:    flagKey,
+				ProjectKey: projKey,
+				FlagState: model.FlagState{
+					Value:   ldvalue.Bool(false),
+					Version: 3, // override version 2 + flag version 1
+				},
+			})
+
+		err := model.DeleteOverride(ctx, projKey, flagKey)
+		assert.Nil(t, err)
 	})
 }
 

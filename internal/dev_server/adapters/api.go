@@ -2,12 +2,13 @@ package adapters
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"net/url"
-	"strconv"
+
+	"github.com/launchdarkly/ldcli/internal/dev_server/adapters/internal"
+	"github.com/pkg/errors"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
-	"github.com/pkg/errors"
 )
 
 const ctxKeyApi = ctxKey("adapters.api")
@@ -24,6 +25,7 @@ func GetApi(ctx context.Context) Api {
 type Api interface {
 	GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error)
 	GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error)
+	GetProjectEnvironments(ctx context.Context, projectKey string, query string, limit *int) ([]ldapi.Environment, error)
 }
 
 type apiClientApi struct {
@@ -52,56 +54,51 @@ func (a apiClientApi) GetAllFlags(ctx context.Context, projectKey string) ([]lda
 	return flags, err
 }
 
-func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *string) ([]ldapi.FeatureFlag, error) {
-	var featureFlags *ldapi.FeatureFlags
-	var err error
-	if href == nil {
-		featureFlags, _, err = a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).
-			Summary(false).
-			Execute()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		limit, offset, err := parseHref(*href)
-		if err != nil {
-			return nil, errors.Wrapf(err, "unable to parse href for next link: %s", *href)
-		}
-		featureFlags, _, err = a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).
-			Summary(false).
-			Limit(limit).
-			Offset(offset).
-			Execute()
-		if err != nil {
-			return nil, err
-		}
+func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey string, query string, limit *int) ([]ldapi.Environment, error) {
+	log.Printf("Fetching all environments for project '%s'", projectKey)
+	environments, err := a.getEnvironments(ctx, projectKey, nil, query, limit)
+	if err != nil {
+		err = errors.Wrap(err, "unable to get environments from LD API")
 	}
-	flags := featureFlags.Items
-	if next, ok := featureFlags.Links["next"]; ok && next.Href != nil {
-		newFlags, err := a.getFlags(ctx, projectKey, next.Href)
-		if err != nil {
-			return nil, err
-		}
-		flags = append(flags, newFlags...)
-	}
-	return flags, nil
+	return environments, err
 }
 
-func parseHref(href string) (limit, offset int64, err error) {
-	parsedUrl, err := url.Parse(href)
-	if err != nil {
-		return
-	}
-	l, err := strconv.Atoi(parsedUrl.Query().Get("limit"))
-	if err != nil {
-		return
-	}
-	o, err := strconv.Atoi(parsedUrl.Query().Get("offset"))
-	if err != nil {
-		return
+func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *string) ([]ldapi.FeatureFlag, error) {
+	return internal.GetPaginatedItems(ctx, projectKey, href, func(ctx context.Context, projectKey string, limit, offset *int64) (flags *ldapi.FeatureFlags, err error) {
+		// loop until we do not get rate limited
+		query := a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).Limit(100)
+
+		if limit != nil {
+			query = query.Limit(*limit)
+		}
+
+		if offset != nil {
+			query = query.Offset(*offset)
+		}
+		return internal.Retry429s(query.Execute)
+	})
+}
+
+func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string, href *string, query string, limit *int) ([]ldapi.Environment, error) {
+	request := a.apiClient.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey)
+
+	if limit != nil {
+		request = request.Limit(int64(*limit))
 	}
 
-	limit = int64(l)
-	offset = int64(o)
-	return
+	if query != "" {
+		request = request.Sort("name").Filter(fmt.Sprintf("query:%s", query))
+	}
+
+	envs, _, err := request.
+		Execute()
+	if err != nil {
+		return nil, err
+	}
+
+	if envs == nil {
+		return []ldapi.Environment{}, nil
+	}
+
+	return envs.Items, nil
 }
