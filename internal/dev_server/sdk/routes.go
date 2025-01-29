@@ -20,6 +20,7 @@ func BindRoutes(router *mux.Router) {
 	router.HandleFunc("/mobile/events/diagnostic", DevNull)
 
 	router.Handle("/all", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamServerAllPayload)))
+	router.Handle("/sdk/latest-all", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(LatestAll)))
 
 	router.PathPrefix("/sdk/flags/{flagKey}").
 		Methods(http.MethodGet).

@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.10.1](https://github.com/launchdarkly/ldcli/compare/v1.10.0...v1.10.1) (2025-01-29)
+
+
+### Bug Fixes
+
+* Add empty segments to streaming response ([#473](https://github.com/launchdarkly/ldcli/issues/473)) ([9f0f407](https://github.com/launchdarkly/ldcli/commit/9f0f4073edcdb49f18a774b923519325f225c672))
+
+## [1.10.0](https://github.com/launchdarkly/ldcli/compare/v1.9.1...v1.10.0) (2025-01-27)
+
+
+### Features
+
+* **dev-server:** Support polling API ([#466](https://github.com/launchdarkly/ldcli/issues/466)) ([8917573](https://github.com/launchdarkly/ldcli/commit/89175734102307592ca7055f8393d33ce30fcd41))
+
 ## [1.9.1](https://github.com/launchdarkly/ldcli/compare/v1.9.0...v1.9.1) (2025-01-02)
 
 
