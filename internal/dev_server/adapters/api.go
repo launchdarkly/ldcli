@@ -67,6 +67,7 @@ func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *str
 	return internal.GetPaginatedItems(ctx, projectKey, href, func(ctx context.Context, projectKey string, limit, offset *int64) (flags *ldapi.FeatureFlags, err error) {
 		// loop until we do not get rate limited
 		query := a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).Limit(100)
+		query = query.Filter("purpose:all+!(holdout)")
 
 		if limit != nil {
 			query = query.Limit(*limit)
