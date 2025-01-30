@@ -2,8 +2,8 @@ name: Check OpenAPI updates
 
 on:
   schedule:
-    - cron: "*/5 * * * *" # every 5 minutes (for testing)
-    # - cron: "0 16 * * *" # every day at 4pm UTC
+    # - cron: "*/5 * * * *" # every 5 minutes (for testing)
+    - cron: "0 16 * * *" # every day at 4pm UTC
 
 jobs:
   check-open-api-spec-updates:
