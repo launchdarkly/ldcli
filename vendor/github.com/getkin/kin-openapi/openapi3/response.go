@@ -11,7 +11,8 @@ import (
 // Responses is specified by OpenAPI/Swagger 3.0 standard.
 // See https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.0.3.md#responses-object
 type Responses struct {
-	Extensions map[string]interface{} `json:"-" yaml:"-"`
+	Extensions map[string]any `json:"-" yaml:"-"`
+	Origin     *Origin        `json:"-" yaml:"-"`
 
 	m map[string]*ResponseRef
 }
@@ -98,25 +99,11 @@ func (responses *Responses) Validate(ctx context.Context, opts ...ValidationOpti
 	return validateExtensions(ctx, responses.Extensions)
 }
 
-// Support YAML Marshaler interface for gopkg.in/yaml
-func (responses *Responses) MarshalYAML() (any, error) {
-	res := make(map[string]any, len(responses.Extensions)+len(responses.m))
-
-	for k, v := range responses.Extensions {
-		res[k] = v
-	}
-
-	for k, v := range responses.m {
-		res[k] = v
-	}
-
-	return res, nil
-}
-
 // Response is specified by OpenAPI/Swagger 3.0 standard.
 // See https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.0.3.md#response-object
 type Response struct {
-	Extensions map[string]interface{} `json:"-" yaml:"-"`
+	Extensions map[string]any `json:"-" yaml:"-"`
+	Origin     *Origin        `json:"origin,omitempty" yaml:"origin,omitempty"`
 
 	Description *string `json:"description,omitempty" yaml:"description,omitempty"`
 	Headers     Headers `json:"headers,omitempty" yaml:"headers,omitempty"`
@@ -150,7 +137,16 @@ func (response *Response) WithJSONSchemaRef(schema *SchemaRef) *Response {
 
 // MarshalJSON returns the JSON encoding of Response.
 func (response Response) MarshalJSON() ([]byte, error) {
-	m := make(map[string]interface{}, 4+len(response.Extensions))
+	x, err := response.MarshalYAML()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(x)
+}
+
+// MarshalYAML returns the YAML encoding of Response.
+func (response Response) MarshalYAML() (any, error) {
+	m := make(map[string]any, 4+len(response.Extensions))
 	for k, v := range response.Extensions {
 		m[k] = v
 	}
@@ -166,7 +162,7 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if x := response.Links; len(x) != 0 {
 		m["links"] = x
 	}
-	return json.Marshal(m)
+	return m, nil
 }
 
 // UnmarshalJSON sets Response to a copy of data.
@@ -177,6 +173,7 @@ func (response *Response) UnmarshalJSON(data []byte) error {
 		return unmarshalError(err)
 	}
 	_ = json.Unmarshal(data, &x.Extensions)
+	delete(x.Extensions, originKey)
 	delete(x.Extensions, "description")
 	delete(x.Extensions, "headers")
 	delete(x.Extensions, "content")
@@ -230,4 +227,10 @@ func (response *Response) Validate(ctx context.Context, opts ...ValidationOption
 	}
 
 	return validateExtensions(ctx, response.Extensions)
+}
+
+// UnmarshalJSON sets ResponseBodies to a copy of data.
+func (responseBodies *ResponseBodies) UnmarshalJSON(data []byte) (err error) {
+	*responseBodies, _, err = unmarshalStringMapP[ResponseRef](data)
+	return
 }

@@ -17,7 +17,7 @@ type Header struct {
 var _ jsonpointer.JSONPointable = (*Header)(nil)
 
 // JSONLookup implements https://pkg.go.dev/github.com/go-openapi/jsonpointer#JSONPointable
-func (header Header) JSONLookup(token string) (interface{}, error) {
+func (header Header) JSONLookup(token string) (any, error) {
 	return header.Parameter.JSONLookup(token)
 }
 
@@ -32,7 +32,7 @@ func (header *Header) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalYAML returns the JSON encoding of Header.
-func (header Header) MarshalYAML() (interface{}, error) {
+func (header Header) MarshalYAML() (any, error) {
 	return header.Parameter, nil
 }
 
@@ -93,4 +93,10 @@ func (header *Header) Validate(ctx context.Context, opts ...ValidationOption) er
 		}
 	}
 	return nil
+}
+
+// UnmarshalJSON sets Headers to a copy of data.
+func (headers *Headers) UnmarshalJSON(data []byte) (err error) {
+	*headers, _, err = unmarshalStringMapP[HeaderRef](data)
+	return
 }

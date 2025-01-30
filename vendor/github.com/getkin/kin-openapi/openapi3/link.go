@@ -10,19 +10,29 @@ import (
 // Link is specified by OpenAPI/Swagger standard version 3.
 // See https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.0.3.md#link-object
 type Link struct {
-	Extensions map[string]interface{} `json:"-" yaml:"-"`
+	Extensions map[string]any `json:"-" yaml:"-"`
+	Origin     *Origin        `json:"origin,omitempty" yaml:"origin,omitempty"`
 
-	OperationRef string                 `json:"operationRef,omitempty" yaml:"operationRef,omitempty"`
-	OperationID  string                 `json:"operationId,omitempty" yaml:"operationId,omitempty"`
-	Description  string                 `json:"description,omitempty" yaml:"description,omitempty"`
-	Parameters   map[string]interface{} `json:"parameters,omitempty" yaml:"parameters,omitempty"`
-	Server       *Server                `json:"server,omitempty" yaml:"server,omitempty"`
-	RequestBody  interface{}            `json:"requestBody,omitempty" yaml:"requestBody,omitempty"`
+	OperationRef string         `json:"operationRef,omitempty" yaml:"operationRef,omitempty"`
+	OperationID  string         `json:"operationId,omitempty" yaml:"operationId,omitempty"`
+	Description  string         `json:"description,omitempty" yaml:"description,omitempty"`
+	Parameters   map[string]any `json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	Server       *Server        `json:"server,omitempty" yaml:"server,omitempty"`
+	RequestBody  any            `json:"requestBody,omitempty" yaml:"requestBody,omitempty"`
 }
 
 // MarshalJSON returns the JSON encoding of Link.
 func (link Link) MarshalJSON() ([]byte, error) {
-	m := make(map[string]interface{}, 6+len(link.Extensions))
+	x, err := link.MarshalYAML()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(x)
+}
+
+// MarshalYAML returns the YAML encoding of Link.
+func (link Link) MarshalYAML() (any, error) {
+	m := make(map[string]any, 6+len(link.Extensions))
 	for k, v := range link.Extensions {
 		m[k] = v
 	}
@@ -46,7 +56,7 @@ func (link Link) MarshalJSON() ([]byte, error) {
 		m["requestBody"] = x
 	}
 
-	return json.Marshal(m)
+	return m, nil
 }
 
 // UnmarshalJSON sets Link to a copy of data.
@@ -57,6 +67,8 @@ func (link *Link) UnmarshalJSON(data []byte) error {
 		return unmarshalError(err)
 	}
 	_ = json.Unmarshal(data, &x.Extensions)
+
+	delete(x.Extensions, originKey)
 	delete(x.Extensions, "operationRef")
 	delete(x.Extensions, "operationId")
 	delete(x.Extensions, "description")
@@ -82,4 +94,10 @@ func (link *Link) Validate(ctx context.Context, opts ...ValidationOption) error 
 	}
 
 	return validateExtensions(ctx, link.Extensions)
+}
+
+// UnmarshalJSON sets Links to a copy of data.
+func (links *Links) UnmarshalJSON(data []byte) (err error) {
+	*links, _, err = unmarshalStringMapP[LinkRef](data)
+	return
 }

@@ -10,7 +10,8 @@ import (
 // Paths is specified by OpenAPI/Swagger standard version 3.
 // See https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.0.3.md#paths-object
 type Paths struct {
-	Extensions map[string]interface{} `json:"-" yaml:"-"`
+	Extensions map[string]any `json:"-" yaml:"-"`
+	Origin     *Origin        `json:"origin,omitempty" yaml:"origin,omitempty"`
 
 	m map[string]*PathItem
 }
@@ -216,21 +217,6 @@ func (paths *Paths) validateUniqueOperationIDs() error {
 		}
 	}
 	return nil
-}
-
-// Support YAML Marshaler interface for gopkg.in/yaml
-func (paths *Paths) MarshalYAML() (any, error) {
-	res := make(map[string]any, len(paths.Extensions)+len(paths.m))
-
-	for k, v := range paths.Extensions {
-		res[k] = v
-	}
-
-	for k, v := range paths.m {
-		res[k] = v
-	}
-
-	return res, nil
 }
 
 func normalizeTemplatedPath(path string) (string, uint, map[string]struct{}) {
