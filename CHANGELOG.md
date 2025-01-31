@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.0](https://github.com/launchdarkly/ldcli/compare/v1.10.1...v1.11.0) (2025-01-31)
+
+
+### Features
+
+* add new resources & commands from updated openapi spec ([#478](https://github.com/launchdarkly/ldcli/issues/478)) ([b3f690c](https://github.com/launchdarkly/ldcli/commit/b3f690cc8ebfcadf97fef93f0b4cb184960a4b2b))
+* Added support for AI Configs ([#475](https://github.com/launchdarkly/ldcli/issues/475)) ([30a99df](https://github.com/launchdarkly/ldcli/commit/30a99dff565d6300d2aa3d5f16f9632ab1c1f2c8))
+
 ## [1.10.1](https://github.com/launchdarkly/ldcli/compare/v1.10.0...v1.10.1) (2025-01-29)
 
 
