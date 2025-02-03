@@ -9,6 +9,18 @@ info:
 servers:
   - url: "http"
 paths:
+  /dev/backup:
+    get:
+      summary: get the backup
+      operationId: getBackup
+      responses:
+        200:
+          description: OK. Sqllite database
+          content:
+            application/vnd.sqlite3:
+              schema:
+                type: string
+                format: binary
   /dev/projects:
     get:
       summary: lists all projects that have been configured for the dev server
@@ -142,7 +154,7 @@ paths:
           description: limit the number of environments returned
           required: false
           schema:
-              type: integer
+            type: integer
       responses:
         200:
           description: OK. List of environments
