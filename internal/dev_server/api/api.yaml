@@ -15,12 +15,13 @@ paths:
       operationId: getBackup
       responses:
         200:
-          description: OK. Sqllite database
-          content:
-            application/vnd.sqlite3:
-              schema:
-                type: string
-                format: binary
+          $ref: "#/components/responses/DbBackup"
+    post:
+      summary: post backup
+      operationId: restoreBackup
+      responses:
+        200:
+          $ref: "#/components/responses/DbBackup"
   /dev/projects:
     get:
       summary: lists all projects that have been configured for the dev server
@@ -298,6 +299,13 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Project"
+    DbBackup:
+      description: A backup of the local sqlite database
+      content:
+        application/vnd.sqlite3:
+          schema:
+            type: string
+            format: binary
     ErrorResponse:
       description: Error response object
       content:

@@ -174,6 +174,9 @@ type ServerInterface interface {
 	// get the backup
 	// (GET /dev/backup)
 	GetBackup(w http.ResponseWriter, r *http.Request)
+	// post backup
+	// (POST /dev/backup)
+	RestoreBackup(w http.ResponseWriter, r *http.Request)
 	// lists all projects that have been configured for the dev server
 	// (GET /dev/projects)
 	GetProjects(w http.ResponseWriter, r *http.Request)
@@ -215,6 +218,21 @@ func (siw *ServerInterfaceWrapper) GetBackup(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetBackup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// RestoreBackup operation middleware
+func (siw *ServerInterfaceWrapper) RestoreBackup(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RestoreBackup(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -606,6 +624,8 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 
 	r.HandleFunc(options.BaseURL+"/dev/backup", wrapper.GetBackup).Methods("GET")
 
+	r.HandleFunc(options.BaseURL+"/dev/backup", wrapper.RestoreBackup).Methods("POST")
+
 	r.HandleFunc(options.BaseURL+"/dev/projects", wrapper.GetProjects).Methods("GET")
 
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.DeleteProject).Methods("DELETE")
@@ -623,6 +643,12 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.PutOverrideFlag).Methods("PUT")
 
 	return r
+}
+
+type DbBackupApplicationvndSqlite3Response struct {
+	Body io.Reader
+
+	ContentLength int64
 }
 
 type ErrorResponseJSONResponse struct {
@@ -651,11 +677,35 @@ type GetBackupResponseObject interface {
 }
 
 type GetBackup200ApplicationvndSqlite3Response struct {
-	Body          io.Reader
-	ContentLength int64
+	DbBackupApplicationvndSqlite3Response
 }
 
 func (response GetBackup200ApplicationvndSqlite3Response) VisitGetBackupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/vnd.sqlite3")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type RestoreBackupRequestObject struct {
+}
+
+type RestoreBackupResponseObject interface {
+	VisitRestoreBackupResponse(w http.ResponseWriter) error
+}
+
+type RestoreBackup200ApplicationvndSqlite3Response struct {
+	DbBackupApplicationvndSqlite3Response
+}
+
+func (response RestoreBackup200ApplicationvndSqlite3Response) VisitRestoreBackupResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/vnd.sqlite3")
 	if response.ContentLength != 0 {
 		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
@@ -906,6 +956,9 @@ type StrictServerInterface interface {
 	// get the backup
 	// (GET /dev/backup)
 	GetBackup(ctx context.Context, request GetBackupRequestObject) (GetBackupResponseObject, error)
+	// post backup
+	// (POST /dev/backup)
+	RestoreBackup(ctx context.Context, request RestoreBackupRequestObject) (RestoreBackupResponseObject, error)
 	// lists all projects that have been configured for the dev server
 	// (GET /dev/projects)
 	GetProjects(ctx context.Context, request GetProjectsRequestObject) (GetProjectsResponseObject, error)
@@ -978,6 +1031,30 @@ func (sh *strictHandler) GetBackup(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetBackupResponseObject); ok {
 		if err := validResponse.VisitGetBackupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RestoreBackup operation middleware
+func (sh *strictHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
+	var request RestoreBackupRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RestoreBackup(ctx, request.(RestoreBackupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RestoreBackup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RestoreBackupResponseObject); ok {
+		if err := validResponse.VisitRestoreBackupResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
