@@ -17,6 +17,7 @@ const (
 	PortFlag         = "port"
 	ProjectFlag      = "project"
 	RoleFlag         = "role"
+	SyncOnStartFlag  = "should-sync"
 
 	AccessTokenFlagDescription = "LaunchDarkly access token with write-level access"
 	AnalyticsOptOutDescription = "Opt out of analytics tracking"
@@ -27,6 +28,7 @@ const (
 	OutputFlagDescription      = "Command response output format in either JSON or plain text"
 	PortFlagDescription        = "Port for the dev server to run on"
 	ProjectFlagDescription     = "Default project key"
+	SyncOnStartFlagDescription = "Sync local flags with Launchdarkly on server startup."
 )
 
 func AllFlagsHelp() map[string]string {

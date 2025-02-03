@@ -43,6 +43,9 @@ func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 	cmd.Flags().String(OverrideFlag, "", `Stringified JSON representation of flag overrides ex. {"flagName": true, "stringFlagName": "test" }`)
 	_ = viper.BindPFlag(OverrideFlag, cmd.Flags().Lookup(OverrideFlag))
 
+	cmd.Flags().Bool(cliflags.SyncOnStartFlag, true, cliflags.SyncOnStartFlagDescription)
+	_ = viper.BindPFlag(cliflags.SyncOnStartFlag, cmd.Flags().Lookup(cliflags.SyncOnStartFlag))
+
 	return cmd
 }
 
@@ -55,7 +58,7 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 		if viper.IsSet(cliflags.ProjectFlag) && viper.IsSet(SourceEnvironmentFlag) {
 
 			initialSetting = model.InitialProjectSettings{
-				Enabled:    true,
+				Enabled:    viper.GetBool(cliflags.SyncOnStartFlag),
 				ProjectKey: viper.GetString(cliflags.ProjectFlag),
 				EnvKey:     viper.GetString(SourceEnvironmentFlag),
 			}
