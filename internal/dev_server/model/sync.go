@@ -34,6 +34,8 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 			return createError
 		}
 
+		// If set, don't resync and don't apply overrides because whatever you have locally
+		// is already set up with what you want.
 		if settings.SyncOnce {
 			log.Printf("Project [%s] exists, but --sync-once flag is set, skipping refresh", settings.ProjectKey)
 			return nil
