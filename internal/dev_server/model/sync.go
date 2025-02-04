@@ -27,7 +27,8 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 	}
 
 	log.Printf("Initial project [%s] with env [%s]", settings.ProjectKey, settings.EnvKey)
-	_, createError := CreateProject(ctx, settings.ProjectKey, settings.EnvKey, settings.Context)
+	var project Project
+	project, createError := CreateProject(ctx, settings.ProjectKey, settings.EnvKey, settings.Context)
 	if createError != nil {
 		if !errors.Is(createError, ErrAlreadyExists) {
 			return createError
@@ -35,13 +36,14 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 
 		if settings.SyncOnce {
 			log.Printf("Project [%s] exists, but --sync-once flag is set, skipping refresh", settings.ProjectKey)
-		} else {
-			log.Printf("Project [%s] exists, refreshing data", settings.ProjectKey)
-			var updateErr error
-			_, updateErr = UpdateProject(ctx, settings.ProjectKey, settings.Context, &settings.EnvKey)
-			if updateErr != nil {
-				return updateErr
-			}
+			return nil
+		}
+
+		log.Printf("Project [%s] exists, refreshing data", settings.ProjectKey)
+		var updateErr error
+		project, updateErr = UpdateProject(ctx, settings.ProjectKey, settings.Context, &settings.EnvKey)
+		if updateErr != nil {
+			return updateErr
 		}
 	}
 	for flagKey, val := range settings.Overrides {
@@ -51,6 +53,6 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 		}
 	}
 
-	log.Printf("Successfully synced Initial project [%s]", settings.ProjectKey)
+	log.Printf("Successfully synced Initial project [%s]", project.Key)
 	return nil
 }
