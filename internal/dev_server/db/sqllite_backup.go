@@ -3,30 +3,69 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	sqllite "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"log"
+	"os"
+	"sync"
+	"sync/atomic"
 )
 
-func makeBackupFile(ctx context.Context, dbPath string) (string, error) {
-	connections := []*sqllite.SQLiteConn{}
-	driverName := "sqlite3-me"
-	backupPath := dbPath + ".backup"
-	sql.Register(driverName, &sqllite.SQLiteDriver{
+var c atomic.Int32
+
+type backupManager struct {
+	dbPath     string
+	driverName string
+	mutex      sync.Mutex
+	conns      []*sqllite.SQLiteConn
+}
+
+func newBackupManager(dbPath string) *backupManager {
+	count := c.Add(1)
+	m := &backupManager{
+		dbPath:     dbPath,
+		driverName: fmt.Sprintf("sqlite3-backups-%d", count),
+		conns:      make([]*sqllite.SQLiteConn, 0),
+		mutex:      sync.Mutex{},
+	}
+	sql.Register(m.driverName, &sqllite.SQLiteDriver{
 		ConnectHook: func(conn *sqllite.SQLiteConn) error {
-			connections = append(connections, conn)
+			m.conns = append(m.conns, conn)
 			return nil
 		},
 	})
+	return m
+}
 
-	sourceDb, err := sql.Open(driverName, dbPath)
+func (m *backupManager) resetConnections() {
+	m.conns = make([]*sqllite.SQLiteConn, 0)
+}
+
+func (m *backupManager) makeBackupFile(ctx context.Context) (string, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.resetConnections()
+
+	tempFile, err := os.CreateTemp("", "ld_cli_*.bak")
+	if err != nil {
+		return "", errors.Wrapf(err, "unable to create temp file")
+	}
+
+	backupPath := tempFile.Name()
+	if err := tempFile.Close(); err != nil {
+		return "", errors.Wrapf(err, "unable to close temp file")
+	}
+
+	sourceDb, err := sql.Open(m.driverName, m.dbPath)
 	if err != nil {
 		return "", errors.Wrap(err, "open source database")
 	}
-	backupDb, err := sql.Open(driverName, backupPath)
+	backupDb, err := sql.Open(m.driverName, backupPath)
 	if err != nil {
 		return "", errors.Wrap(err, "open backup database")
 	}
+
 	err = sourceDb.PingContext(ctx)
 	if err != nil {
 		return "", errors.Wrap(err, "database unreachable")
@@ -35,11 +74,11 @@ func makeBackupFile(ctx context.Context, dbPath string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "database unreachable")
 	}
-	if len(connections) != 2 {
+	if len(m.conns) != 2 {
 		return "", errors.Wrapf(err, "no connection found to backup")
 	}
-	var srcDbConn = connections[0]
-	var backupDbConn = connections[1]
+	var srcDbConn = m.conns[0]
+	var backupDbConn = m.conns[1]
 
 	backup, err := backupDbConn.Backup("main", srcDbConn, "main")
 	if err != nil {
@@ -62,4 +101,27 @@ func makeBackupFile(ctx context.Context, dbPath string) (string, error) {
 	}
 
 	return backupPath, nil
+}
+
+func runBackup(ctx context.Context, backupDbConn *sqllite.SQLiteConn, srcDbConn *sqllite.SQLiteConn) error {
+	backup, err := backupDbConn.Backup("main", srcDbConn, "main")
+	if err != nil {
+		return errors.Wrap(err, "unable to start backup db")
+	}
+	defer func(backup *sqllite.SQLiteBackup) {
+		err := backup.Close()
+		if err != nil {
+			log.Printf("unable to close backup connection: %s", err)
+		}
+	}(backup)
+
+	var isDone = false
+	var stepError error = nil
+	for !isDone {
+		isDone, stepError = backup.Step(1)
+		if stepError != nil {
+			return errors.Wrap(stepError, "unable to backup db at %s")
+		}
+	}
+	return nil
 }
