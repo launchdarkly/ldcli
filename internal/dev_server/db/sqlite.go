@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
+	"os"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
@@ -14,6 +16,8 @@ import (
 
 type Sqlite struct {
 	database *sql.DB
+
+	dbPath string
 }
 
 var _ model.Store = Sqlite{}
@@ -345,8 +349,27 @@ func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey stri
 	return version, nil
 }
 
+func (s Sqlite) RestoreBackup(ctx context.Context, stream io.ReadCloser) (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) {
+	backupPath, err := makeBackupFile(ctx, s.dbPath)
+	fi, err := os.Open(backupPath)
+	if err != nil {
+		return nil, 0, errors.Wrapf(err, "unable to open backup db at %s", backupPath)
+	}
+	stat, err := fi.Stat()
+	if err != nil {
+		return nil, 0, errors.Wrapf(err, "unable to stat backup db at %s", backupPath)
+	}
+	return fi, stat.Size(), nil
+}
+
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
 	store := new(Sqlite)
+	store.dbPath = dbPath
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return Sqlite{}, err
