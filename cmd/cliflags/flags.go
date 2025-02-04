@@ -28,7 +28,7 @@ const (
 	OutputFlagDescription      = "Command response output format in either JSON or plain text"
 	PortFlagDescription        = "Port for the dev server to run on"
 	ProjectFlagDescription     = "Default project key"
-	SyncOnceFlagDescription    = "Only sync new projects. Existing projects will not be resynced on startup"
+	SyncOnceFlagDescription    = "Only sync new projects. Existing projects will neither be resynced nor have overrides specified by CLI flags applied."
 )
 
 func AllFlagsHelp() map[string]string {
