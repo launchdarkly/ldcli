@@ -10,6 +10,7 @@ Supported settings:
 - `output`: Command response output format in either JSON or plain text
 - `port`: Port for the dev server to run on
 - `project`: Default project key
+- `sync-once`: Only sync new projects. Existing projects will not be resynced on startup
 
 Usage:
   ldcli config [flags]

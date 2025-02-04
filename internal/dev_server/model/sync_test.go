@@ -170,4 +170,22 @@ func TestInitialSync(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("If SyncOnce is set and the project already exists, return early", func(t *testing.T) {
+		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
+		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
+		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(model.ErrAlreadyExists)
+
+		input := model.InitialProjectSettings{
+			Enabled:    true,
+			ProjectKey: projKey,
+			EnvKey:     sourceEnvKey,
+			Context:    nil,
+			SyncOnce:   true,
+		}
+		err := model.CreateOrSyncProject(ctx, input)
+
+		assert.NoError(t, err)
+	})
+
 }
