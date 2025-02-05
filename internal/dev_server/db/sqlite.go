@@ -10,13 +10,14 @@ import (
 	"os"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/ldcli/internal/dev_server/db/backup"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
 type Sqlite struct {
 	database *sql.DB
 
-	backupManager *backupManager
+	backupManager *backup.Manager
 }
 
 var _ model.Store = Sqlite{}
@@ -354,7 +355,7 @@ func (s Sqlite) RestoreBackup(ctx context.Context, stream io.ReadCloser) (string
 }
 
 func (s Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) {
-	backupPath, err := s.backupManager.makeBackupFile(ctx)
+	backupPath, err := s.backupManager.MakeBackupFile(ctx)
 	fi, err := os.Open(backupPath)
 	if err != nil {
 		return nil, 0, errors.Wrapf(err, "unable to open backup db at %s", backupPath)
@@ -368,7 +369,7 @@ func (s Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) 
 
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
 	store := new(Sqlite)
-	store.backupManager = newBackupManager(dbPath)
+	store.backupManager = backup.NewManager(dbPath, "main", "ld_cli_*.bak")
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return Sqlite{}, err

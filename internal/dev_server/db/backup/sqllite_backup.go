@@ -1,4 +1,4 @@
-package db
+package backup
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 
 var c atomic.Int32
 
-type backupManager struct {
+type Manager struct {
 	dbPath            string
 	dbName            string
 	backupFilePattern string
@@ -23,12 +23,12 @@ type backupManager struct {
 	conns             []*sqllite.SQLiteConn
 }
 
-func newBackupManager(dbPath string) *backupManager {
+func NewManager(dbPath string, dbName string, backupFilePattern string) *Manager {
 	count := c.Add(1)
-	m := &backupManager{
+	m := &Manager{
 		dbPath:            dbPath,
-		dbName:            "main",
-		backupFilePattern: "ld_cli_*.bak",
+		dbName:            dbName,
+		backupFilePattern: backupFilePattern,
 		driverName:        fmt.Sprintf("sqlite3-backups-%d", count),
 		conns:             make([]*sqllite.SQLiteConn, 0),
 		mutex:             sync.Mutex{},
@@ -42,12 +42,12 @@ func newBackupManager(dbPath string) *backupManager {
 	return m
 }
 
-func (m *backupManager) resetConnections() {
+func (m *Manager) resetConnections() {
 	m.conns = make([]*sqllite.SQLiteConn, 0)
 }
 
 // connectToDb opens a sqlite connection and pings the database to populate the underlying sqlite connection
-func (m *backupManager) connectToDb(ctx context.Context, path string) (*sql.DB, error) {
+func (m *Manager) connectToDb(ctx context.Context, path string) (*sql.DB, error) {
 	db, err := sql.Open(m.driverName, path)
 	if err != nil {
 		return nil, errors.Wrap(err, "open database")
@@ -61,7 +61,8 @@ func (m *backupManager) connectToDb(ctx context.Context, path string) (*sql.DB, 
 	return db, nil
 }
 
-func (m *backupManager) makeBackupFile(ctx context.Context) (string, error) {
+// MakeBackupFile returns a string path of the sqlite database backup
+func (m *Manager) MakeBackupFile(ctx context.Context) (string, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
