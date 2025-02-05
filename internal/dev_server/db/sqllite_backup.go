@@ -15,19 +15,23 @@ import (
 var c atomic.Int32
 
 type backupManager struct {
-	dbPath     string
-	driverName string
-	mutex      sync.Mutex
-	conns      []*sqllite.SQLiteConn
+	dbPath            string
+	dbName            string
+	backupFilePattern string
+	driverName        string
+	mutex             sync.Mutex
+	conns             []*sqllite.SQLiteConn
 }
 
 func newBackupManager(dbPath string) *backupManager {
 	count := c.Add(1)
 	m := &backupManager{
-		dbPath:     dbPath,
-		driverName: fmt.Sprintf("sqlite3-backups-%d", count),
-		conns:      make([]*sqllite.SQLiteConn, 0),
-		mutex:      sync.Mutex{},
+		dbPath:            dbPath,
+		dbName:            "main",
+		backupFilePattern: "ld_cli_*.bak",
+		driverName:        fmt.Sprintf("sqlite3-backups-%d", count),
+		conns:             make([]*sqllite.SQLiteConn, 0),
+		mutex:             sync.Mutex{},
 	}
 	sql.Register(m.driverName, &sqllite.SQLiteDriver{
 		ConnectHook: func(conn *sqllite.SQLiteConn) error {
@@ -42,12 +46,30 @@ func (m *backupManager) resetConnections() {
 	m.conns = make([]*sqllite.SQLiteConn, 0)
 }
 
+// connectToDb opens a sqlite connection and pings the database to populate the underlying sqlite connection
+func (m *backupManager) connectToDb(ctx context.Context, path string) (*sql.DB, error) {
+	db, err := sql.Open(m.driverName, path)
+	if err != nil {
+		return nil, errors.Wrap(err, "open database")
+	}
+
+	err = db.PingContext(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "connecting to database database")
+	}
+
+	return db, nil
+}
+
 func (m *backupManager) makeBackupFile(ctx context.Context) (string, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+
+	// clear out any connections from previous backups
 	m.resetConnections()
 
-	tempFile, err := os.CreateTemp("", "ld_cli_*.bak")
+	// Make a temp file to back-up into
+	tempFile, err := os.CreateTemp("", m.backupFilePattern)
 	if err != nil {
 		return "", errors.Wrapf(err, "unable to create temp file")
 	}
@@ -57,54 +79,48 @@ func (m *backupManager) makeBackupFile(ctx context.Context) (string, error) {
 		return "", errors.Wrapf(err, "unable to close temp file")
 	}
 
-	sourceDb, err := sql.Open(m.driverName, m.dbPath)
+	// connect to source to populate sqlite connection
+	sourceDb, err := m.connectToDb(ctx, m.dbPath)
 	if err != nil {
 		return "", errors.Wrap(err, "open source database")
 	}
-	backupDb, err := sql.Open(m.driverName, backupPath)
+
+	defer func(sourceDb *sql.DB) {
+		err := sourceDb.Close()
+		if err != nil {
+			log.Printf("unable to close source connection: %s", err)
+		}
+	}(sourceDb)
+
+	// connect to backup to populate sqlite connection
+	backupDb, err := m.connectToDb(ctx, backupPath)
 	if err != nil {
 		return "", errors.Wrap(err, "open backup database")
 	}
 
-	err = sourceDb.PingContext(ctx)
-	if err != nil {
-		return "", errors.Wrap(err, "database unreachable")
-	}
-	err = backupDb.PingContext(ctx)
-	if err != nil {
-		return "", errors.Wrap(err, "database unreachable")
-	}
+	defer func(sourceDb *sql.DB) {
+		err := backupDb.Close()
+		if err != nil {
+			log.Printf("unable to close source connection: %s", err)
+		}
+	}(sourceDb)
+
+	// validate connection length
 	if len(m.conns) != 2 {
 		return "", errors.Wrapf(err, "no connection found to backup")
 	}
 	var srcDbConn = m.conns[0]
 	var backupDbConn = m.conns[1]
 
-	backup, err := backupDbConn.Backup("main", srcDbConn, "main")
+	err = runBackup(backupDbConn, srcDbConn, m.dbName)
 	if err != nil {
 		return "", errors.Wrapf(err, "unable to start backup db at %s", backupPath)
 	}
-	defer func(backup *sqllite.SQLiteBackup) {
-		err := backup.Close()
-		if err != nil {
-			log.Printf("unable to close backup connection: %s", err)
-		}
-	}(backup)
-
-	var isDone = false
-	var stepError error = nil
-	for !isDone {
-		isDone, stepError = backup.Step(1)
-		if stepError != nil {
-			return "", errors.Wrapf(stepError, "unable to backup db at %s", backupPath)
-		}
-	}
-
 	return backupPath, nil
 }
 
-func runBackup(ctx context.Context, backupDbConn *sqllite.SQLiteConn, srcDbConn *sqllite.SQLiteConn) error {
-	backup, err := backupDbConn.Backup("main", srcDbConn, "main")
+func runBackup(backupDbConn *sqllite.SQLiteConn, srcDbConn *sqllite.SQLiteConn, dbName string) error {
+	backup, err := backupDbConn.Backup(dbName, srcDbConn, dbName)
 	if err != nil {
 		return errors.Wrap(err, "unable to start backup db")
 	}
