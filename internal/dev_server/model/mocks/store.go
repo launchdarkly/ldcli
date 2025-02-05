@@ -11,6 +11,7 @@ package mocks
 
 import (
 	context "context"
+	io "io"
 	reflect "reflect"
 
 	model "github.com/launchdarkly/ldcli/internal/dev_server/model"
@@ -38,6 +39,22 @@ func NewMockStore(ctrl *gomock.Controller) *MockStore {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
+}
+
+// CreateBackup mocks base method.
+func (m *MockStore) CreateBackup(arg0 context.Context) (io.ReadCloser, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateBackup", arg0)
+	ret0, _ := ret[0].(io.ReadCloser)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// CreateBackup indicates an expected call of CreateBackup.
+func (mr *MockStoreMockRecorder) CreateBackup(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBackup", reflect.TypeOf((*MockStore)(nil).CreateBackup), arg0)
 }
 
 // DeactivateOverride mocks base method.
@@ -142,6 +159,21 @@ func (m *MockStore) InsertProject(arg0 context.Context, arg1 model.Project) erro
 func (mr *MockStoreMockRecorder) InsertProject(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProject", reflect.TypeOf((*MockStore)(nil).InsertProject), arg0, arg1)
+}
+
+// RestoreBackup mocks base method.
+func (m *MockStore) RestoreBackup(arg0 context.Context, arg1 io.ReadCloser) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RestoreBackup", arg0, arg1)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RestoreBackup indicates an expected call of RestoreBackup.
+func (mr *MockStoreMockRecorder) RestoreBackup(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreBackup", reflect.TypeOf((*MockStore)(nil).RestoreBackup), arg0, arg1)
 }
 
 // UpdateProject mocks base method.
