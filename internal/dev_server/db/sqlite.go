@@ -350,8 +350,9 @@ func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey stri
 }
 
 func (s Sqlite) RestoreBackup(ctx context.Context, stream io.ReadCloser) (string, error) {
-	//TODO implement me
-	panic("implement me")
+	filepath, err := s.backupManager.RestoreToFile(ctx, stream)
+
+	return filepath, err
 }
 
 func (s Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) {
@@ -369,7 +370,8 @@ func (s Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) 
 
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
 	store := new(Sqlite)
-	store.backupManager = backup.NewManager(dbPath, "main", "ld_cli_*.bak")
+	store.backupManager = backup.NewManager(dbPath, "main", "ld_cli_*.bak", "ld_cli_restore_*.bak")
+	store.backupManager.AddValidationQueries(validationQueries...)
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return Sqlite{}, err
@@ -380,6 +382,12 @@ func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
 		return Sqlite{}, err
 	}
 	return *store, nil
+}
+
+var validationQueries = []string{
+	"SELECT COUNT(1) from projects",
+	"SELECT COUNT(1) from overrides",
+	"SELECT COUNT(1) from available_variations",
 }
 
 func (s Sqlite) runMigrations(ctx context.Context) error {

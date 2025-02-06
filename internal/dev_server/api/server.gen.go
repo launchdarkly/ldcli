@@ -695,28 +695,19 @@ func (response GetBackup200ApplicationvndSqlite3Response) VisitGetBackupResponse
 }
 
 type RestoreBackupRequestObject struct {
+	Body io.Reader
 }
 
 type RestoreBackupResponseObject interface {
 	VisitRestoreBackupResponse(w http.ResponseWriter) error
 }
 
-type RestoreBackup200ApplicationvndSqlite3Response struct {
-	DbBackupApplicationvndSqlite3Response
+type RestoreBackup200Response struct {
 }
 
-func (response RestoreBackup200ApplicationvndSqlite3Response) VisitRestoreBackupResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/vnd.sqlite3")
-	if response.ContentLength != 0 {
-		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
-	}
+func (response RestoreBackup200Response) VisitRestoreBackupResponse(w http.ResponseWriter) error {
 	w.WriteHeader(200)
-
-	if closer, ok := response.Body.(io.ReadCloser); ok {
-		defer closer.Close()
-	}
-	_, err := io.Copy(w, response.Body)
-	return err
+	return nil
 }
 
 type GetProjectsRequestObject struct {
@@ -1041,6 +1032,8 @@ func (sh *strictHandler) GetBackup(w http.ResponseWriter, r *http.Request) {
 // RestoreBackup operation middleware
 func (sh *strictHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 	var request RestoreBackupRequestObject
+
+	request.Body = r.Body
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.RestoreBackup(ctx, request.(RestoreBackupRequestObject))

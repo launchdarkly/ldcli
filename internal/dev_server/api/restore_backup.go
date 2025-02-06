@@ -1,8 +1,10 @@
 package api
 
-import "context"
+import (
+	"context"
+)
 
 func (s server) RestoreBackup(ctx context.Context, request RestoreBackupRequestObject) (RestoreBackupResponseObject, error) {
-	//TODO implement me
+	request.Body
 	panic("implement me")
 }

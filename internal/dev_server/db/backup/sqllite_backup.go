@@ -6,6 +6,7 @@ import (
 	"fmt"
 	sqllite "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -15,23 +16,27 @@ import (
 var c atomic.Int32
 
 type Manager struct {
-	dbPath            string
-	dbName            string
-	backupFilePattern string
-	driverName        string
-	mutex             sync.Mutex
-	conns             []*sqllite.SQLiteConn
+	dbPath             string
+	dbName             string
+	backupFilePattern  string
+	restoreFilePattern string
+	driverName         string
+	validationQueries  []string
+	mutex              sync.Mutex
+	conns              []*sqllite.SQLiteConn
 }
 
-func NewManager(dbPath string, dbName string, backupFilePattern string) *Manager {
+func NewManager(dbPath string, dbName string, backupFilePattern string, restoreFilePattern string) *Manager {
 	count := c.Add(1)
 	m := &Manager{
-		dbPath:            dbPath,
-		dbName:            dbName,
-		backupFilePattern: backupFilePattern,
-		driverName:        fmt.Sprintf("sqlite3-backups-%d", count),
-		conns:             make([]*sqllite.SQLiteConn, 0),
-		mutex:             sync.Mutex{},
+		dbPath:             dbPath,
+		dbName:             dbName,
+		backupFilePattern:  backupFilePattern,
+		restoreFilePattern: restoreFilePattern,
+		driverName:         fmt.Sprintf("sqlite3-backups-%d", count),
+		conns:              make([]*sqllite.SQLiteConn, 0),
+		validationQueries:  make([]string, 0),
+		mutex:              sync.Mutex{},
 	}
 	sql.Register(m.driverName, &sqllite.SQLiteDriver{
 		ConnectHook: func(conn *sqllite.SQLiteConn) error {
@@ -40,6 +45,13 @@ func NewManager(dbPath string, dbName string, backupFilePattern string) *Manager
 		},
 	})
 	return m
+}
+
+// AddValidationQueries Adds queries to run on a restored database to ensure meets some criteria
+// These queries should cause db.Exec to return error if the database imported is invalid.
+// For example, if the database does not have a vital table
+func (m *Manager) AddValidationQueries(queries ...string) {
+	m.validationQueries = append(m.validationQueries, queries...)
 }
 
 func (m *Manager) resetConnections() {
@@ -59,6 +71,43 @@ func (m *Manager) connectToDb(ctx context.Context, path string) (*sql.DB, error)
 	}
 
 	return db, nil
+}
+
+// RestoreToFile returns a string path of the sqlite database restored from the stream
+func (m *Manager) RestoreToFile(ctx context.Context, stream io.ReadCloser) (string, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	// Make a temp file to copy into
+	tempFile, err := os.CreateTemp("", m.restoreFilePattern)
+	if err != nil {
+		return "", errors.Wrapf(err, "unable to create temp file")
+	}
+	_, err = io.Copy(tempFile, stream)
+	if err != nil {
+		return "", errors.Wrapf(err, "unable to write to temp file")
+	}
+
+	// connect to db
+	copiedDb, err := m.connectToDb(ctx, m.dbPath)
+	if err != nil {
+		return "", errors.Wrapf(err, "unable to connect to database")
+	}
+	defer func(copiedDb *sql.DB) {
+		err := copiedDb.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}(copiedDb)
+
+	for _, query := range m.validationQueries {
+		_, err := copiedDb.ExecContext(ctx, query)
+		if err != nil {
+			return "", errors.Wrapf(err, "restored db failed validation query: %s", query)
+		}
+	}
+
+	return tempFile.Name(), nil
 }
 
 // MakeBackupFile returns a string path of the sqlite database backup

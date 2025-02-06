@@ -19,9 +19,15 @@ paths:
     post:
       summary: post backup
       operationId: restoreBackup
+      requestBody:
+        content:
+          application/vnd.sqlite3:
+            schema:
+              type: string
+              format: binary
       responses:
         200:
-          $ref: "#/components/responses/DbBackup"
+          description: 'Backup restored'
   /dev/projects:
     get:
       summary: lists all projects that have been configured for the dev server

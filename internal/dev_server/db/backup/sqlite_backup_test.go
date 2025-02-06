@@ -44,7 +44,7 @@ func TestDbBackup(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, originalResults, dataSize)
 
-	manager := backup.NewManager(dbPath, "main", "ld_cli_backup_test*.bak")
+	manager := backup.NewManager(dbPath, "main", "ld_cli_backup_test*.bak", "ld_cli_restore_test*.bak")
 
 	for i := 0; i < 5; i++ {
 		t.Run("Backup_"+strconv.Itoa(i), func(t *testing.T) {
