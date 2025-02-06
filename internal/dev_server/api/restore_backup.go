@@ -6,8 +6,7 @@ import (
 )
 
 func (s server) RestoreBackup(ctx context.Context, request RestoreBackupRequestObject) (RestoreBackupResponseObject, error) {
-	store := model.StoreFromContext(ctx)
-	_, err := store.RestoreBackup(ctx, request.Body)
+	err := model.RestoreDb(ctx, request.Body)
 	if err != nil {
 		return nil, err
 	}
