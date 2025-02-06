@@ -148,12 +148,12 @@ func (m *Manager) MakeBackupFile(ctx context.Context) (string, error) {
 		return "", errors.Wrap(err, "open source database")
 	}
 
-	defer func(sourceDb *sql.DB) {
+	defer func() {
 		err := sourceDb.Close()
 		if err != nil {
 			log.Printf("unable to close source connection: %s", err)
 		}
-	}(sourceDb)
+	}()
 
 	// connect to backup to populate sqlite connection
 	backupDb, err := m.connectToDb(ctx, backupPath)
@@ -161,12 +161,12 @@ func (m *Manager) MakeBackupFile(ctx context.Context) (string, error) {
 		return "", errors.Wrap(err, "open backup database")
 	}
 
-	defer func(sourceDb *sql.DB) {
+	defer func() {
 		err := backupDb.Close()
 		if err != nil {
 			log.Printf("unable to close source connection: %s", err)
 		}
-	}(sourceDb)
+	}()
 
 	// validate connection length
 	if len(m.conns) != 2 {
