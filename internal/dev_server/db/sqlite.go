@@ -21,9 +21,9 @@ type Sqlite struct {
 	backupManager *backup.Manager
 }
 
-var _ model.Store = Sqlite{}
+var _ model.Store = &Sqlite{}
 
-func (s Sqlite) GetDevProjectKeys(ctx context.Context) ([]string, error) {
+func (s *Sqlite) GetDevProjectKeys(ctx context.Context) ([]string, error) {
 	rows, err := s.database.Query("select key from projects")
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (s Sqlite) GetDevProjectKeys(ctx context.Context) ([]string, error) {
 	return keys, nil
 }
 
-func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, error) {
+func (s *Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, error) {
 	var project model.Project
 	var contextData string
 	var flagStateData string
@@ -71,7 +71,7 @@ func (s Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project, 
 	return &project, nil
 }
 
-func (s Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool, error) {
+func (s *Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool, error) {
 	flagsStateJson, err := json.Marshal(project.AllFlagsState)
 	if err != nil {
 		return false, errors.Wrap(err, "unable to marshal flags state when updating project")
@@ -124,7 +124,7 @@ func (s Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool,
 	return true, nil
 }
 
-func (s Sqlite) DeleteDevProject(ctx context.Context, key string) (bool, error) {
+func (s *Sqlite) DeleteDevProject(ctx context.Context, key string) (bool, error) {
 	result, err := s.database.Exec("DELETE FROM projects where key=?", key)
 	if err != nil {
 		return false, err
@@ -158,7 +158,7 @@ func InsertAvailableVariations(ctx context.Context, tx *sql.Tx, project model.Pr
 	return nil
 }
 
-func (s Sqlite) InsertProject(ctx context.Context, project model.Project) (err error) {
+func (s *Sqlite) InsertProject(ctx context.Context, project model.Project) (err error) {
 	flagsStateJson, err := json.Marshal(project.AllFlagsState)
 	if err != nil {
 		return errors.Wrap(err, "unable to marshal flags state when writing project")
@@ -208,7 +208,7 @@ VALUES (?, ?, ?, ?, ?)
 	return tx.Commit()
 }
 
-func (s Sqlite) GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]model.Variation, error) {
+func (s *Sqlite) GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]model.Variation, error) {
 	rows, err := s.database.QueryContext(ctx, `
 			SELECT flag_key, id, name, description, value
 			FROM available_variations
@@ -255,7 +255,7 @@ func (s Sqlite) GetAvailableVariationsForProject(ctx context.Context, projectKey
 	return availableVariations, nil
 }
 
-func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (model.Overrides, error) {
+func (s *Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (model.Overrides, error) {
 	rows, err := s.database.QueryContext(ctx, `
         SELECT  flag_key, active, value, version
         FROM overrides 
@@ -300,7 +300,7 @@ func (s Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) (
 	return overrides, nil
 }
 
-func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) (model.Override, error) {
+func (s *Sqlite) UpsertOverride(ctx context.Context, override model.Override) (model.Override, error) {
 	valueJson, err := override.Value.MarshalJSON()
 	if err != nil {
 		return model.Override{}, errors.Wrap(err, "unable to marshal override value when writing override")
@@ -329,7 +329,7 @@ func (s Sqlite) UpsertOverride(ctx context.Context, override model.Override) (mo
 	return override, nil
 }
 
-func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey string) (int, error) {
+func (s *Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey string) (int, error) {
 	row := s.database.QueryRowContext(ctx, `
 		UPDATE overrides
 		set active = false, version = version+1
@@ -350,7 +350,7 @@ func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey stri
 	return version, nil
 }
 
-func (s Sqlite) RestoreBackup(ctx context.Context, stream io.Reader) (string, error) {
+func (s *Sqlite) RestoreBackup(ctx context.Context, stream io.Reader) (string, error) {
 	filepath, err := s.backupManager.RestoreToFile(ctx, stream)
 	if err != nil {
 		return "", errors.Wrap(err, "unable to restore backup db")
@@ -378,7 +378,7 @@ func (s Sqlite) RestoreBackup(ctx context.Context, stream io.Reader) (string, er
 	return filepath, err
 }
 
-func (s Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) {
+func (s *Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) {
 	backupPath, err := s.backupManager.MakeBackupFile(ctx)
 	fi, err := os.Open(backupPath)
 	if err != nil {
@@ -391,21 +391,21 @@ func (s Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) 
 	return fi, stat.Size(), nil
 }
 
-func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
+func NewSqlite(ctx context.Context, dbPath string) (*Sqlite, error) {
 	store := new(Sqlite)
 	store.dbPath = dbPath
 	store.backupManager = backup.NewManager(dbPath, "main", "ld_cli_*.bak", "ld_cli_restore_*.db")
 	store.backupManager.AddValidationQueries(validationQueries...)
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		return Sqlite{}, err
+		return &Sqlite{}, err
 	}
 	store.database = db
 	err = store.runMigrations(ctx)
 	if err != nil {
-		return Sqlite{}, err
+		return &Sqlite{}, err
 	}
-	return *store, nil
+	return store, nil
 }
 
 var validationQueries = []string{
@@ -414,7 +414,7 @@ var validationQueries = []string{
 	"SELECT COUNT(1) from available_variations",
 }
 
-func (s Sqlite) runMigrations(ctx context.Context) error {
+func (s *Sqlite) runMigrations(ctx context.Context) error {
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
