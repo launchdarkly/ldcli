@@ -349,7 +349,7 @@ func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey stri
 	return version, nil
 }
 
-func (s Sqlite) RestoreBackup(ctx context.Context, stream io.ReadCloser) (string, error) {
+func (s Sqlite) RestoreBackup(ctx context.Context, stream io.Reader) (string, error) {
 	filepath, err := s.backupManager.RestoreToFile(ctx, stream)
 
 	return filepath, err

@@ -162,7 +162,7 @@ func (mr *MockStoreMockRecorder) InsertProject(arg0, arg1 any) *gomock.Call {
 }
 
 // RestoreBackup mocks base method.
-func (m *MockStore) RestoreBackup(arg0 context.Context, arg1 io.ReadCloser) (string, error) {
+func (m *MockStore) RestoreBackup(arg0 context.Context, arg1 io.Reader) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RestoreBackup", arg0, arg1)
 	ret0, _ := ret[0].(string)

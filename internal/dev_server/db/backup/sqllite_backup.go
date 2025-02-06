@@ -74,7 +74,7 @@ func (m *Manager) connectToDb(ctx context.Context, path string) (*sql.DB, error)
 }
 
 // RestoreToFile returns a string path of the sqlite database restored from the stream
-func (m *Manager) RestoreToFile(ctx context.Context, stream io.ReadCloser) (string, error) {
+func (m *Manager) RestoreToFile(ctx context.Context, stream io.Reader) (string, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 

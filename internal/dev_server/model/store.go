@@ -31,7 +31,7 @@ type Store interface {
 	GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]Variation, error)
 
 	CreateBackup(ctx context.Context) (io.ReadCloser, int64, error)
-	RestoreBackup(ctx context.Context, stream io.ReadCloser) (string, error)
+	RestoreBackup(ctx context.Context, stream io.Reader) (string, error)
 }
 
 func ContextWithStore(ctx context.Context, store Store) context.Context {
