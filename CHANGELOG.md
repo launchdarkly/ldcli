@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.12.0](https://github.com/launchdarkly/ldcli/compare/v1.11.0...v1.12.0) (2025-02-06)
+
+
+### Features
+
+* Implement backup and restore of dev-server database ([#488](https://github.com/launchdarkly/ldcli/issues/488)) ([f0dd661](https://github.com/launchdarkly/ldcli/commit/f0dd66184e20242bbffff57e9978eab5f01e3203))
+* Implement backup and restore of dev-server database ([#488](https://github.com/launchdarkly/ldcli/issues/488)) ([f0dd661](https://github.com/launchdarkly/ldcli/commit/f0dd66184e20242bbffff57e9978eab5f01e3203))
+* Skip syncing on start if flag set ([#485](https://github.com/launchdarkly/ldcli/issues/485)) ([d85b862](https://github.com/launchdarkly/ldcli/commit/d85b86243a128ef0d7dd954e73424eb04a7619b9))
+
+
+### Bug Fixes
+
+* Correct sync once description ([#487](https://github.com/launchdarkly/ldcli/issues/487)) ([fa2abf3](https://github.com/launchdarkly/ldcli/commit/fa2abf38ee73c34f8a6cfc5af289eb2ce3348d1b))
+
 ## [1.11.0](https://github.com/launchdarkly/ldcli/compare/v1.10.1...v1.11.0) (2025-01-31)
 
 
