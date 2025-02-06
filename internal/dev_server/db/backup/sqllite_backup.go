@@ -57,6 +57,7 @@ func (m *Manager) AddValidationQueries(queries ...string) {
 	m.validationQueries = append(m.validationQueries, queries...)
 }
 
+// assumes is that the caller has the Manager's mutex.
 func (m *Manager) resetConnections() {
 	m.conns = make([]*sqllite.SQLiteConn, 0)
 }
