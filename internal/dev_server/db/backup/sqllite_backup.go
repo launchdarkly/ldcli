@@ -65,9 +65,17 @@ func (m *Manager) connectToDb(ctx context.Context, path string) (*sql.DB, error)
 		return nil, errors.Wrap(err, "open database")
 	}
 
+	connCountBefore := len(m.conns)
+
 	err = db.PingContext(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "connecting to database database")
+	}
+
+	// We expect there to only ever be 1 or 2 connections
+	expectedDbConnectionCount := connCountBefore + 1
+	if len(m.conns) != expectedDbConnectionCount {
+		return nil, errors.New("error setting up backup connection: database connection count mismatch")
 	}
 
 	return db, nil
