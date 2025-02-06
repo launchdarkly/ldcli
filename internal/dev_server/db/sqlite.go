@@ -16,6 +16,7 @@ import (
 
 type Sqlite struct {
 	database *sql.DB
+	dbPath   string
 
 	backupManager *backup.Manager
 }
@@ -351,6 +352,28 @@ func (s Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey stri
 
 func (s Sqlite) RestoreBackup(ctx context.Context, stream io.Reader) (string, error) {
 	filepath, err := s.backupManager.RestoreToFile(ctx, stream)
+	if err != nil {
+		return "", errors.Wrap(err, "unable to restore backup db")
+	}
+	err = s.database.Close()
+	if err != nil {
+		return "", errors.Wrap(err, "unable to close database before restoring backup")
+	}
+	err = os.Rename(filepath, s.dbPath)
+	if err != nil {
+		//panic because this would really leave the app in an invalid state
+		panic(err)
+	}
+	s.database, err = sql.Open("sqlite3", s.dbPath)
+	if err != nil {
+		//panic because this would really leave the app in an invalid state
+		panic(err)
+	}
+
+	err = s.runMigrations(ctx)
+	if err != nil {
+		return "", errors.Wrap(err, "unable to run migrations after restoring backup")
+	}
 
 	return filepath, err
 }
@@ -370,7 +393,8 @@ func (s Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) 
 
 func NewSqlite(ctx context.Context, dbPath string) (Sqlite, error) {
 	store := new(Sqlite)
-	store.backupManager = backup.NewManager(dbPath, "main", "ld_cli_*.bak", "ld_cli_restore_*.bak")
+	store.dbPath = dbPath
+	store.backupManager = backup.NewManager(dbPath, "main", "ld_cli_*.bak", "ld_cli_restore_*.db")
 	store.backupManager.AddValidationQueries(validationQueries...)
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
