@@ -26,6 +26,9 @@ type Manager struct {
 	conns              []*sqllite.SQLiteConn
 }
 
+// NewManager creates a new backup manager
+// Each instance of a Manager can run 1 backup or restore at a time (internally uses a mutex)
+// It is safe to create multiple instances of Manager which could run Backups/Restores concurrently
 func NewManager(dbPath string, dbName string, backupFilePattern string, restoreFilePattern string) *Manager {
 	count := c.Add(1)
 	m := &Manager{
