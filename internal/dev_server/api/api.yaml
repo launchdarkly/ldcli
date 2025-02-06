@@ -9,6 +9,25 @@ info:
 servers:
   - url: "http"
 paths:
+  /dev/backup:
+    get:
+      summary: get the backup
+      operationId: getBackup
+      responses:
+        200:
+          $ref: "#/components/responses/DbBackup"
+    post:
+      summary: post backup
+      operationId: restoreBackup
+      requestBody:
+        content:
+          application/vnd.sqlite3:
+            schema:
+              type: string
+              format: binary
+      responses:
+        200:
+          description: 'Backup restored'
   /dev/projects:
     get:
       summary: lists all projects that have been configured for the dev server
@@ -142,7 +161,7 @@ paths:
           description: limit the number of environments returned
           required: false
           schema:
-              type: integer
+            type: integer
       responses:
         200:
           description: OK. List of environments
@@ -286,6 +305,13 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Project"
+    DbBackup:
+      description: A backup of the local sqlite database
+      content:
+        application/vnd.sqlite3:
+          schema:
+            type: string
+            format: binary
     ErrorResponse:
       description: Error response object
       content:

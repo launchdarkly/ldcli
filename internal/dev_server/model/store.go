@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -28,6 +29,9 @@ type Store interface {
 	UpsertOverride(ctx context.Context, override Override) (Override, error)
 	GetOverridesForProject(ctx context.Context, projectKey string) (Overrides, error)
 	GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]Variation, error)
+
+	CreateBackup(ctx context.Context) (io.ReadCloser, int64, error)
+	RestoreBackup(ctx context.Context, stream io.Reader) (string, error)
 }
 
 func ContextWithStore(ctx context.Context, store Store) context.Context {
