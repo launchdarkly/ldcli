@@ -89,7 +89,7 @@ func (m *Manager) RestoreToFile(ctx context.Context, stream io.Reader) (string, 
 	}
 
 	// connect to db
-	copiedDb, err := m.connectToDb(ctx, m.dbPath)
+	copiedDb, err := m.connectToDb(ctx, tempFile.Name())
 	if err != nil {
 		return "", errors.Wrapf(err, "unable to connect to database")
 	}
