@@ -17,8 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/ansi"
-	"github.com/muesli/reflow/truncate"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/sahilm/fuzzy"
 )
 
@@ -532,12 +531,12 @@ func (m *Model) CursorDown() {
 }
 
 // PrevPage moves to the previous page, if available.
-func (m Model) PrevPage() {
+func (m *Model) PrevPage() {
 	m.Paginator.PrevPage()
 }
 
 // NextPage moves to the next page, if available.
-func (m Model) NextPage() {
+func (m *Model) NextPage() {
 	m.Paginator.NextPage()
 }
 
@@ -1050,7 +1049,7 @@ func (m Model) View() string {
 func (m Model) titleView() string {
 	var (
 		view          string
-		titleBarStyle = m.Styles.TitleBar.Copy()
+		titleBarStyle = m.Styles.TitleBar
 
 		// We need to account for the size of the spinner, even if we don't
 		// render it, to reserve some space for it should we turn it on later.
@@ -1075,7 +1074,7 @@ func (m Model) titleView() string {
 		// Status message
 		if m.filterState != Filtering {
 			view += "  " + m.statusMessage
-			view = truncate.StringWithTail(view, uint(m.width-spinnerWidth), ellipsis)
+			view = ansi.Truncate(view, m.width-spinnerWidth, ellipsis)
 		}
 	}
 
@@ -1126,7 +1125,7 @@ func (m Model) statusView() string {
 
 		if filtered {
 			f := strings.TrimSpace(m.FilterInput.Value())
-			f = truncate.StringWithTail(f, 10, "…")
+			f = ansi.Truncate(f, 10, "…")
 			status += fmt.Sprintf("“%s” ", f)
 		}
 
@@ -1151,14 +1150,14 @@ func (m Model) paginationView() string {
 
 	// If the dot pagination is wider than the width of the window
 	// use the arabic paginator.
-	if ansi.PrintableRuneWidth(s) > m.width {
+	if ansi.StringWidth(s) > m.width {
 		m.Paginator.Type = paginator.Arabic
 		s = m.Styles.ArabicPagination.Render(m.Paginator.View())
 	}
 
 	style := m.Styles.PaginationStyle
 	if m.delegate.Spacing() == 0 && style.GetMarginTop() == 0 {
-		style = style.Copy().MarginTop(1)
+		style = style.MarginTop(1)
 	}
 
 	return style.Render(s)
