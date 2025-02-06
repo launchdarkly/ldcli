@@ -63,6 +63,7 @@ func (m *Manager) resetConnections() {
 }
 
 // connectToDb opens a sqlite connection and pings the database to populate the underlying sqlite connection
+// assumes is that the caller has the Manager's mutex.
 func (m *Manager) connectToDb(ctx context.Context, path string) (*sql.DB, error) {
 	db, err := sql.Open(m.driverName, path)
 	if err != nil {
