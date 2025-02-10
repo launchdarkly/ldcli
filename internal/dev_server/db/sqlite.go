@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/pkg/errors"
 	"io"
 	"os"
+
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/pkg/errors"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db/backup"
@@ -380,6 +381,9 @@ func (s *Sqlite) RestoreBackup(ctx context.Context, stream io.Reader) (string, e
 
 func (s *Sqlite) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) {
 	backupPath, err := s.backupManager.MakeBackupFile(ctx)
+	if err != nil {
+		return nil, 0, errors.Wrapf(err, "unable to make backup file, %s", backupPath)
+	}
 	fi, err := os.Open(backupPath)
 	if err != nil {
 		return nil, 0, errors.Wrapf(err, "unable to open backup db at %s", backupPath)

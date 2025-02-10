@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	sqllite "github.com/mattn/go-sqlite3"
-	"github.com/pkg/errors"
 	"io"
 	"log"
 	"os"
 	"sync"
 	"sync/atomic"
+
+	sqllite "github.com/mattn/go-sqlite3"
+	"github.com/pkg/errors"
 )
 
 var c atomic.Int32
@@ -195,7 +196,7 @@ func runBackup(backupDbConn *sqllite.SQLiteConn, srcDbConn *sqllite.SQLiteConn, 
 	}(backup)
 
 	var isDone = false
-	var stepError error = nil
+	var stepError error
 	for !isDone {
 		isDone, stepError = backup.Step(1)
 		if stepError != nil {
