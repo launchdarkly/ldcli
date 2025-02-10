@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1](https://github.com/launchdarkly/ldcli/compare/v1.12.0...v1.12.1) (2025-02-10)
+
+
+### Bug Fixes
+
+* Handle api_key prefix in auth header ([#495](https://github.com/launchdarkly/ldcli/issues/495)) ([216a951](https://github.com/launchdarkly/ldcli/commit/216a9516d207ba9bf724449e67d4ecac3a732417))
+
 ## [1.12.0](https://github.com/launchdarkly/ldcli/compare/v1.11.0...v1.12.0) (2025-02-06)
 
 
