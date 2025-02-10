@@ -1,5 +1,0 @@
-.vscode
-bin/
-build/
-go-server-sdk-evaluation.test
-allocations.out
