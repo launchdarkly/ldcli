@@ -37,11 +37,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: ${{ needs.go-versions.outputs.latest }}
-
       - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
         name: 'Get Docker token'
         with:
