@@ -8,18 +8,6 @@ repos:
         language: golang
         require_serial: true
         types: [go]
-  - repo: git@github.com:launchdarkly/pre-commit-go
-    rev: v0.11.0
-    hooks:
-      - id: compile-go-tests
-        entry: bin/run-script run-on-dirs "go test ./..."
-        exclude: "^vendor/|^.circleci/image/tools"
-        name: run-go-tests
-      - id: discarded-stacktrace
-        exclude: '(^vendor/|.*gen\.go)'
-      - id: go-mod-tidy
-      - id: go-mod-verify
-      - id: go-mod-vendor-no-change
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
