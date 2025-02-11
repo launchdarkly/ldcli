@@ -4,7 +4,6 @@ repos:
     hooks:
       - id: golangci-lint
         entry: golangci-lint run
-        exclude: "^(vendor/|.circleci/)"
         language: golang
         require_serial: true
         types: [go]
@@ -12,7 +11,6 @@ repos:
     rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
-        exclude: "^vendor"
   - repo: local
     hooks:
       - id: ui-tests
