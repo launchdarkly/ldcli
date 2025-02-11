@@ -19,11 +19,11 @@ repos:
         name: Run dev-server UI tests
         entry: bash -c 'cd internal/dev_server/ui && npm test'
         language: system
-        files: \.(jsx|tsx)$
+        files: ^internal\/dev_server\/ui\/
         pass_filenames: false
       - id: ui-build
         name: Build dev-server UI
         entry: bash -c 'cd internal/dev_server/ui && npm run build'
         language: system
-        files: \.(jsx|tsx)$
+        files: ^internal\/dev_server\/ui\/
         pass_filenames: false
