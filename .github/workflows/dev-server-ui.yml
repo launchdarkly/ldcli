@@ -26,21 +26,21 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: cd internal/dev-server/ui && npm ci
+        run: cd internal/dev_server/ui && npm ci
 
       - name: Run lint
-        run: cd internal/dev-server/ui && npm run lint
+        run: cd internal/dev_server/ui && npm run lint
 
       - name: Run Prettier
-        run: cd internal/dev-server/ui && npm run prettier:write
+        run: cd internal/dev_server/ui && npm run prettier:write
 
       - name: Run tests
-        run: cd internal/dev-server/ui && npm test
+        run: cd internal/dev_server/ui && npm test
 
       - name: Run build
-        run: cd internal/dev-server/ui && npm run build
+        run: cd internal/dev_server/ui && npm run build
 
       - name: Check for uncommitted changes
         run: |
-          cd internal/dev-server/ui
+          cd internal/dev_server/ui
           git diff --exit-code || (echo 'Error: Uncommitted changes detected after build. Run the build locally and commit the changes.' && exit 1)
