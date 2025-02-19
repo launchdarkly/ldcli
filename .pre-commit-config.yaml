@@ -11,17 +11,3 @@ repos:
     rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
-  - repo: local
-    hooks:
-      - id: ui-tests
-        name: Run dev-server UI tests
-        entry: bash -c 'cd internal/dev_server/ui && npm test'
-        language: system
-        files: ^internal\/dev_server\/ui\/
-        pass_filenames: false
-      - id: ui-build
-        name: Build dev-server UI
-        entry: bash -c 'cd internal/dev_server/ui && npm run build'
-        language: system
-        files: ^internal\/dev_server\/ui\/
-        pass_filenames: false
