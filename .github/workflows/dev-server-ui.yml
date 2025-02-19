@@ -31,6 +31,9 @@ jobs:
       - name: Run lint
         run: cd internal/dev-server/ui && npm run lint
 
+      - name: Run Prettier
+        run: cd internal/dev-server/ui && npm run prettier:write
+
       - name: Run tests
         run: cd internal/dev-server/ui && npm test
 
