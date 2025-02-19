@@ -26,17 +26,18 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: cd internal/dev-server/ui && npm ci
 
       - name: Run lint
-        run: npm run lint
+        run: cd internal/dev-server/ui && npm run lint
 
       - name: Run tests
-        run: npm test
+        run: cd internal/dev-server/ui && npm test
 
       - name: Run build
-        run: npm run build
+        run: cd internal/dev-server/ui && npm run build
 
       - name: Check for uncommitted changes
         run: |
+          cd internal/dev-server/ui
           git diff --exit-code || (echo 'Error: Uncommitted changes detected after build. Run the build locally and commit the changes.' && exit 1)
