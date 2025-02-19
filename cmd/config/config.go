@@ -117,7 +117,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 				return newErr(err.Error())
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
+			fmt.Fprint(cmd.OutOrStdout(), output+"\n")
 		case viper.GetBool(SetFlag):
 			conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
 			if err != nil {
@@ -146,7 +146,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 				return newErr(err.Error())
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
+			fmt.Fprint(cmd.OutOrStdout(), output+"\n")
 		case viper.IsSet(UnsetFlag):
 			conf, err := config.New(viper.ConfigFileUsed(), os.ReadFile)
 			if err != nil {
@@ -166,7 +166,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 				return newErr(err.Error())
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
+			fmt.Fprint(cmd.OutOrStdout(), output+"\n")
 		default:
 			return cmd.Help()
 		}
