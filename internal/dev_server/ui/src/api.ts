@@ -22,10 +22,19 @@ export type FlagsApiResponse = {
 import { apiRoute } from './util';
 import { Environment } from './types';
 
-export async function fetchEnvironments(projectKey: string, query?: string): Promise<Environment[]> {
-  const res = await fetch(apiRoute(`/dev/projects/${projectKey}/environments?limit=20${query ? `&name=${query}` : ''}`));
+export async function fetchEnvironments(
+  projectKey: string,
+  query?: string,
+): Promise<Environment[]> {
+  const res = await fetch(
+    apiRoute(
+      `/dev/projects/${projectKey}/environments?limit=20${query ? `&name=${query}` : ''}`,
+    ),
+  );
   if (!res.ok) {
-    throw new Error(`Got ${res.status}, ${res.statusText} from environments fetch`);
+    throw new Error(
+      `Got ${res.status}, ${res.statusText} from environments fetch`,
+    );
   }
   return res.json();
 }

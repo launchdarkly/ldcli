@@ -72,14 +72,14 @@ const VariationValues = ({
         ];
         selectedVariationIndex = 0;
       }
-      const onSubmit = (close: () => void) => (e: FormEvent<HTMLFormElement>) => {
-        // Prevent default browser page refresh.
-        e.preventDefault();
-        const data = Object.fromEntries(new FormData(e.currentTarget));
-        updateOverride(flagKey, JSON.parse(data.value as string));
-        close();
-      };
-
+      const onSubmit =
+        (close: () => void) => (e: FormEvent<HTMLFormElement>) => {
+          // Prevent default browser page refresh.
+          e.preventDefault();
+          const data = Object.fromEntries(new FormData(e.currentTarget));
+          updateOverride(flagKey, JSON.parse(data.value as string));
+          close();
+        };
 
       //TODO:
       // Grow the text area when editing local override
