@@ -56,7 +56,7 @@ func makeArchiveRequest(client resources.Client) func(*cobra.Command, []string) 
 			return errors.NewError(err.Error())
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
+		fmt.Fprint(cmd.OutOrStdout(), output+"\n")
 
 		return nil
 	}

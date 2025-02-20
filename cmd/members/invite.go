@@ -68,7 +68,7 @@ func runE(client resources.Client) func(*cobra.Command, []string) error {
 			return errors.NewError(err.Error())
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
+		fmt.Fprint(cmd.OutOrStdout(), output+"\n")
 
 		return nil
 	}

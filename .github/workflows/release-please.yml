@@ -37,11 +37,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: ${{ needs.go-versions.outputs.latest }}
-
       - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
         name: 'Get Docker token'
         with:
@@ -88,7 +83,7 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.10.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
     with:
       base64-subjects: "${{ needs.release-ldcli.outputs.hashes }}"
       upload-assets: true

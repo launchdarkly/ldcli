@@ -10,16 +10,8 @@ on:
     branches: [ "main" ]
 
 jobs:
-  go-versions:
-    uses: ./.github/workflows/go-versions.yml
-
   build:
-    needs: go-versions
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: ${{ fromJSON(needs.go-versions.outputs.matrix )}}
 
     steps:
     - uses: actions/checkout@v4
@@ -27,14 +19,11 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: ${{ matrix.go-version }}
+        go-version: stable
 
-    - name: Enforce formatting / go mod tidy
-      run: |
-        ./git/hooks/pre-commit
-
-    - name: Build
-      run: go build -o ldcli
-
-    - name: Test
-      run: go test -v ./...
+    - uses: actions/setup-python@v3
+    - uses: pre-commit/action@v3.0.1
+    - name: build
+      run: go build .
+    - name: test
+      run: go test ./...

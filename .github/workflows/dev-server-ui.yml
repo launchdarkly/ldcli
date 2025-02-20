@@ -1,0 +1,47 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: dev-server UI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: internal/dev_server/ui
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run Prettier
+        run: npm run prettier:write
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run build
+        run: npm run build
+
+      - name: Check for uncommitted changes
+        run: |
+          git diff --exit-code || (echo 'Error: Uncommitted changes detected after build. Run the build locally and commit the changes.' && exit 1)

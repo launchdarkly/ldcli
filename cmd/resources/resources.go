@@ -354,7 +354,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		return errors.NewError(err.Error())
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), output+"\n")
+	fmt.Fprint(cmd.OutOrStdout(), output+"\n")
 
 	return nil
 }
