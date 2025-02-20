@@ -7,7 +7,6 @@ import pluginReact from "eslint-plugin-react";
 export default [
   {
     files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"],
-    ignores: ["**/__mocks__/"],
   },
   { languageOptions: { globals: globals.browser } },
   pluginJs.configs.recommended,
@@ -19,4 +18,7 @@ export default [
       "react/react-in-jsx-scope": "off",
     },
   },
+  {
+    ignores: ["**/__mocks__/"],
+  }
 ];
