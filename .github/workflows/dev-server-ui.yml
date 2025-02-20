@@ -14,7 +14,9 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: shared-models
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,21 +28,20 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: cd internal/dev_server/ui && npm ci
+        run: npm ci
 
       - name: Run lint
-        run: cd internal/dev_server/ui && npm run lint
+        run: npm run lint
 
       - name: Run Prettier
-        run: cd internal/dev_server/ui && npm run prettier:write
+        run: cd npm run prettier:write
 
       - name: Run tests
-        run: cd internal/dev_server/ui && npm test
+        run: npm test
 
       - name: Run build
-        run: cd internal/dev_server/ui && npm run build
+        run: npm run build
 
       - name: Check for uncommitted changes
         run: |
-          cd internal/dev_server/ui
           git diff --exit-code || (echo 'Error: Uncommitted changes detected after build. Run the build locally and commit the changes.' && exit 1)
