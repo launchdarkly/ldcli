@@ -7,7 +7,7 @@ import pluginReact from "eslint-plugin-react";
 export default [
   {
     files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"],
-    ignores: ["./src/__mocks__/@launchpad-ui/*.js"],
+    ignores: ["**/__mocks__/"],
   },
   { languageOptions: { globals: globals.browser } },
   pluginJs.configs.recommended,
