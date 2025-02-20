@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: shared-models
+        working-directory: internal/dev_server/ui
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
