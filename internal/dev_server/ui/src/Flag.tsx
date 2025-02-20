@@ -60,7 +60,7 @@ const VariationValues = ({
           </Switch>
         </div>
       );
-    default:
+    default: {
       let variations = availableVariations;
       let selectedVariationIndex = variations.findIndex((variation) =>
         isEqual(variation.value, currentValue),
@@ -72,13 +72,14 @@ const VariationValues = ({
         ];
         selectedVariationIndex = 0;
       }
-      let onSubmit = (close: () => void) => (e: FormEvent<HTMLFormElement>) => {
+      const onSubmit = (close: () => void) => (e: FormEvent<HTMLFormElement>) => {
         // Prevent default browser page refresh.
         e.preventDefault();
-        let data = Object.fromEntries(new FormData(e.currentTarget));
+        const data = Object.fromEntries(new FormData(e.currentTarget));
         updateOverride(flagKey, JSON.parse(data.value as string));
         close();
       };
+
 
       //TODO:
       // Grow the text area when editing local override
@@ -204,6 +205,7 @@ const VariationValues = ({
           </Box>
         </Inline>
       );
+    }
   }
 };
 
