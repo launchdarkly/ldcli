@@ -7,9 +7,6 @@ on:
       - main
 
 jobs:
-  go-versions:
-    uses: ./.github/workflows/go-versions.yml
-
   release-please:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
@@ -26,7 +23,7 @@ jobs:
     permissions:
       id-token: write # Needed to obtain Docker tokens
       contents: write # Needed to upload release artifacts
-    needs: [ release-please, go-versions ]
+    needs: [ release-please ]
     if: always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'pull_request')
     runs-on: ubuntu-latest
     outputs:
