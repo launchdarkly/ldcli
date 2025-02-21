@@ -20,10 +20,10 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version: stable
+    - name: build
+      run: go build .
 
     - uses: actions/setup-python@v3
     - uses: pre-commit/action@v3.0.1
-    - name: build
-      run: go build .
     - name: test
       run: go test ./...
