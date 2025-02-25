@@ -95,6 +95,7 @@ Running this command creates a configuration file located at `$XDG_CONFIG_HOME/l
 LaunchDarkly CLI commands:
 
 - `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
+- `dev-server` lets you start a local server and retrieve flag values from a LaunchDarkly source environment so you can test your code locally. For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
 
 ### Resource Commands
 
@@ -146,9 +147,3 @@ LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply
 
 [ghrelease-badge]: https://img.shields.io/github/release/launchdarkly/ldcli.svg
 [ghrelease-link]: https://github.com/launchdarkly/ldcli/releases/latest
-
-## Dev Server
-
-LaunchDarkly provides a command line interface (CLI), which includes a `dev-server` command that you can use to start a local server and retrieve flag values from a LaunchDarkly source environment. This development server supports a single variation value for each flag, which you can override as needed. This means you can test your code locally, and you do not need to coordinate with other developers in your organization who are using the same LaunchDarkly source environment.
-
-For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
