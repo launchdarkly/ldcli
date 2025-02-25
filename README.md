@@ -146,3 +146,8 @@ LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply
 
 [ghrelease-badge]: https://img.shields.io/github/release/launchdarkly/ldcli.svg
 [ghrelease-link]: https://github.com/launchdarkly/ldcli/releases/latest
+
+## Dev Server
+
+For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
+
