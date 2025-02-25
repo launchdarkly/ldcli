@@ -149,5 +149,7 @@ LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply
 
 ## Dev Server
 
+LaunchDarkly provides a command line interface (CLI), which includes a `dev-server` command that you can use to start a local server and retrieve flag values from a LaunchDarkly source environment. This development server supports a single variation value for each flag, which you can override as needed. This means you can test your code locally, and you do not need to coordinate with other developers in your organization who are using the same LaunchDarkly source environment.
+
 For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
 
