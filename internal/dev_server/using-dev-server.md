@@ -1,6 +1,6 @@
 ## What should I use it for?
 
-`dev-server` is intended as a replacement for creating certain kinds of environments in the LD app itself that are not part of a flag's release path e.g. Staging, UAT, QA, Production. The most common examples of this are local development environments and ephemeral CI environments. It can also be used for environments that do not need complex targeting rules and are mostly a snapshot of your staging environment equivalent, such as environments for live testing vendor integrations.
+`dev-server` is intended as a replacement for creating certain kinds of environments in the LD app itself that are not part of a flag's release path e.g. Staging, UAT, QA, Production. The most common examples of this are local development environments and ephemeral CI environments.
 
 ## What should I not use this for?
 
