@@ -4,7 +4,7 @@ This doc lays out our vision for what `dev-server` is supposed to do, and why th
 
 ## Purpose of the Dev Server
 
-First and foremost, `dev-server` is meant as a replacement for local dev and CI environments. Other use cases may exist (and don't hestitate to ask if you think you have one!), but since a `dev-server` environment lacks any targeting, it is best suited to situations where there is only 1 user for the whole environment.
+First and foremost, `dev-server` is meant as a replacement for local dev and CI environments managed in the LaunchDarkly service. Other use cases may exist (and don't hesitate to ask if you think you have one!), but since a `dev-server` environment lacks any targeting, it is best suited to situations where there is only 1 user for the whole environment.
 
 We implemented it this way in order to solve a problem common both internally and amongst our userbase where an environment would get created per developer on a project as well as per CI build. As you could expect, this becomes exponentially harder to maintain as the number of environments scales both technically and from a process perspective - something has to clear out those environments after all!
 
