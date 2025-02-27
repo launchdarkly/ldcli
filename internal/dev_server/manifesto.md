@@ -12,6 +12,6 @@ Another intentional design decision was the choice not to allow the creation of 
 
 We chose to do this in order to minimize any surprises as your code moves from local / CI to a prod / prod-like environment. In our experience, the greatest source of such surprises has been drift between the configuration of a developer's LD environment and our Staging environment. Unless a developer is constantly making sure their flag state matches higher environments as closely as possible, flag state drifts until their local development environment starts to break, neccessitating a painful process of reconciling flag state.
 
-Lastly, we highly recommend not using `dev-server` for environments with prod-level traffic. As we designed this with local dev in mind, something will definitely break if you try to use this for that level of load.
+Lastly, do not use the `dev-server` for environments with prod-level traffic. As we designed this with local dev in mind, production throughput has never been tested.
 
 With that said, it's our hope that you enjoy using the `dev-server`, and feedback is more than welcome!
