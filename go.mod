@@ -31,7 +31,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.0
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
-	golang.org/x/term v0.28.0
+	golang.org/x/term v0.29.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
