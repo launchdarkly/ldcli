@@ -5,6 +5,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"github.com/launchdarkly/ldcli/cmd/evaluate"
 	"log"
 	"os"
 	"path/filepath"
@@ -202,6 +203,7 @@ func NewRootCommand(
 			c.AddCommand(flagscmd.NewToggleOnCmd(clients.ResourcesClient))
 			c.AddCommand(flagscmd.NewToggleOffCmd(clients.ResourcesClient))
 			c.AddCommand(flagscmd.NewArchiveCmd(clients.ResourcesClient))
+			c.AddCommand(evaluate.NewEvaluateCommand(c))
 		}
 		if c.Name() == "members" {
 			c.AddCommand(memberscmd.NewMembersInviteCmd(clients.ResourcesClient))

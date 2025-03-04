@@ -14,20 +14,28 @@ import (
 	"github.com/launchdarkly/ldcli/internal/output"
 )
 
-const Filename = ".ldcli-config.yml"
-
 type ReadFile func(name string) ([]byte, error)
+
+type Environment struct {
+	BaseURL     string `json:"base-uri" yaml:"base-uri"`
+	StreamURL   string `json:"stream-uri" yaml:"stream-uri"`
+	EventsURL   string `json:"events-uri" yaml:"events-uri"`
+	Project     string `json:"project" yaml:"project"`
+	Environment string `json:"environment" yaml:"environment"`
+	SDKKey      string `json:"sdk-key" yaml:"sdk-key"`
+}
 
 // Config represents the data stored in the config file.
 type Config struct {
-	AccessToken     string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
-	AnalyticsOptOut *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
-	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
-	DevStreamURI    string `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
-	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
-	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
-	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
-	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
+	AccessToken     string                 `json:"access-token,omitempty" yaml:"access-token,omitempty"`
+	AnalyticsOptOut *bool                  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
+	BaseURI         string                 `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
+	DevStreamURI    string                 `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
+	Environment     string                 `json:"environment,omitempty" yaml:"environment,omitempty"`
+	Flag            string                 `json:"flag,omitempty" yaml:"flag,omitempty"`
+	Output          string                 `json:"output,omitempty" yaml:"output,omitempty"`
+	Project         string                 `json:"project,omitempty" yaml:"project,omitempty"`
+	Environments    map[string]Environment `json:"environments" yaml:"environments"`
 }
 
 func New(filename string, readFile ReadFile) (Config, error) {
@@ -39,7 +47,7 @@ func New(filename string, readFile ReadFile) (Config, error) {
 	}
 
 	var c Config
-	err = yaml.Unmarshal([]byte(data), &c)
+	err = yaml.Unmarshal(data, &c)
 	if err != nil {
 		return Config{}, errors.NewError("config file is invalid yaml")
 	}

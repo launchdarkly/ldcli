@@ -18,7 +18,7 @@ Commands:
   {{rpad "dev-server" 29}} Run a development server to serve flags locally
 
 Common resource commands:
-  {{rpad "flags" 29}} List, create, and modify feature flags and their targeting
+  {{rpad "flags" 29}} List, create, modify, and evaluate feature flags and their targeting
   {{rpad "environments" 29}} List, create, and manage environments
   {{rpad "projects" 29}} List, create, and manage projects
   {{rpad "members" 29}} Invite new members to an account
