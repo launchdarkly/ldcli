@@ -4,3 +4,15 @@ updates:
     directory: "/" # Location of go.mod
     schedule:
       interval: "weekly"
+    # Enable auto-merge for Dependabot PRs
+    open-pull-requests-limit: 10
+    pull-request-branch-name:
+      separator: "-"
+    # Auto-merge configuration
+    auto-merge: true
+    # Limit auto-merge to patch and minor updates
+    versioning-strategy: auto
+    # Configure PR settings
+    commit-message:
+      prefix: "deps"
+      include: "scope"
