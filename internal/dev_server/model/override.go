@@ -2,7 +2,7 @@ package model
 
 import (
 	"context"
-
+	"fmt"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
 
@@ -27,7 +27,7 @@ func getFlagStateForFlagAndProject(ctx context.Context, projectKey, flagKey stri
 
 	flagState, ok := project.AllFlagsState[flagKey]
 	if !ok {
-		return FlagState{}, fmt.Errorf("%w: projectKey=%q flagKey=%q", ErrFlagNotFound, projectKey, flagKey)
+		return FlagState{}, fmt.Errorf("%w: projectKey=%q flagKey=%q", ErrNotFound, projectKey, flagKey)
 	}
 
  	return flagState, nil
