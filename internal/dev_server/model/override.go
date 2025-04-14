@@ -25,17 +25,12 @@ func getFlagStateForFlagAndProject(ctx context.Context, projectKey, flagKey stri
 		return FlagState{}, err
 	}
 
-	var flagExists bool
-	for flag := range project.AllFlagsState {
-		if flagKey == flag {
-			flagExists = true
-			break
-		}
+	flagState, ok := project.AllFlagsState[flagKey]
+	if !ok {
+		return FlagState{}, fmt.Errorf("%w: projectKey=%q flagKey=%q", ErrFlagNotFound, projectKey, flagKey)
 	}
-	if !flagExists {
-		return FlagState{}, ErrNotFound
-	}
-	return project.AllFlagsState[flagKey], nil
+
+ 	return flagState, nil
 }
 
 func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldvalue.Value) (Override, error) {
