@@ -8,7 +8,7 @@ type ErrAlreadyExists struct {
 }
 
 func (e ErrAlreadyExists) Error() string {
-	return fmt.Sprintf("%s %s not found", e.kind, e.key)
+	return fmt.Sprintf("%s %s already exists", e.kind, e.key)
 }
 
 func NewErrAlreadyExists(kind, key string) ErrAlreadyExists {
