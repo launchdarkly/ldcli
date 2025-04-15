@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/launchdarkly/ldcli/compare/v1.12.1...v1.13.0) (2025-04-15)
+
+
+### Features
+
+* Expose more detail in dev server errors [FUN-701] ([#522](https://github.com/launchdarkly/ldcli/issues/522)) ([553525a](https://github.com/launchdarkly/ldcli/commit/553525af0fef73cb362d0f7d4dd49052692fd102))
+
 ## [1.12.1](https://github.com/launchdarkly/ldcli/compare/v1.12.0...v1.12.1) (2025-02-10)
 
 
