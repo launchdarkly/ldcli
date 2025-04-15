@@ -174,7 +174,7 @@ func TestInitialSync(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
 		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
-		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(model.ErrAlreadyExists)
+		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(model.NewErrAlreadyExists("project", projKey))
 
 		input := model.InitialProjectSettings{
 			Enabled:    true,

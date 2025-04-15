@@ -103,7 +103,7 @@ func TestDBFunctions(t *testing.T) {
 
 	t.Run("InsertProject returns ErrAlreadyExists if the project already exists", func(t *testing.T) {
 		err := store.InsertProject(ctx, projects[0])
-		assert.Equal(t, model.ErrAlreadyExists, err)
+		assert.ErrorAs(t, err, &model.ErrAlreadyExists{})
 	})
 
 	t.Run("GetDevProjectKeys returns keys in projects", func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestDBFunctions(t *testing.T) {
 	t.Run("GetDevProject returns ErrNotFound for fake project keys", func(t *testing.T) {
 		p, err := store.GetDevProject(ctx, "THIS-DOES-NOT-EXIST")
 		assert.Nil(t, p)
-		assert.ErrorIs(t, err, model.ErrNotFound)
+		assert.ErrorAs(t, err, &model.ErrNotFound{})
 	})
 
 	t.Run("GetDevProject returns project", func(t *testing.T) {
@@ -303,7 +303,7 @@ func TestDBFunctions(t *testing.T) {
 
 	t.Run("DeactivateOverride returns error when override not found", func(t *testing.T) {
 		_, err := store.DeactivateOverride(ctx, projects[0].Key, "nope")
-		assert.ErrorIs(t, err, model.ErrNotFound)
+		assert.ErrorAs(t, err, &model.ErrNotFound{})
 	})
 
 	t.Run("DeactivateOverride sets the override inactive and returns the current version", func(t *testing.T) {

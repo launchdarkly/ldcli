@@ -30,7 +30,7 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 	var project Project
 	project, createError := CreateProject(ctx, settings.ProjectKey, settings.EnvKey, settings.Context)
 	if createError != nil {
-		if !errors.Is(createError, ErrAlreadyExists) {
+		if !errors.As(createError, &ErrAlreadyExists{}) {
 			return createError
 		}
 
