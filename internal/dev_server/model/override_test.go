@@ -58,7 +58,7 @@ func TestUpsertOverride(t *testing.T) {
 
 		_, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
 		assert.Error(t, err)
-		assert.ErrorIs(t, model.ErrNotFound, err)
+		assert.ErrorAs(t, err, &model.ErrNotFound{})
 	})
 
 	t.Run("store fails to upsert, returns error", func(t *testing.T) {

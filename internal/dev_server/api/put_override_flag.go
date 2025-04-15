@@ -14,7 +14,7 @@ func (s server) PutOverrideFlag(ctx context.Context, request PutOverrideFlagRequ
 	}
 	override, err := model.UpsertOverride(ctx, request.ProjectKey, request.FlagKey, *request.Body)
 	if err != nil {
-		if errors.As(err, &model.Error{}) {
+		if errors.As(err, &model.ErrNotFound{}) {
 			return PutOverrideFlag400JSONResponse{
 				ErrorResponseJSONResponse{
 					Code:    "invalid_request",

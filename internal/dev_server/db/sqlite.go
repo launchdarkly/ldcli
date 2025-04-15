@@ -54,7 +54,7 @@ func (s *Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project,
 
 	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &contextData, &project.LastSyncTime, &flagStateData); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.Wrapf(model.ErrNotFound, "no project found with key, '%s'", key)
+			return nil, model.NewErrNotFound("project", key)
 		}
 		return nil, err
 	}
@@ -181,7 +181,7 @@ SELECT 1 FROM projects WHERE key = ?
 		return
 	}
 	if projects.Next() {
-		err = model.ErrAlreadyExists
+		err = model.NewErrAlreadyExists("project", project.Key)
 		return
 	}
 	err = projects.Close()
@@ -343,7 +343,7 @@ func (s *Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey str
 	var version int
 	if err := row.Scan(&version); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, errors.Wrapf(model.ErrNotFound, "no override found for flag with key, '%s', in project with key, '%s'", projectKey, flagKey)
+			return 0, errors.Wrapf(model.NewErrNotFound("flag", flagKey), "no override in project %s", projectKey)
 		}
 		return 0, err
 	}

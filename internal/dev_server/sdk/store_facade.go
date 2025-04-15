@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -16,9 +15,9 @@ import (
 //   - This is in the context of flag delivery which has pretty consistent semantics for what's an error across handlers.
 func WriteError(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, model.ErrNotFound):
+	case errors.As(err, &model.ErrNotFound{}):
 		projectKey := GetProjectKeyFromContext(ctx)
-		message := fmt.Sprintf("project, %s, not found", projectKey)
+		message := err.Error()
 		log.Println(message)
 		log.Printf("To add your project to the dev server, call `ldcli dev-server add-project --project %s --source {SOURCE_ENV_KEY}", projectKey)
 		http.Error(w, message, http.StatusNotFound)

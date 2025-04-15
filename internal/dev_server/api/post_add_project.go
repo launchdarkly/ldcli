@@ -21,10 +21,10 @@ func (s server) PostAddProject(ctx context.Context, request PostAddProjectReques
 	store := model.StoreFromContext(ctx)
 	project, err := model.CreateProject(ctx, request.ProjectKey, request.Body.SourceEnvironmentKey, request.Body.Context)
 	switch {
-	case errors.Is(err, model.ErrAlreadyExists):
+	case errors.As(err, &model.ErrAlreadyExists{}):
 		return PostAddProject409JSONResponse{
 			Code:    "conflict",
-			Message: "project already exists",
+			Message: err.Error(),
 		}, nil
 	case err != nil:
 		return nil, err

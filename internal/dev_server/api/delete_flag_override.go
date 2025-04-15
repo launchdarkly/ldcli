@@ -11,7 +11,7 @@ import (
 func (s server) DeleteFlagOverride(ctx context.Context, request DeleteFlagOverrideRequestObject) (DeleteFlagOverrideResponseObject, error) {
 	err := model.DeleteOverride(ctx, request.ProjectKey, request.FlagKey)
 	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
+		if errors.As(err, &model.ErrNotFound{}) {
 			return DeleteFlagOverride404Response{}, nil
 		}
 		return nil, err

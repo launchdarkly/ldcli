@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 
@@ -52,6 +51,3 @@ func StoreMiddleware(store Store) mux.MiddlewareFunc {
 		})
 	}
 }
-
-var ErrNotFound = errors.New("not found")
-var ErrAlreadyExists = errors.New("already exists")

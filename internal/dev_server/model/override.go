@@ -33,7 +33,7 @@ func getFlagStateForFlagAndProject(ctx context.Context, projectKey, flagKey stri
 		}
 	}
 	if !flagExists {
-		return FlagState{}, ErrNotFound
+		return FlagState{}, NewErrNotFound("flag", flagKey)
 	}
 	return project.AllFlagsState[flagKey], nil
 }
