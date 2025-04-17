@@ -11,8 +11,16 @@ go_library(
     deps = ["//cmd"],
 )
 
+go_library(
+    name = "tool_deps",
+    srcs = ["tools.go"],
+    importpath = "github.com/launchdarkly/ldcli",
+    visibility = ["//visibility:private"],
+    deps = ["//cmd"],
+)
+
 go_binary(
     name = "ldcli",
-    embed = [":ldcli_lib"],
+    embed = [":ldcli_lib", ":tool_deps"],
     visibility = ["//visibility:public"],
 )
