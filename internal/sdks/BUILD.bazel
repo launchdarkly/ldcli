@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sdks",
+    srcs = ["sdks.go"],
+    embedsrcs = [
+        "sdk_instructions/android.md",
+        "sdk_instructions/cpp-client-sdk.md",
+        "sdk_instructions/cpp-server-sdk.md",
+        "sdk_instructions/dotnet-client-sdk.md",
+        "sdk_instructions/dotnet-server-sdk.md",
+        "sdk_instructions/erlang-server-sdk.md",
+        "sdk_instructions/flutter-client-sdk.md",
+        "sdk_instructions/go-server-sdk.md",
+        "sdk_instructions/haskell-server-sdk.md",
+        "sdk_instructions/java-server-sdk.md",
+        "sdk_instructions/js-client-sdk.md",
+        "sdk_instructions/lua-server-sdk.md",
+        "sdk_instructions/node-client-sdk.md",
+        "sdk_instructions/node-server.md",
+        "sdk_instructions/php-server-sdk.md",
+        "sdk_instructions/python-server-sdk.md",
+        "sdk_instructions/react-client-sdk.md",
+        "sdk_instructions/react-native.md",
+        "sdk_instructions/roku.md",
+        "sdk_instructions/ruby-server-sdk.md",
+        "sdk_instructions/rust-server-sdk.md",
+        "sdk_instructions/swift-client-sdk.md",
+        "sdk_instructions/vue.md",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/sdks",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "sdks_test",
+    srcs = ["sdks_test.go"],
+    deps = [
+        ":sdks",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

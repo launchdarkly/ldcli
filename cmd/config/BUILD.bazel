@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/launchdarkly/ldcli/cmd/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/analytics",
+        "//cmd/cliflags",
+        "//internal/analytics",
+        "//internal/config",
+        "//internal/errors",
+        "//internal/output",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_viper//:viper",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    data = glob(["testdata/**"]),
+    deps = [
+        "//cmd",
+        "//internal/analytics",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

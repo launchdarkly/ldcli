@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flags",
+    srcs = [
+        "archive.go",
+        "toggle.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/cmd/flags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cliflags",
+        "//cmd/resources",
+        "//cmd/validators",
+        "//internal/errors",
+        "//internal/output",
+        "//internal/resources",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_viper//:viper",
+    ],
+)
+
+go_test(
+    name = "flags_test",
+    srcs = [
+        "archive_test.go",
+        "toggle_test.go",
+    ],
+    deps = [
+        "//cmd",
+        "//internal/analytics",
+        "//internal/resources",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

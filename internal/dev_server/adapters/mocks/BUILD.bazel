@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mocks",
+    srcs = [
+        "api.go",
+        "sdk.go",
+        "utils.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server/adapters/mocks",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/dev_server/adapters",
+        "@com_github_launchdarkly_api_client_go_v14//:api-client-go",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldcontext",
+        "@com_github_launchdarkly_go_server_sdk_v7//interfaces/flagstate",
+        "@org_uber_go_mock//gomock",
+    ],
+)

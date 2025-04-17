@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "analytics",
+    srcs = [
+        "client.go",
+        "events.go",
+        "log_client.go",
+        "mock.go",
+        "noop_client.go",
+        "tracker.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/analytics",
+    visibility = ["//:__subpackages__"],
+    deps = ["@com_github_stretchr_testify//mock"],
+)

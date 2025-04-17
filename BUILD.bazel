@@ -1,0 +1,26 @@
+load("@gazelle//:def.bzl", "gazelle")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+gazelle(name = "gazelle")
+
+go_library(
+    name = "ldcli_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/launchdarkly/ldcli",
+    visibility = ["//visibility:private"],
+    deps = ["//cmd"],
+)
+
+go_library(
+    name = "tool_deps",
+    srcs = ["tools.go"],
+    importpath = "github.com/launchdarkly/ldcli",
+    visibility = ["//visibility:private"],
+    deps = ["//cmd"],
+)
+
+go_binary(
+    name = "ldcli",
+    embed = [":ldcli_lib", ":tool_deps"],
+    visibility = ["//visibility:public"],
+)

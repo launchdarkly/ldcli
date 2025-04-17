@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "db",
+    srcs = [
+        "docs.go",
+        "sqlite.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server/db",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/dev_server/db/backup",
+        "//internal/dev_server/model",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldvalue",
+        "@com_github_mattn_go_sqlite3//:go-sqlite3",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "db_test",
+    srcs = ["sqlite_test.go"],
+    deps = [
+        ":db",
+        "//internal/dev_server/model",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldcontext",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldvalue",
+        "@com_github_samber_lo//:lo",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "login",
+    srcs = ["login.go"],
+    importpath = "github.com/launchdarkly/ldcli/cmd/login",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cliflags",
+        "//cmd/config",
+        "//internal/config",
+        "//internal/login",
+        "//internal/resources",
+        "@com_github_pkg_browser//:browser",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_viper//:viper",
+    ],
+)

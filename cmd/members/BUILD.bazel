@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "members",
+    srcs = ["invite.go"],
+    importpath = "github.com/launchdarkly/ldcli/cmd/members",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cliflags",
+        "//cmd/resources",
+        "//cmd/validators",
+        "//internal/errors",
+        "//internal/members",
+        "//internal/output",
+        "//internal/resources",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_viper//:viper",
+    ],
+)
+
+go_test(
+    name = "members_test",
+    srcs = ["invite_test.go"],
+    deps = [
+        "//cmd",
+        "//internal/analytics",
+        "//internal/resources",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dev_server",
+    srcs = ["dev_server.go"],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/client",
+        "//internal/dev_server/adapters",
+        "//internal/dev_server/api",
+        "//internal/dev_server/db",
+        "//internal/dev_server/model",
+        "//internal/dev_server/sdk",
+        "//internal/dev_server/ui",
+        "@com_github_adrg_xdg//:xdg",
+        "@com_github_gorilla_handlers//:handlers",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)

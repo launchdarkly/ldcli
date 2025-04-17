@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "output",
+    srcs = [
+        "output.go",
+        "outputters.go",
+        "plaintext_fns.go",
+        "resource_output.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/output",
+    visibility = ["//:__subpackages__"],
+    deps = ["//internal/errors"],
+)
+
+go_test(
+    name = "output_test",
+    srcs = [
+        "output_test.go",
+        "plaintext_fns_internal_test.go",
+        "resource_output_test.go",
+    ],
+    embed = [":output"],
+    deps = [
+        "//internal/errors",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "environments",
+    srcs = [
+        "client.go",
+        "mock_client.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/environments",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/client",
+        "//internal/errors",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

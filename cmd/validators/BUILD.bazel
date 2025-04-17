@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "validators",
+    srcs = ["validators.go"],
+    importpath = "github.com/launchdarkly/ldcli/cmd/validators",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cliflags",
+        "//internal/errors",
+        "//internal/output",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_pflag//:pflag",
+        "@com_github_spf13_viper//:viper",
+    ],
+)
+
+go_test(
+    name = "validators_test",
+    srcs = ["validators_test.go"],
+    deps = [
+        ":validators",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

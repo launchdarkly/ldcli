@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "adapters",
+    srcs = [
+        "api.go",
+        "context.go",
+        "middleware.go",
+        "sdk.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server/adapters",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/dev_server/adapters/internal",
+        "@com_github_launchdarkly_api_client_go_v14//:api-client-go",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldcontext",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldlog",
+        "@com_github_launchdarkly_go_server_sdk_v7//:go-server-sdk",
+        "@com_github_launchdarkly_go_server_sdk_v7//interfaces/flagstate",
+        "@com_github_launchdarkly_go_server_sdk_v7//ldcomponents",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

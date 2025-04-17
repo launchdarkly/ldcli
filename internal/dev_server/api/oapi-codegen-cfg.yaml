@@ -4,4 +4,3 @@ generate:
   gorilla-server: true
   models: true
   strict-server: true
-output: server.gen.go

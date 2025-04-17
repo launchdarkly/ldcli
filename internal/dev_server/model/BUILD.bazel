@@ -1,0 +1,59 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "model",
+    srcs = [
+        "docs.go",
+        "environments.go",
+        "err_already_exists.go",
+        "err_not_found.go",
+        "events.go",
+        "flags_state.go",
+        "observer.go",
+        "observer_middleware.go",
+        "override.go",
+        "project.go",
+        "restore.go",
+        "store.go",
+        "sync.go",
+        "variations.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server/model",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/dev_server/adapters",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldcontext",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldvalue",
+        "@com_github_launchdarkly_go_server_sdk_v7//interfaces/flagstate",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "model_test",
+    srcs = [
+        "flags_state_test.go",
+        "observer_test.go",
+        "override_test.go",
+        "project_test.go",
+        "restore_test.go",
+        "sync_test.go",
+    ],
+    deps = [
+        ":model",
+        "//internal/dev_server/adapters/mocks",
+        "//internal/dev_server/model/mocks",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_launchdarkly_api_client_go_v14//:api-client-go",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldcontext",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldvalue",
+        "@com_github_launchdarkly_go_server_sdk_v7//interfaces/flagstate",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_samber_lo//:lo",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_mock//gomock",
+    ],
+)

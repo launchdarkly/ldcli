@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "config.go",
+        "config_service.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/config",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//cmd/cliflags",
+        "//internal/errors",
+        "//internal/output",
+        "//internal/resources",
+        "@com_github_mitchellh_go_homedir//:go-homedir",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    deps = [
+        ":config",
+        "//internal/resources",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)

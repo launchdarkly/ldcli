@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sdk",
+    srcs = [
+        "constant_response.go",
+        "cors.go",
+        "docs.go",
+        "get_client_flags.go",
+        "get_server_flags.go",
+        "polling.go",
+        "project_key_middleware.go",
+        "routes.go",
+        "server_flags.go",
+        "store_facade.go",
+        "stream_client_flags.go",
+        "stream_server_flags.go",
+        "streaming.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server/sdk",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/dev_server/model",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldvalue",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "sdk_test",
+    srcs = [
+        "go_sdk_test.go",
+        "http_test.go",
+    ],
+    embed = [":sdk"],
+    deps = [
+        "//internal/dev_server/adapters/mocks",
+        "//internal/dev_server/db",
+        "//internal/dev_server/model",
+        "//internal/dev_server/model/mocks",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldcontext",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldvalue",
+        "@com_github_launchdarkly_go_server_sdk_v7//:go-server-sdk",
+        "@com_github_launchdarkly_go_server_sdk_v7//interfaces",
+        "@com_github_launchdarkly_go_server_sdk_v7//interfaces/flagstate",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_mock//gomock",
+    ],
+)
