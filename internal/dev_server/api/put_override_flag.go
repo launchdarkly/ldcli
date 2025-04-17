@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 
+	_ "github.com/oapi-codegen/runtime"
 	"github.com/pkg/errors"
 
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"

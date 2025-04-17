@@ -55,6 +55,8 @@ paths:
           $ref: "#/components/responses/Project"
         404:
           description: No project found
+        406:
+          description: No project found
     patch:
       summary: updates the project context or sourceEnvironmentKey then syncs.  Input an empty body to only force a sync.
       operationId: patchProject
