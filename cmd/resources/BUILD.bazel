@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resources",
+    srcs = [
+        "resource_cmds.go",
+        "resource_utils.go",
+        "resources.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/cmd/resources",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/analytics",
+        "//cmd/cliflags",
+        "//cmd/validators",
+        "//internal/analytics",
+        "//internal/errors",
+        "//internal/output",
+        "//internal/resources",
+        "@com_github_charmbracelet_glamour//:glamour",
+        "@com_github_getkin_kin_openapi//openapi3",
+        "@com_github_iancoleman_strcase//:strcase",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_viper//:viper",
+    ],
+)
+
+go_test(
+    name = "resources_test",
+    srcs = [
+        "gen_resources_test.go",
+        "resource_cmds_test.go",
+        "resources_test.go",
+    ],
+    deps = [
+        ":resources",
+        "//cmd",
+        "//internal/analytics",
+        "@com_github_getkin_kin_openapi//openapi3",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "login",
+    srcs = ["login.go"],
+    importpath = "github.com/launchdarkly/ldcli/internal/login",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/errors",
+        "//internal/resources",
+    ],
+)
+
+go_test(
+    name = "login_test",
+    srcs = ["login_test.go"],
+    deps = [
+        ":login",
+        "//internal/errors",
+        "//internal/resources",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

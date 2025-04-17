@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "backup",
+    srcs = ["sqllite_backup.go"],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server/db/backup",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "@com_github_mattn_go_sqlite3//:go-sqlite3",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "backup_test",
+    srcs = ["sqlite_backup_test.go"],
+    deps = [
+        ":backup",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//require",
+    ],
+)

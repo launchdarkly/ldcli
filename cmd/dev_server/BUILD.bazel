@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dev_server",
+    srcs = [
+        "dev_server.go",
+        "flags.go",
+        "overrides.go",
+        "projects.go",
+        "start_server.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/cmd/dev_server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/analytics",
+        "//cmd/cliflags",
+        "//cmd/resources",
+        "//cmd/validators",
+        "//internal/analytics",
+        "//internal/dev_server",
+        "//internal/dev_server/model",
+        "//internal/output",
+        "//internal/resources",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldcontext",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_spf13_viper//:viper",
+    ],
+)

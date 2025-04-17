@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "errors",
+    srcs = ["errors.go"],
+    importpath = "github.com/launchdarkly/ldcli/internal/errors",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//cmd/cliflags",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "errors_test",
+    srcs = ["errors_test.go"],
+    deps = [
+        ":errors",
+        "@com_github_launchdarkly_api_client_go_v14//:api-client-go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

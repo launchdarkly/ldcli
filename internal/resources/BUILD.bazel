@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resources",
+    srcs = [
+        "client.go",
+        "mock_client.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/resources",
+    visibility = ["//:__subpackages__"],
+    deps = ["//internal/errors"],
+)
+
+go_test(
+    name = "resources_test",
+    srcs = ["client_test.go"],
+    deps = [
+        ":resources",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "client",
+    srcs = ["client.go"],
+    importpath = "github.com/launchdarkly/ldcli/internal/client",
+    visibility = ["//:__subpackages__"],
+    deps = ["@com_github_launchdarkly_api_client_go_v14//:api-client-go"],
+)

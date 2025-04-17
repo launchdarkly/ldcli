@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "internal",
+    srcs = [
+        "api_util.go",
+        "mocks.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server/adapters/internal",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "@com_github_launchdarkly_api_client_go_v14//:api-client-go",
+        "@com_github_pkg_errors//:errors",
+        "@org_uber_go_mock//gomock",
+    ],
+)
+
+go_test(
+    name = "internal_test",
+    srcs = ["api_util_test.go"],
+    embed = [":internal"],
+    deps = [
+        "@com_github_launchdarkly_api_client_go_v14//:api-client-go",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_mock//gomock",
+    ],
+)

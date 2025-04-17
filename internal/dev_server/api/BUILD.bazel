@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = [
+        "data_mapping.go",
+        "delete_flag_override.go",
+        "delete_project.go",
+        "error_handlers.go",
+        "get_backup.go",
+        "get_environments.go",
+        "get_project.go",
+        "get_projects.go",
+        "patch_project.go",
+        "post_add_project.go",
+        "put_override_flag.go",
+        "restore_backup.go",
+        "server.gen.go",
+        "server.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server/api",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/dev_server/model",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldcontext",
+        "@com_github_launchdarkly_go_sdk_common_v3//ldvalue",
+        "@com_github_oapi_codegen_runtime//:runtime",
+        "@com_github_oapi_codegen_runtime//strictmiddleware/nethttp",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

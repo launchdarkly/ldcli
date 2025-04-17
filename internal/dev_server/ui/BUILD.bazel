@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ui",
+    srcs = ["asset_handler.go"],
+    embedsrcs = ["dist/index.html"],
+    importpath = "github.com/launchdarkly/ldcli/internal/dev_server/ui",
+    visibility = ["//:__subpackages__"],
+)

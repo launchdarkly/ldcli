@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flags",
+    srcs = [
+        "client.go",
+        "flags.go",
+        "mock_client.go",
+    ],
+    importpath = "github.com/launchdarkly/ldcli/internal/flags",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/client",
+        "//internal/errors",
+        "@com_github_launchdarkly_api_client_go_v14//:api-client-go",
+        "@com_github_stretchr_testify//mock",
+    ],
+)
+
+go_test(
+    name = "flags_test",
+    srcs = ["flags_test.go"],
+    deps = [
+        ":flags",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
