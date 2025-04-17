@@ -3,3 +3,8 @@ dist/
 *.log
 node_modules/
 devserver.db
+/.ijwb/
+/bazel-bin/
+/bazel-ldcli/
+/bazel-out/
+/bazel-testlogs/
