@@ -32,6 +32,10 @@ go_test(
         "resource_cmds_test.go",
         "resources_test.go",
     ],
+    data = [
+        "test_data/expected_template_data.json",
+        "test_data/test-openapi.json"
+    ],
     deps = [
         ":resources",
         "//cmd",
