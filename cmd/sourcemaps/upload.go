@@ -2,9 +2,15 @@ package sourcemaps
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"io/fs"
+	"net/http"
 	"os"
-	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -25,8 +31,35 @@ const (
 	defaultPath       = "."
 	defaultBackendUrl = "https://app.launchdarkly.com"
 
-	npmPackage = "@highlight-run/sourcemap-uploader"
+	verifyApiKeyQuery = `
+	  query ApiKeyToOrgID($api_key: String!) {
+	    api_key_to_org_id(api_key: $api_key)
+	  }
+	`
+
+	getSourceMapUrlsQuery = `
+	  query GetSourceMapUploadUrls($api_key: String!, $paths: [String!]!) {
+	    get_source_map_upload_urls(api_key: $api_key, paths: $paths)
+	  }
+	`
 )
+
+type ApiKeyResponse struct {
+	Data struct {
+		ApiKeyToOrgID string `json:"api_key_to_org_id"`
+	} `json:"data"`
+}
+
+type SourceMapUrlsResponse struct {
+	Data struct {
+		GetSourceMapUploadUrls []string `json:"get_source_map_upload_urls"`
+	} `json:"data"`
+}
+
+type SourceMapFile struct {
+	Path string
+	Name string
+}
 
 func NewUploadCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
@@ -88,45 +121,46 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		backendUrl := viper.GetString(backendUrlFlag)
 
 		if apiKey == "" {
-			return fmt.Errorf("api key cannot be empty")
+			apiKey = os.Getenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY")
+			if apiKey == "" {
+				return fmt.Errorf("api key cannot be empty")
+			}
 		}
 
-		if err := checkNodeInstalled(); err != nil {
-			return fmt.Errorf("Node.js is required to upload sourcemaps: %v", err)
+		if backendUrl == "" {
+			backendUrl = defaultBackendUrl
 		}
 
-		npxArgs := []string{npmPackage, "upload", "--apiKey", apiKey}
-
-		if appVersion != "" {
-			npxArgs = append(npxArgs, "--appVersion", appVersion)
-		}
-
-		if path != defaultPath {
-			npxArgs = append(npxArgs, "--path", path)
-		}
-
-		if basePath != "" {
-			npxArgs = append(npxArgs, "--basePath", basePath)
-		}
-
-		if backendUrl != defaultBackendUrl {
-			npxArgs = append(npxArgs, "--backendUrl", backendUrl)
-		}
-
-		fmt.Printf("Starting to upload source maps from %s using %s\n", path, npmPackage)
-
-		execCmd := exec.Command("npx", npxArgs...)
-		var stdout, stderr bytes.Buffer
-		execCmd.Stdout = &stdout
-		execCmd.Stderr = &stderr
-		execCmd.Env = os.Environ()
-
-		err := execCmd.Run()
-		fmt.Print(stdout.String())
-
+		organizationID, err := verifyApiKey(apiKey, backendUrl)
 		if err != nil {
-			fmt.Print(stderr.String())
-			return fmt.Errorf("failed to upload sourcemaps: %v", err)
+			return fmt.Errorf("failed to verify API key: %v", err)
+		}
+
+		fmt.Printf("Starting to upload source maps from %s\n", path)
+
+		files, err := getAllSourceMapFiles(path)
+		if err != nil {
+			return fmt.Errorf("failed to find sourcemap files: %v", err)
+		}
+
+		if len(files) == 0 {
+			return fmt.Errorf("no source maps found in %s, is this the correct path?", path)
+		}
+
+		s3Keys := make([]string, 0, len(files))
+		for _, file := range files {
+			s3Keys = append(s3Keys, getS3Key(organizationID, appVersion, basePath, file.Name))
+		}
+
+		uploadUrls, err := getSourceMapUploadUrls(apiKey, s3Keys, backendUrl)
+		if err != nil {
+			return fmt.Errorf("failed to get upload URLs: %v", err)
+		}
+
+		for i, file := range files {
+			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
+				return fmt.Errorf("failed to upload file %s: %v", file.Path, err)
+			}
 		}
 
 		fmt.Println("Successfully uploaded all sourcemaps")
@@ -134,16 +168,190 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 	}
 }
 
-func checkNodeInstalled() error {
-	_, err := exec.LookPath("node")
-	if err != nil {
-		return fmt.Errorf("Node.js is not installed or not in PATH: %v", err)
+func verifyApiKey(apiKey, backendUrl string) (string, error) {
+	variables := map[string]string{
+		"api_key": apiKey,
 	}
 
-	_, err = exec.LookPath("npx")
+	reqBody, err := json.Marshal(map[string]interface{}{
+		"query":     verifyApiKeyQuery,
+		"variables": variables,
+	})
 	if err != nil {
-		return fmt.Errorf("npx is not installed or not in PATH: %v", err)
+		return "", err
 	}
 
+	req, err := http.NewRequest("POST", backendUrl, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("ApiKey", apiKey)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var apiKeyResp ApiKeyResponse
+	if err := json.Unmarshal(body, &apiKeyResp); err != nil {
+		return "", err
+	}
+
+	if apiKeyResp.Data.ApiKeyToOrgID == "" || apiKeyResp.Data.ApiKeyToOrgID == "0" {
+		return "", fmt.Errorf("invalid API key")
+	}
+
+	return apiKeyResp.Data.ApiKeyToOrgID, nil
+}
+
+func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
+	var files []SourceMapFile
+	routeGroupPattern := regexp.MustCompile(`\(.+?\)/`)
+
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if !fileInfo.IsDir() {
+		files = append(files, SourceMapFile{
+			Path: path,
+			Name: filepath.Base(path),
+		})
+		return files, nil
+	}
+
+	err = filepath.WalkDir(path, func(filePath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() && d.Name() == "node_modules" {
+			return filepath.SkipDir
+		}
+
+		if !d.IsDir() && (strings.HasSuffix(filePath, ".js.map") || strings.HasSuffix(filePath, ".js")) {
+			relPath, err := filepath.Rel(path, filePath)
+			if err != nil {
+				return err
+			}
+
+			files = append(files, SourceMapFile{
+				Path: filePath,
+				Name: relPath,
+			})
+
+			routeGroupRemovedPath := routeGroupPattern.ReplaceAllString(relPath, "")
+			if routeGroupRemovedPath != relPath {
+				files = append(files, SourceMapFile{
+					Path: filePath,
+					Name: routeGroupRemovedPath,
+				})
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no .js.map files found. Please double check that you have generated sourcemaps for your app")
+	}
+
+	return files, nil
+}
+
+func getS3Key(organizationID, version, basePath, fileName string) string {
+	if version == "" {
+		version = "unversioned"
+	}
+	
+	if basePath != "" && !strings.HasSuffix(basePath, "/") {
+		basePath = basePath + "/"
+	}
+	
+	return fmt.Sprintf("%s/%s/%s%s", organizationID, version, basePath, fileName)
+}
+
+func getSourceMapUploadUrls(apiKey string, paths []string, backendUrl string) ([]string, error) {
+	variables := map[string]interface{}{
+		"api_key": apiKey,
+		"paths":   paths,
+	}
+
+	reqBody, err := json.Marshal(map[string]interface{}{
+		"query":     getSourceMapUrlsQuery,
+		"variables": variables,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", backendUrl, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var urlsResp SourceMapUrlsResponse
+	if err := json.Unmarshal(body, &urlsResp); err != nil {
+		return nil, err
+	}
+
+	if len(urlsResp.Data.GetSourceMapUploadUrls) == 0 {
+		return nil, fmt.Errorf("unable to generate source map upload urls")
+	}
+
+	return urlsResp.Data.GetSourceMapUploadUrls, nil
+}
+
+func uploadFile(filePath, uploadUrl, name string) error {
+	fileContent, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PUT", uploadUrl, bytes.NewBuffer(fileContent))
+	if err != nil {
+		return err
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("upload failed with status code: %d", resp.StatusCode)
+	}
+
+	fmt.Printf("[LaunchDarkly] Uploaded %s to %s\n", filePath, name)
 	return nil
 }
