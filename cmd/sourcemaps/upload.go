@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -96,33 +95,33 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("Node.js is required to upload sourcemaps: %v", err)
 		}
 
-		args := []string{npmPackage, "upload", "--apiKey", apiKey}
+		npxArgs := []string{npmPackage, "upload", "--apiKey", apiKey}
 
 		if appVersion != "" {
-			args = append(args, "--appVersion", appVersion)
+			npxArgs = append(npxArgs, "--appVersion", appVersion)
 		}
 
 		if path != defaultPath {
-			args = append(args, "--path", path)
+			npxArgs = append(npxArgs, "--path", path)
 		}
 
 		if basePath != "" {
-			args = append(args, "--basePath", basePath)
+			npxArgs = append(npxArgs, "--basePath", basePath)
 		}
 
 		if backendUrl != defaultBackendUrl {
-			args = append(args, "--backendUrl", backendUrl)
+			npxArgs = append(npxArgs, "--backendUrl", backendUrl)
 		}
 
 		fmt.Printf("Starting to upload source maps from %s using %s\n", path, npmPackage)
 
-		cmd := exec.Command("npx", args...)
+		execCmd := exec.Command("npx", npxArgs...)
 		var stdout, stderr bytes.Buffer
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-		cmd.Env = os.Environ()
+		execCmd.Stdout = &stdout
+		execCmd.Stderr = &stderr
+		execCmd.Env = os.Environ()
 
-		err := cmd.Run()
+		err := execCmd.Run()
 		fmt.Print(stdout.String())
 
 		if err != nil {
