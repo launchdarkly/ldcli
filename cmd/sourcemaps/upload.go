@@ -2,13 +2,9 @@ package sourcemaps
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"mime/multipart"
-	"net/http"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -30,17 +26,7 @@ const (
 	defaultPath       = "."
 	defaultBackendUrl = "https://app.launchdarkly.com"
 
-	verifyApiKeyQuery = `
-	  query ApiKeyToOrgID($api_key: String!) {
-	    api_key_to_org_id(api_key: $api_key)
-	  }
-	`
-
-	getSourceMapUrlsQuery = `
-	  query GetSourceMapUploadUrls($api_key: String!, $paths: [String!]!) {
-	    get_source_map_upload_urls(api_key: $api_key, paths: $paths)
-	  }
-	`
+	npmPackage = "@highlight-run/sourcemap-uploader"
 )
 
 func NewUploadCmd(client resources.Client) *cobra.Command {
@@ -106,37 +92,42 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("api key cannot be empty")
 		}
 
-		organizationId, err := verifyApiKey(apiKey, backendUrl)
+		if err := checkNodeInstalled(); err != nil {
+			return fmt.Errorf("Node.js is required to upload sourcemaps: %v", err)
+		}
+
+		args := []string{npmPackage, "upload", "--apiKey", apiKey}
+
+		if appVersion != "" {
+			args = append(args, "--appVersion", appVersion)
+		}
+
+		if path != defaultPath {
+			args = append(args, "--path", path)
+		}
+
+		if basePath != "" {
+			args = append(args, "--basePath", basePath)
+		}
+
+		if backendUrl != defaultBackendUrl {
+			args = append(args, "--backendUrl", backendUrl)
+		}
+
+		fmt.Printf("Starting to upload source maps from %s using %s\n", path, npmPackage)
+
+		cmd := exec.Command("npx", args...)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		cmd.Env = os.Environ()
+
+		err := cmd.Run()
+		fmt.Print(stdout.String())
+
 		if err != nil {
-			return err
-		}
-
-		fmt.Printf("Starting to upload source maps from %s\n", path)
-
-		fileList, err := getAllSourceMapFiles(path)
-		if err != nil {
-			return err
-		}
-
-		if len(fileList) == 0 {
-			return fmt.Errorf("no source maps found in %s, is this the correct path?", path)
-		}
-
-		s3Keys := make([]string, len(fileList))
-		for i, file := range fileList {
-			s3Keys[i] = getS3Key(organizationId, appVersion, basePath, file.Name)
-		}
-
-		uploadUrls, err := getSourceMapUploadUrls(apiKey, s3Keys, backendUrl)
-		if err != nil {
-			return err
-		}
-
-		for i, file := range fileList {
-			err = uploadFile(file.Path, uploadUrls[i], file.Name)
-			if err != nil {
-				return err
-			}
+			fmt.Print(stderr.String())
+			return fmt.Errorf("failed to upload sourcemaps: %v", err)
 		}
 
 		fmt.Println("Successfully uploaded all sourcemaps")
@@ -144,223 +135,16 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 	}
 }
 
-func verifyApiKey(apiKey, backendUrl string) (string, error) {
-	variables := map[string]interface{}{
-		"api_key": apiKey,
-	}
-
-	body, err := json.Marshal(map[string]interface{}{
-		"query":     verifyApiKeyQuery,
-		"variables": variables,
-	})
+func checkNodeInstalled() error {
+	_, err := exec.LookPath("node")
 	if err != nil {
-		return "", err
+		return fmt.Errorf("Node.js is not installed or not in PATH: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", backendUrl, bytes.NewBuffer(body))
+	_, err = exec.LookPath("npx")
 	if err != nil {
-		return "", err
+		return fmt.Errorf("npx is not installed or not in PATH: %v", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("ApiKey", apiKey)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var result struct {
-		Data struct {
-			ApiKeyToOrgID string `json:"api_key_to_org_id"`
-		} `json:"data"`
-	}
-
-	err = json.Unmarshal(respBody, &result)
-	if err != nil {
-		return "", err
-	}
-
-	if result.Data.ApiKeyToOrgID == "" || result.Data.ApiKeyToOrgID == "0" {
-		return "", fmt.Errorf("invalid api key")
-	}
-
-	return result.Data.ApiKeyToOrgID, nil
-}
-
-func getSourceMapUploadUrls(apiKey string, paths []string, backendUrl string) ([]string, error) {
-	variables := map[string]interface{}{
-		"api_key": apiKey,
-		"paths":   paths,
-	}
-
-	body, err := json.Marshal(map[string]interface{}{
-		"query":     getSourceMapUrlsQuery,
-		"variables": variables,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", backendUrl, bytes.NewBuffer(body))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var result struct {
-		Data struct {
-			GetSourceMapUploadUrls []string `json:"get_source_map_upload_urls"`
-		} `json:"data"`
-	}
-
-	err = json.Unmarshal(respBody, &result)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(result.Data.GetSourceMapUploadUrls) == 0 {
-		return nil, fmt.Errorf("unable to generate source map upload urls")
-	}
-
-	return result.Data.GetSourceMapUploadUrls, nil
-}
-
-type SourceMapFile struct {
-	Path string
-	Name string
-}
-
-func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
-	var fileList []SourceMapFile
-
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-
-	fileInfo, err := os.Stat(absPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if fileInfo.IsDir() {
-		err = filepath.Walk(absPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if info.IsDir() {
-				if info.Name() == "node_modules" {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-
-			if strings.HasSuffix(info.Name(), ".js.map") {
-				relPath, err := filepath.Rel(absPath, path)
-				if err != nil {
-					return err
-				}
-
-				fileList = append(fileList, SourceMapFile{
-					Path: path,
-					Name: relPath,
-				})
-			}
-
-			return nil
-		})
-
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		if strings.HasSuffix(fileInfo.Name(), ".js.map") {
-			fileList = append(fileList, SourceMapFile{
-				Path: absPath,
-				Name: fileInfo.Name(),
-			})
-		}
-	}
-
-	return fileList, nil
-}
-
-func getS3Key(organizationId, version, basePath, fileName string) string {
-	if version == "" {
-		version = "unversioned"
-	}
-
-	if basePath != "" && !strings.HasSuffix(basePath, "/") {
-		basePath = basePath + "/"
-	}
-
-	return fmt.Sprintf("%s/%s/%s%s", organizationId, version, basePath, fileName)
-}
-
-func uploadFile(filePath, uploadUrl, name string) error {
-	fileContent, err := os.ReadFile(filePath)
-	if err != nil {
-		return err
-	}
-
-	var requestBody bytes.Buffer
-	writer := multipart.NewWriter(&requestBody)
-
-	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
-	if err != nil {
-		return err
-	}
-
-	_, err = part.Write(fileContent)
-	if err != nil {
-		return err
-	}
-
-	err = writer.Close()
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("PUT", uploadUrl, bytes.NewReader(fileContent))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/octet-stream")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("failed to upload %s: %s", name, resp.Status)
-	}
-
-	fmt.Printf("Uploaded %s\n", name)
 	return nil
 }
