@@ -82,10 +82,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		backendUrl := viper.GetString(backendUrlFlag)
 
 		if apiKey == "" {
-			apiKey = os.Getenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY")
-			if apiKey == "" {
-				return fmt.Errorf("api key cannot be empty")
-			}
+			return fmt.Errorf("api key cannot be empty")
 		}
 
 		if backendUrl == "" {
