@@ -2,6 +2,7 @@ package sourcemaps
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -113,7 +114,7 @@ func TestUploadFile(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPut, r.Method)
 
-		body, err := os.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		assert.Equal(t, "test content", string(body))
 
@@ -154,8 +155,6 @@ func TestNewUploadCmd(t *testing.T) {
 
 func TestRunE(t *testing.T) {
 	client := resources.NewClient("")
-	cmd := &cobra.Command{}
-	args := []string{}
 
 	tempDir, err := os.MkdirTemp("", "sourcemap-test")
 	assert.NoError(t, err)
