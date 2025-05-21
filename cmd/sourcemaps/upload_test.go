@@ -152,8 +152,88 @@ func TestNewUploadCmd(t *testing.T) {
 	assert.Equal(t, []string{"true"}, requiredFlags)
 }
 
+func TestGetAllSourceMapFiles(t *testing.T) {
+	singleFile := "/tmp/sourcemap-test-files/test.js.map"
+	files, err := getAllSourceMapFiles(singleFile)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(files))
+	assert.Equal(t, "test.js.map", files[0].Name)
+	assert.Equal(t, singleFile, files[0].Path)
+
+	dirPath := "/tmp/sourcemap-test-files"
+	files, err = getAllSourceMapFiles(dirPath)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(files), 3) // At least 3 files (test.js.map, test.js, route.js.map)
+	
+	for _, file := range files {
+		assert.NotContains(t, file.Path, "node_modules")
+	}
+
+	var foundRouteGroup bool
+	var foundRouteGroupRemoved bool
+	for _, file := range files {
+		if file.Path == "/tmp/sourcemap-test-files/routes/(group)/nested/route.js.map" {
+			foundRouteGroup = true
+		}
+		if file.Name == "routes/nested/route.js.map" {
+			foundRouteGroupRemoved = true
+		}
+	}
+	assert.True(t, foundRouteGroup, "Should find the route group file")
+	assert.True(t, foundRouteGroupRemoved, "Should find the route group file with group removed")
+
+	_, err = getAllSourceMapFiles("/non-existent-path")
+	assert.Error(t, err)
+
+	emptyDir, err := os.MkdirTemp("", "empty-dir")
+	assert.NoError(t, err)
+	defer os.RemoveAll(emptyDir)
+	_, err = getAllSourceMapFiles(emptyDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no .js.map files found")
+}
+
+func TestVerifyApiKeyErrors(t *testing.T) {
+	_, err := verifyApiKey("test-key", "://invalid-url")
+	assert.Error(t, err)
+
+	_, err = verifyApiKey("test-key", "http://non-existent-host.invalid")
+	assert.Error(t, err)
+
+	invalidJSONServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":invalid-json`))
+	}))
+	defer invalidJSONServer.Close()
+
+	_, err = verifyApiKey("test-key", invalidJSONServer.URL)
+	assert.Error(t, err)
+}
+
+func TestGetSourceMapUploadUrlsErrors(t *testing.T) {
+	_, err := getSourceMapUploadUrls("test-key", []string{"path"}, "://invalid-url")
+	assert.Error(t, err)
+
+	_, err = getSourceMapUploadUrls("test-key", []string{"path"}, "http://non-existent-host.invalid")
+	assert.Error(t, err)
+
+	invalidJSONServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":invalid-json`))
+	}))
+	defer invalidJSONServer.Close()
+
+	_, err = getSourceMapUploadUrls("test-key", []string{"path"}, invalidJSONServer.URL)
+	assert.Error(t, err)
+}
+
 func TestRunE(t *testing.T) {
 	client := resources.NewClient("")
+
+	cmd := NewUploadCmd(client)
+	args := []string{}
 
 	tempDir, err := os.MkdirTemp("", "sourcemap-test")
 	assert.NoError(t, err)
@@ -185,5 +265,16 @@ func TestRunE(t *testing.T) {
 	defer uploadServer.Close()
 
 	runFunc := runE(client)
-	assert.NotNil(t, runFunc)
+	err = runFunc(cmd, args)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "api key cannot be empty")
+
+	os.Setenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY", "test-api-key")
+	defer os.Unsetenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY")
+	
+	cmd.Flags().Set(pathFlag, testMapFile)
+	cmd.Flags().Set(backendUrlFlag, verifyServer.URL)
+	
+	err = runFunc(cmd, args)
+	assert.Error(t, err)
 }
