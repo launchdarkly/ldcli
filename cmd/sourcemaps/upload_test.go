@@ -171,8 +171,9 @@ func TestGetAllSourceMapFiles(t *testing.T) {
 	assert.Equal(t, singleFile, files[0].Path)
 
 	dirPath := tempDir
-	files, err = getAllSourceMapFiles(dirPath)
-	assert.NoError(t, err)
+	var dirErr error
+	files, dirErr = getAllSourceMapFiles(dirPath)
+	assert.NoError(t, dirErr)
 	assert.GreaterOrEqual(t, len(files), 3) // At least 3 files (test.js.map, test.js, route.js.map)
 
 	for _, file := range files {
@@ -281,10 +282,11 @@ func TestRunE(t *testing.T) {
 
 	os.Setenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY", "test-api-key")
 	defer os.Unsetenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY")
-
-	cmd.Flags().Set(pathFlag, testMapFile)
-	cmd.Flags().Set(backendUrlFlag, verifyServer.URL)
-
+	err = cmd.Flags().Set(pathFlag, testMapFile)
+	assert.NoError(t, err)
+	err = cmd.Flags().Set(backendUrlFlag, verifyServer.URL)
+	assert.NoError(t, err)
+	
 	err = runFunc(cmd, args)
 	assert.Error(t, err)
 }

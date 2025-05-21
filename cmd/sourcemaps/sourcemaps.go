@@ -12,7 +12,7 @@ func NewSourcemapsCmd() *cobra.Command {
 		Short: "Manage sourcemaps",
 		Long:  "Manage sourcemaps for LaunchDarkly error monitoring",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
+			_ = cmd.Help()
 		},
 	}
 
