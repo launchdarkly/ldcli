@@ -2,6 +2,7 @@ package sourcemaps
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -153,18 +154,27 @@ func TestNewUploadCmd(t *testing.T) {
 }
 
 func TestGetAllSourceMapFiles(t *testing.T) {
-	singleFile := "/tmp/sourcemap-test-files/test.js.map"
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "sourcemap-test")
+	defer os.RemoveAll(tempDir)
+
+	// create some dummy .js.map files
+	for i := 0; i < 3; i++ {
+		err = os.WriteFile(filepath.Join(tempDir, fmt.Sprintf("test%d.js.map", i)), []byte("test content"), 0644)
+	}
+
+	singleFile := fmt.Sprintf("%s/test0.js.map", tempDir)
 	files, err := getAllSourceMapFiles(singleFile)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(files))
-	assert.Equal(t, "test.js.map", files[0].Name)
+	assert.Equal(t, "test0.js.map", files[0].Name)
 	assert.Equal(t, singleFile, files[0].Path)
 
-	dirPath := "/tmp/sourcemap-test-files"
+	dirPath := tempDir
 	files, err = getAllSourceMapFiles(dirPath)
 	assert.NoError(t, err)
 	assert.GreaterOrEqual(t, len(files), 3) // At least 3 files (test.js.map, test.js, route.js.map)
-	
+
 	for _, file := range files {
 		assert.NotContains(t, file.Path, "node_modules")
 	}
@@ -172,10 +182,10 @@ func TestGetAllSourceMapFiles(t *testing.T) {
 	var foundRouteGroup bool
 	var foundRouteGroupRemoved bool
 	for _, file := range files {
-		if file.Path == "/tmp/sourcemap-test-files/routes/(group)/nested/route.js.map" {
+		if file.Path == fmt.Sprintf("%s/test0.js.map", tempDir) {
 			foundRouteGroup = true
 		}
-		if file.Name == "routes/nested/route.js.map" {
+		if file.Name == "test0.js.map" {
 			foundRouteGroupRemoved = true
 		}
 	}
@@ -239,7 +249,7 @@ func TestRunE(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	testMapFile := filepath.Join(tempDir, "test.js.map")
+	testMapFile := filepath.Join(tempDir, "test0.js.map")
 	err = os.WriteFile(testMapFile, []byte("{}"), 0644)
 	assert.NoError(t, err)
 
@@ -271,10 +281,10 @@ func TestRunE(t *testing.T) {
 
 	os.Setenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY", "test-api-key")
 	defer os.Unsetenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY")
-	
+
 	cmd.Flags().Set(pathFlag, testMapFile)
 	cmd.Flags().Set(backendUrlFlag, verifyServer.URL)
-	
+
 	err = runFunc(cmd, args)
 	assert.Error(t, err)
 }
