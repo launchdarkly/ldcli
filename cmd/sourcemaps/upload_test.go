@@ -156,11 +156,13 @@ func TestNewUploadCmd(t *testing.T) {
 func TestGetAllSourceMapFiles(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "sourcemap-test")
+	assert.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
 	// create some dummy .js.map files
 	for i := 0; i < 3; i++ {
 		err = os.WriteFile(filepath.Join(tempDir, fmt.Sprintf("test%d.js.map", i)), []byte("test content"), 0644)
+		assert.NoError(t, err)
 	}
 
 	singleFile := fmt.Sprintf("%s/test0.js.map", tempDir)
