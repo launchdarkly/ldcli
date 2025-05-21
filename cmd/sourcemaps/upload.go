@@ -15,9 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
-	"github.com/launchdarkly/ldcli/cmd/cliflags"
-	"github.com/launchdarkly/ldcli/internal/analytics"
+	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
@@ -29,7 +27,7 @@ const (
 	backendUrlFlag = "backend-url"
 
 	defaultPath       = "."
-	defaultBackendUrl = "https://app.launchdarkly.com"
+	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
 
 	verifyApiKeyQuery = `
 	  query ApiKeyToOrgID($api_key: String!) {
@@ -69,51 +67,14 @@ func NewUploadCmd(client resources.Client) *cobra.Command {
 		RunE:  runE(client),
 	}
 
-	cmd.Flags().String(apiKeyFlag, "", "The LaunchDarkly API key")
-	_ = cmd.MarkFlagRequired(apiKeyFlag)
-	_ = cmd.Flags().SetAnnotation(apiKeyFlag, "required", []string{"true"})
-	_ = viper.BindPFlag(apiKeyFlag, cmd.Flags().Lookup(apiKeyFlag))
-
-	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
-	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
-
-	cmd.Flags().String(pathFlag, defaultPath, "Sets the directory of where the sourcemaps are")
-	_ = viper.BindPFlag(pathFlag, cmd.Flags().Lookup(pathFlag))
-
-	cmd.Flags().String(basePathFlag, "", "An optional base path for the uploaded sourcemaps")
-	_ = viper.BindPFlag(basePathFlag, cmd.Flags().Lookup(basePathFlag))
-
-	cmd.Flags().String(backendUrlFlag, defaultBackendUrl, "An optional backend url for self-hosted deployments")
-	_ = viper.BindPFlag(backendUrlFlag, cmd.Flags().Lookup(backendUrlFlag))
+	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
+	initFlags(cmd)
 
 	return cmd
 }
 
 func runE(client resources.Client) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		var tracker analytics.Tracker = &analytics.NoopClient{}
-		if analyticsTrackerFn, ok := cmd.Root().Annotations["analytics_tracker_fn"]; ok {
-			trackerFn := analytics.NoopClientFn{}.Tracker()
-			if analyticsTrackerFn == "client" {
-				trackerFn = analytics.ClientFn{
-					ID:      "ldcli",
-					Version: "dev",
-				}.Tracker
-			}
-			tracker = trackerFn(
-				viper.GetString(cliflags.AccessTokenFlag),
-				viper.GetString(cliflags.BaseURIFlag),
-				viper.GetBool(cliflags.AnalyticsOptOut),
-			)
-		}
-
-		tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(
-			cmd,
-			"sourcemaps",
-			map[string]interface{}{
-				"action": "upload",
-			}))
-
 		apiKey := viper.GetString(apiKeyFlag)
 		appVersion := viper.GetString(appVersionFlag)
 		path := viper.GetString(pathFlag)
@@ -277,11 +238,11 @@ func getS3Key(organizationID, version, basePath, fileName string) string {
 	if version == "" {
 		version = "unversioned"
 	}
-	
+
 	if basePath != "" && !strings.HasSuffix(basePath, "/") {
 		basePath = basePath + "/"
 	}
-	
+
 	return fmt.Sprintf("%s/%s/%s%s", organizationID, version, basePath, fileName)
 }
 
@@ -354,4 +315,23 @@ func uploadFile(filePath, uploadUrl, name string) error {
 
 	fmt.Printf("[LaunchDarkly] Uploaded %s to %s\n", filePath, name)
 	return nil
+}
+
+func initFlags(cmd *cobra.Command) {
+	cmd.Flags().String(apiKeyFlag, "", "The LaunchDarkly Observability API key")
+	_ = cmd.MarkFlagRequired(apiKeyFlag)
+	_ = cmd.Flags().SetAnnotation(apiKeyFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(apiKeyFlag, cmd.Flags().Lookup(apiKeyFlag))
+
+	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
+	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
+
+	cmd.Flags().String(pathFlag, defaultPath, "Sets the directory of where the sourcemaps are")
+	_ = viper.BindPFlag(pathFlag, cmd.Flags().Lookup(pathFlag))
+
+	cmd.Flags().String(basePathFlag, "", "An optional base path for the uploaded sourcemaps")
+	_ = viper.BindPFlag(basePathFlag, cmd.Flags().Lookup(basePathFlag))
+
+	cmd.Flags().String(backendUrlFlag, defaultBackendUrl, "An optional backend url for self-hosted deployments")
+	_ = viper.BindPFlag(backendUrlFlag, cmd.Flags().Lookup(backendUrlFlag))
 }
