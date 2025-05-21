@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/launchdarkly/ldcli/internal/resources"
@@ -141,7 +140,7 @@ func TestNewUploadCmd(t *testing.T) {
 
 	assert.Equal(t, "upload", cmd.Use)
 	assert.Equal(t, "Upload sourcemaps", cmd.Short)
-	assert.Contains(t, cmd.Long, "LaunchDarkly error monitoring")
+	assert.Contains(t, cmd.Long, "LaunchDarkly for error monitoring")
 
 	assert.NotNil(t, cmd.Flags().Lookup(apiKeyFlag))
 	assert.NotNil(t, cmd.Flags().Lookup(appVersionFlag))
