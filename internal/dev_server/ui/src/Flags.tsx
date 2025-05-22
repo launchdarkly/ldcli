@@ -141,6 +141,27 @@ function Flags({
     [overrides, selectedProject],
   );
 
+  const removeAllOverrides = useCallback(async () => {
+    setOverrides({});
+    try {
+      const res = await fetch(
+        apiRoute(`/dev/projects/${selectedProject}/overrides`),
+        {
+          method: 'DELETE',
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error(
+          `got ${res.status} ${res.statusText}. ${await res.text()}`,
+        );
+      }
+    } catch (err) {
+      console.error('unable to remove all overrides', err);
+      setOverrides(overrides);
+    }
+  }, [overrides, selectedProject]);
+
   if (!flags) {
     return null;
   }
@@ -207,13 +228,7 @@ function Flags({
               return;
             }
 
-            const overrideKeys = Object.keys(overrides);
-
-            await Promise.all(
-              overrideKeys.map((flagKey) => {
-                return removeOverride(flagKey);
-              }),
-            );
+            await removeAllOverrides();
 
             setOverrides({});
             setOnlyShowOverrides(false);

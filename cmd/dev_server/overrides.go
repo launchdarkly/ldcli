@@ -73,6 +73,44 @@ func addOverride(client resources.Client) func(*cobra.Command, []string) error {
 	}
 }
 
+func NewDeleteOverridesCmd(client resources.Client) *cobra.Command {
+	cmd := &cobra.Command{
+		GroupID: "overrides",
+		Args:    validators.Validate(),
+		Long:    "remove all overrides for a project",
+		RunE:    deleteOverrides(client),
+		Short:   "remove all overrides for a project",
+		Use:     "remove-overrides",
+	}
+
+	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
+
+	cmd.Flags().String(cliflags.ProjectFlag, "", "The project key")
+	_ = cmd.MarkFlagRequired(cliflags.ProjectFlag)
+	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
+
+	return cmd
+}
+
+func deleteOverrides(client resources.Client) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		path := fmt.Sprintf("%s/dev/projects/%s/overrides", getDevServerUrl(), viper.GetString(cliflags.ProjectFlag))
+		res, err := client.MakeUnauthenticatedRequest(
+			"DELETE",
+			path,
+			nil,
+		)
+		if err != nil {
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+
+		fmt.Fprint(cmd.OutOrStdout(), string(res))
+
+		return nil
+	}
+}
+
 func NewRemoveOverrideCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "overrides",

@@ -144,6 +144,31 @@ func TestDeleteOverride(t *testing.T) {
 	})
 }
 
+func TestDeleteOverrides(t *testing.T) {
+	mockController := gomock.NewController(t)
+	defer mockController.Finish()
+
+	store := mocks.NewMockStore(mockController)
+	ctx := context.Background()
+	projKey := "proj"
+
+	ctx = model.ContextWithStore(ctx, store)
+
+	t.Run("Returns error if store errors on delete", func(t *testing.T) {
+		store.EXPECT().DeleteOverridesForProject(gomock.Any(), projKey).Return(errors.New("store error on delete overrides"))
+
+		err := model.DeleteOverrides(ctx, projKey)
+		assert.Error(t, err)
+	})
+
+	t.Run("Successfully deletes overrides", func(t *testing.T) {
+		store.EXPECT().DeleteOverridesForProject(gomock.Any(), projKey).Return(nil)
+
+		err := model.DeleteOverrides(ctx, projKey)
+		assert.Nil(t, err)
+	})
+}
+
 func TestOverrideApply(t *testing.T) {
 	projKey := "proj"
 	flagKey := "flg"

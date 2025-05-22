@@ -62,6 +62,7 @@ func NewDevServerCmd(client resources.Client, analyticsTrackerFn analytics.Track
 	cmd.AddGroup(&cobra.Group{ID: "overrides", Title: "Override commands:"})
 	cmd.AddCommand(NewAddOverrideCmd(client))
 	cmd.AddCommand(NewRemoveOverrideCmd(client))
+	cmd.AddCommand(NewDeleteOverridesCmd(client))
 	cmd.AddGroup(&cobra.Group{ID: "server", Title: "Server commands:"})
 
 	cmd.AddCommand(NewStartServerCmd(ldClient))

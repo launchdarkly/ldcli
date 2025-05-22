@@ -91,6 +91,16 @@ func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
 	return err
 }
 
+func DeleteOverrides(ctx context.Context, projectKey string) error {
+	store := StoreFromContext(ctx)
+	err := store.DeleteOverridesForProject(ctx, projectKey)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (o Override) Apply(state FlagState) FlagState {
 	flagVersion := state.Version + o.Version
 	flagValue := state.Value

@@ -205,3 +205,17 @@ func (mr *MockStoreMockRecorder) UpsertOverride(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOverride", reflect.TypeOf((*MockStore)(nil).UpsertOverride), arg0, arg1)
 }
+
+// DeleteOverridesForProject mocks base method.
+func (m *MockStore) DeleteOverridesForProject(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOverridesForProject", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOverridesForProject indicates an expected call of DeleteOverridesForProject.
+func (mr *MockStoreMockRecorder) DeleteOverridesForProject(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOverridesForProject", reflect.TypeOf((*MockStore)(nil).DeleteOverridesForProject), arg0, arg1)
+}
