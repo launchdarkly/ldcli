@@ -123,7 +123,7 @@ paths:
         204:
           description: OK. All overrides were removed
         404:
-          description: No project found          
+          $ref: "#/components/responses/ErrorResponse"        
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
