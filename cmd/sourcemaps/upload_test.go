@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,7 +20,11 @@ type mockResourcesClient struct {
 	responses map[string][]byte
 }
 
-func (m *mockResourcesClient) MakeRequest(accessToken, method, uri, contentType string, body []byte, queryParams map[string]string, followRedirects bool) ([]byte, error) {
+func (m *mockResourcesClient) MakeUnauthenticatedRequest(method, uri string, body []byte) ([]byte, error) {
+	return m.MakeRequest("", method, uri, "application/json", nil, body, false)
+}
+
+func (m *mockResourcesClient) MakeRequest(accessToken, method, uri, contentType string, query url.Values, body []byte, isBeta bool) ([]byte, error) {
 	if response, ok := m.responses[uri]; ok {
 		return response, nil
 	}
