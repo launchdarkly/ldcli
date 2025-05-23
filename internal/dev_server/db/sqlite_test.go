@@ -329,12 +329,4 @@ func TestDBFunctions(t *testing.T) {
 		assert.True(t, found)
 	})
 
-	t.Run("DeleteOverridesForProject deletes overrides", func(t *testing.T) {
-		err := store.DeleteOverridesForProject(ctx, projects[0].Key)
-		assert.NoError(t, err)
-
-		overridesResult, err := store.GetOverridesForProject(ctx, projects[0].Key)
-		assert.NoError(t, err)
-		assert.Len(t, overridesResult, 0)
-	})
 }

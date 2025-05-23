@@ -92,10 +92,18 @@ func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
 }
 
 func DeleteOverrides(ctx context.Context, projectKey string) error {
+
 	store := StoreFromContext(ctx)
-	err := store.DeleteOverridesForProject(ctx, projectKey)
+	overrides, err := store.GetOverridesForProject(ctx, projectKey)
 	if err != nil {
 		return err
+	}
+
+	for _, override := range overrides {
+		err := DeleteOverride(ctx, projectKey, override.FlagKey)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

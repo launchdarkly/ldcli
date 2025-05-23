@@ -27,9 +27,7 @@ type Store interface {
 	InsertProject(ctx context.Context, project Project) error
 	UpsertOverride(ctx context.Context, override Override) (Override, error)
 	GetOverridesForProject(ctx context.Context, projectKey string) (Overrides, error)
-	DeleteOverridesForProject(ctx context.Context, projectKey string) error
 	GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]Variation, error)
-
 	CreateBackup(ctx context.Context) (io.ReadCloser, int64, error)
 	RestoreBackup(ctx context.Context, stream io.Reader) (string, error)
 }

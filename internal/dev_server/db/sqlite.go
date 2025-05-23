@@ -301,17 +301,6 @@ func (s *Sqlite) GetOverridesForProject(ctx context.Context, projectKey string) 
 	return overrides, nil
 }
 
-func (s *Sqlite) DeleteOverridesForProject(ctx context.Context, projectKey string) error {
-	_, err := s.database.ExecContext(ctx, `
-		DELETE FROM overrides
-		WHERE project_key = ?
-	`, projectKey)
-	if err != nil {
-		return errors.Wrap(err, "unable to delete overrides for project")
-	}
-	return nil
-}
-
 func (s *Sqlite) UpsertOverride(ctx context.Context, override model.Override) (model.Override, error) {
 	valueJson, err := override.Value.MarshalJSON()
 	if err != nil {
