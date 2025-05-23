@@ -33,7 +33,10 @@ const (
 
 	verifyApiKeyQuery = `
 	  query LDCredential($ld_account_id: String!, $ld_project_id: String!) {
-	    ld_credential(ld_account_id: $ld_account_id, ld_project_id: $ld_project_id)
+	    ld_credential(ld_account_id: $ld_account_id, ld_project_id: $ld_project_id) {
+	      project_id
+		  api_key
+		}
 	  }
 	`
 
@@ -211,7 +214,6 @@ func verifyApiKey(accountID, projectID, backendUrl string) (string, string, erro
 	if err != nil {
 		return "", "", err
 	}
-	fmt.Println(string(body))
 
 	var apiKeyResp ApiKeyResponse
 	if err := json.Unmarshal(body, &apiKeyResp); err != nil {
