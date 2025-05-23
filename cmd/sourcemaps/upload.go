@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,12 +16,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
+	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 const (
-	apiKeyFlag     = "api-key"
 	appVersionFlag = "app-version"
 	pathFlag       = "path"
 	basePathFlag   = "base-path"
@@ -30,8 +32,8 @@ const (
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
 
 	verifyApiKeyQuery = `
-	  query ApiKeyToOrgID($api_key: String!) {
-	    api_key_to_org_id(api_key: $api_key)
+	  query LDCredentialToAPIKey($ld_account_id: String!, $ld_project_id: String!) {
+	    ld_credential_to_api_key(ld_account_id: String!, ld_project_id: String!): String!
 	  }
 	`
 
@@ -44,8 +46,11 @@ const (
 
 type ApiKeyResponse struct {
 	Data struct {
-		ApiKeyToOrgID string `json:"api_key_to_org_id"`
+		APIKey string `json:"ld_credential_to_api_key"`
 	} `json:"data"`
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
 }
 
 type SourceMapUrlsResponse struct {
@@ -75,21 +80,67 @@ func NewUploadCmd(client resources.Client) *cobra.Command {
 
 func runE(client resources.Client) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		apiKey := viper.GetString(apiKeyFlag)
+		apiKey := viper.GetString(cliflags.AccessTokenFlag)
+		u, _ := url.JoinPath(
+			viper.GetString(cliflags.BaseURIFlag),
+			"api/v2/caller-identity",
+		)
+		res, err := client.MakeRequest(
+			viper.GetString(cliflags.AccessTokenFlag),
+			"GET",
+			u,
+			"application/json",
+			nil,
+			nil,
+			false,
+		)
+		if err != nil {
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+
+		var result struct{ AccountID string }
+		if err = json.Unmarshal(res, &result); err != nil {
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+
+		projectKey := viper.GetString(cliflags.ProjectFlag)
+		u, _ = url.JoinPath(
+			viper.GetString(cliflags.BaseURIFlag),
+			"api/v2/projects",
+			projectKey,
+		)
+		res, err = client.MakeRequest(
+			viper.GetString(cliflags.AccessTokenFlag),
+			"GET",
+			u,
+			"application/json",
+			nil,
+			nil,
+			false,
+		)
+		if err != nil {
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+
+		var projectResult struct {
+			Items []struct {
+				ID string `json:"_id"`
+			}
+		}
+		if err = json.Unmarshal(res, &projectResult); err != nil {
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+
 		appVersion := viper.GetString(appVersionFlag)
 		path := viper.GetString(pathFlag)
 		basePath := viper.GetString(basePathFlag)
 		backendUrl := viper.GetString(backendUrlFlag)
 
-		if apiKey == "" {
-			return fmt.Errorf("api key cannot be empty")
-		}
-
 		if backendUrl == "" {
 			backendUrl = defaultBackendUrl
 		}
 
-		organizationID, err := verifyApiKey(apiKey, backendUrl)
+		organizationID, err := verifyApiKey(result.AccountID, projectResult.Items[0].ID, backendUrl)
 		if err != nil {
 			return fmt.Errorf("failed to verify API key: %v", err)
 		}
@@ -126,9 +177,10 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 	}
 }
 
-func verifyApiKey(apiKey, backendUrl string) (string, error) {
+func verifyApiKey(accountID, projectID, backendUrl string) (string, error) {
 	variables := map[string]string{
-		"api_key": apiKey,
+		"ld_account_id": accountID,
+		"ld_project_id": projectID,
 	}
 
 	reqBody, err := json.Marshal(map[string]interface{}{
@@ -145,7 +197,6 @@ func verifyApiKey(apiKey, backendUrl string) (string, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("ApiKey", apiKey)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -164,11 +215,15 @@ func verifyApiKey(apiKey, backendUrl string) (string, error) {
 		return "", err
 	}
 
-	if apiKeyResp.Data.ApiKeyToOrgID == "" || apiKeyResp.Data.ApiKeyToOrgID == "0" {
+	if len(apiKeyResp.Errors) > 0 {
+		return "", fmt.Errorf("failed to verify API key: %s", apiKeyResp.Errors[0].Message)
+	}
+
+	if apiKeyResp.Data.APIKey == "" {
 		return "", fmt.Errorf("invalid API key")
 	}
 
-	return apiKeyResp.Data.ApiKeyToOrgID, nil
+	return apiKeyResp.Data.APIKey, nil
 }
 
 func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
@@ -315,10 +370,10 @@ func uploadFile(filePath, uploadUrl, name string) error {
 }
 
 func initFlags(cmd *cobra.Command) {
-	cmd.Flags().String(apiKeyFlag, "", "The LaunchDarkly Observability API key")
-	_ = cmd.MarkFlagRequired(apiKeyFlag)
-	_ = cmd.Flags().SetAnnotation(apiKeyFlag, "required", []string{"true"})
-	_ = viper.BindPFlag(apiKeyFlag, cmd.Flags().Lookup(apiKeyFlag))
+	cmd.Flags().String(cliflags.ProjectFlag, "", "The project key")
+	_ = cmd.MarkFlagRequired(cliflags.ProjectFlag)
+	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
 	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
