@@ -28,6 +28,7 @@ type Store interface {
 	UpsertOverride(ctx context.Context, override Override) (Override, error)
 	GetOverridesForProject(ctx context.Context, projectKey string) (Overrides, error)
 	GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]Variation, error)
+
 	CreateBackup(ctx context.Context) (io.ReadCloser, int64, error)
 	RestoreBackup(ctx context.Context, stream io.Reader) (string, error)
 }
