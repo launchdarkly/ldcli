@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.14.0](https://github.com/launchdarkly/ldcli/compare/v1.13.0...v1.14.0) (2025-05-23)
+
+
+### Features
+
+* remove-overrides on dev server ([#534](https://github.com/launchdarkly/ldcli/issues/534)) ([d10502a](https://github.com/launchdarkly/ldcli/commit/d10502a1611302bb227a9c0fec9d2ee30b3b89f8)), closes [#533](https://github.com/launchdarkly/ldcli/issues/533)
+
+
+### Bug Fixes
+
+* [FUN-800] Update action version ([#535](https://github.com/launchdarkly/ldcli/issues/535)) ([6083e8b](https://github.com/launchdarkly/ldcli/commit/6083e8bcf44a4019889927547f89b2abd8730fb3))
+
 ## [1.13.0](https://github.com/launchdarkly/ldcli/compare/v1.12.1...v1.13.0) (2025-04-15)
 
 
