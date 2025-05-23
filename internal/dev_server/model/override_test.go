@@ -152,7 +152,6 @@ func TestDeleteOverrides(t *testing.T) {
 	ctx := context.Background()
 	projKey := "proj"
 	flagKey := "flg"
-	// ldValue := ldvalue.Bool(true)
 
 	project := &model.Project{
 		Key: projKey,
