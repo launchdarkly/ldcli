@@ -32,8 +32,8 @@ const (
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
 
 	verifyApiKeyQuery = `
-	  query LDCredentialToAPIKey($ld_account_id: String!, $ld_project_id: String!) {
-	    ld_credential_to_api_key(ld_account_id: $ld_account_id, ld_project_id: $ld_project_id)
+	  query LDCredential($ld_account_id: String!, $ld_project_id: String!) {
+	    ld_credential(ld_account_id: $ld_account_id, ld_project_id: $ld_project_id)
 	  }
 	`
 
@@ -46,7 +46,10 @@ const (
 
 type ApiKeyResponse struct {
 	Data struct {
-		APIKey string `json:"ld_credential_to_api_key"`
+		Credential struct {
+			ProjectID string `json:"project_id"`
+			APIKey    string `json:"api_key"`
+		} `json:"ld_credential"`
 	} `json:"data"`
 	Errors []struct {
 		Message string `json:"message"`
@@ -80,7 +83,6 @@ func NewUploadCmd(client resources.Client) *cobra.Command {
 
 func runE(client resources.Client) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		apiKey := viper.GetString(cliflags.AccessTokenFlag)
 		u, _ := url.JoinPath(
 			viper.GetString(cliflags.BaseURIFlag),
 			"api/v2/caller-identity",
@@ -140,7 +142,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			backendUrl = defaultBackendUrl
 		}
 
-		organizationID, err := verifyApiKey(result.AccountID, projectResult.Items[0].ID, backendUrl)
+		highlightKey, projectID, err := verifyApiKey(result.AccountID, projectResult.Items[0].ID, backendUrl)
 		if err != nil {
 			return fmt.Errorf("failed to verify API key: %v", err)
 		}
@@ -158,10 +160,10 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 
 		s3Keys := make([]string, 0, len(files))
 		for _, file := range files {
-			s3Keys = append(s3Keys, getS3Key(organizationID, appVersion, basePath, file.Name))
+			s3Keys = append(s3Keys, getS3Key(projectID, appVersion, basePath, file.Name))
 		}
 
-		uploadUrls, err := getSourceMapUploadUrls(apiKey, s3Keys, backendUrl)
+		uploadUrls, err := getSourceMapUploadUrls(highlightKey, s3Keys, backendUrl)
 		if err != nil {
 			return fmt.Errorf("failed to get upload URLs: %v", err)
 		}
@@ -177,7 +179,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 	}
 }
 
-func verifyApiKey(accountID, projectID, backendUrl string) (string, error) {
+func verifyApiKey(accountID, projectID, backendUrl string) (string, string, error) {
 	variables := map[string]string{
 		"ld_account_id": accountID,
 		"ld_project_id": projectID,
@@ -188,12 +190,12 @@ func verifyApiKey(accountID, projectID, backendUrl string) (string, error) {
 		"variables": variables,
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	req, err := http.NewRequest("POST", backendUrl, bytes.NewBuffer(reqBody))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -201,30 +203,34 @@ func verifyApiKey(accountID, projectID, backendUrl string) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	fmt.Println(string(body))
 
 	var apiKeyResp ApiKeyResponse
 	if err := json.Unmarshal(body, &apiKeyResp); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if len(apiKeyResp.Errors) > 0 {
-		return "", fmt.Errorf("failed to verify API key: %s", apiKeyResp.Errors[0].Message)
+		return "", "", fmt.Errorf("failed to verify API key: %s", apiKeyResp.Errors[0].Message)
 	}
 
-	if apiKeyResp.Data.APIKey == "" {
-		return "", fmt.Errorf("invalid API key")
+	if apiKeyResp.Data.Credential.APIKey == "" {
+		return "", "", fmt.Errorf("invalid API key")
 	}
 
-	return apiKeyResp.Data.APIKey, nil
+	if apiKeyResp.Data.Credential.ProjectID == "" || apiKeyResp.Data.Credential.ProjectID == "0" {
+		return "", "", fmt.Errorf("invalid project ID")
+	}
+
+	return apiKeyResp.Data.Credential.APIKey, apiKeyResp.Data.Credential.ProjectID, nil
 }
 
 func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
