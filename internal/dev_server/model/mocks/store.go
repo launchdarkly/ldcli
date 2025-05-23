@@ -205,4 +205,3 @@ func (mr *MockStoreMockRecorder) UpsertOverride(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOverride", reflect.TypeOf((*MockStore)(nil).UpsertOverride), arg0, arg1)
 }
-

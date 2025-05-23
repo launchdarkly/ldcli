@@ -328,5 +328,4 @@ func TestDBFunctions(t *testing.T) {
 
 		assert.True(t, found)
 	})
-
 }
