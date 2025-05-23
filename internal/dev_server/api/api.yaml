@@ -113,6 +113,17 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         409:
           $ref: "#/components/responses/ErrorResponse"
+  /dev/projects/{projectKey}/overrides:
+    delete:
+      summary: remove all overrides for the given project
+      operationId: deleteOverrides
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+      responses:
+        204:
+          description: OK. All overrides were removed
+        404:
+          $ref: "#/components/responses/ErrorResponse"        
   /dev/projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body

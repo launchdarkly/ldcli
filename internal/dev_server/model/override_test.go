@@ -144,6 +144,72 @@ func TestDeleteOverride(t *testing.T) {
 	})
 }
 
+func TestDeleteOverrides(t *testing.T) {
+	mockController := gomock.NewController(t)
+	defer mockController.Finish()
+
+	store := mocks.NewMockStore(mockController)
+	ctx := context.Background()
+	projKey := "proj"
+	flagKey := "flg"
+
+	project := &model.Project{
+		Key: projKey,
+		AllFlagsState: model.FlagsState{
+			flagKey: model.FlagState{Value: ldvalue.Bool(false), Version: 1},
+			"flag2": model.FlagState{Value: ldvalue.Bool(false), Version: 1},
+		},
+	}
+
+	ctx = model.ContextWithStore(ctx, store)
+
+	observers := model.NewObservers()
+	observer := mocks.NewMockObserver(mockController)
+
+	observers.RegisterObserver(observer)
+	ctx = model.SetObserversOnContext(ctx, observers)
+
+	t.Run("Returns error if store fails to get overrides", func(t *testing.T) {
+		store.EXPECT().GetOverridesForProject(gomock.Any(), projKey).Return(nil, errors.New("store error"))
+
+		err := model.DeleteOverrides(ctx, projKey)
+		assert.Error(t, err)
+	})
+
+	t.Run("Returns error if deleting an override fails", func(t *testing.T) {
+		overrides := model.Overrides{
+			{ProjectKey: projKey, FlagKey: flagKey},
+		}
+		store.EXPECT().GetOverridesForProject(gomock.Any(), projKey).Return(overrides, nil)
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
+		store.EXPECT().DeactivateOverride(gomock.Any(), projKey, flagKey).Return(0, errors.New("delete error"))
+
+		err := model.DeleteOverrides(ctx, projKey)
+		assert.Error(t, err)
+	})
+
+	t.Run("Successfully deletes all overrides", func(t *testing.T) {
+		overrides := model.Overrides{
+			{ProjectKey: projKey, FlagKey: flagKey},
+			{ProjectKey: projKey, FlagKey: "flag2"},
+		}
+		store.EXPECT().GetOverridesForProject(gomock.Any(), projKey).Return(overrides, nil)
+
+		// Expectations for first override
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
+		store.EXPECT().DeactivateOverride(gomock.Any(), projKey, flagKey).Return(2, nil)
+		observer.EXPECT().Handle(gomock.Any())
+
+		// Expectations for second override
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
+		store.EXPECT().DeactivateOverride(gomock.Any(), projKey, "flag2").Return(2, nil)
+		observer.EXPECT().Handle(gomock.Any())
+
+		err := model.DeleteOverrides(ctx, projKey)
+		assert.Nil(t, err)
+	})
+}
+
 func TestOverrideApply(t *testing.T) {
 	projKey := "proj"
 	flagKey := "flg"
