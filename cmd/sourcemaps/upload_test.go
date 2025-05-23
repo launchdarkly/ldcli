@@ -14,35 +14,73 @@ import (
 
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
+// Mock resources.Client implementation for testing
+type mockResourcesClient struct {
+	responses map[string][]byte
+}
+
+func (m *mockResourcesClient) MakeRequest(accessToken, method, uri, contentType string, body []byte, queryParams map[string]string, followRedirects bool) ([]byte, error) {
+	if response, ok := m.responses[uri]; ok {
+		return response, nil
+	}
+	return nil, fmt.Errorf("mock response not found for URI: %s", uri)
+}
+
+func (m *mockResourcesClient) GetVersion() string {
+	return "test-version"
+}
+
+
 
 func TestVerifyApiKey(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		assert.Equal(t, "test-api-key", r.Header.Get("ApiKey"))
 
-		response := `{"data":{"api_key_to_org_id":"org123"}}`
+		var requestBody map[string]interface{}
+		err := json.NewDecoder(r.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+		
+		variables, ok := requestBody["variables"].(map[string]interface{})
+		assert.True(t, ok)
+		assert.Equal(t, "account123", variables["ld_account_id"])
+		assert.Equal(t, "project123", variables["ld_project_id"])
+
+		response := `{"data":{"ld_credential":{"project_id":"project123","api_key":"highlight-key-123"}}}`
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(response))
 	}))
 	defer server.Close()
 
-	orgID, err := verifyApiKey("test-api-key", server.URL)
+	highlightKey, projectID, err := verifyApiKey("account123", "project123", server.URL)
 	assert.NoError(t, err)
-	assert.Equal(t, "org123", orgID)
+	assert.Equal(t, "highlight-key-123", highlightKey)
+	assert.Equal(t, "project123", projectID)
 
 	invalidServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := `{"data":{"api_key_to_org_id":"0"}}`
+		response := `{"data":{"ld_credential":{"project_id":"","api_key":""}}}`
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(response))
 	}))
 	defer invalidServer.Close()
 
-	_, err = verifyApiKey("invalid-key", invalidServer.URL)
+	_, _, err = verifyApiKey("account123", "project123", invalidServer.URL)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid API key")
+
+	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := `{"errors":[{"message":"Invalid credentials"}]}`
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(response))
+	}))
+	defer errorServer.Close()
+
+	_, _, err = verifyApiKey("account123", "project123", errorServer.URL)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to verify API key")
 }
 
 func TestGetSourceMapUploadUrls(t *testing.T) {
@@ -89,17 +127,17 @@ func TestGetSourceMapUploadUrls(t *testing.T) {
 }
 
 func TestGetS3Key(t *testing.T) {
-	key := getS3Key("org123", "v1.0", "base/path", "file.js.map")
-	assert.Equal(t, "org123/v1.0/base/path/file.js.map", key)
+	key := getS3Key("project123", "v1.0", "base/path", "file.js.map")
+	assert.Equal(t, "project123/v1.0/base/path/file.js.map", key)
 
-	key = getS3Key("org123", "", "base/path", "file.js.map")
-	assert.Equal(t, "org123/unversioned/base/path/file.js.map", key)
+	key = getS3Key("project123", "", "base/path", "file.js.map")
+	assert.Equal(t, "project123/unversioned/base/path/file.js.map", key)
 
-	key = getS3Key("org123", "v1.0", "", "file.js.map")
-	assert.Equal(t, "org123/v1.0/file.js.map", key)
+	key = getS3Key("project123", "v1.0", "", "file.js.map")
+	assert.Equal(t, "project123/v1.0/file.js.map", key)
 
-	key = getS3Key("org123", "v1.0", "base/path", "file.js.map")
-	assert.Equal(t, "org123/v1.0/base/path/file.js.map", key)
+	key = getS3Key("project123", "v1.0", "base/path", "file.js.map")
+	assert.Equal(t, "project123/v1.0/base/path/file.js.map", key)
 }
 
 func TestUploadFile(t *testing.T) {
@@ -143,13 +181,13 @@ func TestNewUploadCmd(t *testing.T) {
 	assert.Equal(t, "Upload sourcemaps", cmd.Short)
 	assert.Contains(t, cmd.Long, "LaunchDarkly for error monitoring")
 
-	assert.NotNil(t, cmd.Flags().Lookup(apiKeyFlag))
+	assert.NotNil(t, cmd.Flags().Lookup("project"))
 	assert.NotNil(t, cmd.Flags().Lookup(appVersionFlag))
 	assert.NotNil(t, cmd.Flags().Lookup(pathFlag))
 	assert.NotNil(t, cmd.Flags().Lookup(basePathFlag))
 	assert.NotNil(t, cmd.Flags().Lookup(backendUrlFlag))
 
-	requiredFlags := cmd.Flags().Lookup(apiKeyFlag).Annotations["required"]
+	requiredFlags := cmd.Flags().Lookup("project").Annotations["required"]
 	assert.Equal(t, []string{"true"}, requiredFlags)
 }
 
@@ -207,10 +245,10 @@ func TestGetAllSourceMapFiles(t *testing.T) {
 }
 
 func TestVerifyApiKeyErrors(t *testing.T) {
-	_, err := verifyApiKey("test-key", "://invalid-url")
+	_, _, err := verifyApiKey("account123", "project123", "://invalid-url")
 	assert.Error(t, err)
 
-	_, err = verifyApiKey("test-key", "http://non-existent-host.invalid")
+	_, _, err = verifyApiKey("account123", "project123", "http://non-existent-host.invalid")
 	assert.Error(t, err)
 
 	invalidJSONServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -220,7 +258,7 @@ func TestVerifyApiKeyErrors(t *testing.T) {
 	}))
 	defer invalidJSONServer.Close()
 
-	_, err = verifyApiKey("test-key", invalidJSONServer.URL)
+	_, _, err = verifyApiKey("account123", "project123", invalidJSONServer.URL)
 	assert.Error(t, err)
 }
 
@@ -243,9 +281,15 @@ func TestGetSourceMapUploadUrlsErrors(t *testing.T) {
 }
 
 func TestRunE(t *testing.T) {
-	client := resources.NewClient("")
+	// Create a mock client that returns predefined responses
+	mockClient := &mockResourcesClient{
+		responses: map[string][]byte{
+			"/api/v2/caller-identity": []byte(`{"AccountID":"account123"}`),
+			"/api/v2/projects/test-project": []byte(`{"Items":[{"_id":"project123"}]}`),
+		},
+	}
 
-	cmd := NewUploadCmd(client)
+	cmd := NewUploadCmd(mockClient)
 	args := []string{}
 
 	tempDir, err := os.MkdirTemp("", "sourcemap-test")
@@ -257,7 +301,7 @@ func TestRunE(t *testing.T) {
 	assert.NoError(t, err)
 
 	verifyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := `{"data":{"api_key_to_org_id":"org123"}}`
+		response := `{"data":{"ld_credential":{"project_id":"project123","api_key":"highlight-key-123"}}}`
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(response))
@@ -277,13 +321,12 @@ func TestRunE(t *testing.T) {
 	}))
 	defer uploadServer.Close()
 
-	runFunc := runE(client)
+	runFunc := runE(mockClient)
 	err = runFunc(cmd, args)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "api key cannot be empty")
-
-	os.Setenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY", "test-api-key")
-	defer os.Unsetenv("HIGHLIGHT_SOURCEMAP_UPLOAD_API_KEY")
+	
+	err = cmd.Flags().Set("project", "test-project")
+	assert.NoError(t, err)
 	err = cmd.Flags().Set(pathFlag, testMapFile)
 	assert.NoError(t, err)
 	err = cmd.Flags().Set(backendUrlFlag, verifyServer.URL)
