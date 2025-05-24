@@ -145,14 +145,14 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 
 		highlightKey, projectID, err := verifyApiKey(result.AccountID, projectResult.ID, backendUrl)
 		if err != nil {
-			return fmt.Errorf("failed to verify API key: %v", err)
+			return fmt.Errorf("failed to verify API key: %w", err)
 		}
 
 		fmt.Printf("Starting to upload source maps from %s\n", path)
 
 		files, err := getAllSourceMapFiles(path)
 		if err != nil {
-			return fmt.Errorf("failed to find sourcemap files: %v", err)
+			return fmt.Errorf("failed to find sourcemap files: %w", err)
 		}
 
 		if len(files) == 0 {
@@ -166,12 +166,12 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 
 		uploadUrls, err := getSourceMapUploadUrls(highlightKey, s3Keys, backendUrl)
 		if err != nil {
-			return fmt.Errorf("failed to get upload URLs: %v", err)
+			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
 
 		for i, file := range files {
 			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
-				return fmt.Errorf("failed to upload file %s: %v", file.Path, err)
+				return fmt.Errorf("failed to upload file %s: %w", file.Path, err)
 			}
 		}
 
