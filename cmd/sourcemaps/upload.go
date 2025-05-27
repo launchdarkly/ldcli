@@ -189,7 +189,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 // It takes the LaunchDarkly account ID, project ID, and backend URL as input.
 // Returns:
 //   - string: The Highlight API key used for sourcemap uploads
-//   - string: The LaunchDarkly project ID that was verified
+//   - string: The Highlight project ID that was verified
 //   - error: Any error that occurred during verification
 func verifyApiKey(accountID, projectID, backendUrl string) (string, string, error) {
 	variables := map[string]string{
