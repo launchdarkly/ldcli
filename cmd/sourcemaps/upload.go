@@ -18,6 +18,7 @@ import (
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
+	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
@@ -72,6 +73,7 @@ type SourceMapFile struct {
 
 func NewUploadCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
+		Args:  validators.Validate(),
 		Use:   "upload",
 		Short: "Upload sourcemaps",
 		Long:  "Upload JavaScript sourcemaps to LaunchDarkly for error monitoring",
@@ -132,6 +134,9 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		}
 		if err = json.Unmarshal(res, &projectResult); err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+		if projectResult.ID == "" {
+			return fmt.Errorf("project %s not found", projectKey)
 		}
 
 		appVersion := viper.GetString(appVersionFlag)
