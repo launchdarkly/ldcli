@@ -71,6 +71,15 @@ func (cmd RootCmd) Execute() error {
 	return cmd.cmd.Execute()
 }
 
+func init() {
+	//we use these template functions in the usage templates we set later. It's
+	//important that they're always available, so package init is used.
+	cobra.AddTemplateFunc("WrappedRequiredFlagUsages", WrappedRequiredFlagUsages)
+	cobra.AddTemplateFunc("WrappedOptionalFlagUsages", WrappedOptionalFlagUsages)
+	cobra.AddTemplateFunc("HasRequiredFlags", HasRequiredFlags)
+	cobra.AddTemplateFunc("HasOptionalFlags", HasOptionalFlags)
+}
+
 func NewRootCommand(
 	configService config.Service,
 	analyticsTrackerFn analytics.TrackerFn,
@@ -248,10 +257,6 @@ See each command's help for details on how to use the generated script.`, rootCm
 		rootCmd.Cmd().AddCommand(completionCmd)
 	}
 
-	cobra.AddTemplateFunc("WrappedRequiredFlagUsages", WrappedRequiredFlagUsages)
-	cobra.AddTemplateFunc("WrappedOptionalFlagUsages", WrappedOptionalFlagUsages)
-	cobra.AddTemplateFunc("HasRequiredFlags", HasRequiredFlags)
-	cobra.AddTemplateFunc("HasOptionalFlags", HasOptionalFlags)
 	rootCmd.cmd.SetUsageTemplate(getUsageTemplate())
 
 	err = rootCmd.Execute()
