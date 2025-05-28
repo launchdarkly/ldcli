@@ -32,18 +32,13 @@ const (
 	defaultPath       = "."
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
 
-	verifyApiKeyQuery = `
-	  query LDCredential($ld_account_id: String!, $ld_project_id: String!) {
-	    ld_credential(ld_account_id: $ld_account_id, ld_project_id: $ld_project_id) {
-	      project_id
-		  api_key
-		}
-	  }
-	`
-
 	getSourceMapUrlsQuery = `
 	  query GetSourceMapUploadUrls($api_key: String!, $paths: [String!]!) {
-	    get_source_map_upload_urls(api_key: $api_key, paths: $paths)
+	    get_source_map_upload_urls_ld(
+			api_key: String!
+			project_id: String!
+			paths: [String!]!
+		): [String!]!
 	  }
 	`
 )
@@ -88,35 +83,13 @@ func NewUploadCmd(client resources.Client) *cobra.Command {
 
 func runE(client resources.Client) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		u, _ := url.JoinPath(
-			viper.GetString(cliflags.BaseURIFlag),
-			"api/v2/caller-identity",
-		)
-		res, err := client.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
-			"GET",
-			u,
-			"application/json",
-			nil,
-			nil,
-			false,
-		)
-		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
-		}
-
-		var result struct{ AccountID string }
-		if err = json.Unmarshal(res, &result); err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
-		}
-
 		projectKey := viper.GetString(cliflags.ProjectFlag)
-		u, _ = url.JoinPath(
+		u, _ := url.JoinPath(
 			viper.GetString(cliflags.BaseURIFlag),
 			"api/v2/projects",
 			projectKey,
 		)
-		res, err = client.MakeRequest(
+		res, err := client.MakeRequest(
 			viper.GetString(cliflags.AccessTokenFlag),
 			"GET",
 			u,
@@ -148,11 +121,6 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			backendUrl = defaultBackendUrl
 		}
 
-		highlightKey, projectID, err := verifyApiKey(result.AccountID, projectResult.ID, backendUrl)
-		if err != nil {
-			return fmt.Errorf("failed to verify API key: %w", err)
-		}
-
 		fmt.Printf("Starting to upload source maps from %s\n", path)
 
 		files, err := getAllSourceMapFiles(path)
@@ -166,10 +134,10 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 
 		s3Keys := make([]string, 0, len(files))
 		for _, file := range files {
-			s3Keys = append(s3Keys, getS3Key(projectID, appVersion, basePath, file.Name))
+			s3Keys = append(s3Keys, getS3Key(projectResult.ID, appVersion, basePath, file.Name))
 		}
 
-		uploadUrls, err := getSourceMapUploadUrls(highlightKey, s3Keys, backendUrl)
+		uploadUrls, err := getSourceMapUploadUrls(viper.GetString(cliflags.AccessTokenFlag), s3Keys, backendUrl)
 		if err != nil {
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
@@ -183,65 +151,6 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		fmt.Println("Successfully uploaded all sourcemaps")
 		return nil
 	}
-}
-
-// verifyApiKey queries the LaunchDarkly Observability API to verify credentials and retrieve the Highlight API key.
-// It takes the LaunchDarkly account ID, project ID, and backend URL as input.
-// Returns:
-//   - string: The Highlight API key used for sourcemap uploads
-//   - string: The Highlight project ID that was verified
-//   - error: Any error that occurred during verification
-func verifyApiKey(accountID, projectID, backendUrl string) (string, string, error) {
-	variables := map[string]string{
-		"ld_account_id": accountID,
-		"ld_project_id": projectID,
-	}
-
-	reqBody, err := json.Marshal(map[string]interface{}{
-		"query":     verifyApiKeyQuery,
-		"variables": variables,
-	})
-	if err != nil {
-		return "", "", err
-	}
-
-	req, err := http.NewRequest("POST", backendUrl, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return "", "", err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", "", err
-	}
-
-	var apiKeyResp ApiKeyResponse
-	if err := json.Unmarshal(body, &apiKeyResp); err != nil {
-		return "", "", err
-	}
-
-	if len(apiKeyResp.Errors) > 0 {
-		return "", "", fmt.Errorf("failed to verify API key: %s", apiKeyResp.Errors[0].Message)
-	}
-
-	if apiKeyResp.Data.Credential.APIKey == "" {
-		return "", "", fmt.Errorf("invalid API key")
-	}
-
-	if apiKeyResp.Data.Credential.ProjectID == "" || apiKeyResp.Data.Credential.ProjectID == "0" {
-		return "", "", fmt.Errorf("invalid project ID")
-	}
-
-	return apiKeyResp.Data.Credential.APIKey, apiKeyResp.Data.Credential.ProjectID, nil
 }
 
 func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
