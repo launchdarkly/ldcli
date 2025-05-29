@@ -37,56 +37,6 @@ func (m *mockResourcesClient) GetVersion() string {
 
 
 
-func TestVerifyApiKey(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-
-		var requestBody map[string]interface{}
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		assert.NoError(t, err)
-		
-		variables, ok := requestBody["variables"].(map[string]interface{})
-		assert.True(t, ok)
-		assert.Equal(t, "account123", variables["ld_account_id"])
-		assert.Equal(t, "project123", variables["ld_project_id"])
-
-		response := `{"data":{"ld_credential":{"project_id":"project123","api_key":"highlight-key-123"}}}`
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(response))
-	}))
-	defer server.Close()
-
-	highlightKey, projectID, err := verifyApiKey("account123", "project123", server.URL)
-	assert.NoError(t, err)
-	assert.Equal(t, "highlight-key-123", highlightKey)
-	assert.Equal(t, "project123", projectID)
-
-	invalidServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := `{"data":{"ld_credential":{"project_id":"","api_key":""}}}`
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(response))
-	}))
-	defer invalidServer.Close()
-
-	_, _, err = verifyApiKey("account123", "project123", invalidServer.URL)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid API key")
-
-	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := `{"errors":[{"message":"Invalid credentials"}]}`
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(response))
-	}))
-	defer errorServer.Close()
-
-	_, _, err = verifyApiKey("account123", "project123", errorServer.URL)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to verify API key")
-}
 
 func TestGetSourceMapUploadUrls(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,9 +52,10 @@ func TestGetSourceMapUploadUrls(t *testing.T) {
 		variables, ok := requestBody["variables"].(map[string]interface{})
 		assert.True(t, ok)
 		assert.Equal(t, "test-api-key", variables["api_key"])
+		assert.Equal(t, "project123", variables["project_id"])
 		assert.NotNil(t, variables["paths"])
 
-		response := `{"data":{"get_source_map_upload_urls":["https://example.com/upload1","https://example.com/upload2"]}}`
+		response := `{"data":{"get_source_map_upload_urls_ld":["https://example.com/upload1","https://example.com/upload2"]}}`
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(response))
@@ -112,37 +63,37 @@ func TestGetSourceMapUploadUrls(t *testing.T) {
 	defer server.Close()
 
 	paths := []string{"path1", "path2"}
-	urls, err := getSourceMapUploadUrls("test-api-key", paths, server.URL)
+	urls, err := getSourceMapUploadUrls("test-api-key", "project123", paths, server.URL)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(urls))
 	assert.Equal(t, "https://example.com/upload1", urls[0])
 	assert.Equal(t, "https://example.com/upload2", urls[1])
 
 	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := `{"data":{"get_source_map_upload_urls":[]}}`
+		response := `{"data":{"get_source_map_upload_urls_ld":[]}}`
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(response))
 	}))
 	defer errorServer.Close()
 
-	_, err = getSourceMapUploadUrls("test-api-key", paths, errorServer.URL)
+	_, err = getSourceMapUploadUrls("test-api-key", "project123", paths, errorServer.URL)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to generate source map upload urls")
 }
 
 func TestGetS3Key(t *testing.T) {
-	key := getS3Key("project123", "v1.0", "base/path", "file.js.map")
-	assert.Equal(t, "project123/v1.0/base/path/file.js.map", key)
+	key := getS3Key("v1.0", "base/path", "file.js.map")
+	assert.Equal(t, "v1.0/base/path/file.js.map", key)
 
-	key = getS3Key("project123", "", "base/path", "file.js.map")
-	assert.Equal(t, "project123/unversioned/base/path/file.js.map", key)
+	key = getS3Key("", "base/path", "file.js.map")
+	assert.Equal(t, "unversioned/base/path/file.js.map", key)
 
-	key = getS3Key("project123", "v1.0", "", "file.js.map")
-	assert.Equal(t, "project123/v1.0/file.js.map", key)
+	key = getS3Key("v1.0", "", "file.js.map")
+	assert.Equal(t, "v1.0/file.js.map", key)
 
-	key = getS3Key("project123", "v1.0", "base/path", "file.js.map")
-	assert.Equal(t, "project123/v1.0/base/path/file.js.map", key)
+	key = getS3Key("v1.0", "base/path", "file.js.map")
+	assert.Equal(t, "v1.0/base/path/file.js.map", key)
 }
 
 func TestUploadFile(t *testing.T) {
@@ -249,29 +200,12 @@ func TestGetAllSourceMapFiles(t *testing.T) {
 	assert.Contains(t, err.Error(), "no .js.map files found")
 }
 
-func TestVerifyApiKeyErrors(t *testing.T) {
-	_, _, err := verifyApiKey("account123", "project123", "://invalid-url")
-	assert.Error(t, err)
-
-	_, _, err = verifyApiKey("account123", "project123", "http://non-existent-host.invalid")
-	assert.Error(t, err)
-
-	invalidJSONServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"data":invalid-json`))
-	}))
-	defer invalidJSONServer.Close()
-
-	_, _, err = verifyApiKey("account123", "project123", invalidJSONServer.URL)
-	assert.Error(t, err)
-}
 
 func TestGetSourceMapUploadUrlsErrors(t *testing.T) {
-	_, err := getSourceMapUploadUrls("test-key", []string{"path"}, "://invalid-url")
+	_, err := getSourceMapUploadUrls("test-key", "project123", []string{"path"}, "://invalid-url")
 	assert.Error(t, err)
 
-	_, err = getSourceMapUploadUrls("test-key", []string{"path"}, "http://non-existent-host.invalid")
+	_, err = getSourceMapUploadUrls("test-key", "project123", []string{"path"}, "http://non-existent-host.invalid")
 	assert.Error(t, err)
 
 	invalidJSONServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -281,7 +215,7 @@ func TestGetSourceMapUploadUrlsErrors(t *testing.T) {
 	}))
 	defer invalidJSONServer.Close()
 
-	_, err = getSourceMapUploadUrls("test-key", []string{"path"}, invalidJSONServer.URL)
+	_, err = getSourceMapUploadUrls("test-key", "project123", []string{"path"}, invalidJSONServer.URL)
 	assert.Error(t, err)
 }
 
@@ -289,8 +223,7 @@ func TestRunE(t *testing.T) {
 	// Create a mock client that returns predefined responses
 	mockClient := &mockResourcesClient{
 		responses: map[string][]byte{
-			"/api/v2/caller-identity": []byte(`{"AccountID":"account123"}`),
-			"/api/v2/projects/test-project": []byte(`{"Items":[{"_id":"project123"}]}`),
+			"/api/v2/projects/test-project": []byte(`{"_id":"project123"}`),
 		},
 	}
 
@@ -305,16 +238,8 @@ func TestRunE(t *testing.T) {
 	err = os.WriteFile(testMapFile, []byte("{}"), 0644)
 	assert.NoError(t, err)
 
-	verifyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := `{"data":{"ld_credential":{"project_id":"project123","api_key":"highlight-key-123"}}}`
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(response))
-	}))
-	defer verifyServer.Close()
-
 	urlsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := `{"data":{"get_source_map_upload_urls":["https://example.com/upload"]}}`
+		response := `{"data":{"get_source_map_upload_urls_ld":["https://example.com/upload"]}}`
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(response))
@@ -334,7 +259,7 @@ func TestRunE(t *testing.T) {
 	assert.NoError(t, err)
 	err = cmd.Flags().Set(pathFlag, testMapFile)
 	assert.NoError(t, err)
-	err = cmd.Flags().Set(backendUrlFlag, verifyServer.URL)
+	err = cmd.Flags().Set(backendUrlFlag, urlsServer.URL)
 	assert.NoError(t, err)
 	
 	err = runFunc(cmd, args)
