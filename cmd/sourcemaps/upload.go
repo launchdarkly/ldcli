@@ -33,12 +33,12 @@ const (
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
 
 	getSourceMapUrlsQuery = `
-	  query GetSourceMapUploadUrls($api_key: String!, $paths: [String!]!) {
+	  query GetSourceMapUploadUrls($api_key: String!, $project_id: String!, $paths: [String!]!) {
 	    get_source_map_upload_urls_ld(
-			api_key: String!
-			project_id: String!
-			paths: [String!]!
-		): [String!]!
+			api_key: $api_key
+			project_id: $project_id
+			paths: $paths
+		)
 	  }
 	`
 )
@@ -57,7 +57,7 @@ type ApiKeyResponse struct {
 
 type SourceMapUrlsResponse struct {
 	Data struct {
-		GetSourceMapUploadUrls []string `json:"get_source_map_upload_urls"`
+		GetSourceMapUploadUrls []string `json:"get_source_map_upload_urls_ld"`
 	} `json:"data"`
 }
 
@@ -134,10 +134,10 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 
 		s3Keys := make([]string, 0, len(files))
 		for _, file := range files {
-			s3Keys = append(s3Keys, getS3Key(projectResult.ID, appVersion, basePath, file.Name))
+			s3Keys = append(s3Keys, getS3Key(appVersion, basePath, file.Name))
 		}
 
-		uploadUrls, err := getSourceMapUploadUrls(viper.GetString(cliflags.AccessTokenFlag), s3Keys, backendUrl)
+		uploadUrls, err := getSourceMapUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl)
 		if err != nil {
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
@@ -213,7 +213,7 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 	return files, nil
 }
 
-func getS3Key(organizationID, version, basePath, fileName string) string {
+func getS3Key(version, basePath, fileName string) string {
 	if version == "" {
 		version = "unversioned"
 	}
@@ -222,13 +222,14 @@ func getS3Key(organizationID, version, basePath, fileName string) string {
 		basePath = basePath + "/"
 	}
 
-	return fmt.Sprintf("%s/%s/%s%s", organizationID, version, basePath, fileName)
+	return fmt.Sprintf("%s/%s%s", version, basePath, fileName)
 }
 
-func getSourceMapUploadUrls(apiKey string, paths []string, backendUrl string) ([]string, error) {
+func getSourceMapUploadUrls(apiKey, projectID string, paths []string, backendUrl string) ([]string, error) {
 	variables := map[string]interface{}{
-		"api_key": apiKey,
-		"paths":   paths,
+		"api_key":    apiKey,
+		"project_id": projectID,
+		"paths":      paths,
 	}
 
 	reqBody, err := json.Marshal(map[string]interface{}{
