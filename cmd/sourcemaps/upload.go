@@ -265,7 +265,7 @@ func getSourceMapUploadUrls(apiKey, projectID string, paths []string, backendUrl
 	}
 
 	if len(urlsResp.Data.GetSourceMapUploadUrls) == 0 {
-		return nil, fmt.Errorf("unable to generate source map upload urls")
+		return nil, fmt.Errorf("unable to generate source map upload urls %w", err)
 	}
 
 	return urlsResp.Data.GetSourceMapUploadUrls, nil
