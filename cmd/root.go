@@ -22,6 +22,7 @@ import (
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
@@ -203,6 +204,7 @@ func NewRootCommand(
 	cmd.AddCommand(logincmd.NewLoginCmd(resources.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(resources.NewClient(version), analyticsTrackerFn, dev_server.NewClient(version)))
+	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd())
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	// add non-generated commands
