@@ -41,6 +41,7 @@ runs:
       shell: bash
       run: |
         docker login --username $DOCKER_HUB_USERNAME --password $DOCKER_HUB_TOKEN
+        echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
         CONTAINER_ID="$(
           docker run --detach \
             --volume "$PWD:$PWD" \
