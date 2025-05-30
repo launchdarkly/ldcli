@@ -23,6 +23,7 @@ jobs:
     permissions:
       id-token: write # Needed to obtain Docker tokens
       contents: write # Needed to upload release artifacts
+      packages: read # Needed to load goreleaser-cross image
     needs: [ release-please ]
     if: always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'pull_request')
     runs-on: ubuntu-latest

@@ -19,6 +19,10 @@ inputs:
   tag:
     description: 'Tag to upload artifacts to.'
     required: true
+  ghcr_token:
+    description: 'Token to log into ghcr.io'
+    required: true
+    default: "${{ secrets.GITHUB_TOKEN }}"
 
 outputs:
   hashes:
@@ -41,7 +45,7 @@ runs:
       shell: bash
       run: |
         docker login --username $DOCKER_HUB_USERNAME --password $DOCKER_HUB_TOKEN
-        echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        echo ${{ inputs.ghcr_token }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
         CONTAINER_ID="$(
           docker run --detach \
             --volume "$PWD:$PWD" \

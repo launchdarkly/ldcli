@@ -23,6 +23,7 @@ jobs:
     permissions:
       id-token: write # Needed to obtain Docker tokens
       contents: write # Needed to upload release artifacts
+      packages: read # Needed to load goreleaser-cross image
     runs-on: ubuntu-latest
     outputs:
       hashes: ${{ steps.publish.outputs.hashes }}
