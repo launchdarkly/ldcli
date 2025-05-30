@@ -50,7 +50,7 @@ runs:
             --volume "$PWD:$PWD" \
             --volume /var/run/docker.sock:/var/run/docker.sock \
             --entrypoint tail \
-            ghcr.io/launchdarkly/goreleaser-cross:v1.24.2-pr-23  \
+            ghcr.io/launchdarkly/goreleaser-cross:v1.24.2  \
               -f /dev/null
         )"
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
