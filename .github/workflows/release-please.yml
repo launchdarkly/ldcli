@@ -38,7 +38,9 @@ jobs:
         name: 'Get Docker token'
         with:
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
-          ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
+          ssm_parameter_pairs: |
+            /global/services/docker/public/username = DOCKER_HUB_USERNAME
+            /global/services/docker/public/token = DOCKER_HUB_TOKEN
 
       - uses: ./.github/actions/publish
         id: publish
