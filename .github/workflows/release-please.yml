@@ -51,6 +51,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
           tag: ${{ needs.release-please.outputs.tag_name }}
+          ghcr_token: "${{ secrets.GITHUB_TOKEN }}"
 
   release-ldcli-npm:
     runs-on: ubuntu-latest

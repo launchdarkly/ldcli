@@ -22,7 +22,6 @@ inputs:
   ghcr_token:
     description: 'Token to log into ghcr.io'
     required: true
-    default: "${{ secrets.GITHUB_TOKEN }}"
 
 outputs:
   hashes:
