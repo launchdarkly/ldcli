@@ -23,9 +23,10 @@ jobs:
     permissions:
       id-token: write # Needed to obtain Docker tokens
       contents: write # Needed to upload release artifacts
+      packages: read # Needed to load goreleaser-cross image
     needs: [ release-please ]
     if: always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'pull_request')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-8core-32gb
     outputs:
       hashes: ${{ steps.publish.outputs.hashes }}
     steps:
@@ -38,7 +39,9 @@ jobs:
         name: 'Get Docker token'
         with:
           aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
-          ssm_parameter_pairs: '/global/services/docker/public/username = DOCKER_USERNAME, /global/services/docker/public/token = DOCKER_TOKEN'
+          ssm_parameter_pairs: |
+            /global/services/docker/public/username = DOCKER_HUB_USERNAME,
+            /global/services/docker/public/token = DOCKER_HUB_TOKEN
 
       - uses: ./.github/actions/publish
         id: publish
@@ -48,6 +51,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
           tag: ${{ needs.release-please.outputs.tag_name }}
+          ghcr_token: "${{ secrets.GITHUB_TOKEN }}"
 
   release-ldcli-npm:
     runs-on: ubuntu-latest

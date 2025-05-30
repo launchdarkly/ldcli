@@ -19,6 +19,9 @@ inputs:
   tag:
     description: 'Tag to upload artifacts to.'
     required: true
+  ghcr_token:
+    description: 'Token to log into ghcr.io'
+    required: true
 
 outputs:
   hashes:
@@ -40,21 +43,16 @@ runs:
       # We're using the goreleaser-cross image to facilitate this. See also: https://github.com/goreleaser/goreleaser-cross
       shell: bash
       run: |
-        set -x
+        docker login --username $DOCKER_HUB_USERNAME --password $DOCKER_HUB_TOKEN
+        echo ${{ inputs.ghcr_token }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
         CONTAINER_ID="$(
           docker run --detach \
             --volume "$PWD:$PWD" \
             --volume /var/run/docker.sock:/var/run/docker.sock \
             --entrypoint tail \
-            ghcr.io/goreleaser/goreleaser-cross:latest \
+            ghcr.io/launchdarkly/goreleaser-cross:v1.24.2  \
               -f /dev/null
         )"
-        docker exec --tty "$CONTAINER_ID" mkdir -p /musl
-        docker exec --tty "$CONTAINER_ID" bash -euo pipefail -c 'curl --retry 5 --retry-all-errors --retry-delay 5 -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz -o- | tar -zxvf - -C /musl --strip-components=1'
-        docker exec --tty "$CONTAINER_ID" bash -euo pipefail -c 'curl --retry 5 --retry-all-errors --retry-delay 5 -fsSL https://musl.cc/i686-linux-musl-cross.tgz -o- | tar -zxvf - -C /musl --strip-components=1'
-        docker exec --tty "$CONTAINER_ID" bash -euo pipefail -c 'curl --retry 5 --retry-all-errors --retry-delay 5 -fsSL https://musl.cc/x86_64-linux-musl-cross.tgz -o- | tar -zxvf - -C /musl --strip-components=1'
-        docker exec --tty "$CONTAINER_ID" git config --global --add safe.directory '*'
-        docker exec --workdir "$PWD" --tty "$CONTAINER_ID" docker login --username $DOCKER_USERNAME --password $DOCKER_TOKEN
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
 
     - name: Run Goreleaser
