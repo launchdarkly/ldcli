@@ -92,6 +92,41 @@ func TestDBFunctions(t *testing.T) {
 				},
 			},
 		},
+		{
+			Key:                  "proj-to-test-override-deletion-on-update",
+			SourceEnvironmentKey: "env-3",
+			Context:              ldContext,
+			LastSyncTime:         now,
+			AllFlagsState: model.FlagsState{
+				"flag-1": model.FlagState{Value: ldvalue.Int(123), Version: 2},
+				"flag-2": model.FlagState{Value: ldvalue.Float64(99.99), Version: 2},
+			},
+			AvailableVariations: []model.FlagVariation{
+				{
+					FlagKey: "flag-1",
+					Variation: model.Variation{
+						Id:    "1",
+						Value: ldvalue.Bool(true),
+					},
+				},
+				{
+					FlagKey: "flag-1",
+					Variation: model.Variation{
+						Id:    "2",
+						Value: ldvalue.Bool(false),
+					},
+				},
+				{
+					FlagKey: "flag-2",
+					Variation: model.Variation{
+						Id:          "3",
+						Description: lo.ToPtr("cool description"),
+						Name:        lo.ToPtr("cool name"),
+						Value:       ldvalue.String("Cool"),
+					},
+				},
+			},
+		},
 	}
 	actualProjectKeys := make(map[string]bool, len(projects))
 
@@ -327,5 +362,40 @@ func TestDBFunctions(t *testing.T) {
 		}
 
 		assert.True(t, found)
+	})
+
+	t.Run("UpdateProject deletes overrides for flags that are no longer in the project", func(t *testing.T) {
+		project := projects[2]
+
+		// create a new override for flag-1
+		override, err := store.UpsertOverride(ctx, model.Override{
+			ProjectKey: project.Key,
+			FlagKey:    "flag-1",
+			Value:      ldvalue.Bool(false),
+			Active:     true,
+			Version:    1,
+		})
+		require.NoError(t, err)
+
+		// verify the override was created
+		overrides, err := store.GetOverridesForProject(ctx, project.Key)
+		require.NoError(t, err)
+		require.Len(t, overrides, 1)
+		assert.Equal(t, override, overrides[0])
+
+		// update the project to remove flag-1
+		project.AvailableVariations = []model.FlagVariation{
+			{
+				FlagKey: "flag-2",
+			},
+		}
+		updated, err := store.UpdateProject(ctx, project)
+		assert.NoError(t, err)
+		assert.True(t, updated)
+
+		// verify the override for flag-1 was deleted
+		overrides, err = store.GetOverridesForProject(ctx, project.Key)
+		require.NoError(t, err)
+		require.Len(t, overrides, 0)
 	})
 }
