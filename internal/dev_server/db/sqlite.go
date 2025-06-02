@@ -109,6 +109,17 @@ func (s *Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool
 	if err != nil {
 		return false, err
 	}
+
+	// Delete all overrides that are linked to a flag that is no longer in the project
+	// https://github.com/launchdarkly/ldcli/issues/541#issuecomment-2920512092
+	_, err = tx.ExecContext(ctx, `
+		DELETE FROM overrides
+		WHERE project_key = ? AND flag_key NOT IN (SELECT flag_key FROM available_variations WHERE project_key = ?)
+	`, project.Key, project.Key)
+	if err != nil {
+		return false, err
+	}
+
 	err = tx.Commit()
 	if err != nil {
 		return false, err
