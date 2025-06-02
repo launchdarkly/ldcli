@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.15.0](https://github.com/launchdarkly/ldcli/compare/v1.14.0...v1.15.0) (2025-06-02)
+
+
+### Features
+
+* Add command for uploading frontend sourcemaps [OB-143] ([#531](https://github.com/launchdarkly/ldcli/issues/531)) ([398409c](https://github.com/launchdarkly/ldcli/commit/398409c1071add67c4b9f46a6d9c5941b69634df))
+
+
+### Bug Fixes
+
+* Delete overrides that are no longer relevant after a project is synced ([#544](https://github.com/launchdarkly/ldcli/issues/544)) ([e47fe05](https://github.com/launchdarkly/ldcli/commit/e47fe0511c14b1b4482170c2bb33db276160fa6c)), closes [#541](https://github.com/launchdarkly/ldcli/issues/541)
+
 ## [1.14.0](https://github.com/launchdarkly/ldcli/compare/v1.13.0...v1.14.0) (2025-05-23)
 
 
