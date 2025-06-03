@@ -54,7 +54,7 @@ runs:
               -f /dev/null
         )"
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
-
+    - uses: hoshsadiq/ssh2action@main
     - name: Run Goreleaser
       shell: bash
       run: docker exec
