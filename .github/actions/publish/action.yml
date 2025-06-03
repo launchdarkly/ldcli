@@ -60,10 +60,12 @@ runs:
       run: docker exec
         --env GITHUB_TOKEN
         --env HOMEBREW_DEPLOY_KEY
+        --env DOCKER_HUB_USERNAME=${{ env.DOCKER_HUB_USERNAME }}
+        --env DOCKER_HUB_TOKEN=${{ env.DOCKER_HUB_TOKEN }}
         --workdir "$PWD"
         --tty
         "$CONTAINER_ID"
-        goreleaser release 
+        goreleaser release
             ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
             ${{ inputs.snapshot == 'true' && '--snapshot' || '' }}
             ${{ inputs.skip == '' && '' || format('--skip={0}', inputs.skip) }}
