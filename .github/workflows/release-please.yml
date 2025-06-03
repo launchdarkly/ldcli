@@ -59,7 +59,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
-    if: always() && needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.release_created == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
