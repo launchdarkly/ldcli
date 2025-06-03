@@ -54,6 +54,11 @@ runs:
               -f /dev/null
         )"
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
+    - name: Logout of Docker
+      shell: bash
+      run: |
+        docker logout ghcr.io
+        docker logout docker.io
     - name: Run Goreleaser
       shell: bash
       run: docker exec
@@ -64,7 +69,7 @@ runs:
         --workdir "$PWD"
         --tty
         "$CONTAINER_ID"
-        goreleaser release 
+        goreleaser release
             ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
             ${{ inputs.snapshot == 'true' && '--snapshot' || '' }}
             ${{ inputs.skip == '' && '' || format('--skip={0}', inputs.skip) }}
