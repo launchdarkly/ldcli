@@ -25,7 +25,7 @@ jobs:
       contents: write # Needed to upload release artifacts
       packages: read # Needed to load goreleaser-cross image
     needs: [ release-please ]
-    if: always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'pull_request')
+    if: needs.release-please.outputs.release_created == 'true' || github.event_name == 'pull_request'
     runs-on: ubuntu-22.04-8core-32gb
     outputs:
       hashes: ${{ steps.publish.outputs.hashes }}
