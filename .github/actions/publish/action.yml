@@ -53,23 +53,17 @@ runs:
             ghcr.io/launchdarkly/goreleaser-cross:v1.24.2  \
               -f /dev/null
         )"
+        echo "$DOCKER_HUB_TOKEN" | docker exec --workdir "$PWD" --tty "$CONTAINER_ID" docker login --username "$DOCKER_HUB_USERNAME" --password-stdin
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
-    - name: Logout of Docker
-      shell: bash
-      run: |
-        docker logout ghcr.io
-        docker logout docker.io
     - name: Run Goreleaser
       shell: bash
       run: docker exec
         --env GITHUB_TOKEN
         --env HOMEBREW_DEPLOY_KEY
-        --env DOCKER_USERNAME=${{ env.DOCKER_HUB_USERNAME }}
-        --env DOCKER_PASSWORD=${{ env.DOCKER_HUB_TOKEN }}
         --workdir "$PWD"
         --tty
         "$CONTAINER_ID"
-        goreleaser release
+        goreleaser release 
             ${{ inputs.dry-run == 'true' && '--skip=publish' || '' }}
             ${{ inputs.snapshot == 'true' && '--snapshot' || '' }}
             ${{ inputs.skip == '' && '' || format('--skip={0}', inputs.skip) }}
