@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.2](https://github.com/launchdarkly/ldcli/compare/v1.15.1...v1.15.2) (2025-06-05)
+
+
+### Bug Fixes
+
+* [IDE-1709] Another attempt at fixing ([#552](https://github.com/launchdarkly/ldcli/issues/552)) ([0573344](https://github.com/launchdarkly/ldcli/commit/05733444d04b8749d5e8aa533077ad1b2ac8bc4a))
+
 ## [1.15.1](https://github.com/launchdarkly/ldcli/compare/v1.15.0...v1.15.1) (2025-06-03)
 
 
