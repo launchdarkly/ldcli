@@ -15,7 +15,7 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/launchdarkly/api-client-go/v14 v14.0.0
 	github.com/launchdarkly/go-sdk-common/v3 v3.2.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.10.1
+	github.com/launchdarkly/go-server-sdk/v7 v7.10.2
 	github.com/launchdarkly/sdk-meta/api v0.4.3
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/mitchellh/go-homedir v1.1.0
@@ -60,7 +60,7 @@ require (
 	github.com/invopop/yaml v0.3.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/launchdarkly/ccache v1.1.0 // indirect
-	github.com/launchdarkly/eventsource v1.8.0 // indirect
+	github.com/launchdarkly/eventsource v1.9.1 // indirect
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.0 // indirect
 	github.com/launchdarkly/go-sdk-events/v3 v3.5.0 // indirect
 	github.com/launchdarkly/go-semver v1.0.3 // indirect
