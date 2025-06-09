@@ -53,7 +53,7 @@ runs:
             ghcr.io/launchdarkly/goreleaser-cross:v1.24.2  \
               -f /dev/null
         )"
-        echo "$DOCKER_HUB_TOKEN" | docker exec --workdir "$PWD" --tty "$CONTAINER_ID" docker login --username "$DOCKER_HUB_USERNAME" --password-stdin
+        docker exec --workdir "$PWD" --tty "$CONTAINER_ID" docker login --username "$DOCKER_HUB_USERNAME" --password "$DOCKER_HUB_TOKEN"
         echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
     - name: Run Goreleaser
       shell: bash
