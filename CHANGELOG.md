@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.3](https://github.com/launchdarkly/ldcli/compare/v1.15.2...v1.15.3) (2025-06-09)
+
+
+### Bug Fixes
+
+* **ci:** [FUN-804] docker login command ([#561](https://github.com/launchdarkly/ldcli/issues/561)) ([5698576](https://github.com/launchdarkly/ldcli/commit/569857675d6af0dbf40fd6a09b858bc5b68da3b2))
+
 ## [1.15.2](https://github.com/launchdarkly/ldcli/compare/v1.15.1...v1.15.2) (2025-06-05)
 
 
