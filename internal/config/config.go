@@ -23,6 +23,7 @@ type Config struct {
 	AccessToken     string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
 	AnalyticsOptOut *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
 	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
+	DatabasePath    string `json:"database-path,omitempty" yaml:"database-path,omitempty"`
 	DevStreamURI    string `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
 	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
@@ -81,6 +82,8 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 				c.AnalyticsOptOut = &val
 			case cliflags.BaseURIFlag:
 				c.BaseURI = v
+			case cliflags.DatabasePathFlag:
+				c.DatabasePath = v
 			case cliflags.DevStreamURIFlag:
 				c.DevStreamURI = v
 			case cliflags.EnvironmentFlag:
