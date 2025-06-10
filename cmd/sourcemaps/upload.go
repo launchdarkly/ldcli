@@ -16,9 +16,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
+	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
@@ -66,13 +68,26 @@ type SourceMapFile struct {
 	Name string
 }
 
-func NewUploadCmd(client resources.Client) *cobra.Command {
+func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Use:   "upload",
 		Short: "Upload sourcemaps",
 		Long:  "Upload JavaScript sourcemaps to LaunchDarkly for error monitoring",
 		RunE:  runE(client),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			tracker := analyticsTrackerFn(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
+			)
+			tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(
+				cmd,
+				"sourcemaps",
+				map[string]interface{}{
+					"action": cmd.Name(),
+				}))
+		},
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
