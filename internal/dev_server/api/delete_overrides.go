@@ -12,7 +12,12 @@ func (s server) DeleteOverrides(ctx context.Context, request DeleteOverridesRequ
 	err := model.DeleteOverrides(ctx, request.ProjectKey)
 	if err != nil {
 		if errors.As(err, &model.ErrNotFound{}) {
-			return DeleteOverrides404Response{}, nil
+			return DeleteOverrides404JSONResponse{
+				ErrorResponseJSONResponse{
+					Code:    "not_found",
+					Message: "project not found",
+				},
+			}, nil
 		}
 		return nil, err
 	}

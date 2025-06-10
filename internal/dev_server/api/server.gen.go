@@ -32,8 +32,14 @@ const (
 
 // Defines values for PostAddProjectParamsExpand.
 const (
-	AvailableVariations PostAddProjectParamsExpand = "availableVariations"
-	Overrides           PostAddProjectParamsExpand = "overrides"
+	PostAddProjectParamsExpandAvailableVariations PostAddProjectParamsExpand = "availableVariations"
+	PostAddProjectParamsExpandOverrides           PostAddProjectParamsExpand = "overrides"
+)
+
+// Defines values for PostCopyProjectParamsExpand.
+const (
+	PostCopyProjectParamsExpandAvailableVariations PostCopyProjectParamsExpand = "availableVariations"
+	PostCopyProjectParamsExpandOverrides           PostCopyProjectParamsExpand = "overrides"
 )
 
 // Context context object to use when evaluating flags in source environment
@@ -151,6 +157,21 @@ type PostAddProjectParams struct {
 // PostAddProjectParamsExpand defines parameters for PostAddProject.
 type PostAddProjectParamsExpand string
 
+// PostCopyProjectJSONBody defines parameters for PostCopyProject.
+type PostCopyProjectJSONBody struct {
+	// NewProjectKey key for the new copied project
+	NewProjectKey string `json:"newProjectKey"`
+}
+
+// PostCopyProjectParams defines parameters for PostCopyProject.
+type PostCopyProjectParams struct {
+	// Expand Available expand options for this endpoint.
+	Expand *ProjectExpand `form:"expand,omitempty" json:"expand,omitempty"`
+}
+
+// PostCopyProjectParamsExpand defines parameters for PostCopyProject.
+type PostCopyProjectParamsExpand string
+
 // GetEnvironmentsParams defines parameters for GetEnvironments.
 type GetEnvironmentsParams struct {
 	// Name filter by environment name
@@ -165,6 +186,9 @@ type PatchProjectJSONRequestBody PatchProjectJSONBody
 
 // PostAddProjectJSONRequestBody defines body for PostAddProject for application/json ContentType.
 type PostAddProjectJSONRequestBody PostAddProjectJSONBody
+
+// PostCopyProjectJSONRequestBody defines body for PostCopyProject for application/json ContentType.
+type PostCopyProjectJSONRequestBody PostCopyProjectJSONBody
 
 // PutOverrideFlagJSONRequestBody defines body for PutOverrideFlag for application/json ContentType.
 type PutOverrideFlagJSONRequestBody = FlagValue
@@ -192,6 +216,9 @@ type ServerInterface interface {
 	// Add the project to the dev server
 	// (POST /dev/projects/{projectKey})
 	PostAddProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostAddProjectParams)
+	// Copy an existing project to create a new project namespace
+	// (POST /dev/projects/{projectKey}/copy)
+	PostCopyProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostCopyProjectParams)
 	// list all environments for the given project
 	// (GET /dev/projects/{projectKey}/environments)
 	GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetEnvironmentsParams)
@@ -381,6 +408,42 @@ func (siw *ServerInterfaceWrapper) PostAddProject(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAddProject(w, r, projectKey, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostCopyProject operation middleware
+func (siw *ServerInterfaceWrapper) PostCopyProject(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "projectKey" -------------
+	var projectKey ProjectKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectKey", mux.Vars(r)["projectKey"], &projectKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectKey", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostCopyProjectParams
+
+	// ------------- Optional query parameter "expand" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "expand", r.URL.Query(), &params.Expand)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expand", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostCopyProject(w, r, projectKey, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -654,6 +717,8 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.PostAddProject).Methods("POST")
 
+	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/copy", wrapper.PostCopyProject).Methods("POST")
+
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/environments", wrapper.GetEnvironments).Methods("GET")
 
 	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides", wrapper.DeleteOverrides).Methods("DELETE")
@@ -867,6 +932,64 @@ func (response PostAddProject409JSONResponse) VisitPostAddProjectResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type PostCopyProjectRequestObject struct {
+	ProjectKey ProjectKey `json:"projectKey"`
+	Params     PostCopyProjectParams
+	Body       *PostCopyProjectJSONRequestBody
+}
+
+type PostCopyProjectResponseObject interface {
+	VisitPostCopyProjectResponse(w http.ResponseWriter) error
+}
+
+type PostCopyProject201JSONResponse struct{ ProjectJSONResponse }
+
+func (response PostCopyProject201JSONResponse) VisitPostCopyProjectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostCopyProject400JSONResponse struct{ ErrorResponseJSONResponse }
+
+func (response PostCopyProject400JSONResponse) VisitPostCopyProjectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostCopyProject404JSONResponse struct {
+	// Code specific error code encountered
+	Code string `json:"code"`
+
+	// Message description of the error
+	Message string `json:"message"`
+}
+
+func (response PostCopyProject404JSONResponse) VisitPostCopyProjectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostCopyProject409JSONResponse struct {
+	// Code specific error code encountered
+	Code string `json:"code"`
+
+	// Message description of the error
+	Message string `json:"message"`
+}
+
+func (response PostCopyProject409JSONResponse) VisitPostCopyProjectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetEnvironmentsRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
 	Params     GetEnvironmentsParams
@@ -925,12 +1048,13 @@ func (response DeleteOverrides204Response) VisitDeleteOverridesResponse(w http.R
 	return nil
 }
 
-type DeleteOverrides404Response struct {
-}
+type DeleteOverrides404JSONResponse struct{ ErrorResponseJSONResponse }
 
-func (response DeleteOverrides404Response) VisitDeleteOverridesResponse(w http.ResponseWriter) error {
+func (response DeleteOverrides404JSONResponse) VisitDeleteOverridesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
-	return nil
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type DeleteFlagOverrideRequestObject struct {
@@ -1009,6 +1133,9 @@ type StrictServerInterface interface {
 	// Add the project to the dev server
 	// (POST /dev/projects/{projectKey})
 	PostAddProject(ctx context.Context, request PostAddProjectRequestObject) (PostAddProjectResponseObject, error)
+	// Copy an existing project to create a new project namespace
+	// (POST /dev/projects/{projectKey}/copy)
+	PostCopyProject(ctx context.Context, request PostCopyProjectRequestObject) (PostCopyProjectResponseObject, error)
 	// list all environments for the given project
 	// (GET /dev/projects/{projectKey}/environments)
 	GetEnvironments(ctx context.Context, request GetEnvironmentsRequestObject) (GetEnvironmentsResponseObject, error)
@@ -1240,6 +1367,40 @@ func (sh *strictHandler) PostAddProject(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAddProjectResponseObject); ok {
 		if err := validResponse.VisitPostAddProjectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostCopyProject operation middleware
+func (sh *strictHandler) PostCopyProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostCopyProjectParams) {
+	var request PostCopyProjectRequestObject
+
+	request.ProjectKey = projectKey
+	request.Params = params
+
+	var body PostCopyProjectJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostCopyProject(ctx, request.(PostCopyProjectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostCopyProject")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostCopyProjectResponseObject); ok {
+		if err := validResponse.VisitPostCopyProjectResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

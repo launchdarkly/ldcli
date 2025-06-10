@@ -321,3 +321,58 @@ func updateProject(client resources.Client) func(*cobra.Command, []string) error
 		return nil
 	}
 }
+
+func NewCopyProjectCmd(client resources.Client) *cobra.Command {
+	cmd := &cobra.Command{
+		GroupID: "projects",
+		Args:    validators.Validate(),
+		Long:    "Copy an existing project to create a new project namespace with the same flags and configuration",
+		RunE:    copyProject(client),
+		Short:   "copy a project",
+		Use:     "copy-project",
+	}
+
+	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
+
+	cmd.Flags().String(cliflags.ProjectFlag, "", "The source project key to copy from")
+	_ = cmd.MarkFlagRequired(cliflags.ProjectFlag)
+	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
+
+	cmd.Flags().String("new-project-key", "", "The key for the new copied project")
+	_ = cmd.MarkFlagRequired("new-project-key")
+	_ = cmd.Flags().SetAnnotation("new-project-key", "required", []string{"true"})
+	_ = viper.BindPFlag("new-project-key", cmd.Flags().Lookup("new-project-key"))
+
+	return cmd
+}
+
+type copyProjectBody struct {
+	NewProjectKey string          `json:"newProjectKey"`
+	Context       json.RawMessage `json:"context,omitempty"`
+}
+
+func copyProject(client resources.Client) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		body := copyProjectBody{NewProjectKey: viper.GetString("new-project-key")}
+
+		jsonData, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+
+		path := getDevServerUrl() + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag) + "/copy"
+		res, err := client.MakeUnauthenticatedRequest(
+			"POST",
+			path,
+			jsonData,
+		)
+		if err != nil {
+			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		}
+
+		fmt.Fprint(cmd.OutOrStdout(), string(res))
+
+		return nil
+	}
+}

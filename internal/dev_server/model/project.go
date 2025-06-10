@@ -44,6 +44,64 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	return project, nil
 }
 
+// CopyProject creates a new project based on an existing project's configuration.
+// This allows creating multiple isolated namespaces from the same source project.
+func CopyProject(ctx context.Context, sourceProjectKey, newProjectKey string, ldCtx *ldcontext.Context) (Project, error) {
+	store := StoreFromContext(ctx)
+
+	// Get the source project
+	sourceProject, err := store.GetDevProject(ctx, sourceProjectKey)
+	if err != nil {
+		return Project{}, errors.Wrapf(err, "unable to find source project %s", sourceProjectKey)
+	}
+
+	// Create a new project with the same configuration but different key
+	newProject := Project{
+		Key:                  newProjectKey,
+		SourceEnvironmentKey: sourceProject.SourceEnvironmentKey,
+		AllFlagsState:        make(FlagsState),
+		AvailableVariations:  make([]FlagVariation, len(sourceProject.AvailableVariations)),
+	}
+
+	// Use provided context or copy from source
+	if ldCtx == nil {
+		newProject.Context = sourceProject.Context
+	} else {
+		newProject.Context = *ldCtx
+	}
+
+	// Copy the flag state (deep copy to avoid shared references)
+	for flagKey, flagState := range sourceProject.AllFlagsState {
+		newProject.AllFlagsState[flagKey] = FlagState{
+			Value:   flagState.Value,
+			Version: flagState.Version,
+		}
+	}
+
+	// Copy available variations with new project key
+	for i, variation := range sourceProject.AvailableVariations {
+		newProject.AvailableVariations[i] = FlagVariation{
+			FlagKey: variation.FlagKey,
+			Variation: Variation{
+				Id:          variation.Id,
+				Description: variation.Description,
+				Name:        variation.Name,
+				Value:       variation.Value,
+			},
+		}
+	}
+
+	newProject.LastSyncTime = time.Now()
+
+	// Insert the new project
+	err = store.InsertProject(ctx, newProject)
+	if err != nil {
+		return Project{}, err
+	}
+
+	return newProject, nil
+}
+
 func (project *Project) refreshExternalState(ctx context.Context) error {
 	flagsState, err := project.fetchFlagState(ctx)
 	if err != nil {

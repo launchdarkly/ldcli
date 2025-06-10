@@ -113,6 +113,33 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         409:
           $ref: "#/components/responses/ErrorResponse"
+  /dev/projects/{projectKey}/copy:
+    post:
+      summary: Copy an existing project to create a new project namespace
+      operationId: postCopyProject
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+        - $ref: "#/components/parameters/projectExpand"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newProjectKey
+              properties:
+                newProjectKey:
+                  type: string
+                  description: key for the new copied project
+      responses:
+        201:
+          $ref: "#/components/responses/Project"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
+        404:
+          $ref: "#/components/responses/ErrorResponse"
+        409:
+          $ref: "#/components/responses/ErrorResponse"
   /dev/projects/{projectKey}/overrides:
     delete:
       summary: remove all overrides for the given project

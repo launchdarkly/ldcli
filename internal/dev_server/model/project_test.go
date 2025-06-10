@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -237,5 +238,94 @@ func TestGetFlagStateWithOverridesForProject(t *testing.T) {
 		assert.True(t, exists)
 		assert.True(t, overriddenFlag.Value.BoolValue())
 		assert.Equal(t, 2, overriddenFlag.Version)
+	})
+}
+
+func TestCopyProject(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	store := mocks.NewMockStore(ctrl)
+
+	ctx := context.Background()
+	ctx = model.ContextWithStore(ctx, store)
+	ctx, _, _ = adapters_mocks.WithMockApiAndSdk(ctx, ctrl)
+
+	sourceProject := model.Project{
+		Key:                  "source-project",
+		SourceEnvironmentKey: "production",
+		Context:              ldcontext.NewBuilder("user").Key("test-user").Build(),
+		LastSyncTime:         time.Now(),
+		AllFlagsState: model.FlagsState{
+			"flag-1": model.FlagState{Value: ldvalue.Bool(true), Version: 1},
+			"flag-2": model.FlagState{Value: ldvalue.String("test"), Version: 2},
+		},
+		AvailableVariations: []model.FlagVariation{
+			{
+				FlagKey: "flag-1",
+				Variation: model.Variation{
+					Id:    "var1",
+					Value: ldvalue.Bool(true),
+				},
+			},
+			{
+				FlagKey: "flag-2",
+				Variation: model.Variation{
+					Id:    "var2",
+					Value: ldvalue.String("test"),
+				},
+			},
+		},
+	}
+
+	t.Run("copies project successfully", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), "source-project").Return(&sourceProject, nil)
+		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, project model.Project) error {
+			assert.Equal(t, "new-project", project.Key)
+			assert.Equal(t, sourceProject.SourceEnvironmentKey, project.SourceEnvironmentKey)
+			assert.Equal(t, sourceProject.Context, project.Context)
+			assert.Equal(t, sourceProject.AllFlagsState, project.AllFlagsState)
+			assert.Len(t, project.AvailableVariations, len(sourceProject.AvailableVariations))
+			return nil
+		})
+
+		newProject, err := model.CopyProject(ctx, "source-project", "new-project", nil)
+		assert.NoError(t, err)
+		assert.Equal(t, "new-project", newProject.Key)
+		assert.Equal(t, sourceProject.SourceEnvironmentKey, newProject.SourceEnvironmentKey)
+		assert.Equal(t, sourceProject.AllFlagsState, newProject.AllFlagsState)
+	})
+
+	t.Run("copies project with custom context", func(t *testing.T) {
+		customContext := ldcontext.NewBuilder("user").Key("custom-user").Build()
+
+		store.EXPECT().GetDevProject(gomock.Any(), "source-project").Return(&sourceProject, nil)
+		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, project model.Project) error {
+			assert.Equal(t, "new-project-custom", project.Key)
+			assert.Equal(t, customContext, project.Context)
+			return nil
+		})
+
+		newProject, err := model.CopyProject(ctx, "source-project", "new-project-custom", &customContext)
+		assert.NoError(t, err)
+		assert.Equal(t, "new-project-custom", newProject.Key)
+		assert.Equal(t, customContext, newProject.Context)
+	})
+
+	t.Run("returns error when source project not found", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), "non-existent").Return(nil, model.NewErrNotFound("project", "non-existent"))
+
+		_, err := model.CopyProject(ctx, "non-existent", "new-project", nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unable to find source project")
+	})
+
+	t.Run("returns error when new project already exists", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), "source-project").Return(&sourceProject, nil)
+		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(model.NewErrAlreadyExists("project", "existing-project"))
+
+		_, err := model.CopyProject(ctx, "source-project", "existing-project", nil)
+		assert.Error(t, err)
+		var existsErr model.ErrAlreadyExists
+		assert.True(t, errors.As(err, &existsErr))
 	})
 }
