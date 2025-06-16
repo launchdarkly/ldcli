@@ -13,8 +13,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
+
 // Mock resources.Client implementation for testing
 type mockResourcesClient struct {
 	responses map[string][]byte
@@ -34,9 +36,6 @@ func (m *mockResourcesClient) MakeRequest(accessToken, method, uri, contentType 
 func (m *mockResourcesClient) GetVersion() string {
 	return "test-version"
 }
-
-
-
 
 func TestGetSourceMapUploadUrls(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +130,9 @@ func TestUploadFile(t *testing.T) {
 
 func TestNewUploadCmd(t *testing.T) {
 	client := resources.NewClient("")
-	cmd := NewUploadCmd(client)
+	cmd := NewUploadCmd(client, func(accessToken, baseURI string, analyticsOptOut bool) analytics.Tracker {
+		return &analytics.MockTracker{}
+	})
 
 	assert.Equal(t, "upload", cmd.Use)
 	assert.Equal(t, "Upload sourcemaps", cmd.Short)
@@ -200,7 +201,6 @@ func TestGetAllSourceMapFiles(t *testing.T) {
 	assert.Contains(t, err.Error(), "no .js.map files found")
 }
 
-
 func TestGetSourceMapUploadUrlsErrors(t *testing.T) {
 	_, err := getSourceMapUploadUrls("test-key", "project123", []string{"path"}, "://invalid-url")
 	assert.Error(t, err)
@@ -227,7 +227,9 @@ func TestRunE(t *testing.T) {
 		},
 	}
 
-	cmd := NewUploadCmd(mockClient)
+	cmd := NewUploadCmd(mockClient, func(accessToken, baseURI string, analyticsOptOut bool) analytics.Tracker {
+		return &analytics.MockTracker{}
+	})
 	args := []string{}
 
 	tempDir, err := os.MkdirTemp("", "sourcemap-test")
@@ -254,14 +256,14 @@ func TestRunE(t *testing.T) {
 	runFunc := runE(mockClient)
 	err = runFunc(cmd, args)
 	assert.Error(t, err)
-	
+
 	err = cmd.Flags().Set("project", "test-project")
 	assert.NoError(t, err)
 	err = cmd.Flags().Set(pathFlag, testMapFile)
 	assert.NoError(t, err)
 	err = cmd.Flags().Set(backendUrlFlag, urlsServer.URL)
 	assert.NoError(t, err)
-	
+
 	err = runFunc(cmd, args)
 	assert.Error(t, err)
 }
