@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.4](https://github.com/launchdarkly/ldcli/compare/v1.15.3...v1.15.4) (2025-06-17)
+
+
+### Bug Fixes
+
+* improve help text and add analytics ([#566](https://github.com/launchdarkly/ldcli/issues/566)) ([e1c2b40](https://github.com/launchdarkly/ldcli/commit/e1c2b409ccfc870039bab04b20411376c75bdc88))
+
 ## [1.15.3](https://github.com/launchdarkly/ldcli/compare/v1.15.2...v1.15.3) (2025-06-09)
 
 
