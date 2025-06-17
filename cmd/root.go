@@ -204,7 +204,7 @@ func NewRootCommand(
 	cmd.AddCommand(logincmd.NewLoginCmd(resources.NewClient(version)))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(resources.NewClient(version), analyticsTrackerFn, dev_server.NewClient(version)))
-	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd())
+	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(resources.NewClient(version), analyticsTrackerFn))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	// add non-generated commands
