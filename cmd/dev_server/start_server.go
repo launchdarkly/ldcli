@@ -87,6 +87,7 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 		params := dev_server.ServerParams{
 			AccessToken:            viper.GetString(cliflags.AccessTokenFlag),
 			BaseURI:                viper.GetString(cliflags.BaseURIFlag),
+			DatabasePath:           viper.GetString(cliflags.DatabasePathFlag),
 			DevStreamURI:           viper.GetString(cliflags.DevStreamURIFlag),
 			Port:                   viper.GetString(cliflags.PortFlag),
 			InitialProjectSettings: initialSetting,

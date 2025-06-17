@@ -50,6 +50,14 @@ func NewDevServerCmd(client resources.Client, analyticsTrackerFn analytics.Track
 
 	_ = viper.BindPFlag(cliflags.PortFlag, cmd.PersistentFlags().Lookup(cliflags.PortFlag))
 
+	cmd.PersistentFlags().String(
+		cliflags.DatabasePathFlag,
+		"",
+		cliflags.DatabasePathFlagDescription,
+	)
+
+	_ = viper.BindPFlag(cliflags.DatabasePathFlag, cmd.PersistentFlags().Lookup(cliflags.DatabasePathFlag))
+
 	// Add subcommands here
 	cmd.AddGroup(&cobra.Group{ID: "projects", Title: "Project commands:"})
 	cmd.AddCommand(NewListProjectsCmd(client))

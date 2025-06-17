@@ -27,6 +27,7 @@ type Client interface {
 type ServerParams struct {
 	AccessToken            string
 	BaseURI                string
+	DatabasePath           string
 	DevStreamURI           string
 	Port                   string
 	InitialProjectSettings model.InitialProjectSettings
@@ -44,9 +45,9 @@ func NewClient(cliVersion string) LDClient {
 
 func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	ldClient := client.New(serverParams.AccessToken, serverParams.BaseURI, c.cliVersion)
-	dbPath := getDBPath()
+	dbPath := getDBPath(serverParams.DatabasePath)
 	log.Printf("Using database at %s", dbPath)
-	sqlStore, err := db.NewSqlite(ctx, getDBPath())
+	sqlStore, err := db.NewSqlite(ctx, dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,11 +88,16 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	log.Fatal(server.ListenAndServe())
 }
 
-func getDBPath() string {
+func getDBPath(configuredPath string) string {
+	if configuredPath != "" {
+		log.Printf("Using configured database path: %s", configuredPath)
+		return configuredPath
+	}
+
 	dbFilePath, err := xdg.StateFile("ldcli/dev_server.db")
-	log.Printf("Using database at %s", dbFilePath)
 	if err != nil {
 		log.Fatalf("Unable to create state directory: %s", err)
 	}
+	log.Printf("Using default XDG database path: %s", dbFilePath)
 	return dbFilePath
 }
