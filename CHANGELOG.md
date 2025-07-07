@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.5](https://github.com/launchdarkly/ldcli/compare/v1.15.4...v1.15.5) (2025-07-07)
+
+
+### Bug Fixes
+
+* correct CORS header name for exposing `date` in dev-server ([#573](https://github.com/launchdarkly/ldcli/issues/573)) ([326c0de](https://github.com/launchdarkly/ldcli/commit/326c0def6bf16d0f2286fcfb013d9f24929c8d9a))
+
 ## [1.15.4](https://github.com/launchdarkly/ldcli/compare/v1.15.3...v1.15.4) (2025-06-17)
 
 
