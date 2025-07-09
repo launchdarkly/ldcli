@@ -50,6 +50,20 @@ func NewDevServerCmd(client resources.Client, analyticsTrackerFn analytics.Track
 
 	_ = viper.BindPFlag(cliflags.PortFlag, cmd.PersistentFlags().Lookup(cliflags.PortFlag))
 
+	cmd.PersistentFlags().Bool(
+		cliflags.CorsEnabledFlag,
+		true,
+		cliflags.CorsEnabledFlagDescription,
+	)
+	_ = viper.BindPFlag(cliflags.CorsEnabledFlag, cmd.PersistentFlags().Lookup(cliflags.CorsEnabledFlag))
+
+	cmd.PersistentFlags().String(
+		cliflags.CorsOriginFlag,
+		"*",
+		cliflags.CorsOriginFlagDescription,
+	)
+	_ = viper.BindPFlag(cliflags.CorsOriginFlag, cmd.PersistentFlags().Lookup(cliflags.CorsOriginFlag))
+
 	// Add subcommands here
 	cmd.AddGroup(&cobra.Group{ID: "projects", Title: "Project commands:"})
 	cmd.AddCommand(NewListProjectsCmd(client))
