@@ -9,7 +9,10 @@ import (
 func TestApiCorsHeadersWithConfig_Enabled(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test response"))
+		_, err := w.Write([]byte("test response"))
+		if err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	})
 
 	corsHandler := ApiCorsHeadersWithConfig(true, "*")(handler)
@@ -56,7 +59,10 @@ func TestApiCorsHeadersWithConfig_OptionsRequest(t *testing.T) {
 func TestApiCorsHeadersWithConfig_Disabled(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test response"))
+		_, err := w.Write([]byte("test response"))
+		if err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	})
 
 	corsHandler := ApiCorsHeadersWithConfig(false, "*")(handler)
