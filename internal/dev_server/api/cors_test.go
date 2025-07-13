@@ -1,4 +1,4 @@
-package sdk
+package api
 
 import (
 	"net/http"
@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestApiCorsHeadersWithConfig_Enabled(t *testing.T) {
+func TestCorsHeadersWithConfig_Enabled(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("test response"))
 		require.NoError(t, err)
 	})
 
-	corsHandler := ApiCorsHeadersWithConfig(true, "*")(handler)
+	corsHandler := CorsHeadersWithConfig(true, "*")(handler)
 
 	// Test GET request
 	req := httptest.NewRequest("GET", "/dev/projects", nil)
@@ -28,12 +28,12 @@ func TestApiCorsHeadersWithConfig_Enabled(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestApiCorsHeadersWithConfig_OptionsRequest(t *testing.T) {
+func TestCorsHeadersWithConfig_OptionsRequest(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("Handler should not be called for OPTIONS request")
 	})
 
-	corsHandler := ApiCorsHeadersWithConfig(true, "https://example.com")(handler)
+	corsHandler := CorsHeadersWithConfig(true, "https://example.com")(handler)
 
 	// Test OPTIONS preflight request
 	req := httptest.NewRequest("OPTIONS", "/dev/projects", nil)
@@ -44,14 +44,14 @@ func TestApiCorsHeadersWithConfig_OptionsRequest(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestApiCorsHeadersWithConfig_Disabled(t *testing.T) {
+func TestCorsHeadersWithConfig_Disabled(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("test response"))
 		require.NoError(t, err)
 	})
 
-	corsHandler := ApiCorsHeadersWithConfig(false, "*")(handler)
+	corsHandler := CorsHeadersWithConfig(false, "*")(handler)
 
 	// Test GET request with CORS disabled
 	req := httptest.NewRequest("GET", "/dev/projects", nil)
