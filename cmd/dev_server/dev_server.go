@@ -52,7 +52,7 @@ func NewDevServerCmd(client resources.Client, analyticsTrackerFn analytics.Track
 
 	cmd.PersistentFlags().Bool(
 		cliflags.CorsEnabledFlag,
-		true,
+		false,
 		cliflags.CorsEnabledFlagDescription,
 	)
 	_ = viper.BindPFlag(cliflags.CorsEnabledFlag, cmd.PersistentFlags().Lookup(cliflags.CorsEnabledFlag))

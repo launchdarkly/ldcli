@@ -24,7 +24,7 @@ const (
 	AccessTokenFlagDescription = "LaunchDarkly access token with write-level access"
 	AnalyticsOptOutDescription = "Opt out of analytics tracking"
 	BaseURIFlagDescription     = "LaunchDarkly base URI"
-	CorsEnabledFlagDescription = "Enable CORS headers for browser-based developer tools (default: true)"
+	CorsEnabledFlagDescription = "Enable CORS headers for browser-based developer tools (default: false)"
 	CorsOriginFlagDescription  = "Allowed CORS origin. Use '*' for all origins (default: '*')"
 	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
 	EnvironmentFlagDescription = "Default environment key"
