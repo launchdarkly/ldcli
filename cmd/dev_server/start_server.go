@@ -89,6 +89,8 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 			BaseURI:                viper.GetString(cliflags.BaseURIFlag),
 			DevStreamURI:           viper.GetString(cliflags.DevStreamURIFlag),
 			Port:                   viper.GetString(cliflags.PortFlag),
+			CorsEnabled:            viper.GetBool(cliflags.CorsEnabledFlag),
+			CorsOrigin:             viper.GetString(cliflags.CorsOriginFlag),
 			InitialProjectSettings: initialSetting,
 		}
 
