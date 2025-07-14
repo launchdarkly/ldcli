@@ -230,8 +230,8 @@ github.com/launchdarkly/go-test-helpers/v2 v2.2.0 h1:L3kGILP/6ewikhzhdNkHy1b5y4z
 github.com/launchdarkly/go-test-helpers/v2 v2.2.0/go.mod h1:L7+th5govYp5oKU9iN7To5PgznBuIjBPn+ejqKR0avw=
 github.com/launchdarkly/go-test-helpers/v3 v3.0.2 h1:rh0085g1rVJM5qIukdaQ8z1XTWZztbJ49vRZuveqiuU=
 github.com/launchdarkly/go-test-helpers/v3 v3.0.2/go.mod h1:u2ZvJlc/DDJTFrshWW50tWMZHLVYXofuSHUfTU/eIwM=
-github.com/launchdarkly/sdk-meta/api v0.4.4 h1:vEFeLXY83KrS5YXASKDoQ0VskJTcDHr7tbewPR0fYK8=
-github.com/launchdarkly/sdk-meta/api v0.4.4/go.mod h1:vXfR0z4XBz49IYT/2GDEza+Iat3PcuBCC438AZT6oDg=
+github.com/launchdarkly/sdk-meta/api v0.4.5 h1:xMnXACvMWJfTJkGz0F+8VrTXvBikufEiUCxvJXCfZuI=
+github.com/launchdarkly/sdk-meta/api v0.4.5/go.mod h1:vXfR0z4XBz49IYT/2GDEza+Iat3PcuBCC438AZT6oDg=
 github.com/lucasb-eyer/go-colorful v1.2.0 h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
 github.com/lucasb-eyer/go-colorful v1.2.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mailru/easyjson v0.7.7 h1:UGYAvKxe3sBsEDzO8ZeWOSlIQfWFlxbzLZe7hwFURr0=
