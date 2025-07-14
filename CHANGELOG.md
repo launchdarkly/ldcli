@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/launchdarkly/ldcli/compare/v1.15.5...v1.16.0) (2025-07-14)
+
+
+### Features
+
+* Add CORS configuration to dev server API endpoints ([#575](https://github.com/launchdarkly/ldcli/issues/575)) ([d19bd6a](https://github.com/launchdarkly/ldcli/commit/d19bd6a485495f854fa182d114df9dfd588b73f2))
+
 ## [1.15.5](https://github.com/launchdarkly/ldcli/compare/v1.15.4...v1.15.5) (2025-07-07)
 
 
