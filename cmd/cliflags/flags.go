@@ -8,6 +8,8 @@ const (
 	AccessTokenFlag  = "access-token"
 	AnalyticsOptOut  = "analytics-opt-out"
 	BaseURIFlag      = "base-uri"
+	CorsEnabledFlag  = "cors-enabled"
+	CorsOriginFlag   = "cors-origin"
 	DataFlag         = "data"
 	DevStreamURIFlag = "dev-stream-uri"
 	EmailsFlag       = "emails"
@@ -22,6 +24,8 @@ const (
 	AccessTokenFlagDescription = "LaunchDarkly access token with write-level access"
 	AnalyticsOptOutDescription = "Opt out of analytics tracking"
 	BaseURIFlagDescription     = "LaunchDarkly base URI"
+	CorsEnabledFlagDescription = "Enable CORS headers for browser-based developer tools (default: false)"
+	CorsOriginFlagDescription  = "Allowed CORS origin. Use '*' for all origins (default: '*')"
 	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
 	EnvironmentFlagDescription = "Default environment key"
 	FlagFlagDescription        = "Default feature flag key"
@@ -36,6 +40,8 @@ func AllFlagsHelp() map[string]string {
 		AccessTokenFlag:  AccessTokenFlagDescription,
 		AnalyticsOptOut:  AnalyticsOptOutDescription,
 		BaseURIFlag:      BaseURIFlagDescription,
+		CorsEnabledFlag:  CorsEnabledFlagDescription,
+		CorsOriginFlag:   CorsOriginFlagDescription,
 		DevStreamURIFlag: DevStreamURIDescription,
 		EnvironmentFlag:  EnvironmentFlagDescription,
 		FlagFlag:         FlagFlagDescription,

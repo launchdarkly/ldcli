@@ -4,6 +4,8 @@ Supported settings:
 - `access-token`: LaunchDarkly access token with write-level access
 - `analytics-opt-out`: Opt out of analytics tracking
 - `base-uri`: LaunchDarkly base URI
+- `cors-enabled`: Enable CORS headers for browser-based developer tools (default: false)
+- `cors-origin`: Allowed CORS origin. Use '*' for all origins (default: '*')
 - `dev-stream-uri`: Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint
 - `environment`: Default environment key
 - `flag`: Default feature flag key
