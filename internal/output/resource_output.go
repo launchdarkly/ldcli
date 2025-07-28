@@ -103,7 +103,7 @@ func CmdOutput(action string, outputKind string, input []byte) (string, error) {
 }
 
 func plaintextOutput(out string, successMessage string) string {
-	if successMessage != "" {
+	if strings.TrimSpace(successMessage) != "" {
 		return fmt.Sprintf("%s%s", successMessage, out)
 	}
 
