@@ -21,6 +21,7 @@ import (
 type MockApi struct {
 	ctrl     *gomock.Controller
 	recorder *MockApiMockRecorder
+	isgomock struct{}
 }
 
 // MockApiMockRecorder is the mock recorder for MockApi.
@@ -41,46 +42,46 @@ func (m *MockApi) EXPECT() *MockApiMockRecorder {
 }
 
 // GetAllFlags mocks base method.
-func (m *MockApi) GetAllFlags(arg0 context.Context, arg1 string) ([]ldapi.FeatureFlag, error) {
+func (m *MockApi) GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllFlags", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetAllFlags", ctx, projectKey)
 	ret0, _ := ret[0].([]ldapi.FeatureFlag)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAllFlags indicates an expected call of GetAllFlags.
-func (mr *MockApiMockRecorder) GetAllFlags(arg0, arg1 any) *gomock.Call {
+func (mr *MockApiMockRecorder) GetAllFlags(ctx, projectKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllFlags", reflect.TypeOf((*MockApi)(nil).GetAllFlags), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllFlags", reflect.TypeOf((*MockApi)(nil).GetAllFlags), ctx, projectKey)
 }
 
 // GetProjectEnvironments mocks base method.
-func (m *MockApi) GetProjectEnvironments(arg0 context.Context, arg1, arg2 string, arg3 *int) ([]ldapi.Environment, error) {
+func (m *MockApi) GetProjectEnvironments(ctx context.Context, projectKey, query string, limit *int) ([]ldapi.Environment, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProjectEnvironments", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "GetProjectEnvironments", ctx, projectKey, query, limit)
 	ret0, _ := ret[0].([]ldapi.Environment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetProjectEnvironments indicates an expected call of GetProjectEnvironments.
-func (mr *MockApiMockRecorder) GetProjectEnvironments(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockApiMockRecorder) GetProjectEnvironments(ctx, projectKey, query, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectEnvironments", reflect.TypeOf((*MockApi)(nil).GetProjectEnvironments), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectEnvironments", reflect.TypeOf((*MockApi)(nil).GetProjectEnvironments), ctx, projectKey, query, limit)
 }
 
 // GetSdkKey mocks base method.
-func (m *MockApi) GetSdkKey(arg0 context.Context, arg1, arg2 string) (string, error) {
+func (m *MockApi) GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSdkKey", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetSdkKey", ctx, projectKey, environmentKey)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetSdkKey indicates an expected call of GetSdkKey.
-func (mr *MockApiMockRecorder) GetSdkKey(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockApiMockRecorder) GetSdkKey(ctx, projectKey, environmentKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSdkKey", reflect.TypeOf((*MockApi)(nil).GetSdkKey), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSdkKey", reflect.TypeOf((*MockApi)(nil).GetSdkKey), ctx, projectKey, environmentKey)
 }

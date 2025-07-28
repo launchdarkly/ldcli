@@ -22,6 +22,7 @@ import (
 type MockStore struct {
 	ctrl     *gomock.Controller
 	recorder *MockStoreMockRecorder
+	isgomock struct{}
 }
 
 // MockStoreMockRecorder is the mock recorder for MockStore.
@@ -42,9 +43,9 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 }
 
 // CreateBackup mocks base method.
-func (m *MockStore) CreateBackup(arg0 context.Context) (io.ReadCloser, int64, error) {
+func (m *MockStore) CreateBackup(ctx context.Context) (io.ReadCloser, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateBackup", arg0)
+	ret := m.ctrl.Call(m, "CreateBackup", ctx)
 	ret0, _ := ret[0].(io.ReadCloser)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -52,156 +53,156 @@ func (m *MockStore) CreateBackup(arg0 context.Context) (io.ReadCloser, int64, er
 }
 
 // CreateBackup indicates an expected call of CreateBackup.
-func (mr *MockStoreMockRecorder) CreateBackup(arg0 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) CreateBackup(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBackup", reflect.TypeOf((*MockStore)(nil).CreateBackup), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBackup", reflect.TypeOf((*MockStore)(nil).CreateBackup), ctx)
 }
 
 // DeactivateOverride mocks base method.
-func (m *MockStore) DeactivateOverride(arg0 context.Context, arg1, arg2 string) (int, error) {
+func (m *MockStore) DeactivateOverride(ctx context.Context, projectKey, flagKey string) (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeactivateOverride", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "DeactivateOverride", ctx, projectKey, flagKey)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeactivateOverride indicates an expected call of DeactivateOverride.
-func (mr *MockStoreMockRecorder) DeactivateOverride(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeactivateOverride(ctx, projectKey, flagKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeactivateOverride", reflect.TypeOf((*MockStore)(nil).DeactivateOverride), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeactivateOverride", reflect.TypeOf((*MockStore)(nil).DeactivateOverride), ctx, projectKey, flagKey)
 }
 
 // DeleteDevProject mocks base method.
-func (m *MockStore) DeleteDevProject(arg0 context.Context, arg1 string) (bool, error) {
+func (m *MockStore) DeleteDevProject(ctx context.Context, projectKey string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteDevProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteDevProject", ctx, projectKey)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteDevProject indicates an expected call of DeleteDevProject.
-func (mr *MockStoreMockRecorder) DeleteDevProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteDevProject(ctx, projectKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDevProject", reflect.TypeOf((*MockStore)(nil).DeleteDevProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDevProject", reflect.TypeOf((*MockStore)(nil).DeleteDevProject), ctx, projectKey)
 }
 
 // GetAvailableVariationsForProject mocks base method.
-func (m *MockStore) GetAvailableVariationsForProject(arg0 context.Context, arg1 string) (map[string][]model.Variation, error) {
+func (m *MockStore) GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]model.Variation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAvailableVariationsForProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetAvailableVariationsForProject", ctx, projectKey)
 	ret0, _ := ret[0].(map[string][]model.Variation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAvailableVariationsForProject indicates an expected call of GetAvailableVariationsForProject.
-func (mr *MockStoreMockRecorder) GetAvailableVariationsForProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetAvailableVariationsForProject(ctx, projectKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailableVariationsForProject", reflect.TypeOf((*MockStore)(nil).GetAvailableVariationsForProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailableVariationsForProject", reflect.TypeOf((*MockStore)(nil).GetAvailableVariationsForProject), ctx, projectKey)
 }
 
 // GetDevProject mocks base method.
-func (m *MockStore) GetDevProject(arg0 context.Context, arg1 string) (*model.Project, error) {
+func (m *MockStore) GetDevProject(ctx context.Context, projectKey string) (*model.Project, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDevProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetDevProject", ctx, projectKey)
 	ret0, _ := ret[0].(*model.Project)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDevProject indicates an expected call of GetDevProject.
-func (mr *MockStoreMockRecorder) GetDevProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetDevProject(ctx, projectKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProject", reflect.TypeOf((*MockStore)(nil).GetDevProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProject", reflect.TypeOf((*MockStore)(nil).GetDevProject), ctx, projectKey)
 }
 
 // GetDevProjectKeys mocks base method.
-func (m *MockStore) GetDevProjectKeys(arg0 context.Context) ([]string, error) {
+func (m *MockStore) GetDevProjectKeys(ctx context.Context) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDevProjectKeys", arg0)
+	ret := m.ctrl.Call(m, "GetDevProjectKeys", ctx)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDevProjectKeys indicates an expected call of GetDevProjectKeys.
-func (mr *MockStoreMockRecorder) GetDevProjectKeys(arg0 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetDevProjectKeys(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProjectKeys", reflect.TypeOf((*MockStore)(nil).GetDevProjectKeys), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProjectKeys", reflect.TypeOf((*MockStore)(nil).GetDevProjectKeys), ctx)
 }
 
 // GetOverridesForProject mocks base method.
-func (m *MockStore) GetOverridesForProject(arg0 context.Context, arg1 string) (model.Overrides, error) {
+func (m *MockStore) GetOverridesForProject(ctx context.Context, projectKey string) (model.Overrides, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOverridesForProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetOverridesForProject", ctx, projectKey)
 	ret0, _ := ret[0].(model.Overrides)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetOverridesForProject indicates an expected call of GetOverridesForProject.
-func (mr *MockStoreMockRecorder) GetOverridesForProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetOverridesForProject(ctx, projectKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOverridesForProject", reflect.TypeOf((*MockStore)(nil).GetOverridesForProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOverridesForProject", reflect.TypeOf((*MockStore)(nil).GetOverridesForProject), ctx, projectKey)
 }
 
 // InsertProject mocks base method.
-func (m *MockStore) InsertProject(arg0 context.Context, arg1 model.Project) error {
+func (m *MockStore) InsertProject(ctx context.Context, project model.Project) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "InsertProject", ctx, project)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InsertProject indicates an expected call of InsertProject.
-func (mr *MockStoreMockRecorder) InsertProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) InsertProject(ctx, project any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProject", reflect.TypeOf((*MockStore)(nil).InsertProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProject", reflect.TypeOf((*MockStore)(nil).InsertProject), ctx, project)
 }
 
 // RestoreBackup mocks base method.
-func (m *MockStore) RestoreBackup(arg0 context.Context, arg1 io.Reader) (string, error) {
+func (m *MockStore) RestoreBackup(ctx context.Context, stream io.Reader) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RestoreBackup", arg0, arg1)
+	ret := m.ctrl.Call(m, "RestoreBackup", ctx, stream)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RestoreBackup indicates an expected call of RestoreBackup.
-func (mr *MockStoreMockRecorder) RestoreBackup(arg0, arg1 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) RestoreBackup(ctx, stream any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreBackup", reflect.TypeOf((*MockStore)(nil).RestoreBackup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreBackup", reflect.TypeOf((*MockStore)(nil).RestoreBackup), ctx, stream)
 }
 
 // UpdateProject mocks base method.
-func (m *MockStore) UpdateProject(arg0 context.Context, arg1 model.Project) (bool, error) {
+func (m *MockStore) UpdateProject(ctx context.Context, project model.Project) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpdateProject", ctx, project)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateProject indicates an expected call of UpdateProject.
-func (mr *MockStoreMockRecorder) UpdateProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpdateProject(ctx, project any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProject", reflect.TypeOf((*MockStore)(nil).UpdateProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProject", reflect.TypeOf((*MockStore)(nil).UpdateProject), ctx, project)
 }
 
 // UpsertOverride mocks base method.
-func (m *MockStore) UpsertOverride(arg0 context.Context, arg1 model.Override) (model.Override, error) {
+func (m *MockStore) UpsertOverride(ctx context.Context, override model.Override) (model.Override, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertOverride", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpsertOverride", ctx, override)
 	ret0, _ := ret[0].(model.Override)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpsertOverride indicates an expected call of UpsertOverride.
-func (mr *MockStoreMockRecorder) UpsertOverride(arg0, arg1 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertOverride(ctx, override any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOverride", reflect.TypeOf((*MockStore)(nil).UpsertOverride), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOverride", reflect.TypeOf((*MockStore)(nil).UpsertOverride), ctx, override)
 }
