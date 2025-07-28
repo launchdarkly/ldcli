@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.2](https://github.com/launchdarkly/ldcli/compare/v1.16.1...v1.16.2) (2025-07-28)
+
+
+### Bug Fixes
+
+* [REL-8111] [rel-8111] investigate and fix ldcli returning zero error code on failure ([#589](https://github.com/launchdarkly/ldcli/issues/589)) ([1ff210e](https://github.com/launchdarkly/ldcli/commit/1ff210e79d08c8df7fb4cb4126d4af9c9afd56a9))
+
 ## [1.16.1](https://github.com/launchdarkly/ldcli/compare/v1.16.0...v1.16.1) (2025-07-28)
 
 
