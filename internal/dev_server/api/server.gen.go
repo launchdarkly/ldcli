@@ -925,12 +925,13 @@ func (response DeleteOverrides204Response) VisitDeleteOverridesResponse(w http.R
 	return nil
 }
 
-type DeleteOverrides404Response struct {
-}
+type DeleteOverrides404JSONResponse struct{ ErrorResponseJSONResponse }
 
-func (response DeleteOverrides404Response) VisitDeleteOverridesResponse(w http.ResponseWriter) error {
+func (response DeleteOverrides404JSONResponse) VisitDeleteOverridesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
-	return nil
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type DeleteFlagOverrideRequestObject struct {

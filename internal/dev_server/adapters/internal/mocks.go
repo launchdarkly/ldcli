@@ -20,6 +20,7 @@ import (
 type MockMockableTime struct {
 	ctrl     *gomock.Controller
 	recorder *MockMockableTimeMockRecorder
+	isgomock struct{}
 }
 
 // MockMockableTimeMockRecorder is the mock recorder for MockMockableTime.
@@ -54,13 +55,13 @@ func (mr *MockMockableTimeMockRecorder) Now() *gomock.Call {
 }
 
 // Sleep mocks base method.
-func (m *MockMockableTime) Sleep(arg0 time.Duration) {
+func (m *MockMockableTime) Sleep(duration time.Duration) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Sleep", arg0)
+	m.ctrl.Call(m, "Sleep", duration)
 }
 
 // Sleep indicates an expected call of Sleep.
-func (mr *MockMockableTimeMockRecorder) Sleep(arg0 any) *gomock.Call {
+func (mr *MockMockableTimeMockRecorder) Sleep(duration any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sleep", reflect.TypeOf((*MockMockableTime)(nil).Sleep), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sleep", reflect.TypeOf((*MockMockableTime)(nil).Sleep), duration)
 }
