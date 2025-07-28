@@ -270,6 +270,7 @@ See each command's help for details on how to use the generated script.`, rootCm
 	case err != nil:
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
 	default:
 		outcome = analytics.SUCCESS
 	}
