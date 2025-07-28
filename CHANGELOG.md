@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.1](https://github.com/launchdarkly/ldcli/compare/v1.16.0...v1.16.1) (2025-07-28)
+
+
+### Bug Fixes
+
+* [REL-8702] fix flags get-status command ([#587](https://github.com/launchdarkly/ldcli/issues/587)) ([73468a0](https://github.com/launchdarkly/ldcli/commit/73468a06dbc55d43d7baac6349f370a866005613))
+
 ## [1.16.0](https://github.com/launchdarkly/ldcli/compare/v1.15.5...v1.16.0) (2025-07-14)
 
 

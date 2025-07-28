@@ -121,6 +121,12 @@ Additional documentation is available at https://docs.launchdarkly.com/home/gett
 
 We encourage pull requests and other contributions from the community. Check out our [contributing guidelines](CONTRIBUTING.md) for instructions on how to contribute to this project.
 
+### Running a local build of the CLI
+If you wish to test your changes locally, simply
+1. Clone this repo to your local machine;
+2. Run `make build` from the repo root;
+3. Run commands as usual with `./ldcli`.
+
 ## Verifying build provenance with the SLSA framework
 
 LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply-chain Levels for Software Artifacts) to help developers make their supply chain more secure by ensuring the authenticity and build integrity of our published packages. To learn more, see the [provenance guide](./PROVENANCE.md).
