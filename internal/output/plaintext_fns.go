@@ -65,6 +65,8 @@ var SingularPlaintextOutputFn = func(r resource) string {
 		return email.(string)
 	case id != nil:
 		return id.(string)
+	case name != nil:
+		return name.(string)
 	default:
 		return "cannot read resource"
 	}
