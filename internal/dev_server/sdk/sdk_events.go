@@ -13,7 +13,7 @@ func SdkEventswHandler(writer http.ResponseWriter, request *http.Request) {
 		log.Printf("SdkEventswHandler: error reading request body: %v", err)
 		return
 	}
-	log.Printf(string(bodyStr))
+	log.Println(string(bodyStr))
 
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(http.StatusAccepted)
