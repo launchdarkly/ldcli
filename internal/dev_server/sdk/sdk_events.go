@@ -35,9 +35,7 @@ func SdkEventsReceiveHandler(writer http.ResponseWriter, request *http.Request) 
 		log.Printf("SdkEventsReceiveHandler: error reading request body: %v", err)
 		return
 	}
-	if observers != nil {
-		observers.Notify(string(bodyStr))
-	}
+	observers.Notify(string(bodyStr))
 
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(http.StatusAccepted)
