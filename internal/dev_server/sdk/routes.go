@@ -10,7 +10,7 @@ var DevNull = ConstantResponseHandler(http.StatusAccepted, "")
 
 func BindRoutes(router *mux.Router) {
 	// events
-	router.HandleFunc("/bulk", DevNull)
+	router.HandleFunc("/bulk", SdkEventswHandler)
 	router.HandleFunc("/diagnostic", DevNull)
 	router.Handle("/events/bulk/{envId}", EventsCorsHeaders(DevNull))
 	router.Handle("/events/diagnostic/{envId}", EventsCorsHeaders(DevNull))

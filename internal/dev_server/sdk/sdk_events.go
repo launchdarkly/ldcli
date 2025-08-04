@@ -15,8 +15,6 @@ func SdkEventswHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 	log.Printf(string(bodyStr))
 
-	log.Printf("SdkEventswHandler: handling request: %v", request)
-
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(http.StatusAccepted)
 }
