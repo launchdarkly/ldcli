@@ -16,7 +16,7 @@ func BindRoutes(router *mux.Router) {
 	router.Handle("/events/diagnostic/{envId}", EventsCorsHeaders(DevNull))
 	router.HandleFunc("/mobile", DevNull)
 	router.HandleFunc("/mobile/events", DevNull)
-	router.HandleFunc("/mobile/events/bulk", DevNull)
+	router.HandleFunc("/mobile/events/bulk", SdkEventswHandler)
 	router.HandleFunc("/mobile/events/diagnostic", DevNull)
 
 	router.Handle("/all", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamServerAllPayload)))
