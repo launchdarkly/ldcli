@@ -184,7 +184,7 @@ func NewAddProjectCmd(client resources.Client) *cobra.Command {
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
-	cmd.Flags().String(SourceEnvironmentFlag, "", "environment to copy flag values from")
+	cmd.Flags().String(SourceEnvironmentFlag, "", "The environment key to copy flag values from")
 	_ = cmd.MarkFlagRequired(SourceEnvironmentFlag)
 	_ = cmd.Flags().SetAnnotation(SourceEnvironmentFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(SourceEnvironmentFlag, cmd.Flags().Lookup(SourceEnvironmentFlag))
@@ -245,7 +245,7 @@ func NewUpdateProjectCmd(client resources.Client) *cobra.Command {
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
-	cmd.Flags().String(SourceEnvironmentFlag, "", "environment to copy flag values from")
+	cmd.Flags().String(SourceEnvironmentFlag, "", "The environment key to copy flag values from")
 	_ = viper.BindPFlag(SourceEnvironmentFlag, cmd.Flags().Lookup(SourceEnvironmentFlag))
 
 	cmd.Flags().String(ContextFlag, "", `Stringified JSON representation of your context object ex. {"user": { "email": "test@gmail.com", "username": "foo", "key": "bar"}}`)
