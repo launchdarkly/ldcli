@@ -15,11 +15,11 @@ type sdkEventObserver struct {
 }
 
 func (o sdkEventObserver) Handle(message interface{}) {
-	str, ok := message.(string)
+	str, ok := message.(json.RawMessage)
 	if !ok {
 		return
 	}
-	o.updateChan <- Message{Event: TYPE_PUT, Data: []byte(str)}
+	o.updateChan <- Message{Event: TYPE_PUT, Data: str}
 }
 
 var observers *model.Observers = model.NewObservers()
@@ -39,7 +39,7 @@ func SdkEventsReceiveHandler(writer http.ResponseWriter, request *http.Request) 
 	}
 
 	for _, msg := range arr {
-		observers.Notify(string(msg))
+		observers.Notify(msg)
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
