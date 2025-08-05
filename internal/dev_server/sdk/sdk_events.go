@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -29,7 +30,17 @@ func SdkEventsReceiveHandler(writer http.ResponseWriter, request *http.Request) 
 		log.Printf("SdkEventsReceiveHandler: error reading request body: %v", err)
 		return
 	}
-	observers.Notify(string(bodyStr))
+
+	var arr []json.RawMessage
+	err = json.Unmarshal(bodyStr, &arr)
+
+	if err != nil {
+		log.Printf("SdkEventsReceiveHandler: error unmarshaling request body: %v", err)
+	}
+
+	for _, msg := range arr {
+		observers.Notify(string(msg))
+	}
 
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(http.StatusAccepted)
