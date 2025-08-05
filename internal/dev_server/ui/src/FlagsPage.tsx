@@ -1,4 +1,3 @@
-import './App.css';
 import { useCallback, useEffect, useState } from 'react';
 import Flags from './Flags.tsx';
 import ProjectSelector from './ProjectSelector.tsx';
@@ -15,7 +14,7 @@ interface Environment {
   name: string;
 }
 
-function App() {
+function FlagsPage() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedEnvironment, setSelectedEnvironment] =
     useState<Environment | null>(null);
@@ -228,4 +227,4 @@ async function fetchEnvironments(projectKey: string) {
   return res.json();
 }
 
-export default App;
+export default FlagsPage;
