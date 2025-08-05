@@ -32,8 +32,8 @@ function App() {
   >({});
   const [flags, setFlags] = useState<LDFlagSet | null>(null);
   const [showBanner, setShowBanner] = useState(false);
-  const [showEvents, setShowEvents] = useState(false);
   const [context, setContext] = useState<string>('{}');
+  const [mode, setMode] = useState<'flags' | 'events'>('flags');
 
   const fetchDevFlags = useCallback(async () => {
     if (!selectedProject) {
@@ -133,24 +133,8 @@ function App() {
     [selectedProject, fetchDevFlags],
   );
 
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: '1rem',
-      }}
-    >
-      <Box
-        display="flex"
-        flexDirection="column"
-        alignItems="center"
-        width="100%"
-        maxWidth="900px"
-        minWidth="600px"
-        padding="2rem"
-      >
+  const flagsContent = () => {
+    return (
         <Box display="flex" flexDirection="column" padding="1rem" width="100%">
           {showBanner && (
             <Box marginBottom="2rem" width="100%">
@@ -191,8 +175,6 @@ function App() {
                 />
               )}
               <Box display="flex" alignItems="center" gap="1rem">
-                <FlagsButton onPress={() => { setShowEvents(false); }} />
-                <EventsButton onPress={() => { setShowEvents(true); }} />
                 <SyncButton
                   selectedProject={selectedProject}
                   setFlags={setFlags}
@@ -203,25 +185,56 @@ function App() {
           )}
           {selectedProject && (
             <Box width="100%">
-              {!showEvents && (
-                <Flags
-                  availableVariations={availableVariations}
-                  selectedProject={selectedProject}
-                  flags={flags}
-                  overrides={overrides}
-                  setOverrides={(
-                    newOverrides: Record<
-                      string,
-                      { value: LDFlagValue; version: number }
-                    >,
-                  ) => {
-                    setOverrides(newOverrides);
-                  }}
-                />
-              )}
+              <Flags
+                availableVariations={availableVariations}
+                selectedProject={selectedProject}
+                flags={flags}
+                overrides={overrides}
+                setOverrides={(
+                  newOverrides: Record<
+                    string,
+                    { value: LDFlagValue; version: number }
+                  >,
+                ) => {
+                  setOverrides(newOverrides);
+                }}
+              />
             </Box>
           )}
         </Box>
+    )
+  };
+
+  const eventsContent = () => {
+    return <span>Stubbed content</span>;
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '1rem',
+      }}
+    >
+      <Box
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        width="100%"
+        maxWidth="900px"
+        minWidth="600px"
+        padding="2rem"
+      >
+        <Box display="flex" justifyContent="flex-start" marginBottom="1rem" width="100%">
+          <FlagsButton onPress={() => { setMode('flags'); }} />
+          <Box marginLeft="1rem">
+            <EventsButton onPress={() => { setMode('events'); }} />
+          </Box>
+        </Box>
+        <Box width="100%" height="1px" backgroundColor="yellow" marginBottom="1rem" />
+        {mode === 'flags' ? flagsContent() : eventsContent()}
       </Box>
     </div>
   );
