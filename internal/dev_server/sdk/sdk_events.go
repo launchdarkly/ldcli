@@ -6,12 +6,21 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/launchdarkly/ldcli/internal/dev_server/events"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/pkg/errors"
 )
 
+func newSdkEventObserver(updateChan chan<- Message, filter events.Filter) sdkEventObserver {
+	return sdkEventObserver{
+		updateChan: updateChan,
+		filter:     filter,
+	}
+}
+
 type sdkEventObserver struct {
 	updateChan chan<- Message
+	filter     events.Filter
 }
 
 func (o sdkEventObserver) Handle(message interface{}) {
@@ -19,6 +28,18 @@ func (o sdkEventObserver) Handle(message interface{}) {
 	if !ok {
 		return
 	}
+
+	event := events.Base{}
+	err := json.Unmarshal(str, &event)
+	if err != nil {
+		log.Printf("sdkEventObserver: error unmarshaling event: %v", err)
+		return
+	}
+
+	if !o.filter.Matches(event) {
+		return
+	}
+
 	o.updateChan <- Message{Event: TYPE_PUT, Data: str}
 }
 
@@ -53,8 +74,15 @@ func SdkEventsTeeHandler(writer http.ResponseWriter, request *http.Request) {
 		Message{Event: TYPE_PUT, Data: []byte{}},
 	)
 	defer close(updateChan)
+	filter := events.Filter{}
 
-	observerId := observers.RegisterObserver(sdkEventObserver{updateChan})
+	query := request.URL.Query()
+	kind := query.Get("kind")
+	if kind != "" {
+		filter.Kind = &kind
+	}
+
+	observerId := observers.RegisterObserver(newSdkEventObserver(updateChan, filter))
 	defer func() {
 		ok := observers.DeregisterObserver(observerId)
 		if !ok {
