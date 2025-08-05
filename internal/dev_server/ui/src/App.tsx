@@ -9,8 +9,6 @@ import { Heading, Text } from '@launchpad-ui/components';
 import { FlagVariation } from './api.ts';
 import { apiRoute, sortFlags } from './util.ts';
 import { ProjectEditor } from './ProjectEditor';
-import EventsButton from './EventsButton.tsx';
-import FlagsButton from './FlagsButton.tsx';
 
 interface Environment {
   key: string;
@@ -32,7 +30,6 @@ function App() {
   >({});
   const [flags, setFlags] = useState<LDFlagSet | null>(null);
   const [showBanner, setShowBanner] = useState(false);
-  const [showEvents, setShowEvents] = useState(false);
   const [context, setContext] = useState<string>('{}');
 
   const fetchDevFlags = useCallback(async () => {
@@ -190,35 +187,29 @@ function App() {
                   updateProjectSettings={updateProjectSettings}
                 />
               )}
-              <Box display="flex" alignItems="center" gap="1rem">
-                <FlagsButton onPress={() => { setShowEvents(false); }} />
-                <EventsButton onPress={() => { setShowEvents(true); }} />
-                <SyncButton
-                  selectedProject={selectedProject}
-                  setFlags={setFlags}
-                  setAvailableVariations={setAvailableVariations}
-                />
-              </Box>
+              <SyncButton
+                selectedProject={selectedProject}
+                setFlags={setFlags}
+                setAvailableVariations={setAvailableVariations}
+              />
             </Box>
           )}
           {selectedProject && (
             <Box width="100%">
-              {!showEvents && (
-                <Flags
-                  availableVariations={availableVariations}
-                  selectedProject={selectedProject}
-                  flags={flags}
-                  overrides={overrides}
-                  setOverrides={(
-                    newOverrides: Record<
-                      string,
-                      { value: LDFlagValue; version: number }
-                    >,
-                  ) => {
-                    setOverrides(newOverrides);
-                  }}
-                />
-              )}
+              <Flags
+                availableVariations={availableVariations}
+                selectedProject={selectedProject}
+                flags={flags}
+                overrides={overrides}
+                setOverrides={(
+                  newOverrides: Record<
+                    string,
+                    { value: LDFlagValue; version: number }
+                  >,
+                ) => {
+                  setOverrides(newOverrides);
+                }}
+              />
             </Box>
           )}
         </Box>
