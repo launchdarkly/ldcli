@@ -46,9 +46,11 @@ const EventsPage = ({}: Props) => {
   return (
     <div>
       <h3>Events Stream</h3>
-      {events.map(event => (
-        <div key={event.id}>{renderEvent(event)}</div>
-      ))}
+      <ul>
+        {events.map(event => (
+          <li key={event.id}>{renderEvent(event)}</li>
+        ))}
+      </ul>
       {events.length === 0 && <p>No events received yet...</p>}
     </div>
   );
