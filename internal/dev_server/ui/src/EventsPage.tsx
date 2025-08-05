@@ -1,12 +1,58 @@
 import { useEffect, useState } from "react";
 import { apiRoute } from "./util";
 import { EventData } from "./types";
-import Event from "./Event";
 
 type Props = {
+  limit?: number;
 };
 
+const clipboardLink = (linkText: string, value: string) => {
+  return (
+    <a
+      href="#"
+      onClick={(e) => {
+        e.preventDefault();
+        navigator.clipboard.writeText(value);
+      }}
+    >
+      {linkText}
+    </a>
+  );
+}
 
+const summaryRows = (summaryEvent: any) => {
+  let parsed;
+  try {
+    parsed = JSON.parse(summaryEvent.data);
+  } catch (error) {
+    console.error('Failed to parse event data as JSON:', error);
+    return <div>Error. See console.</div>;
+  }
+  console.log('parsed', parsed);
+
+  let rows = [];
+  for (const [key, value] of Object.entries(parsed.features)) {
+    const rowId = summaryEvent.id + key;
+    const counters = (value as any).counters || [];
+
+    for (const counter of counters) {
+      rows.push(
+        <tr key={rowId}>
+          <td>{new Date(summaryEvent.timestamp).toLocaleTimeString()}</td>
+          <td>summary</td>
+          <td>{key}</td>
+          <td>evaluated as {String(counter.value)}</td>
+          <td>{clipboardLink('copy to clipboard', JSON.stringify(parsed))}</td>
+        </tr>
+      );
+    }
+  }
+
+  return rows;
+}
+
+// Return array of <tr>s:
+// Time, Type, Key, Event, ViewAttributes
 const renderEvent = (event: EventData) => {
   let parsed;
   try {
@@ -16,10 +62,22 @@ const renderEvent = (event: EventData) => {
     return <div>Error. See console.</div>;
   }
 
-  return <Event event={event} />;
+  if (parsed.kind === 'summary') {
+    return summaryRows(event);
+  }
+
+  return [
+    <tr key={event.id}>
+      <td>{event.timestamp}</td>
+      <td>{parsed.kind}</td>
+      <td></td>
+      <td>{parsed.kind}</td>
+      <td></td>
+    </tr>,
+  ];
 };
 
-const EventsPage = ({}: Props) => {
+const EventsPage = ({ limit = 1000 }: Props) => {
   const [events, setEvents] = useState<EventData[]>([]);
 
   useEffect(() => {
@@ -34,7 +92,7 @@ const EventsPage = ({}: Props) => {
         timestamp: Date.now(),
         data: event.data
       };
-      setEvents(prevEvents => [...prevEvents, newEvent]);
+      setEvents(prevEvents => [newEvent, ...prevEvents].slice(0, limit));
     });
 
     return () => {
@@ -45,12 +103,21 @@ const EventsPage = ({}: Props) => {
 
   return (
     <div>
-      <h3>Events Stream</h3>
-      <ul>
-        {events.map(event => (
-          <li key={event.id}>{renderEvent(event)}</li>
-        ))}
-      </ul>
+      <h3>Events Stream (limit: {limit})</h3>
+      <table className="events-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Key</th>
+            <th>Event</th>
+            <th>Link</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.map(event => renderEvent(event))}
+        </tbody>
+      </table>
       {events.length === 0 && <p>No events received yet...</p>}
     </div>
   );

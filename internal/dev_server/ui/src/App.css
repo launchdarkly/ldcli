@@ -63,3 +63,36 @@ code {
 code.has-override {
   color: var(--lp-color-pink-600);
 }
+
+/* Events table styling */
+.events-table {
+  border: 1px solid var(--lp-color-border-ui-primary);
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.events-table th,
+.events-table td {
+  border: 1px solid var(--lp-color-border-ui-primary);
+  padding: 8px;
+  text-align: left;
+}
+
+.events-table th {
+  background-color: var(--lp-color-bg-ui-tertiary);
+  font-weight: var(--lp-font-weight-bold);
+  font-size: var(--lp-font-size-400);
+  color: var(--lp-color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 8px;
+  border-bottom: 2px solid var(--lp-color-border-ui-secondary);
+}
+
+.events-table tbody tr:nth-child(even) {
+  background-color: var(--lp-color-bg-ui-secondary);
+}
+
+.events-table tbody tr:nth-child(odd) {
+  background-color: var(--lp-color-bg-ui-primary);
+}
