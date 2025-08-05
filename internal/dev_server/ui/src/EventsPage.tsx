@@ -1,20 +1,28 @@
 import { useEffect, useState } from "react";
 import { apiRoute } from "./util";
+import { EventData } from "./types";
+import Event from "./Event";
 
 type Props = {
 };
 
-interface EventData {
-  id: string;
-  timestamp: number;
-  data: string;
-}
+
+const renderEvent = (event: EventData) => {
+  let parsed;
+  try {
+    parsed = JSON.parse(event.data);
+  } catch (error) {
+    console.error('Failed to parse event data as JSON:', error);
+    return <div>Error. See console.</div>;
+  }
+
+  return <Event event={event} />;
+};
 
 const EventsPage = ({}: Props) => {
   const [events, setEvents] = useState<EventData[]>([]);
 
   useEffect(() => {
-    console.log(apiRoute('/events/tee'));
     const eventSource = new EventSource(apiRoute('/events/tee'));
 
     eventSource.addEventListener('put', (event) => {
@@ -22,7 +30,7 @@ const EventsPage = ({}: Props) => {
         return;
       }
       const newEvent: EventData = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).slice(2, 11),
         timestamp: Date.now(),
         data: event.data
       };
@@ -38,32 +46,9 @@ const EventsPage = ({}: Props) => {
   return (
     <div>
       <h3>Events Stream</h3>
-      <ul>
-        {events.map((event) => {
-          let displayData = event.data;
-          try {
-            // Try to parse and prettify JSON
-            const parsed = JSON.parse(event.data);
-            displayData = JSON.stringify(parsed, null, 2);
-          } catch {
-            // If not JSON, keep original data
-            displayData = event.data;
-          }
-          
-          return (
-            <li key={event.id} style={{ marginBottom: '10px' }}>
-              <div>
-                <strong>{new Date(event.timestamp).toLocaleTimeString()}</strong>
-              </div>
-              <div style={{ marginLeft: '10px', marginTop: '5px' }}>
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {displayData}
-                </pre>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      {events.map(event => (
+        <div key={event.id}>{renderEvent(event)}</div>
+      ))}
       {events.length === 0 && <p>No events received yet...</p>}
     </div>
   );
