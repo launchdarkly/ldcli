@@ -4,7 +4,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"sync"
 
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/pkg/errors"
@@ -22,14 +21,9 @@ func (o sdkEventObserver) Handle(message interface{}) {
 	o.updateChan <- Message{Event: TYPE_PUT, Data: []byte(str)}
 }
 
-var observers *model.Observers
-var once sync.Once
+var observers *model.Observers = model.NewObservers()
 
 func SdkEventsReceiveHandler(writer http.ResponseWriter, request *http.Request) {
-	once.Do(func() {
-		observers = model.NewObservers()
-	})
-
 	bodyStr, err := io.ReadAll(request.Body)
 	if err != nil {
 		log.Printf("SdkEventsReceiveHandler: error reading request body: %v", err)
@@ -42,10 +36,6 @@ func SdkEventsReceiveHandler(writer http.ResponseWriter, request *http.Request) 
 }
 
 func SdkEventsTeeHandler(writer http.ResponseWriter, request *http.Request) {
-	once.Do(func() {
-		observers = model.NewObservers()
-	})
-
 	updateChan, errChan := OpenStream(
 		writer,
 		request.Context().Done(),

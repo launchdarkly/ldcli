@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './FlagsPage.tsx';
+import App from './App.tsx';
 import { IconProvider } from './IconProvider.tsx';
 import { ToastContainer } from '@launchpad-ui/components';
 
