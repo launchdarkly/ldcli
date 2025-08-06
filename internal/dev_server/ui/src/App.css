@@ -78,6 +78,13 @@ code.has-override {
   text-align: left;
 }
 
+.events-table th:first-child,
+.events-table td:first-child {
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
 .events-table th {
   background-color: var(--lp-color-bg-ui-tertiary);
   font-weight: var(--lp-font-weight-bold);

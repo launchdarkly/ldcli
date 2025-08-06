@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiRoute } from "./util";
 import { EventData } from "./types";
+import { Icon } from "@launchpad-ui/icons";
 
 type Props = {
   limit?: number;
@@ -31,7 +32,7 @@ const summaryRows = (summaryEvent: EventData) => {
         <tr key={rowId}>
           <td>{new Date(summaryEvent.timestamp).toLocaleTimeString()}</td>
           <td>summary</td>
-          <td>{key}</td>
+          <td><Icon name="flag" size="small" /> {key}</td>
           <td>evaluated as {String(counter.value)}</td>
           <td>{clipboardLink('copy to clipboard', JSON.stringify(summaryEvent.data))}</td>
         </tr>
@@ -45,16 +46,19 @@ const summaryRows = (summaryEvent: EventData) => {
 const indexRows = (indexEvent: EventData) => {
   let eventText;
   if (indexEvent.data.context) {
-    eventText = 'context kind: ' + (indexEvent.data.context?.kind || 'unknown');
-  } else {
-    eventText = 'unknown';
+    eventText = (indexEvent.data.context?.kind || 'unknown') + ' context';
+  } else if (indexEvent.data.user) {
+    eventText = (indexEvent.data.user.key || 'unknown') + ' user';
+  }
+  else {
+    eventText = 'unknown context';
   }
 
   return [
     <tr key={indexEvent.id}>
       <td>{new Date(indexEvent.timestamp).toLocaleTimeString()}</td>
       <td>index</td>
-      <td>n/a</td>
+      <td><Icon name="metric-funnel" size="small" /> {JSON.stringify(indexEvent.data).length} bytes</td>
       <td>{eventText}</td>
       <td>{clipboardLink('copy to clipboard', JSON.stringify(indexEvent.data))}</td>
     </tr>
@@ -81,7 +85,7 @@ const customRows = (event: EventData) => {
     <tr key={event.id}>
       <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
       <td>{event.data.kind}</td>
-      <td>{event.data.key || 'unknown'}</td>
+      <td><Icon name="chart-histogram" size="small" /> {event.data.key || 'unknown'}</td>
       <td>value is {(event.data as any).metricValue}</td>
       <td>{clipboardLink('copy to clipboard', JSON.stringify(event.data))}</td>
     </tr>,

@@ -30,6 +30,12 @@ export interface FeatureEventPayload {
   };
 }
 
+export interface IndexEventPayload {
+  kind: 'index';
+  user?: object;
+  [key: string]: any;
+}
+
 export interface GenericEventPayload {
   kind: string;
   [key: string]: any;
@@ -38,5 +44,5 @@ export interface GenericEventPayload {
 export interface EventData {
   id: string;
   timestamp: number;
-  data: SummaryEventPayload | FeatureEventPayload | GenericEventPayload;
+  data: SummaryEventPayload | FeatureEventPayload | IndexEventPayload | GenericEventPayload;
 }
