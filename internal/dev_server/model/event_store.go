@@ -40,8 +40,8 @@ func ContextWithEventStore(ctx context.Context, store EventStore) context.Contex
 	return context.WithValue(ctx, ctxKeyEventStore, store)
 }
 
-func EventStoreFromContext(ctx context.Context) Store {
-	return ctx.Value(ctxKeyStore).(Store)
+func EventStoreFromContext(ctx context.Context) EventStore {
+	return ctx.Value(ctxKeyEventStore).(EventStore)
 }
 
 func EventStoreMiddleware(store EventStore) mux.MiddlewareFunc {
