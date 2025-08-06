@@ -169,6 +169,11 @@ func (s *Sqlite) QueryDebugSessions(ctx context.Context, limit int, offset int) 
 	}, nil
 }
 
+func (s *Sqlite) DeleteDebugSession(ctx context.Context, debugSessionKey string) error {
+	_, err := s.database.ExecContext(ctx, `DELETE FROM debug_session WHERE key = ?`, debugSessionKey)
+	return err
+}
+
 var _ model.EventStore = &Sqlite{}
 
 func NewSqlite(ctx context.Context, dbPath string) (*Sqlite, error) {
@@ -179,6 +184,10 @@ func NewSqlite(ctx context.Context, dbPath string) (*Sqlite, error) {
 		return &Sqlite{}, err
 	}
 	store.database = db
+	_, err = db.Exec("PRAGMA foreign_keys = ON")
+	if err != nil {
+		return &Sqlite{}, err
+	}
 	err = store.runMigrations(ctx)
 	if err != nil {
 		return &Sqlite{}, err

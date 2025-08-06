@@ -49,6 +49,7 @@ type EventStore interface {
 	WriteEvent(ctx context.Context, debugSessionKey string, kind string, data json.RawMessage) error
 	QueryEvents(ctx context.Context, debugSessionKey string, kind *string, limit int, offset int) (*EventsPage, error)
 	QueryDebugSessions(ctx context.Context, limit int, offset int) (*DebugSessionsPage, error)
+	DeleteDebugSession(ctx context.Context, debugSessionKey string) error
 }
 
 func ContextWithEventStore(ctx context.Context, store EventStore) context.Context {

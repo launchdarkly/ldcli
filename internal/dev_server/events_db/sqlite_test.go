@@ -155,4 +155,13 @@ func TestDBFunctions(t *testing.T) {
 		require.False(t, page2.HasMore)
 	})
 
+	t.Run("DeleteDebugSession succeeds", func(t *testing.T) {
+		err := store.DeleteDebugSession(ctx, debugSessionKey)
+		require.NoError(t, err)
+
+		result, err := store.QueryEvents(ctx, debugSessionKey, nil, 10, 0)
+		require.NoError(t, err)
+		require.Len(t, result.Events, 0)
+
+	})
 }
