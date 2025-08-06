@@ -22,7 +22,7 @@ const clipboardLink = (linkText: string, value: string) => {
 
 const summaryRows = (summaryEvent: EventData) => {
   let rows = [];
-  for (const [key, value] of Object.entries(summaryEvent.data.features)) {
+  for (const [key, value] of Object.entries((summaryEvent.data as any).features)) {
     const rowId = summaryEvent.id + key;
     const counters = (value as any).counters || [];
 
@@ -61,13 +61,28 @@ const indexRows = (indexEvent: EventData) => {
   ]
 }
 
+const featureRows = (featureEvent: EventData) => {
+  const data = featureEvent.data as any; // Type assertion for feature event
+  const eventText = `evaluated as ${String(data.value)} (variation ${data.variation})`;
+  
+  return [
+    <tr key={featureEvent.id}>
+      <td>{new Date(featureEvent.timestamp).toLocaleTimeString()}</td>
+      <td>feature</td>
+      <td>{data.key || 'unknown'}</td>
+      <td>{eventText}</td>
+      <td>{clipboardLink('copy to clipboard', JSON.stringify(featureEvent.data))}</td>
+    </tr>
+  ];
+}
+
 const customRows = (event: EventData) => {
   return [
     <tr key={event.id}>
       <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
       <td>{event.data.kind}</td>
       <td>{event.data.key || 'unknown'}</td>
-      <td>value is {event.data.metricValue}</td>
+      <td>value is {(event.data as any).metricValue}</td>
       <td>{clipboardLink('copy to clipboard', JSON.stringify(event.data))}</td>
     </tr>,
   ];
@@ -82,6 +97,8 @@ const renderEvent = (event: EventData) => {
       return summaryRows(event);
     case 'index':
       return indexRows(event);
+    case 'feature':
+      return featureRows(event);
     case 'custom':
       return customRows(event);
     default:

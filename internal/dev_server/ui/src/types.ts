@@ -9,6 +9,27 @@ export interface SummaryEventPayload {
   [key: string]: any;
 }
 
+export interface FeatureEventPayload {
+  kind: 'feature';
+  creationDate: number;
+  key: string;
+  version: number;
+  context: {
+    kind: string;
+    key: string;
+    anonymous: boolean;
+    _meta?: {
+      redactedAttributes?: string[];
+    };
+  };
+  variation: number;
+  value: boolean | string | number | object;
+  default: boolean | string | number | object;
+  reason: {
+    kind: string;
+  };
+}
+
 export interface GenericEventPayload {
   kind: string;
   [key: string]: any;
@@ -17,5 +38,5 @@ export interface GenericEventPayload {
 export interface EventData {
   id: string;
   timestamp: number;
-  data: SummaryEventPayload | GenericEventPayload;
+  data: SummaryEventPayload | FeatureEventPayload | GenericEventPayload;
 }
