@@ -67,7 +67,7 @@ const indexRows = (indexEvent: EventData) => {
 
 const featureRows = (featureEvent: EventData) => {
   const data = featureEvent.data as any; // Type assertion for feature event
-  const eventText = `evaluated as ${String(data.value)} (variation ${data.variation})`;
+  const eventText = `evaluated as ${String(data.value)}`;
   
   return [
     <tr key={featureEvent.id}>
