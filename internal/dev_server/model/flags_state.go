@@ -6,8 +6,9 @@ import (
 )
 
 type FlagState struct {
-	Value   ldvalue.Value `json:"value"`
-	Version int           `json:"version"`
+	Value       ldvalue.Value `json:"value"`
+	Version     int           `json:"version"`
+	TrackEvents bool          `json:"trackEvents"`
 }
 
 type FlagsState map[string]FlagState
