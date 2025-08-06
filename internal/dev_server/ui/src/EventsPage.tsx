@@ -126,6 +126,9 @@ const EventsPage = ({ limit = 1000 }: Props) => {
   const [events, setEvents] = useState<EventData[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
 
+  const [isStreaming, setIsStreaming] = useState<boolean>(true);
+  const [backlog, setBacklog] = useState<EventData[]>([]);
+
   const showNotification = (message: string) => {
     setNotification(message);
     setTimeout(() => {
@@ -136,7 +139,7 @@ const EventsPage = ({ limit = 1000 }: Props) => {
   useEffect(() => {
     const eventSource = new EventSource(apiRoute('/events/tee'));
 
-    eventSource.addEventListener('put', (event) => {
+    eventSource.addEventListener('put', (event: MessageEvent) => {
       if (!event.data || event.data.trim() === '') {
         return;
       }
@@ -154,18 +157,39 @@ const EventsPage = ({ limit = 1000 }: Props) => {
         timestamp: Date.now(),
         data: parsed
       };
-      setEvents(prevEvents => [newEvent, ...prevEvents].slice(0, limit));
+
+      if (isStreaming) {
+        setEvents(prevEvents => [newEvent, ...prevEvents].slice(0, limit));
+      } else {
+        setBacklog(prevBacklog => [newEvent, ...prevBacklog].slice(0, limit));
+      }
     });
 
     return () => {
       console.log('closing event source');
       eventSource.close();
     };
-  }, []);
+  }, [isStreaming, limit]);
+
+  const toggleStreaming = (newStreamingState: boolean) => {
+    setIsStreaming(newStreamingState);
+
+    if (newStreamingState && backlog.length > 0) {
+      // Flush backlog into events when turning streaming back on
+      setEvents(prevEvents => [...backlog, ...prevEvents].slice(0, limit));
+      setBacklog([]);
+    }
+  };
 
   return (
     <div>
       <h3>Events Stream (limit: {limit})</h3>
+      <button
+        className={`streaming-toggle-button ${isStreaming ? 'streaming' : 'not-streaming'}`}
+        onClick={() => toggleStreaming(!isStreaming)}
+      >
+        {isStreaming ? 'Streaming ON' : 'Streaming OFF'}
+      </button>
       <table className="events-table">
         <thead>
           <tr>
