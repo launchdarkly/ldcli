@@ -55,16 +55,20 @@ const DebugSessionEventsPage = () => {
     setDisplayedEvents(events.filter(event => {
       let search = '';
 
-      const appendValues = (obj: any) => {
-        for (const value of Object.values(obj)) {
-          if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-            search += String(value) + ' ';
-          } else if (value !== null && typeof value === 'object') {
-            appendValues(value);
-          }
+      const extractValues = (obj: any): string[] => {
+        if (obj === null || obj === undefined) return [];
+        if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
+          return [String(obj)];
         }
+        if (Array.isArray(obj)) {
+          return obj.flatMap(item => extractValues(item));
+        }
+        if (typeof obj === 'object') {
+          return Object.values(obj).flatMap(value => extractValues(value));
+        }
+        return [];
       };
-      appendValues(event);
+      search = extractValues(event).join(' ');
 
       return search.toLowerCase().includes(value.toLowerCase());
     }))
@@ -130,9 +134,9 @@ const DebugSessionEventsPage = () => {
       <TextField onChange={handleSearchChange} name="debug-session-search">
         <Fragment key=".0">
           <Label>
-            Full Text Search
+            Search
           </Label>
-          <Input placeholder="Enter a value" />
+          <Input placeholder="Try a type like 'summary', or an email address, or similar" />
         </Fragment>
       </TextField>
 
