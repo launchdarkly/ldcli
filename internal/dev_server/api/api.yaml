@@ -188,6 +188,34 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         400:
           $ref: "#/components/responses/ErrorResponse"
+  /dev/debug-sessions:
+    get:
+      operationId: getDebugSessions
+      summary: list all debug sessions with event counts
+      parameters:
+        - name: limit
+          in: query
+          description: limit the number of debug sessions returned
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: offset for pagination
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        200:
+          description: OK. List of debug sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebugSessionsPage"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
 components:
   parameters:
     flagKey:
@@ -294,6 +322,45 @@ components:
           type: string
         name:
           type: string
+    DebugSession:
+      description: Debug session with event count
+      type: object
+      required:
+        - key
+        - written_at
+        - event_count
+      properties:
+        key:
+          type: string
+          description: unique identifier for the debug session
+        written_at:
+          type: string
+          format: date-time
+          description: timestamp when the debug session was created
+        event_count:
+          type: integer
+          format: int64
+          description: number of events associated with this debug session
+    DebugSessionsPage:
+      description: Paginated response of debug sessions
+      type: object
+      required:
+        - sessions
+        - total_count
+        - has_more
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DebugSession"
+          description: list of debug sessions
+        total_count:
+          type: integer
+          format: int64
+          description: total number of debug sessions available
+        has_more:
+          type: boolean
+          description: whether there are more results available
   responses:
     FlagOverride:
       description: Flag override

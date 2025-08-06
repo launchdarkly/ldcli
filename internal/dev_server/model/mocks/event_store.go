@@ -56,6 +56,21 @@ func (mr *MockEventStoreMockRecorder) CreateDebugSession(ctx, debugSessionKey an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDebugSession", reflect.TypeOf((*MockEventStore)(nil).CreateDebugSession), ctx, debugSessionKey)
 }
 
+// QueryDebugSessions mocks base method.
+func (m *MockEventStore) QueryDebugSessions(ctx context.Context, limit, offset int) (*model.DebugSessionsPage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryDebugSessions", ctx, limit, offset)
+	ret0, _ := ret[0].(*model.DebugSessionsPage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryDebugSessions indicates an expected call of QueryDebugSessions.
+func (mr *MockEventStoreMockRecorder) QueryDebugSessions(ctx, limit, offset any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryDebugSessions", reflect.TypeOf((*MockEventStore)(nil).QueryDebugSessions), ctx, limit, offset)
+}
+
 // QueryEvents mocks base method.
 func (m *MockEventStore) QueryEvents(ctx context.Context, debugSessionKey string, kind *string, limit, offset int) (*model.EventsPage, error) {
 	m.ctrl.T.Helper()
