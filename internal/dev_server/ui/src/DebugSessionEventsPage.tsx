@@ -6,11 +6,14 @@ import { Box, Alert } from "@launchpad-ui/core";
 import { Heading, Text, ProgressBar, Button } from "@launchpad-ui/components";
 import { Icon } from "@launchpad-ui/icons";
 import EventsTable from "./EventsTable";
+import { TextField, Label, Input } from "@launchpad-ui/components";
+import { Fragment } from "react";
 
 const DebugSessionEventsPage = () => {
   const { debugSessionKey } = useParams<{ debugSessionKey: string }>();
   const navigate = useNavigate();
   const [events, setEvents] = useState<EventData[]>([]);
+  const [displayedEvents, setDisplayedEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState<number>(0);
@@ -35,6 +38,7 @@ const DebugSessionEventsPage = () => {
       const data: ApiEventsPage = await response.json();
       const convertedEvents = data.events?.map(convertApiEventToEventData) || [];
       setEvents(convertedEvents);
+      setDisplayedEvents(convertedEvents);
       setTotalCount(data.total_count);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unknown error occurred");
@@ -46,6 +50,25 @@ const DebugSessionEventsPage = () => {
   useEffect(() => {
     fetchEvents();
   }, [debugSessionKey]);
+
+  const handleSearchChange = (value: string) => {
+    setDisplayedEvents(events.filter(event => {
+      let search = '';
+
+      const appendValues = (obj: any) => {
+        for (const value of Object.values(obj)) {
+          if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+            search += String(value) + ' ';
+          } else if (value !== null && typeof value === 'object') {
+            appendValues(value);
+          }
+        }
+      };
+      appendValues(event);
+
+      return search.toLowerCase().includes(value.toLowerCase());
+    }))
+  };
 
   if (loading) {
     return (
@@ -104,6 +127,15 @@ const DebugSessionEventsPage = () => {
         </Text>
       </Box>
 
+      <TextField onChange={handleSearchChange} name="debug-session-search">
+        <Fragment key=".0">
+          <Label>
+            Full Text Search
+          </Label>
+          <Input placeholder="Enter a value" />
+        </Fragment>
+      </TextField>
+
       {events.length === 0 ? (
         <Box
           padding="2rem"
@@ -122,7 +154,7 @@ const DebugSessionEventsPage = () => {
           </Box>
         </Box>
       ) : (
-        <EventsTable events={events} />
+        <EventsTable events={displayedEvents} />
       )}
     </Box>
   );
