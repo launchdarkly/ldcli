@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { apiRoute } from "./util";
 import { DebugSession, DebugSessionsPage as DebugSessionsPageType } from "./types";
 import { Box, CopyToClipboard, Alert } from "@launchpad-ui/core";
@@ -6,6 +7,7 @@ import { Heading, Text, ProgressBar, Button } from "@launchpad-ui/components";
 import { Icon } from "@launchpad-ui/icons";
 
 const DebugSessionsPage = () => {
+  const navigate = useNavigate();
   const [debugSessions, setDebugSessions] = useState<DebugSession[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,10 @@ const DebugSessionsPage = () => {
     } catch {
       return dateString;
     }
+  };
+
+  const handleSessionClick = (sessionKey: string) => {
+    navigate(`/ui/debug-sessions/${encodeURIComponent(sessionKey)}/events`);
   };
 
   if (loading) {
@@ -112,13 +118,19 @@ const DebugSessionsPage = () => {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: "var(--lp-color-bg-ui-secondary)" }}>
-                <th style={{ 
-                  padding: "0.75rem", 
-                  textAlign: "left", 
+                <th style={{
+                  padding: "0.75rem",
+                  textAlign: "left",
                   borderBottom: "1px solid var(--lp-color-border-ui-primary)",
                   fontWeight: 600
                 }}>
                   Session Key
+                  <Text
+                    color="var(--lp-color-text-ui-secondary)"
+                    style={{ fontSize: "0.75rem", fontWeight: 400, marginTop: "0.25rem" }}
+                  >
+                    (click to view events)
+                  </Text>
                 </th>
                 <th style={{ 
                   padding: "0.75rem", 
@@ -136,14 +148,14 @@ const DebugSessionsPage = () => {
                 }}>
                   Event Count
                 </th>
-                <th style={{ 
-                  padding: "0.75rem", 
-                  textAlign: "center", 
+                <th style={{
+                  padding: "0.75rem",
+                  textAlign: "center",
                   borderBottom: "1px solid var(--lp-color-border-ui-primary)",
                   fontWeight: 600,
                   width: "100px"
                 }}>
-                  Actions
+                  Copy Key
                 </th>
               </tr>
             </thead>
@@ -156,9 +168,22 @@ const DebugSessionsPage = () => {
                   }}
                 >
                   <td style={{ padding: "0.75rem" }}>
-                    <Text style={{ fontFamily: "monospace" }}>
+                    <button
+                      onClick={() => handleSessionClick(session.key)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        color: "var(--lp-color-text-link)",
+                        textDecoration: "underline",
+                        fontFamily: "monospace"
+                      }}
+                      title="Click to view events for this session"
+                    >
                       {session.key}
-                    </Text>
+                    </button>
                   </td>
                   <td style={{ padding: "0.75rem" }}>
                     <Text>

@@ -58,3 +58,27 @@ export interface DebugSessionsPage {
   total_count: number;
   has_more: boolean;
 }
+
+// API Event type that matches the server response
+export interface ApiEvent {
+  id: number;
+  written_at: string;
+  kind: string;
+  data: any; // Raw JSON data from the API
+}
+
+// API EventsPage type that matches the server response
+export interface ApiEventsPage {
+  events: ApiEvent[];
+  total_count: number;
+  has_more: boolean;
+}
+
+// Utility function to convert API event to UI EventData
+export function convertApiEventToEventData(apiEvent: ApiEvent): EventData {
+  return {
+    id: apiEvent.id.toString(),
+    timestamp: new Date(apiEvent.written_at).getTime(),
+    data: apiEvent.data
+  };
+}

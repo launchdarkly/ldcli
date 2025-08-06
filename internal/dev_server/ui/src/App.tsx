@@ -5,6 +5,7 @@ import RouteSelector from './RouteSelector.tsx';
 import FlagsPage from './FlagsPage.tsx';
 import EventsPage from './EventsPage.tsx';
 import DebugSessionsPage from './DebugSessionsPage.tsx';
+import DebugSessionEventsPage from './DebugSessionEventsPage.tsx';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
             <Route path="/ui/flags" element={<FlagsPage />} />
             <Route path="/ui/events" element={<EventsPage />} />
             <Route path="/ui/debug-sessions" element={<DebugSessionsPage />} />
+            <Route path="/ui/debug-sessions/:debugSessionKey/events" element={<DebugSessionEventsPage />} />
           </Routes>
         </Box>
       </Box>
