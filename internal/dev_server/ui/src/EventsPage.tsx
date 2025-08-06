@@ -202,7 +202,7 @@ const EventsPage = ({ limit = 1000 }: Props) => {
           <tr>
             <th>Time</th>
             <th>Type</th>
-            <th>Key</th>
+            <th>Target</th>
             <th>Event</th>
             <th>Link</th>
           </tr>
