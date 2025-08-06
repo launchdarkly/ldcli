@@ -58,7 +58,7 @@ const EventsPage = ({ limit = 1000 }: Props) => {
     }
   };
 
-  return <EventsTable events={events} limit={limit} onToggleStreaming={toggleStreaming} />;
+  return <EventsTable events={events} onToggleStreaming={toggleStreaming} />;
 };
 
 export default EventsPage;

@@ -4,7 +4,6 @@ import { useState } from "react";
 
 type Props = {
   events: EventData[];
-  limit: number;
   onToggleStreaming?: (newStreamingState: boolean) => void;
 };
 
@@ -132,7 +131,6 @@ const renderEvent = (event: EventData, showNotification: (message: string) => vo
 
 const EventsTable = ({
   events,
-  limit,
   onToggleStreaming
 }: Props) => {
   const [notification, setNotification] = useState<string | null>(null);
@@ -152,7 +150,7 @@ const EventsTable = ({
 
   return (
     <div>
-      <h3>Events Stream (limit: {limit})</h3>
+      <h3>Events Stream</h3>
       {onToggleStreaming && (
         <button
           className={`streaming-toggle-button ${isStreaming ? 'streaming' : 'not-streaming'}`}
