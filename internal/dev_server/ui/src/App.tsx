@@ -29,9 +29,10 @@ function App() {
         </Box>
         <Box padding="1rem" width="100%">
           <Routes>
-            <Route path="/" element={<Navigate to="/ui" replace />} />
-            <Route path="/ui" element={<FlagsPage />} />
-            <Route path="/events" element={<EventsPage />} />
+            <Route path="/" element={<Navigate to="/ui/flags" replace />} />
+            <Route path="/ui" element={<Navigate to="/ui/flags" replace />} />
+            <Route path="/ui/flags" element={<FlagsPage />} />
+            <Route path="/ui/events" element={<EventsPage />} />
           </Routes>
         </Box>
       </Box>

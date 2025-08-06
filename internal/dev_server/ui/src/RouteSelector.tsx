@@ -8,8 +8,8 @@ const RouteSelector = () => {
   const location = useLocation();
 
   const options = [
-    { key: '/ui', label: 'Flags' },
-    { key: '/events', label: 'Events' }
+    { key: '/ui/flags', label: 'Flags' },
+    { key: '/ui/events', label: 'Events' }
   ];
 
   const currentPath = location.pathname === '/' ? '/ui' : location.pathname;

@@ -64,7 +64,10 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r.Use(model.ObserversMiddleware(observers))
 	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
-	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
+	r.PathPrefix("/ui/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.URL.Path = "/"
+		ui.AssetHandler.ServeHTTP(w, r)
+	})
 	sdk.BindRoutes(r)
 	handler := api.HandlerFromMux(apiServer, r)
 	handler = api.CorsHeadersWithConfig(serverParams.CorsEnabled, serverParams.CorsOrigin)(handler)
