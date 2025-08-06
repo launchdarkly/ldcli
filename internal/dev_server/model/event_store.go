@@ -11,7 +11,7 @@ import (
 
 type eventStoreKey string
 
-const ctxKeyEventStore = ctxKey("model.EventStore")
+const ctxKeyEventStore = eventStoreKey("model.EventStore")
 
 //go:generate go run go.uber.org/mock/mockgen -destination mocks/event_store.go -package mocks . EventStore
 
