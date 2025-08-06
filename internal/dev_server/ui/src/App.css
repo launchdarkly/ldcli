@@ -216,6 +216,16 @@ code.has-override {
   transform: translateX(-50%) translateY(100px);
 }
 
+/* Dark mode copy notification styling */
+@media (prefers-color-scheme: dark) {
+  .copy-notification {
+    background-color: var(--lp-color-blue-700, #1d4ed8);
+    color: var(--lp-color-gray-100, #f3f4f6);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+}
+
+
 /* Streaming toggle button */
 .streaming-toggle-button {
   margin-bottom: 16px;
@@ -243,4 +253,41 @@ code.has-override {
 
 .streaming-toggle-button:active {
   transform: translateY(1px);
+}
+
+/* Copy button styling */
+.copy-button {
+  background: none;
+  border: none;
+  color: var(--lp-color-blue-600);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: var(--lp-font-size-200);
+  padding: 0;
+  margin: 0;
+  transition: color 0.2s ease;
+}
+
+.copy-button:hover {
+  color: var(--lp-color-blue-700);
+  text-decoration: none;
+}
+
+.copy-button:active {
+  color: var(--lp-color-blue-800);
+}
+
+/* Dark mode styling for copy button */
+@media (prefers-color-scheme: dark) {
+  .copy-button {
+    color: var(--lp-color-blue-400);
+  }
+
+  .copy-button:hover {
+    color: var(--lp-color-blue-300);
+  }
+
+  .copy-button:active {
+    color: var(--lp-color-blue-200);
+  }
 }

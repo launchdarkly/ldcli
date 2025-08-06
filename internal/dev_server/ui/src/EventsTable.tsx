@@ -9,8 +9,9 @@ type Props = {
 
 const clipboardLink = (linkText: string, value: string, showNotification: (message: string) => void) => {
   return (
-    <a
-      href="#"
+    <button
+      type="button"
+      className="copy-button"
       onClick={(e) => {
         e.preventDefault();
         navigator.clipboard.writeText(value).then(() => {
@@ -21,7 +22,7 @@ const clipboardLink = (linkText: string, value: string, showNotification: (messa
       }}
     >
       {linkText}
-    </a>
+    </button>
   );
 }
 
