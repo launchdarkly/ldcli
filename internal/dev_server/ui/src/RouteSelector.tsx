@@ -9,7 +9,8 @@ const RouteSelector = () => {
 
   const options = [
     { key: '/ui/flags', label: 'Flags' },
-    { key: '/ui/events', label: 'Events' }
+    { key: '/ui/events', label: 'Events' },
+    { key: '/ui/debug-sessions', label: 'Debug Sessions' }
   ];
 
   const currentPath = location.pathname === '/' ? '/ui' : location.pathname;

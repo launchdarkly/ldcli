@@ -46,3 +46,15 @@ export interface EventData {
   timestamp: number;
   data: SummaryEventPayload | FeatureEventPayload | IndexEventPayload | GenericEventPayload;
 }
+
+export interface DebugSession {
+  key: string;
+  written_at: string;
+  event_count: number;
+}
+
+export interface DebugSessionsPage {
+  sessions: DebugSession[];
+  total_count: number;
+  has_more: boolean;
+}

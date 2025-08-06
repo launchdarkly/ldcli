@@ -4,6 +4,7 @@ import { Box } from '@launchpad-ui/core';
 import RouteSelector from './RouteSelector.tsx';
 import FlagsPage from './FlagsPage.tsx';
 import EventsPage from './EventsPage.tsx';
+import DebugSessionsPage from './DebugSessionsPage.tsx';
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
             <Route path="/ui" element={<Navigate to="/ui/flags" replace />} />
             <Route path="/ui/flags" element={<FlagsPage />} />
             <Route path="/ui/events" element={<EventsPage />} />
+            <Route path="/ui/debug-sessions" element={<DebugSessionsPage />} />
           </Routes>
         </Box>
       </Box>

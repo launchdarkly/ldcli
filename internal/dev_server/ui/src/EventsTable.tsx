@@ -51,8 +51,8 @@ const indexRows = (indexEvent: EventData, showNotification: (message: string) =>
   let eventText;
   if (indexEvent.data.context) {
     eventText = (indexEvent.data.context?.kind || 'unknown') + ' context';
-  } else if (indexEvent.data.user) {
-    eventText = (indexEvent.data.user.key || 'unknown') + ' user';
+  } else if ((indexEvent.data as any).user) {
+    eventText = ((indexEvent.data as any).user.key || 'unknown') + ' user';
   }
   else {
     eventText = 'unknown context';
