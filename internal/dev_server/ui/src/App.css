@@ -106,10 +106,19 @@ code.has-override {
 
 /* Feature rows styling - make them pop! */
 .events-table tbody tr.feature-row {
-  background-color: var(--lp-color-blue-50) !important;
-  border-left: 4px solid var(--lp-color-blue-500);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background-color: var(--lp-color-blue-100) !important;
+  border-left: 4px solid var(--lp-color-blue-400);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   font-weight: var(--lp-font-weight-medium);
+}
+
+/* Dark mode adjustments for feature rows */
+@media (prefers-color-scheme: dark) {
+  .events-table tbody tr.feature-row {
+    background-color: var(--lp-color-blue-900) !important;
+    border-left: 4px solid var(--lp-color-blue-300);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
 }
 
 .events-table tbody tr.feature-row td:nth-child(2) {
@@ -118,6 +127,13 @@ code.has-override {
   text-transform: uppercase;
   font-size: var(--lp-font-size-200);
   letter-spacing: 0.5px;
+}
+
+/* Dark mode adjustments for feature row text */
+@media (prefers-color-scheme: dark) {
+  .events-table tbody tr.feature-row td:nth-child(2) {
+    color: var(--lp-color-blue-200);
+  }
 }
 
 /* Copy to clipboard link styling */
