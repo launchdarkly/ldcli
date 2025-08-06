@@ -33,7 +33,7 @@ type EventsPage struct {
 type EventStore interface {
 	CreateDebugSession(ctx context.Context, debugSessionKey string) error
 	WriteEvent(ctx context.Context, debugSessionKey string, kind string, data json.RawMessage) error
-	QueryEvents(ctx context.Context, kind *string, limit int, offset int) (*EventsPage, error)
+	QueryEvents(ctx context.Context, debugSessionKey string, kind *string, limit int, offset int) (*EventsPage, error)
 }
 
 func ContextWithEventStore(ctx context.Context, store EventStore) context.Context {

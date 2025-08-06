@@ -29,7 +29,7 @@ func (s *Sqlite) WriteEvent(ctx context.Context, debugSessionKey string, kind st
 	return err
 }
 
-func (s *Sqlite) QueryEvents(ctx context.Context, kind *string, limit int, offset int) (*model.EventsPage, error) {
+func (s *Sqlite) QueryEvents(ctx context.Context, debugSessionKey string, kind *string, limit int, offset int) (*model.EventsPage, error) {
 	// Build the query based on whether kind filter is provided
 	var query string
 	var args []interface{}
@@ -38,17 +38,20 @@ func (s *Sqlite) QueryEvents(ctx context.Context, kind *string, limit int, offse
 		query = `
 			SELECT id, written_at, kind, data
 			FROM debug_events
-			WHERE kind = ?
+			WHERE 
+			    debug_session_key = ?
+			    AND kind = ?
 			ORDER BY id DESC
 			LIMIT ? OFFSET ?`
-		args = []interface{}{*kind, limit, offset}
+		args = []interface{}{debugSessionKey, *kind, limit, offset}
 	} else {
 		query = `
 			SELECT id, written_at, kind, data
 			FROM debug_events
+			where debug_session_key = ?
 			ORDER BY id DESC
 			LIMIT ? OFFSET ?`
-		args = []interface{}{limit, offset}
+		args = []interface{}{debugSessionKey, limit, offset}
 	}
 
 	// Execute the main query

@@ -57,7 +57,7 @@ func TestDBFunctions(t *testing.T) {
 		require.NoError(t, err)
 
 		// Query all events
-		page, err := store.QueryEvents(ctx, nil, 10, 0)
+		page, err := store.QueryEvents(ctx, debugSessionKey, nil, 10, 0)
 		require.NoError(t, err)
 		require.NotNil(t, page)
 		require.Len(t, page.Events, 4) // 3 new + 1 from previous test
@@ -67,7 +67,7 @@ func TestDBFunctions(t *testing.T) {
 
 	t.Run("QueryEvents with kind filter", func(t *testing.T) {
 		kind := "summary"
-		page, err := store.QueryEvents(ctx, &kind, 10, 0)
+		page, err := store.QueryEvents(ctx, debugSessionKey, &kind, 10, 0)
 		require.NoError(t, err)
 		require.NotNil(t, page)
 		require.Len(t, page.Events, 3) // Only summary events
@@ -82,7 +82,7 @@ func TestDBFunctions(t *testing.T) {
 
 	t.Run("QueryEvents with pagination", func(t *testing.T) {
 		// Query with limit
-		page, err := store.QueryEvents(ctx, nil, 2, 0)
+		page, err := store.QueryEvents(ctx, debugSessionKey, nil, 2, 0)
 		require.NoError(t, err)
 		require.NotNil(t, page)
 		require.Len(t, page.Events, 2)
@@ -90,7 +90,7 @@ func TestDBFunctions(t *testing.T) {
 		require.True(t, page.HasMore)
 
 		// Query next page
-		page, err = store.QueryEvents(ctx, nil, 2, 2)
+		page, err = store.QueryEvents(ctx, debugSessionKey, nil, 2, 2)
 		require.NoError(t, err)
 		require.NotNil(t, page)
 		require.Len(t, page.Events, 2)
