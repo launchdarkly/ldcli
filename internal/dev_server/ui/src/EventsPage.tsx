@@ -112,7 +112,14 @@ const renderEvent = (event: EventData, showNotification: (message: string) => vo
     default:
       return [
         <tr key={event.id}>
-          <td>{event.timestamp}</td>
+          <td>{(() => {
+            try {
+              const date = new Date(event.timestamp);
+              return isNaN(date.getTime()) ? event.timestamp : date.toLocaleTimeString();
+            } catch {
+              return event.timestamp;
+            }
+          })()}</td>
           <td>{event.data.kind}</td>
           <td></td>
           <td></td>
