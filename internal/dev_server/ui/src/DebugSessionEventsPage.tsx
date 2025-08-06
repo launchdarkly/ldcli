@@ -126,9 +126,6 @@ const DebugSessionEventsPage = () => {
             </Text>
           </Box>
         </Box>
-        <Text color="var(--lp-color-text-ui-secondary)">
-          {totalCount} total event{totalCount !== 1 ? 's' : ''}
-        </Text>
       </Box>
 
       <TextField onChange={handleSearchChange} name="debug-session-search">
