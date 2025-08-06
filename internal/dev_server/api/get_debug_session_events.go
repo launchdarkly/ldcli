@@ -20,10 +20,10 @@ func (s server) GetDebugSessionEvents(ctx context.Context, request GetDebugSessi
 	}
 
 	// Validate parameters
-	if limit < 1 || limit > 1000 {
+	if limit < 1 || limit > 10000 {
 		return GetDebugSessionEvents400JSONResponse{ErrorResponseJSONResponse{
 			Code:    "invalid_parameter",
-			Message: "limit must be between 1 and 1000",
+			Message: "limit must be between 1 and 10000",
 		}}, nil
 	}
 
