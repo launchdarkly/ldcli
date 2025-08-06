@@ -47,19 +47,9 @@ const DebugSessionEventsPage = () => {
     fetchEvents();
   }, [debugSessionKey]);
 
-  const handleBackToSessions = () => {
-    navigate("/ui/debug-sessions");
-  };
-
   if (loading) {
     return (
       <Box padding="2rem">
-        <Box display="flex" alignItems="center" marginBottom="1rem">
-          <Button onPress={handleBackToSessions} variant="minimal">
-            <Icon name="arrow-left" size="small" />
-            <Text marginLeft="0.5rem">Back to Debug Sessions</Text>
-          </Button>
-        </Box>
         <Heading>Debug Session Events</Heading>
         <Box marginTop="1rem">
           <Text color="var(--lp-color-text-ui-secondary)">
@@ -79,12 +69,6 @@ const DebugSessionEventsPage = () => {
   if (error) {
     return (
       <Box padding="2rem">
-        <Box display="flex" alignItems="center" marginBottom="1rem">
-          <Button onPress={handleBackToSessions} variant="minimal">
-            <Icon name="arrow-left" size="small" />
-            <Text marginLeft="0.5rem">Back to Debug Sessions</Text>
-          </Button>
-        </Box>
         <Heading>Debug Session Events</Heading>
         <Box marginTop="1rem">
           <Text color="var(--lp-color-text-ui-secondary)">
@@ -105,12 +89,6 @@ const DebugSessionEventsPage = () => {
 
   return (
     <Box padding="2rem">
-      <Box display="flex" alignItems="center" marginBottom="1rem">
-        <Button onPress={handleBackToSessions} variant="minimal">
-          <Icon name="arrow-left" size="small" />
-          <Text marginLeft="0.5rem">Back to Debug Sessions</Text>
-        </Button>
-      </Box>
       
       <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom="1rem">
         <Box>
