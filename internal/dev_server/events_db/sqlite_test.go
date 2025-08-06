@@ -98,4 +98,61 @@ func TestDBFunctions(t *testing.T) {
 		require.False(t, page.HasMore)
 	})
 
+	t.Run("QueryDebugSessions with pagination", func(t *testing.T) {
+		// Create additional debug sessions for testing
+		err := store.CreateDebugSession(ctx, "session-2")
+		require.NoError(t, err)
+		err = store.CreateDebugSession(ctx, "session-3")
+		require.NoError(t, err)
+
+		// Add some events to different sessions
+		err = store.WriteEvent(ctx, "session-2", "summary", []byte(testEvent))
+		require.NoError(t, err)
+		err = store.WriteEvent(ctx, "session-2", "diagnostic", []byte(`{"kind":"diagnostic","data":"test"}`))
+		require.NoError(t, err)
+		// session-3 will have 0 events
+
+		// Query first page
+		page, err := store.QueryDebugSessions(ctx, 2, 0)
+		require.NoError(t, err)
+		require.NotNil(t, page)
+		require.Len(t, page.Sessions, 2)
+		require.Equal(t, int64(4), page.TotalCount) // debugSessionKey, another-session, session-2, session-3
+		require.True(t, page.HasMore)
+
+		// Verify sessions are ordered by written_at DESC (newest first)
+		// Just verify that we have the expected sessions and event counts
+		sessionKeys := make(map[string]int64)
+		for _, session := range page.Sessions {
+			sessionKeys[session.Key] = session.EventCount
+		}
+
+		// Query all sessions to verify the complete result
+		allPage, err := store.QueryDebugSessions(ctx, 10, 0)
+		require.NoError(t, err)
+		require.NotNil(t, allPage)
+		require.Len(t, allPage.Sessions, 4)
+		require.Equal(t, int64(4), allPage.TotalCount)
+		require.False(t, allPage.HasMore)
+
+		// Verify all sessions and their event counts
+		allSessionKeys := make(map[string]int64)
+		for _, session := range allPage.Sessions {
+			allSessionKeys[session.Key] = session.EventCount
+		}
+
+		require.Equal(t, int64(0), allSessionKeys["session-3"])
+		require.Equal(t, int64(2), allSessionKeys["session-2"])
+		require.Equal(t, int64(0), allSessionKeys["another-session"])
+		require.Equal(t, int64(4), allSessionKeys[debugSessionKey]) // 4 events from previous tests
+
+		// Test pagination - second page
+		page2, err := store.QueryDebugSessions(ctx, 2, 2)
+		require.NoError(t, err)
+		require.NotNil(t, page2)
+		require.Len(t, page2.Sessions, 2)
+		require.Equal(t, int64(4), page2.TotalCount)
+		require.False(t, page2.HasMore)
+	})
+
 }

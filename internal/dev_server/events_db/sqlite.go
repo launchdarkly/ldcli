@@ -112,6 +112,63 @@ func (s *Sqlite) QueryEvents(ctx context.Context, debugSessionKey string, kind *
 	}, nil
 }
 
+func (s *Sqlite) QueryDebugSessions(ctx context.Context, limit int, offset int) (*model.DebugSessionsPage, error) {
+	// Execute the main query based on the provided SQL
+	query := `
+		SELECT debug_session.key, debug_session.written_at, COUNT(debug_events.id) as event_count
+		FROM debug_session
+		LEFT JOIN debug_events ON debug_session.key = debug_events.debug_session_key
+		GROUP BY debug_session.key, debug_session.written_at
+		ORDER BY debug_session.written_at DESC
+		LIMIT ? OFFSET ?`
+
+	rows, err := s.database.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []model.DebugSession
+	for rows.Next() {
+		var session model.DebugSession
+		var writtenAtStr string
+
+		err := rows.Scan(&session.Key, &writtenAtStr, &session.EventCount)
+		if err != nil {
+			return nil, err
+		}
+
+		// Parse the timestamp - SQLite returns ISO 8601 format
+		session.WrittenAt, err = time.Parse(time.RFC3339, writtenAtStr)
+		if err != nil {
+			return nil, err
+		}
+
+		sessions = append(sessions, session)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Get total count for pagination info
+	var totalCount int64
+	countQuery := `SELECT COUNT(*) FROM debug_session`
+	err = s.database.QueryRowContext(ctx, countQuery).Scan(&totalCount)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine if there are more results
+	hasMore := int64(offset+len(sessions)) < totalCount
+
+	return &model.DebugSessionsPage{
+		Sessions:   sessions,
+		TotalCount: totalCount,
+		HasMore:    hasMore,
+	}, nil
+}
+
 var _ model.EventStore = &Sqlite{}
 
 func NewSqlite(ctx context.Context, dbPath string) (*Sqlite, error) {
