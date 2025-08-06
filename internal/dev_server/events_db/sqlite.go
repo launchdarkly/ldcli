@@ -175,6 +175,11 @@ func (s *Sqlite) DeleteDebugSession(ctx context.Context, debugSessionKey string)
 	return err
 }
 
+func (s *Sqlite) deleteOrphanedEvents(ctx context.Context) error {
+	_, err := s.database.ExecContext(ctx, `DELETE FROM debug_session WHERE NOT EXISTS (SELECT 1 from debug_events WHERE debug_events.debug_session_key = debug_session.key);`)
+	return err
+}
+
 var _ model.EventStore = &Sqlite{}
 
 func NewSqlite(ctx context.Context, dbPath string) (*Sqlite, error) {
@@ -190,6 +195,10 @@ func NewSqlite(ctx context.Context, dbPath string) (*Sqlite, error) {
 		return &Sqlite{}, err
 	}
 	err = store.runMigrations(ctx)
+	if err != nil {
+		return &Sqlite{}, err
+	}
+	err = store.deleteOrphanedEvents(ctx)
 	if err != nil {
 		return &Sqlite{}, err
 	}
