@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"log"
 	"sync"
 
@@ -37,7 +38,10 @@ func (o *Observers) RegisterObserver(observer Observer) uuid.UUID {
 }
 
 func (o *Observers) Notify(event interface{}) {
-	log.Printf("Notify: event %+v to observers", event)
+	// Dont log raw json messages
+	if _, ok := event.(json.RawMessage); !ok {
+		log.Printf("Notify: event %+v to observers", event)
+	}
 	o.observers.Range(func(_, observer any) bool {
 		observer.(Observer).Handle(event)
 		return true
