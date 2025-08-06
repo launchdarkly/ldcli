@@ -48,22 +48,55 @@ const summaryRows = (summaryEvent: EventData, showNotification: (message: string
 }
 
 const indexRows = (indexEvent: EventData, showNotification: (message: string) => void) => {
-  let eventText;
+  let targetText = 'unknown';
+  let iconName: 
+    | 'person'
+    | 'chart-dashboard'
+    | 'person-outline'
+    | 'group'
+    | 'cloud'
+    | 'help' = 'help';
   if (indexEvent.data.context) {
-    eventText = (indexEvent.data.context?.kind || 'unknown') + ' context';
+    let context = indexEvent.data.context
+    switch (context.kind) {
+      case 'user':
+        targetText = 'user context';
+        iconName = 'person';
+        break;
+      case 'application':
+        targetText = context.key || 'unknown application';
+        iconName = 'cloud';
+        break;
+      case 'multi':
+        if (context.user) {
+          targetText = context.user.email || context.user.key || 'unknown user';
+          iconName = 'person';
+        } else if (context.account) {
+          targetText = context.account.name || context.account.key || 'unknown account';
+          iconName = 'group';
+        } else if (context.application) {
+          targetText = context.application.key || 'unknown application';
+          iconName = 'cloud';
+        } else {
+          targetText = 'multi context';
+          iconName = 'chart-dashboard';
+        }
+        break;
+    }
   } else if ((indexEvent.data as any).user) {
-    eventText = ((indexEvent.data as any).user.key || 'unknown') + ' user';
+    targetText = ((indexEvent.data as any).user.key || 'unknown') + ' user';
+    iconName = 'person-outline';
   }
   else {
-    eventText = 'unknown context';
+    targetText = 'unknown';
   }
 
   return [
     <tr key={indexEvent.id}>
       <td>{new Date(indexEvent.timestamp).toLocaleTimeString()}</td>
       <td>index</td>
-      <td><Icon name="metric-funnel" size="small" /> {JSON.stringify(indexEvent.data).length} bytes</td>
-      <td>{eventText}</td>
+      <td><Icon name={iconName} size="small" /> {targetText}</td>
+      <td>indexed {JSON.stringify(indexEvent.data).length} bytes</td>
       <td>{clipboardLink('Copy to clipboard', JSON.stringify(indexEvent.data), showNotification)}</td>
     </tr>
   ]
