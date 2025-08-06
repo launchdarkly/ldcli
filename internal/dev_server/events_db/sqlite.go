@@ -90,11 +90,11 @@ func (s *Sqlite) QueryEvents(ctx context.Context, debugSessionKey string, kind *
 	var countArgs []interface{}
 
 	if kind != nil {
-		countQuery = `SELECT COUNT(*) FROM debug_events WHERE kind = ?`
-		countArgs = []interface{}{*kind}
+		countQuery = `SELECT COUNT(*) FROM debug_events WHERE debug_session_key = ? AND kind = ?`
+		countArgs = []interface{}{debugSessionKey, *kind}
 	} else {
-		countQuery = `SELECT COUNT(*) FROM debug_events`
-		countArgs = []interface{}{}
+		countQuery = `SELECT COUNT(*) FROM debug_events WHERE debug_session_key = ?`
+		countArgs = []interface{}{debugSessionKey}
 	}
 
 	err = s.database.QueryRowContext(ctx, countQuery, countArgs...).Scan(&totalCount)
