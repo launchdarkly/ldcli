@@ -161,6 +161,22 @@ code.has-override {
   background-color: var(--lp-color-blue-100);
 }
 
+/* Dark mode adjustments for copy links */
+@media (prefers-color-scheme: dark) {
+  .events-table td a {
+    color: var(--lp-color-blue-300);
+  }
+
+  .events-table td a:hover {
+    background-color: var(--lp-color-blue-900);
+    color: var(--lp-color-blue-200);
+  }
+
+  .events-table td a:active {
+    background-color: var(--lp-color-blue-800);
+  }
+}
+
 /* Center the copy link in its cell */
 .events-table td:last-child {
   text-align: center;
