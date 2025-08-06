@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -12,10 +13,26 @@ type eventStoreKey string
 
 const ctxKeyEventStore = ctxKey("model.EventStore")
 
-//go:generate go run go.uber.org/mock/mockgen -destination mocks/store.go -package mocks . EventStore
+//go:generate go run go.uber.org/mock/mockgen -destination mocks/event_store.go -package mocks . EventStore
+
+// Event represents a stored event with metadata
+type Event struct {
+	ID        int64           `json:"id"`
+	WrittenAt time.Time       `json:"written_at"`
+	Kind      string          `json:"kind"`
+	Data      json.RawMessage `json:"data"`
+}
+
+// EventsPage represents a paginated response of events
+type EventsPage struct {
+	Events     []Event `json:"events"`
+	TotalCount int64   `json:"total_count"`
+	HasMore    bool    `json:"has_more"`
+}
 
 type EventStore interface {
 	WriteEvent(ctx context.Context, kind string, data json.RawMessage) error
+	QueryEvents(ctx context.Context, kind *string, limit int, offset int) (*EventsPage, error)
 }
 
 func ContextWithEventStore(ctx context.Context, store EventStore) context.Context {

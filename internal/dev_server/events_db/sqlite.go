@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"time"
+
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -18,6 +20,86 @@ func (s *Sqlite) WriteEvent(ctx context.Context, kind string, data json.RawMessa
 		INSERT INTO debug_events (kind, data)
 		VALUES (?, ?)`, kind, data)
 	return err
+}
+
+func (s *Sqlite) QueryEvents(ctx context.Context, kind *string, limit int, offset int) (*model.EventsPage, error) {
+	// Build the query based on whether kind filter is provided
+	var query string
+	var args []interface{}
+
+	if kind != nil {
+		query = `
+			SELECT id, written_at, kind, data
+			FROM debug_events
+			WHERE kind = ?
+			ORDER BY id DESC
+			LIMIT ? OFFSET ?`
+		args = []interface{}{*kind, limit, offset}
+	} else {
+		query = `
+			SELECT id, written_at, kind, data
+			FROM debug_events
+			ORDER BY id DESC
+			LIMIT ? OFFSET ?`
+		args = []interface{}{limit, offset}
+	}
+
+	// Execute the main query
+	rows, err := s.database.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []model.Event
+	for rows.Next() {
+		var event model.Event
+		var writtenAtStr string
+
+		err := rows.Scan(&event.ID, &writtenAtStr, &event.Kind, &event.Data)
+		if err != nil {
+			return nil, err
+		}
+
+		// Parse the timestamp - SQLite returns ISO 8601 format
+		event.WrittenAt, err = time.Parse(time.RFC3339, writtenAtStr)
+		if err != nil {
+			return nil, err
+		}
+
+		events = append(events, event)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Get total count for pagination info
+	var totalCount int64
+	var countQuery string
+	var countArgs []interface{}
+
+	if kind != nil {
+		countQuery = `SELECT COUNT(*) FROM debug_events WHERE kind = ?`
+		countArgs = []interface{}{*kind}
+	} else {
+		countQuery = `SELECT COUNT(*) FROM debug_events`
+		countArgs = []interface{}{}
+	}
+
+	err = s.database.QueryRowContext(ctx, countQuery, countArgs...).Scan(&totalCount)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine if there are more results
+	hasMore := int64(offset+len(events)) < totalCount
+
+	return &model.EventsPage{
+		Events:     events,
+		TotalCount: totalCount,
+		HasMore:    hasMore,
+	}, nil
 }
 
 var _ model.EventStore = &Sqlite{}
