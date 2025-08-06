@@ -33,7 +33,7 @@ const DebugSessionEventsPage = () => {
       }
       
       const data: ApiEventsPage = await response.json();
-      const convertedEvents = data.events.map(convertApiEventToEventData);
+      const convertedEvents = data.events?.map(convertApiEventToEventData) || [];
       setEvents(convertedEvents);
       setTotalCount(data.total_count);
     } catch (err) {
