@@ -20,18 +20,9 @@ const clipboardLink = (linkText: string, value: string) => {
   );
 }
 
-const summaryRows = (summaryEvent: any) => {
-  let parsed;
-  try {
-    parsed = JSON.parse(summaryEvent.data);
-  } catch (error) {
-    console.error('Failed to parse event data as JSON:', error);
-    return <div>Error. See console.</div>;
-  }
-  console.log('parsed', parsed);
-
+const summaryRows = (summaryEvent: EventData) => {
   let rows = [];
-  for (const [key, value] of Object.entries(parsed.features)) {
+  for (const [key, value] of Object.entries(summaryEvent.data.features)) {
     const rowId = summaryEvent.id + key;
     const counters = (value as any).counters || [];
 
@@ -42,7 +33,7 @@ const summaryRows = (summaryEvent: any) => {
           <td>summary</td>
           <td>{key}</td>
           <td>evaluated as {String(counter.value)}</td>
-          <td>{clipboardLink('copy to clipboard', JSON.stringify(parsed))}</td>
+          <td>{clipboardLink('copy to clipboard', JSON.stringify(summaryEvent.data))}</td>
         </tr>
       );
     }
@@ -51,30 +42,59 @@ const summaryRows = (summaryEvent: any) => {
   return rows;
 }
 
-// Return array of <tr>s:
-// Time, Type, Key, Event, ViewAttributes
-const renderEvent = (event: EventData) => {
-  let parsed;
-  try {
-    parsed = JSON.parse(event.data);
-  } catch (error) {
-    console.error('Failed to parse event data as JSON:', error);
-    return <div>Error. See console.</div>;
-  }
-
-  if (parsed.kind === 'summary') {
-    return summaryRows(event);
+const indexRows = (indexEvent: EventData) => {
+  let eventText;
+  if (indexEvent.data.context) {
+    eventText = 'context kind: ' + (indexEvent.data.context?.kind || 'unknown');
+  } else {
+    eventText = 'unknown';
   }
 
   return [
+    <tr key={indexEvent.id}>
+      <td>{new Date(indexEvent.timestamp).toLocaleTimeString()}</td>
+      <td>index</td>
+      <td>n/a</td>
+      <td>{eventText}</td>
+      <td>{clipboardLink('copy to clipboard', JSON.stringify(indexEvent.data))}</td>
+    </tr>
+  ]
+}
+
+const customRows = (event: EventData) => {
+  return [
     <tr key={event.id}>
-      <td>{event.timestamp}</td>
-      <td>{parsed.kind}</td>
-      <td></td>
-      <td>{parsed.kind}</td>
-      <td></td>
+      <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
+      <td>{event.data.kind}</td>
+      <td>{event.data.key || 'unknown'}</td>
+      <td>value is {event.data.metricValue}</td>
+      <td>{clipboardLink('copy to clipboard', JSON.stringify(event.data))}</td>
     </tr>,
   ];
+}
+
+
+// Return array of <tr>s:
+// Time, Type, Key, Event, ViewAttributes
+const renderEvent = (event: EventData) => {
+  switch (event.data.kind) {
+    case 'summary':
+      return summaryRows(event);
+    case 'index':
+      return indexRows(event);
+    case 'custom':
+      return customRows(event);
+    default:
+      return [
+        <tr key={event.id}>
+          <td>{event.timestamp}</td>
+          <td>{event.data.kind}</td>
+          <td></td>
+          <td></td>
+          <td>{clipboardLink('copy to clipboard', JSON.stringify(event.data))}</td>
+        </tr>,
+      ];
+  }
 };
 
 const EventsPage = ({ limit = 1000 }: Props) => {
@@ -87,10 +107,19 @@ const EventsPage = ({ limit = 1000 }: Props) => {
       if (!event.data || event.data.trim() === '') {
         return;
       }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(event.data);
+      } catch (error) {
+        console.error('Failed to parse event data as JSON:', error);
+        return;
+      }
+
       const newEvent: EventData = {
         id: Math.random().toString(36).slice(2, 11),
         timestamp: Date.now(),
-        data: event.data
+        data: parsed
       };
       setEvents(prevEvents => [newEvent, ...prevEvents].slice(0, limit));
     });
