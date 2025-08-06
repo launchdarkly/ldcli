@@ -3,16 +3,17 @@ package sdk
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log"
+	"net/http"
+
 	"github.com/google/uuid"
 	"github.com/launchdarkly/ldcli/internal/dev_server/events"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/pkg/errors"
-	"io"
-	"log"
-	"net/http"
 )
 
-func newSdkEventObserver(updateChan chan<- Message, ctx context.Context, filter events.Filter) sdkEventObserver {
+func newSdkEventObserver(updateChan chan<- Message, ctx context.Context) sdkEventObserver {
 	debugSessionKey := uuid.New().String()
 	db := model.EventStoreFromContext(ctx)
 	err := db.CreateDebugSession(ctx, debugSessionKey)
@@ -23,7 +24,6 @@ func newSdkEventObserver(updateChan chan<- Message, ctx context.Context, filter 
 		debugSessionKey: debugSessionKey,
 		ctx:             ctx,
 		updateChan:      updateChan,
-		filter:          filter,
 	}
 }
 
@@ -31,7 +31,6 @@ type sdkEventObserver struct {
 	ctx             context.Context
 	debugSessionKey string
 	updateChan      chan<- Message
-	filter          events.Filter
 }
 
 func (o sdkEventObserver) Handle(message interface{}) {
@@ -44,10 +43,6 @@ func (o sdkEventObserver) Handle(message interface{}) {
 	err := json.Unmarshal(str, &event)
 	if err != nil {
 		log.Printf("sdkEventObserver: error unmarshaling event: %v", err)
-		return
-	}
-
-	if !o.filter.Matches(event) {
 		return
 	}
 
@@ -93,15 +88,8 @@ func SdkEventsTeeHandler(writer http.ResponseWriter, request *http.Request) {
 		Message{Event: TYPE_PUT, Data: []byte{}},
 	)
 	defer close(updateChan)
-	filter := events.Filter{}
 
-	query := request.URL.Query()
-	kind := query.Get("kind")
-	if kind != "" {
-		filter.Kind = &kind
-	}
-
-	observerId := observers.RegisterObserver(newSdkEventObserver(updateChan, request.Context(), filter))
+	observerId := observers.RegisterObserver(newSdkEventObserver(updateChan, request.Context()))
 	defer func() {
 		ok := observers.DeregisterObserver(observerId)
 		if !ok {
