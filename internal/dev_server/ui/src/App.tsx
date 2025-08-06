@@ -1,8 +1,7 @@
 import './App.css';
 import { Routes, Route, Navigate } from 'react-router';
 import { Box } from '@launchpad-ui/core';
-import FlagsButton from './FlagsButton.tsx';
-import EventsButton from './EventsButton.tsx';
+import RouteSelector from './RouteSelector.tsx';
 import FlagsPage from './FlagsPage.tsx';
 import EventsPage from './EventsPage.tsx';
 
@@ -25,9 +24,8 @@ function App() {
         minWidth="600px"
         padding="2rem"
       >
-        <Box display="flex" gap="10px" justifyContent="flex-start" width="100%">
-          <FlagsButton />
-          <EventsButton />
+        <Box display="flex" justifyContent="flex-start" width="100%">
+          <RouteSelector />
         </Box>
         <Box padding="1rem" width="100%">
           <Routes>
