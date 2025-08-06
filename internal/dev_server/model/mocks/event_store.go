@@ -56,6 +56,20 @@ func (mr *MockEventStoreMockRecorder) CreateDebugSession(ctx, debugSessionKey an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDebugSession", reflect.TypeOf((*MockEventStore)(nil).CreateDebugSession), ctx, debugSessionKey)
 }
 
+// DeleteDebugSession mocks base method.
+func (m *MockEventStore) DeleteDebugSession(ctx context.Context, debugSessionKey string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteDebugSession", ctx, debugSessionKey)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteDebugSession indicates an expected call of DeleteDebugSession.
+func (mr *MockEventStoreMockRecorder) DeleteDebugSession(ctx, debugSessionKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDebugSession", reflect.TypeOf((*MockEventStore)(nil).DeleteDebugSession), ctx, debugSessionKey)
+}
+
 // QueryDebugSessions mocks base method.
 func (m *MockEventStore) QueryDebugSessions(ctx context.Context, limit, offset int) (*model.DebugSessionsPage, error) {
 	m.ctrl.T.Helper()

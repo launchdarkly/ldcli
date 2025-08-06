@@ -253,6 +253,9 @@ type ServerInterface interface {
 	// list all debug sessions with event counts
 	// (GET /dev/debug-sessions)
 	GetDebugSessions(w http.ResponseWriter, r *http.Request, params GetDebugSessionsParams)
+	// delete a specific debug session and all its events
+	// (DELETE /dev/debug-sessions/{debugSessionKey})
+	DeleteDebugSession(w http.ResponseWriter, r *http.Request, debugSessionKey string)
 	// get events for a specific debug session
 	// (GET /dev/debug-sessions/{debugSessionKey}/events)
 	GetDebugSessionEvents(w http.ResponseWriter, r *http.Request, debugSessionKey string, params GetDebugSessionEventsParams)
@@ -348,6 +351,31 @@ func (siw *ServerInterfaceWrapper) GetDebugSessions(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetDebugSessions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDebugSession operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDebugSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "debugSessionKey" -------------
+	var debugSessionKey string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "debugSessionKey", mux.Vars(r)["debugSessionKey"], &debugSessionKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "debugSessionKey", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDebugSession(w, r, debugSessionKey)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -812,6 +840,8 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 
 	r.HandleFunc(options.BaseURL+"/dev/debug-sessions", wrapper.GetDebugSessions).Methods("GET")
 
+	r.HandleFunc(options.BaseURL+"/dev/debug-sessions/{debugSessionKey}", wrapper.DeleteDebugSession).Methods("DELETE")
+
 	r.HandleFunc(options.BaseURL+"/dev/debug-sessions/{debugSessionKey}/events", wrapper.GetDebugSessionEvents).Methods("GET")
 
 	r.HandleFunc(options.BaseURL+"/dev/projects", wrapper.GetProjects).Methods("GET")
@@ -922,6 +952,31 @@ type GetDebugSessions400JSONResponse struct{ ErrorResponseJSONResponse }
 func (response GetDebugSessions400JSONResponse) VisitGetDebugSessionsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteDebugSessionRequestObject struct {
+	DebugSessionKey string `json:"debugSessionKey"`
+}
+
+type DeleteDebugSessionResponseObject interface {
+	VisitDeleteDebugSessionResponse(w http.ResponseWriter) error
+}
+
+type DeleteDebugSession204Response struct {
+}
+
+func (response DeleteDebugSession204Response) VisitDeleteDebugSessionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteDebugSession404JSONResponse struct{ ErrorResponseJSONResponse }
+
+func (response DeleteDebugSession404JSONResponse) VisitDeleteDebugSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -1236,6 +1291,9 @@ type StrictServerInterface interface {
 	// list all debug sessions with event counts
 	// (GET /dev/debug-sessions)
 	GetDebugSessions(ctx context.Context, request GetDebugSessionsRequestObject) (GetDebugSessionsResponseObject, error)
+	// delete a specific debug session and all its events
+	// (DELETE /dev/debug-sessions/{debugSessionKey})
+	DeleteDebugSession(ctx context.Context, request DeleteDebugSessionRequestObject) (DeleteDebugSessionResponseObject, error)
 	// get events for a specific debug session
 	// (GET /dev/debug-sessions/{debugSessionKey}/events)
 	GetDebugSessionEvents(ctx context.Context, request GetDebugSessionEventsRequestObject) (GetDebugSessionEventsResponseObject, error)
@@ -1366,6 +1424,32 @@ func (sh *strictHandler) GetDebugSessions(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetDebugSessionsResponseObject); ok {
 		if err := validResponse.VisitGetDebugSessionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteDebugSession operation middleware
+func (sh *strictHandler) DeleteDebugSession(w http.ResponseWriter, r *http.Request, debugSessionKey string) {
+	var request DeleteDebugSessionRequestObject
+
+	request.DebugSessionKey = debugSessionKey
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteDebugSession(ctx, request.(DeleteDebugSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteDebugSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteDebugSessionResponseObject); ok {
+		if err := validResponse.VisitDeleteDebugSessionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -216,6 +216,22 @@ paths:
                 $ref: "#/components/schemas/DebugSessionsPage"
         400:
           $ref: "#/components/responses/ErrorResponse"
+  /dev/debug-sessions/{debugSessionKey}:
+    delete:
+      operationId: deleteDebugSession
+      summary: delete a specific debug session and all its events
+      parameters:
+        - name: debugSessionKey
+          in: path
+          required: true
+          schema:
+            type: string
+          description: unique identifier for the debug session
+      responses:
+        204:
+          description: OK. Debug session and all associated events were deleted
+        404:
+          $ref: "#/components/responses/ErrorResponse"
   /dev/debug-sessions/{debugSessionKey}/events:
     get:
       operationId: getDebugSessionEvents
