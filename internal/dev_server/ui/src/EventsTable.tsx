@@ -153,12 +153,14 @@ const EventsTable = ({
   return (
     <div>
       <h3>Events Stream (limit: {limit})</h3>
-      <button
-        className={`streaming-toggle-button ${isStreaming ? 'streaming' : 'not-streaming'}`}
-        onClick={() => handleToggleStreaming(!isStreaming)}
-      >
-        {isStreaming ? 'Streaming ON' : 'Streaming OFF'}
-      </button>
+      {onToggleStreaming && (
+        <button
+          className={`streaming-toggle-button ${isStreaming ? 'streaming' : 'not-streaming'}`}
+          onClick={() => handleToggleStreaming(!isStreaming)}
+        >
+          {isStreaming ? 'Streaming ON' : 'Streaming OFF'}
+        </button>
+      )}
       <table className="events-table">
         <thead>
           <tr>
