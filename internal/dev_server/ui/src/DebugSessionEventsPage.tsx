@@ -49,7 +49,7 @@ const DebugSessionEventsPage = () => {
 
   if (loading) {
     return (
-      <Box padding="2rem">
+      <Box padding="2rem" width="100%">
         <Heading>Debug Session Events</Heading>
         <Box marginTop="1rem">
           <Text color="var(--lp-color-text-ui-secondary)">
@@ -68,7 +68,7 @@ const DebugSessionEventsPage = () => {
 
   if (error) {
     return (
-      <Box padding="2rem">
+      <Box padding="2rem" width="100%">
         <Heading>Debug Session Events</Heading>
         <Box marginTop="1rem">
           <Text color="var(--lp-color-text-ui-secondary)">
@@ -88,7 +88,7 @@ const DebugSessionEventsPage = () => {
   }
 
   return (
-    <Box padding="2rem">
+    <Box padding="2rem" width="100%">
       
       <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom="1rem">
         <Box>

@@ -53,7 +53,7 @@ const DebugSessionsPage = () => {
 
   if (loading) {
     return (
-      <Box padding="2rem">
+      <Box padding="2rem" width="100%">
         <Heading>Debug Sessions</Heading>
         <Box marginTop="1rem">
           <ProgressBar isIndeterminate />
@@ -67,7 +67,7 @@ const DebugSessionsPage = () => {
 
   if (error) {
     return (
-      <Box padding="2rem">
+      <Box padding="2rem" width="100%">
         <Heading>Debug Sessions</Heading>
         <Box marginTop="1rem">
           <Alert kind="error">
@@ -82,7 +82,7 @@ const DebugSessionsPage = () => {
   }
 
   return (
-    <Box padding="2rem">
+    <Box padding="2rem" width="100%">
       <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom="1rem">
         <Heading>Debug Sessions</Heading>
         <Text color="var(--lp-color-text-ui-secondary)">
