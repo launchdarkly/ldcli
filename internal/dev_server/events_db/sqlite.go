@@ -119,6 +119,7 @@ func (s *Sqlite) QueryDebugSessions(ctx context.Context, limit int, offset int) 
 		FROM debug_session
 		LEFT JOIN debug_events ON debug_session.key = debug_events.debug_session_key
 		GROUP BY debug_session.key, debug_session.written_at
+		HAVING event_count > 0
 		ORDER BY debug_session.written_at DESC
 		LIMIT ? OFFSET ?`
 

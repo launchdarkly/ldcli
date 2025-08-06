@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { apiRoute } from "./util";
 import { DebugSession, DebugSessionsPage as DebugSessionsPageType } from "./types";
-import { Box, CopyToClipboard, Alert } from "@launchpad-ui/core";
-import { Heading, Text, ProgressBar, Button } from "@launchpad-ui/components";
+import { Box, Alert } from "@launchpad-ui/core";
+import { Heading, Text, ProgressBar, Button, Link } from "@launchpad-ui/components";
 import { Icon } from "@launchpad-ui/icons";
 
 const DebugSessionsPage = () => {
@@ -12,6 +12,7 @@ const DebugSessionsPage = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
   const fetchDebugSessions = async () => {
     try {
@@ -49,6 +50,35 @@ const DebugSessionsPage = () => {
 
   const handleSessionClick = (sessionKey: string) => {
     navigate(`/ui/debug-sessions/${encodeURIComponent(sessionKey)}/events`);
+  };
+
+  const handleDeleteSession = async (sessionKey: string) => {
+    if (!confirm(`Are you sure you want to delete debug session "${sessionKey}" and all its events? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeletingSession(sessionKey);
+      setError(null);
+
+      const response = await fetch(apiRoute(`/dev/debug-sessions/${encodeURIComponent(sessionKey)}`), {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Debug session not found');
+        }
+        throw new Error(`Failed to delete debug session: ${response.status} ${response.statusText}`);
+      }
+
+      // Refresh the sessions list after successful deletion
+      await fetchDebugSessions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred while deleting the session");
+    } finally {
+      setDeletingSession(null);
+    }
   };
 
   if (loading) {
@@ -118,27 +148,13 @@ const DebugSessionsPage = () => {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: "var(--lp-color-bg-ui-secondary)" }}>
-                <th style={{
-                  padding: "0.75rem",
-                  textAlign: "left",
-                  borderBottom: "1px solid var(--lp-color-border-ui-primary)",
-                  fontWeight: 600
-                }}>
-                  Session Key
-                  <Text
-                    color="var(--lp-color-text-ui-secondary)"
-                    style={{ fontSize: "0.75rem", fontWeight: 400, marginTop: "0.25rem" }}
-                  >
-                    (click to view events)
-                  </Text>
-                </th>
                 <th style={{ 
                   padding: "0.75rem", 
                   textAlign: "left", 
                   borderBottom: "1px solid var(--lp-color-border-ui-primary)",
                   fontWeight: 600
                 }}>
-                  Created At
+                  Debug Session Started
                 </th>
                 <th style={{ 
                   padding: "0.75rem", 
@@ -155,7 +171,7 @@ const DebugSessionsPage = () => {
                   fontWeight: 600,
                   width: "100px"
                 }}>
-                  Copy Key
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -167,28 +183,11 @@ const DebugSessionsPage = () => {
                     borderBottom: index < debugSessions.length - 1 ? "1px solid var(--lp-color-border-ui-primary)" : "none"
                   }}
                 >
+
                   <td style={{ padding: "0.75rem" }}>
-                    <button
-                      onClick={() => handleSessionClick(session.key)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        cursor: "pointer",
-                        textAlign: "left",
-                        color: "var(--lp-color-text-link)",
-                        textDecoration: "underline",
-                        fontFamily: "monospace"
-                      }}
-                      title="Click to view events for this session"
-                    >
-                      {session.key}
-                    </button>
-                  </td>
-                  <td style={{ padding: "0.75rem" }}>
-                    <Text>
+                    <Link href={`/ui/debug-sessions/${session.key}/events`}>
                       {formatDate(session.written_at)}
-                    </Text>
+                    </Link>
                   </td>
                   <td style={{ padding: "0.75rem", textAlign: "right" }}>
                     <Text>
@@ -196,23 +195,25 @@ const DebugSessionsPage = () => {
                     </Text>
                   </td>
                   <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                    <CopyToClipboard text={session.key}>
-                      <button
-                        style={{
-                          background: "none",
-                          border: "1px solid var(--lp-color-border-ui-primary)",
-                          borderRadius: "4px",
-                          padding: "0.25rem 0.5rem",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.25rem"
-                        }}
-                        title="Copy session key"
-                      >
-                        <Icon name="link" size="small" />
-                      </button>
-                    </CopyToClipboard>
+                    <button
+                      onClick={() => handleDeleteSession(session.key)}
+                      disabled={deletingSession === session.key}
+                      style={{
+                        background: "none",
+                        border: "1px solid var(--lp-color-border-destructive)",
+                        borderRadius: "4px",
+                        padding: "0.25rem 0.5rem",
+                        cursor: deletingSession === session.key ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        color: "var(--lp-color-text-destructive)",
+                        opacity: deletingSession === session.key ? 0.6 : 1
+                      }}
+                      title={deletingSession === session.key ? "Deleting..." : "Delete session and all events"}
+                    >
+                      <Icon name={"delete"} size="small" />
+                    </button>
                   </td>
                 </tr>
               ))}
