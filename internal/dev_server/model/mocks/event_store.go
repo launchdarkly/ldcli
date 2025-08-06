@@ -42,6 +42,20 @@ func (m *MockEventStore) EXPECT() *MockEventStoreMockRecorder {
 	return m.recorder
 }
 
+// CreateDebugSession mocks base method.
+func (m *MockEventStore) CreateDebugSession(ctx context.Context, debugSessionKey string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateDebugSession", ctx, debugSessionKey)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateDebugSession indicates an expected call of CreateDebugSession.
+func (mr *MockEventStoreMockRecorder) CreateDebugSession(ctx, debugSessionKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDebugSession", reflect.TypeOf((*MockEventStore)(nil).CreateDebugSession), ctx, debugSessionKey)
+}
+
 // QueryEvents mocks base method.
 func (m *MockEventStore) QueryEvents(ctx context.Context, kind *string, limit, offset int) (*model.EventsPage, error) {
 	m.ctrl.T.Helper()
@@ -58,15 +72,15 @@ func (mr *MockEventStoreMockRecorder) QueryEvents(ctx, kind, limit, offset any) 
 }
 
 // WriteEvent mocks base method.
-func (m *MockEventStore) WriteEvent(ctx context.Context, kind string, data json.RawMessage) error {
+func (m *MockEventStore) WriteEvent(ctx context.Context, debugSessionKey, kind string, data json.RawMessage) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteEvent", ctx, kind, data)
+	ret := m.ctrl.Call(m, "WriteEvent", ctx, debugSessionKey, kind, data)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteEvent indicates an expected call of WriteEvent.
-func (mr *MockEventStoreMockRecorder) WriteEvent(ctx, kind, data any) *gomock.Call {
+func (mr *MockEventStoreMockRecorder) WriteEvent(ctx, debugSessionKey, kind, data any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteEvent", reflect.TypeOf((*MockEventStore)(nil).WriteEvent), ctx, kind, data)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteEvent", reflect.TypeOf((*MockEventStore)(nil).WriteEvent), ctx, debugSessionKey, kind, data)
 }

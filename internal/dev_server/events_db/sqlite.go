@@ -15,10 +15,17 @@ type Sqlite struct {
 	dbPath   string
 }
 
-func (s *Sqlite) WriteEvent(ctx context.Context, kind string, data json.RawMessage) error {
+func (s *Sqlite) CreateDebugSession(ctx context.Context, debugSessionKey string) error {
 	_, err := s.database.ExecContext(ctx, `
-		INSERT INTO debug_events (kind, data)
-		VALUES (?, ?)`, kind, data)
+		INSERT INTO debug_session (key)
+		VALUES (?)`, debugSessionKey)
+	return err
+}
+
+func (s *Sqlite) WriteEvent(ctx context.Context, debugSessionKey string, kind string, data json.RawMessage) error {
+	_, err := s.database.ExecContext(ctx, `
+		INSERT INTO debug_events (kind, debug_session_key, data)
+		VALUES (?,?, ?)`, kind, debugSessionKey, data)
 	return err
 }
 
@@ -130,11 +137,18 @@ func (s *Sqlite) runMigrations(ctx context.Context) error {
 		}
 	}()
 	_, err = tx.Exec(`
+	CREATE TABLE IF NOT EXISTS debug_session (
+		key text PRIMARY KEY,
+    	written_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`)
+	_, err = tx.Exec(`
 	CREATE TABLE IF NOT EXISTS debug_events (
-	    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    	written_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	  	id INTEGER PRIMARY KEY AUTOINCREMENT,
+		written_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		kind text,
-		data jsonb NOT NULL
+		data jsonb NOT NULL,
+		debug_session_key TEXT NOT NULL,
+		FOREIGN KEY (debug_session_key) REFERENCES debug_session (key) ON DELETE CASCADE
 	)`)
 	if err != nil {
 		return err

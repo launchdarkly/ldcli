@@ -27,18 +27,33 @@ func TestDBFunctions(t *testing.T) {
 
 	require.NotNil(t, store)
 
+	debugSessionKey := "test"
+
+	t.Run("CreateDebugSession succeeds", func(t *testing.T) {
+		err := store.CreateDebugSession(ctx, debugSessionKey)
+		require.NoError(t, err)
+
+		// Test that creating the same session again error
+		err = store.CreateDebugSession(ctx, debugSessionKey)
+		require.Error(t, err)
+
+		// Test creating a different session
+		err = store.CreateDebugSession(ctx, "another-session")
+		require.NoError(t, err)
+	})
+
 	t.Run("WriteEvent succeeds", func(t *testing.T) {
-		err := store.WriteEvent(ctx, "summary", []byte(testEvent))
+		err := store.WriteEvent(ctx, debugSessionKey, "summary", []byte(testEvent))
 		require.NoError(t, err)
 	})
 
 	t.Run("QueryEvents with no filter", func(t *testing.T) {
 		// Write some test events
-		err := store.WriteEvent(ctx, "summary", []byte(testEvent))
+		err := store.WriteEvent(ctx, debugSessionKey, "summary", []byte(testEvent))
 		require.NoError(t, err)
-		err = store.WriteEvent(ctx, "diagnostic", []byte(`{"kind":"diagnostic","data":"test"}`))
+		err = store.WriteEvent(ctx, debugSessionKey, "diagnostic", []byte(`{"kind":"diagnostic","data":"test"}`))
 		require.NoError(t, err)
-		err = store.WriteEvent(ctx, "summary", []byte(testEvent))
+		err = store.WriteEvent(ctx, debugSessionKey, "summary", []byte(testEvent))
 		require.NoError(t, err)
 
 		// Query all events
