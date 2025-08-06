@@ -199,3 +199,32 @@ code.has-override {
   opacity: 0;
   transform: translateX(-50%) translateY(100px);
 }
+
+/* Streaming toggle button */
+.streaming-toggle-button {
+  margin-bottom: 16px;
+  padding: 8px 16px;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: var(--lp-font-size-300);
+  font-weight: var(--lp-font-weight-medium);
+  transition: background-color 0.2s ease;
+}
+
+.streaming-toggle-button.streaming {
+  background-color: var(--lp-color-blue-600);
+}
+
+.streaming-toggle-button.not-streaming {
+  background-color: var(--lp-color-gray-600);
+}
+
+.streaming-toggle-button:hover {
+  opacity: 0.9;
+}
+
+.streaming-toggle-button:active {
+  transform: translateY(1px);
+}
