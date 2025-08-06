@@ -103,3 +103,74 @@ code.has-override {
 .events-table tbody tr:nth-child(odd) {
   background-color: var(--lp-color-bg-ui-primary);
 }
+
+/* Feature rows styling - make them pop! */
+.events-table tbody tr.feature-row {
+  background-color: var(--lp-color-blue-50) !important;
+  border-left: 4px solid var(--lp-color-blue-500);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  font-weight: var(--lp-font-weight-medium);
+}
+
+.events-table tbody tr.feature-row td:nth-child(2) {
+  color: var(--lp-color-blue-700);
+  font-weight: var(--lp-font-weight-bold);
+  text-transform: uppercase;
+  font-size: var(--lp-font-size-200);
+  letter-spacing: 0.5px;
+}
+
+/* Copy to clipboard link styling */
+.events-table td a {
+  color: var(--lp-color-blue-600);
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease-in-out;
+  font-size: var(--lp-font-size-200);
+}
+
+.events-table td a:hover {
+  background-color: var(--lp-color-blue-50);
+  color: var(--lp-color-blue-700);
+  text-decoration: underline;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.events-table td a:active {
+  transform: translateY(0px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  background-color: var(--lp-color-blue-100);
+}
+
+/* Copy notification toast */
+.copy-notification {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background-color: #22c55e; /* Fallback green */
+  background-color: var(--lp-color-blue-600, #2563eb);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  font-size: 14px; /* Fallback font size */
+  font-size: var(--lp-font-size-300, 14px);
+  font-weight: 500; /* Fallback font weight */
+  font-weight: var(--lp-font-weight-medium, 500);
+  z-index: 1000;
+  opacity: 0;
+  transition: all 0.3s ease-in-out;
+}
+
+.copy-notification.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.copy-notification.hide {
+  opacity: 0;
+  transform: translateX(-50%) translateY(100px);
+}

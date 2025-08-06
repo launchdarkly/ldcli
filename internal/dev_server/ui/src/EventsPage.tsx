@@ -7,13 +7,17 @@ type Props = {
   limit?: number;
 };
 
-const clipboardLink = (linkText: string, value: string) => {
+const clipboardLink = (linkText: string, value: string, showNotification: (message: string) => void) => {
   return (
     <a
       href="#"
       onClick={(e) => {
         e.preventDefault();
-        navigator.clipboard.writeText(value);
+        navigator.clipboard.writeText(value).then(() => {
+          showNotification("Copied to clipboard!");
+        }).catch(() => {
+          showNotification("Failed to copy to clipboard");
+        });
       }}
     >
       {linkText}
@@ -21,7 +25,7 @@ const clipboardLink = (linkText: string, value: string) => {
   );
 }
 
-const summaryRows = (summaryEvent: EventData) => {
+const summaryRows = (summaryEvent: EventData, showNotification: (message: string) => void) => {
   let rows = [];
   for (const [key, value] of Object.entries((summaryEvent.data as any).features)) {
     const rowId = summaryEvent.id + key;
@@ -34,7 +38,7 @@ const summaryRows = (summaryEvent: EventData) => {
           <td>summary</td>
           <td><Icon name="flag" size="small" /> {key}</td>
           <td>evaluated as {String(counter.value)}</td>
-          <td>{clipboardLink('copy to clipboard', JSON.stringify(summaryEvent.data))}</td>
+          <td>{clipboardLink('Copy to clipboard', JSON.stringify(summaryEvent.data), showNotification)}</td>
         </tr>
       );
     }
@@ -43,7 +47,7 @@ const summaryRows = (summaryEvent: EventData) => {
   return rows;
 }
 
-const indexRows = (indexEvent: EventData) => {
+const indexRows = (indexEvent: EventData, showNotification: (message: string) => void) => {
   let eventText;
   if (indexEvent.data.context) {
     eventText = (indexEvent.data.context?.kind || 'unknown') + ' context';
@@ -60,34 +64,34 @@ const indexRows = (indexEvent: EventData) => {
       <td>index</td>
       <td><Icon name="metric-funnel" size="small" /> {JSON.stringify(indexEvent.data).length} bytes</td>
       <td>{eventText}</td>
-      <td>{clipboardLink('copy to clipboard', JSON.stringify(indexEvent.data))}</td>
+      <td>{clipboardLink('Copy to clipboard', JSON.stringify(indexEvent.data), showNotification)}</td>
     </tr>
   ]
 }
 
-const featureRows = (featureEvent: EventData) => {
+const featureRows = (featureEvent: EventData, showNotification: (message: string) => void) => {
   const data = featureEvent.data as any; // Type assertion for feature event
   const eventText = `evaluated as ${String(data.value)}`;
   
   return [
-    <tr key={featureEvent.id}>
+    <tr key={featureEvent.id} className="feature-row">
       <td>{new Date(featureEvent.timestamp).toLocaleTimeString()}</td>
       <td>feature</td>
       <td>{data.key || 'unknown'}</td>
       <td>{eventText}</td>
-      <td>{clipboardLink('copy to clipboard', JSON.stringify(featureEvent.data))}</td>
+      <td>{clipboardLink('Copy to clipboard', JSON.stringify(featureEvent.data), showNotification)}</td>
     </tr>
   ];
 }
 
-const customRows = (event: EventData) => {
+const customRows = (event: EventData, showNotification: (message: string) => void) => {
   return [
     <tr key={event.id}>
       <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
       <td>{event.data.kind}</td>
       <td><Icon name="chart-histogram" size="small" /> {event.data.key || 'unknown'}</td>
       <td>value is {(event.data as any).metricValue}</td>
-      <td>{clipboardLink('copy to clipboard', JSON.stringify(event.data))}</td>
+      <td>{clipboardLink('Copy to clipboard', JSON.stringify(event.data), showNotification)}</td>
     </tr>,
   ];
 }
@@ -95,16 +99,16 @@ const customRows = (event: EventData) => {
 
 // Return array of <tr>s:
 // Time, Type, Key, Event, ViewAttributes
-const renderEvent = (event: EventData) => {
+const renderEvent = (event: EventData, showNotification: (message: string) => void) => {
   switch (event.data.kind) {
     case 'summary':
-      return summaryRows(event);
+      return summaryRows(event, showNotification);
     case 'index':
-      return indexRows(event);
+      return indexRows(event, showNotification);
     case 'feature':
-      return featureRows(event);
+      return featureRows(event, showNotification);
     case 'custom':
-      return customRows(event);
+      return customRows(event, showNotification);
     default:
       return [
         <tr key={event.id}>
@@ -112,7 +116,7 @@ const renderEvent = (event: EventData) => {
           <td>{event.data.kind}</td>
           <td></td>
           <td></td>
-          <td>{clipboardLink('copy to clipboard', JSON.stringify(event.data))}</td>
+          <td>{clipboardLink('Copy to clipboard', JSON.stringify(event.data), showNotification)}</td>
         </tr>,
       ];
   }
@@ -120,6 +124,14 @@ const renderEvent = (event: EventData) => {
 
 const EventsPage = ({ limit = 1000 }: Props) => {
   const [events, setEvents] = useState<EventData[]>([]);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const showNotification = (message: string) => {
+    setNotification(message);
+    setTimeout(() => {
+      setNotification(null);
+    }, 1500);
+  };
 
   useEffect(() => {
     const eventSource = new EventSource(apiRoute('/events/tee'));
@@ -165,10 +177,15 @@ const EventsPage = ({ limit = 1000 }: Props) => {
           </tr>
         </thead>
         <tbody>
-          {events.map(event => renderEvent(event))}
+          {events.map(event => renderEvent(event, showNotification))}
         </tbody>
       </table>
       {events.length === 0 && <p>No events received yet...</p>}
+      {notification && (
+        <div className={`copy-notification ${notification ? 'show' : 'hide'}`}>
+          {notification}
+        </div>
+      )}
     </div>
   );
 };
