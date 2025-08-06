@@ -5,17 +5,19 @@ import {
 } from '@launchpad-ui/components';
 import { Icon } from '@launchpad-ui/icons';
 import { Inline } from '@launchpad-ui/core';
+import { useNavigate, useLocation } from 'react-router';
 
-type Props = {
-  onPress: () => void;
-};
+const EventsButton = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isActive = location.pathname === '/events';
 
-const EventsButton = ({
-  onPress,
-}: Props) => {
   return (
     <TooltipTrigger>
-      <Button onPress={onPress}>
+      <Button 
+        onPress={() => navigate('/events')}
+        variant={isActive ? 'primary' : 'default'}
+      >
         <div>
           <Inline gap="1">
             <Icon name="play" size="small" />

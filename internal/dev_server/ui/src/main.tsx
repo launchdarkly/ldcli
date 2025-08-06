@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router';
 import App from './App.tsx';
 import { IconProvider } from './IconProvider.tsx';
 import { ToastContainer } from '@launchpad-ui/components';
@@ -27,10 +28,12 @@ const Root = () => {
 
   return (
     <React.StrictMode>
-      <IconProvider>
-        <App />
-        <ToastContainer />
-      </IconProvider>
+      <BrowserRouter>
+        <IconProvider>
+          <App />
+          <ToastContainer />
+        </IconProvider>
+      </BrowserRouter>
     </React.StrictMode>
   );
 };

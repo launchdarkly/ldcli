@@ -1,5 +1,5 @@
 import './App.css';
-import { useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router';
 import { Box } from '@launchpad-ui/core';
 import FlagsButton from './FlagsButton.tsx';
 import EventsButton from './EventsButton.tsx';
@@ -7,8 +7,6 @@ import FlagsPage from './FlagsPage.tsx';
 import EventsPage from './EventsPage.tsx';
 
 function App() {
-  const [mode, setMode] = useState<'flags' | 'events'>('flags');
-
   return (
     <div
       style={{
@@ -28,12 +26,15 @@ function App() {
         padding="2rem"
       >
         <Box display="flex" gap="10px" justifyContent="flex-start" width="100%">
-          <FlagsButton onPress={() => { setMode('flags'); }} />
-          <EventsButton onPress={() => { setMode('events'); }} />
+          <FlagsButton />
+          <EventsButton />
         </Box>
         <Box padding="1rem" width="100%">
-          {mode === 'flags' && <FlagsPage />}
-          {mode === 'events' && <EventsPage />}
+          <Routes>
+            <Route path="/" element={<Navigate to="/ui" replace />} />
+            <Route path="/ui" element={<FlagsPage />} />
+            <Route path="/events" element={<EventsPage />} />
+          </Routes>
         </Box>
       </Box>
     </div>
