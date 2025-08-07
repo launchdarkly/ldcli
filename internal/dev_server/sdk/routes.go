@@ -35,20 +35,20 @@ func BindRoutes(router *mux.Router) {
 	evalRouter := router.PathPrefix("/eval").Subrouter()
 	evalRouter.Use(CorsHeaders)
 	evalRouter.Methods(http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
-	evalRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
+	evalRouter.Use(GetProjectKeyFromClientSideId("envId"))
 	evalRouter.PathPrefix("/{envId}").
 		Methods(http.MethodGet, "REPORT").
 		HandlerFunc(StreamClientFlags)
 
 	goalsRouter := router.Path("/sdk/goals/{envId}").Subrouter()
 	goalsRouter.Use(CorsHeaders)
-	goalsRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
+	goalsRouter.Use(GetProjectKeyFromClientSideId("envId"))
 	goalsRouter.Methods(http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
 	goalsRouter.Methods(http.MethodGet).HandlerFunc(ConstantResponseHandler(http.StatusOK, "[]"))
 
 	evalXRouter := router.PathPrefix("/sdk/evalx/{envId}").Subrouter()
 	evalXRouter.Use(CorsHeaders)
-	evalXRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
+	evalXRouter.Use(GetProjectKeyFromClientSideId("envId"))
 	evalXRouter.Methods(http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
-	evalXRouter.Methods(http.MethodGet, "REPORT").HandlerFunc(GetClientFlags)
+	evalXRouter.PathPrefix("/").Methods(http.MethodGet, "REPORT").HandlerFunc(GetClientFlags)
 }

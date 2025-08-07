@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldclient "github.com/launchdarkly/go-server-sdk/v7"
@@ -48,6 +49,14 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 	api.EXPECT().GetSdkKey(gomock.Any(), projectKey, environmentKey).Return(testSdkKey, nil).AnyTimes()
 	api.EXPECT().GetAllFlags(gomock.Any(), projectKey).
 		Return(nil, nil). // Available variations are not used for evaluation
+		AnyTimes()
+	api.EXPECT().GetProjectEnvironments(gomock.Any(), projectKey, "", nil).
+		Return([]ldapi.Environment{
+			{
+				Key: environmentKey,
+				Id:  "test-client-side-id",
+			},
+		}, nil).
 		AnyTimes()
 
 	// Wire up sdk routes in test server

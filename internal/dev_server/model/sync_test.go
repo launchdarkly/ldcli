@@ -81,6 +81,7 @@ func TestInitialSync(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
 		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(nil, errors.New("fetch flags failed"))
+		api.EXPECT().GetProjectEnvironments(gomock.Any(), projKey, "", nil).Return(nil, nil)
 		input := model.InitialProjectSettings{
 			Enabled:    true,
 			ProjectKey: projKey,
@@ -97,6 +98,7 @@ func TestInitialSync(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
 		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
+		api.EXPECT().GetProjectEnvironments(gomock.Any(), projKey, "", nil).Return([]ldapi.Environment{{Key: sourceEnvKey, Id: "test-client-side-id"}}, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(errors.New("insert fails"))
 
 		input := model.InitialProjectSettings{
@@ -115,6 +117,7 @@ func TestInitialSync(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
 		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
+		api.EXPECT().GetProjectEnvironments(gomock.Any(), projKey, "", nil).Return([]ldapi.Environment{{Key: sourceEnvKey, Id: "test-client-side-id"}}, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(nil)
 
 		input := model.InitialProjectSettings{
@@ -152,6 +155,7 @@ func TestInitialSync(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
 		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
+		api.EXPECT().GetProjectEnvironments(gomock.Any(), projKey, "", nil).Return([]ldapi.Environment{{Key: sourceEnvKey, Id: "test-client-side-id"}}, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(nil)
 		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(&proj, nil)
