@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
@@ -47,14 +48,45 @@ func (s *Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project,
 	var flagStateData string
 
 	row := s.database.QueryRowContext(ctx, `
-        SELECT key, source_environment_key, context, last_sync_time, flag_state 
+        SELECT key, source_environment_key, client_side_id, context, last_sync_time, flag_state 
         FROM projects 
         WHERE key = ?
     `, key)
 
-	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &contextData, &project.LastSyncTime, &flagStateData); err != nil {
+	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &project.ClientSideId, &contextData, &project.LastSyncTime, &flagStateData); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.NewErrNotFound("project", key)
+		}
+		return nil, err
+	}
+
+	// Parse the context JSON string
+	if err := json.Unmarshal([]byte(contextData), &project.Context); err != nil {
+		return nil, errors.Wrap(err, "unable to unmarshal context data")
+	}
+
+	// Parse the flag state JSON string
+	if err := json.Unmarshal([]byte(flagStateData), &project.AllFlagsState); err != nil {
+		return nil, errors.Wrap(err, "unable to unmarshal flag state data")
+	}
+
+	return &project, nil
+}
+
+func (s *Sqlite) GetDevProjectByClientSideId(ctx context.Context, clientSideId string) (*model.Project, error) {
+	var project model.Project
+	var contextData string
+	var flagStateData string
+
+	row := s.database.QueryRowContext(ctx, `
+        SELECT key, source_environment_key, client_side_id, context, last_sync_time, flag_state 
+        FROM projects 
+        WHERE client_side_id = ? AND client_side_id IS NOT NULL
+    `, clientSideId)
+
+	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &project.ClientSideId, &contextData, &project.LastSyncTime, &flagStateData); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.NewErrNotFound("project", clientSideId)
 		}
 		return nil, err
 	}
@@ -89,9 +121,9 @@ func (s *Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool
 	}()
 	result, err := tx.ExecContext(ctx, `
 		UPDATE projects
-		SET flag_state = ?, last_sync_time = ?, context=?, source_environment_key=?
+		SET flag_state = ?, last_sync_time = ?, context=?, source_environment_key=?, client_side_id=?
 		WHERE key = ?;
-	`, flagsStateJson, project.LastSyncTime, project.Context.JSONString(), project.SourceEnvironmentKey, project.Key)
+	`, flagsStateJson, project.LastSyncTime, project.Context.JSONString(), project.SourceEnvironmentKey, project.ClientSideId, project.Key)
 	if err != nil {
 		return false, errors.Wrap(err, "unable to execute update project")
 	}
@@ -200,11 +232,12 @@ SELECT 1 FROM projects WHERE key = ?
 		return
 	}
 	_, err = tx.Exec(`
-INSERT INTO projects (key, source_environment_key, context, last_sync_time, flag_state)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO projects (key, source_environment_key, client_side_id, context, last_sync_time, flag_state)
+VALUES (?, ?, ?, ?, ?, ?)
 `,
 		project.Key,
 		project.SourceEnvironmentKey,
+		project.ClientSideId,
 		project.Context.JSONString(),
 		project.LastSyncTime,
 		string(flagsStateJson),
@@ -429,6 +462,11 @@ var validationQueries = []string{
 	"SELECT COUNT(1) from available_variations",
 }
 
+func isColumnExistsError(err error) bool {
+	return err != nil && (strings.Contains(err.Error(), "duplicate column name: client_side_id") ||
+		strings.Contains(err.Error(), "table projects has no column named client_side_id"))
+}
+
 func (s *Sqlite) runMigrations(ctx context.Context) error {
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
@@ -443,6 +481,7 @@ func (s *Sqlite) runMigrations(ctx context.Context) error {
 	CREATE TABLE IF NOT EXISTS projects (
 		key text PRIMARY KEY,
 		source_environment_key text NOT NULL,
+		client_side_id text,
 		context text NOT NULL,
 		last_sync_time timestamp NOT NULL,
 		flag_state TEXT NOT NULL
@@ -477,6 +516,15 @@ func (s *Sqlite) runMigrations(ctx context.Context) error {
 	)`)
 	if err != nil {
 		return err
+	}
+
+	// Add client_side_id column to existing projects table if it doesn't exist
+	_, err = tx.Exec(`ALTER TABLE projects ADD COLUMN client_side_id text`)
+	if err != nil {
+		// Ignore error if column already exists
+		if !isColumnExistsError(err) {
+			return err
+		}
 	}
 
 	return tx.Commit()

@@ -14,6 +14,7 @@ import (
 type Project struct {
 	Key                  string
 	SourceEnvironmentKey string
+	ClientSideId         *string
 	Context              ldcontext.Context
 	LastSyncTime         time.Time
 	AllFlagsState        FlagsState
@@ -57,6 +58,12 @@ func (project *Project) refreshExternalState(ctx context.Context) error {
 		return err
 	}
 	project.AvailableVariations = availableVariations
+
+	// Fetch client-side ID for caching (best-effort; non-fatal if unavailable)
+	if clientSideId, cidErr := project.fetchClientSideId(ctx); cidErr == nil {
+		project.ClientSideId = clientSideId
+	}
+
 	return nil
 }
 
@@ -155,4 +162,20 @@ func (project Project) fetchFlagState(ctx context.Context) (FlagsState, error) {
 
 	flagsState = FromAllFlags(sdkFlags)
 	return flagsState, nil
+}
+
+func (project Project) fetchClientSideId(ctx context.Context) (*string, error) {
+	apiAdapter := adapters.GetApi(ctx)
+	environments, err := apiAdapter.GetProjectEnvironments(ctx, project.Key, "", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, env := range environments {
+		if env.Key == project.SourceEnvironmentKey {
+			return &env.Id, nil
+		}
+	}
+
+	return nil, errors.New("client-side ID not found for environment " + project.SourceEnvironmentKey)
 }

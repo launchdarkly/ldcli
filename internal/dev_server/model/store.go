@@ -21,6 +21,8 @@ type Store interface {
 	GetDevProjectKeys(ctx context.Context) ([]string, error)
 	// GetDevProject fetches the project based on the projectKey. If it doesn't exist, ErrNotFound is returned
 	GetDevProject(ctx context.Context, projectKey string) (*Project, error)
+	// GetDevProjectByClientSideId fetches the project based on the client-side ID. If it doesn't exist, ErrNotFound is returned
+	GetDevProjectByClientSideId(ctx context.Context, clientSideId string) (*Project, error)
 	UpdateProject(ctx context.Context, project Project) (bool, error)
 	DeleteDevProject(ctx context.Context, projectKey string) (bool, error)
 	// InsertProject inserts the project. If it already exists, ErrAlreadyExists is returned

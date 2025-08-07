@@ -66,8 +66,17 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
 	sdk.BindRoutes(r)
-	handler := api.HandlerFromMux(apiServer, r)
-	handler = api.CorsHeadersWithConfig(serverParams.CorsEnabled, serverParams.CorsOrigin)(handler)
+
+	// Create API handler with CORS middleware applied only to API routes
+	var apiMiddlewares []api.MiddlewareFunc
+	if serverParams.CorsEnabled {
+		apiMiddlewares = append(apiMiddlewares, api.CorsHeadersWithConfig(true, serverParams.CorsOrigin))
+	}
+	handler := api.HandlerWithOptions(apiServer, api.GorillaServerOptions{
+		BaseRouter:  r,
+		Middlewares: apiMiddlewares,
+	})
+
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 
