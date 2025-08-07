@@ -10,6 +10,10 @@ func CorsHeaders(handler http.Handler) http.Handler {
 		writer.Header().Set("Access-Control-Allow-Headers", "Cache-Control,Content-Type,Content-Length,Accept-Encoding,X-LaunchDarkly-User-Agent,X-LaunchDarkly-Payload-ID,X-LaunchDarkly-Wrapper,X-LaunchDarkly-Event-Schema,X-LaunchDarkly-Tags")
 		writer.Header().Set("Access-Control-Expose-Headers", "Date")
 		writer.Header().Set("Access-Control-Max-Age", "300")
+		if request.Method == http.MethodOptions {
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
 		handler.ServeHTTP(writer, request)
 	})
 }

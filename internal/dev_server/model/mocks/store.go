@@ -118,6 +118,21 @@ func (mr *MockStoreMockRecorder) GetDevProject(ctx, projectKey any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProject", reflect.TypeOf((*MockStore)(nil).GetDevProject), ctx, projectKey)
 }
 
+// GetDevProjectByClientSideId mocks base method.
+func (m *MockStore) GetDevProjectByClientSideId(ctx context.Context, clientSideId string) (*model.Project, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDevProjectByClientSideId", ctx, clientSideId)
+	ret0, _ := ret[0].(*model.Project)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDevProjectByClientSideId indicates an expected call of GetDevProjectByClientSideId.
+func (mr *MockStoreMockRecorder) GetDevProjectByClientSideId(ctx, clientSideId any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDevProjectByClientSideId", reflect.TypeOf((*MockStore)(nil).GetDevProjectByClientSideId), ctx, clientSideId)
+}
+
 // GetDevProjectKeys mocks base method.
 func (m *MockStore) GetDevProjectKeys(ctx context.Context) ([]string, error) {
 	m.ctrl.T.Helper()
