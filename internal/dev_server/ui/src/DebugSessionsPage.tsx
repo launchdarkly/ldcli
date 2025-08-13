@@ -48,10 +48,6 @@ const DebugSessionsPage = () => {
     }
   };
 
-  const handleSessionClick = (sessionKey: string) => {
-    navigate(`/ui/debug-sessions/${encodeURIComponent(sessionKey)}/events`);
-  };
-
   const handleDeleteSession = async (sessionKey: string) => {
     if (!confirm(`Are you sure you want to delete debug session "${sessionKey}" and all its events? This action cannot be undone.`)) {
       return;

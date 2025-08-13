@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiRoute } from "./util";
 import { EventData } from "./types";
-import { Icon } from "@launchpad-ui/icons";
 import EventsTable from "./EventsTable";
 
 type Props = {

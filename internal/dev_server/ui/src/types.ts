@@ -6,7 +6,7 @@ export interface Environment {
 export interface SummaryEventPayload {
   kind: 'summary';
   features: object;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface FeatureEventPayload {
@@ -33,12 +33,12 @@ export interface FeatureEventPayload {
 export interface IndexEventPayload {
   kind: 'index';
   user?: object;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface GenericEventPayload {
   kind: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface EventData {
@@ -64,7 +64,7 @@ export interface ApiEvent {
   id: number;
   written_at: string;
   kind: string;
-  data: any; // Raw JSON data from the API
+  data: unknown; // Raw JSON data from the API
 }
 
 // API EventsPage type that matches the server response

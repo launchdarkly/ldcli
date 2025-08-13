@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams } from "react-router";
 import { apiRoute } from "./util";
 import { ApiEventsPage, EventData, convertApiEventToEventData } from "./types";
 import { Box, Alert } from "@launchpad-ui/core";
@@ -11,12 +11,10 @@ import { Fragment } from "react";
 
 const DebugSessionEventsPage = () => {
   const { debugSessionKey } = useParams<{ debugSessionKey: string }>();
-  const navigate = useNavigate();
   const [events, setEvents] = useState<EventData[]>([]);
   const [displayedEvents, setDisplayedEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState<number>(0);
 
   const fetchEvents = async () => {
     if (!debugSessionKey) {
@@ -39,7 +37,6 @@ const DebugSessionEventsPage = () => {
       const convertedEvents = data.events?.map(convertApiEventToEventData) || [];
       setEvents(convertedEvents);
       setDisplayedEvents(convertedEvents);
-      setTotalCount(data.total_count);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unknown error occurred");
     } finally {
@@ -55,7 +52,7 @@ const DebugSessionEventsPage = () => {
     setDisplayedEvents(events.filter(event => {
       let search = '';
 
-      const extractValues = (obj: any): string[] => {
+      const extractValues = (obj: unknown): string[] => {
         if (obj === null || obj === undefined) return [];
         if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
           return [String(obj)];

@@ -27,10 +27,10 @@ const clipboardLink = (linkText: string, value: string, showNotification: (messa
 }
 
 const summaryRows = (summaryEvent: EventData, showNotification: (message: string) => void) => {
-  let rows = [];
-  for (const [key, value] of Object.entries((summaryEvent.data as any).features)) {
+  const rows = [];
+  for (const [key, value] of Object.entries(summaryEvent.data.features || {})) {
     const rowId = summaryEvent.id + key;
-    const counters = (value as any).counters || [];
+    const counters = value.counters || [];
 
     for (const counter of counters) {
       rows.push(
@@ -84,8 +84,8 @@ const indexRows = (indexEvent: EventData, showNotification: (message: string) =>
         }
         break;
     }
-  } else if ((indexEvent.data as any).user) {
-    targetText = ((indexEvent.data as any).user.key || 'unknown') + ' user';
+  } else if (indexEvent.data.user) {
+    targetText = (indexEvent.data.user.key || 'unknown') + ' user';
     iconName = 'person-outline';
   }
   else {
@@ -104,7 +104,7 @@ const indexRows = (indexEvent: EventData, showNotification: (message: string) =>
 }
 
 const featureRows = (featureEvent: EventData, showNotification: (message: string) => void) => {
-  const data = featureEvent.data as any; // Type assertion for feature event
+  const data = featureEvent.data; // Type assertion for feature event
   const eventText = `evaluated as ${String(data.value)}`;
 
   return [
@@ -124,7 +124,7 @@ const customRows = (event: EventData, showNotification: (message: string) => voi
       <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
       <td>{event.data.kind}</td>
       <td><Icon name="chart-histogram" size="small" /> {event.data.key || 'unknown'}</td>
-      <td>value is {(event.data as any).metricValue}</td>
+      <td>value is {event.data.metricValue}</td>
       <td>{clipboardLink('Copy to clipboard', JSON.stringify(event.data), showNotification)}</td>
     </tr>,
   ];
