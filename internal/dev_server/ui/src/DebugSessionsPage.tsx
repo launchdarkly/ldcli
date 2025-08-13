@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
 import { apiRoute } from "./util";
 import { DebugSession, DebugSessionsPage as DebugSessionsPageType } from "./types";
 import { Box, Alert } from "@launchpad-ui/core";
@@ -7,7 +6,6 @@ import { Heading, Text, ProgressBar, Button, Link } from "@launchpad-ui/componen
 import { Icon } from "@launchpad-ui/icons";
 
 const DebugSessionsPage = () => {
-  const navigate = useNavigate();
   const [debugSessions, setDebugSessions] = useState<DebugSession[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

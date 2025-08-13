@@ -58,7 +58,7 @@ const indexRows = (indexEvent: EventData, showNotification: (message: string) =>
     | 'cloud'
     | 'help' = 'help';
   if (indexEvent.data.context) {
-    let context = indexEvent.data.context
+    const context = indexEvent.data.context
     switch (context.kind) {
       case 'user':
         targetText = 'user context';
