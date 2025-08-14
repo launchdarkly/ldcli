@@ -1,9 +1,18 @@
-import { useEffect, useState } from "react";
-import { apiRoute } from "./util";
-import { DebugSession, DebugSessionsPage as DebugSessionsPageType } from "./types";
-import { Box, Alert } from "@launchpad-ui/core";
-import { Heading, Text, ProgressBar, Button, Link } from "@launchpad-ui/components";
-import { Icon } from "@launchpad-ui/icons";
+import { useEffect, useState } from 'react';
+import { apiRoute } from './util';
+import {
+  DebugSession,
+  DebugSessionsPage as DebugSessionsPageType,
+} from './types';
+import { Box, Alert } from '@launchpad-ui/core';
+import {
+  Heading,
+  Text,
+  ProgressBar,
+  Button,
+  Link,
+} from '@launchpad-ui/components';
+import { Icon } from '@launchpad-ui/icons';
 
 const DebugSessionsPage = () => {
   const [debugSessions, setDebugSessions] = useState<DebugSession[]>([]);
@@ -16,18 +25,22 @@ const DebugSessionsPage = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await fetch(apiRoute("/dev/debug-sessions?limit=100"));
-      
+
+      const response = await fetch(apiRoute('/dev/debug-sessions?limit=100'));
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch debug sessions: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch debug sessions: ${response.status} ${response.statusText}`,
+        );
       }
-      
+
       const data: DebugSessionsPageType = await response.json();
       setDebugSessions(data.sessions);
       setTotalCount(data.total_count);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred");
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
     } finally {
       setLoading(false);
     }
@@ -47,7 +60,11 @@ const DebugSessionsPage = () => {
   };
 
   const handleDeleteSession = async (sessionKey: string) => {
-    if (!confirm(`Are you sure you want to delete debug session "${sessionKey}" and all its events? This action cannot be undone.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to delete debug session "${sessionKey}" and all its events? This action cannot be undone.`,
+      )
+    ) {
       return;
     }
 
@@ -55,21 +72,30 @@ const DebugSessionsPage = () => {
       setDeletingSession(sessionKey);
       setError(null);
 
-      const response = await fetch(apiRoute(`/dev/debug-sessions/${encodeURIComponent(sessionKey)}`), {
-        method: 'DELETE',
-      });
+      const response = await fetch(
+        apiRoute(`/dev/debug-sessions/${encodeURIComponent(sessionKey)}`),
+        {
+          method: 'DELETE',
+        },
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error('Debug session not found');
         }
-        throw new Error(`Failed to delete debug session: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to delete debug session: ${response.status} ${response.statusText}`,
+        );
       }
 
       // Refresh the sessions list after successful deletion
       await fetchDebugSessions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred while deleting the session");
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An unknown error occurred while deleting the session',
+      );
     } finally {
       setDeletingSession(null);
     }
@@ -107,7 +133,12 @@ const DebugSessionsPage = () => {
 
   return (
     <Box padding="2rem" width="100%">
-      <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom="1rem">
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        marginBottom="1rem"
+      >
         <Heading>Debug Sessions</Heading>
         <Text color="var(--lp-color-text-ui-secondary)">
           {totalCount} total session{totalCount !== 1 ? 's' : ''}
@@ -134,79 +165,94 @@ const DebugSessionsPage = () => {
       ) : (
         <div
           style={{
-            border: "1px solid var(--lp-color-border-ui-primary)",
-            borderRadius: "4px",
-            overflow: "hidden"
+            border: '1px solid var(--lp-color-border-ui-primary)',
+            borderRadius: '4px',
+            overflow: 'hidden',
           }}
         >
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ backgroundColor: "var(--lp-color-bg-ui-secondary)" }}>
-                <th style={{ 
-                  padding: "0.75rem", 
-                  textAlign: "left", 
-                  borderBottom: "1px solid var(--lp-color-border-ui-primary)",
-                  fontWeight: 600
-                }}>
+              <tr
+                style={{ backgroundColor: 'var(--lp-color-bg-ui-secondary)' }}
+              >
+                <th
+                  style={{
+                    padding: '0.75rem',
+                    textAlign: 'left',
+                    borderBottom: '1px solid var(--lp-color-border-ui-primary)',
+                    fontWeight: 600,
+                  }}
+                >
                   Debug Session Started
                 </th>
-                <th style={{ 
-                  padding: "0.75rem", 
-                  textAlign: "right", 
-                  borderBottom: "1px solid var(--lp-color-border-ui-primary)",
-                  fontWeight: 600
-                }}>
+                <th
+                  style={{
+                    padding: '0.75rem',
+                    textAlign: 'right',
+                    borderBottom: '1px solid var(--lp-color-border-ui-primary)',
+                    fontWeight: 600,
+                  }}
+                >
                   Event Count
                 </th>
-                <th style={{
-                  padding: "0.75rem",
-                  textAlign: "center",
-                  borderBottom: "1px solid var(--lp-color-border-ui-primary)",
-                  fontWeight: 600,
-                  width: "100px"
-                }}>
+                <th
+                  style={{
+                    padding: '0.75rem',
+                    textAlign: 'center',
+                    borderBottom: '1px solid var(--lp-color-border-ui-primary)',
+                    fontWeight: 600,
+                    width: '100px',
+                  }}
+                >
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody>
               {debugSessions.map((session, index) => (
-                <tr 
+                <tr
                   key={session.key}
-                  style={{ 
-                    borderBottom: index < debugSessions.length - 1 ? "1px solid var(--lp-color-border-ui-primary)" : "none"
+                  style={{
+                    borderBottom:
+                      index < debugSessions.length - 1
+                        ? '1px solid var(--lp-color-border-ui-primary)'
+                        : 'none',
                   }}
                 >
-
-                  <td style={{ padding: "0.75rem" }}>
+                  <td style={{ padding: '0.75rem' }}>
                     <Link href={`/ui/debug-sessions/${session.key}/events`}>
                       {formatDate(session.written_at)}
                     </Link>
                   </td>
-                  <td style={{ padding: "0.75rem", textAlign: "right" }}>
-                    <Text>
-                      {session.event_count.toLocaleString()}
-                    </Text>
+                  <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                    <Text>{session.event_count.toLocaleString()}</Text>
                   </td>
-                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                     <button
                       onClick={() => handleDeleteSession(session.key)}
                       disabled={deletingSession === session.key}
                       style={{
-                        background: "none",
-                        border: "1px solid var(--lp-color-border-destructive)",
-                        borderRadius: "4px",
-                        padding: "0.25rem 0.5rem",
-                        cursor: deletingSession === session.key ? "not-allowed" : "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                        color: "var(--lp-color-text-destructive)",
-                        opacity: deletingSession === session.key ? 0.6 : 1
+                        background: 'none',
+                        border: '1px solid var(--lp-color-border-destructive)',
+                        borderRadius: '4px',
+                        padding: '0.25rem 0.5rem',
+                        cursor:
+                          deletingSession === session.key
+                            ? 'not-allowed'
+                            : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        color: 'var(--lp-color-text-destructive)',
+                        opacity: deletingSession === session.key ? 0.6 : 1,
                       }}
-                      title={deletingSession === session.key ? "Deleting..." : "Delete session and all events"}
+                      title={
+                        deletingSession === session.key
+                          ? 'Deleting...'
+                          : 'Delete session and all events'
+                      }
                     >
-                      <Icon name={"delete"} size="small" />
+                      <Icon name={'delete'} size="small" />
                     </button>
                   </td>
                 </tr>

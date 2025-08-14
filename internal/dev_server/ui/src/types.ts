@@ -67,7 +67,11 @@ export interface GenericEventPayload {
 export interface EventData {
   id: string;
   timestamp: number;
-  data: SummaryEventPayload | FeatureEventPayload | IndexEventPayload | GenericEventPayload;
+  data:
+    | SummaryEventPayload
+    | FeatureEventPayload
+    | IndexEventPayload
+    | GenericEventPayload;
 }
 
 export interface DebugSession {
@@ -102,6 +106,10 @@ export function convertApiEventToEventData(apiEvent: ApiEvent): EventData {
   return {
     id: apiEvent.id.toString(),
     timestamp: new Date(apiEvent.written_at).getTime(),
-    data: apiEvent.data as SummaryEventPayload | FeatureEventPayload | IndexEventPayload | GenericEventPayload,
+    data: apiEvent.data as
+      | SummaryEventPayload
+      | FeatureEventPayload
+      | IndexEventPayload
+      | GenericEventPayload,
   };
 }

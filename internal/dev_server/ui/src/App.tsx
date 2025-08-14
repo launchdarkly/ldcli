@@ -36,13 +36,15 @@ function App() {
             <Route path="/ui/flags" element={<FlagsPage />} />
             <Route path="/ui/events" element={<EventsPage />} />
             <Route path="/ui/debug-sessions" element={<DebugSessionsPage />} />
-            <Route path="/ui/debug-sessions/:debugSessionKey/events" element={<DebugSessionEventsPage />} />
+            <Route
+              path="/ui/debug-sessions/:debugSessionKey/events"
+              element={<DebugSessionEventsPage />}
+            />
           </Routes>
         </Box>
       </Box>
     </div>
   );
 }
-
 
 export default App;

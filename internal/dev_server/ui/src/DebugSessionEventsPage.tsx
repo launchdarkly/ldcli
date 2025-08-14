@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router";
-import { apiRoute } from "./util";
-import { ApiEventsPage, EventData, convertApiEventToEventData } from "./types";
-import { Box, Alert } from "@launchpad-ui/core";
-import { Heading, Text, ProgressBar, Button } from "@launchpad-ui/components";
-import { Icon } from "@launchpad-ui/icons";
-import EventsTable from "./EventsTable";
-import { TextField, Label, Input } from "@launchpad-ui/components";
-import { Fragment } from "react";
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router';
+import { apiRoute } from './util';
+import { ApiEventsPage, EventData, convertApiEventToEventData } from './types';
+import { Box, Alert } from '@launchpad-ui/core';
+import { Heading, Text, ProgressBar, Button } from '@launchpad-ui/components';
+import { Icon } from '@launchpad-ui/icons';
+import EventsTable from './EventsTable';
+import { TextField, Label, Input } from '@launchpad-ui/components';
+import { Fragment } from 'react';
 
 const DebugSessionEventsPage = () => {
   const { debugSessionKey } = useParams<{ debugSessionKey: string }>();
@@ -18,7 +18,7 @@ const DebugSessionEventsPage = () => {
 
   const fetchEvents = async () => {
     if (!debugSessionKey) {
-      setError("Debug session key is required");
+      setError('Debug session key is required');
       setLoading(false);
       return;
     }
@@ -26,19 +26,28 @@ const DebugSessionEventsPage = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await fetch(apiRoute(`/dev/debug-sessions/${encodeURIComponent(debugSessionKey)}/events?limit=1000`));
-      
+
+      const response = await fetch(
+        apiRoute(
+          `/dev/debug-sessions/${encodeURIComponent(debugSessionKey)}/events?limit=1000`,
+        ),
+      );
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch events: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch events: ${response.status} ${response.statusText}`,
+        );
       }
-      
+
       const data: ApiEventsPage = await response.json();
-      const convertedEvents = data.events?.map(convertApiEventToEventData) || [];
+      const convertedEvents =
+        data.events?.map(convertApiEventToEventData) || [];
       setEvents(convertedEvents);
       setDisplayedEvents(convertedEvents);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred");
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
     } finally {
       setLoading(false);
     }
@@ -49,26 +58,32 @@ const DebugSessionEventsPage = () => {
   }, [debugSessionKey]);
 
   const handleSearchChange = (value: string) => {
-    setDisplayedEvents(events.filter(event => {
-      let search = '';
+    setDisplayedEvents(
+      events.filter((event) => {
+        let search = '';
 
-      const extractValues = (obj: unknown): string[] => {
-        if (obj === null || obj === undefined) return [];
-        if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
-          return [String(obj)];
-        }
-        if (Array.isArray(obj)) {
-          return obj.flatMap(item => extractValues(item));
-        }
-        if (typeof obj === 'object') {
-          return Object.values(obj).flatMap(value => extractValues(value));
-        }
-        return [];
-      };
-      search = extractValues(event).join(' ');
+        const extractValues = (obj: unknown): string[] => {
+          if (obj === null || obj === undefined) return [];
+          if (
+            typeof obj === 'string' ||
+            typeof obj === 'number' ||
+            typeof obj === 'boolean'
+          ) {
+            return [String(obj)];
+          }
+          if (Array.isArray(obj)) {
+            return obj.flatMap((item) => extractValues(item));
+          }
+          if (typeof obj === 'object') {
+            return Object.values(obj).flatMap((value) => extractValues(value));
+          }
+          return [];
+        };
+        search = extractValues(event).join(' ');
 
-      return search.toLowerCase().includes(value.toLowerCase());
-    }))
+        return search.toLowerCase().includes(value.toLowerCase());
+      }),
+    );
   };
 
   if (loading) {
@@ -113,12 +128,19 @@ const DebugSessionEventsPage = () => {
 
   return (
     <Box padding="2rem" width="100%">
-      
-      <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom="1rem">
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        marginBottom="1rem"
+      >
         <Box>
           <Heading>Debug Session Events</Heading>
           <Box marginTop="0.5rem">
-            <Text color="var(--lp-color-text-ui-secondary)" style={{ fontFamily: "monospace" }}>
+            <Text
+              color="var(--lp-color-text-ui-secondary)"
+              style={{ fontFamily: 'monospace' }}
+            >
               Session: {debugSessionKey}
             </Text>
           </Box>
@@ -127,9 +149,7 @@ const DebugSessionEventsPage = () => {
 
       <TextField onChange={handleSearchChange} name="debug-session-search">
         <Fragment key=".0">
-          <Label>
-            Search
-          </Label>
+          <Label>Search</Label>
           <Input placeholder="Try a type like 'summary', or an email address, or similar" />
         </Fragment>
       </TextField>

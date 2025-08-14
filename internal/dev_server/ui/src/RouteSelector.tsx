@@ -1,4 +1,11 @@
-import { Select, SelectValue, Button, Popover, ListBox, ListBoxItem } from '@launchpad-ui/components';
+import {
+  Select,
+  SelectValue,
+  Button,
+  Popover,
+  ListBox,
+  ListBoxItem,
+} from '@launchpad-ui/components';
 import { Icon } from '@launchpad-ui/icons';
 import { useNavigate, useLocation } from 'react-router';
 import { Fragment } from 'react';
@@ -10,11 +17,11 @@ const RouteSelector = () => {
   const options = [
     { key: '/ui/flags', label: 'Flags' },
     { key: '/ui/events', label: 'Events' },
-    { key: '/ui/debug-sessions', label: 'Debug Sessions' }
+    { key: '/ui/debug-sessions', label: 'Debug Sessions' },
   ];
 
   const currentPath = location.pathname === '/' ? '/ui' : location.pathname;
-  const currentOption = options.find(option => option.key === currentPath);
+  const currentOption = options.find((option) => option.key === currentPath);
 
   const handleSelectionChange = (key: React.Key) => {
     if (typeof key === 'string') {
@@ -31,15 +38,17 @@ const RouteSelector = () => {
     >
       <Fragment>
         <Button>
-          <SelectValue>
-            {currentOption?.label || 'Select a view'}
-          </SelectValue>
+          <SelectValue>{currentOption?.label || 'Select a view'}</SelectValue>
           <Icon name="chevron-down" size="small" />
         </Button>
         <Popover>
           <ListBox>
             {options.map((option) => (
-              <ListBoxItem key={option.key} id={option.key} textValue={option.label}>
+              <ListBoxItem
+                key={option.key}
+                id={option.key}
+                textValue={option.label}
+              >
                 {option.label}
               </ListBoxItem>
             ))}

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { apiRoute } from "./util";
-import { EventData } from "./types";
-import EventsTable from "./EventsTable";
+import { useEffect, useState } from 'react';
+import { apiRoute } from './util';
+import { EventData } from './types';
+import EventsTable from './EventsTable';
 
 type Props = {
   limit?: number;
@@ -31,13 +31,13 @@ const EventsPage = ({ limit = 1000 }: Props) => {
       const newEvent: EventData = {
         id: Math.random().toString(36).slice(2, 11),
         timestamp: Date.now(),
-        data: parsed
+        data: parsed,
       };
 
       if (isStreaming) {
-        setEvents(prevEvents => [newEvent, ...prevEvents].slice(0, limit));
+        setEvents((prevEvents) => [newEvent, ...prevEvents].slice(0, limit));
       } else {
-        setBacklog(prevBacklog => [newEvent, ...prevBacklog].slice(0, limit));
+        setBacklog((prevBacklog) => [newEvent, ...prevBacklog].slice(0, limit));
       }
     });
 
@@ -52,7 +52,7 @@ const EventsPage = ({ limit = 1000 }: Props) => {
 
     if (newStreamingState && backlog.length > 0) {
       // Flush backlog into events when turning streaming back on
-      setEvents(prevEvents => [...backlog, ...prevEvents].slice(0, limit));
+      setEvents((prevEvents) => [...backlog, ...prevEvents].slice(0, limit));
       setBacklog([]);
     }
   };
