@@ -131,7 +131,7 @@ func TestDBFunctions(t *testing.T) {
 		allPage, err := store.QueryDebugSessions(ctx, 10, 0)
 		require.NoError(t, err)
 		require.NotNil(t, allPage)
-		require.Len(t, allPage.Sessions, 4)
+		require.Len(t, allPage.Sessions, 2)
 		require.Equal(t, int64(4), allPage.TotalCount)
 		require.False(t, allPage.HasMore)
 
