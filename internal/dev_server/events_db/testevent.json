@@ -1,0 +1,63 @@
+{
+  "kind": "summary",
+  "startDate": 1754494042849,
+  "endDate": 1754494042962,
+  "features": {
+    "enable-datadog-profiling": {
+      "default": false,
+      "counters": [
+        {
+          "variation": 0,
+          "version": 50,
+          "value": true,
+          "count": 1
+        }
+      ],
+      "contextKinds": [
+        "application"
+      ]
+    },
+    "cpu-profile-dump-wait-minutes": {
+      "default": 60,
+      "counters": [
+        {
+          "variation": 0,
+          "version": 6,
+          "value": 30,
+          "count": 1
+        }
+      ],
+      "contextKinds": [
+        "user"
+      ]
+    },
+    "cpu-profile-threshold": {
+      "default": 1,
+      "counters": [
+        {
+          "variation": 0,
+          "version": 15,
+          "value": 0.8,
+          "count": 1
+        }
+      ],
+      "contextKinds": [
+        "user"
+      ]
+    },
+    "cpu-profile-dump-duration-seconds": {
+      "default": 30,
+      "counters": [
+        {
+          "variation": 0,
+          "version": 7,
+          "value": 30,
+          "count": 1
+        }
+      ],
+      "contextKinds": [
+        "user"
+      ]
+    }
+  }
+}

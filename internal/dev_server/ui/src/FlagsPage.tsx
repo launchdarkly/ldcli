@@ -131,24 +131,9 @@ function App() {
   );
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: '1rem',
-      }}
-    >
-      <Box
-        display="flex"
-        flexDirection="column"
-        alignItems="center"
-        width="100%"
-        maxWidth="900px"
-        minWidth="600px"
-        padding="2rem"
-      >
-        <Box display="flex" flexDirection="column" padding="1rem" width="100%">
+    <div style={{ width: '100%' }}>
+      <Box width="100%" minWidth="600px">
+        <Box display="flex" flexDirection="column" width="100%">
           {showBanner && (
             <Box marginBottom="2rem" width="100%">
               <Alert kind="error">
