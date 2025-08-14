@@ -1,8 +1,6 @@
 package model
 
 import (
-	"encoding/json"
-	"log"
 	"sync"
 
 	"github.com/google/uuid"
@@ -25,23 +23,17 @@ func NewObservers() *Observers {
 }
 
 func (o *Observers) DeregisterObserver(observerId uuid.UUID) bool {
-	log.Printf("DeregisterObserver: observerId %+v", observerId)
 	_, exists := o.observers.LoadAndDelete(observerId)
 	return exists
 }
 
 func (o *Observers) RegisterObserver(observer Observer) uuid.UUID {
 	id := uuid.New()
-	log.Printf("RegisterObserver: observer %+v, id %s", observer, id)
 	o.observers.Store(id, observer)
 	return id
 }
 
 func (o *Observers) Notify(event interface{}) {
-	// Dont log raw json messages
-	if _, ok := event.(json.RawMessage); !ok {
-		log.Printf("Notify: event %+v to observers", event)
-	}
 	o.observers.Range(func(_, observer any) bool {
 		observer.(Observer).Handle(event)
 		return true
