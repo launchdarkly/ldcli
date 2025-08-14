@@ -94,8 +94,8 @@ const indexRows = (event: EventData, indexEvent: IndexEventPayload, showNotifica
         }
         break;
     }
-  } else if (indexEvent.data.user) {
-    targetText = (indexEvent.data.user.key || 'unknown') + ' user';
+  } else if (indexEvent.user) {
+    targetText = (indexEvent.user.key || 'unknown') + ' user';
     iconName = 'person-outline';
   }
   else {
@@ -151,7 +151,7 @@ const renderEvent = (event: EventData, showNotification: (message: string) => vo
     case 'feature':
       return featureRows(event, event.data as FeatureEventPayload, showNotification);
     case 'custom':
-      return customRows(event, showNotification);
+      return customRows(event, event.data as GenericEventPayload, showNotification);
     default:
       return [
         <tr key={event.id}>

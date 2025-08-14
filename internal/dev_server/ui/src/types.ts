@@ -32,6 +32,9 @@ export interface FeatureEventPayload {
 
 export interface IndexEventPayload {
   kind: 'index';
+  user?: {
+    key: string;
+  };
   context?: {
     kind: string;
     key: string;
@@ -99,6 +102,6 @@ export function convertApiEventToEventData(apiEvent: ApiEvent): EventData {
   return {
     id: apiEvent.id.toString(),
     timestamp: new Date(apiEvent.written_at).getTime(),
-    data: apiEvent.data
+    data: apiEvent.data as SummaryEventPayload | FeatureEventPayload | IndexEventPayload | GenericEventPayload,
   };
 }
