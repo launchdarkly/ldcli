@@ -1,4 +1,10 @@
-import { EventData } from "./types";
+import { 
+  EventData,
+  FeatureEventPayload,
+  GenericEventPayload,
+  IndexEventPayload,
+  SummaryEventPayload
+} from "./types";
 import { Icon } from "@launchpad-ui/icons";
 import { useState } from "react";
 
@@ -26,16 +32,16 @@ const clipboardLink = (linkText: string, value: string, showNotification: (messa
   );
 }
 
-const summaryRows = (summaryEvent: EventData, showNotification: (message: string) => void) => {
+const summaryRows = (event: EventData, summaryEvent: SummaryEventPayload, showNotification: (message: string) => void) => {
   const rows = [];
-  for (const [key, value] of Object.entries(summaryEvent.data.features || {})) {
-    const rowId = summaryEvent.id + key;
+  for (const [key, value] of Object.entries(summaryEvent.features || {})) {
+    const rowId = event.id + key;
     const counters = value.counters || [];
 
     for (const counter of counters) {
       rows.push(
         <tr key={rowId}>
-          <td>{new Date(summaryEvent.timestamp).toLocaleTimeString()}</td>
+          <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
           <td>summary</td>
           <td><Icon name="flag" size="small" /> {key}</td>
           <td>evaluated as {String(counter.value)}</td>
@@ -48,7 +54,7 @@ const summaryRows = (summaryEvent: EventData, showNotification: (message: string
   return rows;
 }
 
-const indexRows = (indexEvent: EventData, showNotification: (message: string) => void) => {
+const indexRows = (event: EventData, indexEvent: IndexEventPayload, showNotification: (message: string) => void) => {
   let targetText = 'unknown';
   let iconName: 
     | 'person'
@@ -57,8 +63,12 @@ const indexRows = (indexEvent: EventData, showNotification: (message: string) =>
     | 'group'
     | 'cloud'
     | 'help' = 'help';
-  if (indexEvent.data.context) {
-    const context = indexEvent.data.context
+  if (event.data.context) {
+    const context = indexEvent.context;
+    if (!context) {
+      console.error('Index event context is undefined');
+      return [];
+    }
     switch (context.kind) {
       case 'user':
         targetText = 'user context';
@@ -93,39 +103,38 @@ const indexRows = (indexEvent: EventData, showNotification: (message: string) =>
   }
 
   return [
-    <tr key={indexEvent.id}>
-      <td>{new Date(indexEvent.timestamp).toLocaleTimeString()}</td>
+    <tr key={event.id}>
+      <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
       <td>index</td>
       <td><Icon name={iconName} size="small" /> {targetText}</td>
-      <td>indexed {JSON.stringify(indexEvent.data).length} bytes</td>
+      <td>indexed {JSON.stringify(indexEvent).length} bytes</td>
       <td>{clipboardLink('Copy to clipboard', JSON.stringify(indexEvent.data), showNotification)}</td>
     </tr>
   ]
 }
 
-const featureRows = (featureEvent: EventData, showNotification: (message: string) => void) => {
-  const data = featureEvent.data; // Type assertion for feature event
-  const eventText = `evaluated as ${String(data.value)}`;
+const featureRows = (event: EventData, featureEvent: FeatureEventPayload, showNotification: (message: string) => void) => {
+  const eventText = `evaluated as ${String(featureEvent.value)}`;
 
   return [
-    <tr key={featureEvent.id} className="feature-row">
-      <td>{new Date(featureEvent.timestamp).toLocaleTimeString()}</td>
+    <tr key={event.id} className="feature-row">
+      <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
       <td>feature</td>
-      <td>{data.key || 'unknown'}</td>
+      <td>{featureEvent.key || 'unknown'}</td>
       <td>{eventText}</td>
-      <td>{clipboardLink('Copy to clipboard', JSON.stringify(featureEvent.data), showNotification)}</td>
+      <td>{clipboardLink('Copy to clipboard', JSON.stringify(featureEvent), showNotification)}</td>
     </tr>
   ];
 }
 
-const customRows = (event: EventData, showNotification: (message: string) => void) => {
+const customRows = (event: EventData, customEvent: GenericEventPayload, showNotification: (message: string) => void) => {
   return [
     <tr key={event.id}>
       <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
       <td>{event.data.kind}</td>
-      <td><Icon name="chart-histogram" size="small" /> {event.data.key || 'unknown'}</td>
-      <td>value is {event.data.metricValue}</td>
-      <td>{clipboardLink('Copy to clipboard', JSON.stringify(event.data), showNotification)}</td>
+      <td><Icon name="chart-histogram" size="small" /> {customEvent.key }</td>
+      <td>value is {customEvent.metricValue}</td>
+      <td>{clipboardLink('Copy to clipboard', JSON.stringify(customEvent), showNotification)}</td>
     </tr>,
   ];
 }
@@ -136,11 +145,11 @@ const customRows = (event: EventData, showNotification: (message: string) => voi
 const renderEvent = (event: EventData, showNotification: (message: string) => void) => {
   switch (event.data.kind) {
     case 'summary':
-      return summaryRows(event, showNotification);
+      return summaryRows(event, event.data as SummaryEventPayload, showNotification);
     case 'index':
-      return indexRows(event, showNotification);
+      return indexRows(event, event.data as IndexEventPayload, showNotification);
     case 'feature':
-      return featureRows(event, showNotification);
+      return featureRows(event, event.data as FeatureEventPayload, showNotification);
     case 'custom':
       return customRows(event, showNotification);
     default:

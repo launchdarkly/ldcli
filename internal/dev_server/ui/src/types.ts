@@ -32,12 +32,32 @@ export interface FeatureEventPayload {
 
 export interface IndexEventPayload {
   kind: 'index';
-  user?: object;
+  context?: {
+    kind: string;
+    key: string;
+    user?: {
+      key: string;
+      email: string;
+      [key: string]: unknown;
+    };
+    account?: {
+      key: string;
+      name: string;
+      [key: string]: unknown;
+    };
+    application?: {
+      key: string;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
 export interface GenericEventPayload {
   kind: string;
+  key: string;
+  metricValue: string;
   [key: string]: unknown;
 }
 
