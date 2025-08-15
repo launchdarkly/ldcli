@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.3](https://github.com/launchdarkly/ldcli/compare/v1.16.2...v1.16.3) (2025-08-15)
+
+
+### Bug Fixes
+
+* Clarify --source flag refers to environment key ([#595](https://github.com/launchdarkly/ldcli/issues/595)) ([202484a](https://github.com/launchdarkly/ldcli/commit/202484a5d13b001f017e53f979b2eb1fb1414ecb))
+
 ## [1.16.2](https://github.com/launchdarkly/ldcli/compare/v1.16.1...v1.16.2) (2025-07-28)
 
 
