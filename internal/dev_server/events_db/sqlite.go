@@ -154,7 +154,7 @@ func (s *Sqlite) QueryDebugSessions(ctx context.Context, limit int, offset int) 
 
 	// Get total count for pagination info
 	var totalCount int64
-	countQuery := `SELECT COUNT(*) FROM debug_session`
+	countQuery := `SELECT count(DISTINCT(debug_session_key)) FROM debug_events`
 	err = s.database.QueryRowContext(ctx, countQuery).Scan(&totalCount)
 	if err != nil {
 		return nil, err

@@ -45,6 +45,9 @@ func TestDBFunctions(t *testing.T) {
 	t.Run("WriteEvent succeeds", func(t *testing.T) {
 		err := store.WriteEvent(ctx, debugSessionKey, "summary", []byte(testEvent))
 		require.NoError(t, err)
+
+		err = store.WriteEvent(ctx, "another-session", "summary", []byte(testEvent))
+		require.NoError(t, err)
 	})
 
 	t.Run("QueryEvents with no filter", func(t *testing.T) {
@@ -110,7 +113,9 @@ func TestDBFunctions(t *testing.T) {
 		require.NoError(t, err)
 		err = store.WriteEvent(ctx, "session-2", "diagnostic", []byte(`{"kind":"diagnostic","data":"test"}`))
 		require.NoError(t, err)
-		// session-3 will have 0 events
+
+		err = store.WriteEvent(ctx, "session-3", "diagnostic", []byte(`{"kind":"diagnostic","data":"test"}`))
+		require.NoError(t, err)
 
 		// Query first page
 		page, err := store.QueryDebugSessions(ctx, 2, 0)
@@ -131,7 +136,7 @@ func TestDBFunctions(t *testing.T) {
 		allPage, err := store.QueryDebugSessions(ctx, 10, 0)
 		require.NoError(t, err)
 		require.NotNil(t, allPage)
-		require.Len(t, allPage.Sessions, 2)
+		require.Len(t, allPage.Sessions, 4)
 		require.Equal(t, int64(4), allPage.TotalCount)
 		require.False(t, allPage.HasMore)
 
@@ -141,9 +146,9 @@ func TestDBFunctions(t *testing.T) {
 			allSessionKeys[session.Key] = session.EventCount
 		}
 
-		require.Equal(t, int64(0), allSessionKeys["session-3"])
+		require.Equal(t, int64(1), allSessionKeys["session-3"])
 		require.Equal(t, int64(2), allSessionKeys["session-2"])
-		require.Equal(t, int64(0), allSessionKeys["another-session"])
+		require.Equal(t, int64(1), allSessionKeys["another-session"])
 		require.Equal(t, int64(4), allSessionKeys[debugSessionKey]) // 4 events from previous tests
 
 		// Test pagination - second page
