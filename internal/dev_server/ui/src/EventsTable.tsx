@@ -61,7 +61,7 @@ const summaryRows = (
           <td>
             {clipboardLink(
               'Copy to clipboard',
-              JSON.stringify(summaryEvent.data),
+              JSON.stringify(summaryEvent),
               showNotification,
             )}
           </td>
