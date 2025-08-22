@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/launchdarkly/ldcli/internal/dev_server/events"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/pkg/errors"
 )
@@ -27,6 +26,10 @@ func newSdkEventObserver(updateChan chan<- Message, ctx context.Context) sdkEven
 	}
 }
 
+type SDKEventBase struct {
+	Kind string `json:"kind"`
+}
+
 type sdkEventObserver struct {
 	ctx             context.Context
 	debugSessionKey string
@@ -39,7 +42,7 @@ func (o sdkEventObserver) Handle(message interface{}) {
 		return
 	}
 
-	event := events.Base{}
+	event := SDKEventBase{}
 	err := json.Unmarshal(str, &event)
 	if err != nil {
 		log.Printf("sdkEventObserver: error unmarshaling event: %v", err)
