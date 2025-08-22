@@ -78,7 +78,7 @@ func TestUpsertOverride(t *testing.T) {
 			Handle(model.OverrideEvent{
 				FlagKey:    flagKey,
 				ProjectKey: projKey,
-				FlagState:  model.FlagState{Value: ldvalue.Bool(true), Version: 2},
+				FlagState:  model.FlagState{Value: ldvalue.Bool(true), Version: 2, TrackEvents: true},
 			})
 
 		o, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
