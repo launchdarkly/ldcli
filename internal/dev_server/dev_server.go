@@ -3,7 +3,6 @@ package dev_server
 import (
 	"context"
 	"fmt"
-	"github.com/launchdarkly/ldcli/internal/dev_server/events_db"
 	"log"
 	"net/http"
 	"os"
@@ -15,7 +14,9 @@ import (
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/api"
+	"github.com/launchdarkly/ldcli/internal/dev_server/api/events"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
+	"github.com/launchdarkly/ldcli/internal/dev_server/events_db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
 	"github.com/launchdarkly/ldcli/internal/dev_server/ui"
@@ -77,6 +78,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 		ui.AssetHandler.ServeHTTP(w, r)
 	})
 	sdk.BindRoutes(r)
+	events.BindRoutes(r)
 	handler := api.HandlerFromMux(apiServer, r)
 	handler = api.CorsHeadersWithConfig(serverParams.CorsEnabled, serverParams.CorsOrigin)(handler)
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)

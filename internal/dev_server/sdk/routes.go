@@ -12,7 +12,6 @@ func BindRoutes(router *mux.Router) {
 	// events
 	router.HandleFunc("/bulk", SdkEventsReceiveHandler)
 	router.HandleFunc("/diagnostic", DevNull)
-	router.HandleFunc("/events/tee", SdkEventsTeeHandler)
 	router.Handle("/events/bulk/{envId}", EventsCorsHeaders(DevNull))
 	router.Handle("/events/diagnostic/{envId}", EventsCorsHeaders(DevNull))
 	router.HandleFunc("/mobile", DevNull)
