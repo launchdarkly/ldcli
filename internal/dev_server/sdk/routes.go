@@ -34,7 +34,6 @@ func BindRoutes(router *mux.Router) {
 
 	evalRouter := router.PathPrefix("/eval").Subrouter()
 	evalRouter.Use(CorsHeaders)
-	evalRouter.Methods(http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
 	evalRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
 	evalRouter.PathPrefix("/{envId}").
 		Methods(http.MethodGet, "REPORT").
@@ -43,12 +42,10 @@ func BindRoutes(router *mux.Router) {
 	goalsRouter := router.Path("/sdk/goals/{envId}").Subrouter()
 	goalsRouter.Use(CorsHeaders)
 	goalsRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
-	goalsRouter.Methods(http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
 	goalsRouter.Methods(http.MethodGet).HandlerFunc(ConstantResponseHandler(http.StatusOK, "[]"))
 
 	evalXRouter := router.PathPrefix("/sdk/evalx/{envId}").Subrouter()
 	evalXRouter.Use(CorsHeaders)
 	evalXRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
-	evalXRouter.Methods(http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, ""))
 	evalXRouter.Methods(http.MethodGet, "REPORT").HandlerFunc(GetClientFlags)
 }
