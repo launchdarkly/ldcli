@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.4](https://github.com/launchdarkly/ldcli/compare/v1.16.3...v1.16.4) (2025-09-10)
+
+
+### Bug Fixes
+
+* Enhance flag search functionality to support quoted substrings ([#609](https://github.com/launchdarkly/ldcli/issues/609)) ([226a386](https://github.com/launchdarkly/ldcli/commit/226a3864ee354162d21cc2644f7fcd874f6f71a4))
+
 ## [1.16.3](https://github.com/launchdarkly/ldcli/compare/v1.16.2...v1.16.3) (2025-08-15)
 
 
