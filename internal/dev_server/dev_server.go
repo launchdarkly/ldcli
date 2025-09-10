@@ -66,8 +66,17 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
 	sdk.BindRoutes(r)
-	handler := api.HandlerFromMux(apiServer, r)
-	handler = api.CorsHeadersWithConfig(serverParams.CorsEnabled, serverParams.CorsOrigin)(handler)
+	apiRouter := r.PathPrefix("/dev").Subrouter()
+	if serverParams.CorsEnabled {
+		apiRouter.Use(handlers.CORS(
+			handlers.AllowedOrigins([]string{serverParams.CorsOrigin}),
+			handlers.AllowedHeaders([]string{"Content-Type", "Content-Length", "Accept-Encoding", "X-Requested-With"}),
+			handlers.ExposedHeaders([]string{"Date", "Content-Length"}),
+			handlers.AllowedMethods([]string{"GET", "POST", "PUT", "PATCH", "DELETE"}),
+			handlers.MaxAge(300),
+		))
+	}
+	handler := api.HandlerFromMux(apiServer, apiRouter)
 	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
 	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
 
