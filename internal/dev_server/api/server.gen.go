@@ -172,37 +172,37 @@ type PutOverrideFlagJSONRequestBody = FlagValue
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// get the backup
-	// (GET /dev/backup)
+	// (GET /backup)
 	GetBackup(w http.ResponseWriter, r *http.Request)
 	// post backup
-	// (POST /dev/backup)
+	// (POST /backup)
 	RestoreBackup(w http.ResponseWriter, r *http.Request)
 	// lists all projects that have been configured for the dev server
-	// (GET /dev/projects)
+	// (GET /projects)
 	GetProjects(w http.ResponseWriter, r *http.Request)
 	// remove the specified project from the dev server
-	// (DELETE /dev/projects/{projectKey})
+	// (DELETE /projects/{projectKey})
 	DeleteProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
 	// get the specified project and its configuration for syncing from the LaunchDarkly Service
-	// (GET /dev/projects/{projectKey})
+	// (GET /projects/{projectKey})
 	GetProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetProjectParams)
 	// updates the project context or sourceEnvironmentKey then syncs.  Input an empty body to only force a sync.
-	// (PATCH /dev/projects/{projectKey})
+	// (PATCH /projects/{projectKey})
 	PatchProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PatchProjectParams)
 	// Add the project to the dev server
-	// (POST /dev/projects/{projectKey})
+	// (POST /projects/{projectKey})
 	PostAddProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params PostAddProjectParams)
 	// list all environments for the given project
-	// (GET /dev/projects/{projectKey}/environments)
+	// (GET /projects/{projectKey}/environments)
 	GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetEnvironmentsParams)
 	// remove all overrides for the given project
-	// (DELETE /dev/projects/{projectKey}/overrides)
+	// (DELETE /projects/{projectKey}/overrides)
 	DeleteOverrides(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
 	// remove override for flag
-	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
+	// (DELETE /projects/{projectKey}/overrides/{flagKey})
 	DeleteFlagOverride(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
 	// override flag value with value provided in the body
-	// (PUT /dev/projects/{projectKey}/overrides/{flagKey})
+	// (PUT /projects/{projectKey}/overrides/{flagKey})
 	PutOverrideFlag(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, flagKey FlagKey)
 }
 
@@ -640,27 +640,27 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
-	r.HandleFunc(options.BaseURL+"/dev/backup", wrapper.GetBackup).Methods("GET")
+	r.HandleFunc(options.BaseURL+"/backup", wrapper.GetBackup).Methods("GET")
 
-	r.HandleFunc(options.BaseURL+"/dev/backup", wrapper.RestoreBackup).Methods("POST")
+	r.HandleFunc(options.BaseURL+"/backup", wrapper.RestoreBackup).Methods("POST")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects", wrapper.GetProjects).Methods("GET")
+	r.HandleFunc(options.BaseURL+"/projects", wrapper.GetProjects).Methods("GET")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.DeleteProject).Methods("DELETE")
+	r.HandleFunc(options.BaseURL+"/projects/{projectKey}", wrapper.DeleteProject).Methods("DELETE")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.GetProject).Methods("GET")
+	r.HandleFunc(options.BaseURL+"/projects/{projectKey}", wrapper.GetProject).Methods("GET")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.PatchProject).Methods("PATCH")
+	r.HandleFunc(options.BaseURL+"/projects/{projectKey}", wrapper.PatchProject).Methods("PATCH")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}", wrapper.PostAddProject).Methods("POST")
+	r.HandleFunc(options.BaseURL+"/projects/{projectKey}", wrapper.PostAddProject).Methods("POST")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/environments", wrapper.GetEnvironments).Methods("GET")
+	r.HandleFunc(options.BaseURL+"/projects/{projectKey}/environments", wrapper.GetEnvironments).Methods("GET")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides", wrapper.DeleteOverrides).Methods("DELETE")
+	r.HandleFunc(options.BaseURL+"/projects/{projectKey}/overrides", wrapper.DeleteOverrides).Methods("DELETE")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.DeleteFlagOverride).Methods("DELETE")
+	r.HandleFunc(options.BaseURL+"/projects/{projectKey}/overrides/{flagKey}", wrapper.DeleteFlagOverride).Methods("DELETE")
 
-	r.HandleFunc(options.BaseURL+"/dev/projects/{projectKey}/overrides/{flagKey}", wrapper.PutOverrideFlag).Methods("PUT")
+	r.HandleFunc(options.BaseURL+"/projects/{projectKey}/overrides/{flagKey}", wrapper.PutOverrideFlag).Methods("PUT")
 
 	return r
 }
@@ -990,37 +990,37 @@ func (response PutOverrideFlag400JSONResponse) VisitPutOverrideFlagResponse(w ht
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// get the backup
-	// (GET /dev/backup)
+	// (GET /backup)
 	GetBackup(ctx context.Context, request GetBackupRequestObject) (GetBackupResponseObject, error)
 	// post backup
-	// (POST /dev/backup)
+	// (POST /backup)
 	RestoreBackup(ctx context.Context, request RestoreBackupRequestObject) (RestoreBackupResponseObject, error)
 	// lists all projects that have been configured for the dev server
-	// (GET /dev/projects)
+	// (GET /projects)
 	GetProjects(ctx context.Context, request GetProjectsRequestObject) (GetProjectsResponseObject, error)
 	// remove the specified project from the dev server
-	// (DELETE /dev/projects/{projectKey})
+	// (DELETE /projects/{projectKey})
 	DeleteProject(ctx context.Context, request DeleteProjectRequestObject) (DeleteProjectResponseObject, error)
 	// get the specified project and its configuration for syncing from the LaunchDarkly Service
-	// (GET /dev/projects/{projectKey})
+	// (GET /projects/{projectKey})
 	GetProject(ctx context.Context, request GetProjectRequestObject) (GetProjectResponseObject, error)
 	// updates the project context or sourceEnvironmentKey then syncs.  Input an empty body to only force a sync.
-	// (PATCH /dev/projects/{projectKey})
+	// (PATCH /projects/{projectKey})
 	PatchProject(ctx context.Context, request PatchProjectRequestObject) (PatchProjectResponseObject, error)
 	// Add the project to the dev server
-	// (POST /dev/projects/{projectKey})
+	// (POST /projects/{projectKey})
 	PostAddProject(ctx context.Context, request PostAddProjectRequestObject) (PostAddProjectResponseObject, error)
 	// list all environments for the given project
-	// (GET /dev/projects/{projectKey}/environments)
+	// (GET /projects/{projectKey}/environments)
 	GetEnvironments(ctx context.Context, request GetEnvironmentsRequestObject) (GetEnvironmentsResponseObject, error)
 	// remove all overrides for the given project
-	// (DELETE /dev/projects/{projectKey}/overrides)
+	// (DELETE /projects/{projectKey}/overrides)
 	DeleteOverrides(ctx context.Context, request DeleteOverridesRequestObject) (DeleteOverridesResponseObject, error)
 	// remove override for flag
-	// (DELETE /dev/projects/{projectKey}/overrides/{flagKey})
+	// (DELETE /projects/{projectKey}/overrides/{flagKey})
 	DeleteFlagOverride(ctx context.Context, request DeleteFlagOverrideRequestObject) (DeleteFlagOverrideResponseObject, error)
 	// override flag value with value provided in the body
-	// (PUT /dev/projects/{projectKey}/overrides/{flagKey})
+	// (PUT /projects/{projectKey}/overrides/{flagKey})
 	PutOverrideFlag(ctx context.Context, request PutOverrideFlagRequestObject) (PutOverrideFlagResponseObject, error)
 }
 
