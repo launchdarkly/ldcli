@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.17.0](https://github.com/launchdarkly/ldcli/compare/v1.16.4...v1.17.0) (2025-09-15)
+
+
+### Features
+
+* [FUN-984] Add favicon ([#616](https://github.com/launchdarkly/ldcli/issues/616)) ([92d63e2](https://github.com/launchdarkly/ldcli/commit/92d63e279f86da73ae303780e3e214bf1c95f160)), closes [#610](https://github.com/launchdarkly/ldcli/issues/610)
+* Add favicon ([92d63e2](https://github.com/launchdarkly/ldcli/commit/92d63e279f86da73ae303780e3e214bf1c95f160))
+
 ## [1.16.4](https://github.com/launchdarkly/ldcli/compare/v1.16.3...v1.16.4) (2025-09-10)
 
 
