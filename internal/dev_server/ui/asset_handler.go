@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-//go:embed dist/index.html
+//go:embed all:dist
 var content embed.FS
 
 var AssetHandler = func() http.Handler {
