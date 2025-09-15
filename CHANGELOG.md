@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.1](https://github.com/launchdarkly/ldcli/compare/v1.17.0...v1.17.1) (2025-09-15)
+
+
+### Bug Fixes
+
+* [FUN-983] Set CORS headers consistently for SDK & API cases ([#614](https://github.com/launchdarkly/ldcli/issues/614)) ([c05d3a5](https://github.com/launchdarkly/ldcli/commit/c05d3a570e6cacff5f525c34bdeb0ba47249e4eb))
+
 ## [1.17.0](https://github.com/launchdarkly/ldcli/compare/v1.16.4...v1.17.0) (2025-09-15)
 
 
