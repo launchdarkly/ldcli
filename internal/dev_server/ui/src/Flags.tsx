@@ -63,8 +63,17 @@ function Flags({
       .filter((entry) => {
         if (!searchTerm) return true;
         const [flagKey] = entry;
-        const result = fuzzysort.single(searchTerm.toLowerCase(), flagKey);
-        return result && result.score > -5000;
+        if (
+          searchTerm.length > 1 &&
+          searchTerm.startsWith('"') &&
+          searchTerm.endsWith('"')
+        ) {
+          const substr = searchTerm.slice(1, -1).toLowerCase();
+          return flagKey.toLowerCase().includes(substr);
+        } else {
+          const result = fuzzysort.single(searchTerm.toLowerCase(), flagKey);
+          return result && result.score > -5000;
+        }
       })
       .filter((entry) => {
         const [flagKey] = entry;
