@@ -5,6 +5,17 @@ import {
   IndexEventPayload,
   SummaryEventPayload,
 } from './types';
+
+import {
+  Button,
+  Cell,
+  Column,
+  Row,
+  Table,
+  TableBody,
+  TableHeader,
+} from '@launchpad-ui/components';
+import { Box, CopyToClipboard } from '@launchpad-ui/core';
 import { Icon } from '@launchpad-ui/icons';
 import { useState } from 'react';
 
@@ -13,37 +24,15 @@ type Props = {
   onToggleStreaming?: (newStreamingState: boolean) => void;
 };
 
-const clipboardLink = (
-  linkText: string,
-  value: string,
-  showNotification: (message: string) => void,
-) => {
+const clipboardLink = (linkText: string, value: string) => {
   return (
-    <button
-      type="button"
-      className="copy-button"
-      onClick={(e) => {
-        e.preventDefault();
-        navigator.clipboard
-          .writeText(value)
-          .then(() => {
-            showNotification('Copied to clipboard!');
-          })
-          .catch(() => {
-            showNotification('Failed to copy to clipboard');
-          });
-      }}
-    >
+    <CopyToClipboard kind="basic" text={value}>
       {linkText}
-    </button>
+    </CopyToClipboard>
   );
 };
 
-const summaryRows = (
-  event: EventData,
-  summaryEvent: SummaryEventPayload,
-  showNotification: (message: string) => void,
-) => {
+const summaryRows = (event: EventData, summaryEvent: SummaryEventPayload) => {
   const rows = [];
   for (const [key, value] of Object.entries(summaryEvent.features || {})) {
     const rowId = event.id + key;
@@ -51,21 +40,17 @@ const summaryRows = (
 
     for (const counter of counters) {
       rows.push(
-        <tr key={rowId}>
-          <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
-          <td>summary</td>
-          <td>
+        <Row key={rowId}>
+          <Cell>{new Date(event.timestamp).toLocaleTimeString()}</Cell>
+          <Cell>summary</Cell>
+          <Cell>
             <Icon name="flag" size="small" /> {key}
-          </td>
-          <td>evaluated as {String(counter.value)}</td>
-          <td>
-            {clipboardLink(
-              'Copy to clipboard',
-              JSON.stringify(summaryEvent),
-              showNotification,
-            )}
-          </td>
-        </tr>,
+          </Cell>
+          <Cell>evaluated as {String(counter.value)}</Cell>
+          <Cell>
+            {clipboardLink('Copy to clipboard', JSON.stringify(summaryEvent))}
+          </Cell>
+        </Row>,
       );
     }
   }
@@ -73,11 +58,7 @@ const summaryRows = (
   return rows;
 };
 
-const indexRows = (
-  event: EventData,
-  indexEvent: IndexEventPayload,
-  showNotification: (message: string) => void,
-) => {
+const indexRows = (event: EventData, indexEvent: IndexEventPayload) => {
   let targetText = 'unknown';
   let iconName:
     | 'person'
@@ -126,107 +107,68 @@ const indexRows = (
   }
 
   return [
-    <tr key={event.id}>
-      <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
-      <td>index</td>
-      <td>
+    <Row key={event.id}>
+      <Cell>{new Date(event.timestamp).toLocaleTimeString()}</Cell>
+      <Cell>index</Cell>
+      <Cell>
         <Icon name={iconName} size="small" /> {targetText}
-      </td>
-      <td>indexed {JSON.stringify(indexEvent).length} bytes</td>
-      <td>
-        {clipboardLink(
-          'Copy to clipboard',
-          JSON.stringify(indexEvent.data),
-          showNotification,
-        )}
-      </td>
-    </tr>,
+      </Cell>
+      <Cell>indexed {JSON.stringify(indexEvent).length} bytes</Cell>
+      <Cell>
+        {clipboardLink('Copy to clipboard', JSON.stringify(indexEvent.data))}
+      </Cell>
+    </Row>,
   ];
 };
 
-const featureRows = (
-  event: EventData,
-  featureEvent: FeatureEventPayload,
-  showNotification: (message: string) => void,
-) => {
+const featureRows = (event: EventData, featureEvent: FeatureEventPayload) => {
   const eventText = `evaluated as ${String(featureEvent.value)}`;
 
   return [
-    <tr key={event.id} className="feature-row">
-      <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
-      <td>feature</td>
-      <td>{featureEvent.key || 'unknown'}</td>
-      <td>{eventText}</td>
-      <td>
-        {clipboardLink(
-          'Copy to clipboard',
-          JSON.stringify(featureEvent),
-          showNotification,
-        )}
-      </td>
-    </tr>,
+    <Row key={event.id} className="feature-row">
+      <Cell>{new Date(event.timestamp).toLocaleTimeString()}</Cell>
+      <Cell>feature</Cell>
+      <Cell>{featureEvent.key || 'unknown'}</Cell>
+      <Cell>{eventText}</Cell>
+      <Cell>
+        {clipboardLink('Copy to clipboard', JSON.stringify(featureEvent))}
+      </Cell>
+    </Row>,
   ];
 };
 
-const customRows = (
-  event: EventData,
-  customEvent: GenericEventPayload,
-  showNotification: (message: string) => void,
-) => {
+const customRows = (event: EventData, customEvent: GenericEventPayload) => {
   return [
-    <tr key={event.id}>
-      <td>{new Date(event.timestamp).toLocaleTimeString()}</td>
-      <td>{event.data.kind}</td>
-      <td>
+    <Row key={event.id}>
+      <Cell>{new Date(event.timestamp).toLocaleTimeString()}</Cell>
+      <Cell>{event.data.kind}</Cell>
+      <Cell>
         <Icon name="chart-histogram" size="small" /> {customEvent.key}
-      </td>
-      <td>value is {customEvent.metricValue}</td>
-      <td>
-        {clipboardLink(
-          'Copy to clipboard',
-          JSON.stringify(customEvent),
-          showNotification,
-        )}
-      </td>
-    </tr>,
+      </Cell>
+      <Cell>value is {customEvent.metricValue}</Cell>
+      <Cell>
+        {clipboardLink('Copy to clipboard', JSON.stringify(customEvent))}
+      </Cell>
+    </Row>,
   ];
 };
 
 // Return array of <tr>s:
 // Time, Type, Key, Event, ViewAttributes
-const renderEvent = (
-  event: EventData,
-  showNotification: (message: string) => void,
-) => {
+const renderEvent = (event: EventData) => {
   switch (event.data.kind) {
     case 'summary':
-      return summaryRows(
-        event,
-        event.data as SummaryEventPayload,
-        showNotification,
-      );
+      return summaryRows(event, event.data as SummaryEventPayload);
     case 'index':
-      return indexRows(
-        event,
-        event.data as IndexEventPayload,
-        showNotification,
-      );
+      return indexRows(event, event.data as IndexEventPayload);
     case 'feature':
-      return featureRows(
-        event,
-        event.data as FeatureEventPayload,
-        showNotification,
-      );
+      return featureRows(event, event.data as FeatureEventPayload);
     case 'custom':
-      return customRows(
-        event,
-        event.data as GenericEventPayload,
-        showNotification,
-      );
+      return customRows(event, event.data as GenericEventPayload);
     default:
       return [
-        <tr key={event.id}>
-          <td>
+        <Row key={event.id}>
+          <Cell>
             {(() => {
               try {
                 const date = new Date(event.timestamp);
@@ -237,24 +179,19 @@ const renderEvent = (
                 return event.timestamp;
               }
             })()}
-          </td>
-          <td>{event.data.kind}</td>
-          <td></td>
-          <td></td>
-          <td>
-            {clipboardLink(
-              'Copy to clipboard',
-              JSON.stringify(event.data),
-              showNotification,
-            )}
-          </td>
-        </tr>,
+          </Cell>
+          <Cell>{event.data.kind}</Cell>
+          <Cell></Cell>
+          <Cell></Cell>
+          <Cell>
+            {clipboardLink('Copy to clipboard', JSON.stringify(event.data))}
+          </Cell>
+        </Row>,
       ];
   }
 };
 
 const EventsTable = ({ events, onToggleStreaming }: Props) => {
-  const [notification, setNotification] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState<boolean>(true);
 
   const handleToggleStreaming = (newStreamingState: boolean) => {
@@ -262,45 +199,31 @@ const EventsTable = ({ events, onToggleStreaming }: Props) => {
     onToggleStreaming?.(newStreamingState);
   };
 
-  const showNotification = (message: string) => {
-    setNotification(message);
-    setTimeout(() => {
-      setNotification(null);
-    }, 1500);
-  };
-
   return (
-    <div>
+    <Box display="flex" flexDirection="column" width="100%" minWidth="600px">
       <h3>Events Stream</h3>
-      {onToggleStreaming && (
-        <button
-          className={`streaming-toggle-button ${isStreaming ? 'streaming' : 'not-streaming'}`}
-          onClick={() => handleToggleStreaming(!isStreaming)}
-        >
-          {isStreaming ? 'Streaming ON' : 'Streaming OFF'}
-        </button>
-      )}
-      <table className="events-table">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Type</th>
-            <th>Target</th>
-            <th>Event</th>
-            <th>Link</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((event) => renderEvent(event, showNotification))}
-        </tbody>
-      </table>
+      <Box paddingBottom="1rem">
+        {onToggleStreaming && (
+          <Button
+            variant="primary"
+            onPress={async () => handleToggleStreaming(!isStreaming)}
+          >
+            {isStreaming ? 'Streaming ON' : 'Streaming OFF'}
+          </Button>
+        )}
+      </Box>
+      <Table>
+        <TableHeader>
+          <Column isRowHeader>Time</Column>
+          <Column>Type</Column>
+          <Column>Target</Column>
+          <Column>Event</Column>
+          <Column>Link</Column>
+        </TableHeader>
+        <TableBody>{events.map((event) => renderEvent(event))}</TableBody>
+      </Table>
       {events.length === 0 && <p>No events received yet...</p>}
-      {notification && (
-        <div className={`copy-notification ${notification ? 'show' : 'hide'}`}>
-          {notification}
-        </div>
-      )}
-    </div>
+    </Box>
   );
 };
 

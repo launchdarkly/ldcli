@@ -6,11 +6,17 @@ import {
 } from './types';
 import { Box, Alert } from '@launchpad-ui/core';
 import {
-  Heading,
-  Text,
-  ProgressBar,
   Button,
+  Cell,
+  Column,
+  Heading,
   Link,
+  ProgressBar,
+  Row,
+  Table,
+  TableBody,
+  TableHeader,
+  Text,
 } from '@launchpad-ui/components';
 import { Icon } from '@launchpad-ui/icons';
 
@@ -163,103 +169,46 @@ const DebugSessionsPage = () => {
           </Box>
         </Box>
       ) : (
-        <div
-          style={{
-            border: '1px solid var(--lp-color-border-ui-primary)',
-            borderRadius: '4px',
-            overflow: 'hidden',
-          }}
+        <Box
+          display="flex"
+          flexDirection="column"
+          width="100%"
+          minWidth="600px"
+          borderRadius="4px"
+          borderWidth="1px"
+          borderColor="var(--lp-color-border-ui-primary)"
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr
-                style={{ backgroundColor: 'var(--lp-color-bg-ui-secondary)' }}
-              >
-                <th
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'left',
-                    borderBottom: '1px solid var(--lp-color-border-ui-primary)',
-                    fontWeight: 600,
-                  }}
-                >
-                  Debug Session Started
-                </th>
-                <th
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'right',
-                    borderBottom: '1px solid var(--lp-color-border-ui-primary)',
-                    fontWeight: 600,
-                  }}
-                >
-                  Event Count
-                </th>
-                <th
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'center',
-                    borderBottom: '1px solid var(--lp-color-border-ui-primary)',
-                    fontWeight: 600,
-                    width: '100px',
-                  }}
-                >
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {debugSessions.map((session, index) => (
-                <tr
-                  key={session.key}
-                  style={{
-                    borderBottom:
-                      index < debugSessions.length - 1
-                        ? '1px solid var(--lp-color-border-ui-primary)'
-                        : 'none',
-                  }}
-                >
-                  <td style={{ padding: '0.75rem' }}>
+          <Table>
+            <TableHeader>
+              <Column isRowHeader>Debug Session Started</Column>
+              <Column>Event Count</Column>
+              <Column>Actions</Column>
+            </TableHeader>
+            <TableBody>
+              {debugSessions.map((session) => (
+                <Row key={session.key}>
+                  <Cell>
                     <Link href={`/ui/debug-sessions/${session.key}/events`}>
                       {formatDate(session.written_at)}
                     </Link>
-                  </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                  </Cell>
+                  <Cell>
                     <Text>{session.event_count.toLocaleString()}</Text>
-                  </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                    <button
-                      onClick={() => handleDeleteSession(session.key)}
-                      disabled={deletingSession === session.key}
-                      style={{
-                        background: 'none',
-                        border: '1px solid var(--lp-color-border-destructive)',
-                        borderRadius: '4px',
-                        padding: '0.25rem 0.5rem',
-                        cursor:
-                          deletingSession === session.key
-                            ? 'not-allowed'
-                            : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        color: 'var(--lp-color-text-destructive)',
-                        opacity: deletingSession === session.key ? 0.6 : 1,
-                      }}
-                      title={
-                        deletingSession === session.key
-                          ? 'Deleting...'
-                          : 'Delete session and all events'
-                      }
+                  </Cell>
+                  <Cell>
+                    <Button
+                      isDisabled={deletingSession === session.key}
+                      variant="destructive"
+                      onPress={() => handleDeleteSession(session.key)}
                     >
                       <Icon name={'delete'} size="small" />
-                    </button>
-                  </td>
-                </tr>
+                    </Button>
+                  </Cell>
+                </Row>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Box>
       )}
     </Box>
   );
