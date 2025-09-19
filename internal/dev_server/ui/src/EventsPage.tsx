@@ -30,7 +30,7 @@ const EventsPage = ({ limit = 1000 }: Props) => {
 
       const newEvent: EventData = {
         id: Math.random().toString(36).slice(2, 11),
-        timestamp: Date.now(),
+        timestamp: (parsed.endDate || parsed.startDate || Date.now()),
         data: parsed,
       };
 
