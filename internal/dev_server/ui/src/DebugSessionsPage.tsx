@@ -41,8 +41,8 @@ const DebugSessionsPage = () => {
       }
 
       const data: DebugSessionsPageType = await response.json();
-      setDebugSessions(data.sessions);
-      setTotalCount(data.total_count);
+      setDebugSessions(data.sessions || []);
+      setTotalCount(data.total_count || 0);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'An unknown error occurred',
