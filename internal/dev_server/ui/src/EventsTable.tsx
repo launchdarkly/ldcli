@@ -10,6 +10,7 @@ import {
   Button,
   Cell,
   Column,
+  Heading,
   Row,
   Table,
   TableBody,
@@ -201,7 +202,7 @@ const EventsTable = ({ events, onToggleStreaming }: Props) => {
 
   return (
     <Box display="flex" flexDirection="column" width="100%" minWidth="600px">
-      <h3>Events Stream</h3>
+      <Heading>Events Stream</Heading>
       <Box paddingBottom="1rem">
         {onToggleStreaming && (
           <Button
