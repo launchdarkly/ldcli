@@ -15,8 +15,8 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/launchdarkly/api-client-go/v14 v14.0.0
 	github.com/launchdarkly/go-sdk-common/v3 v3.4.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.13.1
-	github.com/launchdarkly/sdk-meta/api v0.4.5
+	github.com/launchdarkly/go-server-sdk/v7 v7.13.4
+	github.com/launchdarkly/sdk-meta/api v0.4.8
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/muesli/reflow v0.3.0
@@ -54,7 +54,7 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

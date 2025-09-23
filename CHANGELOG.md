@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.17.1](https://github.com/launchdarkly/ldcli/compare/v1.17.0...v1.17.1) (2025-09-15)
+
+
+### Bug Fixes
+
+* [FUN-983] Set CORS headers consistently for SDK & API cases ([#614](https://github.com/launchdarkly/ldcli/issues/614)) ([c05d3a5](https://github.com/launchdarkly/ldcli/commit/c05d3a570e6cacff5f525c34bdeb0ba47249e4eb))
+
+## [1.17.0](https://github.com/launchdarkly/ldcli/compare/v1.16.4...v1.17.0) (2025-09-15)
+
+
+### Features
+
+* [FUN-984] Add favicon ([#616](https://github.com/launchdarkly/ldcli/issues/616)) ([92d63e2](https://github.com/launchdarkly/ldcli/commit/92d63e279f86da73ae303780e3e214bf1c95f160)), closes [#610](https://github.com/launchdarkly/ldcli/issues/610)
+* Add favicon ([92d63e2](https://github.com/launchdarkly/ldcli/commit/92d63e279f86da73ae303780e3e214bf1c95f160))
+
+## [1.16.4](https://github.com/launchdarkly/ldcli/compare/v1.16.3...v1.16.4) (2025-09-10)
+
+
+### Bug Fixes
+
+* Enhance flag search functionality to support quoted substrings ([#609](https://github.com/launchdarkly/ldcli/issues/609)) ([226a386](https://github.com/launchdarkly/ldcli/commit/226a3864ee354162d21cc2644f7fcd874f6f71a4))
+
+## [1.16.3](https://github.com/launchdarkly/ldcli/compare/v1.16.2...v1.16.3) (2025-08-15)
+
+
+### Bug Fixes
+
+* Clarify --source flag refers to environment key ([#595](https://github.com/launchdarkly/ldcli/issues/595)) ([202484a](https://github.com/launchdarkly/ldcli/commit/202484a5d13b001f017e53f979b2eb1fb1414ecb))
+
 ## [1.16.2](https://github.com/launchdarkly/ldcli/compare/v1.16.1...v1.16.2) (2025-07-28)
 
 

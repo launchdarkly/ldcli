@@ -7,9 +7,9 @@ info:
     those flags.
   version: 1.0.0
 servers:
-  - url: "http"
+  - url: "http://localhost:8765/dev"
 paths:
-  /dev/backup:
+  /backup:
     get:
       summary: get the backup
       operationId: getBackup
@@ -28,7 +28,7 @@ paths:
       responses:
         200:
           description: 'Backup restored'
-  /dev/projects:
+  /projects:
     get:
       summary: lists all projects that have been configured for the dev server
       operationId: getProjects
@@ -43,7 +43,7 @@ paths:
                 items:
                   type: string
                 uniqueItems: true
-  /dev/projects/{projectKey}:
+  /projects/{projectKey}:
     get:
       summary: get the specified project and its configuration for syncing from the LaunchDarkly Service
       operationId: getProject
@@ -113,7 +113,7 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         409:
           $ref: "#/components/responses/ErrorResponse"
-  /dev/projects/{projectKey}/overrides:
+  /projects/{projectKey}/overrides:
     delete:
       summary: remove all overrides for the given project
       operationId: deleteOverrides
@@ -124,7 +124,7 @@ paths:
           description: OK. All overrides were removed
         404:
           $ref: "#/components/responses/ErrorResponse"        
-  /dev/projects/{projectKey}/overrides/{flagKey}:
+  /projects/{projectKey}/overrides/{flagKey}:
     put:
       summary: override flag value with value provided in the body
       operationId: putOverrideFlag
@@ -155,7 +155,7 @@ paths:
           description: OK. override removed
         404:
           description: no matching override found
-  /dev/projects/{projectKey}/environments:
+  /projects/{projectKey}/environments:
     get:
       operationId: getEnvironments
       summary: list all environments for the given project
@@ -188,7 +188,7 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         400:
           $ref: "#/components/responses/ErrorResponse"
-  /dev/debug-sessions:
+  /debug-sessions:
     get:
       operationId: getDebugSessions
       summary: list all debug sessions with event counts
@@ -216,7 +216,7 @@ paths:
                 $ref: "#/components/schemas/DebugSessionsPage"
         400:
           $ref: "#/components/responses/ErrorResponse"
-  /dev/debug-sessions/{debugSessionKey}:
+  /debug-sessions/{debugSessionKey}:
     delete:
       operationId: deleteDebugSession
       summary: delete a specific debug session and all its events
@@ -232,7 +232,7 @@ paths:
           description: OK. Debug session and all associated events were deleted
         404:
           $ref: "#/components/responses/ErrorResponse"
-  /dev/debug-sessions/{debugSessionKey}/events:
+  /debug-sessions/{debugSessionKey}/events:
     get:
       operationId: getDebugSessionEvents
       summary: get events for a specific debug session

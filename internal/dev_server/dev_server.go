@@ -67,6 +67,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 		ResponseErrorHandlerFunc: api.ResponseErrorHandler,
 	})
 	r := mux.NewRouter()
+	r.Use(handlers.RecoveryHandler(handlers.PrintRecoveryStack(true)))
 	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI))
 	r.Use(model.EventStoreMiddleware(sqlEventStore))
 	r.Use(model.StoreMiddleware(sqlStore))
@@ -74,15 +75,29 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	r.PathPrefix("/ui/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = "/"
+		r.URL.Path = "/" // UI is a SPA, so we want to ignore the url path when we serve assets.
 		ui.AssetHandler.ServeHTTP(w, r)
 	})
-	sdk.BindRoutes(r)
+
 	events.BindRoutes(r)
-	handler := api.HandlerFromMux(apiServer, r)
-	handler = api.CorsHeadersWithConfig(serverParams.CorsEnabled, serverParams.CorsOrigin)(handler)
-	handler = handlers.CombinedLoggingHandler(os.Stdout, handler)
-	handler = handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler)
+	sdk.BindRoutes(r)
+
+	apiRouter := r.PathPrefix("/dev").Subrouter()
+	if serverParams.CorsEnabled {
+		apiRouter.Use(handlers.CORS(
+			handlers.AllowedOrigins([]string{serverParams.CorsOrigin}),
+			handlers.AllowedHeaders([]string{"Content-Type", "Content-Length", "Accept-Encoding", "X-Requested-With"}),
+			handlers.ExposedHeaders([]string{"Date", "Content-Length"}),
+			handlers.AllowedMethods([]string{"GET", "POST", "PUT", "PATCH", "DELETE"}),
+			handlers.MaxAge(300),
+		))
+		apiRouter.PathPrefix("/").Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// request should have been handled in the CORS middleware
+			// This route is needed so that gorilla will not 404 for options requests
+			panic("options handler running. This indicates a misconfiguration of routes")
+		})
+	}
+	api.HandlerFromMux(apiServer, apiRouter) // this method actually mutates the passed router.
 
 	ctx = adapters.WithApiAndSdk(ctx, *ldClient, serverParams.DevStreamURI)
 	ctx = model.SetObserversOnContext(ctx, observers)
@@ -91,6 +106,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	if syncErr != nil {
 		log.Fatal(syncErr)
 	}
+	handler := handlers.CombinedLoggingHandler(os.Stdout, r)
 
 	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
 	log.Printf("Server running on %s", addr)
