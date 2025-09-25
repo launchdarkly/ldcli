@@ -7,11 +7,10 @@ import {
   ListBoxItem,
 } from '@launchpad-ui/components';
 import { Icon } from '@launchpad-ui/icons';
-import { useNavigate, useLocation } from 'react-router';
+import { useLocation } from 'react-router';
 import { Fragment } from 'react';
 
 const RouteSelector = () => {
-  const navigate = useNavigate();
   const location = useLocation();
 
   const options = [
@@ -25,7 +24,7 @@ const RouteSelector = () => {
 
   const handleSelectionChange = (key: React.Key) => {
     if (typeof key === 'string') {
-      navigate(key);
+      window.location.href = key;
     }
   };
 
