@@ -52,7 +52,6 @@ type serverFlagsObserver struct {
 }
 
 func (c serverFlagsObserver) Handle(event interface{}) {
-	log.Printf("serverFlagsObserver: handling flag state event: %v", event)
 	switch event := event.(type) {
 	case model.OverrideEvent:
 		if event.ProjectKey != c.projectKey {
