@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.2](https://github.com/launchdarkly/ldcli/compare/v1.17.1...v1.17.2) (2025-09-26)
+
+
+### Bug Fixes
+
+* Update codeowners ([#622](https://github.com/launchdarkly/ldcli/issues/622)) ([c24c804](https://github.com/launchdarkly/ldcli/commit/c24c80412cebccc9470e0014af1b36db6f17f267))
+
 ## [1.17.1](https://github.com/launchdarkly/ldcli/compare/v1.17.0...v1.17.1) (2025-09-15)
 
 
