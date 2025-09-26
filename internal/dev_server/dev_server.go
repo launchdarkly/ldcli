@@ -14,7 +14,9 @@ import (
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/api"
+	"github.com/launchdarkly/ldcli/internal/dev_server/api/events"
 	"github.com/launchdarkly/ldcli/internal/dev_server/db"
+	"github.com/launchdarkly/ldcli/internal/dev_server/events_db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/sdk"
 	"github.com/launchdarkly/ldcli/internal/dev_server/ui"
@@ -52,6 +54,12 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	sqlEventStore, err := events_db.NewSqlite(ctx, getEventsDBPath())
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	observers := model.NewObservers()
 	ss := api.NewStrictServer()
 	apiServer := api.NewStrictHandlerWithOptions(ss, nil, api.StrictHTTPServerOptions{
@@ -61,12 +69,18 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r := mux.NewRouter()
 	r.Use(handlers.RecoveryHandler(handlers.PrintRecoveryStack(true)))
 	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI))
+	r.Use(model.EventStoreMiddleware(sqlEventStore))
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(observers))
 	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
-	r.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", ui.AssetHandler))
+	r.Handle("/ui/{_}.svg", http.StripPrefix("/ui/", ui.AssetHandler))
+	r.PathPrefix("/ui/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.URL.Path = "/" // UI is a SPA, so we want to ignore the url path when we serve assets.
+		ui.AssetHandler.ServeHTTP(w, r)
+	})
 
+	events.BindRoutes(r)
 	sdk.BindRoutes(r)
 
 	apiRouter := r.PathPrefix("/dev").Subrouter()
@@ -108,6 +122,14 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 
 func getDBPath() string {
 	dbFilePath, err := xdg.StateFile("ldcli/dev_server.db")
+	log.Printf("Using database at %s", dbFilePath)
+	if err != nil {
+		log.Fatalf("Unable to create state directory: %s", err)
+	}
+	return dbFilePath
+}
+func getEventsDBPath() string {
+	dbFilePath, err := xdg.StateFile("ldcli/dev_server_events.db")
 	log.Printf("Using database at %s", dbFilePath)
 	if err != nil {
 		log.Fatalf("Unable to create state directory: %s", err)

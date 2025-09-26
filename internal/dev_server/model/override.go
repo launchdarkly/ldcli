@@ -116,8 +116,9 @@ func (o Override) Apply(state FlagState) FlagState {
 		flagValue = o.Value
 	}
 	return FlagState{
-		Value:   flagValue,
-		Version: flagVersion,
+		Value:       flagValue,
+		Version:     flagVersion,
+		TrackEvents: o.Active,
 	}
 }
 

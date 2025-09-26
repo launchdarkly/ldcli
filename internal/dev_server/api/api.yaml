@@ -188,6 +188,92 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         400:
           $ref: "#/components/responses/ErrorResponse"
+  /debug-sessions:
+    get:
+      operationId: getDebugSessions
+      summary: list all debug sessions with event counts
+      parameters:
+        - name: limit
+          in: query
+          description: limit the number of debug sessions returned
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: offset for pagination
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        200:
+          description: OK. List of debug sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebugSessionsPage"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
+  /debug-sessions/{debugSessionKey}:
+    delete:
+      operationId: deleteDebugSession
+      summary: delete a specific debug session and all its events
+      parameters:
+        - name: debugSessionKey
+          in: path
+          required: true
+          schema:
+            type: string
+          description: unique identifier for the debug session
+      responses:
+        204:
+          description: OK. Debug session and all associated events were deleted
+        404:
+          $ref: "#/components/responses/ErrorResponse"
+  /debug-sessions/{debugSessionKey}/events:
+    get:
+      operationId: getDebugSessionEvents
+      summary: get events for a specific debug session
+      parameters:
+        - name: debugSessionKey
+          in: path
+          required: true
+          schema:
+            type: string
+          description: unique identifier for the debug session
+        - name: kind
+          in: query
+          description: filter events by kind (e.g., summary, diagnostic, feature)
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: limit the number of events returned
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: offset for pagination
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        200:
+          description: OK. List of events for the debug session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventsPage"
+        404:
+          $ref: "#/components/responses/ErrorResponse"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
 components:
   parameters:
     flagKey:
@@ -294,6 +380,89 @@ components:
           type: string
         name:
           type: string
+    DebugSession:
+      description: Debug session with event count
+      type: object
+      required:
+        - key
+        - written_at
+        - event_count
+      properties:
+        key:
+          type: string
+          description: unique identifier for the debug session
+        written_at:
+          type: string
+          format: date-time
+          description: timestamp when the debug session was created
+        event_count:
+          type: integer
+          format: int64
+          description: number of events associated with this debug session
+    DebugSessionsPage:
+      description: Paginated response of debug sessions
+      type: object
+      required:
+        - sessions
+        - total_count
+        - has_more
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DebugSession"
+          description: list of debug sessions
+        total_count:
+          type: integer
+          format: int64
+          description: total number of debug sessions available
+        has_more:
+          type: boolean
+          description: whether there are more results available
+    Event:
+      description: A stored event with metadata
+      type: object
+      required:
+        - id
+        - written_at
+        - kind
+        - data
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: unique identifier for the event
+        written_at:
+          type: string
+          format: date-time
+          description: timestamp when the event was written
+        kind:
+          type: string
+          description: type of event (e.g., summary, diagnostic, feature)
+        data:
+          type: object
+          description: raw event data as JSON
+          x-go-type: json.RawMessage
+    EventsPage:
+      description: Paginated response of events
+      type: object
+      required:
+        - events
+        - total_count
+        - has_more
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+          description: list of events
+        total_count:
+          type: integer
+          format: int64
+          description: total number of events available
+        has_more:
+          type: boolean
+          description: whether there are more results available
   responses:
     FlagOverride:
       description: Flag override

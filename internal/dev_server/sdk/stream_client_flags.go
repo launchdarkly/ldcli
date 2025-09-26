@@ -51,7 +51,6 @@ type clientFlagsObserver struct {
 }
 
 func (c clientFlagsObserver) Handle(event interface{}) {
-	log.Printf("clientFlagsObserver: handling flag state event: %v", event)
 	switch event := event.(type) {
 	case model.OverrideEvent:
 		err := SendMessage(c.updateChan, TYPE_PATCH, clientFlag{
