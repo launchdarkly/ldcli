@@ -74,6 +74,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r.Use(model.ObserversMiddleware(observers))
 	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
+	r.Handle("/ui/{_}.svg", http.StripPrefix("/ui/", ui.AssetHandler))
 	r.PathPrefix("/ui/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = "/" // UI is a SPA, so we want to ignore the url path when we serve assets.
 		ui.AssetHandler.ServeHTTP(w, r)
