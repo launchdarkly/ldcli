@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/launchdarkly/ldcli/compare/v1.17.2...v1.18.0) (2025-09-30)
+
+
+### Features
+
+* view SDK events on ldcli dev server ([#596](https://github.com/launchdarkly/ldcli/issues/596)) ([cffa7ec](https://github.com/launchdarkly/ldcli/commit/cffa7ec0f13f3642710e4b66676d91d4f6ed6692))
+
 ## [1.17.2](https://github.com/launchdarkly/ldcli/compare/v1.17.1...v1.17.2) (2025-09-26)
 
 
