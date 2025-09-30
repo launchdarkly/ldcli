@@ -1,0 +1,61 @@
+import {
+  Select,
+  SelectValue,
+  Button,
+  Popover,
+  ListBox,
+  ListBoxItem,
+} from '@launchpad-ui/components';
+import { Icon } from '@launchpad-ui/icons';
+import { useLocation } from 'react-router';
+import { Fragment } from 'react';
+
+const RouteSelector = () => {
+  const location = useLocation();
+
+  const options = [
+    { key: '/ui/flags', label: 'Flags' },
+    { key: '/ui/events', label: 'Events' },
+    { key: '/ui/debug-sessions', label: 'Debug Sessions' },
+  ];
+
+  const currentPath = location.pathname === '/' ? '/ui' : location.pathname;
+  const currentOption = options.find((option) => option.key === currentPath);
+
+  const handleSelectionChange = (key: React.Key) => {
+    if (typeof key === 'string') {
+      window.location.href = key;
+    }
+  };
+
+  return (
+    <Select
+      aria-label="Route selector"
+      selectedKey={currentPath}
+      onSelectionChange={handleSelectionChange}
+      style={{ minWidth: '150px' }}
+    >
+      <Fragment>
+        <Button>
+          <SelectValue>{currentOption?.label || 'Select a view'}</SelectValue>
+          <Icon name="chevron-down" size="small" />
+        </Button>
+        <Popover>
+          <ListBox>
+            {options.map((option) => (
+              <ListBoxItem
+                key={option.key}
+                id={option.key}
+                textValue={option.label}
+              >
+                {option.label}
+              </ListBoxItem>
+            ))}
+          </ListBox>
+        </Popover>
+      </Fragment>
+    </Select>
+  );
+};
+
+export default RouteSelector;
