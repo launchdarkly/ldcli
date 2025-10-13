@@ -50,7 +50,7 @@ runs:
             --volume "$PWD:$PWD" \
             --volume /var/run/docker.sock:/var/run/docker.sock \
             --entrypoint tail \
-            ghcr.io/launchdarkly/goreleaser-cross:v1.24.2  \
+            ghcr.io/launchdarkly/goreleaser-cross@sha256:3406461901b9c5c6f1f7ef7715dd02b150909f2704ea3df6e05a1c9e102d98e0  \
               -f /dev/null
         )"
         docker exec --workdir "$PWD" --tty "$CONTAINER_ID" docker login --username "$DOCKER_HUB_USERNAME" --password "$DOCKER_HUB_TOKEN"
