@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/launchdarkly/ldcli/compare/v1.18.0...v2.0.0) (2025-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* LD OpenAPI spec update from 17.2.0 to 18.0.0 introduced breaking changes
+
+### Miscellaneous Chores
+
+* regenerate from LD OpenAPI spec representing client version 18.0.0 [EXPT-3347] ([#627](https://github.com/launchdarkly/ldcli/issues/627)) ([367c737](https://github.com/launchdarkly/ldcli/commit/367c737f23151090729093e8a699a74a7dbde9f4))
+
 ## [1.18.0](https://github.com/launchdarkly/ldcli/compare/v1.17.2...v1.18.0) (2025-09-30)
 
 
