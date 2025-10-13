@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/launchdarkly/ldcli/compare/v2.0.0...v2.0.1) (2025-10-13)
+
+
+### Bug Fixes
+
+* Pin goreleaser-cross sha256 to Fix Publish Action ([#629](https://github.com/launchdarkly/ldcli/issues/629)) ([de9e630](https://github.com/launchdarkly/ldcli/commit/de9e630d48745c89238b7b8a2972304bb784b8f3))
+
 ## [2.0.0](https://github.com/launchdarkly/ldcli/compare/v1.18.0...v2.0.0) (2025-10-13)
 
 
