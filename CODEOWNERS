@@ -1,5 +1,5 @@
 # These owners will be the default owners for everything in the repo.
 
-- @launchdarkly/team-feature-management
+- @launchdarkly/team-fm-next
 
 /cmd/dev_server @launchdarkly/team-fundamentals
