@@ -18,21 +18,21 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/model/mocks"
 )
 
-func TestImportProjectFromSeed(t *testing.T) {
+func TestImportProject(t *testing.T) {
 	ctx := context.Background()
 	mockController := gomock.NewController(t)
 	store := mocks.NewMockStore(mockController)
 	ctx = model.ContextWithStore(ctx, store)
 
 	projectKey := "test-project"
-	seedData := model.SeedData{
+	seedData := model.ImportData{
 		Context:              ldcontext.NewBuilder("user").Key("test-user").Build(),
 		SourceEnvironmentKey: "test-env",
 		FlagsState: model.FlagsState{
 			"flag-1": model.FlagState{Value: ldvalue.Bool(true), Version: 1},
 			"flag-2": model.FlagState{Value: ldvalue.String("hello"), Version: 2},
 		},
-		AvailableVariations: &map[string][]model.SeedVariation{
+		AvailableVariations: &map[string][]model.ImportVariation{
 			"flag-1": {
 				{
 					Id:          "var-1",
@@ -62,47 +62,48 @@ func TestImportProjectFromSeed(t *testing.T) {
 		},
 	}
 
-	t.Run("Returns error if database is not empty", func(t *testing.T) {
-		store.EXPECT().GetDevProjectKeys(gomock.Any()).Return([]string{"existing-project"}, nil)
+	t.Run("Returns error if project already exists", func(t *testing.T) {
+		existingProject := &model.Project{Key: projectKey}
+		store.EXPECT().GetDevProject(gomock.Any(), projectKey).Return(existingProject, nil)
 
-		err := model.ImportProjectFromSeed(ctx, projectKey, seedData)
+		err := model.ImportProject(ctx, projectKey, seedData)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "database not empty")
-		assert.Contains(t, err.Error(), "found 1 project")
+		assert.Contains(t, err.Error(), "already exists")
+		assert.Contains(t, err.Error(), projectKey)
 	})
 
-	t.Run("Returns error if checking existing projects fails", func(t *testing.T) {
-		store.EXPECT().GetDevProjectKeys(gomock.Any()).Return(nil, errors.New("db error"))
+	t.Run("Returns error if checking project existence fails", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), projectKey).Return(nil, errors.New("db error"))
 
-		err := model.ImportProjectFromSeed(ctx, projectKey, seedData)
+		err := model.ImportProject(ctx, projectKey, seedData)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unable to check existing projects")
+		assert.Contains(t, err.Error(), "unable to check if project exists")
 		assert.Contains(t, err.Error(), "db error")
 	})
 
 	t.Run("Returns error if insert project fails", func(t *testing.T) {
-		store.EXPECT().GetDevProjectKeys(gomock.Any()).Return([]string{}, nil)
+		store.EXPECT().GetDevProject(gomock.Any(), projectKey).Return(nil, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(errors.New("insert failed"))
 
-		err := model.ImportProjectFromSeed(ctx, projectKey, seedData)
+		err := model.ImportProject(ctx, projectKey, seedData)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unable to insert project")
 		assert.Contains(t, err.Error(), "insert failed")
 	})
 
 	t.Run("Returns error if upserting override fails", func(t *testing.T) {
-		store.EXPECT().GetDevProjectKeys(gomock.Any()).Return([]string{}, nil)
+		store.EXPECT().GetDevProject(gomock.Any(), projectKey).Return(nil, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(nil)
 		store.EXPECT().UpsertOverride(gomock.Any(), gomock.Any()).Return(model.Override{}, errors.New("override failed"))
 
-		err := model.ImportProjectFromSeed(ctx, projectKey, seedData)
+		err := model.ImportProject(ctx, projectKey, seedData)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unable to import override")
 		assert.Contains(t, err.Error(), "override failed")
 	})
 
 	t.Run("Successfully imports project without overrides", func(t *testing.T) {
-		seedDataNoOverrides := model.SeedData{
+		seedDataNoOverrides := model.ImportData{
 			Context:              ldcontext.NewBuilder("user").Key("test-user").Build(),
 			SourceEnvironmentKey: "test-env",
 			FlagsState: model.FlagsState{
@@ -110,7 +111,7 @@ func TestImportProjectFromSeed(t *testing.T) {
 			},
 		}
 
-		store.EXPECT().GetDevProjectKeys(gomock.Any()).Return([]string{}, nil)
+		store.EXPECT().GetDevProject(gomock.Any(), projectKey).Return(nil, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, project model.Project) error {
 				assert.Equal(t, projectKey, project.Key)
@@ -121,12 +122,12 @@ func TestImportProjectFromSeed(t *testing.T) {
 			},
 		)
 
-		err := model.ImportProjectFromSeed(ctx, projectKey, seedDataNoOverrides)
+		err := model.ImportProject(ctx, projectKey, seedDataNoOverrides)
 		require.NoError(t, err)
 	})
 
 	t.Run("Successfully imports project with overrides and variations", func(t *testing.T) {
-		store.EXPECT().GetDevProjectKeys(gomock.Any()).Return([]string{}, nil)
+		store.EXPECT().GetDevProject(gomock.Any(), projectKey).Return(nil, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, project model.Project) error {
 				// Verify project fields
@@ -159,7 +160,7 @@ func TestImportProjectFromSeed(t *testing.T) {
 			},
 		)
 
-		err := model.ImportProjectFromSeed(ctx, projectKey, seedData)
+		err := model.ImportProject(ctx, projectKey, seedData)
 		require.NoError(t, err)
 	})
 }
@@ -285,7 +286,7 @@ func TestImportProjectFromFile(t *testing.T) {
 		require.NoError(t, err)
 		tmpFile.Close()
 
-		store.EXPECT().GetDevProjectKeys(gomock.Any()).Return([]string{}, nil)
+		store.EXPECT().GetDevProject(gomock.Any(), projectKey).Return(nil, model.NewErrNotFound("project", projectKey))
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, project model.Project) error {
 				assert.Equal(t, projectKey, project.Key)

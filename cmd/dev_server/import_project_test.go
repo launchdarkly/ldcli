@@ -17,10 +17,10 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
-func TestSeedCommand(t *testing.T) {
-	t.Run("seeds database successfully from valid JSON file", func(t *testing.T) {
+func TestImportProjectCommand(t *testing.T) {
+	t.Run("imports project successfully from valid JSON file", func(t *testing.T) {
 		// Create temporary database
-		tmpDir, err := os.MkdirTemp("", "seed-test-*")
+		tmpDir, err := os.MkdirTemp("", "import-test-*")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
@@ -128,9 +128,9 @@ func TestSeedCommand(t *testing.T) {
 		assert.True(t, overrides[0].Active)
 	})
 
-	t.Run("rejects seeding into non-empty database", func(t *testing.T) {
+	t.Run("rejects importing when project already exists", func(t *testing.T) {
 		// Create temporary database
-		tmpDir, err := os.MkdirTemp("", "seed-test-*")
+		tmpDir, err := os.MkdirTemp("", "import-test-*")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
@@ -140,7 +140,7 @@ func TestSeedCommand(t *testing.T) {
 		require.NoError(t, err)
 		ctx = model.ContextWithStore(ctx, sqlStore)
 
-		// Insert an existing project
+		// Insert an existing project with the same key
 		existingProject := model.Project{
 			Key:                  "existing-project",
 			SourceEnvironmentKey: "test",
@@ -151,7 +151,7 @@ func TestSeedCommand(t *testing.T) {
 		err = sqlStore.InsertProject(ctx, existingProject)
 		require.NoError(t, err)
 
-		// Create seed data file
+		// Create seed data file for the same project key
 		seedFile := filepath.Join(tmpDir, "seed.json")
 		seedData := map[string]interface{}{
 			"context": map[string]interface{}{
@@ -172,14 +172,72 @@ func TestSeedCommand(t *testing.T) {
 		err = os.WriteFile(seedFile, data, 0644)
 		require.NoError(t, err)
 
-		// Attempt to seed should fail
-		err = model.ImportProjectFromFile(ctx, "new-project", seedFile)
+		// Attempt to import with same project key should fail
+		err = model.ImportProjectFromFile(ctx, "existing-project", seedFile)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "database not empty")
+		assert.Contains(t, err.Error(), "already exists")
 	})
 
-	t.Run("validates required fields in seed data", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "seed-test-*")
+	t.Run("allows importing different project when database has other projects", func(t *testing.T) {
+		// Create temporary database
+		tmpDir, err := os.MkdirTemp("", "import-test-*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		dbPath := filepath.Join(tmpDir, "test.db")
+		ctx := context.Background()
+		sqlStore, err := db.NewSqlite(ctx, dbPath)
+		require.NoError(t, err)
+		ctx = model.ContextWithStore(ctx, sqlStore)
+
+		// Insert an existing project
+		existingProject := model.Project{
+			Key:                  "project-1",
+			SourceEnvironmentKey: "test",
+			Context:              ldcontext.NewBuilder("user").Key("existing").Build(),
+			AllFlagsState:        model.FlagsState{},
+			AvailableVariations:  []model.FlagVariation{},
+		}
+		err = sqlStore.InsertProject(ctx, existingProject)
+		require.NoError(t, err)
+
+		// Create seed data file for a DIFFERENT project
+		seedFile := filepath.Join(tmpDir, "seed.json")
+		seedData := map[string]interface{}{
+			"context": map[string]interface{}{
+				"kind": "user",
+				"key":  "test-user",
+			},
+			"sourceEnvironmentKey": "production",
+			"flagsState": map[string]interface{}{
+				"flag-1": map[string]interface{}{
+					"value":   true,
+					"version": 1,
+				},
+			},
+		}
+
+		data, err := json.Marshal(seedData)
+		require.NoError(t, err)
+		err = os.WriteFile(seedFile, data, 0644)
+		require.NoError(t, err)
+
+		// Import a different project should succeed
+		err = model.ImportProjectFromFile(ctx, "project-2", seedFile)
+		require.NoError(t, err)
+
+		// Verify both projects exist
+		project1, err := sqlStore.GetDevProject(ctx, "project-1")
+		require.NoError(t, err)
+		assert.Equal(t, "project-1", project1.Key)
+
+		project2, err := sqlStore.GetDevProject(ctx, "project-2")
+		require.NoError(t, err)
+		assert.Equal(t, "project-2", project2.Key)
+	})
+
+	t.Run("validates required fields in import data", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "import-test-*")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
@@ -238,8 +296,8 @@ func TestSeedCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("handles complex seed data with all fields", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "seed-test-*")
+	t.Run("handles complex import data with all fields", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "import-test-*")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
@@ -357,8 +415,8 @@ func TestSeedCommand(t *testing.T) {
 		assert.Equal(t, ldvalue.Int(100), overrideMap["number-flag"].Value)
 	})
 
-	t.Run("handles seed data without optional fields", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "seed-test-*")
+	t.Run("handles import data without optional fields", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "import-test-*")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
@@ -412,7 +470,7 @@ func TestSeedCommand(t *testing.T) {
 	})
 
 	t.Run("preserves variation metadata", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "seed-test-*")
+		tmpDir, err := os.MkdirTemp("", "import-test-*")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 

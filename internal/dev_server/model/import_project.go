@@ -10,50 +10,54 @@ import (
 	"github.com/pkg/errors"
 )
 
-// SeedData represents the JSON structure from the project endpoint
+// ImportData represents the JSON structure from the project endpoint
 // matching the format from /dev/projects/{projectKey}?expand=overrides&expand=availableVariations
-type SeedData struct {
-	Context              ldcontext.Context           `json:"context"`
-	SourceEnvironmentKey string                      `json:"sourceEnvironmentKey"`
-	FlagsState           FlagsState                  `json:"flagsState"`
-	Overrides            *FlagsState                 `json:"overrides,omitempty"`
-	AvailableVariations  *map[string][]SeedVariation `json:"availableVariations,omitempty"`
+type ImportData struct {
+	Context              ldcontext.Context             `json:"context"`
+	SourceEnvironmentKey string                        `json:"sourceEnvironmentKey"`
+	FlagsState           FlagsState                    `json:"flagsState"`
+	Overrides            *FlagsState                   `json:"overrides,omitempty"`
+	AvailableVariations  *map[string][]ImportVariation `json:"availableVariations,omitempty"`
 }
 
-// SeedVariation represents a variation in the seed data format
-type SeedVariation struct {
+// ImportVariation represents a variation in the import data format
+type ImportVariation struct {
 	Id          string        `json:"_id"`
 	Name        *string       `json:"name,omitempty"`
 	Description *string       `json:"description,omitempty"`
 	Value       ldvalue.Value `json:"value"`
 }
 
-// ImportProjectFromSeed imports a project from seed data into the database.
-// Returns an error if the database is not empty (contains any projects).
-func ImportProjectFromSeed(ctx context.Context, projectKey string, seedData SeedData) error {
+// ImportProject imports a project from import data into the database.
+// Returns an error if the project already exists.
+func ImportProject(ctx context.Context, projectKey string, importData ImportData) error {
 	store := StoreFromContext(ctx)
 
-	// Validate database is empty
-	existingKeys, err := store.GetDevProjectKeys(ctx)
+	// Check if project already exists
+	existingProject, err := store.GetDevProject(ctx, projectKey)
 	if err != nil {
-		return errors.Wrap(err, "unable to check existing projects")
-	}
-	if len(existingKeys) > 0 {
-		return errors.Errorf("database not empty (found %d project(s)), seeding only allowed on clean database", len(existingKeys))
+		// ErrNotFound is expected - it means the project doesn't exist yet, which is what we want
+		if _, ok := err.(ErrNotFound); !ok {
+			return errors.Wrap(err, "unable to check if project exists")
+		}
+		// Project doesn't exist, continue with import
+	} else if existingProject != nil {
+		// Project exists, cannot import
+		return errors.Errorf("project '%s' already exists, cannot import", projectKey)
 	}
 
-	// Create project from seed data
+	// Create project from import data
 	project := Project{
 		Key:                  projectKey,
-		SourceEnvironmentKey: seedData.SourceEnvironmentKey,
-		Context:              seedData.Context,
-		AllFlagsState:        seedData.FlagsState,
+		SourceEnvironmentKey: importData.SourceEnvironmentKey,
+		Context:              importData.Context,
+		AllFlagsState:        importData.FlagsState,
 		AvailableVariations:  []FlagVariation{},
 	}
 
 	// Convert available variations if present
-	if seedData.AvailableVariations != nil {
-		for flagKey, variations := range *seedData.AvailableVariations {
+	if importData.AvailableVariations != nil {
+		for flagKey, variations := range *importData.AvailableVariations {
 			for _, v := range variations {
 				project.AvailableVariations = append(project.AvailableVariations, FlagVariation{
 					FlagKey: flagKey,
@@ -75,8 +79,8 @@ func ImportProjectFromSeed(ctx context.Context, projectKey string, seedData Seed
 	}
 
 	// Import overrides if present
-	if seedData.Overrides != nil {
-		for flagKey, flagState := range *seedData.Overrides {
+	if importData.Overrides != nil {
+		for flagKey, flagState := range *importData.Overrides {
 			// Use store directly instead of UpsertOverride to avoid observer notifications
 			override := Override{
 				ProjectKey: projectKey,
@@ -104,20 +108,20 @@ func ImportProjectFromFile(ctx context.Context, projectKey, filepath string) err
 	}
 
 	// Parse JSON
-	var seedData SeedData
-	err = json.Unmarshal(data, &seedData)
+	var importData ImportData
+	err = json.Unmarshal(data, &importData)
 	if err != nil {
 		return errors.Wrap(err, "unable to parse JSON")
 	}
 
 	// Validate required fields
-	if seedData.SourceEnvironmentKey == "" {
-		return errors.New("sourceEnvironmentKey is required in seed data")
+	if importData.SourceEnvironmentKey == "" {
+		return errors.New("sourceEnvironmentKey is required in import data")
 	}
-	if seedData.FlagsState == nil {
-		return errors.New("flagsState is required in seed data")
+	if importData.FlagsState == nil {
+		return errors.New("flagsState is required in import data")
 	}
 
 	// Import the project
-	return ImportProjectFromSeed(ctx, projectKey, seedData)
+	return ImportProject(ctx, projectKey, importData)
 }

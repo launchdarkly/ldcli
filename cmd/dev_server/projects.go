@@ -58,7 +58,7 @@ Examples:
   # Get project with basic information
   ldcli dev-server get-project --project=my-project
 
-  # Get project with all data (for seeding/backup)
+  # Get project with all data (for import/backup)
   ldcli dev-server get-project --project=my-project \
     --expand=overrides --expand=availableVariations > backup.json`,
 		RunE:  getProject(client),
