@@ -22,10 +22,22 @@ func NewSeedCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "projects",
 		Args:    validators.Validate(),
-		Long:    "Seed the dev server database from a JSON file. Database must be empty.",
-		RunE:    seed(),
-		Short:   "seed database from file",
-		Use:     "seed",
+		Long: `Seed the dev server database from a JSON file. Database must be empty.
+
+The JSON file format matches the output from:
+  ldcli dev-server get-project --project=<key> \
+    --expand=overrides --expand=availableVariations
+
+Examples:
+  # Export project data (while dev server is running)
+  ldcli dev-server get-project --project=my-project \
+    --expand=overrides --expand=availableVariations > backup.json
+
+  # Later, seed a clean database from backup
+  ldcli dev-server seed --project=my-project --file=backup.json`,
+		RunE:  seed(),
+		Short: "seed database from file",
+		Use:   "seed",
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())

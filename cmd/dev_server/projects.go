@@ -52,10 +52,18 @@ func NewGetProjectCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "projects",
 		Args:    validators.Validate(),
-		Long:    "get the specified project and its configuration for syncing from the LaunchDarkly Service",
-		RunE:    getProject(client),
-		Short:   "get a project",
-		Use:     "get-project",
+		Long: `get the specified project and its configuration for syncing from the LaunchDarkly Service
+
+Examples:
+  # Get project with basic information
+  ldcli dev-server get-project --project=my-project
+
+  # Get project with all data (for seeding/backup)
+  ldcli dev-server get-project --project=my-project \
+    --expand=overrides --expand=availableVariations > backup.json`,
+		RunE:  getProject(client),
+		Short: "get a project",
+		Use:   "get-project",
 	}
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -65,6 +73,9 @@ func NewGetProjectCmd(client resources.Client) *cobra.Command {
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
+	cmd.Flags().StringSlice("expand", []string{}, "Expand options: overrides, availableVariations")
+	_ = viper.BindPFlag("expand", cmd.Flags().Lookup("expand"))
+
 	return cmd
 }
 
@@ -72,10 +83,28 @@ func getProject(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 
 		path := getDevServerUrl() + "/dev/projects/" + viper.GetString(cliflags.ProjectFlag)
-		res, err := client.MakeUnauthenticatedRequest(
+
+		// Add expand query parameters if specified
+		// Try to get from command flags first, then fall back to viper
+		expandOptions, err := cmd.Flags().GetStringSlice("expand")
+		if err != nil {
+			expandOptions = viper.GetStringSlice("expand")
+		}
+
+		// Build query parameters
+		query := make(map[string][]string)
+		if len(expandOptions) > 0 {
+			query["expand"] = expandOptions
+		}
+
+		res, err := client.MakeRequest(
+			"",      // no auth token needed for dev server
 			"GET",
 			path,
-			nil,
+			"application/json",
+			query,
+			nil,     // no body
+			false,   // not beta
 		)
 		if err != nil {
 			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
