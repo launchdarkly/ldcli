@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.1.0](https://github.com/launchdarkly/ldcli/compare/v2.0.1...v2.1.0) (2026-02-03)
+
+
+### Features
+
+* import project ([#636](https://github.com/launchdarkly/ldcli/issues/636)) ([4d945b6](https://github.com/launchdarkly/ldcli/commit/4d945b6cf93e809ee90d8f329e4ac0e25af00973))
+
+## [2.0.1](https://github.com/launchdarkly/ldcli/compare/v2.0.0...v2.0.1) (2025-10-13)
+
+
+### Bug Fixes
+
+* Pin goreleaser-cross sha256 to Fix Publish Action ([#629](https://github.com/launchdarkly/ldcli/issues/629)) ([de9e630](https://github.com/launchdarkly/ldcli/commit/de9e630d48745c89238b7b8a2972304bb784b8f3))
+
+## [2.0.0](https://github.com/launchdarkly/ldcli/compare/v1.18.0...v2.0.0) (2025-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* LD OpenAPI spec update from 17.2.0 to 18.0.0 introduced breaking changes
+
+### Miscellaneous Chores
+
+* regenerate from LD OpenAPI spec representing client version 18.0.0 [EXPT-3347] ([#627](https://github.com/launchdarkly/ldcli/issues/627)) ([367c737](https://github.com/launchdarkly/ldcli/commit/367c737f23151090729093e8a699a74a7dbde9f4))
+
 ## [1.18.0](https://github.com/launchdarkly/ldcli/compare/v1.17.2...v1.18.0) (2025-09-30)
 
 
