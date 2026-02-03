@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/launchdarkly/ldcli/compare/v2.0.1...v2.1.0) (2026-02-03)
+
+
+### Features
+
+* import project ([#636](https://github.com/launchdarkly/ldcli/issues/636)) ([4d945b6](https://github.com/launchdarkly/ldcli/commit/4d945b6cf93e809ee90d8f329e4ac0e25af00973))
+
 ## [2.0.1](https://github.com/launchdarkly/ldcli/compare/v2.0.0...v2.0.1) (2025-10-13)
 
 
