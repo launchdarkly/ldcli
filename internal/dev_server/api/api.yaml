@@ -113,6 +113,54 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         409:
           $ref: "#/components/responses/ErrorResponse"
+  /projects/{projectKey}/import:
+    post:
+      summary: Import a project from JSON data
+      operationId: postImportProject
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceEnvironmentKey
+                - flagsState
+                - context
+              properties:
+                sourceEnvironmentKey:
+                  type: string
+                  description: environment to copy flag values from
+                context:
+                  $ref: "#/components/schemas/Context"
+                flagsState:
+                  type: object
+                  description: flags and their values for the project
+                  x-go-type: model.FlagsState
+                  x-go-type-import:
+                    path: github.com/launchdarkly/ldcli/internal/dev_server/model
+                overrides:
+                  type: object
+                  description: overridden flags for the project
+                  x-go-type: model.FlagsState
+                  x-go-type-import:
+                    path: github.com/launchdarkly/ldcli/internal/dev_server/model
+                availableVariations:
+                  type: object
+                  description: available variations for each flag
+                  additionalProperties:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Variation'
+      responses:
+        201:
+          $ref: "#/components/responses/Project"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
+        409:
+          $ref: "#/components/responses/ErrorResponse"
   /projects/{projectKey}/overrides:
     delete:
       summary: remove all overrides for the given project
