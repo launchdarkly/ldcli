@@ -113,6 +113,28 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         409:
           $ref: "#/components/responses/ErrorResponse"
+  /projects/{projectKey}/import:
+    post:
+      summary: Import a project from exported JSON data
+      description: |
+        Import a project using the JSON format from get-project with expand options.
+        Accepts the same format that is exported by the get-project endpoint.
+      operationId: postImportProject
+      parameters:
+        - $ref: "#/components/parameters/projectKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Project"
+      responses:
+        201:
+          $ref: "#/components/responses/Project"
+        400:
+          $ref: "#/components/responses/ErrorResponse"
+        409:
+          $ref: "#/components/responses/ErrorResponse"
   /projects/{projectKey}/overrides:
     delete:
       summary: remove all overrides for the given project
