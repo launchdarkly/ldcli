@@ -19,7 +19,7 @@ func (s server) PostImportProject(ctx context.Context, request PostImportProject
 		}, nil
 	}
 
-	if len(request.Body.FlagsState) == 0 {
+	if request.Body.FlagsState == nil || len(*request.Body.FlagsState) == 0 {
 		return PostImportProject400JSONResponse{
 			ErrorResponseJSONResponse{
 				Code:    "invalid_request",
@@ -32,7 +32,7 @@ func (s server) PostImportProject(ctx context.Context, request PostImportProject
 	importData := model.ImportData{
 		Context:              request.Body.Context,
 		SourceEnvironmentKey: request.Body.SourceEnvironmentKey,
-		FlagsState:           request.Body.FlagsState,
+		FlagsState:           *request.Body.FlagsState,
 		Overrides:            request.Body.Overrides,
 	}
 

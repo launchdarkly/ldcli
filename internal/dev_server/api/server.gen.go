@@ -233,24 +233,6 @@ type GetEnvironmentsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// PostImportProjectJSONBody defines parameters for PostImportProject.
-type PostImportProjectJSONBody struct {
-	// AvailableVariations available variations for each flag
-	AvailableVariations *map[string][]Variation `json:"availableVariations,omitempty"`
-
-	// Context context object to use when evaluating flags in source environment
-	Context Context `json:"context"`
-
-	// FlagsState flags and their values for the project
-	FlagsState model.FlagsState `json:"flagsState"`
-
-	// Overrides overridden flags for the project
-	Overrides *model.FlagsState `json:"overrides,omitempty"`
-
-	// SourceEnvironmentKey environment to copy flag values from
-	SourceEnvironmentKey string `json:"sourceEnvironmentKey"`
-}
-
 // PatchProjectJSONRequestBody defines body for PatchProject for application/json ContentType.
 type PatchProjectJSONRequestBody PatchProjectJSONBody
 
@@ -258,7 +240,7 @@ type PatchProjectJSONRequestBody PatchProjectJSONBody
 type PostAddProjectJSONRequestBody PostAddProjectJSONBody
 
 // PostImportProjectJSONRequestBody defines body for PostImportProject for application/json ContentType.
-type PostImportProjectJSONRequestBody PostImportProjectJSONBody
+type PostImportProjectJSONRequestBody = Project
 
 // PutOverrideFlagJSONRequestBody defines body for PutOverrideFlag for application/json ContentType.
 type PutOverrideFlagJSONRequestBody = FlagValue
@@ -298,7 +280,7 @@ type ServerInterface interface {
 	// list all environments for the given project
 	// (GET /projects/{projectKey}/environments)
 	GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetEnvironmentsParams)
-	// Import a project from JSON data
+	// Import a project from exported JSON data
 	// (POST /projects/{projectKey}/import)
 	PostImportProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
 	// remove all overrides for the given project
@@ -1408,7 +1390,7 @@ type StrictServerInterface interface {
 	// list all environments for the given project
 	// (GET /projects/{projectKey}/environments)
 	GetEnvironments(ctx context.Context, request GetEnvironmentsRequestObject) (GetEnvironmentsResponseObject, error)
-	// Import a project from JSON data
+	// Import a project from exported JSON data
 	// (POST /projects/{projectKey}/import)
 	PostImportProject(ctx context.Context, request PostImportProjectRequestObject) (PostImportProjectResponseObject, error)
 	// remove all overrides for the given project
