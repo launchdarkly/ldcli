@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/launchdarkly/ldcli/compare/v2.1.0...v2.2.0) (2026-02-20)
+
+
+### Features
+
+* regenerate source code from latest OpenAPI spec ([#645](https://github.com/launchdarkly/ldcli/issues/645)) ([98a4d5b](https://github.com/launchdarkly/ldcli/commit/98a4d5be283a2a1f7780d97fc639309349716993))
+
 ## [2.1.0](https://github.com/launchdarkly/ldcli/compare/v2.0.1...v2.1.0) (2026-02-03)
 
 
