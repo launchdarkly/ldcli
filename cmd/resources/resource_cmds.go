@@ -10882,4 +10882,3 @@ func AddAllResourceCmds(
 	})
 
 }
-
