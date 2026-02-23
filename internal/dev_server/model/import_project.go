@@ -43,7 +43,7 @@ func ImportProject(ctx context.Context, projectKey string, importData ImportData
 		// Project doesn't exist, continue with import
 	} else if existingProject != nil {
 		// Project exists, cannot import
-		return errors.Errorf("project '%s' already exists, cannot import", projectKey)
+		return NewErrAlreadyExists("project", projectKey)
 	}
 
 	// Create project from import data
