@@ -46,12 +46,12 @@ func AddAllResourceCmds(
 		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nThe account usage API lets you query for metrics about how your account is using LaunchDarkly. To learn more, read [Account usage metrics](https://launchdarkly.com/docs/home/account/metrics).\n\nEach endpoint returns time-series data in the form of an array of data points with timestamps. Each one contains data for that time from one or more series. It also includes a metadata array describing what each of the series is.\n",
 	)
 
-	gen_AiConfigsBetaResourceCmd := NewResourceCmd(
+	gen_AiConfigsResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
 		markdownRenderer,
-		"ai-configs-beta",
-		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\nThe AI Configs API allows you to create, retrieve, and edit AI Configs, AI Config variations, and AI model configurations.\n\nAn AI Config is a resource in LaunchDarkly that you can use to customize, test, and roll out new large language models (LLMs) within your generative AI applications. Within each AI Config, you define one or more AI Config variations, each of which includes a model configuration and one or more messages. The model configuration can be a standard one from the list provided by LaunchDarkly, or you can define your own custom AI model configuration.\n\nTo learn more, read [AI Configs](https://launchdarkly.com/docs/home/ai-configs).\n",
+		"ai-configs",
+		"The AI Configs API allows you to create, retrieve, and edit AI Configs, AI Config variations, and AI model configurations.\n\nAn AI Config is a resource in LaunchDarkly that you can use to customize, test, and roll out new large language models (LLMs) within your generative AI applications. Within each AI Config, you define one or more AI Config variations, each of which includes a model configuration and one or more messages. The model configuration can be a standard one from the list provided by LaunchDarkly, or you can define your own custom AI model configuration.\n\nTo learn more, read [AI Configs](https://launchdarkly.com/docs/home/ai-configs).\n",
 	)
 
 	gen_AnnouncementsResourceCmd := NewResourceCmd(
@@ -115,7 +115,7 @@ func AddAllResourceCmds(
 		analyticsTrackerFn,
 		markdownRenderer,
 		"contexts",
-		"\nContexts are people, services, machines, or other resources that encounter feature flags in your product. Contexts are identified by their `kind`, which describes the type of resources encountering flags, and by their `key`. Each unique combination of one or more contexts that have encountered a feature flag in your product is called a context instance.\n\nWhen you use the LaunchDarkly SDK to evaluate a flag, you provide a context to that call. LaunchDarkly records the key and attributes of each context instance. You can view these in the LaunchDarkly user interface from the **Contexts** list, or use the Context APIs. To learn more, read [Contexts](https://launchdarkly.com/docs/home/observability/contexts).\n\nLaunchDarkly provides APIs for you to:\n\n* retrieve contexts, context instances, and context attribute names and values\n* search for contexts or context instances\n* delete context instances\n* fetch context kinds\n* create and update context kinds\n\nTo learn more about context kinds, read [Context kinds](https://launchdarkly.com/docs/home/observability/context-kinds).\n\nContexts are always scoped within a project and an environment. Each environment has its own set of context instance records.\n\nSeveral of the endpoints in the contexts API require a context instance ID or application ID. Both of these IDs are returned as part of the [Search for context instances](https://launchdarkly.com/docs/api/contexts/search-context-instances) response. The context instance ID is the `id` field of each element in the `items` array. The application ID is the `applicationId` field of each element in the `items` array. By default, the application ID is set to the SDK you are using. In the LaunchDarkly UI, the application ID and application version appear on the context details page in the \"From source\" field. You can change the application ID as part of your SDK configuration. To learn more, read [Application metadata configuration](https://launchdarkly.com/docs/sdk/features/app-config).\n\n### Filtering contexts and context instances\n\nWhen you [search for contexts](https://launchdarkly.com/docs/api/contexts/search-contexts) or [context instances](https://launchdarkly.com/docs/api/contexts/search-context-instances), you can filter on certain fields using the `filter` parameter either as a query parameter or as a request body parameter.\n\nThe `filter` parameter supports the following operators: `after`, `anyOf`, `before`, `contains`, `equals`, `exists`, `notEquals`, `startsWith`.\n\n\u003cdetails\u003e\n\u003csummary\u003eExpand for details on operators and syntax\u003c/summary\u003e\n\n#### after\n\nReturns contexts or context instances if any of the values in a field, which should be dates, are after the provided time. For example:\n\n* `myField after \"2022-09-21T19:03:15+00:00\"`\n\n#### anyOf\n\nReturns contexts or context instances if any of the values in a field match any of the values in the match value. For example:\n\n* `myField anyOf [44]`\n* `myField anyOf [\"phone\",\"tablet\"]`\n* `myField anyOf [true]\"`\n\n#### before\n\nReturns contexts or context instances if any of the values in a field, which should be dates, are before the provided time. For example:\n\n* `myField before \"2022-09-21T19:03:15+00:00\"`\n\n#### contains\n\nReturns contexts or context instances if all the match values are found in the list of values in this field. For example:\n\n* `myListField contains 44`\n* `myListField contains [\"phone\",\"tablet\"]`\n* `myListField contains true`\n\n#### equals\n\nReturns contexts or context instances if there is an exact match on the entire field. For example:\n\n* `myField equals 44`\n* `myField equals \"device\"`\n* `myField equals true`\n* `myField equals [1,2,3,4]`\n* `myField equals [\"hello\",\"goodbye\"]`\n\n#### exists\n\nReturns contexts or context instances if the field matches the specified existence. For example:\n\n* `myField exists true`\n* `myField exists false`\n* `*.name exists true`\n\n#### notEquals\n\nReturns contexts or context instances if there is not an exact match on the entire field. For example:\n\n* `myField notEquals 44`\n* `myField notEquals \"device\"`\n* `myField notEquals true`\n* `myField notEquals [1,2,3,4]`\n* `myField notEquals [\"hello\",\"goodbye\"]`\n\n#### startsWith\n\nReturns contexts or context instances if the value in a field, which should be a singular string, begins with the provided substring. For example:\n\n* `myField startsWith \"do\"`\n\n\u003c/details\u003e\n\nYou can also combine filters in the following ways:\n\n* Use a comma (`,`) as an AND operator\n* Use a vertical bar (`|`) as an OR operator\n* Use parentheses `()` to group filters\n\nFor example:\n\n* `myField notEquals 0, myField notEquals 1` returns contexts or context instances where `myField` is not 0 and is not 1\n* `myFirstField equals \"device\",(mySecondField equals \"iPhone\"|mySecondField equals \"iPad\")` returns contexts or context instances where `myFirstField` is equal to \"device\" and `mySecondField` is equal to either \"iPhone\" or \"iPad\"\n\n#### Supported fields and operators\n\nYou can only filter certain fields in contexts and context instances when using the `filter` parameter. Additionally, you can only filter some fields with certain operators.\n\nWhen you search for [contexts](https://launchdarkly.com/docs/api/contexts/search-contexts), the `filter` parameter supports the following fields and operators:\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n|`applicationId` |An identifier representing the application where the LaunchDarkly SDK is running. |`equals`, `notEquals`, `anyOf` |\n|`id` |Unique identifier for the context. |`equals`, `notEquals`, `anyOf` |\n|`key` |The context key. |`equals`, `notEquals`, `anyOf`, `startsWith` |\n|`kind` |The context kind. |`equals`, `notEquals`, `anyOf` |\n|`kinds` |A list of all kinds found in the context. Supply a list of strings to the operator. |`equals`, `anyOf`, `contains` |\n|`kindKey` |The kind and key for the context. They are joined with `:`, for example, `user:user-key-abc123`. |`equals`, `notEquals`, `anyOf` |\n|`kindKeys` |A list of all kinds and keys found in the context. The kind and key are joined with `:`, for example, `user:user-key-abc123`. Supply a list of strings to the operator. |`equals`, `anyOf`, `contains` |\n|`q` |A \"fuzzy\" search across context attribute values and the context key. Supply a string or list of strings to the operator.  |`equals` |\n|`name` |The name for the context. |`equals`, `notEquals`, `exists`, `anyOf`, `startsWith` |\n|`\u003ca kind\u003e.\u003can attribute name\u003e` |A kind and the name of any attribute that appears in a context of that kind, for example, `user.email`. To filter all kinds, use `*` in place of the kind, for example, `*.email`. You can use either a literal attribute name or a JSON path to specify the attribute. If you use a JSON path, then you must escape the `/` character, using `~1`, and the `~` character, using `~0`. For example, use `user.job/title` or `user./job~1title` to filter the `/job/title` field in a user context kind. If the field or value includes whitespace, it should be enclosed in double quotes. |`equals`, `notEquals`, `exists`, `startsWith`, `before`, `after`.|\n\nWhen searching for [context instances](https://launchdarkly.com/docs/api/contexts/search-context-instances), the `filter` parameter supports the following fields and operators\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n|`applicationId` |An identifier representing the application where the LaunchDarkly SDK is running. |`equals`, `notEquals`, `anyOf` |\n|`id` |Unique identifier for the context instance. |`equals`, `notEquals`, `anyOf` |\n|`kinds` |A list of all kinds found in the context instance. Supply a list of strings to the operator. |`equals`, `anyOf`, `contains` |\n|`kindKeys` |A list of all kinds and keys found in the context instance. The kind and key are joined with `:`, for example, `user:user-key-abc123`. Supply a list of strings to the operator. |`equals`, `anyOf`, `contains` |\n",
+		"\nContexts are people, services, machines, or other resources that encounter feature flags in your product. Contexts are identified by their `kind`, which describes the type of resources encountering flags, and by their `key`. Each unique combination of one or more contexts that have encountered a feature flag in your product is called a context instance.\n\nWhen you use the LaunchDarkly SDK to evaluate a flag, you provide a context to that call. LaunchDarkly records the key and attributes of each context instance. You can view these in the LaunchDarkly user interface from the **Contexts** list, or use the Context APIs. To learn more, read [Contexts](https://launchdarkly.com/docs/home/observability/contexts).\n\nLaunchDarkly provides APIs for you to:\n\n* retrieve contexts, context instances, and context attribute names and values\n* search for contexts or context instances\n* delete context instances\n* fetch context kinds\n* create and update context kinds\n\nTo learn more about context kinds, read [Context kinds](https://launchdarkly.com/docs/home/observability/context-kinds).\n\nContexts are always scoped within a project and an environment. Each environment has its own set of context instance records.\n\nSeveral of the endpoints in the contexts API require a context instance ID or application ID. Both of these IDs are returned as part of the [Search for context instances](https://launchdarkly.com/docs/api/contexts/search-context-instances) response. The context instance ID is the `id` field of each element in the `items` array. The application ID is the `applicationId` field of each element in the `items` array. By default, the application ID is set to the SDK you are using. In the LaunchDarkly UI, the application ID and application version appear on the context details page in the \"From source\" field. You can change the application ID as part of your SDK configuration. To learn more, read [Application metadata configuration](https://launchdarkly.com/docs/sdk/features/app-config).\n\n### Filtering contexts and context instances\n\nWhen you [search for contexts](https://launchdarkly.com/docs/api/contexts/search-contexts) or [context instances](https://launchdarkly.com/docs/api/contexts/search-context-instances), you can filter the results using fields and operators with the `filter` parameter. Specify `filter` either as a query parameter or as a request body parameter.\n\nThe `filter` parameter supports the following operators: `after`, `anyOf`, `before`, `contains`, `equals`, `exists`, `notEquals`, `startsWith`.\n\n\u003cdetails\u003e\n\u003csummary\u003eExpand for details on operators and syntax\u003c/summary\u003e\n\n#### after\n\nReturns contexts or context instances if the date field value occurs after the specified time. For example:\n\n* `myField after \"2022-09-21T19:03:15+00:00\"`\n\n#### anyOf\n\nReturns contexts or context instances if any field value matches any of the provided values. For example:\n\n* `myField anyOf [44]`\n* `myField anyOf [\"phone\",\"tablet\"]`\n* `myField anyOf [true]\"`\n\n#### before\n\nReturns contexts or context instances if the date field value occurs before the provided time. For example:\n\n* `myField before \"2022-09-21T19:03:15+00:00\"`\n\n#### contains\n\nReturns contexts or context instances if the field's list of values contains all of the provided values. For example:\n\n* `myListField contains 44`\n* `myListField contains [\"phone\",\"tablet\"]`\n* `myListField contains true`\n\n#### equals\n\nReturns contexts or context instances only if the field value exactly matches the provided value. For example:\n\n* `myField equals 44`\n* `myField equals \"device\"`\n* `myField equals true`\n* `myField equals [1,2,3,4]`\n* `myField equals [\"hello\",\"goodbye\"]`\n\n#### exists\n\nReturns contexts or context instances based on whether the specified field exists. For example:\n\n* `myField exists true`\n* `myField exists false`\n* `*.name exists true`\n\n#### notEquals\n\nReturns contexts or context instances if the field value does not exactly match the provided value. For example:\n\n* `myField notEquals 44`\n* `myField notEquals \"device\"`\n* `myField notEquals true`\n* `myField notEquals [1,2,3,4]`\n* `myField notEquals [\"hello\",\"goodbye\"]`\n\n#### startsWith\n\nReturns contexts or context instances if a singular string field value begins with the provided substring. For example:\n\n* `myField startsWith \"do\"`\n\n\u003c/details\u003e\n\nYou can also combine filters in the following ways:\n\n* Use a comma (`,`) as an AND operator\n* Use a vertical bar (`|`) as an OR operator\n* Use parentheses `()` to group filters\n\nFor example:\n\n* `myField notEquals 0, myField notEquals 1` returns contexts or context instances where `myField` is not 0 and is not 1\n* `myFirstField equals \"device\",(mySecondField equals \"iPhone\"|mySecondField equals \"iPad\")` returns contexts or context instances where `myFirstField` is equal to \"device\" and `mySecondField` is equal to either \"iPhone\" or \"iPad\"\n\n#### Supported fields and operators\n\nThe `filter` parameter accepts different field types depending on whether you search for contexts or context instances. Also, you can only filter some fields using certain operators.\n\nWhen you search for [contexts](https://launchdarkly.com/docs/api/contexts/search-contexts), the `filter` parameter supports the following fields and operators:\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n|`applicationId` |An identifier that represents the application where the LaunchDarkly SDK is running. |`equals`, `notEquals`, `anyOf` |\n|`id` |The unique identifier for the context. |`equals`, `notEquals`, `anyOf` |\n|`key` |The context key. |`equals`, `notEquals`, `anyOf`, `startsWith` |\n|`kind` |The context kind. |`equals`, `notEquals`, `anyOf` |\n|`kinds` |A list of all kinds found in the context. Supply a list of strings to the operator. |`equals`, `anyOf`, `contains` |\n|`kindKey` |The kind and key for the context, joined with a `:`. For example, `user:user-key-abc123`. |`equals`, `notEquals`, `anyOf` |\n|`kindKeys` |A list of all kinds and keys found in the context. Join the kind and key with a `:`. For example, `user:user-key-abc123`. Supply a list of strings to the operator. |`equals`, `anyOf`, `contains` |\n|`q` |A \"fuzzy\" search across context attribute values and the context key. Supply a string or list of strings to the operator.  |`equals` |\n|`name` |The name for the context. |`equals`, `notEquals`, `exists`, `anyOf`, `startsWith` |\n|`\u003ca kind\u003e.\u003can attribute name\u003e` |A kind and the name of any attribute that appears in a context of that kind, for example, `user.email`. To filter all kinds use `*` in place of the kind. For example, `*.email`. You can use either a literal attribute name or a JSON path to specify the attribute. If you use a JSON path, then you must escape the `/` character using `~1`, and escape the `~` character using `~0`. For example, use `user.job/title` or `user./job~1title` to filter the `/job/title` field in a user context kind. If the field or value includes whitespace, enclose it in double quotes. |`equals`, `notEquals`, `exists`, `startsWith`, `before`, `after`.|\n\nWhen searching for [context instances](https://launchdarkly.com/docs/api/contexts/search-context-instances), the `filter` parameter supports the following fields and operators:\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n|`applicationId` |An identifier representing the application where the LaunchDarkly SDK is running. |`equals`, `notEquals`, `anyOf` |\n|`id` |The unique identifier for the context instance. |`equals`, `notEquals`, `anyOf` |\n|`kinds` |A list of all kinds found in the context instance. Supply a list of strings to the operator. |`equals`, `anyOf`, `contains` |\n|`kindKeys` |A list of all kinds and keys found in the context instance. The kind and key are joined with `:`. For example, `user:user-key-abc123`. Supply a list of strings to the operator. |`equals`, `anyOf`, `contains` |\n",
 	)
 
 	gen_CustomRolesResourceCmd := NewResourceCmd(
@@ -294,14 +294,6 @@ func AddAllResourceCmds(
 		"The account members API allows you to invite new members to an account by making a `POST` request to `/api/v2/members`. When you invite a new member to an account, an invitation is sent to the email you provided. Members with Admin or Owner roles may create new members, as well as anyone with a `createMember` permission for \"member/\\*\". To learn more, read [LaunchDarkly account members](https://launchdarkly.com/docs/home/account/members).\n\nAny member may request the complete list of account members with a `GET` to `/api/v2/members`.\n\nSeveral of the endpoints in the account members API require a member ID. The member ID is returned as part of the [Invite new members](https://launchdarkly.com/docs/api/account-members/post-members) and [List account members](https://launchdarkly.com/docs/api/account-members/get-members) responses. It is the `_id` field of each element in the `items` array.\n",
 	)
 
-	gen_MembersBetaResourceCmd := NewResourceCmd(
-		rootCmd,
-		analyticsTrackerFn,
-		markdownRenderer,
-		"members-beta",
-		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n",
-	)
-
 	gen_MetricGroupsBetaResourceCmd := NewResourceCmd(
 		rootCmd,
 		analyticsTrackerFn,
@@ -347,7 +339,7 @@ func AddAllResourceCmds(
 		analyticsTrackerFn,
 		markdownRenderer,
 		"release-pipelines-beta",
-		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nRelease pipelines standardize the release process for feature flags across a series of phases, where each phase consists of one or more environments. When you add a flag to a release pipeline, you create a \"release\" to automate that flag's progress through the pipeline.\n\nYou can use release pipelines to ensure that you correctly roll out the flag in each environment before moving on to the next. A release can use an immediate or guarded rollout to a designated audience, and can require approvals for selected environments. You can also use release pipelines to view the status of ongoing releases across all flags within a project, enforcing a standardized process and ensuring they are following best practices. To learn more, read [Release pipelines](https://launchdarkly.com/docs/home/releases/release-pipelines).\n\nWith the release pipelines API, you can view, create, update, and delete release pipelines.\n\nWith the related [releases API](https://launchdarkly.com/docs/api/releases-beta), you can view and update the active releases for a given flag.\n\nTo add a feature flag to an existing release pipeline, use the [Update feature flag](https://launchdarkly.com/docs/api/feature-flags/patch-feature-flag) endpoint.\n",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nRelease pipelines standardize and automate the release process for feature flags across a series of phases, where each phase consists of one or more environments and audiences. Each phase can use an immediate or guarded rollout to a designated audience, and can require approvals for selected environments. You can use release pipelines to ensure that you correctly roll out a flag in one environment before moving on to the next. To learn more, read [Release pipelines](https://launchdarkly.com/docs/home/releases/release-pipelines).\n\nUse the release pipelines API to view, create, update, and delete release pipelines. You can also use this API to view the progress of all ongoing releases across all flags in a project for a given release pipeline. \n\n### Creating releases and updating release phases\n\nWhen you add a flag to a release pipeline, you create a new \"release\" to automate that flag's progress through phases in the pipeline.\n\nUse the related [releases API](https://launchdarkly.com/docs/api/releases-beta) to create a new release, or to view or update a release for a given flag. For example, you can use the releases API to add a flag to an existing release pipeline, or to start the next phase of a flag's ongoing release.\n",
 	)
 
 	gen_ReleasePoliciesBetaResourceCmd := NewResourceCmd(
@@ -363,7 +355,7 @@ func AddAllResourceCmds(
 		analyticsTrackerFn,
 		markdownRenderer,
 		"releases-beta",
-		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nRelease pipelines track the progression of a feature flag across a series of phases, where each phase consists of one or more environments. When you add a flag to a release pipeline, you create a \"release\" to track that flag's progress through the pipeline. To learn more, read [Release pipelines](https://launchdarkly.com/docs/home/releases/release-pipelines).\n\nWith the releases API, you can view and update the active releases for a given flag.\n\nWith the related [release pipelines API](https://launchdarkly.com/docs/api/release-pipelines-beta), you can view, create, and delete release pipelines.\n",
+		"\u003e ### This feature is in beta\n\u003e\n\u003e To use this feature, pass in a header including the `LD-API-Version` key with value set to `beta`. Use this header with each call. To learn more, read [Beta resources](https://launchdarkly.com/docs/api#beta-resources).\n\u003e\n\u003e Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.\n\nRelease pipelines standardize and automate the release process for feature flags across a series of phases, where each phase consists of one or more environments and audiences. When you add a flag to an existing release pipeline, you create a \"release\" to automate that flag's progress through the pipeline. \n\nUse the releases API to add a flag to an existing release pipeline, or to monitor or update an ongoing release for a flag. Updating an ongoing release generally involves the following steps:\n\n1. Obtain the release phases associated with the release. The `phases` field provides an ordered list of all pipeline phases associated with the flag's release. `phases` is returned in the response when you [Create a new release for a flag](https://launchdarkly.com/docs/api/releases-beta/create-release-for-flag) or [Get the release for a flag](https://launchdarkly.com/docs/api/releases-beta/get-release-by-flag-key).\n\n2. Determine the `_id` of the phase you want to start. Release pipeline phases take place in their configured order, so find the first incomplete, unstarted phase in the `phases` list. For example, in a newly-created release the first phase in the `phases` list has both the `complete` and `started` fields set to `false`.\n\n3. Use the phase `_id` value with the [Update phase status for release](https://launchdarkly.com/docs/api/releases-beta/update-phase-status) endpoint to start the release phase. At a minimum, you must provide `{\"status\": active}` in the request object to start a pipeline phase. If the phase requires approvals or guarded rollouts, provide the additional required information in the `audiences` list.\n\n### Configuring release pipelines\n\nUse the related [release pipelines API](https://launchdarkly.com/docs/api/release-pipelines-beta) to view, create, update, and delete release pipelines, or to view the progress of all ongoing releases across all flags in a project for a given release pipeline. \n",
 	)
 
 	gen_ScheduledChangesResourceCmd := NewResourceCmd(
@@ -371,7 +363,7 @@ func AddAllResourceCmds(
 		analyticsTrackerFn,
 		markdownRenderer,
 		"scheduled-changes",
-		"\u003e ### Scheduled flag changes is an Enterprise feature\n\u003e\n\u003e Scheduled flag changes is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nSchedule the specified flag targeting changes to take effect at the selected time. You may schedule multiple changes for a flag each with a different `ExecutionDate`. To learn more, read [Scheduled flag changes](https://launchdarkly.com/docs/home/releases/scheduled-changes).\n\nSeveral of the endpoints in the scheduled changes API require a scheduled change ID. The scheduled change ID is returned as part of the [Create scheduled changes workflow](https://launchdarkly.com/docs/api/scheduled-changes/post-flag-config-scheduled-changes) and [List scheduled changes](https://launchdarkly.com/docs/api/scheduled-changes/get-flag-config-scheduled-changes) responses. It is the `_id` field, or the `_id` field of each element in the `items` array.\n",
+		"\u003e ### Scheduled flag changes is an Enterprise feature\n\u003e\n\u003e Scheduled flag changes is available to customers on an Enterprise plan. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nYou can schedule flag targeting rule changes to take place at a selected time. You may schedule multiple changes for a single flag with each change having a different `ExecutionDate`. To learn more, read [Scheduled flag changes](https://launchdarkly.com/docs/home/releases/scheduled-changes).\n\nSeveral endpoints in the scheduled changes API require an existing scheduled change ID. This ID is returned in the `_id` field from the [Create scheduled changes workflow](https://launchdarkly.com/docs/api/scheduled-changes/post-flag-config-scheduled-changes) response, or in the `_id` field of each element in the `items` array from the [List scheduled changes](https://launchdarkly.com/docs/api/scheduled-changes/get-flag-config-scheduled-changes) response.\n",
 	)
 
 	gen_SegmentsResourceCmd := NewResourceCmd(
@@ -1074,6 +1066,148 @@ func AddAllResourceCmds(
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get MAU clientside usage",
+		Long:  "Get a time series of the number of context key usages observed by LaunchDarkly in your account, for the primary context kind only. The counts reflect data reported from client-side SDKs.\u003cbr/\u003e\u003cbr/\u003eFor past months, the primary context kind is fixed and reflects the last known primary kind for that month. For the current month, it may vary as new primary context kinds are observed.\u003cbr/\u003e\u003cbr/\u003eThe supported granularity varies by aggregation type. The maximum time range is 365 days.",
+		Use:   "get-mau-clientside-usage",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp (Unix milliseconds). Defaults to the beginning of the current month.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp (Unix milliseconds). Defaults to the current time.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "query",
+				Description: "A project key to filter results by. Can be specified multiple times, one query parameter per project key.",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "query",
+				Description: "An environment key to filter results by. If specified, exactly one 'projectKey' must be provided. Can be specified multiple times, one query parameter per environment key.",
+				Type:        "string",
+			},
+			{
+				Name:        "sdk-name",
+				In:          "query",
+				Description: "An SDK name to filter results by. Can be specified multiple times, one query parameter per SDK name.",
+				Type:        "string",
+			},
+			{
+				Name:        "anonymous",
+				In:          "query",
+				Description: "An anonymous value to filter results by. Can be specified multiple times, one query parameter per anonymous value.\u003cbr/\u003eValid values: 'true', 'false'.",
+				Type:        "string",
+			},
+			{
+				Name:        "group-by",
+				In:          "query",
+				Description: "If specified, returns data for each distinct value of the given field. Can be specified multiple times to group data by multiple dimensions, one query parameter per dimension.\u003cbr/\u003eValid values: 'projectId', 'environmentId', 'sdkName', 'sdkAppId', 'anonymousV2'.",
+				Type:        "string",
+			},
+			{
+				Name:        "aggregation-type",
+				In:          "query",
+				Description: "Specifies the aggregation method. Defaults to 'month_to_date'.\u003cbr/\u003eValid values: 'month_to_date', 'incremental', 'rolling_30d'.",
+				Type:        "string",
+			},
+			{
+				Name:        "granularity",
+				In:          "query",
+				Description: "Specifies the data granularity. Defaults to 'daily'. Valid values depend on 'aggregationType': **month_to_date** supports 'daily' and 'monthly'; **incremental** and **rolling_30d** support 'daily' only.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/clientside-mau",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get MAU total usage",
+		Long:  "Get a time series of the number of context key usages observed by LaunchDarkly in your account, for the primary context kind only.\u003cbr/\u003e\u003cbr/\u003eFor past months, this reflects the context kind that was most recently marked as primary for that month. For the current month, the context kind may vary as new primary kinds are observed.\u003cbr/\u003e\u003cbr/\u003eThe supported granularity varies by aggregation type. The maximum time range is 365 days.",
+		Use:   "get-mau-total-usage",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp (Unix milliseconds). Defaults to the beginning of the current month.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp (Unix milliseconds). Defaults to the current time.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "query",
+				Description: "A project key to filter results by. Can be specified multiple times, one query parameter per project key.",
+				Type:        "string",
+			},
+			{
+				Name:        "environment-key",
+				In:          "query",
+				Description: "An environment key to filter results by. If specified, exactly one 'projectKey' must be provided. Can be specified multiple times, one query parameter per environment key.",
+				Type:        "string",
+			},
+			{
+				Name:        "sdk-name",
+				In:          "query",
+				Description: "An SDK name to filter results by. Can be specified multiple times, one query parameter per SDK name.",
+				Type:        "string",
+			},
+			{
+				Name:        "sdk-type",
+				In:          "query",
+				Description: "An SDK type to filter results by. Can be specified multiple times, one query parameter per SDK type.",
+				Type:        "string",
+			},
+			{
+				Name:        "anonymous",
+				In:          "query",
+				Description: "An anonymous value to filter results by. Can be specified multiple times, one query parameter per anonymous value.\u003cbr/\u003eValid values: 'true', 'false'.",
+				Type:        "string",
+			},
+			{
+				Name:        "group-by",
+				In:          "query",
+				Description: "If specified, returns data for each distinct value of the given field. Can be specified multiple times to group data by multiple dimensions, one query parameter per dimension.\u003cbr/\u003eValid values: 'projectId', 'environmentId', 'sdkName', 'sdkType', 'sdkAppId', 'anonymousV2'.",
+				Type:        "string",
+			},
+			{
+				Name:        "aggregation-type",
+				In:          "query",
+				Description: "Specifies the aggregation method. Defaults to 'month_to_date'.\u003cbr/\u003eValid values: 'month_to_date', 'incremental', 'rolling_30d'.",
+				Type:        "string",
+			},
+			{
+				Name:        "granularity",
+				In:          "query",
+				Description: "Specifies the data granularity. Defaults to 'daily'. Valid values depend on 'aggregationType': **month_to_date** supports 'daily' and 'monthly'; **incremental** and **rolling_30d** support 'daily' only.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/total-mau",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get MAU SDKs by type",
 		Long:  "Get a list of SDKs. These are all of the SDKs that have connected to LaunchDarkly by monthly active users (MAU) in the requested time period.\u003cbr/\u003e\u003cbr/\u003eEndpoints for retrieving monthly active users (MAU) do not return information about active context instances. After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should not rely on this endpoint. To learn more, read [Account usage metrics](https://launchdarkly.com/docs/home/account/metrics).",
 		Use:   "get-mau-sdks-by-type",
@@ -1575,17 +1709,11 @@ func AddAllResourceCmds(
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Delete AI Config",
 		Long:  "Delete an existing AI Config.",
 		Use:   "delete-ai-config",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -1601,23 +1729,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Delete AI Config variation",
 		Long:  "Delete a specific variation of an AI Config by config key and variation key.",
 		Use:   "delete-ai-config-variation",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -1639,23 +1761,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}/variations/{variationKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Delete AI tool",
 		Long:  "Delete an existing AI tool.",
 		Use:   "delete-ai-tool",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -1671,16 +1787,16 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-tools/{toolKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "Delete an AI model config",
-		Long:  "Delete an AI model config.",
-		Use:   "delete-model-config",
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Delete agent graph",
+		Long:  "Delete an existing agent graph and all of its edges.",
+		Use:   "delete-agent-graph",
 		Params: []Param{
 			{
 				Name:        "ld-api-version",
@@ -1688,6 +1804,32 @@ func AddAllResourceCmds(
 				Description: "Version of the endpoint.",
 				Type:        "string",
 			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "graph-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "DELETE",
+		HasBody:               false,
+		IsBeta:                false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/agent-graphs/{graphKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Delete an AI model config",
+		Long:  "Delete an AI model config.",
+		Use:   "delete-model-config",
+		Params: []Param{
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -1703,23 +1845,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/model-configs/{modelConfigKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Remove AI models from the restricted list",
 		Long:  "Remove AI models, by key, from the restricted list.",
 		Use:   "delete-restricted-models",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -1729,24 +1865,18 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "DELETE",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/model-configs/restricted",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get AI Config",
 		Long:  "Retrieve a specific AI Config by its key.",
 		Use:   "get-ai-config",
 		Params: []Param{
 			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
 				Name:        "project-key",
 				In:          "path",
 				Description: "",
@@ -1761,24 +1891,18 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get AI Config metrics",
 		Long:  "Retrieve usage metrics for an AI Config by config key.",
 		Use:   "get-ai-config-metrics",
 		Params: []Param{
 			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
 				Name:        "project-key",
 				In:          "path",
 				Description: "",
@@ -1811,23 +1935,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}/metrics",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get AI Config metrics by variation",
 		Long:  "Retrieve usage metrics for an AI Config by config key, with results split by variation.",
 		Use:   "get-ai-config-metrics-by-variation",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -1861,23 +1979,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}/metrics-by-variation",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Show an AI Config's targeting",
 		Long:  "Retrieves a specific AI Config's targeting by its key",
 		Use:   "get-ai-config-targeting",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -1893,23 +2005,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}/targeting",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get AI Config variation",
 		Long:  "Get an AI Config variation by key. The response includes all variation versions for the given variation key.",
 		Use:   "list-ai-config-variation",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -1931,23 +2037,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}/variations/{variationKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "List AI Configs",
 		Long:  "Get a list of all AI Configs in the given project.",
 		Use:   "list-ai-configs",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -1981,23 +2081,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get AI tool",
 		Long:  "Retrieve a specific AI tool by its key.",
 		Use:   "get-ai-tool",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2013,16 +2107,16 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-tools/{toolKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "Get AI model config",
-		Long:  "Get an AI model config by key.",
-		Use:   "get-model-config",
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get agent graph",
+		Long:  "Retrieve a specific agent graph by its key, including its edges.",
+		Use:   "get-agent-graph",
 		Params: []Param{
 			{
 				Name:        "ld-api-version",
@@ -2030,6 +2124,32 @@ func AddAllResourceCmds(
 				Description: "Version of the endpoint.",
 				Type:        "string",
 			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "graph-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/agent-graphs/{graphKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get AI model config",
+		Long:  "Get an AI model config by key.",
+		Use:   "get-model-config",
+		Params: []Param{
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2045,23 +2165,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/model-configs/{modelConfigKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "List AI tool versions",
 		Long:  "Get a list of all versions of an AI tool in the given project.",
 		Use:   "list-ai-tool-versions",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2095,23 +2209,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-tools/{toolKey}/versions",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "List AI tools",
 		Long:  "Get a list of all AI tools in the given project.",
 		Use:   "list-ai-tools",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2145,16 +2253,16 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-tools",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "List AI model configs",
-		Long:  "Get all AI model configs for a project.",
-		Use:   "list-model-configs",
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "List agent graphs",
+		Long:  "Get a list of all agent graphs in the given project. Returns metadata only, without edge data.",
+		Use:   "list-agent-graphs",
 		Params: []Param{
 			{
 				Name:        "ld-api-version",
@@ -2162,6 +2270,38 @@ func AddAllResourceCmds(
 				Description: "Version of the endpoint.",
 				Type:        "string",
 			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The number of AI Configs to return.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/agent-graphs",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "List AI model configs",
+		Long:  "Get all AI model configs for a project.",
+		Use:   "list-model-configs",
+		Params: []Param{
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2177,24 +2317,18 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/model-configs",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Update AI Config",
 		Long:  "Edit an existing AI Config.\n\nThe request body must be a JSON object of the fields to update. The values you include replace the existing values for the fields.\n\nHere's an example:\n  ```\n    {\n      \"description\": \"Example updated description\",\n      \"tags\": [\"new-tag\"]\n    }\n  ```\n",
 		Use:   "update-ai-config",
 		Params: []Param{
 			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
 				Name:        "project-key",
 				In:          "path",
 				Description: "",
@@ -2209,23 +2343,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Update AI Config targeting",
 		Long:  "Perform a partial update to an AI Config's targeting. The request body must be a valid semantic patch.\n\n### Using semantic patches on an AI Config\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\nThe body of a semantic patch request for updating an AI Config's targeting takes the following properties:\n\n* `comment` (string): (Optional) A description of the update.\n* `environmentKey` (string): The key of the LaunchDarkly environment.\n* `instructions` (array): (Required) A list of actions the update should perform. Each action in the list must be an object with a `kind` property that indicates the instruction. If the action requires parameters, you must include those parameters as additional fields in the object. The body of a single semantic patch can contain many different instructions.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating AI Configs.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eworking with targeting and variations\u003c/strong\u003e for AI Configs\u003c/summary\u003e\n\n#### addClauses\n\nAdds the given clauses to the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the AI Config.\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n  \"environmentKey\": \"environment-key-123abc\",\n  \"instructions\": [{\n    \"kind\": \"addClauses\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauses\": [{\n      \"contextKind\": \"user\",\n      \"attribute\": \"country\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"USA\", \"Canada\"]\n    }]\n  }]\n}\n```\n\n#### addRule\n\nAdds a new targeting rule to the AI Config. The rule may contain `clauses` and serve the variation that `variationId` indicates, or serve a percentage rollout that `rolloutWeights`, `rolloutBucketBy`, and `rolloutContextKind` indicate.\n\nIf you set `beforeRuleId`, this adds the new rule before the indicated rule. Otherwise, adds the new rule to the end of the list.\n\n##### Parameters\n\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n- `beforeRuleId`: (Optional) ID of a rule.\n- Either\n- `variationId`: ID of a variation.\n\nor\n\n- `rolloutWeights`: (Optional) Map of `variationId` to weight, in thousandths of a percent (0-100000).\n- `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n- `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example that uses a `variationId`:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"addRule\",\n  \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n  \"clauses\": [{\n    \"contextKind\": \"organization\",\n    \"attribute\": \"located_in\",\n    \"op\": \"in\",\n    \"negate\": false,\n    \"values\": [\"Sweden\", \"Norway\"]\n  }]\n}]\n}\n```\n\nHere's an example that uses a percentage rollout:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"addRule\",\n  \"clauses\": [{\n    \"contextKind\": \"organization\",\n    \"attribute\": \"located_in\",\n    \"op\": \"in\",\n    \"negate\": false,\n    \"values\": [\"Sweden\", \"Norway\"]\n  }],\n  \"rolloutContextKind\": \"organization\",\n  \"rolloutWeights\": {\n    \"2f43f67c-3e4e-4945-a18a-26559378ca00\": 15000, // serve 15% this variation\n    \"e5830889-1ec5-4b0c-9cc9-c48790090c43\": 85000  // serve 85% this variation\n  }\n}]\n}\n```\n\n#### addTargets\n\nAdds context keys to the individual context targets for the context kind that `contextKind` specifies and the variation that `variationId` specifies. Returns an error if this causes the AI Config to target the same context key in multiple variations.\n\n##### Parameters\n\n- `values`: List of context keys.\n- `contextKind`: (Optional) Context kind to target, defaults to `user`\n- `variationId`: ID of a variation.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"addTargets\",\n  \"values\": [\"context-key-123abc\", \"context-key-456def\"],\n  \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n}]\n}\n```\n\n#### addValuesToClause\n\nAdds `values` to the values of the clause that `ruleId` and `clauseId` indicate. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the AI Config.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"addValuesToClause\",\n  \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n  \"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n  \"values\": [\"beta_testers\"]\n}]\n}\n```\n\n#### clearTargets\n\nRemoves all individual targets from the variation that `variationId` specifies. This includes both user and non-user targets.\n\n##### Parameters\n\n- `variationId`: ID of a variation.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [ { \"kind\": \"clearTargets\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### removeClauses\n\nRemoves the clauses specified by `clauseIds` from the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule.\n- `clauseIds`: Array of IDs of clauses in the rule.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"removeClauses\",\n  \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n  \"clauseIds\": [\"10a58772-3121-400f-846b-b8a04e8944ed\", \"36a461dc-235e-4b08-97b9-73ce9365873e\"]\n}]\n}\n```\n\n#### removeRule\n\nRemoves the targeting rule specified by `ruleId`. Does nothing if the rule does not exist.\n\n##### Parameters\n\n- `ruleId`: ID of a rule.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [ { \"kind\": \"removeRule\", \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\" } ]\n}\n```\n\n#### removeTargets\n\nRemoves context keys from the individual context targets for the context kind that `contextKind` specifies and the variation that `variationId` specifies. Does nothing if the flag does not target the context keys.\n\n##### Parameters\n\n- `values`: List of context keys.\n- `contextKind`: (Optional) Context kind to target, defaults to `user`\n- `variationId`: ID of a variation.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"removeTargets\",\n  \"values\": [\"context-key-123abc\", \"context-key-456def\"],\n  \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n}]\n}\n```\n\n#### removeValuesFromClause\n\nRemoves `values` from the values of the clause indicated by `ruleId` and `clauseId`. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"removeValuesFromClause\",\n  \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n  \"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n  \"values\": [\"beta_testers\"]\n}]\n}\n```\n\n#### reorderRules\n\nRearranges the rules to match the order given in `ruleIds`. Returns an error if `ruleIds` does not match the current set of rules on the AI Config.\n\n##### Parameters\n\n- `ruleIds`: Array of IDs of all rules.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"reorderRules\",\n  \"ruleIds\": [\"a902ef4a-2faf-4eaf-88e1-ecc356708a29\", \"63c238d1-835d-435e-8f21-c8d5e40b2a3d\"]\n}]\n}\n```\n\n#### replaceRules\n\nRemoves all targeting rules for the AI Config and replaces them with the list you provide.\n\n##### Parameters\n\n- `rules`: A list of rules.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [\n  {\n    \"kind\": \"replaceRules\",\n    \"rules\": [\n      {\n        \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n        \"description\": \"My new rule\",\n        \"clauses\": [\n          {\n            \"contextKind\": \"user\",\n            \"attribute\": \"segmentMatch\",\n            \"op\": \"segmentMatch\",\n            \"values\": [\"test\"]\n          }\n        ]\n      }\n    ]\n  }\n]\n}\n```\n\n#### replaceTargets\n\nRemoves all existing targeting and replaces it with the list of targets you provide.\n\n##### Parameters\n\n- `targets`: A list of context targeting. Each item in the list includes an optional `contextKind` that defaults to `user`, a required `variationId`, and a required list of `values`.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [\n  {\n    \"kind\": \"replaceTargets\",\n    \"targets\": [\n      {\n        \"contextKind\": \"user\",\n        \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n        \"values\": [\"user-key-123abc\"]\n      },\n      {\n        \"contextKind\": \"device\",\n        \"variationId\": \"e5830889-1ec5-4b0c-9cc9-c48790090c43\",\n        \"values\": [\"device-key-456def\"]\n      }\n    ]\n  }\n]\n}\n```\n\n#### updateClause\n\nReplaces the clause indicated by `ruleId` and `clauseId` with `clause`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule.\n- `clauseId`: ID of a clause in that rule.\n- `clause`: New `clause` object, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"updateClause\",\n  \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n  \"clauseId\": \"10c7462a-2062-45ba-a8bb-dfb3de0f8af5\",\n  \"clause\": {\n    \"contextKind\": \"user\",\n    \"attribute\": \"country\",\n    \"op\": \"in\",\n    \"negate\": false,\n    \"values\": [\"Mexico\", \"Canada\"]\n  }\n}]\n}\n```\n\n#### updateDefaultVariation\n\nUpdates the default on or off variation of the AI Config.\n\n##### Parameters\n\n- `onVariationValue`: (Optional) The value of the variation of the new on variation.\n- `offVariationValue`: (Optional) The value of the variation of the new off variation\n\nHere's an example:\n\n```json\n{\n\"instructions\": [ { \"kind\": \"updateDefaultVariation\", \"OnVariationValue\": true, \"OffVariationValue\": false } ]\n}\n```\n\n#### updateFallthroughVariationOrRollout\n\nUpdates the default or \"fallthrough\" rule for the AI Config, which the AI Config serves when a context matches none of the targeting rules. The rule can serve either the variation that `variationId` indicates, or a percentage rollout that `rolloutWeights` and `rolloutBucketBy` indicate.\n\n##### Parameters\n\n- `variationId`: ID of a variation.\n\nor\n\n- `rolloutWeights`: Map of `variationId` to weight, in thousandths of a percent (0-100000).\n- `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n- `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example that uses a `variationId`:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"updateFallthroughVariationOrRollout\",\n  \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n}]\n}\n```\n\nHere's an example that uses a percentage rollout:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"updateFallthroughVariationOrRollout\",\n  \"rolloutContextKind\": \"user\",\n  \"rolloutWeights\": {\n    \"2f43f67c-3e4e-4945-a18a-26559378ca00\": 15000, // serve 15% this variation\n    \"e5830889-1ec5-4b0c-9cc9-c48790090c43\": 85000  // serve 85% this variation\n  }\n}]\n}\n```\n\n#### updateOffVariation\n\nUpdates the default off variation to `variationId`. The AI Config serves the default off variation when the AI Config's targeting is **Off**.\n\n##### Parameters\n\n- `variationId`: ID of a variation.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [ { \"kind\": \"updateOffVariation\", \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\" } ]\n}\n```\n\n#### updateRuleDescription\n\nUpdates the description of the targeting rule.\n\n##### Parameters\n\n- `description`: The new human-readable description for this rule.\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the AI Config.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"updateRuleDescription\",\n  \"description\": \"New rule description\",\n  \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n}]\n}\n```\n\n#### updateRuleTrackEvents\n\nUpdates whether or not LaunchDarkly tracks events for the AI Config associated with this rule.\n\n##### Parameters\n\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the AI Config.\n- `trackEvents`: Whether or not events are tracked.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"updateRuleTrackEvents\",\n  \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n  \"trackEvents\": true\n}]\n}\n```\n\n#### updateRuleVariationOrRollout\n\nUpdates what `ruleId` serves when its clauses evaluate to true. The rule can serve either the variation that `variationId` indicates, or a percent rollout that `rolloutWeights` and `rolloutBucketBy` indicate.\n\n##### Parameters\n\n- `ruleId`: ID of a rule.\n- `variationId`: ID of a variation.\n\nor\n\n- `rolloutWeights`: Map of `variationId` to weight, in thousandths of a percent (0-100000).\n- `rolloutBucketBy`: (Optional) Context attribute available in the specified `rolloutContextKind`.\n- `rolloutContextKind`: (Optional) Context kind, defaults to `user`\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [{\n  \"kind\": \"updateRuleVariationOrRollout\",\n  \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n  \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\"\n}]\n}\n```\n\n#### updateTrackEvents\n\nUpdates whether or not LaunchDarkly tracks events for the AI Config, for all rules.\n\n##### Parameters\n\n- `trackEvents`: Whether or not events are tracked.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [ { \"kind\": \"updateTrackEvents\", \"trackEvents\": true } ]\n}\n```\n\n#### updateTrackEventsFallthrough\n\nUpdates whether or not LaunchDarkly tracks events for the AI Config, for the default rule.\n\n##### Parameters\n\n- `trackEvents`: Whether or not events are tracked.\n\nHere's an example:\n\n```json\n{\n\"environmentKey\": \"environment-key-123abc\",\n\"instructions\": [ { \"kind\": \"updateTrackEventsFallthrough\", \"trackEvents\": true } ]\n}\n```\n\u003c/details\u003e\n",
 		Use:   "update-ai-config-targeting",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2241,23 +2369,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}/targeting",
 		SupportsSemanticPatch: true,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Update AI Config variation",
 		Long:  "Edit an existing variation of an AI Config. This creates a new version of the variation.\n\nThe request body must be a JSON object of the fields to update. The values you include replace the existing values for the fields.\n\nHere's an example:\n```\n  {\n    \"messages\": [\n      {\n        \"role\": \"system\",\n        \"content\": \"The new message\"\n      }\n    ]\n  }\n```\n",
 		Use:   "update-ai-config-variation",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2279,23 +2401,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}/variations/{variationKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Update AI tool",
 		Long:  "Edit an existing AI tool.",
 		Use:   "update-ai-tool",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2311,16 +2427,16 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "PATCH",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/ai-tools/{toolKey}",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short: "Create new AI Config",
-		Long:  "Create a new AI Config within the given project.",
-		Use:   "create-ai-config",
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Update agent graph",
+		Long:  "Edit an existing agent graph.\n\nThe request body must be a JSON object of the fields to update. The values you include replace the existing values for the fields.\n\nIf the update includes `rootConfigKey` or `edges`, both must be present and will be treated as full replacements.\n",
+		Use:   "update-agent-graph",
 		Params: []Param{
 			{
 				Name:        "ld-api-version",
@@ -2334,26 +2450,46 @@ func AddAllResourceCmds(
 				Description: "",
 				Type:        "string",
 			},
+			{
+				Name:        "graph-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/agent-graphs/{graphKey}",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Create new AI Config",
+		Long:  "Create a new AI Config within the given project.",
+		Use:   "create-ai-config",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create AI Config variation",
 		Long:  "Create a new variation for a given AI Config.\n\nThe \u003ccode\u003emodel\u003c/code\u003e in the request body requires a \u003ccode\u003emodelName\u003c/code\u003e and \u003ccode\u003eparameters\u003c/code\u003e, for example:\n\n```\n  \"model\": {\n    \"modelName\": \"claude-3-opus-20240229\",\n    \"parameters\": {\n      \"max_tokens\": 1024\n    }\n  }\n```\n",
 		Use:   "create-ai-config-variation",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2369,24 +2505,18 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/{configKey}/variations",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create an AI tool",
 		Long:  "Create an AI tool",
 		Use:   "create-ai-tool",
 		Params: []Param{
 			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
 				Name:        "project-key",
 				In:          "path",
 				Description: "",
@@ -2395,24 +2525,44 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/ai-tools",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Create new agent graph",
+		Long:  "Create a new agent graph within the given project.",
+		Use:   "create-agent-graph",
+		Params: []Param{
+			{
+				Name:        "ld-api-version",
+				In:          "header",
+				Description: "Version of the endpoint.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                false,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/agent-graphs",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create an AI model config",
 		Long:  "Create an AI model config. You can use this in any variation for any AI Config in your project.",
 		Use:   "create-model-config",
 		Params: []Param{
 			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
-			{
 				Name:        "project-key",
 				In:          "path",
 				Description: "",
@@ -2421,23 +2571,17 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/model-configs",
 		SupportsSemanticPatch: false,
 	})
 
-	NewOperationCmd(gen_AiConfigsBetaResourceCmd, client, markdownRenderer, OperationData{
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Add AI models to the restricted list",
-		Long:  "Add AI models, by key, to the restricted list. Keys are included in the response from the [List AI model configs](https://launchdarkly.com/docs/api/ai-configs-beta/list-model-configs) endpoint.",
+		Long:  "Add AI models, by key, to the restricted list. Keys are included in the response from the [List AI model configs](https://launchdarkly.com/docs/api/ai-configs/list-model-configs) endpoint.",
 		Use:   "create-restricted-models",
 		Params: []Param{
-			{
-				Name:        "ld-api-version",
-				In:          "header",
-				Description: "Version of the endpoint.",
-				Type:        "string",
-			},
 			{
 				Name:        "project-key",
 				In:          "path",
@@ -2447,7 +2591,7 @@ func AddAllResourceCmds(
 		},
 		HTTPMethod:            "POST",
 		HasBody:               true,
-		IsBeta:                true,
+		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/model-configs/restricted",
 		SupportsSemanticPatch: false,
@@ -2938,7 +3082,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ApprovalRequestsResourceCmd, client, markdownRenderer, OperationData{
 		Short:                 "Create approval request",
-		Long:                  "Create an approval request.\n\nThis endpoint requires a list of `instructions`, in semantic patch format, that will be applied when the approval request is approved and applied.\n\n### Flags\n\nIf you are creating an approval request for a flag, you can use the following `instructions`:\n\n- `addVariation`\n- `removeVariation`\n- `updateVariation`\n- `updateDefaultVariation`\n\nFor details on using these instructions, read [Update feature flag](https://launchdarkly.com/docs/api/feature-flags/patch-feature-flag).\n\nTo create an approval for a flag specific to an environment, use [Create approval request for a flag](https://launchdarkly.com/docs/api/approvals/post-approval-request-for-flag).\n\n### AI Configs\n\nIf you are creating an approval request for an AI Config, you can use the semantic patch instructions listed under [Update AI Config targeting](https://launchdarkly.com/docs/api/ai-configs-beta/patch-ai-config-targeting).\n\n### Segments\n\nIf you are creating an approval request for a segment, you can use the semantic patch instructions listed under [Patch segment](https://launchdarkly.com/docs/api/segments/patch-segment).\n",
+		Long:                  "Create an approval request.\n\nThis endpoint requires a list of `instructions`, in semantic patch format, that will be applied when the approval request is approved and applied.\n\n### Flags\n\nIf you are creating an approval request for a flag, you can use the following `instructions`:\n\n- `addVariation`\n- `removeVariation`\n- `updateVariation`\n- `updateDefaultVariation`\n\nFor details on using these instructions, read [Update feature flag](https://launchdarkly.com/docs/api/feature-flags/patch-feature-flag).\n\nTo create an approval for a flag specific to an environment, use [Create approval request for a flag](https://launchdarkly.com/docs/api/approvals/post-approval-request-for-flag).\n\n### AI Configs\n\nIf you are creating an approval request for an AI Config, you can use the semantic patch instructions listed under [Update AI Config targeting](https://launchdarkly.com/docs/api/ai-configs/patch-ai-config-targeting).\n\n### Segments\n\nIf you are creating an approval request for a segment, you can use the semantic patch instructions listed under [Patch segment](https://launchdarkly.com/docs/api/segments/patch-segment).\n",
 		Use:                   "create",
 		Params:                []Param{},
 		HTTPMethod:            "POST",
@@ -3175,7 +3319,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ApprovalsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Update approval request",
-		Long:  "Perform a partial update to an approval request. Updating an approval request uses the semantic patch format. This endpoint works with any approval requests.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instruction for updating an approval request.\n\n#### addReviewers\n\nAdds the specified members and teams to the existing list of reviewers. You must include at least one of `notifyMemberIds` and `notifyTeamKeys`.\n\n##### Parameters\n\n- `notifyMemberIds`: (Optional) List of member IDs.\n- `notifyTeamKeys`: (Optional) List of team keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addReviewers\",\n    \"notifyMemberIds\": [ \"user-key-123abc\", \"user-key-456def\" ],\n    \"notifyTeamKeys\": [ \"team-key-789abc\"]\n  }]\n}\n```\n",
+		Long:  "Perform a partial update to an approval request. Updating an approval request uses the semantic patch format. This endpoint works with any approval requests.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating an approval request.\n\n#### addReviewers\n\nAdds the specified members and teams to the existing list of reviewers. You must include at least one of `notifyMemberIds` and `notifyTeamKeys`.\n\n##### Parameters\n\n- `notifyMemberIds`: (Optional) List of member IDs.\n- `notifyTeamKeys`: (Optional) List of team keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addReviewers\",\n    \"notifyMemberIds\": [ \"user-key-123abc\", \"user-key-456def\" ],\n    \"notifyTeamKeys\": [ \"team-key-789abc\"]\n  }]\n}\n```\n\n#### updateDescription\n\nUpdates the description (title) of the approval request.\n\n##### Parameters\n\n- `value`: (Required) The new description for the approval request. Must be non-empty and no more than 5000 characters.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateDescription\",\n    \"value\": \"Updated approval request title\"\n  }]\n}\n```\n",
 		Use:   "update-request",
 		Params: []Param{
 			{
@@ -3186,9 +3330,9 @@ func AddAllResourceCmds(
 			},
 		},
 		HTTPMethod:            "PATCH",
-		HasBody:               false,
+		HasBody:               true,
 		IsBeta:                true,
-		RequiresBody:          false,
+		RequiresBody:          true,
 		Path:                  "/api/v2/approval-requests/{id}",
 		SupportsSemanticPatch: true,
 	})
@@ -3221,7 +3365,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ApprovalsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Update flag approval request",
-		Long:  "Perform a partial update to an approval request. Updating an approval request uses the semantic patch format. This endpoint requires a feature flag key, and can only be used for updating approval requests for flags.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instruction for updating an approval request.\n\n#### addReviewers\n\nAdds the specified members and teams to the existing list of reviewers. You must include at least one of `notifyMemberIds` and `notifyTeamKeys`.\n\n##### Parameters\n\n- `notifyMemberIds`: (Optional) List of member IDs.\n- `notifyTeamKeys`: (Optional) List of team keys.\n",
+		Long:  "Perform a partial update to an approval request. Updating an approval request uses the semantic patch format. This endpoint requires a feature flag key, and can only be used for updating approval requests for flags.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating an approval request.\n\n#### addReviewers\n\nAdds the specified members and teams to the existing list of reviewers. You must include at least one of `notifyMemberIds` and `notifyTeamKeys`.\n\n##### Parameters\n\n- `notifyMemberIds`: (Optional) List of member IDs.\n- `notifyTeamKeys`: (Optional) List of team keys.\n\n#### updateDescription\n\nUpdates the description (title) of the approval request.\n\n##### Parameters\n\n- `value`: (Required) The new description for the approval request. Must be non-empty and no more than 5000 characters.\n",
 		Use:   "update-flag-config-request",
 		Params: []Param{
 			{
@@ -4420,6 +4564,32 @@ func AddAllResourceCmds(
 	})
 
 	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Generate trust policy",
+		Long:  "Trust policy to allow Data Export to assume the role and perform operations on AWS resources",
+		Use:   "create-generate-trust-policy",
+		Params: []Param{
+			{
+				Name:        "proj-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "env-key",
+				In:          "path",
+				Description: "The environment key",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               false,
+		IsBeta:                false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/destinations/projects/{projKey}/environments/{envKey}/generate-trust-policy",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_DataExportDestinationsResourceCmd, client, markdownRenderer, OperationData{
 		Short:                 "Generate Snowflake destination key pair",
 		Long:                  "Generate key pair to allow Data Export to authenticate into a Snowflake warehouse destination",
 		Use:                   "create-generate-warehouse-destination-key-pair",
@@ -4660,7 +4830,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ExperimentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create iteration",
-		Long:  "Create an experiment iteration.\n\nExperiment iterations let you record experiments in individual blocks of time. Initially, iterations are created with a status of `not_started` and appear in the `draftIteration` field of an experiment. To start or stop an iteration, [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` or `stopIteration` instruction. \n\nTo learn more, read [Start experiment iterations](https://launchdarkly.com/docs/home/experimentation/feature#start-experiment-iterations).\n",
+		Long:  "Create an experiment iteration.\n\nExperiment iterations let you record experiments in individual blocks of time. Initially, iterations are created with a status of `not_started` and appear in the `draftIteration` field of an experiment. To start or stop an iteration, [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` or `stopIteration` instruction. \n\nTo learn more, read [Start experiment iterations](https://launchdarkly.com/docs/home/experimentation/create#start-an-experiment-iteration).\n",
 		Use:   "create-iteration",
 		Params: []Param{
 			{
@@ -5599,7 +5769,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "summary",
 				In:          "query",
-				Description: "By default, flags do _not_ include their lists of prerequisites, targets, or rules for each environment. Set 'summary=0' to include these fields for each flag returned.",
+				Description: "By default, flags do _not_ include their lists of prerequisites, targets, or rules for each environment. Set 'summary=0' and include the 'env' query parameter to include these fields for each flag returned.",
 				Type:        "boolean",
 			},
 			{
@@ -5714,6 +5884,12 @@ func AddAllResourceCmds(
 				Name:        "ignore-conflicts",
 				In:          "query",
 				Description: "If true, the patch will be applied even if it causes a pending scheduled change or approval request to fail.",
+				Type:        "boolean",
+			},
+			{
+				Name:        "dry-run",
+				In:          "query",
+				Description: "If true, the patch will be validated but not persisted. Returns a preview of the flag after the patch is applied.",
 				Type:        "boolean",
 			},
 		},
@@ -7600,6 +7776,19 @@ func AddAllResourceCmds(
 	})
 
 	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
+		Short:                 "Modify account members",
+		Long:                  "\u003e ### Full use of this API resource is an Enterprise feature\n\u003e\n\u003e The ability to perform a partial update to multiple members is available to customers on an Enterprise plan. If you are on another plan, you can update members individually. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nPerform a partial update to multiple members. Updating members uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating members.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating members\u003c/strong\u003e\u003c/summary\u003e\n\n#### replaceMembersRoles\n\nReplaces the roles of the specified members. This also removes all custom roles assigned to the specified members.\n\n##### Parameters\n\n- `value`: The new role. Must be a valid [base role](https://launchdarkly.com/docs/home/getting-started/vocabulary#base-role). To learn more, read [Roles](https://launchdarkly.com/docs/home/account/roles).\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceMembersRoles\",\n    \"value\": \"reader\",\n    \"memberIDs\": [\n      \"1234a56b7c89d012345e678f\",\n      \"507f1f77bcf86cd799439011\"\n    ]\n  }]\n}\n```\n\n#### replaceAllMembersRoles\n\nReplaces the roles of all members. This also removes all custom roles assigned to the specified members.\n\nMembers that match any of the filters are **excluded** from the update.\n\n##### Parameters\n\n- `value`: The new role. Must be a valid [base role](https://launchdarkly.com/docs/home/getting-started/vocabulary#base-role). To learn more, read [Roles](https://launchdarkly.com/docs/home/account/roles).\n- `filterLastSeen`: (Optional) A JSON object with one of the following formats:\n  - `{\"never\": true}` - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.\n  - `{\"noData\": true}` - Members that have not been active since LaunchDarkly began recording last seen timestamps.\n  - `{\"before\": 1608672063611}` - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.\n- `filterQuery`: (Optional) A string that matches against the members' emails and names. It is not case sensitive.\n- `filterRoles`: (Optional) A `|` separated list of roles and custom roles. For the purposes of this filtering, `Owner` counts as `Admin`.\n- `filterTeamKey`: (Optional) A string that matches against the key of the team the members belong to. It is not case sensitive.\n- `ignoredMemberIDs`: (Optional) A list of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceAllMembersRoles\",\n    \"value\": \"reader\",\n    \"filterLastSeen\": { \"never\": true }\n  }]\n}\n```\n\n#### replaceMembersCustomRoles\n\nReplaces the custom roles of the specified members.\n\n##### Parameters\n\n- `values`: List of new custom roles. Must be a valid custom role key or ID.\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceMembersCustomRoles\",\n    \"values\": [ \"example-custom-role\" ],\n    \"memberIDs\": [\n      \"1234a56b7c89d012345e678f\",\n      \"507f1f77bcf86cd799439011\"\n    ]\n  }]\n}\n```\n\n#### replaceAllMembersCustomRoles\n\nReplaces the custom roles of all members. Members that match any of the filters are **excluded** from the update.\n\n##### Parameters\n\n- `values`: List of new roles. Must be a valid custom role key or ID.\n- `filterLastSeen`: (Optional) A JSON object with one of the following formats:\n  - `{\"never\": true}` - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.\n  - `{\"noData\": true}` - Members that have not been active since LaunchDarkly began recording last seen timestamps.\n  - `{\"before\": 1608672063611}` - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.\n- `filterQuery`: (Optional) A string that matches against the members' emails and names. It is not case sensitive.\n- `filterRoles`: (Optional) A `|` separated list of roles and custom roles. For the purposes of this filtering, `Owner` counts as `Admin`.\n- `filterTeamKey`: (Optional) A string that matches against the key of the team the members belong to. It is not case sensitive.\n- `ignoredMemberIDs`: (Optional) A list of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceAllMembersCustomRoles\",\n    \"values\": [ \"example-custom-role\" ],\n    \"filterLastSeen\": { \"never\": true }\n  }]\n}\n```\n\n#### replaceMembersRoleAttributes\n\nReplaces the role attributes of the specified members.\n\n##### Parameters\n\n- `value`: Map of role attribute keys to lists of values.\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceMembersRoleAttributes\",\n    \"value\": {\n      \"myRoleProjectKey\": [\"mobile\", \"web\"],\n      \"myRoleEnvironmentKey\": [\"production\"]\n    },\n    \"memberIDs\": [\n      \"1234a56b7c89d012345e678f\",\n      \"507f1f77bcf86cd799439011\"\n    ]\n  }]\n}\n```\n\n\u003c/details\u003e\n",
+		Use:                   "update-multiple",
+		Params:                []Param{},
+		HTTPMethod:            "PATCH",
+		HasBody:               true,
+		IsBeta:                false,
+		RequiresBody:          true,
+		Path:                  "/api/v2/members",
+		SupportsSemanticPatch: true,
+	})
+
+	NewOperationCmd(gen_MembersResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Add a member to teams",
 		Long:  "Add one member to one or more teams.",
 		Use:   "create-teams",
@@ -7630,19 +7819,6 @@ func AddAllResourceCmds(
 		RequiresBody:          true,
 		Path:                  "/api/v2/members",
 		SupportsSemanticPatch: false,
-	})
-
-	NewOperationCmd(gen_MembersBetaResourceCmd, client, markdownRenderer, OperationData{
-		Short:                 "Modify account members",
-		Long:                  "\u003e ### Full use of this API resource is an Enterprise feature\n\u003e\n\u003e The ability to perform a partial update to multiple members is available to customers on an Enterprise plan. If you are on another plan, you can update members individually. To learn more, [read about our pricing](https://launchdarkly.com/pricing/). To upgrade your plan, [contact Sales](https://launchdarkly.com/contact-sales/).\n\nPerform a partial update to multiple members. Updating members uses the semantic patch format.\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating members.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating members\u003c/strong\u003e\u003c/summary\u003e\n\n#### replaceMembersRoles\n\nReplaces the roles of the specified members. This also removes all custom roles assigned to the specified members.\n\n##### Parameters\n\n- `value`: The new role. Must be a valid [base role](https://launchdarkly.com/docs/home/getting-started/vocabulary#base-role). To learn more, read [Roles](https://launchdarkly.com/docs/home/account/roles).\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceMemberRoles\",\n    \"value\": \"reader\",\n    \"memberIDs\": [\n      \"1234a56b7c89d012345e678f\",\n      \"507f1f77bcf86cd799439011\"\n    ]\n  }]\n}\n```\n\n#### replaceAllMembersRoles\n\nReplaces the roles of all members. This also removes all custom roles assigned to the specified members.\n\nMembers that match any of the filters are **excluded** from the update.\n\n##### Parameters\n\n- `value`: The new role. Must be a valid [base role](https://launchdarkly.com/docs/home/getting-started/vocabulary#base-role). To learn more, read [Roles](https://launchdarkly.com/docs/home/account/roles).\n- `filterLastSeen`: (Optional) A JSON object with one of the following formats:\n  - `{\"never\": true}` - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.\n  - `{\"noData\": true}` - Members that have not been active since LaunchDarkly began recording last seen timestamps.\n  - `{\"before\": 1608672063611}` - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.\n- `filterQuery`: (Optional) A string that matches against the members' emails and names. It is not case sensitive.\n- `filterRoles`: (Optional) A `|` separated list of roles and custom roles. For the purposes of this filtering, `Owner` counts as `Admin`.\n- `filterTeamKey`: (Optional) A string that matches against the key of the team the members belong to. It is not case sensitive.\n- `ignoredMemberIDs`: (Optional) A list of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceAllMembersRoles\",\n    \"value\": \"reader\",\n    \"filterLastSeen\": { \"never\": true }\n  }]\n}\n```\n\n#### replaceMembersCustomRoles\n\nReplaces the custom roles of the specified members.\n\n##### Parameters\n\n- `values`: List of new custom roles. Must be a valid custom role key or ID.\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceMembersCustomRoles\",\n    \"values\": [ \"example-custom-role\" ],\n    \"memberIDs\": [\n      \"1234a56b7c89d012345e678f\",\n      \"507f1f77bcf86cd799439011\"\n    ]\n  }]\n}\n```\n\n#### replaceAllMembersCustomRoles\n\nReplaces the custom roles of all members. Members that match any of the filters are **excluded** from the update.\n\n##### Parameters\n\n- `values`: List of new roles. Must be a valid custom role key or ID.\n- `filterLastSeen`: (Optional) A JSON object with one of the following formats:\n  - `{\"never\": true}` - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.\n  - `{\"noData\": true}` - Members that have not been active since LaunchDarkly began recording last seen timestamps.\n  - `{\"before\": 1608672063611}` - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.\n- `filterQuery`: (Optional) A string that matches against the members' emails and names. It is not case sensitive.\n- `filterRoles`: (Optional) A `|` separated list of roles and custom roles. For the purposes of this filtering, `Owner` counts as `Admin`.\n- `filterTeamKey`: (Optional) A string that matches against the key of the team the members belong to. It is not case sensitive.\n- `ignoredMemberIDs`: (Optional) A list of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceAllMembersCustomRoles\",\n    \"values\": [ \"example-custom-role\" ],\n    \"filterLastSeen\": { \"never\": true }\n  }]\n}\n```\n\n#### replaceMembersRoleAttributes\n\nReplaces the role attributes of the specified members.\n\n##### Parameters\n\n- `value`: Map of role attribute keys to lists of values.\n- `memberIDs`: List of member IDs.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"replaceMembersRoleAttributes\",\n    \"value\": {\n      \"myRoleProjectKey\": [\"mobile\", \"web\"],\n      \"myRoleEnvironmentKey\": [\"production\"]\n    },\n    \"memberIDs\": [\n      \"1234a56b7c89d012345e678f\",\n      \"507f1f77bcf86cd799439011\"\n    ]\n  }]\n}\n```\n\n\u003c/details\u003e\n",
-		Use:                   "update-multiple",
-		Params:                []Param{},
-		HTTPMethod:            "PATCH",
-		HasBody:               true,
-		IsBeta:                true,
-		RequiresBody:          true,
-		Path:                  "/api/v2/members",
-		SupportsSemanticPatch: true,
 	})
 
 	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, markdownRenderer, OperationData{
@@ -7725,7 +7901,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_MetricGroupsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "List metric groups",
-		Long:  "Get a list of all metric groups for the specified project.\n\n### Expanding the metric groups response\nLaunchDarkly supports one field for expanding the \"Get metric groups\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with the following field:\n\n- `experiments` includes all experiments from the specific project that use the metric group\n\nFor example, `expand=experiments` includes the `experiments` field in the response.\n\n### Filtering metric groups\n\nThe `filter` parameter supports the following operators: `contains`, `equals`, `anyOf`.\n\n#### Supported fields and operators\n\nYou can only filter certain fields in metrics when using the `filter` parameter. Additionally, you can only filter some fields with certain operators.\n\nWhen you search for metrics, the `filter` parameter supports the following fields and operators:\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n| `experimentStatus` | The experiment's status. One of `not_started`, `running`, `stopped`, `started`. | `equals` |\n| `hasConnections` | Whether the metric group has connections to experiments or guarded rollouts. One of `true`, `false`. | `equals` |\n| `kind` | The metric group kind. One of `funnel`, `standard`. | `equals` |\n| `maintainerIds` | The metric maintainer IDs. | `anyOf` |\n| `maintainerTeamKey` | The metric maintainer team key. | `equals` |\n| `query` | A \"fuzzy\" search across metric group key and name. Supply a string or list of strings to the operator. | `equals` |\n\n### Sorting metric groups\n\nLaunchDarkly supports the following fields for sorting:\n\n- `name` sorts by metric group name.\n- `createdAt` sorts by the creation date of the metric group.\n- `connectionCount` sorts by the number of connections to experiments the metric group has.\n\nBy default, the sort is in ascending order. Use `-` to sort in descending order. For example, `?sort=name` sorts the response by metric group name in ascending order, and `?sort=-name` sorts in descending order.\n\n#### Sample query\n\n`filter=experimentStatus equals 'not_started' and query equals 'metric name'`\n",
+		Long:  "Get a list of all metric groups for the specified project.\n\n### Expanding the metric groups response\n\nThis endpoint does not support response expansion.\n\nAlthough the API accepts an `expand` query parameter for compatibility reasons, it does not currently modify the response. The parameter is reserved for future use.\n\n### Filtering metric groups\n\nThe `filter` parameter supports the following operators: `contains`, `equals`, `anyOf`.\n\n#### Supported fields and operators\n\nYou can only filter certain fields in metrics when using the `filter` parameter. Additionally, you can only filter some fields with certain operators.\n\nWhen you search for metrics, the `filter` parameter supports the following fields and operators:\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n| `experimentStatus` | The experiment's status. One of `not_started`, `running`, `stopped`, `started`. | `equals` |\n| `hasConnections` | Whether the metric group has connections to experiments or guarded rollouts. One of `true`, `false`. | `equals` |\n| `kind` | The metric group kind. One of `funnel`, `standard`. | `equals` |\n| `maintainerIds` | The metric maintainer IDs. | `anyOf` |\n| `maintainerTeamKey` | The metric maintainer team key. | `equals` |\n| `query` | A \"fuzzy\" search across metric group key and name. Supply a string or list of strings to the operator. | `equals` |\n\n### Sorting metric groups\n\nLaunchDarkly supports the following fields for sorting:\n\n- `name` sorts by metric group name.\n- `createdAt` sorts by the creation date of the metric group.\n- `connectionCount` sorts by the number of connections to experiments the metric group has.\n\nBy default, the sort is in ascending order. Use `-` to sort in descending order. For example, `?sort=name` sorts the response by metric group name in ascending order, and `?sort=-name` sorts in descending order.\n\n#### Sample query\n\n`filter=experimentStatus equals 'not_started' and query equals 'metric name'`\n",
 		Use:   "list",
 		Params: []Param{
 			{
@@ -7749,7 +7925,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "expand",
 				In:          "query",
-				Description: "A comma-separated list of properties that can reveal additional information in the response.",
+				Description: "This parameter is reserved for future use and is not currently supported on this endpoint.",
 				Type:        "string",
 			},
 			{
@@ -7845,7 +8021,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "expand",
 				In:          "query",
-				Description: "A comma-separated list of properties that can reveal additional information in the response. Supported fields are 'experiments', 'experimentCount', 'metricGroups', 'metricGroupCount', 'eventSources', 'guardedRollouts', 'guardedRolloutCount', and 'lastUsedInEntity'.",
+				Description: "A comma-separated list of properties that can reveal additional information in the response. Supported fields are 'experiments', 'experimentCount', 'metricGroups', 'metricGroupCount', 'eventSources', 'guardedRollouts', 'guardedRolloutCount', 'lastUsedInExperiment', and 'lastUsedInGuardedRollout'.",
 				Type:        "string",
 			},
 			{
@@ -7865,7 +8041,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_MetricsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "List metrics",
-		Long:  "Get a list of all metrics for the specified project.\n\n### Filtering metrics\n\nThe `filter` parameter supports the following operators: `contains`, `equals`, `anyOf`.\n\n#### Supported fields and operators\n\nYou can only filter certain fields in metrics when using the `filter` parameter. Additionally, you can only filter some fields with certain operators.\n\nWhen you search for metrics, the `filter` parameter supports the following fields and operators:\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n| `eventKind` | The metric event kind. One of `custom`, `pageview`, `click`. | `equals` |\n| `hasConnections` | Whether the metric has connections to experiments or guarded rollouts. One of `true`, `false`. | `equals` |\n| `isNumeric` | Whether the metric is numeric. One of `true`, `false`. | `equals` |\n| `maintainerIds` | A comma-separated list of metric maintainer IDs. | `anyOf` |\n| `maintainerTeamKey` | The metric maintainer team key. | `equals` |\n| `query` | A \"fuzzy\" search across metric key and name. Supply a string or list of strings to the operator. | `equals` |\n| `tags` | The metric tags. | `contains` |\n| `unitAggregationType` | The metric's unit aggregation type. One of `sum`, `average`. | `equals` |\n\nFor example, the filter `?filter=tags contains [\"tag1\", \"tag2\", \"tag3\"]` matches metrics that have all three tags.\n\nThe documented values for `filter` query parameters are prior to URL encoding. For example, the `[` in `?filter=tags contains [\"tag1\", \"tag2\", \"tag3\"]` must be encoded to `%5B`.\n\n### Expanding the metric list response\n\nLaunchDarkly supports expanding the \"List metrics\" response. By default, the expandable field is **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add the following supported field:\n\n- `experimentCount` includes the number of experiments from the specific project that use the metric\n\nFor example, `expand=experimentCount` includes the `experimentCount` field for each metric in the response.\n",
+		Long:  "Get a list of all metrics for the specified project.\n\n### Filtering metrics\n\nThe `filter` parameter supports the following operators: `contains`, `equals`, `anyOf`.\n\n#### Supported fields and operators\n\nYou can only filter certain fields in metrics when using the `filter` parameter. Additionally, you can only filter some fields with certain operators.\n\nWhen you search for metrics, the `filter` parameter supports the following fields and operators:\n\n|\u003cdiv style=\"width:120px\"\u003eField\u003c/div\u003e |Description |Supported operators |\n|---|---|---|\n| `eventKind` | The metric event kind. One of `custom`, `pageview`, `click`. | `equals` |\n| `hasConnections` | Whether the metric has connections to experiments or guarded rollouts. One of `true`, `false`. | `equals` |\n| `isNumeric` | Whether the metric is numeric. One of `true`, `false`. | `equals` |\n| `maintainerIds` | A comma-separated list of metric maintainer IDs. | `anyOf` |\n| `maintainerTeamKey` | The metric maintainer team key. | `equals` |\n| `metricUsedIn` | Filter by where the metric is used. One of `experiments`, `guarded_rollouts`, `any`, `none`. | `equals` |\n| `query` | A \"fuzzy\" search across metric key and name. Supply a string or list of strings to the operator. | `equals` |\n| `tags` | The metric tags. | `contains` |\n| `unitAggregationType` | The metric's unit aggregation type. One of `sum`, `average`. | `equals` |\n\nFor example, the filter `?filter=tags contains [\"tag1\", \"tag2\", \"tag3\"]` matches metrics that have all three tags.\n\nThe documented values for `filter` query parameters are prior to URL encoding. For example, the `[` in `?filter=tags contains [\"tag1\", \"tag2\", \"tag3\"]` must be encoded to `%5B`.\n\n### Expanding the metric list response\n\nLaunchDarkly supports expanding the \"List metrics\" response. By default, the expandable field is **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add the following supported field:\n\n- `experimentCount` includes the number of experiments from the specific project that use the metric\n\nFor example, `expand=experimentCount` includes the `experimentCount` field for each metric in the response.\n",
 		Use:   "list",
 		Params: []Param{
 			{
@@ -7901,7 +8077,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. This endpoint accepts filtering by 'query', 'tags', 'eventKind', 'isNumeric', 'unitAggregationType', 'hasConnections', 'maintainerIds', 'maintainerTeamKey' and 'view'. To learn more about the filter syntax, read the 'Filtering metrics' section above.",
+				Description: "A comma-separated list of filters. This endpoint accepts filtering by 'query', 'tags', 'eventKind', 'isNumeric', 'unitAggregationType', 'hasConnections', 'maintainerIds', 'maintainerTeamKey', 'view', 'dataSourceKeys', and 'metricUsedIn'. To learn more about the filter syntax, read the 'Filtering metrics' section above.",
 				Type:        "string",
 			},
 		},
@@ -9063,7 +9239,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ScheduledChangesResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create scheduled changes workflow",
-		Long:  "Create scheduled changes for a feature flag. The changes you schedule may include any semantic patch instructions available when [updating a feature flag](https://launchdarkly.com/docs/api/feature-flags/patch-feature-flag#using-semantic-patches-on-a-feature-flag). If the `ignoreConficts` query parameter is false and there are conflicts between these instructions and existing scheduled changes, the request will fail. If the parameter is true and there are conflicts, the request will succeed.",
+		Long:  "Create scheduled changes for a feature flag. The changes you schedule may include any semantic patch instructions available when [updating a feature flag](https://launchdarkly.com/docs/api/feature-flags/patch-feature-flag#using-semantic-patches-on-a-feature-flag). If the `ignoreConflicts` query parameter is false and there are conflicts between these instructions and existing scheduled changes, the request will fail. If the parameter is true and there are conflicts, the request will succeed.",
 		Use:   "create",
 		Params: []Param{
 			{
@@ -9585,7 +9761,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_SegmentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Patch segment",
-		Long:  "Update a segment. The request body must be a valid semantic patch, JSON patch, or JSON merge patch. To learn more the different formats, read [Updates](https://launchdarkly.com/docs/api#updates).\n\n### Using semantic patches on a segment\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\nThe body of a semantic patch request for updating segments requires an `environmentKey` in addition to `instructions` and an optional `comment`. The body of the request takes the following properties:\n\n* `comment` (string): (Optional) A description of the update.\n* `environmentKey` (string): (Required) The key of the LaunchDarkly environment.\n* `instructions` (array): (Required) A list of actions the update should perform. Each action in the list must be an object with a `kind` property that indicates the instruction. If the action requires parameters, you must include those parameters as additional fields in the object.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating segments.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating segment details and settings\u003c/strong\u003e\u003c/summary\u003e\n\n#### addTags\n\nAdds tags to the segment.\n\n##### Parameters\n\n- `values`: A list of tags to add.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addTags\",\n    \"values\": [\"tag1\", \"tag2\"]\n  }]\n}\n```\n\n#### removeTags\n\nRemoves tags from the segment.\n\n##### Parameters\n\n- `values`: A list of tags to remove.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeTags\",\n    \"values\": [\"tag1\", \"tag2\"]\n  }]\n}\n```\n\n#### updateName\n\nUpdates the name of the segment.\n\n##### Parameters\n\n- `value`: Name of the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateName\",\n    \"value\": \"Updated segment name\"\n  }]\n}\n```\n\n\u003c/details\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating segment individual targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExcludedTargets\n\nAdds context keys to the individual context targets excluded from the segment for the specified `contextKind`. Returns an error if this causes the same context key to be both included and excluded.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be added to.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addExcludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### addExcludedUsers\n\nAdds user keys to the individual user targets excluded from the segment. Returns an error if this causes the same user key to be both included and excluded. If you are working with contexts, use `addExcludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addExcludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### addIncludedTargets\n\nAdds context keys to the individual context targets included in the segment for the specified `contextKind`. Returns an error if this causes the same context key to be both included and excluded.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be added to.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addIncludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### addIncludedUsers\n\nAdds user keys to the individual user targets included in the segment. Returns an error if this causes the same user key to be both included and excluded. If you are working with contexts, use `addIncludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addIncludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### removeExcludedTargets\n\nRemoves context keys from the individual context targets excluded from the segment for the specified `contextKind`.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be removed from.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeExcludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### removeExcludedUsers\n\nRemoves user keys from the individual user targets excluded from the segment. If you are working with contexts, use `removeExcludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeExcludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### removeIncludedTargets\n\nRemoves context keys from the individual context targets included in the segment for the specified `contextKind`.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be removed from.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeIncludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### removeIncludedUsers\n\nRemoves user keys from the individual user targets included in the segment. If you are working with contexts, use `removeIncludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeIncludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n\u003c/details\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating segment targeting rules\u003c/strong\u003e\u003c/summary\u003e\n\n#### addClauses\n\nAdds the given clauses to the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, if not provided, defaults to `user`. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n- `ruleId`: ID of a rule in the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addClauses\",\n    \"clauses\": [\n      {\n        \"attribute\": \"email\",\n        \"negate\": false,\n        \"op\": \"contains\",\n        \"values\": [\"value1\"]\n      }\n    ],\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n  }]\n}\n```\n\n#### addRule\n\nAdds a new targeting rule to the segment. The rule may contain `clauses`.\n\n##### Parameters\n\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, if not provided, defaults to `user`. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n- `description`: A description of the rule.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addRule\",\n    \"clauses\": [\n      {\n        \"attribute\": \"email\",\n        \"op\": \"contains\",\n        \"negate\": false,\n        \"values\": [\"@launchdarkly.com\"]\n      }\n    ],\n    \"description\": \"Targeting rule for LaunchDarkly employees\",\n  }]\n}\n```\n\n#### addValuesToClause\n\nAdds `values` to the values of the clause that `ruleId` and `clauseId` indicate. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addValuesToClause\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n    \"values\": [\"beta_testers\"]\n  }]\n}\n```\n\n#### removeClauses\n\nRemoves the clauses specified by `clauseIds` from the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n- `clauseIds`: Array of IDs of clauses in the rule.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeClauses\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseIds\": [\"10a58772-3121-400f-846b-b8a04e8944ed\", \"36a461dc-235e-4b08-97b9-73ce9365873e\"]\n  }]\n}\n```\n\n#### removeRule\n\nRemoves the targeting rule specified by `ruleId`. Does nothing if the rule does not exist.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeRule\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n  }]\n}\n```\n\n#### removeValuesFromClause\n\nRemoves `values` from the values of the clause indicated by `ruleId` and `clauseId`. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeValuesFromClause\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n    \"values\": [\"beta_testers\"]\n  }]\n}\n```\n\n#### reorderRules\n\nRearranges the rules to match the order given in `ruleIds`. Returns an error if `ruleIds` does not match the current set of rules in the segment.\n\n##### Parameters\n\n- `ruleIds`: Array of IDs of all targeting rules in the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"reorderRules\",\n    \"ruleIds\": [\"a902ef4a-2faf-4eaf-88e1-ecc356708a29\", \"63c238d1-835d-435e-8f21-c8d5e40b2a3d\"]\n  }]\n}\n```\n\n#### updateClause\n\nReplaces the clause indicated by `ruleId` and `clauseId` with `clause`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n- `clauseId`: ID of a clause in that rule.\n- `clause`: New `clause` object, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, if not provided, defaults to `user`. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateClause\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseId\": \"10c7462a-2062-45ba-a8bb-dfb3de0f8af5\",\n    \"clause\": {\n      \"contextKind\": \"user\",\n      \"attribute\": \"country\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Mexico\", \"Canada\"]\n    }\n  }]\n}\n```\n\n#### updateRuleDescription\n\nUpdates the description of the segment targeting rule.\n\n##### Parameters\n\n- `description`: The new human-readable description for this rule.\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateRuleDescription\",\n    \"description\": \"New rule description\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n  }]\n}\n```\n\n#### updateRuleRolloutAndContextKind\n\nFor a rule that includes a percentage of targets, updates the percentage and the context kind of the targets to include.\n\n##### Parameters\n\n- `ruleId`: The ID of a targeting rule in the segment that includes a percentage of targets.\n- `weight`: The weight, in thousandths of a percent (0-100000).\n- `contextKind`: The context kind.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"reorderRules\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"weight\": \"20000\",\n    \"contextKind\": \"device\"\n  }]\n}\n```\n\n\u003c/details\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eworking with Big Segments\u003c/strong\u003e\u003c/summary\u003e\n\nA \"big segment\" is a segment that is either a synced segment, or a list-based segment with more than 15,000 entries that includes only one targeted context kind. LaunchDarkly uses different implementations for different types of segments so that all of your segments have good performance.\n\nThe following semantic patch instructions apply only to these [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments).\n\n#### addBigSegmentExcludedTargets\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Adds context keys to the context targets excluded from the segment. Returns an error if this causes the same context key to be both included and excluded.\n\n##### Parameters\n\n- `values`: List of context keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addBigSegmentExcludedTargets\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### addBigSegmentIncludedTargets\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Adds context keys to the context targets included in the segment. Returns an error if this causes the same context key to be both included and excluded.\n\n##### Parameters\n\n- `values`: List of context keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addBigSegmentIncludedTargets\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### processBigSegmentImport\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Processes a segment import.\n\n##### Parameters\n\n- `importId`: The ID of the import. The import ID is returned in the `Location` header as part of the [Create big segment import](https://launchdarkly.com/docs/api/segments/create-big-segment-import) request.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"processBigSegmentImport\",\n    \"importId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n  }]\n}\n```\n\n\n#### removeBigSegmentExcludedTargets\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Removes context keys from the context targets excluded from the segment.\n\n##### Parameters\n\n- `values`: List of context keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeBigSegmentExcludedTargets\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### removeBigSegmentIncludedTargets\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Removes context keys from the context targets included in the segment.\n\n##### Parameters\n\n- `values`: List of context keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeBigSegmentIncludedTargets\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n\u003c/details\u003e\n\n### Using JSON patches on a segment\n\nIf you do not include the header described above, you can use a [JSON patch](https://launchdarkly.com/docs/api#updates-using-json-patch) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes.\n\nFor example, to update the description for a segment with a JSON patch, use the following request body:\n\n```json\n{\n  \"patch\": [\n    {\n      \"op\": \"replace\",\n      \"path\": \"/description\",\n      \"value\": \"new description\"\n    }\n  ]\n}\n```\n\nTo update fields in the segment that are arrays, set the `path` to the name of the field and then append `/\u003carray index\u003e`. Use `/0` to add the new entry to the beginning of the array. Use `/-` to add the new entry to the end of the array.\n\nFor example, to add a rule to a segment, use the following request body:\n\n```json\n{\n  \"patch\":[\n    {\n      \"op\": \"add\",\n      \"path\": \"/rules/0\",\n      \"value\": {\n        \"clauses\": [{ \"contextKind\": \"user\", \"attribute\": \"email\", \"op\": \"endsWith\", \"values\": [\".edu\"], \"negate\": false }]\n      }\n    }\n  ]\n}\n```\n\nTo add or remove targets from segments, we recommend using semantic patch. Semantic patch for segments includes specific instructions for adding and removing both included and excluded targets.\n",
+		Long:  "Update a segment. The request body must be a valid semantic patch, JSON patch, or JSON merge patch. To learn more the different formats, read [Updates](https://launchdarkly.com/docs/api#updates).\n\n### Using semantic patches on a segment\n\nTo make a semantic patch request, you must append `domain-model=launchdarkly.semanticpatch` to your `Content-Type` header. To learn more, read [Updates using semantic patch](https://launchdarkly.com/docs/api#updates-using-semantic-patch).\n\nThe body of a semantic patch request for updating segments requires an `environmentKey` in addition to `instructions` and an optional `comment`. The body of the request takes the following properties:\n\n* `comment` (string): (Optional) A description of the update.\n* `environmentKey` (string): (Required) The key of the LaunchDarkly environment.\n* `instructions` (array): (Required) A list of actions the update should perform. Each action in the list must be an object with a `kind` property that indicates the instruction. If the action requires parameters, you must include those parameters as additional fields in the object.\n\n### Instructions\n\nSemantic patch requests support the following `kind` instructions for updating segments.\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating segment details and settings\u003c/strong\u003e\u003c/summary\u003e\n\n#### addTags\n\nAdds tags to the segment.\n\n##### Parameters\n\n- `values`: A list of tags to add.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addTags\",\n    \"values\": [\"tag1\", \"tag2\"]\n  }]\n}\n```\n\n#### removeTags\n\nRemoves tags from the segment.\n\n##### Parameters\n\n- `values`: A list of tags to remove.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeTags\",\n    \"values\": [\"tag1\", \"tag2\"]\n  }]\n}\n```\n\n#### updateName\n\nUpdates the name of the segment.\n\n##### Parameters\n\n- `value`: Name of the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateName\",\n    \"value\": \"Updated segment name\"\n  }]\n}\n```\n\n\u003c/details\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating segment individual targets\u003c/strong\u003e\u003c/summary\u003e\n\n#### addExcludedTargets\n\nAdds context keys to the individual context targets excluded from the segment for the specified `contextKind`. Returns an error if this causes the same context key to be both included and excluded, or if the number of operations on targets exceeds the batch limit of 1,500.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be added to.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addExcludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### addExcludedUsers\n\nAdds user keys to the individual user targets excluded from the segment. Returns an error if this causes the same user key to be both included and excluded, or if the number of operations on targets exceeds the batch limit of 1,500. If you are working with contexts, use `addExcludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addExcludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### addIncludedTargets\n\nAdds context keys to the individual context targets included in the segment for the specified `contextKind`. Returns an error if this causes the same context key to be both included and excluded, or if the number of operations on targets exceeds the batch limit of 1,500.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be added to.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addIncludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### addIncludedUsers\n\nAdds user keys to the individual user targets included in the segment. Returns an error if this causes the same user key to be both included and excluded, or if the number of operations on targets exceeds the batch limit of 1,500. If you are working with contexts, use `addIncludedTargets` instead of this instruction.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addIncludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### removeExcludedTargets\n\nRemoves context keys from the individual context targets excluded from the segment for the specified `contextKind`. Returns an error if the number of operations on targets exceeds the batch limit of 1,500.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be removed from.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeExcludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### removeExcludedUsers\n\nRemoves user keys from the individual user targets excluded from the segment. If you are working with contexts, use `removeExcludedTargets` instead of this instruction. Returns an error if the number of operations on targets exceeds the batch limit of 1,500.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeExcludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n#### removeIncludedTargets\n\nRemoves context keys from the individual context targets included in the segment for the specified `contextKind`. Returns an error if the number of operations on targets exceeds the batch limit of 1,500.\n\n##### Parameters\n\n- `contextKind`: The context kind the targets should be removed from.\n- `values`: List of keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeIncludedTargets\",\n    \"contextKind\": \"org\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### removeIncludedUsers\n\nRemoves user keys from the individual user targets included in the segment. If you are working with contexts, use `removeIncludedTargets` instead of this instruction. Returns an error if the number of operations on targets exceeds the batch limit of 1,500.\n\n##### Parameters\n\n- `values`: List of user keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeIncludedUsers\",\n    \"values\": [ \"user-key-123abc\", \"user-key-456def\" ]\n  }]\n}\n```\n\n\u003c/details\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eupdating segment targeting rules\u003c/strong\u003e\u003c/summary\u003e\n\n#### addClauses\n\nAdds the given clauses to the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, if not provided, defaults to `user`. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n- `ruleId`: ID of a rule in the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addClauses\",\n    \"clauses\": [\n      {\n        \"attribute\": \"email\",\n        \"negate\": false,\n        \"op\": \"contains\",\n        \"values\": [\"value1\"]\n      }\n    ],\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n  }]\n}\n```\n\n#### addRule\n\nAdds a new targeting rule to the segment. The rule may contain `clauses`.\n\n##### Parameters\n\n- `clauses`: Array of clause objects, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, if not provided, defaults to `user`. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n- `description`: A description of the rule.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addRule\",\n    \"clauses\": [\n      {\n        \"attribute\": \"email\",\n        \"op\": \"contains\",\n        \"negate\": false,\n        \"values\": [\"@launchdarkly.com\"]\n      }\n    ],\n    \"description\": \"Targeting rule for LaunchDarkly employees\",\n  }]\n}\n```\n\n#### addValuesToClause\n\nAdds `values` to the values of the clause that `ruleId` and `clauseId` indicate. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addValuesToClause\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n    \"values\": [\"beta_testers\"]\n  }]\n}\n```\n\n#### removeClauses\n\nRemoves the clauses specified by `clauseIds` from the rule indicated by `ruleId`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n- `clauseIds`: Array of IDs of clauses in the rule.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeClauses\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseIds\": [\"10a58772-3121-400f-846b-b8a04e8944ed\", \"36a461dc-235e-4b08-97b9-73ce9365873e\"]\n  }]\n}\n```\n\n#### removeRule\n\nRemoves the targeting rule specified by `ruleId`. Does nothing if the rule does not exist.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeRule\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n  }]\n}\n```\n\n#### removeValuesFromClause\n\nRemoves `values` from the values of the clause indicated by `ruleId` and `clauseId`. Does not update the context kind, attribute, or operator.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n- `clauseId`: ID of a clause in that rule.\n- `values`: Array of strings, case sensitive.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeValuesFromClause\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseId\": \"10a58772-3121-400f-846b-b8a04e8944ed\",\n    \"values\": [\"beta_testers\"]\n  }]\n}\n```\n\n#### reorderRules\n\nRearranges the rules to match the order given in `ruleIds`. Returns an error if `ruleIds` does not match the current set of rules in the segment.\n\n##### Parameters\n\n- `ruleIds`: Array of IDs of all targeting rules in the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"reorderRules\",\n    \"ruleIds\": [\"a902ef4a-2faf-4eaf-88e1-ecc356708a29\", \"63c238d1-835d-435e-8f21-c8d5e40b2a3d\"]\n  }]\n}\n```\n\n#### updateClause\n\nReplaces the clause indicated by `ruleId` and `clauseId` with `clause`.\n\n##### Parameters\n\n- `ruleId`: ID of a rule in the segment.\n- `clauseId`: ID of a clause in that rule.\n- `clause`: New `clause` object, with `contextKind` (string), `attribute` (string), `op` (string), `negate` (boolean), and `values` (array of strings, numbers, or dates) properties. The `contextKind`, if not provided, defaults to `user`. The `contextKind`, `attribute`, and `values` are case sensitive. The `op` must be lower-case.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateClause\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"clauseId\": \"10c7462a-2062-45ba-a8bb-dfb3de0f8af5\",\n    \"clause\": {\n      \"contextKind\": \"user\",\n      \"attribute\": \"country\",\n      \"op\": \"in\",\n      \"negate\": false,\n      \"values\": [\"Mexico\", \"Canada\"]\n    }\n  }]\n}\n```\n\n#### updateRuleDescription\n\nUpdates the description of the segment targeting rule.\n\n##### Parameters\n\n- `description`: The new human-readable description for this rule.\n- `ruleId`: The ID of the rule. You can retrieve this by making a GET request for the segment.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"updateRuleDescription\",\n    \"description\": \"New rule description\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n  }]\n}\n```\n\n#### updateRuleRolloutAndContextKind\n\nFor a rule that includes a percentage of targets, updates the percentage and the context kind of the targets to include.\n\n##### Parameters\n\n- `ruleId`: The ID of a targeting rule in the segment that includes a percentage of targets.\n- `weight`: The weight, in thousandths of a percent (0-100000).\n- `contextKind`: The context kind.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"reorderRules\",\n    \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\",\n    \"weight\": \"20000\",\n    \"contextKind\": \"device\"\n  }]\n}\n```\n\n\u003c/details\u003e\n\n\u003cdetails\u003e\n\u003csummary\u003eClick to expand instructions for \u003cstrong\u003eworking with Big Segments\u003c/strong\u003e\u003c/summary\u003e\n\nA \"big segment\" is a segment that is either a synced segment, or a list-based segment with more than 15,000 entries that includes only one targeted context kind. LaunchDarkly uses different implementations for different types of segments so that all of your segments have good performance.\n\nThe following semantic patch instructions apply only to these [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments).\n\n#### addBigSegmentExcludedTargets\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Adds context keys to the context targets excluded from the segment. Returns an error if this causes the same context key to be both included and excluded.\n\n##### Parameters\n\n- `values`: List of context keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addBigSegmentExcludedTargets\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### addBigSegmentIncludedTargets\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Adds context keys to the context targets included in the segment. Returns an error if this causes the same context key to be both included and excluded.\n\n##### Parameters\n\n- `values`: List of context keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"addBigSegmentIncludedTargets\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### processBigSegmentImport\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Processes a segment import.\n\n##### Parameters\n\n- `importId`: The ID of the import. The import ID is returned in the `Location` header as part of the [Create big segment import](https://launchdarkly.com/docs/api/segments/create-big-segment-import) request.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"processBigSegmentImport\",\n    \"importId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"\n  }]\n}\n```\n\n\n#### removeBigSegmentExcludedTargets\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Removes context keys from the context targets excluded from the segment.\n\n##### Parameters\n\n- `values`: List of context keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeBigSegmentExcludedTargets\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n#### removeBigSegmentIncludedTargets\n\nFor use with [larger list-based segments](https://launchdarkly.com/docs/home/flags/segments-create#create-larger-list-based-segments) ONLY. Removes context keys from the context targets included in the segment.\n\n##### Parameters\n\n- `values`: List of context keys.\n\nHere's an example:\n\n```json\n{\n  \"instructions\": [{\n    \"kind\": \"removeBigSegmentIncludedTargets\",\n    \"values\": [ \"org-key-123abc\", \"org-key-456def\" ]\n  }]\n}\n```\n\n\u003c/details\u003e\n\n### Using JSON patches on a segment\n\nIf you do not include the header described above, you can use a [JSON patch](https://launchdarkly.com/docs/api#updates-using-json-patch) or [JSON merge patch](https://datatracker.ietf.org/doc/html/rfc7386) representation of the desired changes.\n\nFor example, to update the description for a segment with a JSON patch, use the following request body:\n\n```json\n{\n  \"patch\": [\n    {\n      \"op\": \"replace\",\n      \"path\": \"/description\",\n      \"value\": \"new description\"\n    }\n  ]\n}\n```\n\nTo update fields in the segment that are arrays, set the `path` to the name of the field and then append `/\u003carray index\u003e`. Use `/0` to add the new entry to the beginning of the array. Use `/-` to add the new entry to the end of the array.\n\nFor example, to add a rule to a segment, use the following request body:\n\n```json\n{\n  \"patch\":[\n    {\n      \"op\": \"add\",\n      \"path\": \"/rules/0\",\n      \"value\": {\n        \"clauses\": [{ \"contextKind\": \"user\", \"attribute\": \"email\", \"op\": \"endsWith\", \"values\": [\".edu\"], \"negate\": false }]\n      }\n    }\n  ]\n}\n```\n\nTo add or remove targets from segments, we recommend using semantic patch. Semantic patch for segments includes specific instructions for adding and removing both included and excluded targets.\n",
 		Use:   "update",
 		Params: []Param{
 			{
@@ -9605,6 +9781,12 @@ func AddAllResourceCmds(
 				In:          "path",
 				Description: "The segment key",
 				Type:        "string",
+			},
+			{
+				Name:        "dry-run",
+				In:          "query",
+				Description: "If true, the patch will be validated but not persisted. Returns a preview of the segment after the patch is applied.",
+				Type:        "boolean",
 			},
 		},
 		HTTPMethod:            "PATCH",
@@ -9713,7 +9895,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "kind",
 				In:          "query",
-				Description: "Fetch tags associated with the specified resource type. Options are 'flag', 'project', 'environment', 'segment', 'metric', 'aiconfig', and 'view'. Returns all types by default.",
+				Description: "Fetch tags associated with the specified resource type. Options are 'flag', 'project', 'environment', 'segment', 'metric', 'metric-data-source', 'aiconfig', and 'view'. Returns all types by default.",
 				Type:        "array",
 			},
 			{
@@ -10272,7 +10454,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ViewsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Link resource",
-		Long:  "Link one or multiple resources to a view:\n- Link flags using flag keys\n- Link AI configs using AI config keys\n- Link metrics using metric keys\n- Link segments using segment IDs\n",
+		Long:  "Link one or multiple resources to a view by keys, filters, or both:\n- Link flags using flag keys or filters (maintainerId, maintainerTeamKey, tags, state, query)\n- Link AI Configs using AI Config keys\n- Link metrics using metric keys\n- Link segments using segment IDs or filters (tags, query, unbounded)\n\nWhen both keys and filters are provided, resources matching either condition are linked (union).\n",
 		Use:   "link-resource",
 		Params: []Param{
 			{
@@ -10310,7 +10492,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ViewsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Unlink resource",
-		Long:  "Unlink one or multiple resources from a view:\n- Unlink flags using flag keys\n- Unlink segments using segment IDs\n- Unlink AI configs using AI config keys\n- Unlink metrics using metric keys\n",
+		Long:  "Unlink one or multiple resources from a view:\n- Unlink flags using flag keys\n- Unlink segments using segment IDs\n- Unlink AI Configs using AI Config keys\n- Unlink metrics using metric keys\n",
 		Use:   "unlink-resource",
 		Params: []Param{
 			{
