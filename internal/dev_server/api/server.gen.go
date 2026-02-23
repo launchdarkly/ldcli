@@ -239,6 +239,9 @@ type PatchProjectJSONRequestBody PatchProjectJSONBody
 // PostAddProjectJSONRequestBody defines body for PostAddProject for application/json ContentType.
 type PostAddProjectJSONRequestBody PostAddProjectJSONBody
 
+// PostImportProjectJSONRequestBody defines body for PostImportProject for application/json ContentType.
+type PostImportProjectJSONRequestBody = Project
+
 // PutOverrideFlagJSONRequestBody defines body for PutOverrideFlag for application/json ContentType.
 type PutOverrideFlagJSONRequestBody = FlagValue
 
@@ -277,6 +280,9 @@ type ServerInterface interface {
 	// list all environments for the given project
 	// (GET /projects/{projectKey}/environments)
 	GetEnvironments(w http.ResponseWriter, r *http.Request, projectKey ProjectKey, params GetEnvironmentsParams)
+	// Import a project from exported JSON data
+	// (POST /projects/{projectKey}/import)
+	PostImportProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
 	// remove all overrides for the given project
 	// (DELETE /projects/{projectKey}/overrides)
 	DeleteOverrides(w http.ResponseWriter, r *http.Request, projectKey ProjectKey)
@@ -628,6 +634,31 @@ func (siw *ServerInterfaceWrapper) GetEnvironments(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// PostImportProject operation middleware
+func (siw *ServerInterfaceWrapper) PostImportProject(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "projectKey" -------------
+	var projectKey ProjectKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectKey", mux.Vars(r)["projectKey"], &projectKey, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectKey", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostImportProject(w, r, projectKey)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteOverrides operation middleware
 func (siw *ServerInterfaceWrapper) DeleteOverrides(w http.ResponseWriter, r *http.Request) {
 
@@ -855,6 +886,8 @@ func HandlerWithOptions(si ServerInterface, options GorillaServerOptions) http.H
 	r.HandleFunc(options.BaseURL+"/projects/{projectKey}", wrapper.PostAddProject).Methods("POST")
 
 	r.HandleFunc(options.BaseURL+"/projects/{projectKey}/environments", wrapper.GetEnvironments).Methods("GET")
+
+	r.HandleFunc(options.BaseURL+"/projects/{projectKey}/import", wrapper.PostImportProject).Methods("POST")
 
 	r.HandleFunc(options.BaseURL+"/projects/{projectKey}/overrides", wrapper.DeleteOverrides).Methods("DELETE")
 
@@ -1202,6 +1235,48 @@ func (response GetEnvironments404JSONResponse) VisitGetEnvironmentsResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
+type PostImportProjectRequestObject struct {
+	ProjectKey ProjectKey `json:"projectKey"`
+	Body       *PostImportProjectJSONRequestBody
+}
+
+type PostImportProjectResponseObject interface {
+	VisitPostImportProjectResponse(w http.ResponseWriter) error
+}
+
+type PostImportProject201JSONResponse struct{ ProjectJSONResponse }
+
+func (response PostImportProject201JSONResponse) VisitPostImportProjectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostImportProject400JSONResponse struct{ ErrorResponseJSONResponse }
+
+func (response PostImportProject400JSONResponse) VisitPostImportProjectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostImportProject409JSONResponse struct {
+	// Code specific error code encountered
+	Code string `json:"code"`
+
+	// Message description of the error
+	Message string `json:"message"`
+}
+
+func (response PostImportProject409JSONResponse) VisitPostImportProjectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type DeleteOverridesRequestObject struct {
 	ProjectKey ProjectKey `json:"projectKey"`
 }
@@ -1315,6 +1390,9 @@ type StrictServerInterface interface {
 	// list all environments for the given project
 	// (GET /projects/{projectKey}/environments)
 	GetEnvironments(ctx context.Context, request GetEnvironmentsRequestObject) (GetEnvironmentsResponseObject, error)
+	// Import a project from exported JSON data
+	// (POST /projects/{projectKey}/import)
+	PostImportProject(ctx context.Context, request PostImportProjectRequestObject) (PostImportProjectResponseObject, error)
 	// remove all overrides for the given project
 	// (DELETE /projects/{projectKey}/overrides)
 	DeleteOverrides(ctx context.Context, request DeleteOverridesRequestObject) (DeleteOverridesResponseObject, error)
@@ -1649,6 +1727,39 @@ func (sh *strictHandler) GetEnvironments(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetEnvironmentsResponseObject); ok {
 		if err := validResponse.VisitGetEnvironmentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostImportProject operation middleware
+func (sh *strictHandler) PostImportProject(w http.ResponseWriter, r *http.Request, projectKey ProjectKey) {
+	var request PostImportProjectRequestObject
+
+	request.ProjectKey = projectKey
+
+	var body PostImportProjectJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostImportProject(ctx, request.(PostImportProjectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostImportProject")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostImportProjectResponseObject); ok {
+		if err := validResponse.VisitPostImportProjectResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
