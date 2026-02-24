@@ -5,8 +5,22 @@ These skills give AI agents (Claude Code) the knowledge to manage LaunchDarkly r
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/claude-code) installed
-- [`ldcli`](https://github.com/launchdarkly/ldcli) installed and on your PATH
-- Authenticated: run `ldcli login` or set `LD_ACCESS_TOKEN`
+
+`ldcli` does **not** need to be installed before running the skill installer. If it's missing, the installer will warn you and continue. Once the skills are installed, Claude will automatically detect that `ldcli` is missing when you ask it to do something with LaunchDarkly and offer to install it for you.
+
+If you'd rather install `ldcli` yourself first:
+
+```bash
+# macOS
+brew tap launchdarkly/homebrew-tap && brew install ldcli
+
+# npm
+npm install -g @launchdarkly/ldcli
+
+# Then authenticate
+ldcli login
+# or set LD_ACCESS_TOKEN in your environment
+```
 
 ## Quick Install
 

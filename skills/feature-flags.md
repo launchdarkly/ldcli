@@ -1,5 +1,12 @@
 # Skill: Feature Flags
 
+> **Prerequisites:** This skill requires `ldcli`. Before running any command below, verify it's available (`which ldcli`). If not found, offer to install it:
+> - macOS: `brew tap launchdarkly/homebrew-tap && brew install ldcli`
+> - npm: `npm install -g @launchdarkly/ldcli`
+> - Binary downloads: https://github.com/launchdarkly/ldcli/releases
+>
+> After install, authenticate with `ldcli login` or by setting `LD_ACCESS_TOKEN`. Use `-o json` on all commands for parseable output.
+
 Manage the lifecycle of feature flags: list, create, get, toggle, update, archive, and delete.
 
 ## List Flags

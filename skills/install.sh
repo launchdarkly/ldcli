@@ -81,6 +81,41 @@ echo "LaunchDarkly CLI Skills for Claude Code"
 echo "========================================"
 echo ""
 
+# --- Step 0: Check for ldcli ---
+print_step "Checking for ldcli..."
+if command -v ldcli &>/dev/null; then
+  ldcli_version=$(ldcli --version 2>&1 || true)
+  print_success "Found ldcli (${ldcli_version})"
+else
+  echo ""
+  echo "  WARNING: ldcli is not installed or not on your PATH."
+  echo ""
+  echo "  The skills will be installed, but Claude won't be able to run"
+  echo "  ldcli commands until it's installed. Install options:"
+  echo ""
+  echo "    macOS (Homebrew):"
+  echo "      brew tap launchdarkly/homebrew-tap"
+  echo "      brew install ldcli"
+  echo ""
+  echo "    npm:"
+  echo "      npm install -g @launchdarkly/ldcli"
+  echo ""
+  echo "    Docker:"
+  echo "      docker pull launchdarkly/ldcli"
+  echo ""
+  echo "    Binary downloads (Linux/Windows):"
+  echo "      https://github.com/launchdarkly/ldcli/releases"
+  echo ""
+  read -r -p "  Continue installing skills anyway? [Y/n] " response
+  case "$response" in
+    [nN]*)
+      echo "  Aborted."
+      exit 0
+      ;;
+  esac
+  echo ""
+fi
+
 # --- Step 1: Create commands directory ---
 print_step "Checking ${COMMANDS_DIR}..."
 if [ ! -d "$COMMANDS_DIR" ]; then
@@ -128,7 +163,14 @@ print_step "Configuring ${CLAUDE_MD}..."
 CLAUDE_MD_BLOCK="${CLAUDE_MD_MARKER}
 ## LaunchDarkly CLI (ldcli)
 
-You have access to \`ldcli\`, the LaunchDarkly CLI, for managing feature flags, projects, environments, segments, and more. Always use \`-o json\` for parseable output.
+When the user asks about feature flags, environments, projects, segments, or other LaunchDarkly resources, use \`ldcli\` to fulfill the request. Always use \`-o json\` for parseable output.
+
+**Before your first ldcli command in a session**, verify it is available by running \`which ldcli\`. If ldcli is not found, tell the user and offer to install it:
+- macOS: \`brew tap launchdarkly/homebrew-tap && brew install ldcli\`
+- npm: \`npm install -g @launchdarkly/ldcli\`
+- Docker: \`docker pull launchdarkly/ldcli\`
+- Binary downloads: https://github.com/launchdarkly/ldcli/releases
+After installing, the user must authenticate with \`ldcli login\` or set \`LD_ACCESS_TOKEN\`.
 
 **Skill commands available:** Use \`/ld-feature-flags\`, \`/ld-flag-targeting\`, \`/ld-projects-and-environments\`, \`/ld-segments\`, \`/ld-members-and-teams\`, \`/ld-dev-server\`, or \`/ld-audit-and-observability\` to load detailed usage reference for a specific area.
 

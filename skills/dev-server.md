@@ -1,5 +1,12 @@
 # Skill: Dev Server
 
+> **Prerequisites:** This skill requires `ldcli`. Before running any command below, verify it's available (`which ldcli`). If not found, offer to install it:
+> - macOS: `brew tap launchdarkly/homebrew-tap && brew install ldcli`
+> - npm: `npm install -g @launchdarkly/ldcli`
+> - Binary downloads: https://github.com/launchdarkly/ldcli/releases
+>
+> After install, authenticate with `ldcli login` or by setting `LD_ACCESS_TOKEN`. Use `-o json` on all commands for parseable output.
+
 Run a local development server that mirrors LaunchDarkly flag state and allows local overrides. This is useful for local development and testing without affecting real environments.
 
 ## Starting the Dev Server
