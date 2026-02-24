@@ -12,6 +12,7 @@ CONVENTIONS_FILE="${CLAUDE_DIR}/launchdarkly-conventions.md"
 
 # Skill files to install (everything except non-skill files)
 SKILL_FILES=(
+  "setup.md"
   "feature-flags.md"
   "flag-targeting.md"
   "projects-and-environments.md"
@@ -165,12 +166,7 @@ CLAUDE_MD_BLOCK="${CLAUDE_MD_MARKER}
 
 When the user asks about feature flags, environments, projects, segments, or other LaunchDarkly resources, use \`ldcli\` to fulfill the request. Always use \`-o json\` for parseable output.
 
-**Before your first ldcli command in a session**, verify it is available by running \`which ldcli\`. If ldcli is not found, tell the user and offer to install it:
-- macOS: \`brew tap launchdarkly/homebrew-tap && brew install ldcli\`
-- npm: \`npm install -g @launchdarkly/ldcli\`
-- Docker: \`docker pull launchdarkly/ldcli\`
-- Binary downloads: https://github.com/launchdarkly/ldcli/releases
-After installing, the user must authenticate with \`ldcli login\` or set \`LD_ACCESS_TOKEN\`.
+**Before your first ldcli command in a session**, verify it is available by running \`which ldcli\`. If ldcli is not found, tell the user and use \`/ld-setup\` for install and auth instructions.
 
 **Skill commands available:** Use \`/ld-feature-flags\`, \`/ld-flag-targeting\`, \`/ld-projects-and-environments\`, \`/ld-segments\`, \`/ld-members-and-teams\`, \`/ld-dev-server\`, or \`/ld-audit-and-observability\` to load detailed usage reference for a specific area.
 

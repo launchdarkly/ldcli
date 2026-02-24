@@ -1,11 +1,6 @@
 # Skill: Projects and Environments
 
-> **Prerequisites:** This skill requires `ldcli`. Before running any command below, verify it's available (`which ldcli`). If not found, offer to install it:
-> - macOS: `brew tap launchdarkly/homebrew-tap && brew install ldcli`
-> - npm: `npm install -g @launchdarkly/ldcli`
-> - Binary downloads: https://github.com/launchdarkly/ldcli/releases
->
-> After install, authenticate with `ldcli login` or by setting `LD_ACCESS_TOKEN`. Use `-o json` on all commands for parseable output.
+> **Requires `ldcli`.** Run `which ldcli` to check. If missing, use `/ld-setup` for install and auth instructions.
 
 Manage LaunchDarkly projects and their environments. Projects contain feature flags; environments (e.g., production, staging, development) contain the flag configurations and targeting rules.
 

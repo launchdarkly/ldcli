@@ -14,14 +14,14 @@ See [INSTALL.md](./INSTALL.md) for full setup instructions, customization, and u
 
 ## Prerequisites
 
-- `ldcli` installed and on PATH
-- Authenticated via `ldcli login` or `--access-token` / `LD_ACCESS_TOKEN` env var
-- For JSON output (recommended for agents), use `-o json` on any command
+- [Claude Code](https://claude.ai/claude-code) installed
+- `ldcli` does **not** need to be pre-installed — each skill includes instructions for Claude to detect a missing `ldcli` and offer to install it automatically
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
+| [setup](./setup.md) | Install, authenticate, and verify `ldcli` |
 | [feature-flags](./feature-flags.md) | Create, read, update, toggle, and delete feature flags |
 | [flag-targeting](./flag-targeting.md) | Manage flag targeting rules, rollouts, and individual targets |
 | [projects-and-environments](./projects-and-environments.md) | Manage projects and environments |

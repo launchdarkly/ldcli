@@ -42,6 +42,7 @@ That's it. The installer:
 
 | Command | Skill |
 |---------|-------|
+| `/ld-setup` | Install, authenticate, and verify `ldcli` |
 | `/ld-feature-flags` | Create, list, get, toggle, archive, delete flags |
 | `/ld-flag-targeting` | Targeting rules, rollouts, individual targets, prerequisites |
 | `/ld-projects-and-environments` | Manage projects and environments |
@@ -75,6 +76,7 @@ The install uses **symlinks**, so the slash commands always reflect the latest s
 ├── CLAUDE.md                          ← passive ldcli context appended here
 ├── launchdarkly-conventions.md        ← YOUR org customizations (copied, not linked)
 └── commands/
+    ├── ld-setup.md                    → symlink to skills/setup.md
     ├── ld-feature-flags.md            → symlink to skills/feature-flags.md
     ├── ld-flag-targeting.md           → symlink to skills/flag-targeting.md
     ├── ld-projects-and-environments.md → symlink to skills/projects-and-environments.md
@@ -145,9 +147,72 @@ This removes the slash command symlinks and the `CLAUDE.md` block. Your conventi
 
 ## Manual Install
 
-If you prefer not to use the script:
+No script required. Just copy files and paste a text block.
 
-1. Create `~/.claude/commands/` if it doesn't exist
-2. Symlink (or copy) each skill `.md` file into `~/.claude/commands/` with an `ld-` prefix
-3. Add the ldcli context block to `~/.claude/CLAUDE.md` (see install.sh for the exact text)
-4. Copy `conventions.md.example` to `~/.claude/launchdarkly-conventions.md` and customize it
+### 1. Copy skill files
+
+Create the commands directory if it doesn't exist, then copy (or symlink) each skill file with an `ld-` prefix:
+
+```bash
+mkdir -p ~/.claude/commands
+
+# From the skills/ directory, copy each file:
+cp setup.md              ~/.claude/commands/ld-setup.md
+cp feature-flags.md      ~/.claude/commands/ld-feature-flags.md
+cp flag-targeting.md     ~/.claude/commands/ld-flag-targeting.md
+cp projects-and-environments.md ~/.claude/commands/ld-projects-and-environments.md
+cp segments.md           ~/.claude/commands/ld-segments.md
+cp members-and-teams.md  ~/.claude/commands/ld-members-and-teams.md
+cp dev-server.md         ~/.claude/commands/ld-dev-server.md
+cp audit-and-observability.md ~/.claude/commands/ld-audit-and-observability.md
+```
+
+Or use symlinks if you want auto-updates on `git pull` (replace `cp` with `ln -s` using absolute paths).
+
+### 2. Add context to CLAUDE.md
+
+Open (or create) `~/.claude/CLAUDE.md` and paste this block:
+
+```markdown
+<!-- ldcli-skills -->
+## LaunchDarkly CLI (ldcli)
+
+When the user asks about feature flags, environments, projects, segments, or other LaunchDarkly resources, use `ldcli` to fulfill the request. Always use `-o json` for parseable output.
+
+**Before your first ldcli command in a session**, verify it is available by running `which ldcli`. If ldcli is not found, tell the user and use `/ld-setup` for install and auth instructions.
+
+**Skill commands available:** Use `/ld-setup`, `/ld-feature-flags`, `/ld-flag-targeting`, `/ld-projects-and-environments`, `/ld-segments`, `/ld-members-and-teams`, `/ld-dev-server`, or `/ld-audit-and-observability` to load detailed usage reference for a specific area.
+
+**Before making changes:** Always list/get resources first to confirm keys exist. Use `ldcli <resource> --help` to check available flags for any command.
+
+**Conventions:** See ~/.claude/launchdarkly-conventions.md for organization-specific naming, tagging, and safety conventions.
+<!-- ldcli-skills -->
+```
+
+### 3. Set up your conventions file (optional)
+
+```bash
+cp conventions.md.example ~/.claude/launchdarkly-conventions.md
+```
+
+Edit `~/.claude/launchdarkly-conventions.md` to add your org's project keys, environment names, naming conventions, and safety rules.
+
+### Manual uninstall
+
+```bash
+# Remove slash commands
+rm ~/.claude/commands/ld-setup.md
+rm ~/.claude/commands/ld-feature-flags.md
+rm ~/.claude/commands/ld-flag-targeting.md
+rm ~/.claude/commands/ld-projects-and-environments.md
+rm ~/.claude/commands/ld-segments.md
+rm ~/.claude/commands/ld-members-and-teams.md
+rm ~/.claude/commands/ld-dev-server.md
+rm ~/.claude/commands/ld-audit-and-observability.md
+
+# Remove the ldcli block from ~/.claude/CLAUDE.md
+# Delete everything between the two <!-- ldcli-skills --> markers (inclusive)
+
+# Optionally remove conventions
+rm ~/.claude/launchdarkly-conventions.md
+```
