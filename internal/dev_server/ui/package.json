@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@launchpad-ui/components": "0.4.4",
-    "@launchpad-ui/core": "0.49.22",
+    "@launchpad-ui/core": "0.59.12",
     "@launchpad-ui/icons": "0.18.13",
     "@launchpad-ui/tokens": "0.11.3",
     "@testing-library/react": "16.0.1",
