@@ -4,6 +4,7 @@ const (
 	BaseURIDefault      = "https://app.launchdarkly.com"
 	DevStreamURIDefault = "https://stream.launchdarkly.com"
 	PortDefault         = "8765"
+	HostDefault         = "127.0.0.1"
 
 	AccessTokenFlag  = "access-token"
 	AnalyticsOptOut  = "analytics-opt-out"
@@ -15,6 +16,7 @@ const (
 	EmailsFlag       = "emails"
 	EnvironmentFlag  = "environment"
 	FlagFlag         = "flag"
+	HostFlag         = "host"
 	OutputFlag       = "output"
 	PortFlag         = "port"
 	ProjectFlag      = "project"
@@ -29,6 +31,7 @@ const (
 	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
 	EnvironmentFlagDescription = "Default environment key"
 	FlagFlagDescription        = "Default feature flag key"
+	HostFlagDescription        = "Host for the dev server to bind to (default: 127.0.0.1). Use 0.0.0.0 to allow external connections"
 	OutputFlagDescription      = "Command response output format in either JSON or plain text"
 	PortFlagDescription        = "Port for the dev server to run on"
 	ProjectFlagDescription     = "Default project key"
@@ -45,6 +48,7 @@ func AllFlagsHelp() map[string]string {
 		DevStreamURIFlag: DevStreamURIDescription,
 		EnvironmentFlag:  EnvironmentFlagDescription,
 		FlagFlag:         FlagFlagDescription,
+		HostFlag:         HostFlagDescription,
 		OutputFlag:       OutputFlagDescription,
 		PortFlag:         PortFlagDescription,
 		ProjectFlag:      ProjectFlagDescription,

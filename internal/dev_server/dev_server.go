@@ -31,6 +31,7 @@ type ServerParams struct {
 	BaseURI                string
 	DevStreamURI           string
 	Port                   string
+	Host                   string
 	CorsEnabled            bool
 	CorsOrigin             string
 	InitialProjectSettings model.InitialProjectSettings
@@ -109,7 +110,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	}
 	handler := handlers.CombinedLoggingHandler(os.Stdout, r)
 
-	addr := fmt.Sprintf("127.0.0.1:%s", serverParams.Port)
+	addr := fmt.Sprintf("%s:%s", serverParams.Host, serverParams.Port)
 	log.Printf("Server running on %s", addr)
 	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
 

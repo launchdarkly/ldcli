@@ -50,6 +50,14 @@ func NewDevServerCmd(client resources.Client, analyticsTrackerFn analytics.Track
 
 	_ = viper.BindPFlag(cliflags.PortFlag, cmd.PersistentFlags().Lookup(cliflags.PortFlag))
 
+	cmd.PersistentFlags().String(
+		cliflags.HostFlag,
+		cliflags.HostDefault,
+		cliflags.HostFlagDescription,
+	)
+
+	_ = viper.BindPFlag(cliflags.HostFlag, cmd.PersistentFlags().Lookup(cliflags.HostFlag))
+
 	cmd.PersistentFlags().Bool(
 		cliflags.CorsEnabledFlag,
 		false,
@@ -89,5 +97,9 @@ func NewDevServerCmd(client resources.Client, analyticsTrackerFn analytics.Track
 }
 
 func getDevServerUrl() string {
-	return fmt.Sprintf("http://localhost:%s", viper.GetString(cliflags.PortFlag))
+	host := viper.GetString(cliflags.HostFlag)
+	if host == "0.0.0.0" {
+		host = "localhost"
+	}
+	return fmt.Sprintf("http://%s:%s", host, viper.GetString(cliflags.PortFlag))
 }

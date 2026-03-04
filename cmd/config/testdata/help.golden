@@ -9,6 +9,7 @@ Supported settings:
 - `dev-stream-uri`: Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint
 - `environment`: Default environment key
 - `flag`: Default feature flag key
+- `host`: Host for the dev server to bind to (default: 127.0.0.1). Use 0.0.0.0 to allow external connections
 - `output`: Command response output format in either JSON or plain text
 - `port`: Port for the dev server to run on
 - `project`: Default project key
