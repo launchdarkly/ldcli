@@ -114,14 +114,14 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			false,
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
 		var projectResult struct {
 			ID string `json:"_id"`
 		}
 		if err = json.Unmarshal(res, &projectResult); err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 		if projectResult.ID == "" {
 			return fmt.Errorf("project %s not found", projectKey)

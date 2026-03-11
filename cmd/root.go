@@ -23,6 +23,7 @@ import (
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
+	whoamicmd "github.com/launchdarkly/ldcli/cmd/whoami"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
@@ -108,6 +109,7 @@ func NewRootCommand(
 					cmd.DisableFlagParsing = true
 				}
 			}
+
 		},
 		Annotations: make(map[string]string),
 		// Handle errors differently based on type.
@@ -198,6 +200,12 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	cmd.PersistentFlags().Bool(
+		cliflags.JSONFlag,
+		false,
+		cliflags.JSONFlagDescription,
+	)
+
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
@@ -205,6 +213,7 @@ func NewRootCommand(
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(resources.NewClient(version), analyticsTrackerFn, dev_server.NewClient(version)))
 	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(resources.NewClient(version), analyticsTrackerFn))
+	cmd.AddCommand(whoamicmd.NewWhoAmICmd(clients.ResourcesClient))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	// add non-generated commands

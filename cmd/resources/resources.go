@@ -340,7 +340,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		op.IsBeta,
 	)
 	if err != nil {
-		return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+		return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 	}
 
 	if string(res) == "" {
@@ -349,7 +349,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		res = []byte(fmt.Sprintf(`{"key": %q}`, urlParms[len(urlParms)-1]))
 	}
 
-	output, err := output.CmdOutput(cmd.Use, viper.GetString(cliflags.OutputFlag), res)
+	output, err := output.CmdOutput(cmd.Use, cliflags.GetOutputKind(cmd), res)
 	if err != nil {
 		return errors.NewError(err.Error())
 	}
