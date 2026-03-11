@@ -1,5 +1,18 @@
 package cliflags
 
+import (
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+// GetOutputKind returns the effective output kind, giving precedence to --json over --output.
+func GetOutputKind(cmd *cobra.Command) string {
+	if jsonFlag, err := cmd.Root().PersistentFlags().GetBool(JSONFlag); err == nil && jsonFlag {
+		return "json"
+	}
+	return viper.GetString(OutputFlag)
+}
+
 const (
 	BaseURIDefault      = "https://app.launchdarkly.com"
 	DevStreamURIDefault = "https://stream.launchdarkly.com"
@@ -15,6 +28,7 @@ const (
 	EmailsFlag       = "emails"
 	EnvironmentFlag  = "environment"
 	FlagFlag         = "flag"
+	JSONFlag         = "json"
 	OutputFlag       = "output"
 	PortFlag         = "port"
 	ProjectFlag      = "project"
@@ -29,6 +43,7 @@ const (
 	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
 	EnvironmentFlagDescription = "Default environment key"
 	FlagFlagDescription        = "Default feature flag key"
+	JSONFlagDescription        = "Output JSON format (shorthand for --output json)"
 	OutputFlagDescription      = "Command response output format in either JSON or plain text"
 	PortFlagDescription        = "Port for the dev server to run on"
 	ProjectFlagDescription     = "Default project key"

@@ -39,7 +39,7 @@ func listProjects(client resources.Client) func(*cobra.Command, []string) error 
 			nil,
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
 		fmt.Fprint(cmd.OutOrStdout(), string(res))
@@ -107,7 +107,7 @@ func getProject(client resources.Client) func(*cobra.Command, []string) error {
 			false,   // not beta
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 		fmt.Fprint(cmd.OutOrStdout(), string(res))
 
@@ -146,7 +146,7 @@ func syncProject(client resources.Client) func(*cobra.Command, []string) error {
 			[]byte("{}"),
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 		_, err = fmt.Fprintf(cmd.OutOrStdout(), "'%s' project synced successfully\n", project)
 		if err != nil {
@@ -187,7 +187,7 @@ func deleteProject(client resources.Client) func(*cobra.Command, []string) error
 			nil,
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
 		fmt.Fprint(cmd.OutOrStdout(), string(res))
@@ -248,7 +248,7 @@ func addProject(client resources.Client) func(*cobra.Command, []string) error {
 			jsonData,
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
 		fmt.Fprint(cmd.OutOrStdout(), string(res))
@@ -320,7 +320,7 @@ func updateProject(client resources.Client) func(*cobra.Command, []string) error
 			jsonData,
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
 		var response patchResponse
