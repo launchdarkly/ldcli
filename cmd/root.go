@@ -201,10 +201,10 @@ func NewRootCommand(
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
-	cmd.AddCommand(logincmd.NewLoginCmd(resources.NewClient(version)))
+	cmd.AddCommand(logincmd.NewLoginCmd(clients.ResourcesClient))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
-	cmd.AddCommand(devcmd.NewDevServerCmd(resources.NewClient(version), analyticsTrackerFn, dev_server.NewClient(version)))
-	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(resources.NewClient(version), analyticsTrackerFn))
+	cmd.AddCommand(devcmd.NewDevServerCmd(clients.ResourcesClient, analyticsTrackerFn, clients.DevClient))
+	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
 	// add non-generated commands
