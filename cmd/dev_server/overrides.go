@@ -64,7 +64,7 @@ func addOverride(client resources.Client) func(*cobra.Command, []string) error {
 			jsonData,
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
 		fmt.Fprint(cmd.OutOrStdout(), string(res))
@@ -102,7 +102,7 @@ func deleteOverrides(client resources.Client) func(*cobra.Command, []string) err
 			nil,
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
 		fmt.Fprint(cmd.OutOrStdout(), string(res))
@@ -145,7 +145,7 @@ func removeOverride(client resources.Client) func(*cobra.Command, []string) erro
 			nil,
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
 		fmt.Fprint(cmd.OutOrStdout(), string(res))

@@ -30,7 +30,7 @@ func Validate() cobra.PositionalArgs {
 			return CmdError(err, cmd.CommandPath(), viper.GetString(cliflags.BaseURIFlag))
 		}
 
-		err = validateOutput(viper.GetString(cliflags.OutputFlag))
+		err = validateOutput(cliflags.GetOutputKind(cmd))
 		if err != nil {
 			return CmdError(err, cmd.CommandPath(), viper.GetString(cliflags.BaseURIFlag))
 		}

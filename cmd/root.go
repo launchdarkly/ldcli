@@ -110,6 +110,7 @@ func NewRootCommand(
 					cmd.DisableFlagParsing = true
 				}
 			}
+
 		},
 		Annotations: make(map[string]string),
 		// Handle errors differently based on type.
@@ -199,6 +200,12 @@ func NewRootCommand(
 	if err != nil {
 		return nil, err
 	}
+
+	cmd.PersistentFlags().Bool(
+		cliflags.JSONFlag,
+		false,
+		cliflags.JSONFlagDescription,
+	)
 
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())

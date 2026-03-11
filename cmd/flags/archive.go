@@ -48,10 +48,10 @@ func makeArchiveRequest(client resources.Client) func(*cobra.Command, []string) 
 			false,
 		)
 		if err != nil {
-			return output.NewCmdOutputError(err, viper.GetString(cliflags.OutputFlag))
+			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
-		output, err := output.CmdOutput("update", viper.GetString(cliflags.OutputFlag), res)
+		output, err := output.CmdOutput("update", cliflags.GetOutputKind(cmd), res)
 		if err != nil {
 			return errors.NewError(err.Error())
 		}
