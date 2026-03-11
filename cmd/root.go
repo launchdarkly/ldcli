@@ -132,6 +132,7 @@ func NewRootCommand(
 				"help",
 				"login",
 				"signup",
+				"whoami",
 			} {
 				if cmd.HasParent() && cmd.Parent().Name() == name {
 					cmd.DisableFlagParsing = true
