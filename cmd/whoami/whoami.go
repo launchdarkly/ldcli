@@ -83,7 +83,7 @@ func makeRequest(client resources.Client) func(*cobra.Command, []string) error {
 		}
 
 		baseURI := viper.GetString(cliflags.BaseURIFlag)
-		outputKind := viper.GetString(cliflags.OutputFlag)
+		outputKind := cliflags.GetOutputKind(cmd)
 
 		identityPath, _ := url.JoinPath(baseURI, "api/v2/caller-identity")
 		identityRes, err := client.MakeRequest(accessToken, "GET", identityPath, "application/json", nil, nil, false)
