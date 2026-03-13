@@ -46,10 +46,10 @@ func ReplaceSDKKeys(instructions string, sdkKey, clientSideId, mobileKey string)
 	return r.Replace(instructions)
 }
 
-// kebabToCamel converts a kebab-case key string into a camelCase key string, used for the React sdk instructions
+// kebabToCamel converts a kebab-case or underscore-separated key string into a camelCase key string, used for the React sdk instructions
 func kebabToCamel(kebabCase string) string {
-	replaceDashRegex := regexp.MustCompile(`-(.)`)
-	camelCase := replaceDashRegex.ReplaceAllStringFunc(kebabCase, func(match string) string {
+	replaceSeparatorRegex := regexp.MustCompile(`[-_](.)`)
+	camelCase := replaceSeparatorRegex.ReplaceAllStringFunc(kebabCase, func(match string) string {
 		return strings.ToUpper(string(match[1]))
 	})
 	return camelCase

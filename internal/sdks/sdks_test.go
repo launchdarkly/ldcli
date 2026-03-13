@@ -34,6 +34,13 @@ func TestReplaceFlagKey(t *testing.T) {
 			assert.Equal(t, string(tt.expected), string(updated))
 		})
 	}
+
+	t.Run("replaces camelCase placeholder with underscore key converted to camelCase", func(t *testing.T) {
+		body := "# title ```const featureFlagKey = \"myFlagKey\"```"
+		expected := "# title ```const featureFlagKey = \"myCoolFlag\"```"
+		updated := sdks.ReplaceFlagKey(body, "my_cool_flag")
+		assert.Equal(t, expected, updated)
+	})
 }
 
 func TestReplaceSDKKey(t *testing.T) {
