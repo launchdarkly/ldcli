@@ -7,6 +7,12 @@ on:
       - edited
       - synchronize
 
+permissions:
+  contents: read
+
 jobs:
   lint-pr-title:
+    # This workflow is safe to use with pull_request_target because it only
+    # calls an external reusable workflow and does not execute any code
+    # from the PR itself. The GITHUB_TOKEN is read-only (contents: read).
     uses: launchdarkly/gh-actions/.github/workflows/lint-pr-title.yml@main

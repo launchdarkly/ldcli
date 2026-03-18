@@ -38,7 +38,10 @@ func ContextWithStore(ctx context.Context, store Store) context.Context {
 }
 
 func StoreFromContext(ctx context.Context) Store {
-	return ctx.Value(ctxKeyStore).(Store)
+	if store := ctx.Value(ctxKeyStore); store != nil {
+		return store.(Store)
+	}
+	return nil
 }
 
 func StoreMiddleware(store Store) mux.MiddlewareFunc {

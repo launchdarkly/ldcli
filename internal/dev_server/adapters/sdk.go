@@ -2,7 +2,7 @@ package adapters
 
 import (
 	"context"
-	"log"
+	"sync"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -14,6 +14,35 @@ import (
 )
 
 const ctxKeySdk = ctxKey("adapters.sdk")
+
+type sdkClient struct {
+	client   *ldsdk.LDClient
+	mu       sync.Mutex
+	refCount int
+	lastUsed time.Time
+}
+
+type sdkClientCache struct {
+	mu      sync.RWMutex
+	clients map[string]*sdkClient
+}
+
+var clientCache = &sdkClientCache{
+	clients: make(map[string]*sdkClient),
+}
+
+func (c *sdkClientCache) get(sdkKey string) (*sdkClient, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	sc, ok := c.clients[sdkKey]
+	return sc, ok
+}
+
+func (c *sdkClientCache) set(sdkKey string, client *sdkClient) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clients[sdkKey] = client
+}
 
 func WithSdk(ctx context.Context, s Sdk) context.Context {
 	return context.WithValue(ctx, ctxKeySdk, s)
@@ -39,24 +68,37 @@ func newSdk(streamingUrl string) Sdk {
 }
 
 func (s streamingSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error) {
-	config := ldsdk.Config{
-		DiagnosticOptOut: true,
-		Events:           ldcomponents.NoEvents(),
-		Logging:          ldcomponents.Logging().MinLevel(ldlog.Debug),
-	}
-	if s.streamingUrl != "" {
-		config.ServiceEndpoints.Streaming = s.streamingUrl
-	}
-	ldClient, err := ldsdk.MakeCustomClient(sdkKey, config, 5*time.Second)
-	if err != nil {
-		return flagstate.AllFlags{}, errors.Wrap(err, "unable to get source flags from LD SDK")
-	}
-	defer func() {
-		err := ldClient.Close()
-		if err != nil {
-			log.Printf("error while closing SDK client: %+v", err)
+	sc, ok := clientCache.get(sdkKey)
+	if !ok {
+		config := ldsdk.Config{
+			DiagnosticOptOut: true,
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().MinLevel(ldlog.Debug),
 		}
-	}()
-	flags := ldClient.AllFlagsState(ldContext)
+		if s.streamingUrl != "" {
+			config.ServiceEndpoints.Streaming = s.streamingUrl
+		}
+		ldClient, err := ldsdk.MakeCustomClient(sdkKey, config, 5*time.Second)
+		if err != nil {
+			return flagstate.AllFlags{}, errors.Wrap(err, "unable to get source flags from LD SDK")
+		}
+		sc = &sdkClient{
+			client:   ldClient,
+			lastUsed: time.Now(),
+		}
+		clientCache.set(sdkKey, sc)
+	}
+
+	sc.mu.Lock()
+	sc.refCount++
+	sc.lastUsed = time.Now()
+	sc.mu.Unlock()
+
+	flags := sc.client.AllFlagsState(ldContext)
+
+	sc.mu.Lock()
+	sc.refCount--
+	sc.mu.Unlock()
+
 	return flags, nil
 }
