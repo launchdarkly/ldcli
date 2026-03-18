@@ -592,6 +592,359 @@ func TestCmdOutputWithFields(t *testing.T) {
 	})
 }
 
+func TestCmdOutputWithResourceName(t *testing.T) {
+	t.Run("flags list uses table format", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"key": "my-flag",
+					"name": "My Flag",
+					"kind": "boolean",
+					"temporary": true,
+					"tags": ["beta", "frontend"]
+				},
+				{
+					"key": "dark-mode",
+					"name": "Dark Mode",
+					"kind": "boolean",
+					"temporary": false,
+					"tags": ["ui"]
+				}
+			]
+		}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "flags",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "KEY")
+		assert.Contains(t, result, "NAME")
+		assert.Contains(t, result, "KIND")
+		assert.Contains(t, result, "TEMPORARY")
+		assert.Contains(t, result, "TAGS")
+		assert.Contains(t, result, "my-flag")
+		assert.Contains(t, result, "My Flag")
+		assert.Contains(t, result, "yes")
+		assert.Contains(t, result, "dark-mode")
+		assert.Contains(t, result, "no")
+		assert.NotContains(t, result, "* ")
+	})
+
+	t.Run("flags singular uses key-value format", func(t *testing.T) {
+		input := `{
+			"key": "my-flag",
+			"name": "My Flag",
+			"kind": "boolean",
+			"temporary": true,
+			"creationDate": 1718438400000,
+			"tags": ["beta"]
+		}`
+
+		result, err := output.CmdOutput("get", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "flags",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "Key:")
+		assert.Contains(t, result, "my-flag")
+		assert.Contains(t, result, "Name:")
+		assert.Contains(t, result, "My Flag")
+		assert.Contains(t, result, "Kind:")
+		assert.Contains(t, result, "boolean")
+		assert.Contains(t, result, "Temporary:")
+		assert.Contains(t, result, "yes")
+	})
+
+	t.Run("flags singular with success message", func(t *testing.T) {
+		input := `{
+			"key": "my-flag",
+			"name": "My Flag",
+			"kind": "boolean",
+			"temporary": false
+		}`
+
+		result, err := output.CmdOutput("update", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "flags",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "Successfully updated\n\nKey:")
+		assert.Contains(t, result, "my-flag")
+	})
+
+	t.Run("unknown resource falls back to bullet format for lists", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"key": "test-key",
+					"name": "test-name"
+				}
+			]
+		}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "unknown-resource",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "* test-name (test-key)", result)
+	})
+
+	t.Run("unknown resource falls back to name (key) for singular", func(t *testing.T) {
+		input := `{
+			"key": "test-key",
+			"name": "test-name"
+		}`
+
+		result, err := output.CmdOutput("create", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "unknown-resource",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "Successfully created test-name (test-key)", result)
+	})
+
+	t.Run("empty resource name falls back to bullet format", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"key": "test-key",
+					"name": "test-name"
+				}
+			]
+		}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, "* test-name (test-key)", result)
+	})
+
+	t.Run("table output with pagination", func(t *testing.T) {
+		input := `{
+			"_links": {
+				"self": {
+					"href": "/api/v2/flags/proj?limit=5&offset=0",
+					"type": "application/json"
+				}
+			},
+			"items": [
+				{
+					"key": "my-flag",
+					"name": "My Flag",
+					"kind": "boolean",
+					"temporary": true,
+					"tags": ["beta"]
+				}
+			],
+			"totalCount": 100
+		}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "flags",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "KEY")
+		assert.Contains(t, result, "my-flag")
+		assert.Contains(t, result, "Showing results 1 - 5 of 100.")
+		assert.Contains(t, result, "Use --offset 5 for additional results.")
+	})
+
+	t.Run("empty items with resource name returns no items found", func(t *testing.T) {
+		input := `{"items": []}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "flags",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "No items found", result)
+	})
+
+	t.Run("JSON output is unaffected by resource name", func(t *testing.T) {
+		input := `{
+			"items": [
+				{"key": "my-flag", "name": "My Flag"}
+			]
+		}`
+
+		result, err := output.CmdOutput("list", "json", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "flags",
+		})
+
+		require.NoError(t, err)
+		assert.JSONEq(t, input, result)
+	})
+
+	t.Run("members list uses table format", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"email": "alice@example.com",
+					"role": "admin",
+					"lastName": "Smith",
+					"firstName": "Alice"
+				}
+			]
+		}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "members",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "EMAIL")
+		assert.Contains(t, result, "ROLE")
+		assert.Contains(t, result, "alice@example.com")
+		assert.Contains(t, result, "admin")
+		assert.NotContains(t, result, "* ")
+	})
+
+	t.Run("environments list uses table format", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"key": "production",
+					"name": "Production",
+					"color": "FF0000"
+				}
+			]
+		}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "environments",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "KEY")
+		assert.Contains(t, result, "NAME")
+		assert.Contains(t, result, "COLOR")
+		assert.Contains(t, result, "production")
+		assert.Contains(t, result, "FF0000")
+	})
+
+	t.Run("projects list uses table format", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"key": "proj-1",
+					"name": "Project One",
+					"tags": ["tag1", "tag2"]
+				}
+			]
+		}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "projects",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "KEY")
+		assert.Contains(t, result, "proj-1")
+		assert.Contains(t, result, "2")
+	})
+
+	t.Run("segments list uses table format", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"key": "beta-users",
+					"name": "Beta Users",
+					"creationDate": 1718438400000
+				}
+			]
+		}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "segments",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "KEY")
+		assert.Contains(t, result, "CREATED")
+		assert.Contains(t, result, "beta-users")
+		assert.Contains(t, result, "2024-06-15")
+	})
+
+	t.Run("create with list and resource name shows table with success message", func(t *testing.T) {
+		input := `{
+			"items": [
+				{
+					"key": "new-flag",
+					"name": "New Flag",
+					"kind": "boolean",
+					"temporary": false,
+					"tags": []
+				}
+			]
+		}`
+
+		result, err := output.CmdOutput("create", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "flags",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "Successfully created")
+		assert.Contains(t, result, "KEY")
+		assert.Contains(t, result, "new-flag")
+	})
+
+	t.Run("segments singular uses key-value format", func(t *testing.T) {
+		input := `{
+			"key": "beta-users",
+			"name": "Beta Users",
+			"creationDate": 1718438400000
+		}`
+
+		result, err := output.CmdOutput("get", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+			ResourceName: "segments",
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, result, "Key:")
+		assert.Contains(t, result, "beta-users")
+		assert.Contains(t, result, "Name:")
+		assert.Contains(t, result, "Beta Users")
+		assert.Contains(t, result, "Created:")
+		assert.Contains(t, result, "2024-06-15")
+	})
+
+	t.Run("Fields from opts used when fields param is nil", func(t *testing.T) {
+		input := `{"key":"my-flag","name":"My Flag","extra":"noise"}`
+
+		result, err := output.CmdOutput("get", "json", []byte(input), nil, output.CmdOutputOpts{
+			Fields:       []string{"key", "name"},
+			ResourceName: "flags",
+		})
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"key":"my-flag","name":"My Flag"}`, result)
+	})
+
+	t.Run("explicit fields param takes precedence over opts Fields", func(t *testing.T) {
+		input := `{"key":"my-flag","name":"My Flag","extra":"noise"}`
+
+		result, err := output.CmdOutput("get", "json", []byte(input), []string{"key"}, output.CmdOutputOpts{
+			Fields:       []string{"key", "name"},
+			ResourceName: "flags",
+		})
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"key":"my-flag"}`, result)
+	})
+
+	t.Run("empty items without resource name returns no items found", func(t *testing.T) {
+		input := `{"items": []}`
+
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, "No items found", result)
+	})
+}
+
 func TestCmdOutputErrorNotAffectedByFields(t *testing.T) {
 	t.Run("JSON error response always returns full structure", func(t *testing.T) {
 		errJSON := `{"code":"not_found","message":"Not Found","statusCode":404,"suggestion":"Try ldcli flags list."}`
