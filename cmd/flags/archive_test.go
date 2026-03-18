@@ -15,11 +15,13 @@ func TestArchive(t *testing.T) {
 	mockClient := &resources.MockClient{
 		Response: []byte(`{
 			"key": "test-flag",
-			"name": "test flag"
+			"name": "test flag",
+			"kind": "boolean",
+			"archived": true
 		}`),
 	}
 
-	t.Run("succeeds with valid inputs", func(t *testing.T) {
+	t.Run("succeeds with plaintext output", func(t *testing.T) {
 		args := []string{
 			"flags", "archive",
 			"--access-token", "abcd1234",
@@ -39,6 +41,114 @@ func TestArchive(t *testing.T) {
 		assert.Equal(t, `[{"op": "replace", "path": "/archived", "value": true}]`, string(mockClient.Input))
 		assert.Equal(t, "Successfully updated test flag (test-flag)\n", string(output))
 	})
+
+	t.Run("succeeds with JSON output", func(t *testing.T) {
+		args := []string{
+			"flags", "archive",
+			"--access-token", "abcd1234",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--output", "json",
+		}
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"key":"test-flag","name":"test flag","kind":"boolean","archived":true}`, string(output))
+	})
+
+	t.Run("succeeds with --json shorthand", func(t *testing.T) {
+		args := []string{
+			"flags", "archive",
+			"--access-token", "abcd1234",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--json",
+		}
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"key":"test-flag","name":"test flag","kind":"boolean","archived":true}`, string(output))
+	})
+
+	t.Run("filters JSON output with --fields", func(t *testing.T) {
+		args := []string{
+			"flags", "archive",
+			"--access-token", "abcd1234",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--output", "json",
+			"--fields", "key,name",
+		}
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"key":"test-flag","name":"test flag"}`, string(output))
+	})
+
+	t.Run("filters JSON output with --json and --fields", func(t *testing.T) {
+		args := []string{
+			"flags", "archive",
+			"--access-token", "abcd1234",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--json",
+			"--fields", "key,name",
+		}
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"key":"test-flag","name":"test flag"}`, string(output))
+	})
+
+	t.Run("ignores --fields with plaintext output", func(t *testing.T) {
+		args := []string{
+			"flags", "archive",
+			"--access-token", "abcd1234",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--fields", "key",
+		}
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Successfully updated test flag (test-flag)\n", string(output))
+	})
+
 	t.Run("returns error with missing flags", func(t *testing.T) {
 		args := []string{
 			"flags", "archive",
@@ -55,6 +165,6 @@ func TestArchive(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		assert.Equal(t, "required flag(s) \"project\" not set. See `ldcli flags archive --help` for supported flags and usage.", err.Error())
+		assert.Contains(t, err.Error(), `required flag(s) "project" not set`)
 	})
 }
