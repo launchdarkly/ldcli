@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -15,6 +16,11 @@ import (
 
 const ctxKeySdk = ctxKey("adapters.sdk")
 
+const (
+	sdkClientIdleTimeout     = 5 * time.Minute
+	sdkClientCleanupInterval = 1 * time.Minute
+)
+
 type sdkClient struct {
 	client   *ldsdk.LDClient
 	mu       sync.Mutex
@@ -25,10 +31,56 @@ type sdkClient struct {
 type sdkClientCache struct {
 	mu      sync.RWMutex
 	clients map[string]*sdkClient
+	stopCh  chan struct{}
 }
 
 var clientCache = &sdkClientCache{
 	clients: make(map[string]*sdkClient),
+	stopCh:  make(chan struct{}),
+}
+
+func init() {
+	go clientCache.cleanupLoop()
+}
+
+func (c *sdkClientCache) cleanupLoop() {
+	ticker := time.NewTicker(sdkClientCleanupInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			c.cleanupIdleClients()
+		case <-c.stopCh:
+			c.closeAllClients()
+			return
+		}
+	}
+}
+
+func (c *sdkClientCache) cleanupIdleClients() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := time.Now()
+	for key, sc := range c.clients {
+		sc.mu.Lock()
+		if sc.refCount == 0 && now.Sub(sc.lastUsed) > sdkClientIdleTimeout {
+			if err := sc.client.Close(); err != nil {
+				log.Printf("error closing idle SDK client for key %s: %v", key, err)
+			}
+			delete(c.clients, key)
+		}
+		sc.mu.Unlock()
+	}
+}
+
+func (c *sdkClientCache) closeAllClients() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key, sc := range c.clients {
+		if err := sc.client.Close(); err != nil {
+			log.Printf("error closing SDK client for key %s: %v", key, err)
+		}
+	}
 }
 
 func (c *sdkClientCache) get(sdkKey string) (*sdkClient, bool) {
@@ -55,6 +107,7 @@ func GetSdk(ctx context.Context) Sdk {
 //go:generate go run go.uber.org/mock/mockgen -destination mocks/sdk.go -package mocks . Sdk
 type Sdk interface {
 	GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error)
+	Close() error
 }
 
 type streamingSdk struct {
@@ -101,4 +154,10 @@ func (s streamingSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.
 	sc.mu.Unlock()
 
 	return flags, nil
+}
+
+func (s streamingSdk) Close() error {
+	clientCache.closeAllClients()
+	close(clientCache.stopCh)
+	return nil
 }
