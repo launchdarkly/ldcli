@@ -1,5 +1,17 @@
 package cliflags
 
+import (
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+func GetOutputKind(cmd *cobra.Command) string {
+	if jsonFlag, err := cmd.Root().PersistentFlags().GetBool(JSONFlag); err == nil && jsonFlag {
+		return "json"
+	}
+	return viper.GetString(OutputFlag)
+}
+
 const (
 	BaseURIDefault      = "https://app.launchdarkly.com"
 	DevStreamURIDefault = "https://stream.launchdarkly.com"
@@ -17,6 +29,7 @@ const (
 	EnvironmentFlag  = "environment"
 	FlagFlag         = "flag"
 	HostFlag         = "host"
+	JSONFlag         = "json"
 	OutputFlag       = "output"
 	PortFlag         = "port"
 	ProjectFlag      = "project"
@@ -32,6 +45,7 @@ const (
 	EnvironmentFlagDescription = "Default environment key"
 	FlagFlagDescription        = "Default feature flag key"
 	HostFlagDescription        = "Host for the dev server to bind to (default: 127.0.0.1). Use 0.0.0.0 to allow external connections"
+	JSONFlagDescription        = "Output JSON format (shorthand for --output json)"
 	OutputFlagDescription      = "Command response output format in either JSON or plain text"
 	PortFlagDescription        = "Port for the dev server to run on"
 	ProjectFlagDescription     = "Default project key"
