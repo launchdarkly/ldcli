@@ -71,6 +71,21 @@ func TestCmdOutputSingular(t *testing.T) {
 			fn:       output.ErrorPlaintextOutputFn,
 			input:    `{}`,
 		},
+		"with an error with a suggestion": {
+			expected: "Not Found (code: not_found)\nSuggestion: Check the resource key.",
+			fn:       output.ErrorPlaintextOutputFn,
+			input:    `{"code": "not_found", "message": "Not Found", "suggestion": "Check the resource key."}`,
+		},
+		"with an error with an empty suggestion": {
+			expected: "Internal Server Error (code: internal_server_error)",
+			fn:       output.ErrorPlaintextOutputFn,
+			input:    `{"code": "internal_server_error", "message": "Internal Server Error", "suggestion": ""}`,
+		},
+		"with an error with only a message and a suggestion": {
+			expected: "an error\nSuggestion: Try again.",
+			fn:       output.ErrorPlaintextOutputFn,
+			input:    `{"message": "an error", "suggestion": "Try again."}`,
+		},
 		"with a singular resource": {
 			expected: "test-name (test-key)",
 			fn:       output.SingularPlaintextOutputFn,

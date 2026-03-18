@@ -6,6 +6,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestErrorPlaintextOutputFn(t *testing.T) {
+	t.Run("with a non-string message does not panic", func(t *testing.T) {
+		r := resource{"message": float64(404)}
+
+		result := ErrorPlaintextOutputFn(r)
+
+		assert.Equal(t, "404", result)
+	})
+
+	t.Run("with a non-string code renders via fmt formatting", func(t *testing.T) {
+		r := resource{"code": 123, "message": "an error"}
+
+		result := ErrorPlaintextOutputFn(r)
+
+		assert.Equal(t, "an error (code: 123)", result)
+	})
+
+	t.Run("with non-string message and code does not panic", func(t *testing.T) {
+		r := resource{"code": true, "message": 42}
+
+		result := ErrorPlaintextOutputFn(r)
+
+		assert.Equal(t, "42 (code: true)", result)
+	})
+}
+
 func TestSingularPlaintextOutputFn(t *testing.T) {
 	tests := map[string]struct {
 		resource resource

@@ -28,16 +28,24 @@ var ConfigPlaintextOutputFn = func(r resource) string {
 // An error response could have a code and message or just a message. It's also possible that
 // there isn't either property.
 var ErrorPlaintextOutputFn = func(r resource) string {
+	var parts []string
+
 	switch {
 	case r["code"] == nil && (r["message"] == "" || r["message"] == nil):
-		return "unknown error occurred"
+		parts = append(parts, "unknown error occurred")
 	case r["code"] == nil:
-		return r["message"].(string)
+		parts = append(parts, fmt.Sprint(r["message"]))
 	case r["message"] == "":
-		return fmt.Sprintf("an error occurred (code: %s)", r["code"])
+		parts = append(parts, fmt.Sprintf("an error occurred (code: %v)", r["code"]))
 	default:
-		return fmt.Sprintf("%s (code: %s)", r["message"], r["code"])
+		parts = append(parts, fmt.Sprintf("%v (code: %v)", r["message"], r["code"]))
 	}
+
+	if suggestion, ok := r["suggestion"]; ok && suggestion != nil && suggestion != "" {
+		parts = append(parts, fmt.Sprintf("\nSuggestion: %s", suggestion))
+	}
+
+	return strings.Join(parts, "")
 }
 
 // MultiplePlaintextOutputFn converts the resource to plain text.
