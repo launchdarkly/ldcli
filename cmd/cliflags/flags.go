@@ -13,6 +13,15 @@ func GetOutputKind(cmd *cobra.Command) string {
 	return viper.GetString(OutputFlag)
 }
 
+// GetFields returns the list of fields to include in JSON output, or nil if not specified.
+func GetFields(cmd *cobra.Command) []string {
+	fields, err := cmd.Root().PersistentFlags().GetStringSlice(FieldsFlag)
+	if err != nil {
+		return nil
+	}
+	return fields
+}
+
 const (
 	BaseURIDefault      = "https://app.launchdarkly.com"
 	DevStreamURIDefault = "https://stream.launchdarkly.com"
@@ -27,6 +36,7 @@ const (
 	DevStreamURIFlag = "dev-stream-uri"
 	EmailsFlag       = "emails"
 	EnvironmentFlag  = "environment"
+	FieldsFlag       = "fields"
 	FlagFlag         = "flag"
 	JSONFlag         = "json"
 	OutputFlag       = "output"
@@ -42,6 +52,7 @@ const (
 	CorsOriginFlagDescription  = "Allowed CORS origin. Use '*' for all origins (default: '*')"
 	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
 	EnvironmentFlagDescription = "Default environment key"
+	FieldsFlagDescription      = "Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)"
 	FlagFlagDescription        = "Default feature flag key"
 	JSONFlagDescription        = "Output JSON format (shorthand for --output json)"
 	OutputFlagDescription      = "Output format: json or plaintext (default: plaintext in a terminal, json otherwise)"

@@ -13,9 +13,17 @@ import (
 )
 
 // CmdOutput returns a response from a resource action formatted based on the output flag along with
-// an optional message based on the action.
-func CmdOutput(action string, outputKind string, input []byte) (string, error) {
+// an optional message based on the action. When fields is non-empty and outputKind is "json",
+// only the specified top-level fields are included in the output.
+func CmdOutput(action string, outputKind string, input []byte, fields []string) (string, error) {
 	if outputKind == "json" {
+		if len(fields) > 0 {
+			filtered, err := filterFields(input, fields)
+			if err != nil {
+				return string(input), nil
+			}
+			return string(filtered), nil
+		}
 		return string(input), nil
 	}
 
@@ -139,6 +147,56 @@ func CmdOutputError(outputKind string, err error) string {
 // NewCmdOutputError builds error output based on the error and output kind.
 func NewCmdOutputError(err error, outputKind string) error {
 	return errs.NewError(CmdOutputError(outputKind, err))
+}
+
+func filterFields(input []byte, fields []string) ([]byte, error) {
+	fieldSet := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		if trimmed := strings.TrimSpace(f); trimmed != "" {
+			fieldSet[trimmed] = true
+		}
+	}
+	if len(fieldSet) == 0 {
+		return input, nil
+	}
+
+	var raw map[string]interface{}
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return nil, err
+	}
+
+	if items, ok := raw["items"]; ok {
+		if itemList, ok := items.([]interface{}); ok {
+			filtered := make([]interface{}, 0, len(itemList))
+			for _, item := range itemList {
+				if m, ok := item.(map[string]interface{}); ok {
+					filtered = append(filtered, filterMap(m, fieldSet))
+				} else {
+					filtered = append(filtered, item)
+				}
+			}
+			result := map[string]interface{}{"items": filtered}
+			if tc, ok := raw["totalCount"]; ok {
+				result["totalCount"] = tc
+			}
+			if links, ok := raw["_links"]; ok {
+				result["_links"] = links
+			}
+			return json.MarshalIndent(result, "", "  ")
+		}
+	}
+
+	return json.MarshalIndent(filterMap(raw, fieldSet), "", "  ")
+}
+
+func filterMap(m map[string]interface{}, fields map[string]bool) map[string]interface{} {
+	result := make(map[string]interface{}, len(fields))
+	for k, v := range m {
+		if fields[k] {
+			result[k] = v
+		}
+	}
+	return result
 }
 
 func errJSON(s string) string {
