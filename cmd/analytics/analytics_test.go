@@ -99,13 +99,38 @@ func TestDetectAgentContext(t *testing.T) {
 			expected: "aider",
 		},
 		{
-			name:     "no TTY and no env vars returns no-tty",
+			name:     "no TTY and no env vars returns unknown-non-interactive",
 			env:      newMockEnv(map[string]string{}, false),
-			expected: "no-tty",
+			expected: "unknown-non-interactive",
+		},
+		{
+			name:     "CI env var returns ci",
+			env:      newMockEnv(map[string]string{"CI": "true"}, false),
+			expected: "ci",
+		},
+		{
+			name:     "GITHUB_ACTIONS env var returns ci",
+			env:      newMockEnv(map[string]string{"GITHUB_ACTIONS": "true"}, false),
+			expected: "ci",
+		},
+		{
+			name:     "GITLAB_CI env var returns ci",
+			env:      newMockEnv(map[string]string{"GITLAB_CI": "true"}, false),
+			expected: "ci",
+		},
+		{
+			name:     "agent env var takes precedence over CI env var",
+			env:      newMockEnv(map[string]string{"CURSOR_SESSION_ID": "abc", "CI": "true"}, false),
+			expected: "cursor",
 		},
 		{
 			name:     "interactive terminal with no agent env vars returns empty",
 			env:      newMockEnv(map[string]string{}, true),
+			expected: "",
+		},
+		{
+			name:     "CI env var in interactive terminal returns empty",
+			env:      newMockEnv(map[string]string{"CI": "true"}, true),
 			expected: "",
 		},
 		{
