@@ -2,7 +2,7 @@ package adapters
 
 import (
 	"context"
-	"sync"
+	"log"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -16,61 +16,37 @@ import (
 const ctxKeySdk = ctxKey("adapters.sdk")
 
 type streamingSdk struct {
-	mu           sync.RWMutex
-	clients      map[string]*ldsdk.LDClient
-	lastUsed     map[string]time.Time
 	streamingUrl string
 }
 
 func newSdk(streamingUrl string) Sdk {
-	return &streamingSdk{
-		clients:      make(map[string]*ldsdk.LDClient),
-		lastUsed:     make(map[string]time.Time),
+	return streamingSdk{
 		streamingUrl: streamingUrl,
 	}
 }
 
-func (s *streamingSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error) {
-	s.mu.RLock()
-	client, exists := s.clients[sdkKey]
-	s.mu.RUnlock()
-
-	if !exists {
-		config := ldsdk.Config{
-			DiagnosticOptOut: true,
-			Events:           ldcomponents.NoEvents(),
-			Logging:          ldcomponents.Logging().MinLevel(ldlog.Debug),
-		}
-		if s.streamingUrl != "" {
-			config.ServiceEndpoints.Streaming = s.streamingUrl
-		}
-		ldClient, err := ldsdk.MakeCustomClient(sdkKey, config, 5*time.Second)
-		if err != nil {
-			return flagstate.AllFlags{}, errors.Wrap(err, "unable to get source flags from LD SDK")
-		}
-
-		s.mu.Lock()
-		s.clients[sdkKey] = ldClient
-		s.lastUsed[sdkKey] = time.Now()
-		s.mu.Unlock()
-
-		client = ldClient
-	} else {
-		s.mu.Lock()
-		s.lastUsed[sdkKey] = time.Now()
-		s.mu.Unlock()
+func (s streamingSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error) {
+	config := ldsdk.Config{
+		DiagnosticOptOut: true,
+		Events:           ldcomponents.NoEvents(),
+		Logging:          ldcomponents.Logging().MinLevel(ldlog.Debug),
 	}
-
-	return client.AllFlagsState(ldContext), nil
+	if s.streamingUrl != "" {
+		config.ServiceEndpoints.Streaming = s.streamingUrl
+	}
+	ldClient, err := ldsdk.MakeCustomClient(sdkKey, config, 5*time.Second)
+	if err != nil {
+		return flagstate.AllFlags{}, errors.Wrap(err, "unable to get source flags from LD SDK")
+	}
+	defer func() {
+		if err := ldClient.Close(); err != nil {
+			log.Printf("error while closing SDK client: %+v", err)
+		}
+	}()
+	return ldClient.AllFlagsState(ldContext), nil
 }
 
-func (s *streamingSdk) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for key, client := range s.clients {
-		client.Close()
-		delete(s.clients, key)
-	}
+func (s streamingSdk) Close() error {
 	return nil
 }
 
