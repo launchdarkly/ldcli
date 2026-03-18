@@ -31,6 +31,7 @@ func CallCmd(
 		clients,
 		"test",
 		false,
+		func() bool { return true },
 	)
 	cmd := rootCmd.Cmd()
 	require.NoError(t, err)

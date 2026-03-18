@@ -310,8 +310,17 @@ func TestCmdOutputError(t *testing.T) {
 			assert.JSONEq(t, expected, result)
 		})
 
-		t.Run("with plaintext output", func(t *testing.T) {
-			expected := "invalid JSON"
+		t.Run("with plaintext output returns formatted message", func(t *testing.T) {
+			err := errors.NewError(`{"code":"conflict", "message":"an error"}`)
+
+			result := output.CmdOutputError("plaintext", err)
+
+			assert.Equal(t, "an error (code: conflict)", result)
+		})
+	})
+
+	t.Run("with a json.UnmarshalTypeError", func(t *testing.T) {
+		t.Run("with plaintext output returns invalid JSON", func(t *testing.T) {
 			type testType any
 			invalid := []byte(`{"invalid": true}`)
 			err := json.Unmarshal(invalid, &[]testType{})
@@ -319,7 +328,36 @@ func TestCmdOutputError(t *testing.T) {
 
 			result := output.CmdOutputError("plaintext", err)
 
-			assert.Equal(t, expected, result)
+			assert.Equal(t, "invalid JSON", result)
+		})
+
+		t.Run("with JSON output returns invalid JSON message", func(t *testing.T) {
+			type testType any
+			invalid := []byte(`{"invalid": true}`)
+			err := json.Unmarshal(invalid, &[]testType{})
+			require.Error(t, err)
+
+			result := output.CmdOutputError("json", err)
+
+			assert.JSONEq(t, `{"message":"invalid JSON"}`, result)
+		})
+	})
+
+	t.Run("with a generic error", func(t *testing.T) {
+		t.Run("with JSON output wraps message in JSON", func(t *testing.T) {
+			err := fmt.Errorf("something went wrong")
+
+			result := output.CmdOutputError("json", err)
+
+			assert.JSONEq(t, `{"message":"something went wrong"}`, result)
+		})
+
+		t.Run("with plaintext output returns message", func(t *testing.T) {
+			err := fmt.Errorf("something went wrong")
+
+			result := output.CmdOutputError("plaintext", err)
+
+			assert.Equal(t, "something went wrong", result)
 		})
 	})
 }

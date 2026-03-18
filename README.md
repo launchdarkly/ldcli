@@ -67,7 +67,7 @@ Supported settings:
 * `base-uri` LaunchDarkly base URI (default "https://app.launchdarkly.com")
 - `environment`: Default environment key
 - `flag`: Default feature flag key
-- `output`: Command response output format in either JSON or plain text
+- `output`: Output format: json or plaintext (default: plaintext in a terminal, json otherwise)
 - `project`: Default project key
 
 Available `config` commands:

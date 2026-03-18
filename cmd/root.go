@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
 
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
@@ -87,6 +88,7 @@ func NewRootCommand(
 	clients APIClients,
 	version string,
 	useConfigFile bool,
+	isTerminal func() bool,
 ) (*RootCmd, error) {
 	cmd := &cobra.Command{
 		Use:     "ldcli",
@@ -188,10 +190,17 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	// When stdout is not a TTY (e.g. piped, CI, agent), default to JSON.
+	// FORCE_TTY: any non-empty value treats stdout as a terminal (like NO_COLOR convention).
+	defaultOutput := "plaintext"
+	if os.Getenv("FORCE_TTY") == "" && (isTerminal == nil || !isTerminal()) {
+		defaultOutput = "json"
+	}
+
 	cmd.PersistentFlags().StringP(
 		cliflags.OutputFlag,
 		"o",
-		"plaintext",
+		defaultOutput,
 		cliflags.OutputFlagDescription,
 	)
 	err = viper.BindPFlag(cliflags.OutputFlag, cmd.PersistentFlags().Lookup(cliflags.OutputFlag))
@@ -252,6 +261,7 @@ func Execute(version string) {
 		clients,
 		version,
 		true,
+		func() bool { return term.IsTerminal(int(os.Stdout.Fd())) },
 	)
 	if err != nil {
 		log.Fatal(err)
