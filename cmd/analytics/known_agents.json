@@ -1,0 +1,24 @@
+{
+  "agents": [
+    {"env_var": "CURSOR_SESSION_ID", "label": "cursor"},
+    {"env_var": "CURSOR_TRACE_ID", "label": "cursor"},
+    {"env_var": "CLAUDE_CODE", "label": "claude-code"},
+    {"env_var": "CLAUDE_CODE_SESSION", "label": "claude-code"},
+    {"env_var": "CODEX_SESSION", "label": "codex"},
+    {"env_var": "CODEX_SANDBOX_ID", "label": "codex"},
+    {"env_var": "DEVIN_SESSION", "label": "devin"},
+    {"env_var": "GITHUB_COPILOT", "label": "copilot"},
+    {"env_var": "WINDSURF_SESSION", "label": "windsurf"},
+    {"env_var": "CLINE_TASK_ID", "label": "cline"},
+    {"env_var": "AIDER_MODEL", "label": "aider"}
+  ],
+  "ci_env_vars": [
+    "CI",
+    "GITHUB_ACTIONS",
+    "JENKINS_URL",
+    "CIRCLECI",
+    "BUILDKITE",
+    "GITLAB_CI",
+    "TF_BUILD"
+  ]
+}

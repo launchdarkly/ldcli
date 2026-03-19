@@ -1,6 +1,8 @@
 package analytics
 
 import (
+	_ "embed"
+	"encoding/json"
 	"os"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
@@ -20,29 +22,36 @@ type envChecker interface {
 
 type osEnvChecker struct{}
 
-func (osEnvChecker) Getenv(key string) string  { return os.Getenv(key) }
-func (osEnvChecker) IsTerminal(fd int) bool    { return term.IsTerminal(fd) }
-func (osEnvChecker) StdinFd() int              { return int(os.Stdin.Fd()) }
-func (osEnvChecker) StdoutFd() int             { return int(os.Stdout.Fd()) }
+func (osEnvChecker) Getenv(key string) string { return os.Getenv(key) }
+func (osEnvChecker) IsTerminal(fd int) bool   { return term.IsTerminal(fd) }
+func (osEnvChecker) StdinFd() int             { return int(os.Stdin.Fd()) }
+func (osEnvChecker) StdoutFd() int            { return int(os.Stdout.Fd()) }
+
+//go:embed known_agents.json
+var knownAgentsJSON []byte
 
 type agentEnvVar struct {
-	envVar string
-	label  string
+	EnvVar string `json:"env_var"`
+	Label  string `json:"label"`
 }
 
-// Ordered list so detection priority is deterministic.
-var knownAgentEnvVars = []agentEnvVar{
-	{"CURSOR_SESSION_ID", "cursor"},
-	{"CURSOR_TRACE_ID", "cursor"},
-	{"CLAUDE_CODE", "claude-code"},
-	{"CLAUDE_CODE_SESSION", "claude-code"},
-	{"CODEX_SESSION", "codex"},
-	{"CODEX_SANDBOX_ID", "codex"},
-	{"DEVIN_SESSION", "devin"},
-	{"GITHUB_COPILOT", "copilot"},
-	{"WINDSURF_SESSION", "windsurf"},
-	{"CLINE_TASK_ID", "cline"},
-	{"AIDER_MODEL", "aider"},
+type knownAgentsConfig struct {
+	Agents    []agentEnvVar `json:"agents"`
+	CIEnvVars []string      `json:"ci_env_vars"`
+}
+
+var (
+	knownAgentEnvVars []agentEnvVar
+	knownCIEnvVars    []string
+)
+
+func init() {
+	var cfg knownAgentsConfig
+	if err := json.Unmarshal(knownAgentsJSON, &cfg); err != nil {
+		panic("failed to parse embedded known_agents.json: " + err.Error())
+	}
+	knownAgentEnvVars = cfg.Agents
+	knownCIEnvVars = cfg.CIEnvVars
 }
 
 // DetectAgentContext returns a label identifying the agent environment, or ""
@@ -57,16 +66,22 @@ func detectAgentContext(env envChecker) string {
 	}
 
 	for _, a := range knownAgentEnvVars {
-		if env.Getenv(a.envVar) != "" {
-			return a.label
+		if env.Getenv(a.EnvVar) != "" {
+			return a.Label
 		}
 	}
 
-	if !env.IsTerminal(env.StdinFd()) && !env.IsTerminal(env.StdoutFd()) {
-		return "no-tty"
+	if env.IsTerminal(env.StdinFd()) || env.IsTerminal(env.StdoutFd()) {
+		return ""
 	}
 
-	return ""
+	for _, ciVar := range knownCIEnvVars {
+		if env.Getenv(ciVar) != "" {
+			return "ci"
+		}
+	}
+
+	return "unknown-non-interactive"
 }
 
 func CmdRunEventProperties(
