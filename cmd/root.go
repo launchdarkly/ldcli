@@ -242,8 +242,9 @@ func Execute(version string) {
 	}
 	configService := config.NewService(resources.NewClient(version))
 	trackerFn := analytics.ClientFn{
-		ID:      uuid.New().String(),
-		Version: version,
+		ID:           uuid.New().String(),
+		Version:      version,
+		AgentContext: cmdAnalytics.DetectAgentContext(),
 	}
 	rootCmd, err := NewRootCommand(
 		configService,

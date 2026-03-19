@@ -12,8 +12,9 @@ import (
 )
 
 type ClientFn struct {
-	ID      string
-	Version string
+	ID           string
+	Version      string
+	AgentContext string
 }
 
 func (fn ClientFn) Tracker(accessToken string, baseURI string, optOut bool) Tracker {
@@ -25,25 +26,30 @@ func (fn ClientFn) Tracker(accessToken string, baseURI string, optOut bool) Trac
 		httpClient: &http.Client{
 			Timeout: time.Second * 3,
 		},
-		id:          fn.ID,
-		version:     fn.Version,
-		accessToken: accessToken,
-		baseURI:     baseURI,
+		id:           fn.ID,
+		version:      fn.Version,
+		accessToken:  accessToken,
+		baseURI:      baseURI,
+		agentContext: fn.AgentContext,
 	}
 }
 
 type Client struct {
-	accessToken string
-	baseURI     string
-	httpClient  *http.Client
-	id          string
-	version     string
-	wg          sync.WaitGroup
+	accessToken  string
+	agentContext string
+	baseURI      string
+	httpClient   *http.Client
+	id           string
+	version      string
+	wg           sync.WaitGroup
 }
 
-// SendEvent makes an async request to track the given event with properties.
+// sendEvent makes an async request to track the given event with properties.
 func (c *Client) sendEvent(eventName string, properties map[string]interface{}) {
 	properties["id"] = c.id
+	if c.agentContext != "" {
+		properties["agent_context"] = c.agentContext
+	}
 	input := struct {
 		Event      string                 `json:"event"`
 		Properties map[string]interface{} `json:"properties"`
