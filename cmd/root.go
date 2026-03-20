@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
 
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
@@ -82,13 +83,40 @@ func init() {
 	cobra.AddTemplateFunc("HasOptionalFlags", HasOptionalFlags)
 }
 
+// forceTTYDefaultOutput is true when FORCE_TTY or LD_FORCE_TTY is non-empty, so the default
+// --output is plaintext even if stdout is not a TTY (similar to NO_COLOR). Explicit --output,
+// --json, LD_OUTPUT, and config file values still take precedence via Viper/Cobra after parse.
+//
+// getenv, if non-nil, is used only for those two keys (tests can inject without mutating
+// process environment). If nil, os.Getenv is used.
+func forceTTYDefaultOutput(getenv func(string) string) bool {
+	lookup := getenv
+	if lookup == nil {
+		lookup = os.Getenv
+	}
+	return lookup("FORCE_TTY") != "" || lookup("LD_FORCE_TTY") != ""
+}
+
+// NewRootCommand constructs the ldcli root command tree.
+//
+// isTerminal must be non-nil; it should reflect whether stdout is a TTY (see Execute). When it
+// returns false, the default --output is json unless forceTTYDefaultOutput applies.
+//
+// getenv is optional: when non-nil, it is used to read FORCE_TTY and LD_FORCE_TTY only; when
+// nil, os.Getenv is used. Viper still reads LD_OUTPUT and other LD_ vars from the real
+// environment.
 func NewRootCommand(
 	configService config.Service,
 	analyticsTrackerFn analytics.TrackerFn,
 	clients APIClients,
 	version string,
 	useConfigFile bool,
+	isTerminal func() bool,
+	getenv func(string) string,
 ) (*RootCmd, error) {
+	if isTerminal == nil {
+		return nil, errors.New("NewRootCommand: isTerminal must not be nil")
+	}
 	cmd := &cobra.Command{
 		Use:     "ldcli",
 		Short:   "LaunchDarkly CLI",
@@ -190,10 +218,17 @@ func NewRootCommand(
 		return nil, err
 	}
 
+	// When stdout is not a TTY (e.g. piped, CI, agent), default to JSON unless FORCE_TTY or
+	// LD_FORCE_TTY is set (any non-empty value), like NO_COLOR.
+	defaultOutput := "plaintext"
+	if !forceTTYDefaultOutput(getenv) && !isTerminal() {
+		defaultOutput = "json"
+	}
+
 	cmd.PersistentFlags().StringP(
 		cliflags.OutputFlag,
 		"o",
-		"plaintext",
+		defaultOutput,
 		cliflags.OutputFlagDescription,
 	)
 	err = viper.BindPFlag(cliflags.OutputFlag, cmd.PersistentFlags().Lookup(cliflags.OutputFlag))
@@ -255,6 +290,8 @@ func Execute(version string) {
 		clients,
 		version,
 		true,
+		func() bool { return term.IsTerminal(int(os.Stdout.Fd())) },
+		nil,
 	)
 	if err != nil {
 		log.Fatal(err)
