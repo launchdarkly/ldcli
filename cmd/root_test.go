@@ -108,7 +108,8 @@ func TestOutputFlags(t *testing.T) {
 	})
 }
 
-func newRootCmdWithTerminal(t *testing.T, isTerminal func() bool) *cmd.RootCmd {
+// getenv is passed to NewRootCommand for FORCE_TTY / LD_FORCE_TTY only; nil uses os.Getenv.
+func newRootCmdWithTerminal(t *testing.T, isTerminal func() bool, getenv func(string) string) *cmd.RootCmd {
 	t.Helper()
 	rootCmd, err := cmd.NewRootCommand(
 		config.NewService(&resources.MockClient{}),
@@ -117,12 +118,19 @@ func newRootCmdWithTerminal(t *testing.T, isTerminal func() bool) *cmd.RootCmd {
 		"test",
 		false,
 		isTerminal,
+		getenv,
 	)
 	require.NoError(t, err)
 	return rootCmd
 }
 
 func execNonTTYCmd(t *testing.T, mockClient *resources.MockClient, extraArgs ...string) []byte {
+	t.Helper()
+	return execNonTTYCmdGetenv(t, mockClient, nil, extraArgs...)
+}
+
+// getenv is forwarded to NewRootCommand for FORCE_TTY / LD_FORCE_TTY only (nil uses os.Getenv).
+func execNonTTYCmdGetenv(t *testing.T, mockClient *resources.MockClient, getenv func(string) string, extraArgs ...string) []byte {
 	t.Helper()
 	rootCmd, err := cmd.NewRootCommand(
 		config.NewService(&resources.MockClient{}),
@@ -131,6 +139,7 @@ func execNonTTYCmd(t *testing.T, mockClient *resources.MockClient, extraArgs ...
 		"test",
 		false,
 		func() bool { return false },
+		getenv,
 	)
 	require.NoError(t, err)
 
@@ -161,10 +170,7 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 	}
 
 	t.Run("non-TTY defaults to json output", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "")
-		t.Setenv("LD_FORCE_TTY", "")
-
-		rootCmd := newRootCmdWithTerminal(t, func() bool { return false })
+		rootCmd := newRootCmdWithTerminal(t, func() bool { return false }, func(string) string { return "" })
 
 		f := rootCmd.Cmd().PersistentFlags().Lookup(cliflags.OutputFlag)
 		require.NotNil(t, f)
@@ -172,48 +178,25 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 	})
 
 	t.Run("TTY defaults to plaintext output", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "")
-		t.Setenv("LD_FORCE_TTY", "")
-
-		rootCmd := newRootCmdWithTerminal(t, func() bool { return true })
+		rootCmd := newRootCmdWithTerminal(t, func() bool { return true }, func(string) string { return "" })
 
 		f := rootCmd.Cmd().PersistentFlags().Lookup(cliflags.OutputFlag)
 		require.NotNil(t, f)
 		assert.Equal(t, "plaintext", f.DefValue)
 	})
 
-	t.Run("nil isTerminal defaults to json output", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "")
-		t.Setenv("LD_FORCE_TTY", "")
-
-		rootCmd := newRootCmdWithTerminal(t, nil)
-
-		f := rootCmd.Cmd().PersistentFlags().Lookup(cliflags.OutputFlag)
-		require.NotNil(t, f)
-		assert.Equal(t, "json", f.DefValue)
-	})
-
 	t.Run("explicit --output plaintext overrides non-TTY", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "")
-		t.Setenv("LD_FORCE_TTY", "")
-
 		out := execNonTTYCmd(t, mockClient, "--output", "plaintext")
 		assert.Contains(t, string(out), "Successfully updated")
 	})
 
 	t.Run("non-TTY without explicit flag returns JSON", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "")
-		t.Setenv("LD_FORCE_TTY", "")
-
 		out := execNonTTYCmd(t, mockClient)
 		assert.Contains(t, string(out), `"key"`)
 		assert.NotContains(t, string(out), "Successfully updated")
 	})
 
 	t.Run("--json overrides non-TTY default", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "")
-		t.Setenv("LD_FORCE_TTY", "")
-
 		out := execNonTTYCmd(t, mockClient, "--json")
 		assert.Contains(t, string(out), `"key"`)
 		assert.NotContains(t, string(out), "Successfully updated")
@@ -221,8 +204,6 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 
 	t.Run("LD_OUTPUT=plaintext overrides non-TTY default", func(t *testing.T) {
 		t.Setenv("LD_OUTPUT", "plaintext")
-		t.Setenv("FORCE_TTY", "")
-		t.Setenv("LD_FORCE_TTY", "")
 
 		out := execNonTTYCmd(t, mockClient)
 		assert.Contains(t, string(out), "Successfully updated")
@@ -230,10 +211,13 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 	})
 
 	t.Run("FORCE_TTY=0 yields plaintext DefValue when non-TTY", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "0")
-		t.Setenv("LD_FORCE_TTY", "")
-
-		rootCmd := newRootCmdWithTerminal(t, func() bool { return false })
+		getenv := func(k string) string {
+			if k == "FORCE_TTY" {
+				return "0"
+			}
+			return ""
+		}
+		rootCmd := newRootCmdWithTerminal(t, func() bool { return false }, getenv)
 
 		f := rootCmd.Cmd().PersistentFlags().Lookup(cliflags.OutputFlag)
 		require.NotNil(t, f)
@@ -241,10 +225,13 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 	})
 
 	t.Run("FORCE_TTY=1 yields plaintext DefValue when non-TTY", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "1")
-		t.Setenv("LD_FORCE_TTY", "")
-
-		rootCmd := newRootCmdWithTerminal(t, func() bool { return false })
+		getenv := func(k string) string {
+			if k == "FORCE_TTY" {
+				return "1"
+			}
+			return ""
+		}
+		rootCmd := newRootCmdWithTerminal(t, func() bool { return false }, getenv)
 
 		f := rootCmd.Cmd().PersistentFlags().Lookup(cliflags.OutputFlag)
 		require.NotNil(t, f)
@@ -252,10 +239,13 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 	})
 
 	t.Run("LD_FORCE_TTY=1 yields plaintext DefValue when non-TTY", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "")
-		t.Setenv("LD_FORCE_TTY", "1")
-
-		rootCmd := newRootCmdWithTerminal(t, func() bool { return false })
+		getenv := func(k string) string {
+			if k == "LD_FORCE_TTY" {
+				return "1"
+			}
+			return ""
+		}
+		rootCmd := newRootCmdWithTerminal(t, func() bool { return false }, getenv)
 
 		f := rootCmd.Cmd().PersistentFlags().Lookup(cliflags.OutputFlag)
 		require.NotNil(t, f)
@@ -263,13 +253,42 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 	})
 
 	t.Run("LD_FORCE_TTY=1 yields plaintext output when non-TTY", func(t *testing.T) {
-		t.Setenv("FORCE_TTY", "")
-		t.Setenv("LD_FORCE_TTY", "1")
-
-		out := execNonTTYCmd(t, mockClient)
+		getenv := func(k string) string {
+			if k == "LD_FORCE_TTY" {
+				return "1"
+			}
+			return ""
+		}
+		out := execNonTTYCmdGetenv(t, mockClient, getenv)
 		assert.Contains(t, string(out), "Successfully updated")
 		assert.Contains(t, string(out), "test-name (test-key)")
 	})
+
+	t.Run("FORCE_TTY=1 yields plaintext output when non-TTY", func(t *testing.T) {
+		getenv := func(k string) string {
+			if k == "FORCE_TTY" {
+				return "1"
+			}
+			return ""
+		}
+		out := execNonTTYCmdGetenv(t, mockClient, getenv)
+		assert.Contains(t, string(out), "Successfully updated")
+		assert.Contains(t, string(out), "test-name (test-key)")
+	})
+}
+
+func TestNewRootCommandNilIsTerminalRejects(t *testing.T) {
+	_, err := cmd.NewRootCommand(
+		config.NewService(&resources.MockClient{}),
+		analytics.NoopClientFn{}.Tracker(),
+		cmd.APIClients{},
+		"test",
+		false,
+		nil,
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "isTerminal")
 }
 
 func TestConfigOutputPrecedenceNonTTY(t *testing.T) {
@@ -282,8 +301,6 @@ func TestConfigOutputPrecedenceNonTTY(t *testing.T) {
 
 	cfgRoot := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", cfgRoot)
-	t.Setenv("FORCE_TTY", "")
-	t.Setenv("LD_FORCE_TTY", "")
 
 	ldcliDir := filepath.Join(cfgRoot, "ldcli")
 	require.NoError(t, os.MkdirAll(ldcliDir, 0o755))
@@ -296,6 +313,7 @@ func TestConfigOutputPrecedenceNonTTY(t *testing.T) {
 		"test",
 		true,
 		func() bool { return false },
+		nil,
 	)
 	require.NoError(t, err)
 
