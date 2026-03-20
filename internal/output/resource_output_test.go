@@ -360,4 +360,38 @@ func TestCmdOutputError(t *testing.T) {
 			assert.Equal(t, "something went wrong", result)
 		})
 	})
+
+	t.Run("with an error containing statusCode and suggestion", func(t *testing.T) {
+		errJSON := `{"code":"not_found","message":"Not Found","statusCode":404,"suggestion":"Resource not found. Use ldcli flags list."}`
+
+		t.Run("with JSON output includes all fields", func(t *testing.T) {
+			err := errors.NewError(errJSON)
+
+			result := output.CmdOutputError("json", err)
+
+			assert.JSONEq(t, errJSON, result)
+		})
+
+		t.Run("with plaintext output includes suggestion line", func(t *testing.T) {
+			err := errors.NewError(errJSON)
+
+			result := output.CmdOutputError("plaintext", err)
+
+			assert.Contains(t, result, "Not Found (code: not_found)")
+			assert.Contains(t, result, "\nSuggestion: Resource not found. Use ldcli flags list.")
+		})
+	})
+
+	t.Run("with an error with statusCode but no suggestion", func(t *testing.T) {
+		errJSON := `{"code":"internal_server_error","message":"Internal Server Error","statusCode":500}`
+
+		t.Run("with plaintext output does not include suggestion line", func(t *testing.T) {
+			err := errors.NewError(errJSON)
+
+			result := output.CmdOutputError("plaintext", err)
+
+			assert.Equal(t, "Internal Server Error (code: internal_server_error)", result)
+			assert.NotContains(t, result, "Suggestion:")
+		})
+	})
 }
