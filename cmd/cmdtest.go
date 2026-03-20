@@ -19,6 +19,9 @@ var StubbedSuccessResponse = `{
 	"name": "test-name"
 }`
 
+// CallCmd runs the root command for integration-style tests. It passes isTerminal always true so
+// the default --output matches an interactive terminal (plaintext); non-TTY JSON defaults are
+// covered in root_test.go.
 func CallCmd(
 	t *testing.T,
 	clients APIClients,

@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### ⚠ BREAKING CHANGES
+
+* When stdout is not a TTY, the default `--output` format is now **json** instead of plaintext. Scripts that assumed plaintext when output was piped or redirected should set `LD_OUTPUT=plaintext`, run `ldcli config --set output plaintext`, or pass `--output plaintext` (or `--output json` explicitly if you want JSON regardless of TTY).
+
 ## [2.2.0](https://github.com/launchdarkly/ldcli/compare/v2.1.0...v2.2.0) (2026-02-20)
 
 

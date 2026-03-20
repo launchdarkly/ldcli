@@ -90,6 +90,14 @@ ldcli config --set access-token api-00000000-0000-0000-0000-000000000000
 
 Running this command creates a configuration file located at `$XDG_CONFIG_HOME/ldcli/config.yml` with the access token. Subsequent commands read from this file, so you do not need to specify the access token each time.
 
+### Output format defaults
+
+When you do not pass `--output` or `--json`, the default format depends on whether standard output is a terminal: **plaintext** in an interactive terminal, **json** when stdout is not a TTY (for example when piped, in CI, or in agent environments).
+
+To force the plaintext default even when stdout is not a TTY, set either **`FORCE_TTY`** or **`LD_FORCE_TTY`** to any non-empty value (similar to tools that use `NO_COLOR`). That only affects the default; explicit `--output`, `--json`, `LD_OUTPUT`, and the `output` setting in your config file still apply.
+
+Effective output is resolved in this order: **`--json`** and **`--output`** flags, then **`LD_OUTPUT`**, then the **`output`** value from your config file, then the TTY-based default above.
+
 ## Commands
 
 LaunchDarkly CLI commands:
