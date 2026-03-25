@@ -17,7 +17,7 @@ import (
 )
 
 type sdkActiveResponse struct {
-	SdkActive bool `json:"sdkActive"`
+	Active bool `json:"active"`
 }
 
 func NewSdkActiveCmd(client resources.Client) *cobra.Command {
@@ -69,7 +69,7 @@ func runGetSdkActive(client resources.Client) func(*cobra.Command, []string) err
 			return errors.NewError(err.Error())
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "SDK active: %t\n", resp.SdkActive)
+		fmt.Fprintf(cmd.OutOrStdout(), "SDK active: %t\n", resp.Active)
 
 		return nil
 	}

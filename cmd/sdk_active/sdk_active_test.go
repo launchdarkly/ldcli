@@ -13,10 +13,7 @@ import (
 
 func TestGetSdkActive(t *testing.T) {
 	mockClient := &resources.MockClient{
-		Response: []byte(`{
-			"sdkActive": true,
-			"lastSeenAt": 1718000000000
-		}`),
+		Response: []byte(`{"active": true}`),
 	}
 	args := []string{
 		"environments", "get-sdk-active",
@@ -39,10 +36,7 @@ func TestGetSdkActive(t *testing.T) {
 
 func TestGetSdkActiveJSON(t *testing.T) {
 	mockClient := &resources.MockClient{
-		Response: []byte(`{
-			"sdkActive": true,
-			"lastSeenAt": 1718000000000
-		}`),
+		Response: []byte(`{"active": true}`),
 	}
 	args := []string{
 		"environments", "get-sdk-active",
@@ -61,8 +55,7 @@ func TestGetSdkActiveJSON(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, string(output), `"sdkActive"`)
-	assert.Contains(t, string(output), `"lastSeenAt"`)
+	assert.Contains(t, string(output), `"active"`)
 }
 
 func TestGetSdkActiveMissingRequiredFlags(t *testing.T) {
