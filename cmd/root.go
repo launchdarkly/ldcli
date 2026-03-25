@@ -21,6 +21,7 @@ import (
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
+	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
@@ -226,6 +227,9 @@ func NewRootCommand(
 		}
 		if c.Name() == "members" {
 			c.AddCommand(memberscmd.NewMembersInviteCmd(clients.ResourcesClient))
+		}
+		if c.Name() == "environments" {
+			c.AddCommand(sdkactivecmd.NewSdkActiveCmd(clients.ResourcesClient))
 		}
 	}
 
