@@ -42,7 +42,7 @@ const (
 
 func runGetSdkActive(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		rawPath, _ := url.JoinPath(
+		path, _ := url.JoinPath(
 			viper.GetString(cliflags.BaseURIFlag),
 			"api/v2/projects",
 			viper.GetString(cliflags.ProjectFlag),
@@ -51,23 +51,20 @@ func runGetSdkActive(client resources.Client) func(*cobra.Command, []string) err
 			"sdk-active",
 		)
 
-		parsed, _ := url.Parse(rawPath)
-		q := parsed.Query()
+		query := url.Values{}
 		if v := viper.GetString(sdkNameFlag); v != "" {
-			q.Set("sdk_name", v)
+			query.Set("sdk_name", v)
 		}
 		if v := viper.GetString(sdkWrapperNameFlag); v != "" {
-			q.Set("sdk_wrapper_name", v)
+			query.Set("sdk_wrapper_name", v)
 		}
-		parsed.RawQuery = q.Encode()
-		path := parsed.String()
 
 		res, err := client.MakeRequest(
 			viper.GetString(cliflags.AccessTokenFlag),
 			"GET",
 			path,
 			"application/json",
-			nil,
+			query,
 			nil,
 			false,
 		)
