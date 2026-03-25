@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.3.0](https://github.com/launchdarkly/ldcli/compare/v2.2.0...v2.3.0) (2026-03-25)
+
+
+### Features
+
+* add --json flag as shorthand for --output json ([#656](https://github.com/launchdarkly/ldcli/issues/656)) ([65d1bc3](https://github.com/launchdarkly/ldcli/commit/65d1bc3bc173e270df20a950e180d8f17e9d5f5e))
+* add hand-rolled get-sdk-active command for environments ([#671](https://github.com/launchdarkly/ldcli/issues/671)) ([b3c447b](https://github.com/launchdarkly/ldcli/commit/b3c447b00ccd8c56e7f1ccd26b1e408242a0bf49))
+* add import project API endpoint ([#643](https://github.com/launchdarkly/ldcli/issues/643)) ([8623f37](https://github.com/launchdarkly/ldcli/commit/8623f37bce6c4030ffd7c4eb45c739bbf0a42991))
+* **REL-12753:** adding agent flag for agent telemetry ([#659](https://github.com/launchdarkly/ldcli/issues/659)) ([a7206fd](https://github.com/launchdarkly/ldcli/commit/a7206fd79b56c0a8cae19da0f97b810cb3de3b7e))
+* **REL-12779:** Add a command to sign up that directs the user to the sign up page ([#665](https://github.com/launchdarkly/ldcli/issues/665)) ([2f0042f](https://github.com/launchdarkly/ldcli/commit/2f0042fcfb9b76c71116e6c1ca55973b06ffedee))
+
 ## [2.2.0](https://github.com/launchdarkly/ldcli/compare/v2.1.0...v2.2.0) (2026-02-20)
 
 
