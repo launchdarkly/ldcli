@@ -35,9 +35,14 @@ func NewSdkActiveCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
+const (
+	sdkNameFlag        = "sdk-name"
+	sdkWrapperNameFlag = "sdk-wrapper-name"
+)
+
 func runGetSdkActive(client resources.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		path, _ := url.JoinPath(
+		rawPath, _ := url.JoinPath(
 			viper.GetString(cliflags.BaseURIFlag),
 			"api/v2/projects",
 			viper.GetString(cliflags.ProjectFlag),
@@ -45,6 +50,18 @@ func runGetSdkActive(client resources.Client) func(*cobra.Command, []string) err
 			viper.GetString(cliflags.EnvironmentFlag),
 			"sdk-active",
 		)
+
+		parsed, _ := url.Parse(rawPath)
+		q := parsed.Query()
+		if v := viper.GetString(sdkNameFlag); v != "" {
+			q.Set("sdk_name", v)
+		}
+		if v := viper.GetString(sdkWrapperNameFlag); v != "" {
+			q.Set("sdk_wrapper_name", v)
+		}
+		parsed.RawQuery = q.Encode()
+		path := parsed.String()
+
 		res, err := client.MakeRequest(
 			viper.GetString(cliflags.AccessTokenFlag),
 			"GET",
@@ -85,4 +102,10 @@ func initFlags(cmd *cobra.Command) {
 	_ = cmd.MarkFlagRequired(cliflags.EnvironmentFlag)
 	_ = cmd.Flags().SetAnnotation(cliflags.EnvironmentFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.EnvironmentFlag, cmd.Flags().Lookup(cliflags.EnvironmentFlag))
+
+	cmd.Flags().String(sdkNameFlag, "", "Filter by SDK name (e.g. go-server-sdk, node-server-sdk)")
+	_ = viper.BindPFlag(sdkNameFlag, cmd.Flags().Lookup(sdkNameFlag))
+
+	cmd.Flags().String(sdkWrapperNameFlag, "", "Filter by SDK wrapper name")
+	_ = viper.BindPFlag(sdkWrapperNameFlag, cmd.Flags().Lookup(sdkWrapperNameFlag))
 }

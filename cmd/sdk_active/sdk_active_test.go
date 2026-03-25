@@ -58,6 +58,54 @@ func TestGetSdkActiveJSON(t *testing.T) {
 	assert.Contains(t, string(output), `"active"`)
 }
 
+func TestGetSdkActiveWithSdkNameFilter(t *testing.T) {
+	mockClient := &resources.MockClient{
+		Response: []byte(`{"active": true}`),
+	}
+	args := []string{
+		"environments", "get-sdk-active",
+		"--access-token", "abcd1234",
+		"--project", "test-proj",
+		"--environment", "test-env",
+		"--sdk-name", "go-server-sdk",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: mockClient,
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "SDK active: true\n", string(output))
+}
+
+func TestGetSdkActiveWithSdkWrapperNameFilter(t *testing.T) {
+	mockClient := &resources.MockClient{
+		Response: []byte(`{"active": false}`),
+	}
+	args := []string{
+		"environments", "get-sdk-active",
+		"--access-token", "abcd1234",
+		"--project", "test-proj",
+		"--environment", "test-env",
+		"--sdk-wrapper-name", "flutter-client-sdk",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: mockClient,
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "SDK active: false\n", string(output))
+}
+
 func TestGetSdkActiveMissingRequiredFlags(t *testing.T) {
 	mockClient := &resources.MockClient{}
 	args := []string{
