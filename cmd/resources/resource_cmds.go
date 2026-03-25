@@ -1428,6 +1428,50 @@ func AddAllResourceCmds(
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get observability metrics usage",
+		Long:  "Get time-series arrays of the number of observability metrics. Supports `hourly`, `daily`, and `monthly` granularity.",
+		Use:   "get-observability-metrics-usage",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "query",
+				Description: "A project key to filter results by. Can be specified multiple times, one query parameter per project key.",
+				Type:        "string",
+			},
+			{
+				Name:        "granularity",
+				In:          "query",
+				Description: "Specifies the data granularity. Defaults to 'daily'. Valid values depend on 'aggregationType': **month_to_date** supports 'hourly', 'daily', and 'monthly'; **average** supports 'hourly', 'daily', and 'monthly'.",
+				Type:        "string",
+			},
+			{
+				Name:        "aggregation-type",
+				In:          "query",
+				Description: "Specifies the aggregation method. Defaults to 'month_to_date'.\u003cbr/\u003eValid values: 'month_to_date', 'average'.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/observability/metrics",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get observability sessions usage",
 		Long:  "Get time-series arrays of the number of observability sessions. Supports `daily` and `monthly` granularity.",
 		Use:   "get-observability-sessions-usage",
@@ -1516,6 +1560,19 @@ func AddAllResourceCmds(
 	})
 
 	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short:                 "Get SDK versions usage details",
+		Long:                  "Get detailed SDK version usage data for your account, including version information, EOL status, and relay proxy metadata. Refreshed hourly, returns the max version for each SDK observed in the last day, including those without EOL metadata available.\u003cbr/\u003e\u003cbr/\u003eThis endpoint provides comprehensive information about SDK versions in use across your projects and environments.",
+		Use:                   "get-sdk-versions-details",
+		Params:                []Param{},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/sdk-versions/details",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get service connections usage",
 		Long:  "Get a time series array showing the number of service connection minutes from your account. The supported granularity varies by aggregation type. The maximum time range is 365 days.",
 		Use:   "get-service-connections-usage",
@@ -1575,9 +1632,15 @@ func AddAllResourceCmds(
 				Type:        "string",
 			},
 			{
+				Name:        "sdk-app-id",
+				In:          "query",
+				Description: "An SDK app ID to filter results by. Can be specified multiple times, one query parameter per SDK app ID.",
+				Type:        "string",
+			},
+			{
 				Name:        "group-by",
 				In:          "query",
-				Description: "If specified, returns data for each distinct value of the given field. Can be specified multiple times to group data by multiple dimensions, one query parameter per dimension.\u003cbr/\u003eValid values: 'projectId', 'environmentId', 'connectionType', 'relayVersion', 'sdkName', 'sdkVersion', 'sdkType'.",
+				Description: "If specified, returns data for each distinct value of the given field. Can be specified multiple times to group data by multiple dimensions, one query parameter per dimension.\u003cbr/\u003eValid values: 'projectId', 'environmentId', 'connectionType', 'relayVersion', 'sdkName', 'sdkVersion', 'sdkType', 'sdkAppId'.",
 				Type:        "string",
 			},
 			{
@@ -1706,6 +1769,50 @@ func AddAllResourceCmds(
 		IsBeta:                true,
 		RequiresBody:          false,
 		Path:                  "/api/v2/usage/streams/{source}/sdkversions",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AccountUsageBetaResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get Vega AI usage",
+		Long:  "Get time-series arrays of the number of Vega AI usage. Supports `daily` and `monthly` granularity.",
+		Use:   "get-vega-ai-usage",
+		Params: []Param{
+			{
+				Name:        "from",
+				In:          "query",
+				Description: "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month.",
+				Type:        "string",
+			},
+			{
+				Name:        "to",
+				In:          "query",
+				Description: "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time.",
+				Type:        "string",
+			},
+			{
+				Name:        "project-key",
+				In:          "query",
+				Description: "A project key to filter results by. Can be specified multiple times, one query parameter per project key.",
+				Type:        "string",
+			},
+			{
+				Name:        "granularity",
+				In:          "query",
+				Description: "Specifies the data granularity. Defaults to 'daily'. Valid values depend on 'aggregationType': **month_to_date** supports 'daily' and 'monthly'; **incremental** and **rolling_30d** support 'daily' only.",
+				Type:        "string",
+			},
+			{
+				Name:        "aggregation-type",
+				In:          "query",
+				Description: "Specifies the aggregation method. Defaults to 'month_to_date'.\u003cbr/\u003eValid values: 'month_to_date', 'incremental', 'rolling_30d'.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                true,
+		RequiresBody:          false,
+		Path:                  "/api/v2/usage/vega-ai",
 		SupportsSemanticPatch: false,
 	})
 
@@ -2574,6 +2681,26 @@ func AddAllResourceCmds(
 		IsBeta:                false,
 		RequiresBody:          true,
 		Path:                  "/api/v2/projects/{projectKey}/ai-configs/model-configs",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AiConfigsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Create a prompt snippet",
+		Long:  "Create a new prompt snippet within the given project.",
+		Use:   "create-prompt-snippet",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                false,
+		RequiresBody:          true,
+		Path:                  "/api/v2/projects/{projectKey}/ai-configs/prompt-snippets",
 		SupportsSemanticPatch: false,
 	})
 
@@ -3500,6 +3627,38 @@ func AddAllResourceCmds(
 		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/auditlog",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_AuditLogResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get audit log entry counts",
+		Long:  "Returns aggregate counts of audit log entries per time bucket. Used for dashboard overlays that show flag targeting changes.",
+		Use:   "create-entry-counts",
+		Params: []Param{
+			{
+				Name:        "before",
+				In:          "query",
+				Description: "A timestamp filter, expressed as a Unix epoch time in milliseconds. Defaults to now.",
+				Type:        "integer",
+			},
+			{
+				Name:        "after",
+				In:          "query",
+				Description: "A timestamp filter, expressed as a Unix epoch time in milliseconds. Required.",
+				Type:        "integer",
+			},
+			{
+				Name:        "buckets",
+				In:          "query",
+				Description: "Number of time buckets to divide the range into. Default 50, max 500.",
+				Type:        "integer",
+			},
+		},
+		HTTPMethod:            "POST",
+		HasBody:               true,
+		IsBeta:                false,
+		RequiresBody:          true,
+		Path:                  "/api/v2/auditlog/counts",
 		SupportsSemanticPatch: false,
 	})
 
@@ -4630,7 +4789,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get environment",
-		Long:  "\u003e ### Approval settings\n\u003e\n\u003e The `approvalSettings` key is only returned when [approvals](https://launchdarkly.com/docs/home/releases/approvals) for flags or segments are enabled.\n\nGet an environment given a project and key.\n",
+		Long:  "\u003e ### Approval settings\n\u003e\n\u003e The `approvalSettings` and `resourceApprovalSettings` keys are only returned when the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n\nGet an environment given a project and key.\n",
 		Use:   "get",
 		Params: []Param{
 			{
@@ -4700,7 +4859,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Update environment",
-		Long:  "\nUpdate an environment. Updating an environment uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](https://launchdarkly.com/docs/api#updates).\n\nTo update fields in the environment object that are arrays, set the `path` to the name of the field and then append `/\u003carray index\u003e`. Using `/0` appends to the beginning of the array.\n\n### Approval settings\n\nThis request only returns the `approvalSettings` key if the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n\nOnly the `canReviewOwnRequest`, `canApplyDeclinedChanges`, `minNumApprovals`, `required` and `requiredApprovalTagsfields` are editable.\n\nIf you try to patch the environment by setting both `required` and `requiredApprovalTags`, the request fails and an error appears. You can specify either required approvals for all flags in an environment or those with specific tags, but not both.\n",
+		Long:  "\nUpdate an environment. Updating an environment uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](https://launchdarkly.com/docs/api#updates).\n\nTo update fields in the environment object that are arrays, set the `path` to the name of the field and then append `/\u003carray index\u003e`. Using `/0` appends to the beginning of the array.\n\n### Approval settings\n\nThis request only returns the `approvalSettings` and `resourceApprovalSettings` if the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n\nOnly the `canReviewOwnRequest`, `canApplyDeclinedChanges`, `minNumApprovals`, `required` and `requiredApprovalTagsfields` are editable.\n\nIf you try to patch the environment by setting both `required` and `requiredApprovalTags`, the request fails and an error appears. You can specify either required approvals for all flags in an environment or those with specific tags, but not both.\n",
 		Use:   "update",
 		Params: []Param{
 			{
@@ -4726,7 +4885,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_EnvironmentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create environment",
-		Long:  "\u003e ### Approval settings\n\u003e\n\u003e The `approvalSettings` key is only returned when the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n\u003e\n\u003e You cannot update approval settings when creating new environments. Update approval settings with the [https://launchdarkly.com/docs/api/environments/patch-environment).\n\nCreate a new environment in a specified project with a given name, key, swatch color, and default TTL.\n",
+		Long:  "\u003e ### Approval settings\n\u003e\n\u003e You cannot configure approval settings when you create a new environment. Use [Update environment](https://launchdarkly.com/docs/api/environments/patch-environment) to update approval settings.\n\u003e\n\u003e The `approvalSettings` and `resourceApprovalSettings` keys are only returned when the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n\nCreate a new environment in a specified project with a given name, key, swatch color, and default TTL.\n",
 		Use:   "create",
 		Params: []Param{
 			{
@@ -4804,7 +4963,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ExperimentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create experiment",
-		Long:  "Create an experiment.\n\nTo run this experiment, you'll need to [create an iteration](https://launchdarkly.com/docs/api/experiments/create-iteration) and then [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` instruction.\n\nTo learn more, read [Creating experiments](https://launchdarkly.com/docs/home/experimentation/create).\n",
+		Long:  "Create an experiment.\n\nTo run this experiment, you'll need to [create an iteration](https://launchdarkly.com/docs/api/experiments/create-iteration) and then [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` instruction.\n\n### Experiment types\n\nUse the `type` field to specify the experiment type: `experiment` (default), `mab` (multi-armed bandit), or `holdout`.\n\nFor multi-armed bandit experiments, set `reallocationFrequencyMillis` on the iteration to control how often traffic is reallocated across variations.\n\n### Results analysis\n\nUse the `methodology` field to specify the results analysis approach: `bayesian` (default) or `frequentist`.\n\nUse the `dataSource` field to specify the source of metric data: `launchdarkly` (default), `snowflake`, or `databricks`.\n\nUse the `analysisConfig` field to customize analysis settings such as the Bayesian threshold, significance threshold, or multiple comparison correction method.\n\nTo learn more, read [Creating experiments](https://launchdarkly.com/docs/home/experimentation/create).\n",
 		Use:   "create",
 		Params: []Param{
 			{
@@ -4830,7 +4989,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ExperimentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Create iteration",
-		Long:  "Create an experiment iteration.\n\nExperiment iterations let you record experiments in individual blocks of time. Initially, iterations are created with a status of `not_started` and appear in the `draftIteration` field of an experiment. To start or stop an iteration, [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` or `stopIteration` instruction. \n\nTo learn more, read [Start experiment iterations](https://launchdarkly.com/docs/home/experimentation/create#start-an-experiment-iteration).\n",
+		Long:  "Create an experiment iteration.\n\nExperiment iterations let you record experiments in individual blocks of time. Initially, iterations are created with a status of `not_started` and appear in the `draftIteration` field of an experiment. To start or stop an iteration, [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` or `stopIteration` instruction.\n\nTo learn more, read [Start experiment iterations](https://launchdarkly.com/docs/home/experimentation/create#start-an-experiment-iteration).\n",
 		Use:   "create-iteration",
 		Params: []Param{
 			{
@@ -4862,7 +5021,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ExperimentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get experiment",
-		Long:  "Get details about an experiment.\n\n### Expanding the experiment response\n\nLaunchDarkly supports four fields for expanding the \"Get experiment\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
+		Long:  "Get details about an experiment.\n\n### Expanding the experiment response\n\nLaunchDarkly supports five fields for expanding the \"Get experiment\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n- `analysisConfig` includes the analysis configuration for the experiment, such as the Bayesian threshold or significance threshold.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
 		Use:   "get",
 		Params: []Param{
 			{
@@ -4920,7 +5079,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ExperimentsResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get experiments",
-		Long:  "Get details about all experiments in an environment.\n\n### Filtering experiments\n\nLaunchDarkly supports the `filter` query param for filtering, with the following fields:\n\n- `flagKey` filters for only experiments that use the flag with the given key.\n- `metricKey` filters for only experiments that use the metric with the given key.\n- `status` filters for only experiments with an iteration with the given status. An iteration can have the status `not_started`, `running` or `stopped`.\n\nFor example, `filter=flagKey:my-flag,status:running,metricKey:page-load-ms` filters for experiments for the given flag key and the given metric key which have a currently running iteration.\n\n### Expanding the experiments response\n\nLaunchDarkly supports four fields for expanding the \"Get experiments\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
+		Long:  "Get details about all experiments in an environment.\n\n### Filtering experiments\n\nLaunchDarkly supports the `filter` query param for filtering, with the following fields:\n\n- `flagKey` filters for only experiments that use the flag with the given key.\n- `metricKey` filters for only experiments that use the metric with the given key.\n- `status` filters for only experiments with an iteration with the given status. An iteration can have the status `not_started`, `running` or `stopped`.\n\nFor example, `filter=flagKey:my-flag,status:running,metricKey:page-load-ms` filters for experiments for the given flag key and the given metric key which have a currently running iteration.\n\n### Expanding the experiments response\n\nLaunchDarkly supports five fields for expanding the \"Get experiments\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n- `analysisConfig` includes the analysis configuration for the experiment, such as the Bayesian threshold or significance threshold.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
 		Use:   "list",
 		Params: []Param{
 			{
@@ -4971,6 +5130,56 @@ func AddAllResourceCmds(
 		IsBeta:                false,
 		RequiresBody:          false,
 		Path:                  "/api/v2/projects/{projectKey}/environments/{environmentKey}/experiments",
+		SupportsSemanticPatch: false,
+	})
+
+	NewOperationCmd(gen_ExperimentsResourceCmd, client, markdownRenderer, OperationData{
+		Short: "Get experiments any environment",
+		Long:  "Get a list of experiments from across all environments in the project",
+		Use:   "list-any-env",
+		Params: []Param{
+			{
+				Name:        "project-key",
+				In:          "path",
+				Description: "The project key",
+				Type:        "string",
+			},
+			{
+				Name:        "limit",
+				In:          "query",
+				Description: "The maximum number of experiments to return. Defaults to 20.",
+				Type:        "integer",
+			},
+			{
+				Name:        "offset",
+				In:          "query",
+				Description: "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query 'limit'.",
+				Type:        "integer",
+			},
+			{
+				Name:        "filter",
+				In:          "query",
+				Description: "A comma-separated list of filters. Each filter is of the form 'field:value'. Supported fields are explained above.",
+				Type:        "string",
+			},
+			{
+				Name:        "expand",
+				In:          "query",
+				Description: "A comma-separated list of properties that can reveal additional information in the response. Supported fields are explained above.",
+				Type:        "string",
+			},
+			{
+				Name:        "lifecycle-state",
+				In:          "query",
+				Description: "A comma-separated list of experiment archived states. Supports 'archived', 'active', or both. Defaults to 'active' experiments.",
+				Type:        "string",
+			},
+		},
+		HTTPMethod:            "GET",
+		HasBody:               false,
+		IsBeta:                false,
+		RequiresBody:          false,
+		Path:                  "/api/v2/projects/{projectKey}/experiments",
 		SupportsSemanticPatch: false,
 	})
 
@@ -8077,7 +8286,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A comma-separated list of filters. This endpoint accepts filtering by 'query', 'tags', 'eventKind', 'isNumeric', 'unitAggregationType', 'hasConnections', 'maintainerIds', 'maintainerTeamKey', 'view', 'dataSourceKeys', and 'metricUsedIn'. To learn more about the filter syntax, read the 'Filtering metrics' section above.",
+				Description: "A comma-separated list of filters. This endpoint accepts filtering by 'query', 'tags', 'eventKind', 'isNumeric', 'unitAggregationType', 'hasConnections', 'maintainerIds', 'maintainerTeamKey', 'view', 'dataSourceKeys', 'metricUsedIn', 'eventKeys', and 'versionIds'. To learn more about the filter syntax, read the 'Filtering metrics' section above.",
 				Type:        "string",
 			},
 		},
@@ -10269,6 +10478,24 @@ func AddAllResourceCmds(
 				Description: "Field to sort by. Default field is 'linkedAt', default order is ascending.",
 				Type:        "string",
 			},
+			{
+				Name:        "query",
+				In:          "query",
+				Description: "Case-insensitive search query for linked resources. Matches resource key and, when expanded, resource name.",
+				Type:        "string",
+			},
+			{
+				Name:        "filter",
+				In:          "query",
+				Description: "Optional resource filter expression for linked resources.\n- Supported for 'flags' and 'segments' resource types.\n- Uses the same syntax as link/unlink and list endpoints.\n- For 'segments', 'environmentId' is required when 'filter' is provided.\n",
+				Type:        "string",
+			},
+			{
+				Name:        "expand",
+				In:          "query",
+				Description: "A comma-separated list of fields to expand.",
+				Type:        "array",
+			},
 		},
 		HTTPMethod:            "GET",
 		HasBody:               false,
@@ -10280,7 +10507,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ViewsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Get linked views for a given resource",
-		Long:  "Get a list of all linked views for a resource. Flags, AI configs and metrics are identified by key. Segments are identified by segment ID.",
+		Long:  "Get a list of all linked views for a resource. Flags are identified by key. Segments are identified by segment ID.",
 		Use:   "list-linked",
 		Params: []Param{
 			{
@@ -10378,7 +10605,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A filter to apply to the list of views.",
+				Description: "A filter to apply to the list of views. Supports the following fields and operators: 'name' (equals, notEquals, startsWith, contains, anyOf), 'key' (equals, notEquals, startsWith, contains, anyOf), 'tag' (equals, anyOf), 'maintainerId' (equals, anyOf), 'isPayloadView' (equals).",
 				Type:        "string",
 			},
 			{
@@ -10434,7 +10661,7 @@ func AddAllResourceCmds(
 			{
 				Name:        "filter",
 				In:          "query",
-				Description: "A filter to apply to the list of views.",
+				Description: "A filter to apply to the list of views. Supports the following fields and operators: 'name' (equals, notEquals, startsWith, contains, anyOf), 'key' (equals, notEquals, startsWith, contains, anyOf), 'tag' (equals, anyOf), 'maintainerId' (equals, anyOf), 'isPayloadView' (equals).",
 				Type:        "string",
 			},
 			{
@@ -10454,7 +10681,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ViewsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Link resource",
-		Long:  "Link one or multiple resources to a view by keys, filters, or both:\n- Link flags using flag keys or filters (maintainerId, maintainerTeamKey, tags, state, query)\n- Link AI Configs using AI Config keys\n- Link metrics using metric keys\n- Link segments using segment IDs or filters (tags, query, unbounded)\n\nWhen both keys and filters are provided, resources matching either condition are linked (union).\n",
+		Long:  "Link one or multiple resources to a view by keys, filters, or both:\n- Link flags using flag keys or filters (maintainerId, maintainerTeamKey, tags, state, query)\n- Link segments using segment IDs or filters (tags, query, unbounded)\n\nWhen both keys and filters are provided, resources matching either condition are linked (union).\n",
 		Use:   "link-resource",
 		Params: []Param{
 			{
@@ -10492,7 +10719,7 @@ func AddAllResourceCmds(
 
 	NewOperationCmd(gen_ViewsBetaResourceCmd, client, markdownRenderer, OperationData{
 		Short: "Unlink resource",
-		Long:  "Unlink one or multiple resources from a view:\n- Unlink flags using flag keys\n- Unlink segments using segment IDs\n- Unlink AI Configs using AI Config keys\n- Unlink metrics using metric keys\n",
+		Long:  "Unlink one or multiple resources from a view:\n- Unlink flags using flag keys\n- Unlink segments using segment IDs\n",
 		Use:   "unlink-resource",
 		Params: []Param{
 			{
