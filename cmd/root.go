@@ -210,6 +210,7 @@ func NewRootCommand(
 
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
+	cmd.AddCommand(NewOnboardCmd(analyticsTrackerFn))
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(logincmd.NewLoginCmd(clients.ResourcesClient))
 	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))

@@ -11,6 +11,7 @@ func getUsageTemplate() string {
   {{.CommandPath}} [command]
 
 Commands:
+  {{rpad "onboard" 29}} Generate an AI-agent onboarding plan for SDK integration
   {{rpad "setup" 29}} Create your first feature flag using a step-by-step guide
   {{rpad "config" 29}} View and modify specific configuration values
   {{rpad "completion" 29}} Enable command autocompletion within supported shells
