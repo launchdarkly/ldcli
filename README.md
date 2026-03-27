@@ -62,9 +62,9 @@ The LaunchDarkly CLI allows you to save preferred settings, either as environmen
 
 Supported settings:
 
-* `access-token` A LaunchDarkly access token with write-level access
-* `analytics-opt-out` Opt out of analytics tracking (default false)
-* `base-uri` LaunchDarkly base URI (default "https://app.launchdarkly.com")
+- `access-token`: A LaunchDarkly access token with write-level access
+- `analytics-opt-out`: Opt out of analytics tracking (default: false)
+- `base-uri`: LaunchDarkly base URI (default: "https://app.launchdarkly.com")
 - `environment`: Default environment key
 - `flag`: Default feature flag key
 - `output`: Command response output format in either JSON or plain text
@@ -122,7 +122,7 @@ Additional documentation is available at https://docs.launchdarkly.com/home/gett
 We encourage pull requests and other contributions from the community. Check out our [contributing guidelines](CONTRIBUTING.md) for instructions on how to contribute to this project.
 
 ### Running a local build of the CLI
-If you wish to test your changes locally, simply
+If you wish to test your changes locally, simply:
 1. Clone this repo to your local machine;
 2. Run `make build` from the repo root;
 3. Run commands as usual with `./ldcli`.
