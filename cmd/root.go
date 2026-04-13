@@ -22,7 +22,9 @@ import (
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
+	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
@@ -128,6 +130,7 @@ func NewRootCommand(
 				"config",
 				"help",
 				"login",
+				"signup",
 			} {
 				if cmd.HasParent() && cmd.Parent().Name() == name {
 					cmd.DisableFlagParsing = true
@@ -250,6 +253,7 @@ func NewRootCommand(
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
 	cmd.AddCommand(logincmd.NewLoginCmd(clients.ResourcesClient))
+	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(clients.ResourcesClient, analyticsTrackerFn, clients.DevClient))
 	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(clients.ResourcesClient, analyticsTrackerFn))
@@ -264,6 +268,9 @@ func NewRootCommand(
 		}
 		if c.Name() == "members" {
 			c.AddCommand(memberscmd.NewMembersInviteCmd(clients.ResourcesClient))
+		}
+		if c.Name() == "environments" {
+			c.AddCommand(sdkactivecmd.NewSdkActiveCmd(clients.ResourcesClient))
 		}
 	}
 

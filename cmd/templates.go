@@ -15,6 +15,7 @@ Commands:
   {{rpad "config" 29}} View and modify specific configuration values
   {{rpad "completion" 29}} Enable command autocompletion within supported shells
   {{rpad "login" 29}} Log in to your LaunchDarkly account
+  {{rpad "signup" 29}} Create a new LaunchDarkly account
   {{rpad "dev-server" 29}} Run a development server to serve flags locally
 
 Common resource commands:
