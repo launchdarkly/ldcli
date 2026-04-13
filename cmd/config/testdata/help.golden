@@ -27,5 +27,6 @@ Global Flags:
       --access-token string   LaunchDarkly access token with write-level access
       --analytics-opt-out     Opt out of analytics tracking
       --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
       --json                  Output JSON format (shorthand for --output json)
   -o, --output string         Output format: json or plaintext (default: plaintext in a terminal, json otherwise) (default "plaintext")
