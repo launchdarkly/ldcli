@@ -62,19 +62,19 @@ var SingularPlaintextOutputFn = func(r resource) string {
 
 	switch {
 	case name != nil && key != nil:
-		return fmt.Sprintf("%s (%s)", name.(string), key.(string))
+		return fmt.Sprintf("%s (%s)", fmt.Sprint(name), fmt.Sprint(key))
 	case email != nil && id != nil:
-		return fmt.Sprintf("%s (%s)", email.(string), id.(string))
+		return fmt.Sprintf("%s (%s)", fmt.Sprint(email), fmt.Sprint(id))
 	case name != nil && id != nil:
-		return fmt.Sprintf("%s (%s)", name.(string), id.(string))
+		return fmt.Sprintf("%s (%s)", fmt.Sprint(name), fmt.Sprint(id))
 	case key != nil:
-		return key.(string)
+		return fmt.Sprint(key)
 	case email != nil:
-		return email.(string)
+		return fmt.Sprint(email)
 	case id != nil:
-		return id.(string)
+		return fmt.Sprint(id)
 	case name != nil:
-		return name.(string)
+		return fmt.Sprint(name)
 	default:
 		return "cannot read resource"
 	}

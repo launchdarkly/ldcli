@@ -12,10 +12,25 @@ import (
 	errs "github.com/launchdarkly/ldcli/internal/errors"
 )
 
+// CmdOutputOpts configures optional behavior for CmdOutput.
+type CmdOutputOpts struct {
+	Fields       []string
+	ResourceName string
+}
+
 // CmdOutput returns a response from a resource action formatted based on the output flag along with
 // an optional message based on the action. When fields is non-empty and outputKind is "json",
-// only the specified top-level fields are included in the output.
-func CmdOutput(action string, outputKind string, input []byte, fields []string) (string, error) {
+// only the specified top-level fields are included in the output. When resourceName matches a
+// registered resource, list output uses table formatting and singular output uses key-value pairs.
+func CmdOutput(action string, outputKind string, input []byte, fields []string, opts ...CmdOutputOpts) (string, error) {
+	var resourceName string
+	if len(opts) > 0 {
+		resourceName = opts[0].ResourceName
+		if len(fields) == 0 {
+			fields = opts[0].Fields
+		}
+	}
+
 	if outputKind == "json" {
 		if len(fields) > 0 {
 			filtered, err := filterFields(input, fields)
@@ -67,6 +82,13 @@ func CmdOutput(action string, outputKind string, input []byte, fields []string) 
 	}
 
 	if !isMultipleResponse {
+		if cols := GetSingularColumns(resourceName); cols != nil {
+			kv := KeyValueOutput(maybeResource, cols)
+			if strings.TrimSpace(successMessage) != "" {
+				return successMessage + "\n\n" + kv, nil
+			}
+			return kv, nil
+		}
 		return plaintextOutput(SingularPlaintextOutputFn(maybeResource), successMessage+" "), nil
 	}
 
@@ -74,9 +96,15 @@ func CmdOutput(action string, outputKind string, input []byte, fields []string) 
 		return "No items found", nil
 	}
 
-	items := make([]string, 0, len(maybeResources.Items))
-	for _, i := range maybeResources.Items {
-		items = append(items, MultiplePlaintextOutputFn(i))
+	var body string
+	if cols := GetListColumns(resourceName); cols != nil {
+		body = TableOutput(maybeResources.Items, cols)
+	} else {
+		items := make([]string, 0, len(maybeResources.Items))
+		for _, i := range maybeResources.Items {
+			items = append(items, MultiplePlaintextOutputFn(i))
+		}
+		body = strings.Join(items, "\n")
 	}
 
 	var (
@@ -107,7 +135,7 @@ func CmdOutput(action string, outputKind string, input []byte, fields []string) 
 	if successMessage != "" {
 		successMessage += "\n"
 	}
-	return plaintextOutput(strings.Join(items, "\n"), successMessage) + pagination, nil
+	return plaintextOutput(body, successMessage) + pagination, nil
 }
 
 func plaintextOutput(out string, successMessage string) string {

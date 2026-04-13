@@ -51,7 +51,9 @@ func makeArchiveRequest(client resources.Client) func(*cobra.Command, []string) 
 			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
-		output, err := output.CmdOutput("update", cliflags.GetOutputKind(cmd), res, cliflags.GetFields(cmd))
+		output, err := output.CmdOutput("update", cliflags.GetOutputKind(cmd), res, cliflags.GetFields(cmd), output.CmdOutputOpts{
+			ResourceName: "flags",
+		})
 		if err != nil {
 			return errors.NewError(err.Error())
 		}

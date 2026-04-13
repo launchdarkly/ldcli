@@ -39,7 +39,11 @@ func TestArchive(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, `[{"op": "replace", "path": "/archived", "value": true}]`, string(mockClient.Input))
-		assert.Equal(t, "Successfully updated test flag (test-flag)\n", string(output))
+		assert.Contains(t, string(output), "Successfully updated\n\nKey:")
+		assert.Contains(t, string(output), "test-flag")
+		assert.Contains(t, string(output), "Name:")
+		assert.Contains(t, string(output), "test flag")
+		assert.NotContains(t, string(output), "* ")
 	})
 
 	t.Run("succeeds with JSON output", func(t *testing.T) {
@@ -146,7 +150,9 @@ func TestArchive(t *testing.T) {
 		)
 
 		require.NoError(t, err)
-		assert.Equal(t, "Successfully updated test flag (test-flag)\n", string(output))
+		assert.Contains(t, string(output), "Successfully updated")
+		assert.Contains(t, string(output), "Key:")
+		assert.Contains(t, string(output), "test-flag")
 	})
 
 	t.Run("returns error with missing flags", func(t *testing.T) {
