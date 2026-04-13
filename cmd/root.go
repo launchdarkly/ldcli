@@ -240,6 +240,12 @@ func NewRootCommand(
 		cliflags.JSONFlagDescription,
 	)
 
+	cmd.PersistentFlags().StringSlice(
+		cliflags.FieldsFlag,
+		nil,
+		cliflags.FieldsFlagDescription,
+	)
+
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
 	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))

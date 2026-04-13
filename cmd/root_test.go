@@ -103,8 +103,8 @@ func TestOutputFlags(t *testing.T) {
 		)
 
 		require.NoError(t, err)
-		assert.Contains(t, string(output), "Successfully updated")
-		assert.Contains(t, string(output), "test-name (test-key)")
+		assert.Contains(t, string(output), "Successfully updated\n\nKey:")
+		assert.Contains(t, string(output), "test-key")
 	})
 }
 
@@ -207,7 +207,8 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 
 		out := execNonTTYCmd(t, mockClient)
 		assert.Contains(t, string(out), "Successfully updated")
-		assert.Contains(t, string(out), "test-name (test-key)")
+		assert.Contains(t, string(out), "Key:")
+		assert.Contains(t, string(out), "test-key")
 	})
 
 	t.Run("FORCE_TTY=0 yields plaintext DefValue when non-TTY", func(t *testing.T) {
