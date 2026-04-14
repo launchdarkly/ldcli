@@ -57,7 +57,7 @@ const (
 	FieldsFlagDescription      = "Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)"
 	FlagFlagDescription        = "Default feature flag key"
 	JSONFlagDescription        = "Output JSON format (shorthand for --output json)"
-	OutputFlagDescription      = "Output format: json or plaintext (default: plaintext in a terminal, json otherwise)"
+	OutputFlagDescription      = "Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise)"
 	PortFlagDescription        = "Port for the dev server to run on"
 	ProjectFlagDescription     = "Default project key"
 	SyncOnceFlagDescription    = "Only sync new projects. Existing projects will neither be resynced nor have overrides specified by CLI flags applied."

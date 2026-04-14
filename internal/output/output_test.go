@@ -22,6 +22,12 @@ func TestNewOutputKind(t *testing.T) {
 		assert.Equal(t, output.OutputKindPlaintext, kind)
 	})
 
+	t.Run("returns markdown for valid markdown input", func(t *testing.T) {
+		kind, err := output.NewOutputKind("markdown")
+		require.NoError(t, err)
+		assert.Equal(t, output.OutputKindMarkdown, kind)
+	})
+
 	t.Run("returns error for invalid input", func(t *testing.T) {
 		kind, err := output.NewOutputKind("xml")
 		assert.ErrorIs(t, err, output.ErrInvalidOutputKind)
@@ -117,5 +123,18 @@ func TestCmdOutputSingular(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.JSONEq(t, input, result)
+	})
+
+	t.Run("with markdown output kind returns plaintext representation", func(t *testing.T) {
+		input := `{"key": "test-key", "name": "test-name"}`
+
+		result, err := output.CmdOutputSingular(
+			"markdown",
+			[]byte(input),
+			output.SingularPlaintextOutputFn,
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, "test-name (test-key)", result)
 	})
 }
