@@ -349,7 +349,10 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 		res = []byte(fmt.Sprintf(`{"key": %q}`, urlParms[len(urlParms)-1]))
 	}
 
-	output, err := output.CmdOutput(cmd.Use, cliflags.GetOutputKind(cmd), res)
+	output, err := output.CmdOutput(cmd.Use, cliflags.GetOutputKind(cmd), res, output.CmdOutputOpts{
+		Fields:       cliflags.GetFields(cmd),
+		ResourceName: cmd.Parent().Name(),
+	})
 	if err != nil {
 		return errors.NewError(err.Error())
 	}

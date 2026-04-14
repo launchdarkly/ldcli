@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### ⚠ BREAKING CHANGES
+
+* When stdout is not a TTY, the default `--output` format is now **json** instead of plaintext. Scripts that assumed plaintext when output was piped or redirected should set `LD_OUTPUT=plaintext`, run `ldcli config --set output plaintext`, or pass `--output plaintext` (or `--output json` explicitly if you want JSON regardless of TTY). You can also set **`FORCE_TTY`** or **`LD_FORCE_TTY`** to any non-empty value to keep plaintext as the default when stdout is not a TTY, without changing the saved `output` setting.
+* Error responses now include `statusCode` (integer) and `suggestion` (string) fields in the JSON body. The `message` field for empty-body errors uses `http.StatusText` casing (e.g., `"Method Not Allowed"` instead of the previous `"method not allowed"`). If you parse error JSON from `ldcli`, update any assertions on the exact shape or casing.
+* Plaintext list output for `flags`, `projects`, `environments`, `members`, and `segments` now renders as aligned tables instead of `* name (key)` bullets. Singular resources render as key-value blocks. If you parse plaintext output programmatically, switch to `--output json`.
+
 ## [2.2.0](https://github.com/launchdarkly/ldcli/compare/v2.1.0...v2.2.0) (2026-02-20)
 
 

@@ -1,12 +1,39 @@
 package output_test
 
 import (
-	"github.com/launchdarkly/ldcli/internal/output"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/launchdarkly/ldcli/internal/output"
 )
+
+func TestNewOutputKind(t *testing.T) {
+	t.Run("returns json for valid json input", func(t *testing.T) {
+		kind, err := output.NewOutputKind("json")
+		require.NoError(t, err)
+		assert.Equal(t, output.OutputKindJSON, kind)
+	})
+
+	t.Run("returns plaintext for valid plaintext input", func(t *testing.T) {
+		kind, err := output.NewOutputKind("plaintext")
+		require.NoError(t, err)
+		assert.Equal(t, output.OutputKindPlaintext, kind)
+	})
+
+	t.Run("returns error for invalid input", func(t *testing.T) {
+		kind, err := output.NewOutputKind("xml")
+		assert.ErrorIs(t, err, output.ErrInvalidOutputKind)
+		assert.Equal(t, output.OutputKindNull, kind)
+	})
+
+	t.Run("returns error for empty string", func(t *testing.T) {
+		kind, err := output.NewOutputKind("")
+		assert.ErrorIs(t, err, output.ErrInvalidOutputKind)
+		assert.Equal(t, output.OutputKindNull, kind)
+	})
+}
 
 func TestCmdOutputSingular(t *testing.T) {
 	tests := map[string]struct {
@@ -44,6 +71,21 @@ func TestCmdOutputSingular(t *testing.T) {
 			fn:       output.ErrorPlaintextOutputFn,
 			input:    `{}`,
 		},
+		"with an error with a suggestion": {
+			expected: "Not Found (code: not_found)\nSuggestion: Check the resource key.",
+			fn:       output.ErrorPlaintextOutputFn,
+			input:    `{"code": "not_found", "message": "Not Found", "suggestion": "Check the resource key."}`,
+		},
+		"with an error with an empty suggestion": {
+			expected: "Internal Server Error (code: internal_server_error)",
+			fn:       output.ErrorPlaintextOutputFn,
+			input:    `{"code": "internal_server_error", "message": "Internal Server Error", "suggestion": ""}`,
+		},
+		"with an error with only a message and a suggestion": {
+			expected: "an error\nSuggestion: Try again.",
+			fn:       output.ErrorPlaintextOutputFn,
+			input:    `{"message": "an error", "suggestion": "Try again."}`,
+		},
 		"with a singular resource": {
 			expected: "test-name (test-key)",
 			fn:       output.SingularPlaintextOutputFn,
@@ -63,4 +105,17 @@ func TestCmdOutputSingular(t *testing.T) {
 			assert.Equal(t, tt.expected, output)
 		})
 	}
+
+	t.Run("with json output kind returns raw JSON", func(t *testing.T) {
+		input := `{"key": "test-key", "name": "test-name"}`
+
+		result, err := output.CmdOutputSingular(
+			"json",
+			[]byte(input),
+			output.SingularPlaintextOutputFn,
+		)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, input, result)
+	})
 }

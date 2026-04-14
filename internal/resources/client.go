@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/launchdarkly/ldcli/internal/errors"
 )
@@ -73,18 +74,39 @@ func (c ResourcesClient) MakeRequest(
 		return body, nil
 	}
 
+	var baseURI string
+	if parsed, err := url.Parse(path); err == nil && parsed.Scheme != "" {
+		baseURI = parsed.Scheme + "://" + parsed.Host
+	}
+
 	if len(body) > 0 {
+		var errMap map[string]interface{}
+		if err := json.Unmarshal(body, &errMap); err != nil {
+			errMap = map[string]interface{}{
+				"code":       strings.ToLower(strings.ReplaceAll(http.StatusText(res.StatusCode), " ", "_")),
+				"message":    string(body),
+				"statusCode": res.StatusCode,
+			}
+		} else {
+			if _, exists := errMap["statusCode"]; !exists {
+				errMap["statusCode"] = res.StatusCode
+			}
+		}
+		if suggestion := errors.SuggestionForStatus(res.StatusCode, baseURI); suggestion != "" {
+			errMap["suggestion"] = suggestion
+		}
+		body, _ = json.Marshal(errMap)
 		return body, errors.NewError(string(body))
 	}
 
-	switch res.StatusCode {
-	case http.StatusMethodNotAllowed:
-		resp, _ := json.Marshal(map[string]string{
-			"code":    "method_not_allowed",
-			"message": "method not allowed",
-		})
-		return body, errors.NewError(string(resp))
-	default:
-		return body, errors.NewError(fmt.Sprintf("could not complete the request: %d", res.StatusCode))
+	errMap := map[string]interface{}{
+		"code":       strings.ToLower(strings.ReplaceAll(http.StatusText(res.StatusCode), " ", "_")),
+		"message":    http.StatusText(res.StatusCode),
+		"statusCode": res.StatusCode,
 	}
+	if suggestion := errors.SuggestionForStatus(res.StatusCode, baseURI); suggestion != "" {
+		errMap["suggestion"] = suggestion
+	}
+	resp, _ := json.Marshal(errMap)
+	return body, errors.NewError(string(resp))
 }

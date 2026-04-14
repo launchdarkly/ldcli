@@ -28,16 +28,24 @@ var ConfigPlaintextOutputFn = func(r resource) string {
 // An error response could have a code and message or just a message. It's also possible that
 // there isn't either property.
 var ErrorPlaintextOutputFn = func(r resource) string {
+	var parts []string
+
 	switch {
 	case r["code"] == nil && (r["message"] == "" || r["message"] == nil):
-		return "unknown error occurred"
+		parts = append(parts, "unknown error occurred")
 	case r["code"] == nil:
-		return r["message"].(string)
+		parts = append(parts, fmt.Sprint(r["message"]))
 	case r["message"] == "":
-		return fmt.Sprintf("an error occurred (code: %s)", r["code"])
+		parts = append(parts, fmt.Sprintf("an error occurred (code: %v)", r["code"]))
 	default:
-		return fmt.Sprintf("%s (code: %s)", r["message"], r["code"])
+		parts = append(parts, fmt.Sprintf("%v (code: %v)", r["message"], r["code"]))
 	}
+
+	if suggestion, ok := r["suggestion"]; ok && suggestion != nil && suggestion != "" {
+		parts = append(parts, fmt.Sprintf("\nSuggestion: %s", suggestion))
+	}
+
+	return strings.Join(parts, "")
 }
 
 // MultiplePlaintextOutputFn converts the resource to plain text.
@@ -54,19 +62,19 @@ var SingularPlaintextOutputFn = func(r resource) string {
 
 	switch {
 	case name != nil && key != nil:
-		return fmt.Sprintf("%s (%s)", name.(string), key.(string))
+		return fmt.Sprintf("%s (%s)", fmt.Sprint(name), fmt.Sprint(key))
 	case email != nil && id != nil:
-		return fmt.Sprintf("%s (%s)", email.(string), id.(string))
+		return fmt.Sprintf("%s (%s)", fmt.Sprint(email), fmt.Sprint(id))
 	case name != nil && id != nil:
-		return fmt.Sprintf("%s (%s)", name.(string), id.(string))
+		return fmt.Sprintf("%s (%s)", fmt.Sprint(name), fmt.Sprint(id))
 	case key != nil:
-		return key.(string)
+		return fmt.Sprint(key)
 	case email != nil:
-		return email.(string)
+		return fmt.Sprint(email)
 	case id != nil:
-		return id.(string)
+		return fmt.Sprint(id)
 	case name != nil:
-		return name.(string)
+		return fmt.Sprint(name)
 	default:
 		return "cannot read resource"
 	}
