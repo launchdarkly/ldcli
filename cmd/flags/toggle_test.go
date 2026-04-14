@@ -332,6 +332,51 @@ func TestToggleOff(t *testing.T) {
 		assert.Contains(t, string(output), "test-flag")
 	})
 
+	t.Run("passes dryRun query param when --dry-run is set", func(t *testing.T) {
+		args := []string{
+			"flags", "toggle-off",
+			"--access-token", "abcd1234",
+			"--environment", "test-env",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--output", "json",
+			"--dry-run",
+		}
+		_, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, "true", mockClient.Query.Get("dryRun"))
+	})
+
+	t.Run("does not pass dryRun query param by default", func(t *testing.T) {
+		args := []string{
+			"flags", "toggle-off",
+			"--access-token", "abcd1234",
+			"--environment", "test-env",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--output", "json",
+		}
+		_, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.Empty(t, mockClient.Query.Get("dryRun"))
+	})
+
 	t.Run("returns error with missing required flags", func(t *testing.T) {
 		args := []string{
 			"flags", "toggle-off",
