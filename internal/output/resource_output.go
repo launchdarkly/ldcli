@@ -87,6 +87,10 @@ func CmdOutput(action string, outputKind string, input []byte, opts ...CmdOutput
 		// no success message
 	}
 
+	if outputKind == "markdown" {
+		return markdownCmdOutput(maybeResource, maybeResources, resourceName, successMessage, isMultipleResponse)
+	}
+
 	if !isMultipleResponse {
 		if cols := GetSingularColumns(resourceName); cols != nil {
 			kv := KeyValueOutput(maybeResource, cols)
@@ -113,35 +117,61 @@ func CmdOutput(action string, outputKind string, input []byte, opts ...CmdOutput
 		body = strings.Join(items, "\n")
 	}
 
-	var (
-		pagination string
-		limit      int
-		offset     int
-	)
-	self, ok := maybeResources.Links["self"]
-	if ok && maybeResources.TotalCount > 0 {
-		selfURL, _ := url.Parse(self["href"])
-		limit, _ = strconv.Atoi(selfURL.Query().Get("limit"))
-		offset, _ = strconv.Atoi(selfURL.Query().Get("offset"))
-		maxResults := int(math.Min(float64(offset+limit), float64(maybeResources.TotalCount)))
-		if maxResults == 0 {
-			maxResults = maybeResources.TotalCount
-		}
-		pagination = fmt.Sprintf(
-			"\nShowing results %d - %d of %d.",
-			offset+1,
-			maxResults,
-			maybeResources.TotalCount,
-		)
-		if maxResults < maybeResources.TotalCount {
-			pagination += fmt.Sprintf(" Use --offset %d for additional results.", offset+limit)
-		}
-	}
-
 	if successMessage != "" {
 		successMessage += "\n"
 	}
-	return plaintextOutput(body, successMessage) + pagination, nil
+	return plaintextOutput(body, successMessage) + paginationSuffix(maybeResources), nil
+}
+
+func paginationSuffix(rs resources) string {
+	self, ok := rs.Links["self"]
+	if !ok || rs.TotalCount <= 0 {
+		return ""
+	}
+	selfURL, _ := url.Parse(self["href"])
+	limit, _ := strconv.Atoi(selfURL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(selfURL.Query().Get("offset"))
+	maxResults := int(math.Min(float64(offset+limit), float64(rs.TotalCount)))
+	if maxResults == 0 {
+		maxResults = rs.TotalCount
+	}
+	pagination := fmt.Sprintf(
+		"\nShowing results %d - %d of %d.",
+		offset+1,
+		maxResults,
+		rs.TotalCount,
+	)
+	if maxResults < rs.TotalCount {
+		pagination += fmt.Sprintf(" Use --offset %d for additional results.", offset+limit)
+	}
+	return pagination
+}
+
+func markdownCmdOutput(
+	maybeResource resource,
+	maybeResources resources,
+	resourceName string,
+	successMessage string,
+	isMultipleResponse bool,
+) (string, error) {
+	if !isMultipleResponse {
+		body := MarkdownSingularOutput(maybeResource, resourceName)
+		if strings.TrimSpace(successMessage) != "" {
+			return successMessage + "\n\n" + body, nil
+		}
+		return body, nil
+	}
+
+	if len(maybeResources.Items) == 0 {
+		return "No items found", nil
+	}
+
+	body := MarkdownMultipleOutput(maybeResources.Items, resourceName)
+	pagination := paginationSuffix(maybeResources)
+	if strings.TrimSpace(successMessage) != "" {
+		return successMessage + "\n\n" + body + pagination, nil
+	}
+	return body + pagination, nil
 }
 
 func plaintextOutput(out string, successMessage string) string {
@@ -175,6 +205,7 @@ func CmdOutputError(outputKind string, err error) string {
 		return string(formattedOutput)
 	}
 
+	// plaintext and markdown use the same error format
 	return ErrorPlaintextOutputFn(r)
 }
 
