@@ -262,7 +262,8 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 		}
 		out := execNonTTYCmdGetenv(t, mockClient, getenv)
 		assert.Contains(t, string(out), "Successfully updated")
-		assert.Contains(t, string(out), "test-name (test-key)")
+		assert.Contains(t, string(out), "Key:")
+		assert.Contains(t, string(out), "test-key")
 	})
 
 	t.Run("FORCE_TTY=1 yields plaintext output when non-TTY", func(t *testing.T) {
@@ -274,7 +275,8 @@ func TestOutputDefaultsAndOverrides(t *testing.T) {
 		}
 		out := execNonTTYCmdGetenv(t, mockClient, getenv)
 		assert.Contains(t, string(out), "Successfully updated")
-		assert.Contains(t, string(out), "test-name (test-key)")
+		assert.Contains(t, string(out), "Key:")
+		assert.Contains(t, string(out), "test-key")
 	})
 }
 
@@ -333,5 +335,6 @@ func TestConfigOutputPrecedenceNonTTY(t *testing.T) {
 	out, err := io.ReadAll(b)
 	require.NoError(t, err)
 	assert.Contains(t, string(out), "Successfully updated")
-	assert.Contains(t, string(out), "test-name (test-key)")
+	assert.Contains(t, string(out), "Key:")
+	assert.Contains(t, string(out), "test-key")
 }
