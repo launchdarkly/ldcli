@@ -334,7 +334,7 @@ func TestToggleOff(t *testing.T) {
 
 	t.Run("passes dryRun query param when --dry-run is set", func(t *testing.T) {
 		args := []string{
-			"flags", "toggle-on",
+			"flags", "toggle-off",
 			"--access-token", "abcd1234",
 			"--environment", "test-env",
 			"--flag", "test-flag",
@@ -357,7 +357,7 @@ func TestToggleOff(t *testing.T) {
 
 	t.Run("does not pass dryRun query param by default", func(t *testing.T) {
 		args := []string{
-			"flags", "toggle-on",
+			"flags", "toggle-off",
 			"--access-token", "abcd1234",
 			"--environment", "test-env",
 			"--flag", "test-flag",
