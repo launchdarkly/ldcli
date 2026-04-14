@@ -155,6 +155,29 @@ func TestArchive(t *testing.T) {
 		assert.Contains(t, string(output), "test-flag")
 	})
 
+	t.Run("succeeds with markdown output", func(t *testing.T) {
+		args := []string{
+			"flags", "archive",
+			"--access-token", "abcd1234",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--output", "markdown",
+		}
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.Contains(t, string(output), "Successfully updated")
+		assert.Contains(t, string(output), "## test-flag")
+		assert.Contains(t, string(output), "- **Kind:** boolean")
+	})
+
 	t.Run("passes dryRun query param when --dry-run is set", func(t *testing.T) {
 		args := []string{
 			"flags", "archive",

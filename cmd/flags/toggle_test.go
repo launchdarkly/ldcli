@@ -161,6 +161,31 @@ func TestToggleOn(t *testing.T) {
 		assert.Contains(t, string(output), "test-flag")
 	})
 
+	t.Run("succeeds with markdown output", func(t *testing.T) {
+		args := []string{
+			"flags", "toggle-on",
+			"--access-token", "abcd1234",
+			"--environment", "test-env",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--output", "markdown",
+		}
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.Contains(t, string(output), "Successfully updated")
+		assert.Contains(t, string(output), "## test-flag")
+		assert.Contains(t, string(output), "- **Kind:** boolean")
+		assert.Contains(t, string(output), "- **Temporary:** yes")
+	})
+
 	t.Run("returns error with missing required flags", func(t *testing.T) {
 		args := []string{
 			"flags", "toggle-on",
@@ -330,6 +355,30 @@ func TestToggleOff(t *testing.T) {
 		assert.Contains(t, string(output), "Successfully updated")
 		assert.Contains(t, string(output), "Key:")
 		assert.Contains(t, string(output), "test-flag")
+	})
+
+	t.Run("succeeds with markdown output", func(t *testing.T) {
+		args := []string{
+			"flags", "toggle-off",
+			"--access-token", "abcd1234",
+			"--environment", "test-env",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+			"--output", "markdown",
+		}
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.Contains(t, string(output), "Successfully updated")
+		assert.Contains(t, string(output), "## test-flag")
+		assert.Contains(t, string(output), "- **Kind:** boolean")
 	})
 
 	t.Run("passes dryRun query param when --dry-run is set", func(t *testing.T) {
