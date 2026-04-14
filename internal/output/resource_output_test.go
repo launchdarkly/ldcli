@@ -26,7 +26,7 @@ func TestCmdOutput(t *testing.T) {
 			t.Run("returns a success message", func(t *testing.T) {
 				expected := "* test-id"
 
-				result, err := output.CmdOutput("list", "plaintext", []byte(input), nil)
+				result, err := output.CmdOutput("list", "plaintext", []byte(input))
 
 				require.NoError(t, err)
 				assert.Equal(t, expected, result)
@@ -78,7 +78,7 @@ func TestCmdOutput(t *testing.T) {
 					tt.offset,
 				)
 
-				result, err := output.CmdOutput("list", "plaintext", []byte(input), nil)
+				result, err := output.CmdOutput("list", "plaintext", []byte(input))
 
 				require.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
@@ -100,7 +100,7 @@ func TestCmdOutput(t *testing.T) {
 			t.Run("returns a list of resources", func(t *testing.T) {
 				expected := "* test-name (test-id)"
 
-				result, err := output.CmdOutput("list", "plaintext", []byte(input), nil)
+				result, err := output.CmdOutput("list", "plaintext", []byte(input))
 
 				require.NoError(t, err)
 				assert.Equal(t, expected, result)
@@ -127,7 +127,7 @@ func TestCmdOutput(t *testing.T) {
 			t.Run("returns the list", func(t *testing.T) {
 				expected := "* tag1\n* tag2\nShowing results 1 - 2 of 2."
 
-				result, err := output.CmdOutput("list", "plaintext", []byte(input), nil)
+				result, err := output.CmdOutput("list", "plaintext", []byte(input))
 
 				require.NoError(t, err)
 				assert.Equal(t, expected, result)
@@ -144,7 +144,7 @@ func TestCmdOutput(t *testing.T) {
 
 		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("returns the JSON", func(t *testing.T) {
-				result, err := output.CmdOutput("create", "json", []byte(input), nil)
+				result, err := output.CmdOutput("create", "json", []byte(input))
 
 				require.NoError(t, err)
 				assert.JSONEq(t, input, result)
@@ -155,7 +155,7 @@ func TestCmdOutput(t *testing.T) {
 			t.Run("returns a success message", func(t *testing.T) {
 				expected := "Successfully created test-name (test-key)"
 
-				result, err := output.CmdOutput("create", "plaintext", []byte(input), nil)
+				result, err := output.CmdOutput("create", "plaintext", []byte(input))
 
 				require.NoError(t, err)
 				assert.Equal(t, expected, result)
@@ -176,7 +176,7 @@ func TestCmdOutput(t *testing.T) {
 
 		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("returns the JSON", func(t *testing.T) {
-				result, err := output.CmdOutput("create", "json", []byte(input), nil)
+				result, err := output.CmdOutput("create", "json", []byte(input))
 
 				require.NoError(t, err)
 				assert.JSONEq(t, input, result)
@@ -187,7 +187,7 @@ func TestCmdOutput(t *testing.T) {
 			t.Run("returns a success message", func(t *testing.T) {
 				expected := "Successfully created\n* test-name (test-key)"
 
-				result, err := output.CmdOutput("create", "plaintext", []byte(input), nil)
+				result, err := output.CmdOutput("create", "plaintext", []byte(input))
 
 				require.NoError(t, err)
 				assert.Equal(t, expected, result)
@@ -208,7 +208,7 @@ func TestCmdOutput(t *testing.T) {
 
 		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("returns the JSON", func(t *testing.T) {
-				result, err := output.CmdOutput("create", "json", []byte(input), nil)
+				result, err := output.CmdOutput("create", "json", []byte(input))
 
 				require.NoError(t, err)
 				assert.JSONEq(t, input, result)
@@ -219,7 +219,7 @@ func TestCmdOutput(t *testing.T) {
 			t.Run("returns a success message", func(t *testing.T) {
 				expected := "Successfully created\n* test-email (test-id)"
 
-				result, err := output.CmdOutput("create", "plaintext", []byte(input), nil)
+				result, err := output.CmdOutput("create", "plaintext", []byte(input))
 
 				require.NoError(t, err)
 				assert.Equal(t, expected, result)
@@ -235,7 +235,7 @@ func TestCmdOutput(t *testing.T) {
 
 		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("does not return anything", func(t *testing.T) {
-				result, err := output.CmdOutput("delete", "json", []byte(""), nil)
+				result, err := output.CmdOutput("delete", "json", []byte(""))
 
 				require.NoError(t, err)
 				assert.Equal(t, "", result)
@@ -247,7 +247,7 @@ func TestCmdOutput(t *testing.T) {
 				t.Run("returns a success message", func(t *testing.T) {
 					expected := "Successfully deleted test-name (test-key)"
 
-					result, err := output.CmdOutput("delete", "plaintext", []byte(input), nil)
+					result, err := output.CmdOutput("delete", "plaintext", []byte(input))
 
 					require.NoError(t, err)
 					assert.Equal(t, expected, result)
@@ -261,7 +261,7 @@ func TestCmdOutput(t *testing.T) {
 						"key": "test-key"
 					}`
 
-					result, err := output.CmdOutput("delete", "plaintext", []byte(input), nil)
+					result, err := output.CmdOutput("delete", "plaintext", []byte(input))
 
 					require.NoError(t, err)
 					assert.Equal(t, expected, result)
@@ -279,7 +279,7 @@ func TestCmdOutput(t *testing.T) {
 
 		t.Run("with JSON output", func(t *testing.T) {
 			t.Run("returns the JSON", func(t *testing.T) {
-				result, err := output.CmdOutput("update", "json", []byte(input), nil)
+				result, err := output.CmdOutput("update", "json", []byte(input))
 
 				require.NoError(t, err)
 				assert.JSONEq(t, input, result)
@@ -290,7 +290,7 @@ func TestCmdOutput(t *testing.T) {
 			t.Run("returns a success message", func(t *testing.T) {
 				expected := "Successfully updated test-name (test-key)"
 
-				result, err := output.CmdOutput("update", "plaintext", []byte(input), nil)
+				result, err := output.CmdOutput("update", "plaintext", []byte(input))
 
 				require.NoError(t, err)
 				assert.Equal(t, expected, result)
@@ -400,7 +400,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("filters singular resource to requested fields", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag","kind":"boolean","temporary":true,"extra":"noise"}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key", "name"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key", "name"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"key":"my-flag","name":"My Flag"}`, result)
@@ -418,7 +418,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 			}
 		}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key", "name"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key", "name"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{
@@ -436,7 +436,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("omits non-existent fields without error", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag"}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key", "doesNotExist"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key", "doesNotExist"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"key":"my-flag"}`, result)
@@ -445,7 +445,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("returns full JSON when fields is empty slice", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag","kind":"boolean"}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, input, result)
@@ -454,7 +454,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("returns full JSON when fields is nil", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag","kind":"boolean"}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), nil)
+		result, err := output.CmdOutput("list", "json", []byte(input))
 
 		require.NoError(t, err)
 		assert.JSONEq(t, input, result)
@@ -463,7 +463,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("returns original bytes when input is invalid JSON", func(t *testing.T) {
 		input := `not valid json at all`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key"}})
 
 		require.NoError(t, err)
 		assert.Equal(t, input, result)
@@ -480,7 +480,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 			"variations":[{"value":true},{"value":false}]
 		}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key", "environments"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key", "environments"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{
@@ -495,7 +495,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("trims whitespace from field names", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag","kind":"boolean"}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{" key ", " name"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{" key ", " name"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"key":"my-flag","name":"My Flag"}`, result)
@@ -504,7 +504,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("is ignored when output is plaintext", func(t *testing.T) {
 		input := `{"key":"test-key","name":"test-name","extra":"extra-value"}`
 
-		result, err := output.CmdOutput("create", "plaintext", []byte(input), []string{"key"})
+		result, err := output.CmdOutput("create", "plaintext", []byte(input), output.CmdOutputOpts{Fields: []string{"key"}})
 
 		require.NoError(t, err)
 		assert.Equal(t, "Successfully created test-name (test-key)", result)
@@ -513,7 +513,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("is ignored when output is plaintext for collections", func(t *testing.T) {
 		input := `{"items":[{"key":"test-key","name":"test-name","extra":"extra-value"}]}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), []string{"key"})
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), output.CmdOutputOpts{Fields: []string{"key"}})
 
 		require.NoError(t, err)
 		assert.Equal(t, "* test-name (test-key)", result)
@@ -522,7 +522,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("handles empty JSON object without panic", func(t *testing.T) {
 		input := `{}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{}`, result)
@@ -531,7 +531,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("handles empty collection with fields", func(t *testing.T) {
 		input := `{"items":[],"totalCount":0}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"items":[],"totalCount":0}`, result)
@@ -540,7 +540,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("preserves scalar items in collection", func(t *testing.T) {
 		input := `{"items":["tag1","tag2"],"totalCount":2}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"items":["tag1","tag2"],"totalCount":2}`, result)
@@ -549,7 +549,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("returns all fields when every field is requested", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag"}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key", "name"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key", "name"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, input, result)
@@ -558,7 +558,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("returns original input for top-level JSON array", func(t *testing.T) {
 		input := `[{"key":"x"},{"key":"y"}]`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key"}})
 
 		require.NoError(t, err)
 		assert.Equal(t, input, result)
@@ -567,7 +567,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("deduplicates repeated field names", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag","extra":"noise"}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"key", "key", "name"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"key", "key", "name"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"key":"my-flag","name":"My Flag"}`, result)
@@ -576,7 +576,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("skips empty field strings and filters normally", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag","extra":"noise"}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"", " ", "key"})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"", " ", "key"}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"key":"my-flag"}`, result)
@@ -585,7 +585,7 @@ func TestCmdOutputWithFields(t *testing.T) {
 	t.Run("returns full JSON when all field strings are empty", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag"}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), []string{"", " "})
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{Fields: []string{"", " "}})
 
 		require.NoError(t, err)
 		assert.JSONEq(t, input, result)
@@ -613,7 +613,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			]
 		}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "flags",
 		})
 
@@ -641,7 +641,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			"tags": ["beta"]
 		}`
 
-		result, err := output.CmdOutput("get", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("get", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "flags",
 		})
 
@@ -664,7 +664,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			"temporary": false
 		}`
 
-		result, err := output.CmdOutput("update", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("update", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "flags",
 		})
 
@@ -683,7 +683,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			]
 		}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "unknown-resource",
 		})
 
@@ -697,7 +697,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			"name": "test-name"
 		}`
 
-		result, err := output.CmdOutput("create", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("create", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "unknown-resource",
 		})
 
@@ -715,7 +715,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			]
 		}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil)
+		result, err := output.CmdOutput("list", "plaintext", []byte(input))
 
 		require.NoError(t, err)
 		assert.Equal(t, "* test-name (test-key)", result)
@@ -741,7 +741,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			"totalCount": 100
 		}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "flags",
 		})
 
@@ -755,7 +755,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 	t.Run("empty items with resource name returns no items found", func(t *testing.T) {
 		input := `{"items": []}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "flags",
 		})
 
@@ -770,7 +770,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			]
 		}`
 
-		result, err := output.CmdOutput("list", "json", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("list", "json", []byte(input), output.CmdOutputOpts{
 			ResourceName: "flags",
 		})
 
@@ -790,7 +790,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			]
 		}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "members",
 		})
 
@@ -813,7 +813,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			]
 		}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "environments",
 		})
 
@@ -836,7 +836,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			]
 		}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "projects",
 		})
 
@@ -857,7 +857,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			]
 		}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("list", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "segments",
 		})
 
@@ -881,7 +881,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			]
 		}`
 
-		result, err := output.CmdOutput("create", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("create", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "flags",
 		})
 
@@ -898,7 +898,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 			"creationDate": 1718438400000
 		}`
 
-		result, err := output.CmdOutput("get", "plaintext", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("get", "plaintext", []byte(input), output.CmdOutputOpts{
 			ResourceName: "segments",
 		})
 
@@ -914,7 +914,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 	t.Run("Fields from opts used when fields param is nil", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag","extra":"noise"}`
 
-		result, err := output.CmdOutput("get", "json", []byte(input), nil, output.CmdOutputOpts{
+		result, err := output.CmdOutput("get", "json", []byte(input), output.CmdOutputOpts{
 			Fields:       []string{"key", "name"},
 			ResourceName: "flags",
 		})
@@ -923,11 +923,11 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 		assert.JSONEq(t, `{"key":"my-flag","name":"My Flag"}`, result)
 	})
 
-	t.Run("explicit fields param takes precedence over opts Fields", func(t *testing.T) {
+	t.Run("Fields in opts filters JSON output", func(t *testing.T) {
 		input := `{"key":"my-flag","name":"My Flag","extra":"noise"}`
 
-		result, err := output.CmdOutput("get", "json", []byte(input), []string{"key"}, output.CmdOutputOpts{
-			Fields:       []string{"key", "name"},
+		result, err := output.CmdOutput("get", "json", []byte(input), output.CmdOutputOpts{
+			Fields:       []string{"key"},
 			ResourceName: "flags",
 		})
 
@@ -938,7 +938,7 @@ func TestCmdOutputWithResourceName(t *testing.T) {
 	t.Run("empty items without resource name returns no items found", func(t *testing.T) {
 		input := `{"items": []}`
 
-		result, err := output.CmdOutput("list", "plaintext", []byte(input), nil)
+		result, err := output.CmdOutput("list", "plaintext", []byte(input))
 
 		require.NoError(t, err)
 		assert.Equal(t, "No items found", result)

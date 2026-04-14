@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -19,16 +20,17 @@ type CmdOutputOpts struct {
 }
 
 // CmdOutput returns a response from a resource action formatted based on the output flag along with
-// an optional message based on the action. When fields is non-empty and outputKind is "json",
-// only the specified top-level fields are included in the output. When resourceName matches a
+// an optional message based on the action. When opts.Fields is non-empty and outputKind is "json",
+// only the specified top-level fields are included in the output. When opts.ResourceName matches a
 // registered resource, list output uses table formatting and singular output uses key-value pairs.
-func CmdOutput(action string, outputKind string, input []byte, fields []string, opts ...CmdOutputOpts) (string, error) {
-	var resourceName string
+func CmdOutput(action string, outputKind string, input []byte, opts ...CmdOutputOpts) (string, error) {
+	var (
+		fields       []string
+		resourceName string
+	)
 	if len(opts) > 0 {
 		resourceName = opts[0].ResourceName
-		if len(fields) == 0 {
-			fields = opts[0].Fields
-		}
+		fields = opts[0].Fields
 	}
 
 	if outputKind == "json" {
@@ -40,6 +42,10 @@ func CmdOutput(action string, outputKind string, input []byte, fields []string, 
 			return string(filtered), nil
 		}
 		return string(input), nil
+	}
+
+	if len(fields) > 0 {
+		fmt.Fprintln(os.Stderr, "note: --fields is only supported with JSON output; ignoring")
 	}
 
 	var (

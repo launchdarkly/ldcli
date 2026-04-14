@@ -287,7 +287,7 @@ func outputSetAction(newFields []string) (string, error) {
 		Items: newFields,
 	}
 	fieldsJSON, _ := json.Marshal(fields)
-	output, err := output.CmdOutput("update", viper.GetString(cliflags.OutputFlag), fieldsJSON, nil)
+	output, err := output.CmdOutput("update", viper.GetString(cliflags.OutputFlag), fieldsJSON)
 	if err != nil {
 		return "", errs.NewError(err.Error())
 	}
@@ -302,7 +302,7 @@ func outputUnsetAction(newField string) (string, error) {
 		Key: newField,
 	}
 	fieldJSON, _ := json.Marshal(field)
-	output, err := output.CmdOutput("delete", viper.GetString(cliflags.OutputFlag), fieldJSON, nil)
+	output, err := output.CmdOutput("delete", viper.GetString(cliflags.OutputFlag), fieldJSON)
 	if err != nil {
 		return "", errs.NewError(err.Error())
 	}
