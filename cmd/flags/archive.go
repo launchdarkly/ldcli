@@ -38,12 +38,16 @@ func makeArchiveRequest(client resources.Client) func(*cobra.Command, []string) 
 			viper.GetString(cliflags.ProjectFlag),
 			viper.GetString(cliflags.FlagFlag),
 		)
+		var query url.Values
+		if dryRun, _ := cmd.Flags().GetBool(cliflags.DryRunFlag); dryRun {
+			query = url.Values{"dryRun": []string{"true"}}
+		}
 		res, err := client.MakeRequest(
 			viper.GetString(cliflags.AccessTokenFlag),
 			"PATCH",
 			path,
 			"application/json",
-			nil,
+			query,
 			[]byte(`[{"op": "replace", "path": "/archived", "value": true}]`),
 			false,
 		)
@@ -75,4 +79,6 @@ func initArchiveFlags(cmd *cobra.Command) {
 	_ = cmd.MarkFlagRequired(cliflags.ProjectFlag)
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
+
+	cmd.Flags().Bool(cliflags.DryRunFlag, false, cliflags.DryRunFlagDescription)
 }
