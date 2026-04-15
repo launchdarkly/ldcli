@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.0.0](https://github.com/launchdarkly/ldcli/compare/v2.2.0...v3.0.0) (2026-04-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* agent-forward CLI — TTY-aware output, structured errors, --fields, table formatting [REL-12752] ([#660](https://github.com/launchdarkly/ldcli/issues/660))
+
+### Features
+
+* add --dry-run flag to toggle-on, toggle-off, and archive commands ([#677](https://github.com/launchdarkly/ldcli/issues/677)) ([ad4ab2d](https://github.com/launchdarkly/ldcli/commit/ad4ab2df38c31092182d7671471dbe545fe5a4b3))
+* add --json flag as shorthand for --output json ([#656](https://github.com/launchdarkly/ldcli/issues/656)) ([65d1bc3](https://github.com/launchdarkly/ldcli/commit/65d1bc3bc173e270df20a950e180d8f17e9d5f5e))
+* add --output markdown format ([#678](https://github.com/launchdarkly/ldcli/issues/678)) ([9872c28](https://github.com/launchdarkly/ldcli/commit/9872c28040407a7f9f81b5faf584f9428ad345d3))
+* add hand-rolled get-sdk-active command for environments ([#671](https://github.com/launchdarkly/ldcli/issues/671)) ([b3c447b](https://github.com/launchdarkly/ldcli/commit/b3c447b00ccd8c56e7f1ccd26b1e408242a0bf49))
+* add import project API endpoint ([#643](https://github.com/launchdarkly/ldcli/issues/643)) ([8623f37](https://github.com/launchdarkly/ldcli/commit/8623f37bce6c4030ffd7c4eb45c739bbf0a42991))
+* agent-forward CLI — TTY-aware output, structured errors, --fields, table formatting [REL-12752] ([#660](https://github.com/launchdarkly/ldcli/issues/660)) ([ecf7705](https://github.com/launchdarkly/ldcli/commit/ecf77050a89f27eed20a5c1012a004c9940a905c))
+* **REL-12753:** adding agent flag for agent telemetry ([#659](https://github.com/launchdarkly/ldcli/issues/659)) ([a7206fd](https://github.com/launchdarkly/ldcli/commit/a7206fd79b56c0a8cae19da0f97b810cb3de3b7e))
+* **REL-12779:** Add a command to sign up that directs the user to the sign up page ([#665](https://github.com/launchdarkly/ldcli/issues/665)) ([2f0042f](https://github.com/launchdarkly/ldcli/commit/2f0042fcfb9b76c71116e6c1ca55973b06ffedee))
+
+
+### Bug Fixes
+
+* add permissions for release-please job ([#680](https://github.com/launchdarkly/ldcli/issues/680)) ([0f2645d](https://github.com/launchdarkly/ldcli/commit/0f2645d78666d327ec5723214c41d66ce34ecbc4))
+
 ## [Unreleased]
 
 ### ⚠ BREAKING CHANGES
