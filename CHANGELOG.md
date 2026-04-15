@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.0.0](https://github.com/launchdarkly/ldcli/compare/v3.0.0...v3.0.0) (2026-04-15)
+## [3.0.0](https://github.com/launchdarkly/ldcli/compare/v0.12.1...v3.0.0) (2026-04-15)
 
 
 ### ⚠ BREAKING CHANGES
