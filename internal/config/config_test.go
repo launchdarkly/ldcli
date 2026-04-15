@@ -110,7 +110,7 @@ func TestUpdate(t *testing.T) {
 	t.Run("with an invalid output flag", func(t *testing.T) {
 		_, _, err = c.Update([]string{"output", "invalid"})
 
-		assert.EqualError(t, err, "output is invalid. Use 'json' or 'plaintext'")
+		assert.EqualError(t, err, "output is invalid. Use 'json', 'plaintext', or 'markdown'")
 	})
 
 	t.Run("with an invalid analytics-opt-out flag", func(t *testing.T) {

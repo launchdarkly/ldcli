@@ -6,7 +6,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
-var ErrInvalidOutputKind = errors.NewError("output is invalid. Use 'json' or 'plaintext'")
+var ErrInvalidOutputKind = errors.NewError("output is invalid. Use 'json', 'plaintext', or 'markdown'")
 
 type OutputKind string
 
@@ -16,6 +16,7 @@ func (o OutputKind) String() string {
 
 var (
 	OutputKindJSON      = OutputKind("json")
+	OutputKindMarkdown  = OutputKind("markdown")
 	OutputKindNull      = OutputKind("")
 	OutputKindPlaintext = OutputKind("plaintext")
 )
@@ -23,6 +24,7 @@ var (
 func NewOutputKind(s string) (OutputKind, error) {
 	validKinds := map[string]struct{}{
 		OutputKindJSON.String():      {},
+		OutputKindMarkdown.String():  {},
 		OutputKindPlaintext.String(): {},
 	}
 	if _, isValid := validKinds[s]; !isValid {
@@ -93,7 +95,7 @@ func outputFromKind(outputKind string, o Outputter) (string, error) {
 	switch outputKind {
 	case "json":
 		return o.JSON(), nil
-	case "plaintext":
+	case "plaintext", "markdown":
 		return o.String(), nil
 	}
 
