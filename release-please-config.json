@@ -3,6 +3,7 @@
     ".": {
       "release-type": "go",
       "versioning": "default",
+      "last-release-sha": "caa1fd26848adc2d79112a17edff9771d60c377e",
       "extra-files": [
         "PROVENANCE.md",
         {
