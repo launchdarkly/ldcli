@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/launchdarkly/ldcli/compare/3.0.1...v3.0.2) (2026-04-17)
+
+
+### Miscellaneous Chores
+
+* align release-please state with v3.0.1 tag ([#691](https://github.com/launchdarkly/ldcli/issues/691)) ([314b18f](https://github.com/launchdarkly/ldcli/commit/314b18ff937937d67883a1ccef9834236613bea0))
+
 ## [3.0.0](https://github.com/launchdarkly/ldcli/compare/v2.2.0...v3.0.0) (2026-04-15)
 
 

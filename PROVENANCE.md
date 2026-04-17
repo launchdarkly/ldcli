@@ -9,7 +9,7 @@ To verify build provenance attestations, we recommend using the [GitHub CLI `att
 <!-- x-release-please-start-version -->
 ```
 # Set the version of the package to verify
-PACKAGE_VERSION=3.0.1
+PACKAGE_VERSION=3.0.2
 ```
 <!-- x-release-please-end -->
 
