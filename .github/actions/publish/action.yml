@@ -102,4 +102,4 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
       run: |
-        gh release upload "${{ inputs.tag }}" ./dist/*.tar.gz ./dist/*.txt --clobber
+        gh release upload "${{ inputs.tag }}" ./dist/*.tar.gz ./dist/*.zip ./dist/*.txt --clobber
