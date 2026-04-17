@@ -1,56 +1,56 @@
-## Verifying build provenance with the SLSA framework
+## Verifying build provenance with GitHub artifact attestations
 
-LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply-chain Levels for Software Artifacts) to help developers make their supply chain more secure by ensuring the authenticity and build integrity of our published packages.
+LaunchDarkly uses [GitHub artifact attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) to help developers make their supply chain more secure by ensuring the authenticity and build integrity of our published packages.
 
-As part of [SLSA requirements for level 3 compliance](https://slsa.dev/spec/v1.0/requirements), LaunchDarkly publishes provenance about our package builds using [GitHub's generic SLSA3 provenance generator](https://github.com/slsa-framework/slsa-github-generator/blob/main/internal/builders/generic/README.md#generation-of-slsa3-provenance-for-arbitrary-projects) for distribution alongside our packages.
+LaunchDarkly publishes provenance about our package builds using [GitHub's `actions/attest` action](https://github.com/actions/attest). These attestations are stored in GitHub's attestation API and can be verified using the [GitHub CLI](https://cli.github.com/).
 
-<!-- x-release-please-start-version -->
-These attestations are available for download from the GitHub release page for the release version under Assets > `ldcli_3.0.0_multiple_provenance.intoto.jsonl`.
-<!-- x-release-please-end -->
-
-To verify SLSA provenance attestations, we recommend using [slsa-verifier](https://github.com/slsa-framework/slsa-verifier). Example usage for verifying packages for Linux is included below: 
+To verify build provenance attestations, we recommend using the [GitHub CLI `attestation verify` command](https://cli.github.com/manual/gh_attestation_verify). Example usage for verifying packages for Linux is included below:
 
 <!-- x-release-please-start-version -->
 ```
-# Set the version of the PACKAGE to verify
+# Set the version of the package to verify
 PACKAGE_VERSION=3.0.0
 ```
 <!-- x-release-please-end -->
 
 ```
-# Ensure provenance file is downloaded along with packages for your OS
-# Run slsa-verifier to verify provenance against package artifacts 
-$ slsa-verifier verify-artifact \
---provenance-path ldcli_${PACKAGE_VERSION}_multiple_provenance.intoto.jsonl \
---source-uri github.com/launchdarkly/ldcli \
-ldcli_${PACKAGE_VERSION}_*.tar.gz
+# Download the release archive from GitHub
+$ curl --location -O \
+  https://github.com/launchdarkly/ldcli/releases/download/${PACKAGE_VERSION}/ldcli_${PACKAGE_VERSION}_linux_amd64.tar.gz
+
+# Verify provenance using the GitHub CLI
+$ gh attestation verify ldcli_${PACKAGE_VERSION}_linux_amd64.tar.gz --owner launchdarkly
 ```
 
-Below is a sample of expected output:
+You can also verify the provenance of the published container images:
+
 ```
-Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
-Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_0.6.0_darwin_amd64.tar.gz: PASSED
-
-Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
-Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_0.6.0_darwin_arm64.tar.gz: PASSED
-
-Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
-Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_0.6.0_linux_386.tar.gz: PASSED
-
-Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
-Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_0.6.0_linux_amd64.tar.gz: PASSED
-
-Verified signature against tlog entry index 84971628 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a9053fbc27f7e695f7bcf705e69e3596a48e4759b9f9429725d4fec327c9d09bf
-Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v1.10.0" at commit 50b064100a9a142a6da6539e520deef1df6a4ddf
-Verifying artifact ldcli_0.6.0_linux_arm64.tar.gz: PASSED
-
-PASSED: Verified SLSA provenance
+$ gh attestation verify oci://launchdarkly/ldcli:${PACKAGE_VERSION} --owner launchdarkly
 ```
 
-Alternatively, to verify the provenance manually, the SLSA framework specifies [recommendations for verifying build artifacts](https://slsa.dev/spec/v1.0/verifying-artifacts) in their documentation.
+Below is a sample of expected output.
 
-**Note:** These instructions do not apply when building our CLI from source. 
+```
+Loaded digest sha256:... for file://ldcli_3.0.0_linux_amd64.tar.gz
+Loaded 1 attestation from GitHub API
+
+The following policy criteria will be enforced:
+- Predicate type must match:................ https://slsa.dev/provenance/v1
+- Source Repository Owner URI must match:... https://github.com/launchdarkly
+- Subject Alternative Name must match regex: (?i)^https://github.com/launchdarkly/
+- OIDC Issuer must match:................... https://token.actions.githubusercontent.com
+
+✓ Verification succeeded!
+
+The following 1 attestation matched the policy criteria
+
+- Attestation #1
+  - Build repo:..... launchdarkly/ldcli
+  - Build workflow:. .github/workflows/release-please.yml
+  - Signer repo:.... launchdarkly/ldcli
+  - Signer workflow: .github/workflows/release-please.yml
+```
+
+For more information, see [GitHub's documentation on verifying artifact attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds#verifying-artifact-attestations-with-the-github-cli).
+
+**Note:** These instructions do not apply when building our CLI from source.

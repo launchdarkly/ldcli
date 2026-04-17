@@ -1,7 +1,6 @@
 name: Run Release Please
 
 on:
-  pull_request:
   push:
     branches:
       - main
@@ -9,7 +8,6 @@ on:
 jobs:
   release-please:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     permissions:
       contents: write
       pull-requests: write
@@ -17,21 +15,51 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+      # Create any releases in release, then create tags, and then optionally create any new PRs.
+      - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4.4.0
         id: release
         with:
-          token: ${{secrets.GITHUB_TOKEN}}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          skip-github-pull-request: true
+
+      # Need the repository content to be able to create and push a tag.
+      - uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+
+      - name: Create release tag
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api "repos/${{ github.repository }}/git/ref/tags/${TAG_NAME}" >/dev/null 2>&1; then
+            echo "Tag ${TAG_NAME} already exists, skipping creation."
+          else
+            echo "Creating tag ${TAG_NAME}."
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "${TAG_NAME}"
+            git push origin "${TAG_NAME}"
+          fi
+
+      - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4.4.0
+        if: ${{ steps.release.outputs.release_created != 'true' }}
+        id: release-prs
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          skip-github-release: true
 
   release-ldcli:
     permissions:
-      id-token: write # Needed to obtain Docker tokens
+      id-token: write # Needed to obtain Docker tokens and to sign attestations
       contents: write # Needed to upload release artifacts
       packages: read # Needed to load goreleaser-cross image
-    needs: [ release-please ]
-    if: needs.release-please.outputs.release_created == 'true' || github.event_name == 'pull_request'
+      attestations: write # Needed for artifact attestations
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-22.04-8core-32gb
     outputs:
-      hashes: ${{ steps.publish.outputs.hashes }}
+      images_and_digests: ${{ steps.publish.outputs.images_and_digests }}
     steps:
       - uses: actions/checkout@v4
         name: Checkout
@@ -49,16 +77,36 @@ jobs:
       - uses: ./.github/actions/publish
         id: publish
         with:
-          dry-run: ${{ github.event_name == 'pull_request' }}
-          snapshot: ${{ github.event_name == 'pull_request' }}
+          dry-run: 'false'
           token: ${{ secrets.GITHUB_TOKEN }}
-          homebrew-gh-secret: ${{secrets.HOMEBREW_DEPLOY_KEY}}
+          homebrew-gh-secret: ${{ secrets.HOMEBREW_DEPLOY_KEY }}
           tag: ${{ needs.release-please.outputs.tag_name }}
           ghcr_token: "${{ secrets.GITHUB_TOKEN }}"
 
+      - name: Attest binary artifacts
+        uses: actions/attest@v4
+        with:
+          subject-checksums: ${{ steps.publish.outputs.checksum_file }}
+
+  attest-image-provenance:
+    needs: [release-ldcli]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+    strategy:
+      matrix:
+        images_and_digests: ${{ fromJson(needs.release-ldcli.outputs.images_and_digests) }}
+    steps:
+      - name: Attest container image
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ matrix.images_and_digests.image }}
+          subject-digest: ${{ matrix.images_and_digests.digest }}
+
   release-ldcli-npm:
     runs-on: ubuntu-latest
-    needs: ['release-please', 'release-ldcli']
+    needs: [release-please, release-ldcli]
     permissions:
       id-token: write
       contents: write
@@ -78,18 +126,21 @@ jobs:
         name: Publish NPM Package
         uses: ./.github/actions/publish-npm
         with:
-          dry-run: ${{ github.event_name == 'pull_request' }}
+          dry-run: 'false'
           prerelease: 'false'
 
-  release-ldcli-provenance:
-    needs: ['release-please', 'release-ldcli']
+  publish-release:
+    needs: [release-please, release-ldcli, attest-image-provenance, release-ldcli-npm]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
     permissions:
-      actions: read
-      id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
-    with:
-      base64-subjects: "${{ needs.release-ldcli.outputs.hashes }}"
-      upload-assets: true
-      upload-tag-name: ${{ needs.release-please.outputs.tag_name }}
-      provenance-name: ${{ format('ldcli_{0}_multiple_provenance.intoto.jsonl', needs.release-please.outputs.tag_name) }}
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+        run: >
+          gh release edit "$TAG_NAME"
+          --repo ${{ github.repository }}
+          --draft=false
