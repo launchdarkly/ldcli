@@ -109,8 +109,10 @@ jobs:
           prerelease: 'false'
 
   publish-release:
-    needs: [release-ldcli, attest-image-provenance]
-    if: ${{ !inputs.dry_run && inputs.publish_release }}
+    needs: [release-ldcli, attest-image-provenance, release-ldcli-npm]
+    # !cancelled() && !failure() lets this job run when release-ldcli-npm was
+    # skipped (dry-run-npm: true) but still blocks if any needed job failed.
+    if: ${{ !cancelled() && !failure() && !inputs.dry_run && inputs.publish_release }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
