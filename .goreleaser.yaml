@@ -2,6 +2,13 @@ version: 2
 
 project_name: ldcli
 
+release:
+  # release-please owns the GitHub release lifecycle (creates the draft, and
+  # publish-release un-drafts at the end). Goreleaser only builds binaries and
+  # pushes images; the workflow's `gh release upload` step attaches artifacts
+  # to the draft. See .github/workflows/release-please.yml for the full flow.
+  disable: true
+
 env:
   - GO111MODULE=on # Ensure we aren't using anything in GOPATH when building
   - CGO_ENABLED=1 # Needed for SQLite support
