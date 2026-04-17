@@ -102,4 +102,14 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
       run: |
-        gh release upload "${{ inputs.tag }}" ./dist/*.tar.gz ./dist/*.zip ./dist/*.txt --clobber
+        # nullglob lets the *.zip (and any other format we don't currently
+        # produce) expand to nothing instead of being passed literally to
+        # gh release upload, which would fail with "no matches found".
+        set -euo pipefail
+        shopt -s nullglob
+        files=(./dist/*.tar.gz ./dist/*.zip ./dist/*.txt)
+        if [ ${#files[@]} -eq 0 ]; then
+          echo "No artifacts found in ./dist to upload" >&2
+          exit 1
+        fi
+        gh release upload "${{ inputs.tag }}" "${files[@]}" --clobber
