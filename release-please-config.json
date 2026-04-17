@@ -4,6 +4,7 @@
       "release-type": "go",
       "versioning": "default",
       "draft": true,
+      "last-release-sha": "ac751372919a03537b86daa867d3b88c81a6db02",
       "extra-files": [
         "PROVENANCE.md",
         {
