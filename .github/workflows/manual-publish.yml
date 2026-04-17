@@ -83,6 +83,10 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.dry-run-npm == false }}
     needs: [release-ldcli]
+    # id-token: write lets npm CLI exchange the GITHUB_TOKEN for an OIDC token
+    # that the npm registry trusts via the trusted publisher config. The npm
+    # trusted publisher must be configured with this workflow filename
+    # (manual-publish.yml) for publishes from this path to succeed.
     permissions:
       actions: read
       id-token: write
@@ -92,15 +96,14 @@ jobs:
         name: Checkout
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 20.x
           registry-url: 'https://registry.npmjs.org'
-      - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.0.1
-        name: 'Get NPM token'
-        with:
-          aws_assume_role: ${{ vars.AWS_ROLE_ARN }}
-          ssm_parameter_pairs: '/production/common/releasing/npm/token = NODE_AUTH_TOKEN'
+      - name: Update npm
+        shell: bash
+        # npm CLI requires >= 11.5.1 for trusted publishing (OIDC) support.
+        run: npm install -g npm@11.6.2
       - id: publish-npm
         name: Publish NPM Package
         uses: ./.github/actions/publish-npm
