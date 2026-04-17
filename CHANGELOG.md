@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.3](https://github.com/launchdarkly/ldcli/compare/v3.0.2...v3.0.3) (2026-04-17)
+
+
+### Bug Fixes
+
+* tolerate missing *.zip in gh release upload ([#693](https://github.com/launchdarkly/ldcli/issues/693)) ([c016748](https://github.com/launchdarkly/ldcli/commit/c016748968b9bfcb5511b99d314aa0307c4c7bc1))
+
 ## [3.0.2](https://github.com/launchdarkly/ldcli/compare/3.0.1...v3.0.2) (2026-04-17)
 
 
