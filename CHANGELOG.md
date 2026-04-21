@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.4](https://github.com/launchdarkly/ldcli/compare/v3.0.3...v3.0.4) (2026-04-21)
+
+
+### Bug Fixes
+
+* noop to trigger release please ([#696](https://github.com/launchdarkly/ldcli/issues/696)) ([7db5e7d](https://github.com/launchdarkly/ldcli/commit/7db5e7dd8175a0abea60d83a7ea31ed846257d14))
+
 ## [3.0.3](https://github.com/launchdarkly/ldcli/compare/v3.0.2...v3.0.3) (2026-04-17)
 
 
