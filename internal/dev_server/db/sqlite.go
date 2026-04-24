@@ -53,7 +53,10 @@ func (s *Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project,
         WHERE key = ?
     `, key)
 
-	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &contextData, &project.LastSyncTime, &flagStateData, &project.PayloadVersion); err != nil {
+	if err := row.Scan(
+		&project.Key, &project.SourceEnvironmentKey, &contextData,
+		&project.LastSyncTime, &flagStateData, &project.PayloadVersion,
+	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.NewErrNotFound("project", key)
 		}
@@ -389,12 +392,12 @@ func (s *Sqlite) RestoreBackup(ctx context.Context, stream io.Reader) (string, e
 	}
 	err = os.Rename(filepath, s.dbPath)
 	if err != nil {
-		//panic because this would really leave the app in an invalid state
+		// panic because this would really leave the app in an invalid state
 		panic(err)
 	}
 	s.database, err = sql.Open("sqlite3", s.dbPath)
 	if err != nil {
-		//panic because this would really leave the app in an invalid state
+		// panic because this would really leave the app in an invalid state
 		panic(err)
 	}
 
