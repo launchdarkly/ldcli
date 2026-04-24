@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
@@ -47,12 +48,12 @@ func (s *Sqlite) GetDevProject(ctx context.Context, key string) (*model.Project,
 	var flagStateData string
 
 	row := s.database.QueryRowContext(ctx, `
-        SELECT key, source_environment_key, context, last_sync_time, flag_state 
-        FROM projects 
+        SELECT key, source_environment_key, context, last_sync_time, flag_state, payload_version
+        FROM projects
         WHERE key = ?
     `, key)
 
-	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &contextData, &project.LastSyncTime, &flagStateData); err != nil {
+	if err := row.Scan(&project.Key, &project.SourceEnvironmentKey, &contextData, &project.LastSyncTime, &flagStateData, &project.PayloadVersion); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.NewErrNotFound("project", key)
 		}
@@ -200,14 +201,15 @@ SELECT 1 FROM projects WHERE key = ?
 		return
 	}
 	_, err = tx.Exec(`
-INSERT INTO projects (key, source_environment_key, context, last_sync_time, flag_state)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO projects (key, source_environment_key, context, last_sync_time, flag_state, payload_version)
+VALUES (?, ?, ?, ?, ?, ?)
 `,
 		project.Key,
 		project.SourceEnvironmentKey,
 		project.Context.JSONString(),
 		project.LastSyncTime,
 		string(flagsStateJson),
+		project.PayloadVersion,
 	)
 	if err != nil {
 		return
@@ -341,6 +343,20 @@ func (s *Sqlite) UpsertOverride(ctx context.Context, override model.Override) (m
 	return override, nil
 }
 
+func (s *Sqlite) IncrementProjectPayloadVersion(ctx context.Context, projectKey string) (int, error) {
+	row := s.database.QueryRowContext(ctx, `
+		UPDATE projects
+		SET payload_version = payload_version + 1
+		WHERE key = ?
+		RETURNING payload_version
+	`, projectKey)
+	var version int
+	if err := row.Scan(&version); err != nil {
+		return 0, errors.Wrap(err, "unable to increment payload version")
+	}
+	return version, nil
+}
+
 func (s *Sqlite) DeactivateOverride(ctx context.Context, projectKey, flagKey string) (int, error) {
 	row := s.database.QueryRowContext(ctx, `
 		UPDATE overrides
@@ -445,11 +461,19 @@ func (s *Sqlite) runMigrations(ctx context.Context) error {
 		source_environment_key text NOT NULL,
 		context text NOT NULL,
 		last_sync_time timestamp NOT NULL,
-		flag_state TEXT NOT NULL
+		flag_state TEXT NOT NULL,
+		payload_version INTEGER NOT NULL DEFAULT 1
 	)`)
 	if err != nil {
 		return err
 	}
+
+	// Migration: add payload_version to existing databases that predate this column.
+	_, err = tx.Exec(`ALTER TABLE projects ADD COLUMN payload_version INTEGER NOT NULL DEFAULT 1`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return err
+	}
+	err = nil
 
 	_, err = tx.Exec(`
 	CREATE TABLE IF NOT EXISTS overrides (

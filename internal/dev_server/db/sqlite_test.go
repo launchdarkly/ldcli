@@ -36,6 +36,7 @@ func TestDBFunctions(t *testing.T) {
 			SourceEnvironmentKey: "env-1",
 			Context:              ldContext,
 			LastSyncTime:         now,
+			PayloadVersion:       1,
 			AllFlagsState: model.FlagsState{
 				"flag-1": model.FlagState{Value: ldvalue.Bool(true), Version: 2},
 				"flag-2": model.FlagState{Value: ldvalue.String("cool"), Version: 2},
@@ -169,6 +170,7 @@ func TestDBFunctions(t *testing.T) {
 		assert.Equal(t, expected.SourceEnvironmentKey, p.SourceEnvironmentKey)
 		assert.Equal(t, expected.Context, p.Context)
 		assert.True(t, expected.LastSyncTime.Equal(p.LastSyncTime))
+		assert.Equal(t, expected.PayloadVersion, p.PayloadVersion)
 	})
 
 	t.Run("GetAvailableVariations returns variations", func(t *testing.T) {
@@ -362,6 +364,25 @@ func TestDBFunctions(t *testing.T) {
 		}
 
 		assert.True(t, found)
+	})
+
+	t.Run("IncrementProjectPayloadVersion increments and returns new version", func(t *testing.T) {
+		proj, err := store.GetDevProject(ctx, projects[0].Key)
+		require.NoError(t, err)
+		initialVersion := proj.PayloadVersion
+
+		newVersion, err := store.IncrementProjectPayloadVersion(ctx, projects[0].Key)
+		require.NoError(t, err)
+		assert.Equal(t, initialVersion+1, newVersion)
+
+		proj, err = store.GetDevProject(ctx, projects[0].Key)
+		require.NoError(t, err)
+		assert.Equal(t, initialVersion+1, proj.PayloadVersion)
+
+		// Calling again should increment once more
+		newVersion2, err := store.IncrementProjectPayloadVersion(ctx, projects[0].Key)
+		require.NoError(t, err)
+		assert.Equal(t, initialVersion+2, newVersion2)
 	})
 
 	t.Run("UpdateProject deletes overrides for flags that are no longer in the project", func(t *testing.T) {

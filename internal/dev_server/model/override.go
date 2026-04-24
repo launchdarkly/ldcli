@@ -3,6 +3,8 @@ package model
 import (
 	"context"
 
+	"github.com/pkg/errors"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
 
@@ -58,6 +60,11 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 		return Override{}, err
 	}
 
+	_, err = store.IncrementProjectPayloadVersion(ctx, projectKey)
+	if err != nil {
+		return Override{}, errors.Wrap(err, "unable to increment payload version")
+	}
+
 	GetObserversFromContext(ctx).Notify(OverrideEvent{
 		FlagKey:    flagKey,
 		ProjectKey: projectKey,
@@ -76,6 +83,12 @@ func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
 	if err != nil {
 		return err
 	}
+
+	_, err = store.IncrementProjectPayloadVersion(ctx, projectKey)
+	if err != nil {
+		return errors.Wrap(err, "unable to increment payload version")
+	}
+
 	override := Override{
 		ProjectKey: projectKey,
 		FlagKey:    flagKey,
