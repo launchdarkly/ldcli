@@ -72,6 +72,7 @@ func TestDBFunctions(t *testing.T) {
 			SourceEnvironmentKey: "env-2",
 			Context:              ldContext,
 			LastSyncTime:         now,
+			PayloadVersion:       1,
 			AllFlagsState: model.FlagsState{
 				"flag-1": model.FlagState{Value: ldvalue.Int(123), Version: 2},
 				"flag-2": model.FlagState{Value: ldvalue.Float64(99.99), Version: 2},
@@ -98,6 +99,7 @@ func TestDBFunctions(t *testing.T) {
 			SourceEnvironmentKey: "env-3",
 			Context:              ldContext,
 			LastSyncTime:         now,
+			PayloadVersion:       1,
 			AllFlagsState: model.FlagsState{
 				"flag-1": model.FlagState{Value: ldvalue.Int(123), Version: 2},
 				"flag-2": model.FlagState{Value: ldvalue.Float64(99.99), Version: 2},
