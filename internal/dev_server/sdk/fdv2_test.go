@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model/mocks"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +54,7 @@ func TestBuildPollResponse(t *testing.T) {
 
 		require.GreaterOrEqual(t, len(resp.Events), 3) // server-intent + put-objects + payload-transferred
 
-		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, fdv2IntentXferFull, fdv2ReasonPayloadMissing)
+		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, subsystems.IntentTransferFull, fdv2ReasonPayloadMissing)
 		assertPayloadTransferredEvent(t, resp.Events[len(resp.Events)-1], payloadID, currentVersion)
 	})
 
@@ -62,7 +63,7 @@ func TestBuildPollResponse(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, resp.Events, 1)
-		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, fdv2IntentNone, fdv2ReasonUpToDate)
+		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, subsystems.IntentNone, fdv2ReasonUpToDate)
 	})
 
 	t.Run("basis ahead of current version sends none with up-to-date", func(t *testing.T) {
@@ -70,7 +71,7 @@ func TestBuildPollResponse(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, resp.Events, 1)
-		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, fdv2IntentNone, fdv2ReasonUpToDate)
+		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, subsystems.IntentNone, fdv2ReasonUpToDate)
 	})
 
 	t.Run("stale basis sends xfer-full with cant-catchup", func(t *testing.T) {
@@ -78,7 +79,7 @@ func TestBuildPollResponse(t *testing.T) {
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3)
-		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, fdv2IntentXferFull, fdv2ReasonCantCatchup)
+		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, subsystems.IntentTransferFull, fdv2ReasonCantCatchup)
 		assertPayloadTransferredEvent(t, resp.Events[len(resp.Events)-1], payloadID, currentVersion)
 	})
 
@@ -94,12 +95,12 @@ func TestBuildPollResponse(t *testing.T) {
 		assert.Len(t, resp.Events, 4)
 		putKeys := make(map[string]bool)
 		for _, event := range resp.Events {
-			if event.Event == fdv2EventPutObject {
-				var put fdv2PutObjectData
+			if event.Name == subsystems.EventPutObject {
+				var put subsystems.PutObject
 				require.NoError(t, json.Unmarshal(event.Data, &put))
 				putKeys[put.Key] = true
 				assert.Equal(t, currentVersion, put.Version)
-				assert.Equal(t, "flag", put.Kind)
+				assert.Equal(t, subsystems.FlagKind, put.Kind)
 			}
 		}
 		assert.True(t, putKeys["flag-a"])
@@ -141,10 +142,10 @@ func TestPollV2Handler(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
 
-		var resp fdv2PollResponse
+		var resp subsystems.PollingPayload
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 		require.GreaterOrEqual(t, len(resp.Events), 3)
-		assertServerIntentEvent(t, resp.Events[0], exampleProjectKey, 3, fdv2IntentXferFull, fdv2ReasonPayloadMissing)
+		assertServerIntentEvent(t, resp.Events[0], exampleProjectKey, 3, subsystems.IntentTransferFull, fdv2ReasonPayloadMissing)
 		assertPayloadTransferredEvent(t, resp.Events[len(resp.Events)-1], exampleProjectKey, 3)
 	})
 
@@ -160,10 +161,10 @@ func TestPollV2Handler(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, rec.Code)
 
-		var resp fdv2PollResponse
+		var resp subsystems.PollingPayload
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 		require.Len(t, resp.Events, 1)
-		assertServerIntentEvent(t, resp.Events[0], exampleProjectKey, 3, fdv2IntentNone, fdv2ReasonUpToDate)
+		assertServerIntentEvent(t, resp.Events[0], exampleProjectKey, 3, subsystems.IntentNone, fdv2ReasonUpToDate)
 	})
 
 	t.Run("stale basis returns full payload with cant-catchup", func(t *testing.T) {
@@ -178,10 +179,10 @@ func TestPollV2Handler(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, rec.Code)
 
-		var resp fdv2PollResponse
+		var resp subsystems.PollingPayload
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 		require.GreaterOrEqual(t, len(resp.Events), 3)
-		assertServerIntentEvent(t, resp.Events[0], exampleProjectKey, 3, fdv2IntentXferFull, fdv2ReasonCantCatchup)
+		assertServerIntentEvent(t, resp.Events[0], exampleProjectKey, 3, subsystems.IntentTransferFull, fdv2ReasonCantCatchup)
 		assertPayloadTransferredEvent(t, resp.Events[len(resp.Events)-1], exampleProjectKey, 3)
 	})
 
@@ -198,24 +199,23 @@ func TestPollV2Handler(t *testing.T) {
 }
 
 // assertServerIntentEvent unmarshals a server-intent event and checks its fields.
-func assertServerIntentEvent(t *testing.T, event fdv2RawEvent, payloadID string, target int, intentCode, reason string) {
+func assertServerIntentEvent(t *testing.T, event subsystems.RawEvent, payloadID string, target int, intentCode subsystems.IntentCode, reason string) {
 	t.Helper()
-	assert.Equal(t, fdv2EventServerIntent, event.Event)
-	var data fdv2ServerIntentData
+	assert.Equal(t, subsystems.EventServerIntent, event.Name)
+	var data subsystems.ServerIntent
 	require.NoError(t, json.Unmarshal(event.Data, &data))
-	require.Len(t, data.Payloads, 1)
-	assert.Equal(t, payloadID, data.Payloads[0].ID)
-	assert.Equal(t, target, data.Payloads[0].Target)
-	assert.Equal(t, intentCode, data.Payloads[0].IntentCode)
-	assert.Equal(t, reason, data.Payloads[0].Reason)
+	assert.Equal(t, payloadID, data.Payload.ID)
+	assert.Equal(t, target, data.Payload.Target)
+	assert.Equal(t, intentCode, data.Payload.Code)
+	assert.Equal(t, reason, data.Payload.Reason)
 }
 
 // assertPayloadTransferredEvent unmarshals a payload-transferred event and checks its fields.
-func assertPayloadTransferredEvent(t *testing.T, event fdv2RawEvent, payloadID string, version int) {
+func assertPayloadTransferredEvent(t *testing.T, event subsystems.RawEvent, payloadID string, version int) {
 	t.Helper()
-	assert.Equal(t, fdv2EventPayloadTransferred, event.Event)
-	var data fdv2PayloadTransferredData
+	assert.Equal(t, subsystems.EventPayloadTransferred, event.Name)
+	var data subsystems.Selector
 	require.NoError(t, json.Unmarshal(event.Data, &data))
-	assert.Equal(t, version, data.Version)
-	assert.Equal(t, fmt.Sprintf("(p:%s:%d)", payloadID, version), data.State)
+	assert.Equal(t, version, data.Version())
+	assert.Equal(t, fmt.Sprintf("(p:%s:%d)", payloadID, version), data.State())
 }
