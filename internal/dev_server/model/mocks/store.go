@@ -148,6 +148,21 @@ func (mr *MockStoreMockRecorder) GetOverridesForProject(ctx, projectKey any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOverridesForProject", reflect.TypeOf((*MockStore)(nil).GetOverridesForProject), ctx, projectKey)
 }
 
+// IncrementProjectPayloadVersion mocks base method.
+func (m *MockStore) IncrementProjectPayloadVersion(ctx context.Context, projectKey string) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IncrementProjectPayloadVersion", ctx, projectKey)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IncrementProjectPayloadVersion indicates an expected call of IncrementProjectPayloadVersion.
+func (mr *MockStoreMockRecorder) IncrementProjectPayloadVersion(ctx, projectKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementProjectPayloadVersion", reflect.TypeOf((*MockStore)(nil).IncrementProjectPayloadVersion), ctx, projectKey)
+}
+
 // InsertProject mocks base method.
 func (m *MockStore) InsertProject(ctx context.Context, project model.Project) error {
 	m.ctrl.T.Helper()

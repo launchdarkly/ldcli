@@ -183,6 +183,7 @@ func TestUpdateProject(t *testing.T) {
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, nil)
 		api.EXPECT().GetAllFlags(gomock.Any(), proj.Key).Return(allFlags, nil)
 		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(true, nil)
+		store.EXPECT().IncrementProjectPayloadVersion(gomock.Any(), proj.Key).Return(2, nil)
 		store.EXPECT().GetOverridesForProject(gomock.Any(), proj.Key).Return(model.Overrides{}, nil)
 		observer.
 			EXPECT().
@@ -193,7 +194,9 @@ func TestUpdateProject(t *testing.T) {
 
 		project, err := model.UpdateProject(ctx, proj.Key, nil, nil)
 		require.Nil(t, err)
-		assert.Equal(t, proj, project)
+		expectedProj := proj
+		expectedProj.PayloadVersion = 2
+		assert.Equal(t, expectedProj, project)
 	})
 }
 

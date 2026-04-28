@@ -28,6 +28,8 @@ type Store interface {
 	UpsertOverride(ctx context.Context, override Override) (Override, error)
 	GetOverridesForProject(ctx context.Context, projectKey string) (Overrides, error)
 	GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]Variation, error)
+	// IncrementProjectPayloadVersion atomically increments the payload version for the project and returns the new version.
+	IncrementProjectPayloadVersion(ctx context.Context, projectKey string) (int, error)
 
 	CreateBackup(ctx context.Context) (io.ReadCloser, int64, error)
 	RestoreBackup(ctx context.Context, stream io.Reader) (string, error)

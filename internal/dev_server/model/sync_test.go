@@ -153,8 +153,9 @@ func TestInitialSync(t *testing.T) {
 		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
 		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(nil)
-		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(&proj, nil)
+		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
+		store.EXPECT().IncrementProjectPayloadVersion(gomock.Any(), projKey).Return(1, nil)
 
 		input := model.InitialProjectSettings{
 			Enabled:    true,
