@@ -20,24 +20,27 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestParseBasisVersion(t *testing.T) {
+func TestParseBasis(t *testing.T) {
 	tests := []struct {
-		basis    string
-		expected int
+		basis           string
+		expectedID      string
+		expectedVersion int
 	}{
-		{"", 0},
-		{"(p:my-project:5)", 5},
-		{"(p:my-project:1)", 1},
-		{"(p:complex:key:with:colons:99)", 99},
-		{"not-valid", 0},
-		{"(p:no-version)", 0},
-		{"(p:negative:-1)", 0},
-		{"(p:nan:abc)", 0},
+		{"", "", 0},
+		{"(p:my-project:5)", "my-project", 5},
+		{"(p:my-project:1)", "my-project", 1},
+		{"(p:complex:key:with:colons:99)", "complex:key:with:colons", 99},
+		{"not-valid", "", 0},
+		{"(p:no-version)", "", 0},
+		{"(p:negative:-1)", "", 0},
+		{"(p:nan:abc)", "", 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("basis=%q", tt.basis), func(t *testing.T) {
-			assert.Equal(t, tt.expected, parseBasisVersion(tt.basis))
+			id, version := parseBasis(tt.basis)
+			assert.Equal(t, tt.expectedID, id)
+			assert.Equal(t, tt.expectedVersion, version)
 		})
 	}
 }
@@ -50,7 +53,7 @@ func TestBuildPollResponse(t *testing.T) {
 	}
 
 	t.Run("no basis sends xfer-full with payload-missing", func(t *testing.T) {
-		resp, err := buildPollResponse(payloadID, currentVersion, flags, 0)
+		resp, err := buildPollResponse(payloadID, currentVersion, flags, "")
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3) // server-intent + put-objects + payload-transferred
@@ -60,7 +63,8 @@ func TestBuildPollResponse(t *testing.T) {
 	})
 
 	t.Run("up-to-date basis sends none with up-to-date", func(t *testing.T) {
-		resp, err := buildPollResponse(payloadID, currentVersion, flags, currentVersion)
+		basis := fmt.Sprintf("(p:%s:%d)", payloadID, currentVersion)
+		resp, err := buildPollResponse(payloadID, currentVersion, flags, basis)
 		require.NoError(t, err)
 
 		require.Len(t, resp.Events, 1)
@@ -68,7 +72,8 @@ func TestBuildPollResponse(t *testing.T) {
 	})
 
 	t.Run("basis ahead of current version sends full transfer (e.g. project recreated)", func(t *testing.T) {
-		resp, err := buildPollResponse(payloadID, currentVersion, flags, currentVersion+10)
+		basis := fmt.Sprintf("(p:%s:%d)", payloadID, currentVersion+10)
+		resp, err := buildPollResponse(payloadID, currentVersion, flags, basis)
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3)
@@ -77,7 +82,18 @@ func TestBuildPollResponse(t *testing.T) {
 	})
 
 	t.Run("stale basis sends xfer-full with cant-catchup", func(t *testing.T) {
-		resp, err := buildPollResponse(payloadID, currentVersion, flags, currentVersion-1)
+		basis := fmt.Sprintf("(p:%s:%d)", payloadID, currentVersion-1)
+		resp, err := buildPollResponse(payloadID, currentVersion, flags, basis)
+		require.NoError(t, err)
+
+		require.GreaterOrEqual(t, len(resp.Events), 3)
+		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, subsystems.IntentTransferFull, fdv2ReasonCantCatchup)
+		assertPayloadTransferredEvent(t, resp.Events[len(resp.Events)-1], payloadID, currentVersion)
+	})
+
+	t.Run("basis with wrong payload ID sends xfer-full", func(t *testing.T) {
+		basis := fmt.Sprintf("(p:%s:%d)", "other-project", currentVersion)
+		resp, err := buildPollResponse(payloadID, currentVersion, flags, basis)
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3)
@@ -90,7 +106,7 @@ func TestBuildPollResponse(t *testing.T) {
 			"flag-a": model.FlagState{Value: ldvalue.Bool(true), Version: 1},
 			"flag-b": model.FlagState{Value: ldvalue.String("hello"), Version: 2},
 		}
-		resp, err := buildPollResponse(payloadID, currentVersion, multiFlags, 0)
+		resp, err := buildPollResponse(payloadID, currentVersion, multiFlags, "")
 		require.NoError(t, err)
 
 		// server-intent + 2 put-objects + payload-transferred

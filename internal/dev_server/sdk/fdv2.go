@@ -16,22 +16,27 @@ const (
 	fdv2ReasonPayloadMissing = "payload-missing"
 )
 
-// parseBasisVersion extracts the payload version from a basis state string of the
-// form "(p:<payloadId>:<version>)". Returns 0 if the string is absent or unparseable.
-func parseBasisVersion(basis string) int {
-	if basis == "" {
-		return 0
+// parseBasis extracts the payload ID and version from a basis state string of the
+// form "(p:<payloadId>:<version>)". Returns ("", 0) if the string is absent or unparseable.
+//
+// Note: in production LD selectors the payload ID is an opaque server-assigned value.
+// The dev server uses the project key as the payload ID (see makePayloadTransferredEvent).
+// This is a dev-server-specific convention and should not be assumed elsewhere.
+func parseBasis(basis string) (string, int) {
+	if !strings.HasPrefix(basis, "(p:") || !strings.HasSuffix(basis, ")") {
+		return "", 0
 	}
-	lastColon := strings.LastIndex(basis, ":")
+	// Strip the "(p:" prefix and ")" suffix to get "<payloadId>:<version>".
+	inner := basis[3 : len(basis)-1]
+	lastColon := strings.LastIndex(inner, ":")
 	if lastColon == -1 {
-		return 0
+		return "", 0
 	}
-	versionStr := strings.TrimSuffix(basis[lastColon+1:], ")")
-	version, err := strconv.Atoi(versionStr)
+	version, err := strconv.Atoi(inner[lastColon+1:])
 	if err != nil || version < 0 {
-		return 0
+		return "", 0
 	}
-	return version
+	return inner[:lastColon], version
 }
 
 // buildPollResponse constructs the FDv2 polling response.
@@ -39,23 +44,24 @@ func parseBasisVersion(basis string) int {
 // payloadID is the stable identifier for this payload (the project key).
 // currentVersion is the project's current PayloadVersion.
 // flags is the current flag state with overrides applied.
-// basisVersion is parsed from the SDK's ?basis query param (0 = no basis provided).
+// basis is the raw ?basis query param from the SDK (empty string = no basis provided).
 //
 // Delta transfers are not supported: stale clients always receive a full payload.
 // Tracking the change history required for deltas is overkill for a local dev server.
-func buildPollResponse(payloadID string, currentVersion int, flags model.FlagsState, basisVersion int) (subsystems.PollingPayload, error) {
+func buildPollResponse(payloadID string, currentVersion int, flags model.FlagsState, basis string) (subsystems.PollingPayload, error) {
+	basisPayloadID, basisVersion := parseBasis(basis)
 	switch {
 	case basisVersion == 0:
 		return buildFullTransferResponse(payloadID, currentVersion, flags, fdv2ReasonPayloadMissing)
-	case basisVersion == currentVersion:
+	case basisPayloadID == payloadID && basisVersion == currentVersion:
 		event, err := makeServerIntentEvent(payloadID, currentVersion, subsystems.IntentNone, fdv2ReasonUpToDate)
 		if err != nil {
 			return subsystems.PollingPayload{}, err
 		}
 		return subsystems.PollingPayload{Events: []subsystems.RawEvent{event}}, nil
 	default:
-		// basisVersion < currentVersion (stale) or > currentVersion (e.g. project was recreated):
-		// either way we can't compute a delta — send the full payload.
+		// Payload ID mismatch, stale version, or version ahead of current (e.g. project recreated):
+		// we can't compute a delta — send the full payload.
 		return buildFullTransferResponse(payloadID, currentVersion, flags, fdv2ReasonCantCatchup)
 	}
 }
@@ -117,6 +123,10 @@ func makePutObjectEvent(version int, key string, flagState model.FlagState) (sub
 }
 
 func makePayloadTransferredEvent(payloadID string, version int) (subsystems.RawEvent, error) {
+	// The selector state is synthetic and dev-server-specific: the dev server uses the
+	// project key as the payload ID rather than a server-assigned opaque value. The SDK
+	// echoes this selector back as ?basis on subsequent polls, where parseBasisVersion
+	// extracts the version from it.
 	selector := subsystems.NewSelector(fmt.Sprintf("(p:%s:%d)", payloadID, version), version)
 	data, err := json.Marshal(selector)
 	if err != nil {
