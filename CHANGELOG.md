@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/launchdarkly/ldcli/compare/v3.0.4...v3.1.0) (2026-04-28)
+
+
+### Features
+
+* [FD-5561] implement FDv2 polling endpoint GET /sdk/poll ([#701](https://github.com/launchdarkly/ldcli/issues/701)) ([8a1cda1](https://github.com/launchdarkly/ldcli/commit/8a1cda1be133629b820005ad62f507c17ad17a00))
+
 ## [3.0.4](https://github.com/launchdarkly/ldcli/compare/v3.0.3...v3.0.4) (2026-04-21)
 
 
