@@ -47,14 +47,15 @@ func buildPollResponse(payloadID string, currentVersion int, flags model.FlagsSt
 	switch {
 	case basisVersion == 0:
 		return buildFullTransferResponse(payloadID, currentVersion, flags, fdv2ReasonPayloadMissing)
-	case basisVersion >= currentVersion:
+	case basisVersion == currentVersion:
 		event, err := makeServerIntentEvent(payloadID, currentVersion, subsystems.IntentNone, fdv2ReasonUpToDate)
 		if err != nil {
 			return subsystems.PollingPayload{}, err
 		}
 		return subsystems.PollingPayload{Events: []subsystems.RawEvent{event}}, nil
 	default:
-		// Stale: we don't store history so we can't compute a delta — send the full payload.
+		// basisVersion < currentVersion (stale) or > currentVersion (e.g. project was recreated):
+		// either way we can't compute a delta — send the full payload.
 		return buildFullTransferResponse(payloadID, currentVersion, flags, fdv2ReasonCantCatchup)
 	}
 }

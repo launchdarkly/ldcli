@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -66,12 +67,13 @@ func TestBuildPollResponse(t *testing.T) {
 		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, subsystems.IntentNone, fdv2ReasonUpToDate)
 	})
 
-	t.Run("basis ahead of current version sends none with up-to-date", func(t *testing.T) {
+	t.Run("basis ahead of current version sends full transfer (e.g. project recreated)", func(t *testing.T) {
 		resp, err := buildPollResponse(payloadID, currentVersion, flags, currentVersion+10)
 		require.NoError(t, err)
 
-		require.Len(t, resp.Events, 1)
-		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, subsystems.IntentNone, fdv2ReasonUpToDate)
+		require.GreaterOrEqual(t, len(resp.Events), 3)
+		assertServerIntentEvent(t, resp.Events[0], payloadID, currentVersion, subsystems.IntentTransferFull, fdv2ReasonCantCatchup)
+		assertPayloadTransferredEvent(t, resp.Events[len(resp.Events)-1], payloadID, currentVersion)
 	})
 
 	t.Run("stale basis sends xfer-full with cant-catchup", func(t *testing.T) {
@@ -155,6 +157,24 @@ func TestPollV2Handler(t *testing.T) {
 
 		basisState := fmt.Sprintf("(p:%s:%d)", exampleProjectKey, project.PayloadVersion)
 		req := httptest.NewRequest(http.MethodGet, "/sdk/poll?basis="+basisState, nil)
+		req.Header.Set("Authorization", exampleProjectKey)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var resp subsystems.PollingPayload
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+		require.Len(t, resp.Events, 1)
+		assertServerIntentEvent(t, resp.Events[0], exampleProjectKey, 3, subsystems.IntentNone, fdv2ReasonUpToDate)
+	})
+
+	t.Run("url-encoded basis is decoded correctly", func(t *testing.T) {
+		store.EXPECT().GetDevProject(gomock.Any(), exampleProjectKey).Return(project, nil)
+		store.EXPECT().GetOverridesForProject(gomock.Any(), exampleProjectKey).Return(nil, nil)
+
+		basisState := fmt.Sprintf("(p:%s:%d)", exampleProjectKey, project.PayloadVersion)
+		req := httptest.NewRequest(http.MethodGet, "/sdk/poll?basis="+url.QueryEscape(basisState), nil)
 		req.Header.Set("Authorization", exampleProjectKey)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
