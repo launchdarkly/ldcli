@@ -188,8 +188,9 @@ func TestUpdateProject(t *testing.T) {
 		observer.
 			EXPECT().
 			Handle(model.SyncEvent{
-				ProjectKey:    proj.Key,
-				AllFlagsState: model.FromAllFlags(allFlagsState),
+				ProjectKey:     proj.Key,
+				AllFlagsState:  model.FromAllFlags(allFlagsState),
+				PayloadVersion: 2,
 			})
 
 		project, err := model.UpdateProject(ctx, proj.Key, nil, nil)

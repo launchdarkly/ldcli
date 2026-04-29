@@ -29,8 +29,9 @@ func RestoreDb(ctx context.Context, stream io.Reader) error {
 			return err
 		}
 		observers.Notify(SyncEvent{
-			ProjectKey:    project.Key,
-			AllFlagsState: allFlagsWithOverrides,
+			ProjectKey:     project.Key,
+			AllFlagsState:  allFlagsWithOverrides,
+			PayloadVersion: project.PayloadVersion,
 		})
 	}
 
