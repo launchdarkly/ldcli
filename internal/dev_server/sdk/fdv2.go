@@ -40,7 +40,7 @@ func parseBasis(basis string) (string, int) {
 	return inner[:lastColon], version
 }
 
-// buildPollResponse constructs the FDv2 polling response.
+// buildInitialResponse constructs the FDv2 initial response for both polling and streaming.
 //
 // payloadID is the stable identifier for this payload (the project key).
 // currentVersion is the project's current PayloadVersion.
@@ -49,7 +49,7 @@ func parseBasis(basis string) (string, int) {
 //
 // Delta transfers are not supported: stale clients always receive a full payload.
 // Tracking the change history required for deltas is overkill for a local dev server.
-func buildPollResponse(payloadID string, currentVersion int, flags model.FlagsState, basis string) (subsystems.PollingPayload, error) {
+func buildInitialResponse(payloadID string, currentVersion int, flags model.FlagsState, basis string) (subsystems.PollingPayload, error) {
 	basisPayloadID, basisVersion := parseBasis(basis)
 	switch {
 	case basisVersion == 0:

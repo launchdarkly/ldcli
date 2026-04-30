@@ -27,7 +27,7 @@ func StreamV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	initialPayload, err := buildFullTransferResponse(projectKey, project.PayloadVersion, allFlags, fdv2ReasonPayloadMissing)
+	initialPayload, err := buildInitialResponse(projectKey, project.PayloadVersion, allFlags, r.URL.Query().Get("basis"))
 	if err != nil {
 		WriteError(ctx, w, errors.Wrap(err, "failed to build initial payload"))
 		return
