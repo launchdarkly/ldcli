@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
@@ -28,72 +27,41 @@ func StreamV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		WriteError(ctx, w, errors.New("streaming not supported"))
-		return
-	}
-
 	initialPayload, err := buildFullTransferResponse(projectKey, project.PayloadVersion, allFlags, fdv2ReasonPayloadMissing)
 	if err != nil {
 		WriteError(ctx, w, errors.Wrap(err, "failed to build initial payload"))
 		return
 	}
 
-	// Register observer before writing to the client so that any changes arriving
-	// during the initial write are queued and delivered immediately after.
-	updateChan := make(chan []subsystems.RawEvent, 10)
-	observerID := model.GetObserversFromContext(ctx).RegisterObserver(fdv2StreamObserver{
-		updateChan: updateChan,
-		projectKey: projectKey,
-	})
+	updateChan, doneChan := OpenStream(w, r.Context().Done(), fdv2SSEPayload(initialPayload.Events))
+	defer close(updateChan)
+
+	observer := fdv2StreamObserver{updateChan: updateChan, projectKey: projectKey}
+	observerID := model.GetObserversFromContext(ctx).RegisterObserver(observer)
 	defer func() {
 		if ok := model.GetObserversFromContext(ctx).DeregisterObserver(observerID); !ok {
 			log.Printf("unable to deregister fdv2 stream observer")
 		}
 	}()
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-
-	if err := writeFDv2SSEEvents(w, flusher, initialPayload.Events); err != nil {
-		return
-	}
-
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case events := <-updateChan:
-			if err := writeFDv2SSEEvents(w, flusher, events); err != nil {
-				return
-			}
-		case <-ticker.C:
-			// SSE comment line as a keepalive.
-			if _, err := w.Write([]byte(":\n\n")); err != nil {
-				return
-			}
-			flusher.Flush()
-		case <-ctx.Done():
-			return
-		}
+	err = <-doneChan
+	if err != nil {
+		WriteError(ctx, w, errors.Wrap(err, "stream failure"))
 	}
 }
 
-// writeFDv2SSEEvents writes a batch of FDv2 events to the response as individual SSE events.
-func writeFDv2SSEEvents(w http.ResponseWriter, flusher http.Flusher, events []subsystems.RawEvent) error {
-	for _, event := range events {
-		if _, err := fmt.Fprintf(w, "event:%s\ndata:%s\n\n", event.Name, event.Data); err != nil {
-			return err
-		}
+// fdv2SSEPayload formats a slice of FDv2 events as raw SSE bytes.
+// Each event becomes an individual SSE event in the output.
+func fdv2SSEPayload(events []subsystems.RawEvent) []byte {
+	var buf []byte
+	for _, e := range events {
+		buf = append(buf, fmt.Sprintf("event:%s\ndata:%s\n\n", e.Name, e.Data)...)
 	}
-	flusher.Flush()
-	return nil
+	return buf
 }
 
 type fdv2StreamObserver struct {
-	updateChan chan<- []subsystems.RawEvent
+	updateChan chan<- []byte
 	projectKey string
 }
 
@@ -107,7 +75,7 @@ func (o fdv2StreamObserver) Handle(event interface{}) {
 		if err != nil {
 			panic(errors.Wrap(err, "failed to build flag change events in fdv2 stream observer"))
 		}
-		o.updateChan <- events
+		o.updateChan <- fdv2SSEPayload(events)
 	case model.SyncEvent:
 		if event.ProjectKey != o.projectKey {
 			return
@@ -116,6 +84,6 @@ func (o fdv2StreamObserver) Handle(event interface{}) {
 		if err != nil {
 			panic(errors.Wrap(err, "failed to build full transfer in fdv2 stream observer"))
 		}
-		o.updateChan <- payload.Events
+		o.updateChan <- fdv2SSEPayload(payload.Events)
 	}
 }

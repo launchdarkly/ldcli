@@ -123,7 +123,7 @@ func makePutObjectEvent(version int, key string, flagState model.FlagState) (sub
 	return subsystems.RawEvent{Name: subsystems.EventPutObject, Data: data}, nil
 }
 
-// buildFlagChangeEvents builds the three-event sequence for a single flag update pushed over a stream:
+// buildFlagChangeEvents builds the events sequence for a single flag update pushed over a stream:
 // server-intent(xfer-changes) + put-object(changed flag) + payload-transferred.
 func buildFlagChangeEvents(payloadID string, version int, flagKey string, flagState model.FlagState) ([]subsystems.RawEvent, error) {
 	intentEvent, err := makeServerIntentEvent(payloadID, version, subsystems.IntentTransferChanges, fdv2ReasonUpdate)
