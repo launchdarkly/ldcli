@@ -14,6 +14,7 @@ const (
 	fdv2ReasonUpToDate       = "up-to-date"
 	fdv2ReasonCantCatchup    = "cant-catchup"
 	fdv2ReasonPayloadMissing = "payload-missing"
+	fdv2ReasonUpdate         = "update"
 )
 
 // parseBasis extracts the payload ID and version from a basis state string of the
@@ -39,7 +40,7 @@ func parseBasis(basis string) (string, int) {
 	return inner[:lastColon], version
 }
 
-// buildPollResponse constructs the FDv2 polling response.
+// buildInitialResponse constructs the FDv2 initial response for both polling and streaming.
 //
 // payloadID is the stable identifier for this payload (the project key).
 // currentVersion is the project's current PayloadVersion.
@@ -48,7 +49,7 @@ func parseBasis(basis string) (string, int) {
 //
 // Delta transfers are not supported: stale clients always receive a full payload.
 // Tracking the change history required for deltas is overkill for a local dev server.
-func buildPollResponse(payloadID string, currentVersion int, flags model.FlagsState, basis string) (subsystems.PollingPayload, error) {
+func buildInitialResponse(payloadID string, currentVersion int, flags model.FlagsState, basis string) (subsystems.PollingPayload, error) {
 	basisPayloadID, basisVersion := parseBasis(basis)
 	switch {
 	case basisVersion == 0:
@@ -122,11 +123,29 @@ func makePutObjectEvent(version int, key string, flagState model.FlagState) (sub
 	return subsystems.RawEvent{Name: subsystems.EventPutObject, Data: data}, nil
 }
 
+// buildFlagChangeEvents builds the events sequence for a single flag update pushed over a stream:
+// server-intent(xfer-changes) + put-object(changed flag) + payload-transferred.
+func buildFlagChangeEvents(payloadID string, version int, flagKey string, flagState model.FlagState) ([]subsystems.RawEvent, error) {
+	intentEvent, err := makeServerIntentEvent(payloadID, version, subsystems.IntentTransferChanges, fdv2ReasonUpdate)
+	if err != nil {
+		return nil, err
+	}
+	putEvent, err := makePutObjectEvent(version, flagKey, flagState)
+	if err != nil {
+		return nil, err
+	}
+	transferredEvent, err := makePayloadTransferredEvent(payloadID, version)
+	if err != nil {
+		return nil, err
+	}
+	return []subsystems.RawEvent{intentEvent, putEvent, transferredEvent}, nil
+}
+
 func makePayloadTransferredEvent(payloadID string, version int) (subsystems.RawEvent, error) {
 	// The selector state is synthetic and dev-server-specific: the dev server uses the
 	// project key as the payload ID rather than a server-assigned opaque value. The SDK
-	// echoes this selector back as ?basis on subsequent polls, where parseBasisVersion
-	// extracts the version from it.
+	// echoes this selector back as ?basis on subsequent polls, where parseBasis
+	// extracts the payload ID and version from it.
 	selector := subsystems.NewSelector(fmt.Sprintf("(p:%s:%d)", payloadID, version), version)
 	data, err := json.Marshal(selector)
 	if err != nil {

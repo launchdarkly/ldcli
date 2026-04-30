@@ -53,7 +53,7 @@ func TestRestoreDb(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(&proj, nil)
 		store.EXPECT().GetOverridesForProject(gomock.Any(), projKey).Return(model.Overrides{}, nil)
 		observer := mocks.NewMockObserver(mockController)
-		observer.EXPECT().Handle(model.SyncEvent{ProjectKey: projKey, AllFlagsState: proj.AllFlagsState})
+		observer.EXPECT().Handle(model.SyncEvent{ProjectKey: projKey, AllFlagsState: proj.AllFlagsState, PayloadVersion: proj.PayloadVersion})
 
 		observers.RegisterObserver(observer)
 

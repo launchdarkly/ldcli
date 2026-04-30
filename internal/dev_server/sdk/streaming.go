@@ -28,10 +28,11 @@ func (m Message) ToPayload() []byte {
 	return payload
 }
 
-// OpenStream sends data to a response using the initial payload and subsequently via the returned write only channel
-func OpenStream(w http.ResponseWriter, done <-chan struct{}, initialMessage Message) (chan<- Message, <-chan error) {
+// OpenStream sets SSE headers, writes initialPayload, and starts the SSE loop.
+// Each []byte sent to the returned channel is written verbatim to the response.
+func OpenStream(w http.ResponseWriter, done <-chan struct{}, initialPayload []byte) (chan<- []byte, <-chan error) {
 	errChan := make(chan error)
-	updateChan := make(chan Message, 10)
+	updateChan := make(chan []byte, 10)
 	go func() {
 		var err error
 		defer func() {
@@ -45,7 +46,7 @@ func OpenStream(w http.ResponseWriter, done <-chan struct{}, initialMessage Mess
 			}
 
 			w.Header().Set("Content-Type", "text/event-stream")
-			_, err = w.Write(initialMessage.ToPayload())
+			_, err = w.Write(initialPayload)
 			if err != nil {
 				return errors.Wrap(err, "unable to write response")
 			}
@@ -60,8 +61,8 @@ func OpenStream(w http.ResponseWriter, done <-chan struct{}, initialMessage Mess
 						return errors.Wrap(err, "unable to write response")
 					}
 					flusher.Flush()
-				case msg := <-updateChan:
-					_, err = w.Write(msg.ToPayload())
+				case payload := <-updateChan:
+					_, err = w.Write(payload)
 					if err != nil {
 						return errors.Wrap(err, "unable to write response")
 					}
@@ -77,7 +78,7 @@ func OpenStream(w http.ResponseWriter, done <-chan struct{}, initialMessage Mess
 }
 
 func SendMessage(
-	updateChan chan<- Message,
+	updateChan chan<- []byte,
 	msgType MessageType,
 	data interface{},
 ) error {
@@ -89,7 +90,7 @@ func SendMessage(
 	updateChan <- Message{
 		Event: msgType,
 		Data:  payload,
-	}
+	}.ToPayload()
 
 	return nil
 }

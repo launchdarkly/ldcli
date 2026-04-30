@@ -101,8 +101,9 @@ func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Co
 	}
 
 	GetObserversFromContext(ctx).Notify(SyncEvent{
-		ProjectKey:    project.Key,
-		AllFlagsState: allFlagsWithOverrides,
+		ProjectKey:     project.Key,
+		AllFlagsState:  allFlagsWithOverrides,
+		PayloadVersion: project.PayloadVersion,
 	})
 	return *project, nil
 }
