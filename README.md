@@ -8,7 +8,6 @@ The LaunchDarkly CLI helps you manage your feature flags from your terminal or y
 
 With the CLI, you can:
 
-- Create and evaluate your first feature flag with a guided `setup` command.
 - Onboard your whole team by inviting new members.
 - Interact with the [LaunchDarkly API](https://apidocs.launchdarkly.com/) using resource- and CRUD-based commands.
 
@@ -104,7 +103,6 @@ Effective output is resolved in this order: **`--json`** (if set, wins over `--o
 
 LaunchDarkly CLI commands:
 
-- `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
 - `dev-server` lets you start a local server and retrieve flag values from a LaunchDarkly source environment so you can test your code locally. For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
 
 ### Resource Commands
