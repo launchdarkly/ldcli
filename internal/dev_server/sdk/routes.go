@@ -22,6 +22,7 @@ func BindRoutes(router *mux.Router) {
 	router.Handle("/all", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamServerAllPayload)))
 	router.Handle("/sdk/latest-all", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(LatestAll)))
 	router.Handle("/sdk/poll", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(PollV2)))
+	router.Handle("/sdk/stream", GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(StreamV2)))
 
 	router.PathPrefix("/sdk/flags/{flagKey}").
 		Methods(http.MethodGet).

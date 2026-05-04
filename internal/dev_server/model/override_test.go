@@ -77,9 +77,10 @@ func TestUpsertOverride(t *testing.T) {
 		observer.
 			EXPECT().
 			Handle(model.OverrideEvent{
-				FlagKey:    flagKey,
-				ProjectKey: projKey,
-				FlagState:  model.FlagState{Value: ldvalue.Bool(true), Version: 2, TrackEvents: true},
+				FlagKey:        flagKey,
+				ProjectKey:     projKey,
+				FlagState:      model.FlagState{Value: ldvalue.Bool(true), Version: 2, TrackEvents: true},
+				PayloadVersion: 1,
 			})
 
 		o, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
@@ -139,6 +140,7 @@ func TestDeleteOverride(t *testing.T) {
 					Value:   ldvalue.Bool(false),
 					Version: 3, // override version 2 + flag version 1
 				},
+				PayloadVersion: 1,
 			})
 
 		err := model.DeleteOverride(ctx, projKey, flagKey)

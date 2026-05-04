@@ -16,10 +16,10 @@ import (
 type sdkEventObserver struct {
 	ctx             context.Context
 	debugSessionKey string
-	updateChan      chan<- sdk.Message
+	updateChan      chan<- []byte
 }
 
-func newSdkEventObserver(updateChan chan<- sdk.Message, ctx context.Context) sdkEventObserver {
+func newSdkEventObserver(updateChan chan<- []byte, ctx context.Context) sdkEventObserver {
 	debugSessionKey := uuid.New().String()
 	db := model.EventStoreFromContext(ctx)
 	err := db.CreateDebugSession(ctx, debugSessionKey)
@@ -54,14 +54,14 @@ func (o sdkEventObserver) Handle(message interface{}) {
 		return
 	}
 
-	o.updateChan <- sdk.Message{Event: sdk.TYPE_PUT, Data: str}
+	o.updateChan <- sdk.Message{Event: sdk.TYPE_PUT, Data: str}.ToPayload()
 }
 
 func SdkEventsTeeHandler(writer http.ResponseWriter, request *http.Request) {
 	updateChan, errChan := sdk.OpenStream(
 		writer,
 		request.Context().Done(),
-		sdk.Message{Event: sdk.TYPE_PUT, Data: []byte{}},
+		sdk.Message{Event: sdk.TYPE_PUT, Data: []byte{}}.ToPayload(),
 	)
 	defer close(updateChan)
 	observers := model.GetObserversFromContext(request.Context())

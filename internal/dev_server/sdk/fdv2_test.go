@@ -53,7 +53,7 @@ func TestBuildPollResponse(t *testing.T) {
 	}
 
 	t.Run("no basis sends xfer-full with payload-missing", func(t *testing.T) {
-		resp, err := buildPollResponse(payloadID, currentVersion, flags, "")
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, "")
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3) // server-intent + put-objects + payload-transferred
@@ -64,7 +64,7 @@ func TestBuildPollResponse(t *testing.T) {
 
 	t.Run("up-to-date basis sends none with up-to-date", func(t *testing.T) {
 		basis := fmt.Sprintf("(p:%s:%d)", payloadID, currentVersion)
-		resp, err := buildPollResponse(payloadID, currentVersion, flags, basis)
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis)
 		require.NoError(t, err)
 
 		require.Len(t, resp.Events, 1)
@@ -73,7 +73,7 @@ func TestBuildPollResponse(t *testing.T) {
 
 	t.Run("basis ahead of current version sends full transfer (e.g. project recreated)", func(t *testing.T) {
 		basis := fmt.Sprintf("(p:%s:%d)", payloadID, currentVersion+10)
-		resp, err := buildPollResponse(payloadID, currentVersion, flags, basis)
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis)
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3)
@@ -83,7 +83,7 @@ func TestBuildPollResponse(t *testing.T) {
 
 	t.Run("stale basis sends xfer-full with cant-catchup", func(t *testing.T) {
 		basis := fmt.Sprintf("(p:%s:%d)", payloadID, currentVersion-1)
-		resp, err := buildPollResponse(payloadID, currentVersion, flags, basis)
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis)
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3)
@@ -93,7 +93,7 @@ func TestBuildPollResponse(t *testing.T) {
 
 	t.Run("basis with wrong payload ID sends xfer-full", func(t *testing.T) {
 		basis := fmt.Sprintf("(p:%s:%d)", "other-project", currentVersion)
-		resp, err := buildPollResponse(payloadID, currentVersion, flags, basis)
+		resp, err := buildInitialResponse(payloadID, currentVersion, flags, basis)
 		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, len(resp.Events), 3)
@@ -106,7 +106,7 @@ func TestBuildPollResponse(t *testing.T) {
 			"flag-a": model.FlagState{Value: ldvalue.Bool(true), Version: 1},
 			"flag-b": model.FlagState{Value: ldvalue.String("hello"), Version: 2},
 		}
-		resp, err := buildPollResponse(payloadID, currentVersion, multiFlags, "")
+		resp, err := buildInitialResponse(payloadID, currentVersion, multiFlags, "")
 		require.NoError(t, err)
 
 		// server-intent + 2 put-objects + payload-transferred

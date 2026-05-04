@@ -25,7 +25,7 @@ func PollV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := buildPollResponse(projectKey, project.PayloadVersion, allFlags, r.URL.Query().Get("basis"))
+	response, err := buildInitialResponse(projectKey, project.PayloadVersion, allFlags, r.URL.Query().Get("basis"))
 	if err != nil {
 		WriteError(ctx, w, errors.Wrap(err, "failed to build poll response"))
 		return

@@ -60,15 +60,16 @@ func UpsertOverride(ctx context.Context, projectKey, flagKey string, value ldval
 		return Override{}, err
 	}
 
-	_, err = store.IncrementProjectPayloadVersion(ctx, projectKey)
+	newPayloadVersion, err := store.IncrementProjectPayloadVersion(ctx, projectKey)
 	if err != nil {
 		return Override{}, errors.Wrap(err, "unable to increment payload version")
 	}
 
 	GetObserversFromContext(ctx).Notify(OverrideEvent{
-		FlagKey:    flagKey,
-		ProjectKey: projectKey,
-		FlagState:  override.Apply(flagState),
+		FlagKey:        flagKey,
+		ProjectKey:     projectKey,
+		FlagState:      override.Apply(flagState),
+		PayloadVersion: newPayloadVersion,
 	})
 	return override, nil
 }
@@ -84,7 +85,7 @@ func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
 		return err
 	}
 
-	_, err = store.IncrementProjectPayloadVersion(ctx, projectKey)
+	newPayloadVersion, err := store.IncrementProjectPayloadVersion(ctx, projectKey)
 	if err != nil {
 		return errors.Wrap(err, "unable to increment payload version")
 	}
@@ -97,9 +98,10 @@ func DeleteOverride(ctx context.Context, projectKey, flagKey string) error {
 		Version:    version,
 	}
 	GetObserversFromContext(ctx).Notify(OverrideEvent{
-		FlagKey:    flagKey,
-		ProjectKey: projectKey,
-		FlagState:  override.Apply(flagState),
+		FlagKey:        flagKey,
+		ProjectKey:     projectKey,
+		FlagState:      override.Apply(flagState),
+		PayloadVersion: newPayloadVersion,
 	})
 	return err
 }
