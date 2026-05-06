@@ -318,7 +318,7 @@ func (op *OperationCmd) makeRequest(cmd *cobra.Command, args []string) error {
 			case "path":
 				urlParms = append(urlParms, val)
 			case "query":
-				query.Add(p.Name, val)
+				query.Add(strcase.ToLowerCamel(p.Name), val)
 			}
 		}
 	}

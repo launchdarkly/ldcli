@@ -8,7 +8,35 @@ import (
 
 	"github.com/launchdarkly/ldcli/cmd"
 	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
+
+func TestKebabCaseQueryParamConversion(t *testing.T) {
+	mockClient := &resources.MockClient{
+		Response: []byte(`{"items": []}`),
+	}
+
+	t.Run("converts kebab-case flag --with-branches to camelCase query param withBranches", func(t *testing.T) {
+		args := []string{
+			"code-refs", "list-repositories",
+			"--access-token", "abcd1234",
+			"--with-branches", "true",
+		}
+
+		_, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{
+				ResourcesClient: mockClient,
+			},
+			analytics.NoopClientFn{}.Tracker(),
+			args,
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, "true", mockClient.Query.Get("withBranches"), "query param should be camelCase withBranches, not kebab-case with-branches")
+		assert.Empty(t, mockClient.Query.Get("with-branches"), "kebab-case with-branches should not appear in query")
+	})
+}
 
 func TestCreateTeam(t *testing.T) {
 	t.Run("help shows postTeam description", func(t *testing.T) {
