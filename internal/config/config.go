@@ -20,14 +20,15 @@ type ReadFile func(name string) ([]byte, error)
 
 // Config represents the data stored in the config file.
 type Config struct {
-	AccessToken     string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
-	AnalyticsOptOut *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
-	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
-	DevStreamURI    string `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
-	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
-	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
-	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
-	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
+	AccessToken       string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
+	AnalyticsOptOut   *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
+	BaseURI           string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
+	DevStreamURI      string `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
+	Environment       string `json:"environment,omitempty" yaml:"environment,omitempty"`
+	Flag              string `json:"flag,omitempty" yaml:"flag,omitempty"`
+	Output            string `json:"output,omitempty" yaml:"output,omitempty"`
+	Project           string `json:"project,omitempty" yaml:"project,omitempty"`
+	UpdateCheckOptOut *bool  `json:"update-check-opt-out,omitempty" yaml:"update-check-opt-out,omitempty"`
 }
 
 func New(filename string, readFile ReadFile) (Config, error) {
@@ -95,6 +96,13 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 				c.Output = val.String()
 			case cliflags.ProjectFlag:
 				c.Project = v
+			case cliflags.UpdateCheckOptOut:
+				val, err := strconv.ParseBool(v)
+				if err != nil {
+					return Config{}, nil, errors.NewError("update-check-opt-out must be true or false")
+				}
+
+				c.UpdateCheckOptOut = &val
 			}
 		}
 	}
