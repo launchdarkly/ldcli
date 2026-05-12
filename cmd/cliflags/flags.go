@@ -28,11 +28,13 @@ const (
 	PortDefault         = "8765"
 
 	AccessTokenFlag  = "access-token"
+	AllFlag          = "all"
 	AnalyticsOptOut  = "analytics-opt-out"
 	BaseURIFlag      = "base-uri"
 	CorsEnabledFlag  = "cors-enabled"
 	CorsOriginFlag   = "cors-origin"
 	DataFlag         = "data"
+	DetailedFlag     = "detailed"
 	DryRunFlag       = "dry-run"
 	DevStreamURIFlag = "dev-stream-uri"
 	EmailsFlag       = "emails"
@@ -40,6 +42,7 @@ const (
 	FieldsFlag       = "fields"
 	FlagFlag         = "flag"
 	JSONFlag         = "json"
+	LimitFlag        = "limit"
 	OutputFlag       = "output"
 	PortFlag         = "port"
 	ProjectFlag      = "project"
@@ -47,22 +50,30 @@ const (
 	SyncOnceFlag     = "sync-once"
 
 	AccessTokenFlagDescription = "LaunchDarkly access token with write-level access"
+	AllFlagDescription         = "Return all rollouts (ignores --limit; subject to upstream API limits per API-PAPERCUTS.md PC-003)"
 	AnalyticsOptOutDescription = "Opt out of analytics tracking"
 	BaseURIFlagDescription     = "LaunchDarkly base URI"
 	CorsEnabledFlagDescription = "Enable CORS headers for browser-based developer tools (default: false)"
 	CorsOriginFlagDescription  = "Allowed CORS origin. Use '*' for all origins (default: '*')"
+	DetailedFlagDescription    = "Plaintext only: include variations, ended-at, current stage index, raw API status. Ignored in JSON output (which always emits the full field set)."
 	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
 	DryRunFlagDescription      = "Validate the change without persisting it. Returns a preview of the result."
 	EnvironmentFlagDescription = "Default environment key"
 	FieldsFlagDescription      = "Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)"
 	FlagFlagDescription        = "Default feature flag key"
 	JSONFlagDescription        = "Output JSON format (shorthand for --output json)"
+	LimitFlagDescription       = "Maximum number of rollouts to return (default 20; ignored when --all is set)"
 	OutputFlagDescription      = "Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise)"
 	PortFlagDescription        = "Port for the dev server to run on"
 	ProjectFlagDescription     = "Default project key"
 	SyncOnceFlagDescription    = "Only sync new projects. Existing projects will neither be resynced nor have overrides specified by CLI flags applied."
 )
 
+// AllFlagsHelp returns the names + descriptions of flags that can be persisted as
+// user-level configuration via `ldcli config --set <flag>=<value>`. Per-command flags that
+// are only meaningful inside a single invocation (e.g. --all, --detailed, --limit on the
+// list verb) are intentionally NOT included here — those are local to the command and
+// should not pollute the config-file surface.
 func AllFlagsHelp() map[string]string {
 	return map[string]string{
 		AccessTokenFlag:  AccessTokenFlagDescription,
