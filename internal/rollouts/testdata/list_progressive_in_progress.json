@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "id": "01HXZ9PROG0001",
+      "flagKey": "ship-it",
+      "kind": "progressive",
+      "status": "in_progress",
+      "environmentId": "62de4daff32a8a16cf1a4e7d",
+      "environmentKey": "production",
+      "originalVariationId": "var-control-uuid",
+      "targetVariationId": "var-treatment-uuid",
+      "randomizationUnit": "user",
+      "ruleIdOrFallthrough": "fallthrough",
+      "createdAt": 1715353200000,
+      "startedAtMillis": 1715353200000,
+      "latestStageIndex": 0,
+      "stages": [
+        {"stageIndex": 0, "allocation": 25000, "durationMillis": 900000, "startedAtMillis": 1715353200000},
+        {"stageIndex": 1, "allocation": 50000, "durationMillis": 900000},
+        {"stageIndex": 2, "allocation": 100000, "durationMillis": 900000}
+      ],
+      "events": [],
+      "metricConfigurations": [],
+      "_links": {
+        "self": {"href": "/internal/projects/sandbox/flags/ship-it/automated-releases/01HXZ9PROG0001"}
+      }
+    }
+  ],
+  "_links": {
+    "self": {"href": "/internal/projects/sandbox/flags/ship-it/automated-releases"}
+  }
+}

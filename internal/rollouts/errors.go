@@ -1,6 +1,12 @@
 package rollouts
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/launchdarkly/ldcli/internal/errors"
+)
 
 // error.code enum values per FOUND-08 / D-01. The structured `error.code` taxonomy lives in the
 // JSON envelope; exit code stays 1 for any error (D-01). Plan 02 wires `mapAPIError` /
@@ -22,15 +28,15 @@ const (
 // one of the ErrCode* constants above so callers can switch on it.
 //
 // `RawBody` is intentionally NOT serialized — it may contain sensitive upstream details that
-// should not leak into the envelope on stdout (per T-01-02 in the plan threat model). The
+// should not leak into the envelope on stdout (per T-02-02 in the plan threat model). The
 // command-layer wrapper marshals `Code` / `Message` / `NextAction` into the envelope and
 // discards `RawBody`.
 type RolloutError struct {
-	Code       string
-	Message    string
-	NextAction string
-	StatusCode int
-	RawBody    []byte
+	Code       string `json:"-"`
+	Message    string `json:"-"`
+	NextAction string `json:"-"`
+	StatusCode int    `json:"-"`
+	RawBody    []byte `json:"-"`
 }
 
 // Error implements the standard error interface, returning the user-facing message.
@@ -49,27 +55,124 @@ func (e *RolloutError) Is(target error) bool {
 	return false
 }
 
-// mapAPIError is the Phase 1 skeleton — it returns a RolloutError with
-// Code=ErrCodeUnknownUpstream and a placeholder message that references the upstream status
-// code. Plan 02 replaces the body with a full status-code → error.code mapping table.
-func mapAPIError(body []byte, statusCode int) error {
-	return &RolloutError{
-		Code:       ErrCodeUnknownUpstream,
-		Message:    fmt.Sprintf("Phase 2 will refine; upstream returned %d", statusCode),
-		StatusCode: statusCode,
-		RawBody:    body,
-	}
+// apiErrorBody is the best-effort shape we attempt to unmarshal from upstream 4xx/5xx
+// responses. Both fields are optional — if unmarshal fails or the body lacks them we fall
+// back to status-code-derived strings.
+type apiErrorBody struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
-// mapTransportError is the Phase 1 skeleton — it returns a RolloutError with
-// Code=ErrCodeNetworkError and the underlying error's message. Plan 02 distinguishes timeouts,
-// DNS failures, and TLS errors.
+// mapAPIError converts an HTTP error response (status code >= 400) to a typed RolloutError
+// with one of the documented error.code enum values. It is the single source of truth for
+// the FOUND-08 status-code → error.code taxonomy. Per RESEARCH.md §"Mapping function":
+//
+//	401 → ErrCodeUnauthorized       (NextAction: ldcli config / login)
+//	403 → ErrCodeForbidden          (NextAction: role / scope hint)
+//	404 → ErrCodeNotFound           (NextAction: verify --flag/--project/--environment)
+//	409 → ErrCodeConflict           (Message: pass through API message)
+//	400 → ErrCodeBadRequest         (Message: pass through API message)
+//	429 → ErrCodeRateLimited        (NextAction: retry after backoff)
+//	5xx → ErrCodeUpstreamUnavailable (generic message; do NOT echo upstream body — T-02-03)
+//	else → ErrCodeUnknownUpstream   (last-resort sentinel)
+//
+// `errors.SuggestionForStatus` from internal/errors/suggestions.go is consulted for 401/403/
+// 404/409/429 to keep parity with existing CLI error envelopes; the RESEARCH-specified hint
+// is used as fallback when SuggestionForStatus returns empty.
+func mapAPIError(body []byte, statusCode int) error {
+	e := &RolloutError{StatusCode: statusCode, RawBody: body}
+
+	// Best-effort: attempt to unmarshal {"code": "...", "message": "..."} from the body.
+	var apiBody apiErrorBody
+	_ = json.Unmarshal(body, &apiBody)
+
+	switch {
+	case statusCode == http.StatusUnauthorized:
+		e.Code = ErrCodeUnauthorized
+		e.Message = "Access token rejected by LaunchDarkly"
+		e.NextAction = suggestionOrFallback(statusCode,
+			"Run `ldcli config --set access-token=<token>` or `ldcli login`")
+
+	case statusCode == http.StatusForbidden:
+		e.Code = ErrCodeForbidden
+		e.Message = "Access denied; token may lack required scope"
+		e.NextAction = suggestionOrFallback(statusCode,
+			"Verify your access token's role includes the required permission/scope on the target project")
+
+	case statusCode == http.StatusNotFound:
+		e.Code = ErrCodeNotFound
+		if apiBody.Message != "" {
+			e.Message = apiBody.Message
+		} else {
+			e.Message = "Resource not found"
+		}
+		e.NextAction = suggestionOrFallback(statusCode,
+			"Verify the --flag, --project, and --environment values are correct")
+
+	case statusCode == http.StatusConflict:
+		e.Code = ErrCodeConflict
+		if apiBody.Message != "" {
+			e.Message = apiBody.Message
+		} else {
+			e.Message = "Conflict"
+		}
+		e.NextAction = suggestionOrFallback(statusCode, "")
+
+	case statusCode == http.StatusBadRequest:
+		e.Code = ErrCodeBadRequest
+		if apiBody.Message != "" {
+			e.Message = apiBody.Message
+		} else {
+			e.Message = "Bad request"
+		}
+
+	case statusCode == http.StatusTooManyRequests:
+		e.Code = ErrCodeRateLimited
+		e.Message = "Rate limited by LaunchDarkly"
+		e.NextAction = suggestionOrFallback(statusCode,
+			"Retry after the Retry-After interval, or reduce request rate")
+
+	case statusCode >= 500 && statusCode < 600:
+		e.Code = ErrCodeUpstreamUnavailable
+		// Do NOT echo the upstream body for 5xx — it may contain sensitive infra detail
+		// (T-02-03). Use a generic message keyed off the status code only.
+		e.Message = fmt.Sprintf("LaunchDarkly returned %d %s", statusCode, http.StatusText(statusCode))
+		e.NextAction = "Retry; if persistent, check the LaunchDarkly status page"
+
+	default:
+		e.Code = ErrCodeUnknownUpstream
+		if apiBody.Message != "" {
+			e.Message = apiBody.Message
+		} else {
+			e.Message = fmt.Sprintf("Unexpected upstream response: %d", statusCode)
+		}
+	}
+	return e
+}
+
+// mapTransportError converts a transport-layer failure (network unreachable, TLS handshake
+// failure, DNS lookup failure) — surfaced after retryablehttp has exhausted its retry
+// envelope — to a typed RolloutError with Code = ErrCodeNetworkError.
 func mapTransportError(err error) error {
 	if err == nil {
 		return nil
 	}
 	return &RolloutError{
-		Code:    ErrCodeNetworkError,
-		Message: err.Error(),
+		Code:       ErrCodeNetworkError,
+		Message:    fmt.Sprintf("Network error: %v", err),
+		NextAction: "Check connectivity and retry; if persistent, check firewall/proxy settings",
 	}
+}
+
+// suggestionOrFallback returns the existing CLI-wide suggestion for the given status code
+// (via internal/errors/suggestions.go) when available, falling back to the RESEARCH-specified
+// rollouts-specific hint when SuggestionForStatus returns empty. The baseURI parameter is
+// not threaded through here (the rollouts call site doesn't have it during error mapping);
+// SuggestionForStatus tolerates an empty baseURI — the {baseURI} placeholder simply stays
+// unsubstituted, which is acceptable for the rollouts error path.
+func suggestionOrFallback(statusCode int, fallback string) string {
+	if s := errors.SuggestionForStatus(statusCode, ""); s != "" {
+		return s
+	}
+	return fallback
 }

@@ -1,0 +1,27 @@
+{
+  "id": "01HXZ9GRD0099",
+  "flagKey": "checkout-rewrite",
+  "kind": "guarded",
+  "status": "completed",
+  "environmentId": "62de4daff32a8a16cf1a4e7d",
+  "environmentKey": "production",
+  "originalVariationId": "var-control-uuid",
+  "targetVariationId": "var-treatment-uuid",
+  "randomizationUnit": "user",
+  "ruleIdOrFallthrough": "fallthrough",
+  "createdAt": 1715353200000,
+  "startedAtMillis": 1715353200000,
+  "endedAtMillis": 1715358000000,
+  "latestStageIndex": 1,
+  "stages": [
+    {"stageIndex": 0, "allocation": 10000, "durationMillis": 1800000, "startedAtMillis": 1715353200000},
+    {"stageIndex": 1, "allocation": 100000, "durationMillis": 1800000, "startedAtMillis": 1715355000000}
+  ],
+  "events": [],
+  "metricConfigurations": [
+    {"metricKey": "latency-p99", "minSampleSize": 1000, "autoRollback": false, "status": "ok"}
+  ],
+  "_links": {
+    "self": {"href": "/internal/projects/sandbox/environments/production/automated-releases/01HXZ9GRD0099"}
+  }
+}
