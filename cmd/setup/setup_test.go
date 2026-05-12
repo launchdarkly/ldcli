@@ -1,6 +1,8 @@
 package setup_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +11,7 @@ import (
 	"github.com/launchdarkly/ldcli/cmd"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
 func TestInit(t *testing.T) {
@@ -114,10 +117,12 @@ func TestInitUnsupportedSDKJSON(t *testing.T) {
 	assert.Contains(t, string(output), `"docs_url"`)
 }
 
-func TestDetectStubReturnsError(t *testing.T) {
+func TestDetect_UnknownProject_ReturnsError(t *testing.T) {
+	emptyDir := t.TempDir()
 	args := []string{
 		"setup", "detect",
 		"--access-token", "test-token",
+		"--path", emptyDir,
 	}
 	_, err := cmd.CallCmd(
 		t,
@@ -129,7 +134,138 @@ func TestDetectStubReturnsError(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not yet implemented")
+	assert.Contains(t, err.Error(), "could not detect")
+}
+
+func TestDetect_GoProject_ReturnsResult(t *testing.T) {
+	dir := t.TempDir()
+	err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/app\n\ngo 1.21\n"), 0600)
+	require.NoError(t, err)
+
+	args := []string{
+		"setup", "detect",
+		"--access-token", "test-token",
+		"--path", dir,
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), "go-server-sdk")
+}
+
+func TestDetect_JSON(t *testing.T) {
+	dir := t.TempDir()
+	err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/app\n\ngo 1.21\n"), 0600)
+	require.NoError(t, err)
+
+	args := []string{
+		"setup", "detect",
+		"--access-token", "test-token",
+		"--path", dir,
+		"--output", "json",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{ResourcesClient: &resources.MockClient{}},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), `"sdk_id":"go-server-sdk"`)
+}
+
+// mockInstaller is a simple Installer that returns a canned result, used to exercise
+// runInstall output paths without executing real package manager commands.
+type mockInstaller struct {
+	result *setup.InstallResult
+}
+
+func (m mockInstaller) Install(_ string, detection *setup.DetectResult) (*setup.InstallResult, error) {
+	if m.result != nil {
+		return m.result, nil
+	}
+	return &setup.InstallResult{
+		SDKID:   detection.SDKID,
+		Package: "@launchdarkly/node-server-sdk",
+		Command: "npm install @launchdarkly/node-server-sdk",
+		Success: true,
+	}, nil
+}
+
+func TestInstall_Plaintext(t *testing.T) {
+	args := []string{
+		"setup", "install",
+		"--access-token", "test-token",
+		"--sdk-id", "node-server",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+			Installer:       mockInstaller{},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), "node-server")
+	assert.Contains(t, string(output), "@launchdarkly/node-server-sdk")
+}
+
+func TestInstall_Plaintext_WithVersion(t *testing.T) {
+	args := []string{
+		"setup", "install",
+		"--access-token", "test-token",
+		"--sdk-id", "node-server",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+			Installer: mockInstaller{result: &setup.InstallResult{
+				SDKID:   "node-server",
+				Package: "@launchdarkly/node-server-sdk",
+				Version: "9.7.0",
+				Command: "npm install @launchdarkly/node-server-sdk",
+				Success: true,
+			}},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), "@launchdarkly/node-server-sdk@9.7.0")
+}
+
+func TestInstall_JSON(t *testing.T) {
+	args := []string{
+		"setup", "install",
+		"--access-token", "test-token",
+		"--sdk-id", "node-server",
+		"--output", "json",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+			Installer:       mockInstaller{},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), `"success":true`)
 }
 
 func TestInstallStubReturnsError(t *testing.T) {
@@ -142,6 +278,7 @@ func TestInstallStubReturnsError(t *testing.T) {
 		t,
 		cmd.APIClients{
 			ResourcesClient: &resources.MockClient{},
+			Installer:       setup.StubInstaller{},
 		},
 		analytics.NoopClientFn{}.Tracker(),
 		args,

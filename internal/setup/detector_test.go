@@ -1,6 +1,8 @@
 package setup
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,4 +23,188 @@ func TestStubInstaller_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "not yet implemented")
+}
+
+// writeDetectFile writes content to a file in dir, creating parent directories as needed.
+func writeDetectFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+}
+
+func TestFileDetector_DetectsReact(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0"}}`)
+	writeDetectFile(t, dir, "src/App.tsx", "// App")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "react-client-sdk", result.SDKID)
+	assert.Equal(t, "JavaScript", result.Language)
+	assert.Equal(t, "React", result.Framework)
+	assert.Equal(t, "npm", result.PackageManager)
+	assert.Equal(t, filepath.Join(dir, "src/App.tsx"), result.EntryPoint)
+}
+
+func TestFileDetector_DetectsNextJs(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0","next":"^14.0.0"}}`)
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "node-server", result.SDKID)
+	assert.Equal(t, "JavaScript", result.Language)
+	assert.Equal(t, "Next.js", result.Framework)
+}
+
+func TestFileDetector_DetectsNodeJs(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"express":"^4.0.0"}}`)
+	writeDetectFile(t, dir, "index.js", "// entry")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "node-server", result.SDKID)
+	assert.Equal(t, "JavaScript", result.Language)
+	assert.Empty(t, result.Framework)
+	assert.Equal(t, filepath.Join(dir, "index.js"), result.EntryPoint)
+}
+
+func TestFileDetector_DetectsGo(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "go.mod", "module example.com/myapp\n\ngo 1.21\n")
+	writeDetectFile(t, dir, "main.go", "package main\n")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "go-server-sdk", result.SDKID)
+	assert.Equal(t, "Go", result.Language)
+	assert.Equal(t, "go", result.PackageManager)
+	assert.Equal(t, filepath.Join(dir, "main.go"), result.EntryPoint)
+}
+
+func TestFileDetector_DetectsPython_RequirementsTxt(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "requirements.txt", "flask==3.0.0\n")
+	writeDetectFile(t, dir, "app.py", "# app")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "python-server-sdk", result.SDKID)
+	assert.Equal(t, "Python", result.Language)
+	assert.Equal(t, "pip", result.PackageManager)
+	assert.Equal(t, filepath.Join(dir, "app.py"), result.EntryPoint)
+}
+
+func TestFileDetector_DetectsPython_Pyproject(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "pyproject.toml", "[tool.poetry]\nname = \"myapp\"\n")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "python-server-sdk", result.SDKID)
+}
+
+func TestFileDetector_DetectsJava_PomXml(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "pom.xml", "<project></project>")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "java-server-sdk", result.SDKID)
+	assert.Equal(t, "Java", result.Language)
+	assert.Equal(t, "mvn", result.PackageManager)
+}
+
+func TestFileDetector_DetectsJava_BuildGradle(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "build.gradle", "plugins { id 'java' }")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "java-server-sdk", result.SDKID)
+	assert.Equal(t, "gradle", result.PackageManager)
+}
+
+func TestFileDetector_UnknownProject_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+
+	_, err := FileDetector{}.Detect(dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not detect")
+}
+
+func TestFileDetector_DetectsNodePM_Pnpm(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{}`)
+	writeDetectFile(t, dir, "pnpm-lock.yaml", "")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "pnpm", result.PackageManager)
+}
+
+func TestFileDetector_DetectsNodePM_Yarn(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{}`)
+	writeDetectFile(t, dir, "yarn.lock", "")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "yarn", result.PackageManager)
+}
+
+func TestFileDetector_EntryPointFallback_WhenNoneExist(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0"}}`)
+	// No src/App.tsx or other entry point files
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	// Falls back to last candidate
+	assert.NotEmpty(t, result.EntryPoint)
+}
+
+func TestFileDetector_MalformedPackageJSON_FallsThrough(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `not valid json {{{`)
+	// No other project indicators
+
+	_, err := FileDetector{}.Detect(dir)
+
+	// detectNode skips invalid JSON; no other indicators → error
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not detect")
+}
+
+func TestFirstExistingIn_EmptySlice_ReturnsEmpty(t *testing.T) {
+	result := firstExistingIn(t.TempDir(), []string{})
+	assert.Empty(t, result)
+}
+
+func TestFirstExistingIn_NoMatch_ReturnLastCandidate(t *testing.T) {
+	dir := t.TempDir()
+	result := firstExistingIn(dir, []string{"nonexistent.go", "also-nonexistent.go"})
+	assert.Equal(t, "also-nonexistent.go", result)
+}
+
+func TestFirstExistingIn_MatchesFirst(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "second.go", "")
+	writeDetectFile(t, dir, "first.go", "")
+	result := firstExistingIn(dir, []string{"first.go", "second.go"})
+	assert.Equal(t, "first.go", result)
 }
