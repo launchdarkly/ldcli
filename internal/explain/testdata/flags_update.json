@@ -1,0 +1,548 @@
+{
+  "command": "ldcli flags update",
+  "summary": "Update a feature flag using semantic patch, JSON patch, or JSON merge patch.",
+  "description": "Apply a partial update to a feature flag. Semantic patch is the recommended format for agents because it expresses intent (e.g. \"add a targeting rule\") rather than raw JSON pointers. Append `--semantic-patch` to switch the request Content-Type.",
+  "stability": "stable",
+  "httpMethod": "PATCH",
+  "path": "/api/v2/flags/{projectKey}/{featureFlagKey}",
+  "operationId": "patchFeatureFlag",
+  "inputs": [
+    {
+      "name": "project-key",
+      "location": "flag",
+      "type": "string",
+      "description": "The project key.",
+      "required": true
+    },
+    {
+      "name": "feature-flag-key",
+      "location": "flag",
+      "type": "string",
+      "description": "The feature flag key.",
+      "required": true
+    },
+    {
+      "name": "semantic-patch",
+      "location": "flag",
+      "type": "boolean",
+      "description": "Send the body as a semantic patch (recommended for agents).",
+      "default": false
+    },
+    {
+      "name": "ignore-conflicts",
+      "location": "flag",
+      "type": "boolean",
+      "description": "Apply the patch even if it conflicts with a pending scheduled change or approval request."
+    },
+    {
+      "name": "dry-run",
+      "location": "flag",
+      "type": "boolean",
+      "description": "Validate the patch without persisting. Returns a preview of the post-patch flag."
+    },
+    {
+      "name": "data",
+      "location": "flag",
+      "type": "object",
+      "description": "The patch body. Shape depends on --semantic-patch; see the `body` input below.",
+      "required": true,
+      "fields": [
+        {
+          "name": "comment",
+          "location": "",
+          "type": "string",
+          "description": "Free-text comment recorded with the change."
+        },
+        {
+          "name": "environmentKey",
+          "location": "",
+          "type": "string",
+          "description": "Required for instructions that mutate environment-specific state (addRule, addTargets, turnFlagOn, etc.). Omit for flag-level instructions."
+        },
+        {
+          "name": "instructions",
+          "location": "",
+          "type": "array",
+          "description": "Ordered list of mutation instructions; each element is an object with a `kind` field that determines the rest of the shape.",
+          "required": true,
+          "fields": [
+            {
+              "name": "[]",
+              "location": "",
+              "type": "object",
+              "description": "One semantic-patch instruction. The `kind` field selects which other fields apply.",
+              "fields": [
+                {
+                  "name": "kind",
+                  "location": "",
+                  "type": "string",
+                  "description": "Selects the instruction shape. See OneOf for per-kind parameters.",
+                  "required": true,
+                  "enum": [
+                    "turnFlagOn",
+                    "turnFlagOff",
+                    "addRule",
+                    "removeRule",
+                    "reorderRules",
+                    "addClauses",
+                    "removeClauses",
+                    "addValuesToClause",
+                    "removeValuesFromClause",
+                    "updateClause",
+                    "addTargets",
+                    "removeTargets",
+                    "clearTargets",
+                    "replaceTargets",
+                    "addUserTargets",
+                    "removeUserTargets",
+                    "clearUserTargets",
+                    "replaceUserTargets",
+                    "addPrerequisite",
+                    "removePrerequisite",
+                    "updatePrerequisite",
+                    "replacePrerequisites",
+                    "addVariation",
+                    "removeVariation",
+                    "updateVariation",
+                    "updateFallthroughVariationOrRollout",
+                    "updateOffVariation",
+                    "updateRuleVariationOrRollout",
+                    "updateDefaultVariation",
+                    "updateRuleDescription",
+                    "updateRuleTrackEvents",
+                    "updateTrackEvents",
+                    "updateTrackEventsFallthrough",
+                    "addTags",
+                    "removeTags",
+                    "addCustomProperties",
+                    "removeCustomProperties",
+                    "replaceCustomProperties",
+                    "updateName",
+                    "updateDescription",
+                    "updateMaintainerMember",
+                    "updateMaintainerTeam",
+                    "removeMaintainer",
+                    "makeFlagPermanent",
+                    "makeFlagTemporary",
+                    "turnOnClientSideAvailability",
+                    "turnOffClientSideAvailability",
+                    "archiveFlag",
+                    "restoreFlag",
+                    "deprecateFlag",
+                    "restoreDeprecatedFlag",
+                    "deleteFlag",
+                    "replaceRules"
+                  ]
+                }
+              ],
+              "oneOf": [
+                {
+                  "name": "addRule",
+                  "location": "",
+                  "type": "object",
+                  "description": "Append a new targeting rule. Requires environmentKey on the parent body.",
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "location": "",
+                      "type": "string",
+                      "required": true,
+                      "enum": [
+                        "addRule"
+                      ]
+                    },
+                    {
+                      "name": "clauses",
+                      "location": "",
+                      "type": "array",
+                      "description": "Array of clause objects (contextKind, attribute, op, negate, values).",
+                      "required": true
+                    },
+                    {
+                      "name": "beforeRuleId",
+                      "location": "",
+                      "type": "string",
+                      "description": "Optional: insert before this rule id rather than appending."
+                    },
+                    {
+                      "name": "variationId",
+                      "location": "",
+                      "type": "string",
+                      "description": "Serve this variation when the rule matches. Mutually exclusive with rolloutWeights."
+                    },
+                    {
+                      "name": "rolloutWeights",
+                      "location": "",
+                      "type": "object",
+                      "description": "Map of variationId -\u003e weight (0-100000 thousandths of a percent). Mutually exclusive with variationId."
+                    },
+                    {
+                      "name": "rolloutBucketBy",
+                      "location": "",
+                      "type": "string",
+                      "description": "Context attribute to bucket by."
+                    },
+                    {
+                      "name": "rolloutContextKind",
+                      "location": "",
+                      "type": "string",
+                      "default": "user"
+                    }
+                  ]
+                },
+                {
+                  "name": "removeRule",
+                  "location": "",
+                  "type": "object",
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "location": "",
+                      "type": "string",
+                      "required": true,
+                      "enum": [
+                        "removeRule"
+                      ]
+                    },
+                    {
+                      "name": "ruleId",
+                      "location": "",
+                      "type": "string",
+                      "description": "Rule id, from `flags get` under environments.\u003cenv\u003e.rules[]._id.",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "name": "addTargets",
+                  "location": "",
+                  "type": "object",
+                  "description": "Add individual context keys to a variation's targets.",
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "location": "",
+                      "type": "string",
+                      "required": true,
+                      "enum": [
+                        "addTargets"
+                      ]
+                    },
+                    {
+                      "name": "variationId",
+                      "location": "",
+                      "type": "string",
+                      "required": true
+                    },
+                    {
+                      "name": "values",
+                      "location": "",
+                      "type": "array",
+                      "description": "List of context keys (strings).",
+                      "required": true
+                    },
+                    {
+                      "name": "contextKind",
+                      "location": "",
+                      "type": "string",
+                      "default": "user"
+                    }
+                  ]
+                },
+                {
+                  "name": "removeTargets",
+                  "location": "",
+                  "type": "object",
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "location": "",
+                      "type": "string",
+                      "required": true,
+                      "enum": [
+                        "removeTargets"
+                      ]
+                    },
+                    {
+                      "name": "variationId",
+                      "location": "",
+                      "type": "string",
+                      "required": true
+                    },
+                    {
+                      "name": "values",
+                      "location": "",
+                      "type": "array",
+                      "required": true
+                    },
+                    {
+                      "name": "contextKind",
+                      "location": "",
+                      "type": "string",
+                      "default": "user"
+                    }
+                  ]
+                },
+                {
+                  "name": "turnFlagOn",
+                  "location": "",
+                  "type": "object",
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "location": "",
+                      "type": "string",
+                      "required": true,
+                      "enum": [
+                        "turnFlagOn"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "turnFlagOff",
+                  "location": "",
+                  "type": "object",
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "location": "",
+                      "type": "string",
+                      "required": true,
+                      "enum": [
+                        "turnFlagOff"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "updateName",
+                  "location": "",
+                  "type": "object",
+                  "description": "Flag-level rename; do NOT pass environmentKey.",
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "location": "",
+                      "type": "string",
+                      "required": true,
+                      "enum": [
+                        "updateName"
+                      ]
+                    },
+                    {
+                      "name": "value",
+                      "location": "",
+                      "type": "string",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "name": "addTags",
+                  "location": "",
+                  "type": "object",
+                  "description": "Flag-level; do NOT pass environmentKey.",
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "location": "",
+                      "type": "string",
+                      "required": true,
+                      "enum": [
+                        "addTags"
+                      ]
+                    },
+                    {
+                      "name": "values",
+                      "location": "",
+                      "type": "array",
+                      "description": "List of tag strings.",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "name": "archiveFlag",
+                  "location": "",
+                  "type": "object",
+                  "description": "Flag-level; equivalent to `ldcli flags archive`.",
+                  "fields": [
+                    {
+                      "name": "kind",
+                      "location": "",
+                      "type": "string",
+                      "required": true,
+                      "enum": [
+                        "archiveFlag"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "format": "json",
+    "type": "object",
+    "description": "The updated feature flag, including environment-specific targeting state.",
+    "fields": [
+      {
+        "name": "key",
+        "location": "",
+        "type": "string",
+        "description": "Flag key."
+      },
+      {
+        "name": "name",
+        "location": "",
+        "type": "string",
+        "description": "Human-readable flag name."
+      },
+      {
+        "name": "kind",
+        "location": "",
+        "type": "string",
+        "enum": [
+          "boolean",
+          "multivariate"
+        ]
+      },
+      {
+        "name": "_version",
+        "location": "",
+        "type": "integer",
+        "description": "Monotonic version, useful for optimistic locking on subsequent patches."
+      },
+      {
+        "name": "environments",
+        "location": "",
+        "type": "object",
+        "description": "Map of environment key to env-specific configuration (on/off, rules, targets, fallthrough)."
+      },
+      {
+        "name": "variations",
+        "location": "",
+        "type": "array",
+        "description": "Variation definitions; each element has _id, value, name."
+      }
+    ]
+  },
+  "errors": [
+    {
+      "code": "invalid_request",
+      "httpStatus": 400,
+      "description": "The patch body did not match the expected schema, or conflicts with a pending change.",
+      "remediation": "Re-read this explain output, in particular the instruction shape; if conflict, retry with --ignore-conflicts."
+    },
+    {
+      "code": "unauthorized",
+      "httpStatus": 401,
+      "description": "Access token missing or invalid.",
+      "remediation": "Confirm LD_ACCESS_TOKEN is set."
+    },
+    {
+      "code": "forbidden",
+      "httpStatus": 403,
+      "description": "Token lacks required role for this flag/project."
+    },
+    {
+      "code": "not_found",
+      "httpStatus": 404,
+      "description": "Project key or flag key not found."
+    },
+    {
+      "code": "approval_required",
+      "httpStatus": 405,
+      "description": "The environment requires approval before changing this flag's targeting."
+    },
+    {
+      "code": "conflict",
+      "httpStatus": 409,
+      "description": "The change would cause a pending scheduled change or approval request to fail.",
+      "remediation": "Retry with --ignore-conflicts=true, or resolve the pending change first."
+    }
+  ],
+  "examples": [
+    {
+      "title": "Add a percentage-rollout targeting rule",
+      "description": "Semantic patch with addRule + percentage rollout. Most common write the bench harness exercises.",
+      "args": [
+        "flags",
+        "update",
+        "--project-key",
+        "default",
+        "--feature-flag-key",
+        "new-checkout",
+        "--semantic-patch",
+        "--data",
+        "@-"
+      ],
+      "body": "{\n  \"environmentKey\": \"production\",\n  \"comment\": \"Roll out new checkout to 25% of users\",\n  \"instructions\": [\n    {\n      \"kind\": \"addRule\",\n      \"clauses\": [\n        {\"contextKind\": \"user\", \"attribute\": \"country\", \"op\": \"in\", \"negate\": false, \"values\": [\"US\"]}\n      ],\n      \"rolloutContextKind\": \"user\",\n      \"rolloutWeights\": {\n        \"2f43f67c-3e4e-4945-a18a-26559378ca00\": 25000,\n        \"e5830889-1ec5-4b0c-9cc9-c48790090c43\": 75000\n      }\n    }\n  ]\n}",
+      "result": "Returns the updated flag JSON with the new rule appended under environments.production.rules."
+    },
+    {
+      "title": "Add individual targets to a variation",
+      "description": "addTargets instruction; values is a list of context keys.",
+      "args": [
+        "flags",
+        "update",
+        "--project-key",
+        "default",
+        "--feature-flag-key",
+        "new-checkout",
+        "--semantic-patch",
+        "--data",
+        "@-"
+      ],
+      "body": "{\n  \"environmentKey\": \"production\",\n  \"instructions\": [\n    {\n      \"kind\": \"addTargets\",\n      \"contextKind\": \"user\",\n      \"variationId\": \"2f43f67c-3e4e-4945-a18a-26559378ca00\",\n      \"values\": [\"alice\", \"bob\"]\n    }\n  ]\n}"
+    },
+    {
+      "title": "Remove a targeting rule by id",
+      "description": "removeRule instruction; rule id comes from `flags get` under environments.\u003cenv\u003e.rules[]._id.",
+      "args": [
+        "flags",
+        "update",
+        "--project-key",
+        "default",
+        "--feature-flag-key",
+        "new-checkout",
+        "--semantic-patch",
+        "--data",
+        "@-"
+      ],
+      "body": "{\n  \"environmentKey\": \"production\",\n  \"instructions\": [\n    {\"kind\": \"removeRule\", \"ruleId\": \"a902ef4a-2faf-4eaf-88e1-ecc356708a29\"}\n  ]\n}"
+    },
+    {
+      "title": "Rename the flag (cross-environment)",
+      "description": "updateName does not require environmentKey; it updates a flag-level attribute.",
+      "args": [
+        "flags",
+        "update",
+        "--project-key",
+        "default",
+        "--feature-flag-key",
+        "new-checkout",
+        "--semantic-patch",
+        "--data",
+        "@-"
+      ],
+      "body": "{\n  \"instructions\": [\n    {\"kind\": \"updateName\", \"value\": \"Checkout v2\"}\n  ]\n}"
+    }
+  ],
+  "agentNotes": [
+    "Prefer --semantic-patch over raw JSON patch: it expresses intent and produces clearer diffs in audit log.",
+    "Use --dry-run first when constructing a non-trivial patch — it validates the body without mutating state.",
+    "Rule ids, clause ids, and variation ids are returned by `ldcli flags get`; copy them verbatim.",
+    "Instructions that mutate per-environment state (addRule, addTargets, etc.) require `environmentKey`. Flag-level instructions (updateName, addTags, archiveFlag) do not."
+  ],
+  "seeAlso": [
+    "ldcli flags get",
+    "ldcli flags toggle-on",
+    "ldcli flags toggle-off"
+  ]
+}

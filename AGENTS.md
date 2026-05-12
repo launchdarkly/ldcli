@@ -2,6 +2,19 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+## For LLM agents driving `ldcli` (not editing this repo)
+
+Before constructing a payload for any write command with non-trivial options —
+in particular anything that takes `--data` with a semantic patch (e.g.
+`ldcli flags update`, `ldcli segments update`, `ldcli expiring-targets update`)
+— call `ldcli explain <command-path> --json` first. It returns the full
+input schema (including the instruction catalog for semantic patches), the
+output shape, the error catalog, and curated examples in a single response.
+Use `ldcli explain --list` to discover which commands are covered today; for
+anything not yet covered, fall back to `<command> --help`. `explain` makes no
+API calls and requires no access token. See `docs/agent-explain.md` for the
+design and roadmap.
+
 ## Project Overview
 
 LaunchDarkly CLI (`ldcli`) — a Go CLI for managing LaunchDarkly feature flags. Built with Cobra/Viper, distributed via Homebrew, Docker, NPM, and GitHub Releases.

@@ -19,11 +19,12 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	configcmd "github.com/launchdarkly/ldcli/cmd/config"
 	devcmd "github.com/launchdarkly/ldcli/cmd/dev_server"
+	explaincmd "github.com/launchdarkly/ldcli/cmd/explain"
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
-	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
 	"github.com/launchdarkly/ldcli/internal/analytics"
@@ -31,6 +32,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/dev_server"
 	"github.com/launchdarkly/ldcli/internal/environments"
 	errs "github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/explain"
 	"github.com/launchdarkly/ldcli/internal/flags"
 	"github.com/launchdarkly/ldcli/internal/members"
 	"github.com/launchdarkly/ldcli/internal/projects"
@@ -128,6 +130,7 @@ func NewRootCommand(
 			for _, name := range []string{
 				"completion",
 				"config",
+				"explain",
 				"help",
 				"login",
 				"signup",
@@ -256,6 +259,7 @@ func NewRootCommand(
 	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(clients.ResourcesClient, analyticsTrackerFn, clients.DevClient))
+	cmd.AddCommand(explaincmd.NewExplainCmd(explain.DefaultRegistry()))
 	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 

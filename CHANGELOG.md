@@ -46,6 +46,10 @@
 
 ## [Unreleased]
 
+### Features
+
+* add `ldcli explain <command>` subcommand (draft proposal) that emits a machine-readable schema (inputs, outputs, errors, examples) for any command in a single call, eliminating multi-turn `--help` recursion for LLM agents. Initial curated coverage for `flags update` and `flags list`; see `docs/agent-explain.md` for the design and path to full coverage.
+
 ### ⚠ BREAKING CHANGES
 
 * When stdout is not a TTY, the default `--output` format is now **json** instead of plaintext. Scripts that assumed plaintext when output was piped or redirected should set `LD_OUTPUT=plaintext`, run `ldcli config --set output plaintext`, or pass `--output plaintext` (or `--output json` explicitly if you want JSON regardless of TTY). You can also set **`FORCE_TTY`** or **`LD_FORCE_TTY`** to any non-empty value to keep plaintext as the default when stdout is not a TTY, without changing the saved `output` setting.
