@@ -20,10 +20,11 @@ import (
 	configcmd "github.com/launchdarkly/ldcli/cmd/config"
 	devcmd "github.com/launchdarkly/ldcli/cmd/dev_server"
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
+	rolloutscmd "github.com/launchdarkly/ldcli/cmd/flags/rollouts"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
-	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
 	"github.com/launchdarkly/ldcli/internal/analytics"
@@ -35,6 +36,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/members"
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/internal/rollouts"
 )
 
 type APIClients struct {
@@ -44,6 +46,7 @@ type APIClients struct {
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
 	ResourcesClient    resources.Client
+	RolloutsClient     rollouts.Client
 }
 
 type Command interface {
@@ -265,6 +268,7 @@ func NewRootCommand(
 			c.AddCommand(flagscmd.NewToggleOnCmd(clients.ResourcesClient))
 			c.AddCommand(flagscmd.NewToggleOffCmd(clients.ResourcesClient))
 			c.AddCommand(flagscmd.NewArchiveCmd(clients.ResourcesClient))
+			c.AddCommand(rolloutscmd.NewRolloutsCmd(clients.RolloutsClient, analyticsTrackerFn))
 		}
 		if c.Name() == "members" {
 			c.AddCommand(memberscmd.NewMembersInviteCmd(clients.ResourcesClient))
@@ -287,6 +291,7 @@ func Execute(version string) {
 		MembersClient:      members.NewClient(version),
 		ProjectsClient:     projects.NewClient(version),
 		ResourcesClient:    resources.NewClient(version),
+		RolloutsClient:     rollouts.NewClient(version),
 	}
 	configService := config.NewService(resources.NewClient(version))
 	trackerFn := analytics.ClientFn{
