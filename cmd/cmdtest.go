@@ -58,6 +58,52 @@ func CallCmd(
 	return out, nil
 }
 
+// CallCmdWithStderr is identical to CallCmd but additionally captures stderr alongside stdout.
+// It is required by tests that assert on stderr content (e.g. the rollouts-beta banner). The
+// returned stderrBytes is empty when no command wrote to stderr. Existing CallCmd usages are
+// unaffected — this helper is purely additive.
+func CallCmdWithStderr(
+	t *testing.T,
+	clients APIClients,
+	trackerFn analytics.TrackerFn,
+	args []string,
+) ([]byte, []byte, error) {
+	rootCmd, err := NewRootCommand(
+		config.NewService(&resources.MockClient{}),
+		trackerFn,
+		clients,
+		"test",
+		false,
+		func() bool { return true },
+		nil,
+	)
+	require.NoError(t, err)
+	cmd := rootCmd.Cmd()
+	stdout := bytes.NewBufferString("")
+	stderr := bytes.NewBufferString("")
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+	cmd.SetArgs(args)
+	tracker := trackerFn("", "", false)
+
+	err = cmd.Execute()
+	if err != nil {
+		tracker.SendCommandCompletedEvent(analytics.ERROR)
+		stdoutBytes, _ := io.ReadAll(stdout)
+		stderrBytes, _ := io.ReadAll(stderr)
+		return stdoutBytes, stderrBytes, err
+	}
+
+	tracker.SendCommandCompletedEvent(analytics.SUCCESS)
+
+	stdoutBytes, err := io.ReadAll(stdout)
+	require.NoError(t, err)
+	stderrBytes, err := io.ReadAll(stderr)
+	require.NoError(t, err)
+
+	return stdoutBytes, stderrBytes, nil
+}
+
 // SetupTestEnvVars sets up and tears down tests for checking that environment variables are set.
 func SetupTestEnvVars(_ *testing.T) func(t *testing.T) {
 	os.Setenv("LD_ACCESS_TOKEN", "testAccessToken")

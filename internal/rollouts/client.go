@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -146,7 +147,23 @@ func (c RolloutsClient) List(
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, errors.NewErrorWrapped("failed to parse response", err)
 	}
-	return raw.toRolloutList(), nil
+	list := raw.toRolloutList()
+
+	// Client-side deterministic sort: CreatedAt DESC, then ID ASC as tiebreaker (AGENT-05).
+	// The upstream API does not guarantee an order on list responses; the CLI normalizes here
+	// so consumers (humans, agents, CI) see stable output regardless of upstream behavior.
+	//
+	// Saturation hint (meta.warnings — list returned exactly `limit` items, likely truncated
+	// upstream per PC-003) lives at the envelope-construction site (cmd/flags/rollouts/list.go)
+	// rather than here, so internal/rollouts/ stays free of UI/envelope concerns.
+	sort.Slice(list.Items, func(i, j int) bool {
+		ti, tj := list.Items[i].CreatedAt, list.Items[j].CreatedAt
+		if ti.Equal(tj) {
+			return list.Items[i].ID < list.Items[j].ID
+		}
+		return ti.After(tj) // DESC
+	})
+	return list, nil
 }
 
 // Get returns a single rollout by ID. Issues a GET against

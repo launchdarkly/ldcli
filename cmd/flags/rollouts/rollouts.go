@@ -58,9 +58,16 @@ func NewRolloutsCmd(client rollouts.Client, analyticsTrackerFn analytics.Tracker
 // is not JSON. Per the banner contract, JSON output suppresses the banner (so consumers parsing
 // stdout do not also need to scrub stderr) and non-TTY contexts suppress it too (CI logs do
 // not need decoration).
+//
+// FORCE_TTY (or LD_FORCE_TTY) environment variable set to a non-empty value forces the TTY
+// branch on — this mirrors the root command's FORCE_TTY semantics and makes the banner-on-TTY
+// path testable inside `go test` (where stderr is typically a pipe, not a TTY).
 func shouldPrintBetaBanner(cmd *cobra.Command) bool {
 	if cliflags.GetOutputKind(cmd) == "json" {
 		return false
+	}
+	if os.Getenv("FORCE_TTY") != "" || os.Getenv("LD_FORCE_TTY") != "" {
+		return true
 	}
 	return term.IsTerminal(int(os.Stderr.Fd()))
 }
