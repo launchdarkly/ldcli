@@ -108,17 +108,55 @@ Explicitly excluded.
 
 ## Traceability
 
-Empty initially. Populated by the roadmap step.
+Every v1 requirement maps to exactly one phase. AGENT-* and DOC-02 are cross-cutting but anchored to the phase where they are first introduced; they are re-validated in every subsequent phase's success criteria.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmap) | | |
+| FOUND-01 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Pending |
+| FOUND-03 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Pending |
+| FOUND-05 | Phase 1 | Pending |
+| FOUND-06 | Phase 1 | Pending |
+| FOUND-07 | Phase 1 | Pending |
+| FOUND-08 | Phase 1 | Pending |
+| DOC-01 | Phase 1 | Pending |
+| DOC-02 | Phase 1 (cross-cutting, enforced every phase) | Pending |
+| DOC-03 | Phase 4 | Pending |
+| LIST-01 | Phase 1 | Pending |
+| LIST-02 | Phase 1 | Pending |
+| LIST-03 | Phase 1 | Pending |
+| AGENT-01 | Phase 1 (cross-cutting, enforced every phase) | Pending |
+| AGENT-02 | Phase 1 (cross-cutting, enforced every phase) | Pending |
+| AGENT-03 | Phase 1 (cross-cutting, enforced every phase) | Pending |
+| AGENT-04 | Phase 1 (cross-cutting, enforced every phase) | Pending |
+| AGENT-05 | Phase 1 (cross-cutting, enforced every phase) | Pending |
+| START-01 | Phase 2 | Pending |
+| START-02 | Phase 2 | Pending |
+| START-03 | Phase 2 | Pending |
+| START-04 | Phase 2 | Pending |
+| START-05 | Phase 2 | Pending |
+| START-06 | Phase 2 | Pending |
+| START-07 | Phase 2 | Pending |
+| STATUS-01 | Phase 3 | Pending |
+| STATUS-02 | Phase 3 | Pending |
+| STATUS-03 | Phase 3 | Pending |
+| STATUS-04 | Phase 3 | Pending |
+| STATUS-05 | Phase 3 | Pending |
+| STATUS-06 | Phase 3 | Pending |
+| STATUS-07 | Phase 3 | Pending |
+| STATUS-08 | Phase 3 | Pending |
+| STATUS-09 | Phase 3 | Pending |
+| STOP-01 | Phase 4 | Pending |
+| STOP-02 | Phase 4 | Pending |
+| STOP-03 | Phase 4 | Pending |
+| STOP-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 39 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 39 ⚠️ (expected before roadmap creation)
+- Mapped to phases: 39
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-12*
-*Last updated: 2026-05-12 after initial definition*
+*Last updated: 2026-05-12 after roadmap creation (traceability populated)*
