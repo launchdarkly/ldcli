@@ -24,6 +24,7 @@ import (
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
 	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	setupcmd "github.com/launchdarkly/ldcli/cmd/setup"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
 	whoamicmd "github.com/launchdarkly/ldcli/cmd/whoami"
@@ -36,6 +37,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/members"
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
 type APIClients struct {
@@ -131,6 +133,7 @@ func NewRootCommand(
 				"config",
 				"help",
 				"login",
+				"setup",
 				"signup",
 				"whoami",
 			} {
@@ -253,7 +256,17 @@ func NewRootCommand(
 
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
-	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
+	cmd.AddCommand(setupcmd.NewSetupCmd(
+		analyticsTrackerFn,
+		clients.ResourcesClient,
+		clients.FlagsClient,
+		setup.StubDetector{},
+		setup.StubInstaller{},
+	))
+	quickStartCmd := NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient)
+	quickStartCmd.Use = "quickstart"
+	quickStartCmd.Hidden = true
+	cmd.AddCommand(quickStartCmd)
 	cmd.AddCommand(logincmd.NewLoginCmd(clients.ResourcesClient))
 	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
