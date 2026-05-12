@@ -45,7 +45,7 @@ These are not phases — they are constraints every phase must honor. They are l
 Plans:
 - [x] 01-01-PLAN.md — Walking Skeleton: scaffold internal/rollouts/ package + cmd/flags/rollouts/ Cobra subtree + root wiring with stub HTTP path
 - [x] 01-02-PLAN.md — Real HTTP via go-retryablehttp + 13-state status mapping + full error.code taxonomy + httptest round-trip tests
-- [ ] 01-03-PLAN.md — Flag surface (--environment/--limit/--all/--detailed) + plaintext table + sort + saturation warning + seed API-PAPERCUTS.md
+- [x] 01-03-PLAN.md — Flag surface (--environment/--limit/--all/--detailed) + plaintext table + sort + saturation warning + seed API-PAPERCUTS.md
 
 ### Phase 2: Start a rollout
 **Goal**: Operator (human or agent) can kick off a guarded or progressive rollout from the CLI with full configurability, get the new rollout's ID back, and trust that the CLI refused to start anything that would have stalled at the first metric evaluation.
