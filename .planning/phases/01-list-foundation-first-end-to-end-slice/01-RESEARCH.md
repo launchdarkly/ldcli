@@ -99,11 +99,11 @@ The phase is unusual in that the *infrastructure* and the *first slice* land tog
 |------------|-------------|----------------|-----------|
 | Cobra command parsing + flag binding | Command Layer (`cmd/flags/rollouts/`) | — | Mirrors existing `cmd/flags/toggle.go`; all command boundaries live in `cmd/` |
 | HTTP request construction + retry | Domain Client (`internal/rollouts/`) | Infrastructure (`internal/resources/`) | New domain owns its own HTTP via `retryablehttp.Client` since the existing `resources.Client.MakeRequest` does not retry; `resources.Client` is unchanged for other commands |
-| JSON envelope marshaling | Domain Client (`internal/rollouts/`) returns typed structs | Output Layer (`internal/output/`) renders | DTOs live with the domain; output layer dispatches kind-based renderers |
+| JSON envelope marshaling | Command Layer (`cmd/flags/rollouts/`) marshals the envelope; Domain Client (`internal/rollouts/`) returns typed structs | Output Layer (`internal/output/`) renders flat resources for other commands | DTOs live with the domain. Phase 1 places envelope marshaling in the Command Layer (`cmd/flags/rollouts/`) because `internal/output/CmdOutput` dispatches on flat resource maps and cannot carry the typed Envelope. Justified deviation; may revisit if Envelope semantics later flatten. |
 | Status → kind/label mapping | Domain Client (`internal/rollouts/`) | — | UI-parity logic is rollouts-specific; isolated in one file (e.g. `status_mapping.go`) so future state additions touch one place |
 | TTY detection | Root command (`cmd/root.go`) — **already wired** at `cmd/root.go:222-227` | — | The persistent `--output` default already flips to `json` when `!isTerminal()`; Phase 1 does NOT re-implement this |
 | Beta banner emission | Command Layer (`cmd/flags/rollouts/rollouts.go`) | — | Banner is rollouts-specific; printed at the subtree's `PersistentPreRun` |
-| Plaintext table rendering | Output Layer (`internal/output/`) — new rollout-specific function | — | Mirrors existing per-resource plaintext functions |
+| Plaintext table rendering | Command Layer (`cmd/flags/rollouts/plaintext.go`) | — | Phase 1 places these in the Command Layer (`cmd/flags/rollouts/`) because `internal/output/CmdOutput` dispatches on flat resource maps and cannot carry the typed Envelope. Justified deviation; may revisit if Envelope semantics later flatten. |
 | Error normalization (`error.code`) | Domain Client (`internal/rollouts/`) | Infrastructure (`internal/errors/`) | `internal/errors/` carries the typed error; rollouts client maps API responses → `error.code` enum |
 | Analytics tracking | Command Layer (`PersistentPreRun` in `cmd/flags/rollouts/`) | `cmd/analytics/` | Existing pattern; new event name `flags-rollouts-beta-list` |
 
@@ -1517,26 +1517,28 @@ func TestList_JSON(t *testing.T) {
 
 **If this table needs reconfirmation:** A1 is the highest-impact (changes JSON envelope shape). A2 and A3 affect output completeness. A4–A7 are lower risk.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All four questions are RESOLVED for Phase 1 planning. Recommendations from the research pass have been promoted to explicit decisions; downstream plans treat these as fact.
 
 1. **`environmentKey` presence in list-by-flag response.**
    - What we know: API returns `environmentId` (UUID); `environmentKey` presence unverified.
    - What's unclear: whether the response includes `environmentKey` or only the ID.
-   - Recommendation: validate against staging during Wave 0 (Step 16 of skeleton sequence). If missing, add new papercut `PC-NEW-environmentKey-missing-in-list` and derive from `_links.self.href`.
+   - **RESOLVED:** the DTO converter (Plan 02) derives `EnvironmentKey` from `_links.self.href` parsing. If a future validation against the live staging API shows `environmentKey` IS present on the response body, prefer the direct field and add a new papercut `PC-017` (or successor ID at the seeding boundary) to `.planning/API-PAPERCUTS.md` documenting the redundancy. Either way, the CLI's `environment` column is non-empty for Phase 1.
 
 2. **Concrete rule labels (UI parity).**
    - What we know: UI shows the human-readable rule description; CLI has only `ruleIdOrFallthrough`.
    - What's unclear: whether agents/operators find rule IDs sufficient or whether rule-name lookup is needed.
-   - Recommendation: Phase 1 ships with IDs in labels; defer rule-name lookup. Revisit if usage shows confusion.
+   - **RESOLVED:** Phase 1 ships rule IDs only in `--detailed` plaintext output. Rule-name lookup (joining against the flag's rules array to render the human-readable description) is **deferred to a later phase**. Phase 1 status labels use the `"rule {ruleId}"` form for custom rules and `"the default rule"` for fallthrough, per A3.
 
 3. **API saturation behavior at `limit=1000`.**
    - What we know: API supports `limit`; no documented maximum.
    - What's unclear: whether 1000 is accepted or capped server-side.
-   - Recommendation: implement saturation warning when `len(items) == requested_limit`; document upstream behavior in PC-003 once validated.
+   - **RESOLVED:** Phase 1 uses default `--limit 20` (D-05) and `--all` (no explicit upper cap on the client side; relies on whatever the upstream API returns). Plan 03 emits a `meta.warnings` entry tied to papercut `PC-003` whenever the result count equals the requested limit (saturation heuristic). Empirical limit testing (e.g., probing `limit=1000` against staging to find the server-side cap) is **deferred** beyond Phase 1; the warning is the user-visible safety net.
 
 4. **`raw API status` column in `--detailed` plaintext.**
    - D-06 specifies `raw API status` as a column in `--detailed`. Should the raw `status.status` appear redundantly when `status.kind` is also visible?
-   - Recommendation: yes — `--detailed` is for operators debugging; show both. Plaintext is verbose by design.
+   - **RESOLVED:** yes — `--detailed` plaintext includes the raw `status.status` as a separate field for operator/debugging parity with the API. The cost is one extra line per record; `--detailed` is verbose by design. Both `status.kind` (5-bucket) and `status.status` (13-state raw) are rendered.
 
 ## Environment Availability
 

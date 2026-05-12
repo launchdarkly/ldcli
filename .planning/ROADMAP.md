@@ -40,7 +40,12 @@ These are not phases — they are constraints every phase must honor. They are l
   3. The operator can filter results with `--environment <key>` and `--state running|completed|failed|stopped`, and the CLI handles upstream pagination transparently (or fails with a documented exit code if the result set exceeds the upstream limit and pagination is unsupported — see papercut P3).
   4. An agent can branch on outcome without parsing stderr: a 4xx / 5xx / auth / transient / unknown-error response from upstream maps to a distinct documented exit code from the FOUND-04 taxonomy, and JSON-mode errors are emitted as a structured envelope on stdout with `error.code` and (where applicable) `error.nextAction`.
   5. `.planning/API-PAPERCUTS.md` exists, follows the structured template (anchor ID, discovered, API behavior, CLI workaround, what we'd prefer, status, removal criteria), is seeded with the 16 cataloged papercuts from architecture research, and every workaround introduced in Phase 1 code is annotated with `// PAPERCUT: PC-NNN`.
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Walking Skeleton: scaffold internal/rollouts/ package + cmd/flags/rollouts/ Cobra subtree + root wiring with stub HTTP path
+- [ ] 01-02-PLAN.md — Real HTTP via go-retryablehttp + 13-state status mapping + full error.code taxonomy + httptest round-trip tests
+- [ ] 01-03-PLAN.md — Flag surface (--environment/--limit/--all/--detailed) + plaintext table + sort + saturation warning + seed API-PAPERCUTS.md
 
 ### Phase 2: Start a rollout
 **Goal**: Operator (human or agent) can kick off a guarded or progressive rollout from the CLI with full configurability, get the new rollout's ID back, and trust that the CLI refused to start anything that would have stalled at the first metric evaluation.
@@ -85,7 +90,7 @@ These are not phases — they are constraints every phase must honor. They are l
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. List (foundation + first slice) | 0/? | Not started | - |
+| 1. List (foundation + first slice) | 0/3 | Not started | - |
 | 2. Start a rollout | 0/? | Not started | - |
 | 3. Status & Watch | 0/? | Not started | - |
 | 4. Stop, Dismiss, & Finalize papercuts | 0/? | Not started | - |
