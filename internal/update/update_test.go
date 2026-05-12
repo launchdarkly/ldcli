@@ -132,6 +132,25 @@ func TestCheckForUpdate_CachedNewerVersion(t *testing.T) {
 	assert.Equal(t, "5.0.0", info.LatestVersion)
 }
 
+func TestCheckForUpdate_VPrefixCurrentVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	origFn := cacheFilePathFn
+	cacheFilePathFn = func() string {
+		return filepath.Join(tmpDir, cacheFilename)
+	}
+	defer func() { cacheFilePathFn = origFn }()
+
+	entry := cacheEntry{
+		LatestVersion: "2.1.0",
+		CheckedAt:     time.Now(),
+	}
+	data, _ := json.Marshal(entry)
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, cacheFilename), data, 0644))
+
+	info := CheckForUpdate("v2.1.0")
+	assert.Nil(t, info, "v-prefixed currentVersion matching latest should not report an update")
+}
+
 func TestCheckForUpdate_CachedSameVersion(t *testing.T) {
 	tmpDir := t.TempDir()
 	origFn := cacheFilePathFn

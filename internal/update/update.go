@@ -135,6 +135,7 @@ func compareVersions(current, latest string) bool {
 // current version. It caches the result to avoid hitting the network on every
 // invocation. Returns nil when no update is available or on any error.
 func CheckForUpdate(currentVersion string) *UpdateInfo {
+	currentVersion = normalizeVersion(currentVersion)
 	if currentVersion == "dev" || currentVersion == "test" || currentVersion == "" {
 		return nil
 	}
