@@ -1,0 +1,14 @@
+const LaunchDarkly = require('@launchdarkly/node-server-sdk');
+// --- init ---
+const ldClient = LaunchDarkly.init('{{.SDKKey}}');
+
+await ldClient.waitForInitialization();
+
+const context = {
+  kind: 'user',
+  key: 'example-user-key',
+  name: 'Example User',
+};
+
+const flagValue = await ldClient.variation('{{.FlagKey}}', context, false);
+console.log(`Flag '{{.FlagKey}}' is ${flagValue}`);

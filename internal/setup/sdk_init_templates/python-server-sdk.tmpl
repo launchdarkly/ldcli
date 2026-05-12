@@ -1,0 +1,11 @@
+import ldclient
+from ldclient import Context
+from ldclient.config import Config
+// --- init ---
+ldclient.set_config(Config("{{.SDKKey}}"))
+ld_client = ldclient.get()
+
+context = Context.builder("example-user-key").name("Example User").build()
+
+flag_value = ld_client.variation("{{.FlagKey}}", context, False)
+print(f"Flag '{{.FlagKey}}' is {flag_value}")
