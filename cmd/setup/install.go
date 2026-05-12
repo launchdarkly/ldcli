@@ -60,7 +60,11 @@ func runInstall(installer setup.Installer) func(*cobra.Command, []string) error 
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), "SDK: %s\n", result.SDKID)
-		fmt.Fprintf(cmd.OutOrStdout(), "Package: %s@%s\n", result.Package, result.Version)
+		if result.Version != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "Package: %s@%s\n", result.Package, result.Version)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "Package: %s\n", result.Package)
+		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Command: %s\n", result.Command)
 		fmt.Fprintf(cmd.OutOrStdout(), "Success: %t\n", result.Success)
 
