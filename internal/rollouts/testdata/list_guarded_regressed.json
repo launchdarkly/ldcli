@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "id": "01HXZ9GRD0001",
+      "flagKey": "checkout-rewrite",
+      "kind": "guarded",
+      "status": "monitoring_regressed",
+      "environmentId": "62de4daff32a8a16cf1a4e7d",
+      "environmentKey": "production",
+      "originalVariationId": "var-control-uuid",
+      "targetVariationId": "var-treatment-uuid",
+      "randomizationUnit": "user",
+      "ruleIdOrFallthrough": "fallthrough",
+      "createdAt": 1715353200000,
+      "startedAtMillis": 1715353200000,
+      "latestStageIndex": 1,
+      "stages": [
+        {"stageIndex": 0, "allocation": 10000, "durationMillis": 1800000, "startedAtMillis": 1715353200000},
+        {"stageIndex": 1, "allocation": 50000, "durationMillis": 1800000, "startedAtMillis": 1715355000000}
+      ],
+      "events": [
+        {
+          "kind": "regression_detected",
+          "stageIndex": 1,
+          "metricKey": "latency-p99",
+          "createdAt": "2024-05-10T15:45:00Z"
+        }
+      ],
+      "metricConfigurations": [
+        {"metricKey": "latency-p99", "minSampleSize": 1000, "autoRollback": false, "status": "regressed"}
+      ],
+      "_links": {
+        "self": {"href": "/internal/projects/sandbox/flags/checkout-rewrite/automated-releases/01HXZ9GRD0001"}
+      }
+    }
+  ]
+}
