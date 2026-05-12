@@ -44,7 +44,7 @@ These are not phases — they are constraints every phase must honor. They are l
 
 Plans:
 - [x] 01-01-PLAN.md — Walking Skeleton: scaffold internal/rollouts/ package + cmd/flags/rollouts/ Cobra subtree + root wiring with stub HTTP path
-- [ ] 01-02-PLAN.md — Real HTTP via go-retryablehttp + 13-state status mapping + full error.code taxonomy + httptest round-trip tests
+- [x] 01-02-PLAN.md — Real HTTP via go-retryablehttp + 13-state status mapping + full error.code taxonomy + httptest round-trip tests
 - [ ] 01-03-PLAN.md — Flag surface (--environment/--limit/--all/--detailed) + plaintext table + sort + saturation warning + seed API-PAPERCUTS.md
 
 ### Phase 2: Start a rollout
