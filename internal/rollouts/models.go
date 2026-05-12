@@ -11,24 +11,25 @@ const SchemaVersionV1Beta1 = "rollouts.v1beta1"
 // shape (D-02 nested status; D-03 no structured reason); Plan 02 fills in the converter from
 // the raw API response.
 type Rollout struct {
-	ID                   string                `json:"id"`
-	FlagKey              string                `json:"flagKey"`
-	Kind                 string                `json:"kind"` // rollout kind: "guarded" | "progressive"
-	EnvironmentID        string                `json:"environmentId,omitempty"`
-	EnvironmentKey       string                `json:"environmentKey,omitempty"`
-	OriginalVariationID  string                `json:"originalVariationId"`
-	TargetVariationID    string                `json:"targetVariationId"`
-	RandomizationUnit    string                `json:"randomizationUnit"`
-	RuleIDOrFallthrough  string                `json:"ruleIdOrFallthrough"`
-	Status               StatusBlock           `json:"status"` // NESTED — D-02 three-field model
-	CreatedAt            time.Time             `json:"createdAt"`
-	StartedAt            *time.Time            `json:"startedAt,omitempty"`
-	EndedAt              *time.Time            `json:"endedAt,omitempty"`
-	LatestStageIndex     int                   `json:"latestStageIndex"`
-	Stages               []Stage               `json:"stages,omitempty"`
-	Events               []Event               `json:"events,omitempty"`
-	MetricConfigurations []MetricConfiguration `json:"metricConfigurations,omitempty"`
-	Links                map[string]Link       `json:"_links,omitempty"`
+	ID                      string                `json:"id"`
+	FlagKey                 string                `json:"flagKey"`
+	Kind                    string                `json:"kind"` // rollout kind: "guarded" | "progressive"
+	EnvironmentID           string                `json:"environmentId,omitempty"`
+	EnvironmentKey          string                `json:"environmentKey,omitempty"`
+	OriginalVariationID     string                `json:"originalVariationId"`
+	TargetVariationID       string                `json:"targetVariationId"`
+	RandomizationUnit       string                `json:"randomizationUnit"`
+	RuleIDOrFallthrough     string                `json:"ruleIdOrFallthrough"`
+	Status                  StatusBlock           `json:"status"` // NESTED — D-02 three-field model
+	CreatedAt               time.Time             `json:"createdAt"`
+	StartedAt               *time.Time            `json:"startedAt,omitempty"`
+	EndedAt                 *time.Time            `json:"endedAt,omitempty"`
+	LatestStageIndex        int                   `json:"latestStageIndex"`
+	ExtensionDurationMillis *int64                `json:"extensionDurationMillis,omitempty"`
+	Stages                  []Stage               `json:"stages,omitempty"`
+	Events                  []Event               `json:"events,omitempty"`
+	MetricConfigurations    []MetricConfiguration `json:"metricConfigurations,omitempty"`
+	Links                   map[string]Link       `json:"_links,omitempty"`
 }
 
 // StatusBlock is the nested three-field status model per D-02. `Status` is the raw API enum
@@ -51,17 +52,27 @@ type Stage struct {
 	SafeRollForward *bool      `json:"safeRollForward,omitempty"`
 }
 
-// Event captures a single transition in a rollout's lifecycle.
+// Event captures a single transition in a rollout's lifecycle. Event.Kind values include
+// `regression_detected`, `srm_detected`, and `minimum_monitoring_window_expired` among others.
+// For regression events, MetricKey identifies the regressing metric so status_mapping can
+// surface it in the human-readable label.
 type Event struct {
-	Kind      string    `json:"kind"`
-	CreatedAt time.Time `json:"createdAt"`
-	Message   string    `json:"message,omitempty"`
+	Kind       string    `json:"kind"`
+	CreatedAt  time.Time `json:"createdAt"`
+	StageIndex int       `json:"stageIndex,omitempty"`
+	MetricKey  string    `json:"metricKey,omitempty"`
+	Message    string    `json:"message,omitempty"`
 }
 
-// MetricConfiguration describes one metric watched during a guarded rollout.
+// MetricConfiguration describes one metric watched during a guarded rollout. MinSampleSize
+// is the threshold below which the "not enough data" label is surfaced; Status is the
+// per-metric monitoring state (`ok` | `regressed` | `regression_dismissed` | `not_enough_data`).
 type MetricConfiguration struct {
-	MetricKey string `json:"metricKey"`
-	Kind      string `json:"kind,omitempty"`
+	MetricKey     string `json:"metricKey"`
+	Kind          string `json:"kind,omitempty"`
+	MinSampleSize int    `json:"minSampleSize,omitempty"`
+	AutoRollback  bool   `json:"autoRollback,omitempty"`
+	Status        string `json:"status,omitempty"`
 }
 
 // Link is the standard LD API HATEOAS link envelope.
