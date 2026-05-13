@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "id": "01JVTEST000000000000000001",
+      "kind": "guarded",
+      "environmentKey": "test",
+      "originalVariationId": "uuid-false",
+      "targetVariationId": "uuid-true",
+      "randomizationUnit": "user",
+      "createdAt": 1715353200000,
+      "status": "in_progress",
+      "stages": [
+        {"allocation": 25000, "durationMillis": 300000},
+        {"allocation": 50000, "durationMillis": 300000}
+      ],
+      "metricConfigurations": []
+    }
+  ]
+}

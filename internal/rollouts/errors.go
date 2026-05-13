@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/launchdarkly/ldcli/internal/errors"
 )
@@ -22,6 +23,11 @@ const (
 	ErrCodeNetworkError        = "network_error"
 	ErrCodeBetaGateClosed      = "beta_gate_closed"
 	ErrCodeUnknownUpstream     = "unknown_upstream"
+
+	// Phase 2 mutation-specific error codes (D-12).
+	ErrCodeFlagNotConfiguredForRollout = "flag_not_configured_for_rollout"
+	ErrCodeInvalidVariation            = "invalid_variation"
+	ErrCodeRolloutAlreadyRunning       = "rollout_already_running"
 )
 
 // RolloutError is the typed error returned from the rollouts client. The `Code` field maps to
@@ -124,6 +130,36 @@ func mapAPIError(body []byte, statusCode int) error {
 			e.Message = "Conflict"
 		}
 		e.NextAction = suggestionOrFallback(statusCode, "")
+
+	// --- Phase 2 mutation-specific message matching (fires before the generic StatusBadRequest
+	// branch) — server wraps instruction errors in a sempatch.NewInstructionError; the exact
+	// HTTP status code (400, 409, or 422) is unconfirmed for some messages (RESEARCH A1), so
+	// we match on message content first, regardless of status code. ---
+
+	case strings.HasSuffix(apiBody.Message, " is off"):
+		// "flag X is off" — server rejects startAutomatedRelease on a disabled flag.
+		e.Code = ErrCodeFlagNotConfiguredForRollout
+		e.Message = apiBody.Message
+		e.NextAction = "Turn on the flag before starting a rollout"
+
+	case strings.Contains(apiBody.Message, "Flag must not have ongoing guarded rollout"),
+		strings.Contains(apiBody.Message, "Flag must not have ongoing progressive rollout"):
+		e.Code = ErrCodeRolloutAlreadyRunning
+		e.Message = apiBody.Message
+		e.NextAction = "Stop the current rollout before starting a new one, or check the rollouts list for the active rollout"
+
+	case strings.Contains(apiBody.Message, "instruction kind 'startAutomatedRelease' unsupported"):
+		e.Code = ErrCodeBetaGateClosed
+		e.Message = apiBody.Message
+		e.NextAction = "Enable the release-guardian feature flag for this account in the LaunchDarkly UI"
+
+	case strings.Contains(apiBody.Message, "originalVariationId must be a valid variation id"),
+		strings.Contains(apiBody.Message, "instruction targetVariationId and originalVariationId must be different"):
+		e.Code = ErrCodeInvalidVariation
+		e.Message = apiBody.Message
+		e.NextAction = "Pass the variation UUID (_id) from the flag definition, not the variation key; run: ldcli flags get --flag <key> --output json | jq '.variations[]'"
+
+	// --- end Phase 2 mutation-specific block; generic status-code branches follow ---
 
 	case statusCode == http.StatusBadRequest:
 		e.Code = ErrCodeBadRequest
