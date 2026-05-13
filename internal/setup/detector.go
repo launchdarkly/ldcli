@@ -106,6 +106,42 @@ func detectNode(dir string) *DetectResult {
 			})),
 		}
 	}
+	if _, ok := allDeps["react-native"]; ok {
+		return &DetectResult{
+			Language:       "JavaScript",
+			Framework:      "React Native",
+			PackageManager: pm,
+			SDKID:          "react-native-client-sdk",
+			EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
+				"src/App.tsx", "src/App.jsx", "src/App.js",
+				"src/index.tsx", "src/index.jsx", "src/index.js",
+				"index.js",
+			})),
+		}
+	}
+	jsClientFrameworks := map[string]string{
+	    "backbone":      "Backbone",
+	    "svelte":        "Svelte",
+	    "vue":           "Vue",
+	    "@angular/core": "Angular",
+	    "ember-source":  "Ember",
+    }
+    for dep, framework := range jsClientFrameworks {
+	    if _, ok := allDeps[dep]; ok {
+		    return &DetectResult{
+			    Language:       "JavaScript",
+			    Framework:      framework,
+			    PackageManager: pm,
+			    SDKID:          "js-client-sdk",
+			    EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
+				    "src/App.tsx", "src/App.jsx", "src/App.js",
+				    "src/index.tsx", "src/index.jsx", "src/index.js",
+				    "src/main.ts", "src/main.js","index.js",
+			    })),
+		    }
+	    }
+    }
+	
 
 	return &DetectResult{
 		Language:       "JavaScript",
