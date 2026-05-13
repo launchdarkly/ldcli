@@ -24,6 +24,7 @@ import (
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
 	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	setupcmd "github.com/launchdarkly/ldcli/cmd/setup"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
 	"github.com/launchdarkly/ldcli/internal/analytics"
@@ -35,6 +36,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/members"
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
 type APIClients struct {
@@ -124,22 +126,25 @@ func NewRootCommand(
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// disable required flags when running certain commands
+			// Skip the global --access-token required-flag check for commands
+			// that don't need an API token. We clear the annotation on the
+			// specific flag instead of setting DisableFlagParsing, which would
+			// also suppress validation for the subcommand's own required flags.
 			for _, name := range []string{
 				"completion",
 				"config",
 				"help",
 				"login",
+				"setup",
 				"signup",
 			} {
-				if cmd.HasParent() && cmd.Parent().Name() == name {
-					cmd.DisableFlagParsing = true
-				}
-				if cmd.Name() == name {
-					cmd.DisableFlagParsing = true
+				if cmd.Name() == name || (cmd.HasParent() && cmd.Parent().Name() == name) {
+					if f := cmd.Flags().Lookup(cliflags.AccessTokenFlag); f != nil {
+						delete(f.Annotations, cobra.BashCompOneRequiredFlag)
+					}
+					break
 				}
 			}
-
 		},
 		Annotations: make(map[string]string),
 		// Handle errors differently based on type.
@@ -251,7 +256,18 @@ func NewRootCommand(
 
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
-	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
+	cmd.AddCommand(setupcmd.NewSetupCmd(
+		analyticsTrackerFn,
+		clients.ResourcesClient,
+		clients.FlagsClient,
+		setup.StubDetector{},
+		setup.StubInstaller{},
+	))
+	quickStartCmd := NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient)
+	quickStartCmd.Use = "quickstart"
+	quickStartCmd.Hidden = true
+	quickStartCmd.Deprecated = "use 'ldcli setup' for the new guided setup experience"
+	cmd.AddCommand(quickStartCmd)
 	cmd.AddCommand(logincmd.NewLoginCmd(clients.ResourcesClient))
 	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())

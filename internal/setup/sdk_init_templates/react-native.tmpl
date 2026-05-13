@@ -1,0 +1,5 @@
+import LDClient from '@launchdarkly/react-native-client-sdk';
+// --- init ---
+const ldClient = new LDClient();
+const context = { kind: 'user', key: 'example-user-key', name: 'Example User' };
+await ldClient.configure({ mobileKey: '{{.MobileKey}}' }, context);
