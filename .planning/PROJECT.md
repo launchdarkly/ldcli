@@ -65,6 +65,7 @@ An AI agent (or human, or CI/CD pipeline) can take a merged feature behind a fla
 - **Beta surface**: The `-beta` suffix carries forward; breaking changes are acceptable within this command tree.
 - **Backwards compatibility**: Must not break any existing ldcli command, distribution channel, or analytics behavior.
 - **Authentication**: Reuse existing ldcli auth (OAuth + access tokens via `ldcli config`); no new auth surface.
+- **Real-server validation**: Before declaring a phase complete, the executor must exercise the new command surface against a real LaunchDarkly instance (staging or prod) with real credentials and confirm the happy path returns the expected envelope. If this isn't possible (e.g. unstable API outage), the executor must explicitly call that out in SUMMARY.md rather than silently skip.
 
 ## Key Decisions
 
