@@ -27,6 +27,7 @@ const (
 	stepSelectProject wizardStep = iota
 	stepSelectEnvironment
 	stepDetect
+	stepSelectSDK
 	stepInstall
 	stepCreateFlag
 	stepInit
@@ -53,6 +54,7 @@ type wizardModel struct {
 	environments []envItem
 	projectList  list.Model
 	envList      list.Model
+	sdkList      list.Model
 
 	selectedProject string
 	selectedEnv     string
@@ -68,6 +70,16 @@ type wizardModel struct {
 
 	quitting bool
 }
+
+type sdkItem struct {
+	id       string
+	language string
+	name     string
+}
+
+func (s sdkItem) Title() string       { return s.name }
+func (s sdkItem) Description() string { return s.language }
+func (s sdkItem) FilterValue() string { return s.name }
 
 type projectItem struct {
 	key  string
@@ -96,6 +108,7 @@ type envDetailsFetchedMsg struct {
 	mobileKey    string
 }
 type detectDoneMsg struct{ result *setup.DetectResult }
+type detectFailedMsg struct{}
 type installDoneMsg struct{ result *setup.InstallResult }
 type flagCreatedMsg struct{ key string }
 type initDoneMsg struct{ result *setup.InitResult }
@@ -179,6 +192,18 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.step = stepDetect
 		return m, m.runDetect()
 
+	case detectFailedMsg:
+		items := make([]list.Item, len(setup.KnownSDKs))
+		for i, sdk := range setup.KnownSDKs {
+			items[i] = sdkItem{id: sdk.ID, language: sdk.Language, name: sdk.Name}
+		}
+		delegate := list.NewDefaultDelegate()
+		m.sdkList = list.New(items, delegate, m.width, m.height-4)
+		m.sdkList.Title = "Select your SDK:"
+		m.sdkList.SetShowStatusBar(false)
+		m.step = stepSelectSDK
+		return m, nil
+
 	case detectDoneMsg:
 		m.detectResult = msg.result
 		m.step = stepInstall
@@ -225,6 +250,8 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectList, cmd = m.projectList.Update(msg)
 	case stepSelectEnvironment:
 		m.envList, cmd = m.envList.Update(msg)
+	case stepSelectSDK:
+		m.sdkList, cmd = m.sdkList.Update(msg)
 	}
 	return m, cmd
 }
@@ -253,6 +280,18 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 		}
 		m.selectedEnv = selected.key
 		return m, m.fetchEnvDetails()
+
+	case stepSelectSDK:
+		selected, ok := m.sdkList.SelectedItem().(sdkItem)
+		if !ok {
+			return m, nil
+		}
+		m.detectResult = &setup.DetectResult{
+			SDKID:    selected.id,
+			Language: selected.language,
+		}
+		m.step = stepInstall
+		return m, m.runInstall()
 
 	case stepWaitForApp:
 		m.step = stepVerify
@@ -287,6 +326,9 @@ func (m wizardModel) View() string {
 
 	case stepDetect:
 		return m.spinner.View() + " Detecting project type..."
+
+	case stepSelectSDK:
+		return m.sdkList.View()
 
 	case stepInstall:
 		return m.spinner.View() + " Installing SDK..."
@@ -433,7 +475,7 @@ func (m wizardModel) runDetect() tea.Cmd {
 		}
 		result, err := m.detector.Detect(dir)
 		if err != nil {
-			return wizardErrMsg{err: err}
+			return detectFailedMsg{}
 		}
 		return detectDoneMsg{result: result}
 	}

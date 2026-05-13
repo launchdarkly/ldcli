@@ -18,13 +18,17 @@ func TestInstallArgs_NodeSDKs(t *testing.T) {
 		{"react-client-sdk", "npm", "npm", "launchdarkly-react-client-sdk"},
 		{"react-client-sdk", "yarn", "yarn", "launchdarkly-react-client-sdk"},
 		{"react-client-sdk", "pnpm", "pnpm", "launchdarkly-react-client-sdk"},
+		{"react-client-sdk", "bun", "bun", "launchdarkly-react-client-sdk"},
 		{"react-client-sdk", "", "npm", "launchdarkly-react-client-sdk"},
 		{"react-native", "npm", "npm", "launchdarkly-react-native-client-sdk"},
+		{"react-native", "bun", "bun", "launchdarkly-react-native-client-sdk"},
 		{"node-server", "npm", "npm", "@launchdarkly/node-server-sdk"},
 		{"node-server", "yarn", "yarn", "@launchdarkly/node-server-sdk"},
 		{"node-server", "pnpm", "pnpm", "@launchdarkly/node-server-sdk"},
+		{"node-server", "bun", "bun", "@launchdarkly/node-server-sdk"},
 		{"node-server", "", "npm", "@launchdarkly/node-server-sdk"},
-		{"js-client-sdk", "npm", "npm", "launchdarkly-js-client-sdk"},
+		{"js-client-sdk", "npm", "npm", "@launchdarkly/js-client-sdk"},
+		{"js-client-sdk", "bun", "bun", "@launchdarkly/js-client-sdk"},
 	}
 
 	for _, tt := range tests {

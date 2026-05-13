@@ -90,7 +90,7 @@ func InstallArgs(sdkID, packageManager string) (args []string, pkg string) {
 		pkg = "@launchdarkly/node-server-sdk"
 		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
 	case "js-client-sdk":
-		pkg = "launchdarkly-js-client-sdk"
+		pkg = "@launchdarkly/js-client-sdk"
 		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
 	case "python-server-sdk":
 		pm := packageManager

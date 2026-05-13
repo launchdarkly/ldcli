@@ -48,6 +48,20 @@ func TestFileDetector_DetectsReact(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "src/App.tsx"), result.EntryPoint)
 }
 
+func TestFileDetector_DetectsReactNative(t *testing.T) {
+	dir := t.TempDir()
+	// React Native projects always list both "react" and "react-native" as deps;
+	// react-native must be checked first so it takes priority over react.
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0","react-native":"^0.73.0"}}`)
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "react-native", result.SDKID)
+	assert.Equal(t, "JavaScript", result.Language)
+	assert.Equal(t, "React Native", result.Framework)
+}
+
 func TestFileDetector_DetectsNextJs(t *testing.T) {
 	dir := t.TempDir()
 	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0","next":"^14.0.0"}}`)
@@ -135,6 +149,42 @@ func TestFileDetector_DetectsJava_BuildGradle(t *testing.T) {
 	assert.Equal(t, "gradle", result.PackageManager)
 }
 
+func TestFileDetector_DetectsAndroid_BuildGradle(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "build.gradle", "plugins { id 'com.android.application' }")
+	writeDetectFile(t, dir, "app/src/main/AndroidManifest.xml", "<manifest/>")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "android-client-sdk", result.SDKID)
+	assert.Equal(t, "Java", result.Language)
+	assert.Equal(t, "gradle", result.PackageManager)
+}
+
+func TestFileDetector_DetectsAndroid_KotlinDsl(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "build.gradle.kts", "plugins { id(\"com.android.application\") }")
+	writeDetectFile(t, dir, "app/src/main/AndroidManifest.xml", "<manifest/>")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "android-client-sdk", result.SDKID)
+	assert.Equal(t, "gradle", result.PackageManager)
+}
+
+func TestFileDetector_DetectsJava_NotAndroid(t *testing.T) {
+	// build.gradle without AndroidManifest.xml should still return java-server-sdk
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "build.gradle", "plugins { id 'java' }")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "java-server-sdk", result.SDKID)
+}
+
 func TestFileDetector_UnknownProject_ReturnsError(t *testing.T) {
 	dir := t.TempDir()
 
@@ -164,6 +214,119 @@ func TestFileDetector_DetectsNodePM_Yarn(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "yarn", result.PackageManager)
+}
+
+func TestFileDetector_DetectsNodePM_Bun(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{}`)
+	writeDetectFile(t, dir, "bun.lock", "")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "bun", result.PackageManager)
+}
+
+func TestFileDetector_DetectsJsClientFramework(t *testing.T) {
+	tests := []struct {
+		dep       string
+		framework string
+	}{
+		{"vue", "Vue"},
+		{"svelte", "Svelte"},
+		{"backbone", "Backbone"},
+		{"@angular/core", "Angular"},
+		{"ember-source", "Ember"},
+		{"preact", "Preact"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.framework, func(t *testing.T) {
+			dir := t.TempDir()
+			writeDetectFile(t, dir, "package.json", `{"dependencies":{"`+tt.dep+`":"^1.0.0"}}`)
+
+			result, err := FileDetector{}.Detect(dir)
+
+			require.NoError(t, err)
+			assert.Equal(t, "js-client-sdk", result.SDKID)
+			assert.Equal(t, tt.framework, result.Framework)
+		})
+	}
+}
+
+func TestFileDetector_DetectsSwift_PackageSwift(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "Package.swift", "// swift-tools-version:5.9")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "swift-client-sdk", result.SDKID)
+	assert.Equal(t, "Swift", result.Language)
+	assert.Equal(t, "spm", result.PackageManager)
+}
+
+func TestFileDetector_DetectsSwift_Podfile(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "Podfile", "platform :ios, '14.0'")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "swift-client-sdk", result.SDKID)
+	assert.Equal(t, "cocoapods", result.PackageManager)
+}
+
+func TestFileDetector_DetectsSwift_XcodeProj(t *testing.T) {
+	dir := t.TempDir()
+	// .xcodeproj is a directory in practice, but we use Glob so creating the dir is enough
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "MyApp.xcodeproj"), 0755))
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "swift-client-sdk", result.SDKID)
+	assert.Equal(t, "Swift", result.Language)
+}
+
+func TestFileDetector_DetectsDotnet_Csproj(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "MyApp.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>")
+	writeDetectFile(t, dir, "Program.cs", "// entry")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "dotnet-server-sdk", result.SDKID)
+	assert.Equal(t, "C#", result.Language)
+	assert.Equal(t, "dotnet", result.PackageManager)
+	assert.Equal(t, filepath.Join(dir, "Program.cs"), result.EntryPoint)
+}
+
+func TestFileDetector_DetectsDotnet_Sln(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "MyApp.sln", "")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "dotnet-server-sdk", result.SDKID)
+	assert.Equal(t, "dotnet", result.PackageManager)
+}
+
+func TestKnownSDKs_ContainsExpectedSDKs(t *testing.T) {
+	ids := make([]string, len(KnownSDKs))
+	for i, sdk := range KnownSDKs {
+		ids[i] = sdk.ID
+	}
+	assert.Contains(t, ids, "node-server")
+	assert.Contains(t, ids, "react-client-sdk")
+	assert.Contains(t, ids, "react-native")
+	assert.Contains(t, ids, "python-server-sdk")
+	assert.Contains(t, ids, "go-server-sdk")
+	assert.Contains(t, ids, "java-server-sdk")
+	assert.Contains(t, ids, "dotnet-server-sdk")
+	assert.Contains(t, ids, "swift-client-sdk")
+	assert.Contains(t, ids, "ruby-server-sdk")
 }
 
 func TestFileDetector_EntryPointFallback_WhenNoneExist(t *testing.T) {

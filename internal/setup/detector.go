@@ -52,6 +52,12 @@ func (FileDetector) Detect(dir string) (*DetectResult, error) {
 	if result := detectJava(dir); result != nil {
 		return result, nil
 	}
+	if result := detectSwift(dir); result != nil {
+		return result, nil
+	}
+	if result := detectDotnet(dir); result != nil {
+		return result, nil
+	}
 	return nil, errors.New("could not detect project language from directory; try specifying --sdk-id manually")
 }
 
@@ -93,6 +99,19 @@ func detectNode(dir string) *DetectResult {
 		}
 	}
 
+	if _, ok := allDeps["react-native"]; ok {
+		return &DetectResult{
+			Language:       "JavaScript",
+			Framework:      "React Native",
+			PackageManager: pm,
+			SDKID:          "react-native",
+			EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
+				"src/App.tsx", "src/App.jsx", "src/App.js",
+				"src/index.tsx", "src/index.jsx", "src/index.js",
+				"index.js",
+			})),
+		}
+	}
 	if _, ok := allDeps["react"]; ok {
 		return &DetectResult{
 			Language:       "JavaScript",
@@ -106,41 +125,29 @@ func detectNode(dir string) *DetectResult {
 			})),
 		}
 	}
-	if _, ok := allDeps["react-native"]; ok {
-		return &DetectResult{
-			Language:       "JavaScript",
-			Framework:      "React Native",
-			PackageManager: pm,
-			SDKID:          "react-native-client-sdk",
-			EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
-				"src/App.tsx", "src/App.jsx", "src/App.js",
-				"src/index.tsx", "src/index.jsx", "src/index.js",
-				"index.js",
-			})),
+	jsClientFrameworks := []struct{ dep, framework string }{
+		{"backbone", "Backbone"},
+		{"svelte", "Svelte"},
+		{"vue", "Vue"},
+		{"@angular/core", "Angular"},
+		{"ember-source", "Ember"},
+		{"preact", "Preact"},
+	}
+	for _, fw := range jsClientFrameworks {
+		if _, ok := allDeps[fw.dep]; ok {
+			return &DetectResult{
+				Language:       "JavaScript",
+				Framework:      fw.framework,
+				PackageManager: pm,
+				SDKID:          "js-client-sdk",
+				EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
+					"src/App.tsx", "src/App.jsx", "src/App.js",
+					"src/index.tsx", "src/index.jsx", "src/index.js",
+					"src/main.ts", "src/main.js", "index.js",
+				})),
+			}
 		}
 	}
-	jsClientFrameworks := map[string]string{
-	    "backbone":      "Backbone",
-	    "svelte":        "Svelte",
-	    "vue":           "Vue",
-	    "@angular/core": "Angular",
-	    "ember-source":  "Ember",
-    }
-    for dep, framework := range jsClientFrameworks {
-	    if _, ok := allDeps[dep]; ok {
-		    return &DetectResult{
-			    Language:       "JavaScript",
-			    Framework:      framework,
-			    PackageManager: pm,
-			    SDKID:          "js-client-sdk",
-			    EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
-				    "src/App.tsx", "src/App.jsx", "src/App.js",
-				    "src/index.tsx", "src/index.jsx", "src/index.js",
-				    "src/main.ts", "src/main.js","index.js",
-			    })),
-		    }
-	    }
-    }
 	
 
 	return &DetectResult{
@@ -177,7 +184,7 @@ func detectGo(dir string) *DetectResult {
 		Language:       "Go",
 		PackageManager: "go",
 		SDKID:          "go-server-sdk",
-		EntryPoint:     filepath.Join(dir, firstExistingIn(dir, []string{"main.go", "cmd/main.go"})),
+		EntryPoint:     filepath.Join(dir, firstExistingIn(dir, []string{"cmd/main.go", "main.go"})),
 	}
 }
 
@@ -189,7 +196,7 @@ func detectPython(dir string) *DetectResult {
 				PackageManager: "pip",
 				SDKID:          "python-server-sdk",
 				EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
-					"main.py", "app.py", "manage.py", "src/main.py",
+					"src/main.py", "manage.py", "app.py", "main.py",
 				})),
 			}
 		}
@@ -204,6 +211,20 @@ func detectJava(dir string) *DetectResult {
 			if indicator == "pom.xml" {
 				pm = "mvn"
 			}
+			// Android projects use Gradle but are distinguished by AndroidManifest.xml.
+			for _, manifest := range []string{
+				"app/src/main/AndroidManifest.xml",
+				"src/main/AndroidManifest.xml",
+			} {
+				if _, err := os.Stat(filepath.Join(dir, manifest)); err == nil {
+					return &DetectResult{
+						Language:       "Java",
+						PackageManager: "gradle",
+						SDKID:          "android-client-sdk",
+						EntryPoint:     filepath.Join(dir, "app/src/main/java/MainActivity.java"),
+					}
+				}
+			}
 			return &DetectResult{
 				Language:       "Java",
 				PackageManager: pm,
@@ -213,6 +234,78 @@ func detectJava(dir string) *DetectResult {
 		}
 	}
 	return nil
+}
+
+func detectSwift(dir string) *DetectResult {
+	pm := "spm"
+	if _, err := os.Stat(filepath.Join(dir, "Podfile")); err == nil {
+		pm = "cocoapods"
+	}
+	indicators := []string{"Package.swift", "Podfile"}
+	for _, f := range indicators {
+		if _, err := os.Stat(filepath.Join(dir, f)); err == nil {
+			return &DetectResult{
+				Language:       "Swift",
+				PackageManager: pm,
+				SDKID:          "swift-client-sdk",
+				EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
+					"Sources/main.swift", "App.swift", "ContentView.swift", "AppDelegate.swift",
+				})),
+			}
+		}
+	}
+	matches, _ := filepath.Glob(filepath.Join(dir, "*.xcodeproj"))
+	if len(matches) > 0 {
+		return &DetectResult{
+			Language:       "Swift",
+			PackageManager: pm,
+			SDKID:          "swift-client-sdk",
+			EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
+				"Sources/main.swift", "App.swift", "ContentView.swift", "AppDelegate.swift",
+			})),
+		}
+	}
+	return nil
+}
+
+func detectDotnet(dir string) *DetectResult {
+	for _, pattern := range []string{"*.csproj", "*.sln"} {
+		matches, _ := filepath.Glob(filepath.Join(dir, pattern))
+		if len(matches) > 0 {
+			return &DetectResult{
+				Language:       "C#",
+				PackageManager: "dotnet",
+				SDKID:          "dotnet-server-sdk",
+				EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
+					"Program.cs", "Startup.cs", "src/Program.cs",
+				})),
+			}
+		}
+	}
+	return nil
+}
+
+// SDKOption describes a LaunchDarkly SDK available for use with ldcli setup.
+type SDKOption struct {
+	ID       string
+	Language string
+	Name     string
+}
+
+// KnownSDKs is the ordered list of SDKs available for manual selection when
+// auto-detection fails or the user wants to override the detected SDK.
+var KnownSDKs = []SDKOption{
+	{ID: "node-server", Language: "JavaScript", Name: "Node.js"},
+	{ID: "react-client-sdk", Language: "JavaScript", Name: "React"},
+	{ID: "react-native", Language: "JavaScript", Name: "React Native"},
+	{ID: "js-client-sdk", Language: "JavaScript", Name: "JavaScript (Browser)"},
+	{ID: "python-server-sdk", Language: "Python", Name: "Python"},
+	{ID: "go-server-sdk", Language: "Go", Name: "Go"},
+	{ID: "java-server-sdk", Language: "Java", Name: "Java"},
+	{ID: "android-client-sdk", Language: "Java", Name: "Android"},
+	{ID: "dotnet-server-sdk", Language: "C#", Name: ".NET"},
+	{ID: "swift-client-sdk", Language: "Swift", Name: "iOS/Swift"},
+	{ID: "ruby-server-sdk", Language: "Ruby", Name: "Ruby"},
 }
 
 // firstExistingIn returns the first candidate that exists as a file in dir,
