@@ -147,9 +147,31 @@ type rawRollout struct {
 	LatestStageIndex        int                   `json:"latestStageIndex"`
 	ExtensionDurationMillis *int64                `json:"extensionDurationMillis,omitempty"`
 	Stages                  []rawStage            `json:"stages,omitempty"`
-	Events                  []Event               `json:"events,omitempty"`
+	Events                  []rawEvent            `json:"events,omitempty"`
 	MetricConfigurations    []MetricConfiguration `json:"metricConfigurations,omitempty"`
 	Links                   map[string]Link       `json:"_links,omitempty"`
+}
+
+// rawEvent mirrors Event but keeps CreatedAt as int64 millis on the wire — the
+// API emits unix-millis ints, not RFC 3339 strings, so a plain `time.Time` field
+// fails json.Unmarshal with "input is not a JSON string". Converted to time.Time
+// in toEvent().
+type rawEvent struct {
+	Kind       string `json:"kind"`
+	CreatedAt  int64  `json:"createdAt"`
+	StageIndex int    `json:"stageIndex,omitempty"`
+	MetricKey  string `json:"metricKey,omitempty"`
+	Message    string `json:"message,omitempty"`
+}
+
+func (raw rawEvent) toEvent() Event {
+	return Event{
+		Kind:       raw.Kind,
+		CreatedAt:  time.Unix(0, raw.CreatedAt*int64(time.Millisecond)).UTC(),
+		StageIndex: raw.StageIndex,
+		MetricKey:  raw.MetricKey,
+		Message:    raw.Message,
+	}
 }
 
 type rawStage struct {
@@ -189,6 +211,11 @@ func (raw rawRollout) toRollout() Rollout {
 		stages = append(stages, s.toStage())
 	}
 
+	events := make([]Event, 0, len(raw.Events))
+	for _, e := range raw.Events {
+		events = append(events, e.toEvent())
+	}
+
 	r := Rollout{
 		ID:                      raw.ID,
 		FlagKey:                 raw.FlagKey,
@@ -205,7 +232,7 @@ func (raw rawRollout) toRollout() Rollout {
 		LatestStageIndex:        raw.LatestStageIndex,
 		ExtensionDurationMillis: raw.ExtensionDurationMillis,
 		Stages:                  stages,
-		Events:                  raw.Events,
+		Events:                  events,
 		MetricConfigurations:    raw.MetricConfigurations,
 		Links:                   raw.Links,
 		// Status.Status is needed before DeriveStatusBlock can run.

@@ -23,7 +23,7 @@
           "kind": "regression_detected",
           "stageIndex": 1,
           "metricKey": "latency-p99",
-          "createdAt": "2024-05-10T15:45:00Z"
+          "createdAt": 1715355900000
         }
       ],
       "metricConfigurations": [
