@@ -774,16 +774,16 @@ func NewRolloutEnvelope(r *Rollout) Envelope {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **HTTP status code for "Flag must not have ongoing rollout" errors.**
    - What we know: gonfalon source confirms the message text; the transport wraps it as `sempatch.NewInstructionError` which typically becomes a 400.
    - What's unclear: exact status code on the wire — could be 400, 409, or 422 depending on semantic-patch error routing.
-   - Recommendation: write the message-based match so it fires regardless of status code (check message before checking status code), or test against staging early and confirm.
+   - **RESOLVED:** Plan 02-02 Task 1's `mapAPIError` extension matches by message substring *before* checking status code, so the mapping fires regardless of which of 400/409/422 the server returns. Plan 02-02 Task 4's Smoke C/D/E entries validate the actual on-wire status against staging.
 
 2. **`SemanticPatch.EnvironmentKey` field is missing from the Phase 1 stub.**
    - What we know: Architecture research Pattern 3 example includes it; the Phase 1 `instructions.go` stub only has `Comment` and `Instructions`.
-   - Recommendation: add `EnvironmentKey string json:"environmentKey"` to `SemanticPatch` as a Wave 0 fix before any test can be written. [VERIFIED: ARCHITECTURE.md Pattern 3]
+   - **RESOLVED:** Fixed in Plan 02-01 Task 1 (Wave 0). Adds `EnvironmentKey string \`json:"environmentKey"\`` to `SemanticPatch` before any downstream code references it. [VERIFIED: ARCHITECTURE.md Pattern 3]
 
 ---
 

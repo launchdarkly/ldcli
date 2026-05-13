@@ -58,7 +58,11 @@ Plans:
   3. In a non-TTY context (or when `--output json` is set), the CLI runs the metric/randomization-unit preflight via `recommended-duration` before any mutation and exits with the dedicated preflight-failed exit code on rejection; in an interactive TTY the operator is prompted with the specific failure; `--skip-health-checks` bypasses the preflight and the success envelope includes an audit entry naming what was skipped.
   4. After the patch mutation succeeds, the CLI follows up with a GET (env-filtered, `limit=1`) and surfaces the new rollout's ID + initial state in stdout — and an agent running `start --output json | jq -r .data.id` always gets a non-empty ID.
   5. Distinct documented exit codes / `error.code` values fire for: preflight failure, flag-off, "rollout already running on this flag/env", invalid variation, auth scope missing, and unknown upstream error — and `--idempotency-key <uuid>` (or the auto-generated UUID) produces a coherent outcome when the same start is retried after a transient failure.
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Prerequisites: SemanticPatch.EnvironmentKey + StartInstruction shape + cliflags constants + idempotency.go deletion (Wave 1)
+- [ ] 02-02-PLAN.md — Vertical slice: Client.Start (two-step PATCH+re-fetch), error-message mapping, Cobra `start` command, tests, real-staging smoke (Wave 2; depends on 02-01)
 
 ### Phase 3: Status & Watch
 **Goal**: Operator (human or agent) can inspect any rollout with full UI-parity detail and can watch a running rollout for actionable events (regressions, stage transitions, action-required) via diff-based NDJSON streaming — the agent's primary feedback loop.
@@ -91,7 +95,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. List (foundation + first slice) | 0/3 | Not started | - |
-| 2. Start a rollout | 0/? | Not started | - |
+| 2. Start a rollout | 0/2 | Not started | - |
 | 3. Status & Watch | 0/? | Not started | - |
 | 4. Stop, Dismiss, & Finalize papercuts | 0/? | Not started | - |
 
