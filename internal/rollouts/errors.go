@@ -95,7 +95,14 @@ func mapAPIError(body []byte, statusCode int) error {
 
 	case statusCode == http.StatusForbidden:
 		e.Code = ErrCodeForbidden
-		e.Message = "Access denied; token may lack required scope"
+		// Mirror the 404 pattern: prefer the server's message when present so the real
+		// cause (e.g. "LD-API-Version header required") is surfaced. Fall back to the
+		// generic role/scope wording when the body lacks a message.
+		if apiBody.Message != "" {
+			e.Message = apiBody.Message
+		} else {
+			e.Message = "Access denied; token may lack required scope"
+		}
 		e.NextAction = suggestionOrFallback(statusCode,
 			"Verify your access token's role includes the required permission/scope on the target project")
 
