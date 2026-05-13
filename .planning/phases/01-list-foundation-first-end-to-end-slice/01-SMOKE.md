@@ -141,18 +141,19 @@ state phrasing in RESEARCH.md.
 
 ## Observations / follow-ups
 
-- **`environmentKey` is empty on each item** — the API only returns
-  `environmentId`, not `environmentKey`. The CLI defensively carries both
-  fields on `Rollout` but the key stays empty for now. Plaintext rendering
-  shows `?` for the environment column. Capture as a papercut (likely PC-NN
-  in API-PAPERCUTS.md): "API does not return environmentKey on automated-
-  releases items; CLI must resolve via a separate environments call or
-  surface the ID-only state".
-- **`--environment test` filter is currently a no-op against this endpoint**
-  — the URL pattern (`/internal/projects/{p}/flags/{flag}/automated-releases`)
-  is flag-scoped, not env-scoped, and the API doesn't accept an env query
-  filter we can identify. Sub-bug of the missing `environmentKey` above.
-  Phase 1 contract says `--environment` filters client-side; needs follow-up.
+- **`environmentKey` is absent on response items** — the API returns
+  `environmentId` only, not `environmentKey`. The Go DTO carries both fields
+  but the key serializes out via `omitempty`, so the JSON envelope is clean
+  (no leaky empty strings). Consumers that want the env name on output must
+  do a separate `/api/v2/projects/{p}/environments` lookup to resolve.
+  Captured as papercut #1 in the [Confluence learnings doc](https://launchdarkly.atlassian.net/wiki/spaces/~62435d09f6a26900695be8d7/pages/4875452435).
+- **`--environment` filter works correctly** — the CLI sends
+  `filter=environmentKey:{env}` as a query param to the flag-scoped list
+  endpoint; the server honors it, returning 0 items for envs with no
+  rollouts and a structured `not_found` error for unknown env keys.
+  Verified post-smoke. (An earlier follow-up note claiming this was a no-op
+  was wrong and has been retracted from both 01-SMOKE.md and the Confluence
+  doc.)
 - **`event.createdAt` JSON shape was a real assumption mismatch** — fixture
   was correct-looking RFC 3339 because that's what `time.Time` round-trips
   to on the OUT side; the IN side from the API is millis. This is the kind
