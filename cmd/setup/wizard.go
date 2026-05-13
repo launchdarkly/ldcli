@@ -62,9 +62,8 @@ type wizardModel struct {
 	clientSideID    string
 	mobileKey       string
 
-	detectResult  *setup.DetectResult
-	installResult *setup.InstallResult
-	flagKey       string
+	detectResult *setup.DetectResult
+	flagKey      string
 	initResult    *setup.InitResult
 	verifyResult  *setup.VerifyResult
 
@@ -193,24 +192,16 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.runDetect()
 
 	case detectFailedMsg:
-		items := make([]list.Item, len(setup.KnownSDKs))
-		for i, sdk := range setup.KnownSDKs {
-			items[i] = sdkItem{id: sdk.ID, language: sdk.Language, name: sdk.Name}
-		}
-		delegate := list.NewDefaultDelegate()
-		m.sdkList = list.New(items, delegate, m.width, m.height-4)
-		m.sdkList.Title = "Select your SDK:"
-		m.sdkList.SetShowStatusBar(false)
+		m.sdkList = m.buildSDKList("")
 		m.step = stepSelectSDK
 		return m, nil
 
 	case detectDoneMsg:
-		m.detectResult = msg.result
-		m.step = stepInstall
-		return m, m.runInstall()
+		m.sdkList = m.buildSDKList(msg.result.SDKID)
+		m.step = stepSelectSDK
+		return m, nil
 
 	case installDoneMsg:
-		m.installResult = msg.result
 		m.step = stepCreateFlag
 		return m, m.runCreateFlag()
 
@@ -356,7 +347,7 @@ func (m wizardModel) View() string {
 				fmt.Sprintf("Flag %q has been created in project %q.\n", m.flagKey, m.selectedProject) +
 				"Once you've initialized the SDK manually, your flag will be ready to use.\n"
 		}
-		if m.verifyResult != nil && m.verifyResult.Active {
+		if m.verifyResult != nil && m.verifyResult.Active && m.detectResult != nil {
 			return titleStyle.Render("Setup complete!") + "\n\n" +
 				fmt.Sprintf("Your %s SDK is connected to LaunchDarkly.\n", m.detectResult.SDKID) +
 				fmt.Sprintf("Flag %q is ready to use.\n\n", m.flagKey) +
@@ -368,6 +359,26 @@ func (m wizardModel) View() string {
 	}
 
 	return ""
+}
+
+// buildSDKList constructs the SDK selection list. If prioritizedID is non-empty
+// the matching SDK is placed first; all others follow in their default order.
+func (m wizardModel) buildSDKList(prioritizedID string) list.Model {
+	var first, rest []list.Item
+	for _, sdk := range setup.KnownSDKs {
+		item := sdkItem{id: sdk.ID, language: sdk.Language, name: sdk.Name}
+		if sdk.ID == prioritizedID {
+			first = append(first, item)
+		} else {
+			rest = append(rest, item)
+		}
+	}
+	items := append(first, rest...)
+	delegate := list.NewDefaultDelegate()
+	l := list.New(items, delegate, m.width, m.height-4)
+	l.Title = "Select your SDK:"
+	l.SetShowStatusBar(false)
+	return l
 }
 
 // Commands that perform async work
