@@ -212,11 +212,17 @@ func (c RolloutsClient) Get(
 	return &r, nil
 }
 
-// setStandardHeaders applies the three common headers (Authorization, Content-Type,
-// User-Agent) to a retryablehttp.Request. The User-Agent matches the
+// setStandardHeaders applies the four common headers (Authorization, Content-Type,
+// User-Agent, LD-API-Version) to a retryablehttp.Request. The User-Agent matches the
 // `internal/resources/Client` convention so analytics and observability stay consistent.
+//
+// LD-API-Version: the internal automated-releases API is gated behind the `beta` API version;
+// without this header the server returns 403. Confirmed against real staging — synthetic
+// httptest servers used in unit tests do not enforce this header, which is how the gap was
+// missed during the Phase 1 unit-test pass (see quick task 260513-i1u).
 func (c RolloutsClient) setStandardHeaders(req *retryablehttp.Request, accessToken string) {
 	req.Header.Set("Authorization", accessToken)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.cliVersion))
+	req.Header.Set("LD-API-Version", "beta")
 }

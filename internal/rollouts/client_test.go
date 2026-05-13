@@ -161,6 +161,9 @@ func TestRolloutsClient(t *testing.T) {
 		assert.Equal(t, "my-access-token", headers.Get("Authorization"))
 		assert.Equal(t, "application/json", headers.Get("Content-Type"))
 		assert.Equal(t, "launchdarkly-cli/vtest-version", headers.Get("User-Agent"))
+		// LD-API-Version: beta is required by the internal automated-releases API; without it
+		// the server returns 403 (real staging behavior confirmed in quick task 260513-i1u).
+		assert.Equal(t, "beta", headers.Get("LD-API-Version"))
 		assert.Empty(t, headers.Get("Idempotency-Key"), "GET must not send Idempotency-Key")
 	})
 
