@@ -42,7 +42,7 @@ var sdkTemplates = map[string]sdkTemplateInfo{
 	"react-native":      {TemplateFile: "react-native.tmpl"},
 	"js-client-sdk":     {TemplateFile: "js-client-sdk.tmpl"},
 	"swift-client-sdk":  {TemplateFile: "swift-client-sdk.tmpl"},
-	"android":           {TemplateFile: "android.tmpl"},
+	"android-client-sdk": {TemplateFile: "android.tmpl"},
 	"java-server-sdk":   {TemplateFile: "java-server-sdk.tmpl"},
 	"ruby-server-sdk":   {TemplateFile: "ruby-server-sdk.tmpl"},
 	"go-server-sdk":     {TemplateFile: "go-server-sdk.tmpl"},

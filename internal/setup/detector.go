@@ -170,7 +170,7 @@ func detectNodePM(dir string) string {
 	if _, err := os.Stat(filepath.Join(dir, "yarn.lock")); err == nil {
 		return "yarn"
 	}
-   if _, err := os.Stat(filepath.Join(dir, "bun.lock")); err == nil {
+	if _, err := os.Stat(filepath.Join(dir, "bun.lock")); err == nil {
 		return "bun"
 	}
 	return "npm"

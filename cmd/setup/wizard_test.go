@@ -114,6 +114,40 @@ func TestWizard_SelectSDK_UserCanOverrideDetection(t *testing.T) {
 	assert.NotEqual(t, "go-server-sdk", selected.detectResult.SDKID)
 }
 
+func TestWizard_DetectDone_EntryPointStoredForLaterUse(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID:      "go-server-sdk",
+		Language:   "Go",
+		EntryPoint: "/my/project/main.go",
+	}})
+	updated := next.(wizardModel)
+
+	// Entry point is not exposed on detectResult yet (user hasn't confirmed)
+	assert.Nil(t, updated.detectResult)
+
+	// Confirm SDK selection — entry point should now be on detectResult
+	next, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	selected := next.(wizardModel)
+
+	require.NotNil(t, selected.detectResult)
+	assert.Equal(t, "/my/project/main.go", selected.detectResult.EntryPoint)
+}
+
+func TestWizard_WaitForApp_EnterTriggersVerify(t *testing.T) {
+	m := wizardModel{
+		step:       stepWaitForApp,
+		initResult: &setup.InitResult{SDKID: "go-server-sdk", FilePath: "/tmp/main.go", Success: true},
+	}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := next.(wizardModel)
+
+	assert.Equal(t, stepVerify, updated.step)
+	assert.NotNil(t, cmd)
+}
+
 func TestWizard_SelectSDK_EmptyList_DoesNotPanic(t *testing.T) {
 	m := wizardModel{step: stepSelectSDK}
 

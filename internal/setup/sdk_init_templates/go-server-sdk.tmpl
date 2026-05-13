@@ -1,11 +1,8 @@
-import (
-	"fmt"
-	"time"
+// Add these to your import block:
+//   "github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+//   ld "github.com/launchdarkly/go-server-sdk/v7"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
-	ld "github.com/launchdarkly/go-server-sdk/v7"
-)
-// --- init ---
+
 ldClient, _ := ld.MakeClient("{{.SDKKey}}", 5*time.Second)
 
 context := ldcontext.NewBuilder("example-user-key").

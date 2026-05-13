@@ -16,7 +16,7 @@ import (
 
 func TestInit(t *testing.T) {
 	tmpDir := t.TempDir()
-	filePath := tmpDir + "/index.js"
+	filePath := filepath.Join(tmpDir, "index.js")
 
 	args := []string{
 		"setup", "init",
@@ -41,7 +41,7 @@ func TestInit(t *testing.T) {
 
 func TestInitJSON(t *testing.T) {
 	tmpDir := t.TempDir()
-	filePath := tmpDir + "/index.js"
+	filePath := filepath.Join(tmpDir, "index.js")
 
 	args := []string{
 		"setup", "init",
