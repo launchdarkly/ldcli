@@ -128,6 +128,8 @@ func nodeInstallCmd(pm, pkg string) []string {
 		return []string{"yarn", "add", pkg}
 	case "pnpm":
 		return []string{"pnpm", "add", pkg}
+    case "bun":
+		return []string{"bun", "add", pkg}
 	default:
 		return []string{"npm", "install", pkg}
 	}
