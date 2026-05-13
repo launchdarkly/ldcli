@@ -98,3 +98,39 @@ func TestInstallStubReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not yet implemented")
 }
+
+func TestInstallMissingRequiredFlag(t *testing.T) {
+	args := []string{
+		"setup", "install",
+		"--access-token", "test-token",
+	}
+	_, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "required flag")
+}
+
+func TestInitMissingRequiredFlags(t *testing.T) {
+	args := []string{
+		"setup", "init",
+		"--access-token", "test-token",
+	}
+	_, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "required flag")
+}

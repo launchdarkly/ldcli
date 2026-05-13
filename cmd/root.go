@@ -127,7 +127,10 @@ func NewRootCommand(
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// disable required flags when running certain commands
+			// Skip the global --access-token required-flag check for commands
+			// that don't need an API token. We clear the annotation on the
+			// specific flag instead of setting DisableFlagParsing, which would
+			// also suppress validation for the subcommand's own required flags.
 			for _, name := range []string{
 				"completion",
 				"config",
@@ -137,14 +140,13 @@ func NewRootCommand(
 				"signup",
 				"whoami",
 			} {
-				if cmd.HasParent() && cmd.Parent().Name() == name {
-					cmd.DisableFlagParsing = true
-				}
-				if cmd.Name() == name {
-					cmd.DisableFlagParsing = true
+				if cmd.Name() == name || (cmd.HasParent() && cmd.Parent().Name() == name) {
+					if f := cmd.Flags().Lookup(cliflags.AccessTokenFlag); f != nil {
+						delete(f.Annotations, cobra.BashCompOneRequiredFlag)
+					}
+					break
 				}
 			}
-
 		},
 		Annotations: make(map[string]string),
 		// Handle errors differently based on type.
