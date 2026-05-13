@@ -61,7 +61,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Prerequisites: SemanticPatch.EnvironmentKey + StartInstruction shape + cliflags constants + idempotency.go deletion (Wave 1)
+- [x] 02-01-PLAN.md — Prerequisites: SemanticPatch.EnvironmentKey + StartInstruction shape + cliflags constants + idempotency.go deletion (Wave 1)
 - [ ] 02-02-PLAN.md — Vertical slice: Client.Start (two-step PATCH+re-fetch), error-message mapping, Cobra `start` command, tests, real-staging smoke (Wave 2; depends on 02-01)
 
 ### Phase 3: Status & Watch
