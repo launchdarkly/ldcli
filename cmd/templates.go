@@ -13,6 +13,7 @@ func getUsageTemplate() string {
 {{if not .HasParent}}
 Commands:
   {{rpad "setup" 29}} Set up LaunchDarkly in your project (detect, install, initialize)
+  {{rpad "quickstart" 29}} Create your first feature flag using a step-by-step guide (deprecated: use setup)
   {{rpad "config" 29}} View and modify specific configuration values
   {{rpad "completion" 29}} Enable command autocompletion within supported shells
   {{rpad "login" 29}} Log in to your LaunchDarkly account

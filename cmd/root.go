@@ -266,6 +266,7 @@ func NewRootCommand(
 	quickStartCmd := NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient)
 	quickStartCmd.Use = "quickstart"
 	quickStartCmd.Hidden = true
+	quickStartCmd.Deprecated = "use 'ldcli setup' for the new guided setup experience"
 	cmd.AddCommand(quickStartCmd)
 	cmd.AddCommand(logincmd.NewLoginCmd(clients.ResourcesClient))
 	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))

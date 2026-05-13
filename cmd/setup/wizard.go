@@ -36,6 +36,11 @@ const (
 	stepDone
 )
 
+const (
+	verifyInterval = 5 * time.Second
+	verifyTimeout  = 120 * time.Second
+)
+
 type wizardModel struct {
 	analyticsTrackerFn analytics.TrackerFn
 	resourcesClient    resources.Client
@@ -198,6 +203,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case initDoneMsg:
 		m.initResult = msg.result
+		if !msg.result.Success {
+			m.step = stepDone
+			return m, nil
+		}
 		m.step = stepWaitForApp
 		return m, nil
 
@@ -305,6 +314,13 @@ func (m wizardModel) View() string {
 		return m.spinner.View() + " Waiting for SDK to connect..."
 
 	case stepDone:
+		if m.initResult != nil && !m.initResult.Success {
+			return titleStyle.Render("Manual SDK setup required") + "\n\n" +
+				fmt.Sprintf("No initialization template is available for %s.\n", m.initResult.SDKID) +
+				fmt.Sprintf("Follow the setup guide at: %s\n\n", m.initResult.DocsURL) +
+				fmt.Sprintf("Flag %q has been created in project %q.\n", m.flagKey, m.selectedProject) +
+				"Once you've initialized the SDK manually, your flag will be ready to use.\n"
+		}
 		if m.verifyResult != nil && m.verifyResult.Active {
 			return titleStyle.Render("Setup complete!") + "\n\n" +
 				fmt.Sprintf("Your %s SDK is connected to LaunchDarkly.\n", m.detectResult.SDKID) +
@@ -489,8 +505,8 @@ func (m wizardModel) runVerify() tea.Cmd {
 	return func() tea.Msg {
 		verifier := &setup.Verifier{
 			Client:   m.resourcesClient,
-			Interval: 5 * time.Second,
-			Timeout:  120 * time.Second,
+			Interval: verifyInterval,
+			Timeout:  verifyTimeout,
 		}
 		result, err := verifier.Verify(
 			viper.GetString(cliflags.AccessTokenFlag),

@@ -113,6 +113,37 @@ func TestInjectIntoFile_ExistingFile(t *testing.T) {
 	assert.Contains(t, string(content), "test-key")
 }
 
+func TestInjectIntoFile_NewFile_OmitsSeparator(t *testing.T) {
+	sdks := []struct {
+		sdkID    string
+		filename string
+	}{
+		{"python-server-sdk", "init_ld.py"},
+		{"ruby-server-sdk", "init_ld.rb"},
+		{"node-server", "index.js"},
+	}
+
+	for _, tt := range sdks {
+		t.Run(tt.sdkID, func(t *testing.T) {
+			dir := t.TempDir()
+			filePath := filepath.Join(dir, tt.filename)
+
+			initializer := Initializer{}
+			result, err := initializer.InjectIntoFile(tt.sdkID, filePath, InitConfig{
+				SDKKey:  "test-key",
+				FlagKey: "test-flag",
+			})
+
+			require.NoError(t, err)
+			assert.True(t, result.Success)
+
+			content, err := os.ReadFile(filePath)
+			require.NoError(t, err)
+			assert.NotContains(t, string(content), "// --- init ---")
+		})
+	}
+}
+
 func TestInjectIntoFile_UnsupportedSDK_ReturnsDocsURL(t *testing.T) {
 	initializer := Initializer{}
 	result, err := initializer.InjectIntoFile("php-server-sdk", "/tmp/fake.php", InitConfig{})
