@@ -62,7 +62,7 @@ Not yet measured. Targets to track once Phase 1 plans land:
 | `recommended-duration` is the preflight proxy (no dedicated validate endpoint exists) | Architecture research P8 | Pending Phase 2 |
 | Versioned JSON envelope `schemaVersion: "rollouts.v1beta1"` + `kind` + `data` + `meta` shared by every command | Stack + Features research | Pending Phase 1 |
 | Exit-code taxonomy aligned-but-simpler than sysexits; reconciled in Phase 1 | Stack + Features research | Pending Phase 1 |
-| `go-retryablehttp@v0.7.7` for retries; `google/uuid` (already vendored) for `Idempotency-Key`; `golang.org/x/term` for TTY (no `mattn/go-isatty`) | Stack research | Pending Phase 1 |
+| `go-retryablehttp@v0.7.7` for retries; `golang.org/x/term` for TTY (no `mattn/go-isatty`) | Stack research | Pending Phase 1 |
 | Watch is `gh pr checks --watch` style (alt screen + simple redraw); NDJSON when `--output json`; explicitly NOT Bubbletea | Stack research | Pending Phase 3 |
 | Watch defaults to "until next actionable event," not "until terminal," for multi-day rollouts | Pitfalls research #6 | Pending Phase 3 |
 | Diff-based transition detection in watch, not status-only polling | Pitfalls research #5 | Pending Phase 3 |
