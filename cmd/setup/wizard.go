@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -34,11 +33,6 @@ const (
 	stepWaitForApp
 	stepVerify
 	stepDone
-)
-
-const (
-	verifyInterval = 5 * time.Second
-	verifyTimeout  = 120 * time.Second
 )
 
 type wizardModel struct {
@@ -502,11 +496,7 @@ func (m wizardModel) runInit() tea.Cmd {
 
 func (m wizardModel) runVerify() tea.Cmd {
 	return func() tea.Msg {
-		verifier := &setup.Verifier{
-			Client:   m.resourcesClient,
-			Interval: verifyInterval,
-			Timeout:  verifyTimeout,
-		}
+		verifier := setup.DefaultVerifier(m.resourcesClient)
 		result, err := verifier.Verify(
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),

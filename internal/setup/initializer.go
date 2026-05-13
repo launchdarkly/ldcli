@@ -144,8 +144,9 @@ func RenderTemplate(sdkID string, cfg InitConfig) (string, error) {
 // the documentation URL instead of an error.
 //
 // The template output is split into an IMPORTS section and an INIT section by a
-// "// --- init ---" separator. Imports are placed at the top of the file, and init code
-// is appended after the existing content.
+// separator line ("// --- init ---" or "# --- init ---" depending on language).
+// Imports are placed at the top of the file, and init code is appended after the
+// existing content.
 func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*InitResult, error) {
 	if !HasTemplate(sdkID) {
 		return &InitResult{
@@ -160,13 +161,7 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 		return nil, err
 	}
 
-	parts := strings.SplitN(rendered, "// --- init ---", 2)
-	importSection := ""
-	initSection := rendered
-	if len(parts) == 2 {
-		importSection = strings.TrimSpace(parts[0])
-		initSection = strings.TrimSpace(parts[1])
-	}
+	importSection, initSection := splitInitSections(rendered)
 
 	existing, err := os.ReadFile(filePath)
 	if err != nil {
@@ -197,4 +192,22 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 	}
 
 	return &InitResult{SDKID: sdkID, FilePath: filePath, Success: true}, nil
+}
+
+// initSeparators lists the markers that divide import and init sections in templates.
+var initSeparators = []string{
+	"// --- init ---",
+	"# --- init ---",
+}
+
+// splitInitSections splits rendered template output into an import section and an
+// init section. It recognises comment-style-appropriate separators so that templates
+// for languages like Python and Ruby can use `#` comments.
+func splitInitSections(rendered string) (importSection, initSection string) {
+	for _, sep := range initSeparators {
+		if parts := strings.SplitN(rendered, sep, 2); len(parts) == 2 {
+			return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		}
+	}
+	return "", rendered
 }
