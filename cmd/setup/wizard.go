@@ -62,7 +62,8 @@ type wizardModel struct {
 	clientSideID    string
 	mobileKey       string
 
-	detectResult *setup.DetectResult
+	detectedEntryPoint string
+	detectResult       *setup.DetectResult
 	flagKey      string
 	initResult    *setup.InitResult
 	verifyResult  *setup.VerifyResult
@@ -197,6 +198,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case detectDoneMsg:
+		m.detectedEntryPoint = msg.result.EntryPoint
 		m.sdkList = m.buildSDKList(msg.result.SDKID)
 		m.step = stepSelectSDK
 		return m, nil
@@ -278,8 +280,9 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.detectResult = &setup.DetectResult{
-			SDKID:    selected.id,
-			Language: selected.language,
+			SDKID:      selected.id,
+			Language:   selected.language,
+			EntryPoint: m.detectedEntryPoint,
 		}
 		m.step = stepInstall
 		return m, m.runInstall()
