@@ -62,6 +62,58 @@ func TestInitJSON(t *testing.T) {
 	assert.Contains(t, string(output), `"success":true`)
 }
 
+func TestInitUnsupportedSDKPlaintext(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := tmpDir + "/main.rs"
+
+	args := []string{
+		"setup", "init",
+		"--access-token", "test-token",
+		"--sdk-id", "rust-server-sdk",
+		"--file", filePath,
+		"--sdk-key", "test-sdk-key",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), "No initialization template available for rust-server-sdk")
+	assert.Contains(t, string(output), "setup guide at:")
+	assert.NotContains(t, string(output), "Injected")
+}
+
+func TestInitUnsupportedSDKJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := tmpDir + "/main.rs"
+
+	args := []string{
+		"setup", "init",
+		"--access-token", "test-token",
+		"--sdk-id", "rust-server-sdk",
+		"--file", filePath,
+		"--sdk-key", "test-sdk-key",
+		"--output", "json",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), `"success":false`)
+	assert.Contains(t, string(output), `"docs_url"`)
+}
+
 func TestDetectStubReturnsError(t *testing.T) {
 	args := []string{
 		"setup", "detect",

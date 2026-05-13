@@ -69,6 +69,12 @@ func runInit() func(*cobra.Command, []string) error {
 			return nil
 		}
 
+		if !result.Success {
+			fmt.Fprintf(cmd.OutOrStdout(), "No initialization template available for %s\n", result.SDKID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Follow the setup guide at: %s\n", result.DocsURL)
+			return nil
+		}
+
 		fmt.Fprintf(cmd.OutOrStdout(), "Injected %s initialization into %s\n", result.SDKID, result.FilePath)
 		return nil
 	}
