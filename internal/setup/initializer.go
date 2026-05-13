@@ -160,23 +160,29 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 		return nil, err
 	}
 
-	existing, err := os.ReadFile(filePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			if err := os.WriteFile(filePath, []byte(rendered), 0644); err != nil {
-				return nil, fmt.Errorf("creating %s: %w", filePath, err)
-			}
-			return &InitResult{SDKID: sdkID, FilePath: filePath, Success: true}, nil
-		}
-		return nil, fmt.Errorf("reading %s: %w", filePath, err)
-	}
-
 	parts := strings.SplitN(rendered, "// --- init ---", 2)
 	importSection := ""
 	initSection := rendered
 	if len(parts) == 2 {
 		importSection = strings.TrimSpace(parts[0])
 		initSection = strings.TrimSpace(parts[1])
+	}
+
+	existing, err := os.ReadFile(filePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			var content string
+			if importSection != "" {
+				content = importSection + "\n\n" + initSection + "\n"
+			} else {
+				content = initSection + "\n"
+			}
+			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+				return nil, fmt.Errorf("creating %s: %w", filePath, err)
+			}
+			return &InitResult{SDKID: sdkID, FilePath: filePath, Success: true}, nil
+		}
+		return nil, fmt.Errorf("reading %s: %w", filePath, err)
 	}
 
 	content := string(existing)
