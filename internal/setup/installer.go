@@ -138,7 +138,7 @@ func nodeInstallCmd(pm, pkg string) []string {
 // resolveNodePM normalises the package manager name, defaulting to "npm".
 func resolveNodePM(pm string) string {
 	switch pm {
-	case "yarn", "pnpm":
+	case "yarn", "pnpm", "bun":
 		return pm
 	default:
 		return "npm"
