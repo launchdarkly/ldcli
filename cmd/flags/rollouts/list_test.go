@@ -303,7 +303,7 @@ func TestListErrorEnvelope(t *testing.T) {
 			NextAction: "Verify --flag value",
 		})
 
-	t.Run("error from client emits Error envelope and exits non-zero", func(t *testing.T) {
+	t.Run("JSON-mode error: envelope lands on stdout (AGENT-04), short sentinel on stderr, exit non-zero", func(t *testing.T) {
 		args := []string{
 			"flags", "rollouts-beta", "list",
 			"--access-token", "abcd1234",
@@ -311,14 +311,58 @@ func TestListErrorEnvelope(t *testing.T) {
 			"--project", "test-proj",
 			"--output", "json",
 		}
-		_, err := cmd.CallCmd(t, cmd.APIClients{RolloutsClient: mockClient}, analytics.NoopClientFn{}.Tracker(), args)
+		stdout, stderr, err := cmd.CallCmdWithStderr(t, cmd.APIClients{RolloutsClient: mockClient}, analytics.NoopClientFn{}.Tracker(), args)
 		require.Error(t, err)
-		// The error's Error() string is the JSON envelope
+
+		// (a) stdout contains the error envelope JSON
 		var env rollouts.Envelope
-		require.NoError(t, json.Unmarshal([]byte(err.Error()), &env), "expected JSON envelope, got: %s", err.Error())
+		require.NoError(t, json.Unmarshal(stdout, &env), "expected JSON envelope on stdout, got: %s", string(stdout))
 		assert.Equal(t, "Error", env.Kind)
+		assert.Equal(t, "rollouts.v1beta1", env.SchemaVersion)
 		require.NotNil(t, env.Error)
 		assert.Equal(t, rollouts.ErrCodeNotFound, env.Error.Code)
+		assert.Equal(t, "Feature flag not found", env.Error.Message)
+		assert.Equal(t, "Verify --flag value", env.Error.NextAction)
+
+		// (b) stderr does NOT contain the envelope JSON. The test harness captures whatever
+		// runE returned, but the per-process root command's `Fprintln(os.Stderr, err)` is
+		// not run inside CallCmdWithStderr — that path runs in production `Execute()`. What
+		// matters here is that the runE output stream got the envelope, NOT cmd.ErrOrStderr.
+		assert.NotContains(t, string(stderr), `"kind": "Error"`,
+			"envelope must not leak onto stderr in JSON mode (AGENT-04)")
+		assert.NotContains(t, string(stderr), `"schemaVersion": "rollouts.v1beta1"`,
+			"envelope must not leak onto stderr in JSON mode (AGENT-04)")
+
+		// The returned error is a short sentinel so root's Fprintln(os.Stderr, err) does
+		// not re-emit the envelope to stderr in production.
+		assert.NotContains(t, err.Error(), `"kind"`,
+			"err.Error() must not be the JSON envelope; root prints it to stderr in production")
+		assert.NotContains(t, err.Error(), `"schemaVersion"`,
+			"err.Error() must not be the JSON envelope; root prints it to stderr in production")
+	})
+
+	t.Run("plaintext error: message returned via err, no envelope on stdout", func(t *testing.T) {
+		// Use a fresh mock so call counts stay clean across subtests.
+		plainMock := &rollouts.MockClient{}
+		plainMock.On("List", "abcd1234", mock.Anything, "test-proj", "test-flag", mock.Anything).
+			Return(nil, &rollouts.RolloutError{
+				Code:       rollouts.ErrCodeNotFound,
+				Message:    "Feature flag not found",
+				NextAction: "Verify --flag value",
+			})
+		args := []string{
+			"flags", "rollouts-beta", "list",
+			"--access-token", "abcd1234",
+			"--flag", "test-flag",
+			"--project", "test-proj",
+		}
+		stdout, _, err := cmd.CallCmdWithStderr(t, cmd.APIClients{RolloutsClient: plainMock}, analytics.NoopClientFn{}.Tracker(), args)
+		require.Error(t, err)
+		// Plaintext mode keeps the existing UX: error message surfaces via err (which root
+		// prints to stderr); stdout must NOT contain an envelope.
+		assert.Equal(t, "Feature flag not found", err.Error())
+		assert.NotContains(t, string(stdout), `"kind"`,
+			"plaintext mode must not emit a JSON envelope on stdout")
 	})
 }
 

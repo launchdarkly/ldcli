@@ -134,10 +134,22 @@ func sortRolloutsByRecency(items []rollouts.Rollout) {
 }
 
 // emitError converts an error returned from the client into either a JSON envelope (when
-// --output json) or a plain message (plaintext output). In both cases the error is propagated
-// back to the root command so Cobra exits with code 1 (D-01: any error → exit 1; no numeric
-// taxonomy). When `errors.As` finds a *rollouts.RolloutError, we use its Code / Message /
-// NextAction; otherwise we fall back to ErrCodeUnknownUpstream.
+// --output json) or a plain message (plaintext output). In both cases the function returns a
+// non-nil error so Cobra exits with code 1 (D-01: any error → exit 1; no numeric taxonomy).
+//
+// JSON-mode routing (AGENT-04 / D-07 — see CONTEXT.md): the error envelope is written to
+// stdout, NOT stderr. Agents must branch on outcome via stdout; routing the envelope to
+// stderr in JSON mode forces consumers to scrub both streams, defeating the contract. The
+// returned error in JSON mode is intentionally a short sentinel ("rollouts list failed")
+// rather than the full envelope JSON, so the root command's `fmt.Fprintln(os.Stderr, ...)`
+// in `Execute()` does not double-emit the envelope to stderr.
+//
+// Plaintext output keeps the existing UX — the error message is returned verbatim and
+// surfaces on stderr via the root command, since plaintext consumers are humans who read
+// stderr alongside stdout.
+//
+// When `errors.As` finds a *rollouts.RolloutError, we use its Code / Message / NextAction;
+// otherwise we fall back to ErrCodeUnknownUpstream.
 func emitError(cmd *cobra.Command, err error) error {
 	code := rollouts.ErrCodeUnknownUpstream
 	message := err.Error()
@@ -154,10 +166,14 @@ func emitError(cmd *cobra.Command, err error) error {
 		env := rollouts.NewErrorEnvelope(code, message, nextAction)
 		body, mErr := json.MarshalIndent(env, "", "  ")
 		if mErr != nil {
-			// Fall back to the raw message rather than swallowing the original error.
+			// Marshalling failed — fall back to surfacing the original message via the
+			// standard error path (stderr).
 			return errors.NewErrorWrapped(message, mErr)
 		}
-		return errors.NewError(string(body))
+		// Write the envelope to stdout (AGENT-04 / D-07) and return a sentinel error so
+		// Cobra exits 1 without re-emitting the envelope to stderr.
+		fmt.Fprintln(cmd.OutOrStdout(), string(body))
+		return errors.NewError("rollouts list failed")
 	}
 
 	return errors.NewError(message)
