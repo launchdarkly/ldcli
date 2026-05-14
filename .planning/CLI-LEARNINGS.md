@@ -7,7 +7,7 @@
 > REQ-LEARN-01 (PROJECT.md) and LEARN-01..03 (REQUIREMENTS.md).
 
 **Last updated:** 2026-05-14
-Active count: 7
+Active count: 12
 Resolved count: 0
 
 Seeded during Phase 3 plan-phase (2026-05-14). Entries are open CLI/UX questions about
@@ -27,6 +27,11 @@ new entries inline as Phase 3 implementation and real-staging smoke surface them
 | CL-005 | Watch-shaped use cases after --watch removal (poll cadence, event-driven monitoring)  | 2026-05-14 | status            |
 | CL-006 | "Most recent" semantics (createdAt DESC vs most-recent-running)                       | 2026-05-14 | status, list      |
 | CL-007 | `--rollout-id` requiring `--environment` (PC-004 surface)                             | 2026-05-14 | status            |
+| CL-008 | Typed Go structs strip wire fields on read (`omitempty` + missing struct fields)      | 2026-05-14 | all rollouts-beta |
+| CL-009 | Plaintext `Env: —` when env is implicit (no `environmentKey` on wire, PC-019)         | 2026-05-14 | status            |
+| CL-010 | Plaintext stage marker "in progress" while overall State is "paused"                  | 2026-05-14 | status            |
+| CL-011 | Single-stage rollout plaintext rendering vs multi-stage reference doc                 | 2026-05-14 | status            |
+| CL-012 | Plaintext `auto-rollback: false` for every metric (downstream of CL-008)              | 2026-05-14 | status            |
 
 ## Entries
 
@@ -97,6 +102,56 @@ new entries inline as Phase 3 implementation and real-staging smoke surface them
 **What we did in prototype:** Phase 3 D-03 chose to surface the requirement explicitly: CLI-side validation rejects `--rollout-id` without `--environment` BEFORE any API call (with `error.code: bad_request` + nextAction pointing at PC-004). Rationale: papering over the API gap with a list-and-filter call would add complexity and obscure the upstream issue — the gap is the learning we want to surface.
 
 **What's open for production CLI build:** If PC-004 lands API-side (account-scoped GET-by-ID), this question disappears. If PC-004 stays unresolved, do we auto-resolve env in the production CLI to be friendly, or keep the explicit-required surface? Compare against demo feedback — did anyone get confused by the "two flags required for one ID" UX?
+
+**Severity:** low
+
+### CL-008 — Typed Go structs strip wire fields on read
+
+**Question:** The CLI decodes upstream responses into `internal/rollouts/models.go` Go structs and re-marshals to the envelope's `data` field. Two failure modes empirically surfaced in the Phase 3 smoke run: (a) struct fields with `json:",omitempty"` strip zero-value primitives — e.g. `MetricConfiguration.AutoRollback: false` is silently dropped on re-marshal, so the operator never sees that auto-rollback was explicitly disabled; (b) fields the API returns that have no corresponding struct field are silently dropped — e.g. `metricConfigurations[].differenceEstimateType: "absolute"` exists in the raw curl response but is missing from the CLI envelope. Both violate the project's "JSON output is API-passthrough" principle (memory `feedback_json_api_passthrough.md`).
+
+**What we did in prototype:** Shipped the typed-struct approach (Phase 1). The struct has roughly the right shape for the API's documented payload, but the upstream is in beta — any new field the API team adds will be invisible to envelope consumers until a CLI release adds the struct field. And boolean fields with `omitempty` lose the distinction between "field absent from wire" and "field present and false."
+
+**What's open for production CLI build:** Switch the envelope's `data` to `json.RawMessage` (or `map[string]interface{}`) so the wire shape is preserved bit-for-bit; only decode to the typed struct when the plaintext renderer or business logic needs typed access. Or keep the typed struct but remove `omitempty` on every boolean and add `AdditionalFields map[string]any` for forward compatibility. Pick one and apply uniformly across all rollouts-beta verbs.
+
+**Severity:** high
+
+### CL-009 — Plaintext `Env: —` when env is implicit
+
+**Question:** When the operator runs `status --flag <key>` without `--environment`, the most-recent path returns a rollout payload whose only env identifier is `environmentId` (opaque ObjectId, see PC-019). The plaintext renderer has no human-readable env key to display, so it shows `Env: —`. This is visually surprising — the rollout *does* belong to a specific env, and the env key is recoverable from `_links.self.href`.
+
+**What we did in prototype:** Phase 3 plaintext renders `Env: —` when neither the operator nor the API supplies an env key. No parsing of `_links.self.href`. No echoing of `environmentId` (which is operator-meaningless).
+
+**What's open for production CLI build:** Three options once PC-019 is filed: (a) parse `_links.self.href` to extract the env key, (b) echo `environmentId` with a note that it's an opaque ID, (c) require `--environment` always for `status` (more friction but no ambiguous renderings). Picks (a) and (c) require additional CLI logic; (b) is honest but unhelpful. If PC-019 lands API-side, this question disappears.
+
+**Severity:** medium
+
+### CL-010 — Plaintext stage marker contradicts overall State
+
+**Question:** The Phase 3 plaintext renderer derives the per-stage state column from `stageIndex == latestStageIndex` and the presence/absence of a terminal flag — so a paused rollout still renders its current stage as `[→] in progress`. The Overview line above shows `State: paused`. Visual contradiction: stage line says "in progress" while the overall rollout state says "paused."
+
+**What we did in prototype:** Phase 3 status_test.go covers the rendering happy paths but didn't catch this because the test fixtures use a multi-stage rollout where stage state and rollout state agree. The single-stage paused rollout on staging hit the edge case.
+
+**What's open for production CLI build:** Either (a) propagate `data.status.kind` into the stage-state derivation (e.g., if rollout is paused, the latest stage renders `paused`, not `in progress`), or (b) drop the stage state column for the latest stage and rely on the Overview block's `State:` line. The first is more informative; the second is simpler.
+
+**Severity:** low
+
+### CL-011 — Single-stage rollouts vs multi-stage reference doc
+
+**Question:** CONTEXT.md D-07's plaintext reference showed three stages (25% / 50% / 75% / pending / completed / in progress markers). Phase 3 staging surfaced a single-stage guarded rollout that the renderer correctly displayed as one stage line, but a new operator reading the reference doc would expect the multi-stage shape. Is the reference doc misleading?
+
+**What we did in prototype:** Renderer handles 1, 2, or N stages uniformly — no bug. Reference doc kept as-is for the milestone.
+
+**What's open for production CLI build:** Update onboarding/help text to show a single-stage example first (more common case), with the multi-stage shape as a secondary example. Or drop the in-line example entirely from `--help` and link to a doc.
+
+**Severity:** low
+
+### CL-012 — Plaintext `auto-rollback: false` for every metric
+
+**Question:** The plaintext renderer surfaces `auto-rollback: false` for every metric configuration, even when the API response on the wire would say `auto-rollback: true`. Root cause is CL-008 — the typed-struct's `omitempty` strips the field on re-marshal, so the renderer sees zero-value `false`. Visible symptom is misleading rendering.
+
+**What we did in prototype:** No production fix in Phase 3. The renderer faithfully shows what the typed struct holds; the typed struct happens to hold zero-value-stripped data. Once CL-008 is addressed, this fixes itself.
+
+**What's open for production CLI build:** Resolved as a downstream effect of CL-008. If CL-008 stays unfixed for some reason, the alternative is to drop the `auto-rollback:` line from plaintext until we can render reliably.
 
 **Severity:** low
 

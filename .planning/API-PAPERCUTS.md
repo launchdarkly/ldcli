@@ -5,8 +5,8 @@
 > cross-references the anchor below. When the API team resolves an item, move its
 > entry to `## Resolved` with a date and delete the workaround in the same PR.
 
-**Last updated:** 2026-05-13
-Active count: 18
+**Last updated:** 2026-05-14
+Active count: 19
 Resolved count: 0
 
 Seeded during the **Phase 1: List foundation** milestone (`ldcli flags rollouts-beta list`).
@@ -35,6 +35,7 @@ The catalog is derived from the architecture research in `.planning/research/ARC
 | PC-016 | `recommended-duration` requires `finalStageAllocation` even for progressive    | 2026-05-11 | start (Phase 2)         |
 | PC-017 | `startAutomatedRelease` does not support guarded releases on staging           | 2026-05-13 | start (Phase 2)         |
 | PC-018 | Non-existent variation UUID in start instruction returns 500 instead of 400    | 2026-05-13 | start (Phase 2)         |
+| PC-019 | Rollout response returns `environmentId` (opaque), not `environmentKey`        | 2026-05-14 | status (Phase 3), list  |
 
 ## Entries
 
@@ -217,6 +218,16 @@ The catalog is derived from the architecture research in `.planning/research/ARC
 **What we'd prefer:** The server should return HTTP 400 with a descriptive error message for any UUID-shaped input that does not match a flag variation, rather than panicking.
 **Status:** active (CLI correctly handles 500 but cannot surface `invalid_variation` code for this case)
 **Removal criteria:** API returns HTTP 400 with a descriptive message for non-existent variation UUIDs; Smoke E re-run confirms `error.code = "invalid_variation"`.
+
+### PC-019 - Rollout response returns `environmentId` (opaque), not `environmentKey`
+
+**Title:** `automated-releases` GET (and List → items[]) surface `environmentId` (24-char hex ObjectId) on the rollout payload, with no `environmentKey` field
+**Discovered:** 2026-05-14 (Phase 3 smoke test A; verified via raw curl)
+**API behavior:** A `GET /internal/projects/{projKey}/environments/{envKey}/automated-releases/{id}` request returns a rollout body whose only environment-identifier field is `"environmentId": "64e3e188a9dedd13411006f8"` — no `environmentKey` is present. The env key is encoded in `_links.self.href` (`.../environments/test/automated-releases/...`), so a consumer can recover it by string-parsing the link, but there is no first-class field on the resource. List → items[] has the same shape.
+**CLI workaround:** None in Phase 3 — the CLI passes `envKey` into the request URL (path parameter) but renders the API's `environmentId` verbatim in the JSON envelope. The plaintext renderer surfaces `Env: —` when the operator didn't pass `--environment` because the renderer has no env key to display (see CLI-LEARNINGS CL-009). No `// PAPERCUT: PC-019` annotation added; the gap is purely on the read side.
+**What we'd prefer:** Either include `environmentKey` alongside `environmentId` on every rollout payload, or drop `environmentId` in favor of `environmentKey` (the operator-meaningful identifier — every other `automated-releases` URL path uses `envKey`, not `envId`). Consistency with the path-parameter convention would be more useful than the opaque ObjectId echo.
+**Status:** active (no CLI workaround required; the gap surfaces as a plaintext rendering limitation tracked in CLI-LEARNINGS CL-009)
+**Removal criteria:** API response includes `environmentKey` as a first-class field; Phase 3 plaintext renderer can populate the `Env:` line from the wire payload without parsing `_links.self.href`.
 
 ## Resolved
 

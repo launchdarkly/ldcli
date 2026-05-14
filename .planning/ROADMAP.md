@@ -24,7 +24,7 @@ These are not phases — they are constraints every phase must honor. They are l
 
 - [ ] **Phase 1: List (foundation + first end-to-end slice)** — Operator can enumerate every rollout (current + past) for a flag from the CLI; ships the package skeleton, JSON envelope, exit-code taxonomy, retry/idempotency layer, TTY-aware output, beta banner, and the seeded papercuts doc.
 - [ ] **Phase 2: Start a rollout** — Operator can kick off a guarded or progressive rollout from the CLI with full option surface, default-on preflight, re-fetch for rollout ID, and idempotency.
-- [ ] **Phase 3: Status** — Operator can inspect the most-recent (or a specific) rollout with UI-parity detail via a single-snapshot `status` command. (Watch removed from project 2026-05-14; polling is the agent's responsibility.)
+- [x] **Phase 3: Status** — Operator can inspect the most-recent (or a specific) rollout with UI-parity detail via a single-snapshot `status` command. (Watch removed from project 2026-05-14; polling is the agent's responsibility.)
 - [ ] **Phase 4: Stop, Dismiss, & Finalize papercuts** — Operator can manually stop a rollout to a chosen final variation and dismiss an active regression; papercuts doc is reviewed and circulated.
 
 ## Phase Details
@@ -79,7 +79,7 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md — Vertical slice: NewStatusCmd + sectioned plaintext renderer + RolloutIdFlag + ErrCodeNoRolloutsFound + status_test.go + CLI-LEARNINGS.md skeleton (Wave 1)
-- [ ] 03-02-PLAN.md — Real-staging smoke + new papercuts appended to API-PAPERCUTS.md + Confluence (DOC-02/04) + CLI-LEARNINGS.md (LEARN-02) (Wave 2; depends on 03-01)
+- [x] 03-02-PLAN.md — Real-staging smoke + new papercuts appended to API-PAPERCUTS.md + Confluence (DOC-02/04) + CLI-LEARNINGS.md (LEARN-02) (Wave 2; depends on 03-01)
 
 ### Phase 4: Stop, Dismiss, & Finalize papercuts
 **Goal**: Operator (human or agent) can manually stop a rollout to a chosen final variation and dismiss an active regression so the rollout can resume; the milestone's `API-PAPERCUTS.md` deliverable is reviewed and circulated as input for the API team.
@@ -127,4 +127,4 @@ No orphans. No duplicates.
 
 ---
 *Roadmap created: 2026-05-12*
-*Last updated: 2026-05-14 — Phase 3 plans landed (03-01 vertical slice + 03-02 real-staging smoke)*
+*Last updated: 2026-05-14 — Phase 3 complete (03-01 vertical slice + 03-02 real-staging smoke shipped; PC-019 + CL-008..CL-012 captured)*

@@ -25,14 +25,14 @@ This milestone's **primary outputs are two learnings artifacts**, not the CLI it
 #### API papercuts (artifact #1 — primary)
 
 - [ ] **DOC-01**: `.planning/API-PAPERCUTS.md` is created early with a structured template (Discovered / API behavior / CLI workaround / What we'd prefer / Status / Removal criteria) and seeded with the 16 papercuts already cataloged by the architecture research.
-- [ ] **DOC-02**: New papercuts discovered during implementation are appended throughout the milestone with a `// PAPERCUT: PC-NNN` source-code cross-reference at every workaround site. Cross-cutting — enforced every phase from Phase 1 onward.
+- [x] **DOC-02**: New papercuts discovered during implementation are appended throughout the milestone with a `// PAPERCUT: PC-NNN` source-code cross-reference at every workaround site. Cross-cutting — enforced every phase from Phase 1 onward. — Phase 3 Plan 02 (PC-019 appended; no source-code workaround required, so no `// PAPERCUT: PC-019` annotation)
 - [ ] **DOC-03**: At milestone end, the doc is reviewed and circulated to the API team as input for the API stabilization work that precedes public release.
-- [ ] **DOC-04**: For any API papercut that captures a *contract-shape* observation (confusing field names, missing data on responses, forced consumer workarounds, inconsistencies with the rest of the LD API surface), the matching Confluence doc at page_id 4875452435 is updated using the fetch-first pattern (`mcp__mcp-atlassian__confluence_get_page` → `confluence_update_page`) so concurrent human edits aren't clobbered. Cross-cutting — enforced every phase from Phase 1 onward.
+- [x] **DOC-04**: For any API papercut that captures a *contract-shape* observation (confusing field names, missing data on responses, forced consumer workarounds, inconsistencies with the rest of the LD API surface), the matching Confluence doc at page_id 4875452435 is updated using the fetch-first pattern (`mcp__mcp-atlassian__confluence_get_page` → `confluence_update_page`) so concurrent human edits aren't clobbered. Cross-cutting — enforced every phase from Phase 1 onward. — Phase 3 Plan 02 (page v3 → v4; existing entry #1 augmented with GET-by-id confirmation rather than duplicate entry)
 
 #### CLI / UX learnings (artifact #2 — secondary)
 
 - [x] **LEARN-01**: `.planning/CLI-LEARNINGS.md` is created with a structured template (anchor table + per-topic entries with Question / What we did in prototype / What's open for production CLI build / Severity) and seeded with the open CLI/UX questions surfaced by Phases 1+2 retroactively (JSON envelope vs raw-resource shape; AGENT-04 timestamp format; structured `reason` lift; exit-code taxonomy; watch-shaped use cases; "most recent" semantics; `--rollout-id` requiring `--environment`). — Phase 3 Plan 01
-- [ ] **LEARN-02**: New CLI/UX complexities discovered during implementation are appended to `.planning/CLI-LEARNINGS.md` throughout the milestone. Includes: shape/contract questions, surprising behaviors agents would prefer differently, deferred decisions worth revisiting, ergonomic frictions surfaced by real-staging exercise. Cross-cutting — enforced every phase from Phase 3 onward (where CLI-LEARNINGS.md is first created).
+- [x] **LEARN-02**: New CLI/UX complexities discovered during implementation are appended to `.planning/CLI-LEARNINGS.md` throughout the milestone. Includes: shape/contract questions, surprising behaviors agents would prefer differently, deferred decisions worth revisiting, ergonomic frictions surfaced by real-staging exercise. Cross-cutting — enforced every phase from Phase 3 onward (where CLI-LEARNINGS.md is first created). — Phase 3 Plan 02 (CL-008..CL-012 appended after real-staging smoke)
 - [ ] **LEARN-03**: At milestone end, `.planning/CLI-LEARNINGS.md` is reviewed alongside `.planning/API-PAPERCUTS.md` and circulated as input for the production CLI build's design discussions. Pairs with DOC-03.
 
 ### Start
@@ -130,11 +130,11 @@ Every v1 requirement maps to exactly one phase. AGENT-* and DOC-02 are cross-cut
 | FOUND-07 | Phase 1 | Pending |
 | FOUND-08 | Phase 1 | Pending |
 | DOC-01 | Phase 1 | Pending |
-| DOC-02 | Phase 1 (cross-cutting, enforced every phase) | Pending |
+| DOC-02 | Phase 1 (cross-cutting, enforced every phase) | Complete (Phase 3 Plan 02) |
 | DOC-03 | Phase 4 | Pending |
-| DOC-04 | Phase 1 (cross-cutting, enforced every phase) | Pending |
+| DOC-04 | Phase 1 (cross-cutting, enforced every phase) | Complete (Phase 3 Plan 02) |
 | LEARN-01 | Phase 3 Plan 01 | Complete |
-| LEARN-02 | Phase 3 (cross-cutting, enforced Phase 3 onward) | Pending |
+| LEARN-02 | Phase 3 (cross-cutting, enforced Phase 3 onward) | Complete (Phase 3 Plan 02) |
 | LEARN-03 | Phase 4 | Pending |
 | LIST-01 | Phase 1 | Pending |
 | LIST-02 | Phase 1 | Pending |
