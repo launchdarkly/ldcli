@@ -75,7 +75,11 @@ Plans:
   3. `.planning/CLI-LEARNINGS.md` is created (LEARN-01) with a structured template + entries seeded retroactively from Phase 1+2 observations (envelope shape, AGENT-04 timestamp format, structured-reason lift, exit-code taxonomy, watch-shaped use cases, most-recent semantics, `--rollout-id` requiring `--environment`). Every new CLI/UX complexity surfaced during Phase 3 implementation lands here (LEARN-02). Any new API contract observation lands in `.planning/API-PAPERCUTS.md` + Confluence (DOC-02/04). The phase is not complete until both artifacts reflect the Phase 3 work.
 
 **Watch removed from project (2026-05-14):** The original Phase 3 included a `--watch` mode (STATUS-05..09, SC#3..5). After Phase 3 discuss-phase the user removed `--watch` from the project entirely as too complex for the prototype scope. Polling is the agent's responsibility. The watch-shaped use cases are catalogued in `.planning/CLI-LEARNINGS.md` for the production CLI build to revisit.
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Vertical slice: NewStatusCmd + sectioned plaintext renderer + RolloutIdFlag + ErrCodeNoRolloutsFound + status_test.go + CLI-LEARNINGS.md skeleton (Wave 1)
+- [ ] 03-02-PLAN.md — Real-staging smoke + new papercuts appended to API-PAPERCUTS.md + Confluence (DOC-02/04) + CLI-LEARNINGS.md (LEARN-02) (Wave 2; depends on 03-01)
 
 ### Phase 4: Stop, Dismiss, & Finalize papercuts
 **Goal**: Operator (human or agent) can manually stop a rollout to a chosen final variation and dismiss an active regression so the rollout can resume; the milestone's `API-PAPERCUTS.md` deliverable is reviewed and circulated as input for the API team.
@@ -96,7 +100,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. List (foundation + first slice) | 0/3 | Not started | - |
 | 2. Start a rollout | 0/2 | Not started | - |
-| 3. Status & Watch | 0/? | Not started | - |
+| 3. Status | 0/2 | Planning complete | - |
 | 4. Stop, Dismiss, & Finalize papercuts | 0/? | Not started | - |
 
 ## Coverage Summary
@@ -123,4 +127,4 @@ No orphans. No duplicates.
 
 ---
 *Roadmap created: 2026-05-12*
-*Last updated: 2026-05-14 — Phase 3 scope reduced (`--watch` removed from project; STATUS-05..09 and Phase 3 SC#3..5 struck)*
+*Last updated: 2026-05-14 — Phase 3 plans landed (03-01 vertical slice + 03-02 real-staging smoke)*
