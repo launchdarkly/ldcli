@@ -120,6 +120,119 @@ func RenderRolloutPlaintext(r *rollouts.Rollout) string {
 	return b.String()
 }
 
+// timeOrDash returns the RFC 3339 timestamp or an em-dash placeholder when zero.
+// Companion to timePtrOrDash for non-pointer time.Time fields (e.g., Rollout.CreatedAt).
+func timeOrDash(t time.Time) string {
+	if t.IsZero() {
+		return "—"
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+// RenderRolloutStatusPlaintext renders the sectioned-block plaintext output for the status
+// verb per D-07. Sections: Overview / Stages / Metrics / Events.
+//
+// Stage markers reflect rollout progression: `✓` for completed stages, `→` for the current
+// stage, ` ` for pending stages. When the rollout has terminated (status.kind ∈ {completed,
+// reverted}) all stages render as completed regardless of LatestStageIndex.
+//
+// Stage duration prefers Stage.Duration (Go-style "1h30m" produced by toStage per AGENT-04
+// / PC-014); falls back to "<millis>ms" only when Duration is empty.
+func RenderRolloutStatusPlaintext(r *rollouts.Rollout) string {
+	if r == nil {
+		return "No rollout.\n"
+	}
+
+	var b strings.Builder
+
+	// --- Overview ---
+	fmt.Fprintf(&b, "Rollout: %s\n", emptyDash(r.ID))
+	fmt.Fprintf(&b, "Flag: %s            Env: %s\n", emptyDash(r.FlagKey), emptyDash(r.EnvironmentKey))
+	fmt.Fprintf(&b, "Kind: %s   State: %s\n", emptyDash(r.Kind), emptyDash(r.Status.Kind))
+	fmt.Fprintf(&b, "Label: %s\n", emptyDash(r.Status.Label))
+	fmt.Fprintf(&b, "Created: %s\n", timeOrDash(r.CreatedAt))
+	fmt.Fprintf(&b, "Started: %s           Ended: %s\n", timePtrOrDash(r.StartedAt), timePtrOrDash(r.EndedAt))
+	fmt.Fprintf(&b, "Target var: %s              Original var: %s\n",
+		emptyDash(r.TargetVariationID), emptyDash(r.OriginalVariationID))
+
+	// --- Stages ---
+	b.WriteString("\nStages:\n")
+	if len(r.Stages) == 0 {
+		b.WriteString("  (no stages)\n")
+	} else {
+		// If the rollout has terminated, all stages render as completed.
+		terminal := r.Status.Kind == "completed" || r.Status.Kind == "reverted"
+		stagesBuf := bytes.Buffer{}
+		w := tabwriter.NewWriter(&stagesBuf, 0, 0, 2, ' ', 0)
+		for i, s := range r.Stages {
+			marker, stageState := stageMarkerAndState(i, r.LatestStageIndex, terminal)
+			alloc := s.Allocation / 1000 // basis-points → percent (PC-014 conversion via toStage)
+			dur := s.Duration
+			if dur == "" {
+				dur = fmt.Sprintf("%dms", s.DurationMillis)
+			}
+			fmt.Fprintf(w, "  [%s]\t%d%%\t%s\t%s\n", marker, alloc, dur, stageState)
+		}
+		_ = w.Flush()
+		b.WriteString(stagesBuf.String())
+	}
+
+	// --- Metrics ---
+	b.WriteString("\nMetrics:\n")
+	if len(r.MetricConfigurations) == 0 {
+		b.WriteString("  (no metrics monitored)\n")
+	} else {
+		metricsBuf := bytes.Buffer{}
+		w := tabwriter.NewWriter(&metricsBuf, 0, 0, 2, ' ', 0)
+		for _, m := range r.MetricConfigurations {
+			fmt.Fprintf(w, "  %s\t%s\tauto-rollback: %v\n",
+				emptyDash(m.MetricKey),
+				emptyDash(m.Status),
+				m.AutoRollback,
+			)
+		}
+		_ = w.Flush()
+		b.WriteString(metricsBuf.String())
+	}
+
+	// --- Events ---
+	b.WriteString("\nEvents:\n")
+	if len(r.Events) == 0 {
+		b.WriteString("  (no events)\n")
+	} else {
+		eventsBuf := bytes.Buffer{}
+		w := tabwriter.NewWriter(&eventsBuf, 0, 0, 2, ' ', 0)
+		for _, e := range r.Events {
+			fmt.Fprintf(w, "  %s\t%s\t%s\n",
+				timeOrDash(e.CreatedAt),
+				emptyDash(e.Kind),
+				emptyDash(e.MetricKey),
+			)
+		}
+		_ = w.Flush()
+		b.WriteString(eventsBuf.String())
+	}
+
+	return b.String()
+}
+
+// stageMarkerAndState returns the per-stage marker glyph and short state label given the
+// stage's index, the rollout's current LatestStageIndex, and whether the rollout has
+// terminated. Terminal rollouts show every stage as completed regardless of LatestStageIndex.
+func stageMarkerAndState(idx, latest int, terminal bool) (string, string) {
+	if terminal {
+		return "✓", "completed"
+	}
+	switch {
+	case idx < latest:
+		return "✓", "completed"
+	case idx == latest:
+		return "→", "in progress"
+	default:
+		return " ", "pending"
+	}
+}
+
 // formatStage renders "<current> of <total> (<alloc>%)" where current is LatestStageIndex+1,
 // total is len(Stages), and alloc is the current stage's Allocation / 1000 (allocations are
 // represented as parts-per-thousand). When stage data is missing, an em-dash is returned.
