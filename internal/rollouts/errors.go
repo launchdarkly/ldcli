@@ -28,6 +28,9 @@ const (
 	ErrCodeFlagNotConfiguredForRollout = "flag_not_configured_for_rollout"
 	ErrCodeInvalidVariation            = "invalid_variation"
 	ErrCodeRolloutAlreadyRunning       = "rollout_already_running"
+
+	// Phase 3 status-specific error code (D-09): emitted when --rollout-id is absent and the flag has zero rollouts.
+	ErrCodeNoRolloutsFound = "no_rollouts_found"
 )
 
 // RolloutError is the typed error returned from the rollouts client. The `Code` field maps to
