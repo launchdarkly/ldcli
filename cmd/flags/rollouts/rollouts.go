@@ -53,6 +53,7 @@ func NewRolloutsCmd(client rollouts.Client, analyticsTrackerFn analytics.Tracker
 	cmd.AddCommand(NewStartCmd(client))
 	cmd.AddCommand(NewStatusCmd(client))
 	cmd.AddCommand(NewStopCmd(client))
+	cmd.AddCommand(NewDismissCmd(client))
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 	return cmd
 }
