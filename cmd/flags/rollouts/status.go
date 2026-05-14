@@ -123,11 +123,12 @@ func statusRunE(client rollouts.Client) func(*cobra.Command, []string) error {
 				resolvedEnv = envKeyFromLinks(rollout)
 			}
 			if resolvedEnv != "" {
-				results, mrErr := fetchMetricResults(cmd.Context(), client, accessToken, baseURI, projKey, flagKey, resolvedEnv, rollout)
+				results, probMismatch, mrErr := fetchMetricResults(cmd.Context(), client, accessToken, baseURI, projKey, flagKey, resolvedEnv, rollout)
 				if mrErr != nil {
 					return emitStatusError(cmd, mrErr)
 				}
 				rollout.MetricResults = results
+				rollout.ProbabilityOfMismatch = probMismatch
 			}
 		}
 
@@ -141,31 +142,44 @@ func statusRunE(client rollouts.Client) func(*cobra.Command, []string) error {
 // so the plaintext renderer can pair config and result by index. If any fetch fails, the
 // entire batch fails — the operator gets one error rather than a partially-populated
 // results slice with silently-missing entries.
+//
+// The second return value is the rollout-level probabilityOfMismatch (PC-020 lift). The
+// API emits the same value inside each per-metric response, so we take the first non-nil
+// observation and discard the rest.
 func fetchMetricResults(
 	ctx context.Context,
 	client rollouts.Client,
 	accessToken, baseURI, projKey, flagKey, envKey string,
 	rollout *rollouts.Rollout,
-) ([]rollouts.MetricResult, error) {
+) ([]rollouts.MetricResult, *float64, error) {
 	results := make([]rollouts.MetricResult, len(rollout.MetricConfigurations))
+	probMismatches := make([]*float64, len(rollout.MetricConfigurations))
 	g, gctx := errgroup.WithContext(ctx)
 	for i, mc := range rollout.MetricConfigurations {
 		i, mc := i, mc
 		g.Go(func() error {
-			mr, err := client.GetMetricResult(gctx, accessToken, baseURI, projKey, flagKey, envKey, rollout.ID, mc.MetricKey)
+			mr, prob, err := client.GetMetricResult(gctx, accessToken, baseURI, projKey, flagKey, envKey, rollout.ID, mc.MetricKey)
 			if err != nil {
 				return err
 			}
 			if mr != nil {
 				results[i] = *mr
 			}
+			probMismatches[i] = prob
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return results, nil
+	var probMismatch *float64
+	for _, p := range probMismatches {
+		if p != nil {
+			probMismatch = p
+			break
+		}
+	}
+	return results, probMismatch, nil
 }
 
 // envKeyFromLinks recovers the env key from the rollout's _links.self.href when the

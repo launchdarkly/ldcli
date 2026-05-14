@@ -32,7 +32,7 @@ type Client interface {
 	List(ctx context.Context, accessToken, baseURI, projKey, flagKey string, opts ListOpts) (*RolloutList, error)
 	Get(ctx context.Context, accessToken, baseURI, projKey, envKey, rolloutID string) (*Rollout, error)
 	Start(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey string, instr StartInstruction) (*Rollout, error)
-	GetMetricResult(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey, rolloutID, metricKey string) (*MetricResult, error)
+	GetMetricResult(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey, rolloutID, metricKey string) (*MetricResult, *float64, error)
 }
 
 // RolloutsClient is the concrete Client implementation. It owns a *retryablehttp.Client so
@@ -219,10 +219,15 @@ func (c RolloutsClient) Get(
 // — note the flag key is part of the path, unlike the rollout Get path. Per the
 // architecture research, status callers should parallelize one of these per metric.
 // Time-series / chart data is intentionally not requested; only the latest snapshot.
+//
+// The second return value is the rollout-level probabilityOfMismatch, lifted out of the
+// per-metric response per PC-020 (the upstream returns it as a per-metric field but the
+// value is identical for every metric on the same rollout — so it belongs on the rollout,
+// not on each metric). nil when the response did not include the field.
 func (c RolloutsClient) GetMetricResult(
 	ctx context.Context,
 	accessToken, baseURI, projKey, flagKey, envKey, rolloutID, metricKey string,
-) (*MetricResult, error) {
+) (*MetricResult, *float64, error) {
 	path := fmt.Sprintf("%s/internal/projects/%s/flags/%s/environments/%s/automated-releases/%s/metric-results/%s",
 		strings.TrimRight(baseURI, "/"),
 		url.PathEscape(projKey),
@@ -234,31 +239,37 @@ func (c RolloutsClient) GetMetricResult(
 
 	req, err := retryablehttp.NewRequestWithContext(ctx, "GET", path, nil)
 	if err != nil {
-		return nil, errors.NewErrorWrapped("failed to build request", err)
+		return nil, nil, errors.NewErrorWrapped("failed to build request", err)
 	}
 	c.setStandardHeaders(req, accessToken)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, mapTransportError(err)
+		return nil, nil, mapTransportError(err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, errors.NewErrorWrapped("failed to read response body", err)
+		return nil, nil, errors.NewErrorWrapped("failed to read response body", err)
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, mapAPIError(body, resp.StatusCode)
+		return nil, nil, mapAPIError(body, resp.StatusCode)
 	}
 
-	var mr MetricResult
-	if err := json.Unmarshal(body, &mr); err != nil {
-		return nil, errors.NewErrorWrapped("failed to parse response", err)
+	// Decode into a raw envelope that includes the per-metric ProbabilityOfMismatch field;
+	// the public MetricResult type intentionally omits it so it can't leak per-metric.
+	var raw struct {
+		MetricResult
+		ProbabilityOfMismatch *float64 `json:"probabilityOfMismatch,omitempty"`
 	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, nil, errors.NewErrorWrapped("failed to parse response", err)
+	}
+	mr := raw.MetricResult
 	mr.MetricKey = metricKey
-	return &mr, nil
+	return &mr, raw.ProbabilityOfMismatch, nil
 }
 
 // setStandardHeaders applies the four common headers (Authorization, Content-Type,

@@ -30,7 +30,13 @@ type Rollout struct {
 	Events                  []Event               `json:"events,omitempty"`
 	MetricConfigurations    []MetricConfiguration `json:"metricConfigurations,omitempty"`
 	MetricResults           []MetricResult        `json:"metricResults,omitempty"`
-	Links                   map[string]Link       `json:"_links,omitempty"`
+	// ProbabilityOfMismatch is rollout-level (not per-metric), even though the upstream
+	// metric-results endpoint emits it inside each per-metric response — every per-metric
+	// fetch returns the same number for a given rollout. PAPERCUT: PC-020. The CLI lifts
+	// the value to the rollout root so plaintext renders it once and JSON consumers don't
+	// have to dedupe per-metric copies.
+	ProbabilityOfMismatch *float64        `json:"probabilityOfMismatch,omitempty"`
+	Links                 map[string]Link `json:"_links,omitempty"`
 }
 
 // StatusBlock is the nested three-field status model per D-02. `Status` is the raw API enum
@@ -78,17 +84,20 @@ type MetricConfiguration struct {
 
 // MetricResult is the latest snapshot of a single guarded-rollout metric, fetched from
 // `/internal/projects/{p}/flags/{f}/environments/{e}/automated-releases/{id}/metric-results/{metricKey}`.
-// Reports control vs treatment values with credible intervals plus the difference and
-// probability of mismatch. The CLI fetches one per metric in parallel after the main
-// status payload, then attaches them under Rollout.MetricResults. Time-series / chart
-// data is intentionally omitted — only the latest snapshot.
+// Reports control vs treatment values with credible intervals plus the difference. The CLI
+// fetches one per metric in parallel after the main status payload, then attaches them
+// under Rollout.MetricResults. Time-series / chart data is intentionally omitted — only
+// the latest snapshot.
+//
+// PAPERCUT: PC-020 — the upstream response also includes `probabilityOfMismatch`, but
+// that field is actually rollout-level (identical across every metric on the same rollout).
+// The CLI lifts it to Rollout.ProbabilityOfMismatch and drops the per-metric copy.
 type MetricResult struct {
-	MetricKey            string                `json:"metricKey"`
-	ControlResult        *MetricResultEstimate `json:"controlResult,omitempty"`
-	TreatmentResult      *MetricResultEstimate `json:"treatmentResult,omitempty"`
-	Difference           *MetricResultRange    `json:"difference,omitempty"`
-	RelativeDifference   *MetricResultRange    `json:"relativeDifference,omitempty"`
-	ProbabilityOfMismatch *float64             `json:"probabilityOfMismatch,omitempty"`
+	MetricKey          string                `json:"metricKey"`
+	ControlResult      *MetricResultEstimate `json:"controlResult,omitempty"`
+	TreatmentResult    *MetricResultEstimate `json:"treatmentResult,omitempty"`
+	Difference         *MetricResultRange    `json:"difference,omitempty"`
+	RelativeDifference *MetricResultRange    `json:"relativeDifference,omitempty"`
 }
 
 // MetricResultEstimate captures a per-arm measurement: total exposures, conversion count, and

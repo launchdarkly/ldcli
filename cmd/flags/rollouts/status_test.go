@@ -292,16 +292,17 @@ func TestStatus_MetricResults_FetchedWhenEnvProvided(t *testing.T) {
 	}
 	mockClient.On("Get", "abcd1234", mock.Anything, "test-proj", "test", "RID").
 		Return(&r, nil)
+	prob := 0.42
 	mockClient.On("GetMetricResult", "abcd1234", mock.Anything, "test-proj", "test-flag", "test", "RID", "metric-a").
 		Return(&rollouts.MetricResult{
 			MetricKey:     "metric-a",
 			ControlResult: &rollouts.MetricResultEstimate{Value: 0.1, Exposures: 100, Conversions: 10},
-		}, nil)
+		}, &prob, nil)
 	mockClient.On("GetMetricResult", "abcd1234", mock.Anything, "test-proj", "test-flag", "test", "RID", "metric-b").
 		Return(&rollouts.MetricResult{
 			MetricKey:     "metric-b",
 			ControlResult: &rollouts.MetricResultEstimate{Value: 0.2, Exposures: 100, Conversions: 20},
-		}, nil)
+		}, &prob, nil)
 
 	args := []string{
 		"flags", "rollouts-beta", "status",
@@ -323,6 +324,8 @@ func TestStatus_MetricResults_FetchedWhenEnvProvided(t *testing.T) {
 	require.Len(t, got.MetricResults, 2)
 	assert.Equal(t, "metric-a", got.MetricResults[0].MetricKey)
 	assert.Equal(t, "metric-b", got.MetricResults[1].MetricKey)
+	require.NotNil(t, got.ProbabilityOfMismatch, "probabilityOfMismatch lifts to rollout root per PC-020")
+	assert.InDelta(t, 0.42, *got.ProbabilityOfMismatch, 0.0001)
 	mockClient.AssertExpectations(t)
 }
 
@@ -346,7 +349,7 @@ func TestStatus_MetricResults_EnvRecoveredFromLinksSelf(t *testing.T) {
 		Return(&rollouts.RolloutList{Items: []rollouts.Rollout{r}}, nil)
 	// envKeyFromLinks should recover "staging" from the _links.self.href.
 	mockClient.On("GetMetricResult", "abcd1234", mock.Anything, "test-proj", "test-flag", "staging", "RID", "metric-a").
-		Return(&rollouts.MetricResult{MetricKey: "metric-a"}, nil)
+		Return(&rollouts.MetricResult{MetricKey: "metric-a"}, (*float64)(nil), nil)
 
 	args := []string{
 		"flags", "rollouts-beta", "status",

@@ -77,12 +77,16 @@ func (c *MockClient) GetMetricResult(
 	envKey,
 	rolloutID,
 	metricKey string,
-) (*MetricResult, error) {
+) (*MetricResult, *float64, error) {
 	args := c.Called(accessToken, baseURI, projKey, flagKey, envKey, rolloutID, metricKey)
 
 	var mr *MetricResult
 	if v := args.Get(0); v != nil {
 		mr = v.(*MetricResult)
 	}
-	return mr, args.Error(1)
+	var p *float64
+	if v := args.Get(1); v != nil {
+		p = v.(*float64)
+	}
+	return mr, p, args.Error(2)
 }

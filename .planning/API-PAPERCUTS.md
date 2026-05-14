@@ -6,7 +6,7 @@
 > entry to `## Resolved` with a date and delete the workaround in the same PR.
 
 **Last updated:** 2026-05-14
-Active count: 19
+Active count: 20
 Resolved count: 0
 
 Seeded during the **Phase 1: List foundation** milestone (`ldcli flags rollouts-beta list`).
@@ -36,6 +36,7 @@ The catalog is derived from the architecture research in `.planning/research/ARC
 | PC-017 | `startAutomatedRelease` does not support guarded releases on staging           | 2026-05-13 | start (Phase 2)         |
 | PC-018 | Non-existent variation UUID in start instruction returns 500 instead of 400    | 2026-05-13 | start (Phase 2)         |
 | PC-019 | Rollout response returns `environmentId` (opaque), not `environmentKey`        | 2026-05-14 | status (Phase 3), list  |
+| PC-020 | `probabilityOfMismatch` is Sample-Ratio-Mismatch and lives in wrong endpoint   | 2026-05-14 | status (Phase 3)        |
 
 ## Entries
 
@@ -228,6 +229,16 @@ The catalog is derived from the architecture research in `.planning/research/ARC
 **What we'd prefer:** Either include `environmentKey` alongside `environmentId` on every rollout payload, or drop `environmentId` in favor of `environmentKey` (the operator-meaningful identifier — every other `automated-releases` URL path uses `envKey`, not `envId`). Consistency with the path-parameter convention would be more useful than the opaque ObjectId echo.
 **Status:** active (no CLI workaround required; the gap surfaces as a plaintext rendering limitation tracked in CLI-LEARNINGS CL-009)
 **Removal criteria:** API response includes `environmentKey` as a first-class field; Phase 3 plaintext renderer can populate the `Env:` line from the wire payload without parsing `_links.self.href`.
+
+### PC-020 - `probabilityOfMismatch` is Sample-Ratio-Mismatch and lives in wrong endpoint
+
+**Title:** Per-metric `metric-results` response includes a `probabilityOfMismatch` field that (a) is actually rollout-level (identical across every metric) and (b) is misnamed — it pertains specifically to Sample Ratio Mismatch (SRM), an edge case usually not relevant to operators
+**Discovered:** 2026-05-14 (Phase 3 status enhancement — plaintext review surfaced that every metric reported the same value; user pointed out the SRM semantics)
+**API behavior:** `GET /internal/projects/{p}/flags/{f}/environments/{e}/automated-releases/{id}/metric-results/{metricKey}` includes a top-level `probabilityOfMismatch` field on every metric's response. Empirically (verified by curling all three metrics on `eb858e8b-cb92-474b-9666-5b82ac8dcdb5`) the value is identical for every metric on the same rollout — it is a *rollout-level* signal, not a per-metric one. Worse, the field name reads as "probability of metric mismatch" (which would be useful and per-metric) when it actually means "probability of Sample Ratio Mismatch" — i.e. the probability that the control vs treatment user allocation diverged from the configured split. SRM is a rollout-health-monitoring edge case (matters when there's a bug in randomization), not a routine status signal an operator wants to read on every status call.
+**CLI workaround:** `internal/rollouts/client.go:GetMetricResult` returns the value as a separate return — `(*MetricResult, *float64, error)` — and `cmd/flags/rollouts/status.go:fetchMetricResults` takes the first non-nil observation and lifts it to `Rollout.ProbabilityOfMismatch` for JSON consumers. The plaintext renderer intentionally does NOT surface it (per Phase 3 user feedback 2026-05-14) — JSON-mode consumers can branch on the field if they care about SRM, but human-readable plaintext stays focused on the actionable signals (per-metric control/treatment/difference). The public `MetricResult` type intentionally omits the field so it can't be confused as per-metric.
+**What we'd prefer:** (1) Rename the field to `probabilityOfSampleRatioMismatch` (or `probabilityOfSRM`) so the SRM semantics is unambiguous. (2) Move it to the rollout-level GET endpoint (`/internal/projects/{p}/environments/{e}/automated-releases/{id}`) where it semantically belongs. (3) Drop it from per-metric responses, or document explicitly that it is replicated. Replicated per-metric is wire waste and invites consumers to render the same number N times under a misleading name.
+**Status:** active (CLI lifts to rollout root and omits from plaintext; SRM nuance documented above)
+**Removal criteria:** API renames the field to make SRM semantics explicit AND moves it to the rollout-level GET endpoint; CLI's `fetchMetricResults` no longer needs the `*float64` second return.
 
 ## Resolved
 
