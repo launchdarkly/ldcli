@@ -32,6 +32,7 @@ type Client interface {
 	List(ctx context.Context, accessToken, baseURI, projKey, flagKey string, opts ListOpts) (*RolloutList, error)
 	Get(ctx context.Context, accessToken, baseURI, projKey, envKey, rolloutID string) (*Rollout, error)
 	Start(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey string, instr StartInstruction) (*Rollout, error)
+	GetMetricResult(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey, rolloutID, metricKey string) (*MetricResult, error)
 }
 
 // RolloutsClient is the concrete Client implementation. It owns a *retryablehttp.Client so
@@ -211,6 +212,53 @@ func (c RolloutsClient) Get(
 	}
 	r := raw.toRollout()
 	return &r, nil
+}
+
+// GetMetricResult fetches the latest snapshot for a single guarded-rollout metric.
+// The metric-results endpoint sits under `/internal/projects/{p}/flags/{f}/environments/{e}/automated-releases/{id}/metric-results/{metricKey}`
+// — note the flag key is part of the path, unlike the rollout Get path. Per the
+// architecture research, status callers should parallelize one of these per metric.
+// Time-series / chart data is intentionally not requested; only the latest snapshot.
+func (c RolloutsClient) GetMetricResult(
+	ctx context.Context,
+	accessToken, baseURI, projKey, flagKey, envKey, rolloutID, metricKey string,
+) (*MetricResult, error) {
+	path := fmt.Sprintf("%s/internal/projects/%s/flags/%s/environments/%s/automated-releases/%s/metric-results/%s",
+		strings.TrimRight(baseURI, "/"),
+		url.PathEscape(projKey),
+		url.PathEscape(flagKey),
+		url.PathEscape(envKey),
+		url.PathEscape(rolloutID),
+		url.PathEscape(metricKey),
+	)
+
+	req, err := retryablehttp.NewRequestWithContext(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, errors.NewErrorWrapped("failed to build request", err)
+	}
+	c.setStandardHeaders(req, accessToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, mapTransportError(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.NewErrorWrapped("failed to read response body", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, mapAPIError(body, resp.StatusCode)
+	}
+
+	var mr MetricResult
+	if err := json.Unmarshal(body, &mr); err != nil {
+		return nil, errors.NewErrorWrapped("failed to parse response", err)
+	}
+	mr.MetricKey = metricKey
+	return &mr, nil
 }
 
 // setStandardHeaders applies the four common headers (Authorization, Content-Type,

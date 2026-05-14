@@ -29,6 +29,7 @@ type Rollout struct {
 	Stages                  []Stage               `json:"stages,omitempty"`
 	Events                  []Event               `json:"events,omitempty"`
 	MetricConfigurations    []MetricConfiguration `json:"metricConfigurations,omitempty"`
+	MetricResults           []MetricResult        `json:"metricResults,omitempty"`
 	Links                   map[string]Link       `json:"_links,omitempty"`
 }
 
@@ -73,6 +74,45 @@ type MetricConfiguration struct {
 	MinSampleSize int    `json:"minSampleSize,omitempty"`
 	AutoRollback  bool   `json:"autoRollback,omitempty"`
 	Status        string `json:"status,omitempty"`
+}
+
+// MetricResult is the latest snapshot of a single guarded-rollout metric, fetched from
+// `/internal/projects/{p}/flags/{f}/environments/{e}/automated-releases/{id}/metric-results/{metricKey}`.
+// Reports control vs treatment values with credible intervals plus the difference and
+// probability of mismatch. The CLI fetches one per metric in parallel after the main
+// status payload, then attaches them under Rollout.MetricResults. Time-series / chart
+// data is intentionally omitted — only the latest snapshot.
+type MetricResult struct {
+	MetricKey            string                `json:"metricKey"`
+	ControlResult        *MetricResultEstimate `json:"controlResult,omitempty"`
+	TreatmentResult      *MetricResultEstimate `json:"treatmentResult,omitempty"`
+	Difference           *MetricResultRange    `json:"difference,omitempty"`
+	RelativeDifference   *MetricResultRange    `json:"relativeDifference,omitempty"`
+	ProbabilityOfMismatch *float64             `json:"probabilityOfMismatch,omitempty"`
+}
+
+// MetricResultEstimate captures a per-arm measurement: total exposures, conversion count, and
+// the point-estimate value with its credible interval.
+type MetricResultEstimate struct {
+	Conversions      int64              `json:"conversions"`
+	Exposures        int64              `json:"exposures"`
+	Units            int64              `json:"units,omitempty"`
+	Value            float64            `json:"value"`
+	CredibleInterval *MetricResultBound `json:"credibleInterval,omitempty"`
+}
+
+// MetricResultRange is the (estimate, lower, upper) shape used for both absolute and
+// relative differences.
+type MetricResultRange struct {
+	Estimate float64 `json:"estimate"`
+	Lower    float64 `json:"lower"`
+	Upper    float64 `json:"upper"`
+}
+
+// MetricResultBound is the (lower, upper) shape used for credible intervals on per-arm values.
+type MetricResultBound struct {
+	Lower float64 `json:"lower"`
+	Upper float64 `json:"upper"`
 }
 
 // Link is the standard LD API HATEOAS link envelope.

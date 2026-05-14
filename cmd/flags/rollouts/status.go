@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
@@ -111,9 +113,80 @@ func statusRunE(client rollouts.Client) func(*cobra.Command, []string) error {
 			return emitStatusError(cmd, err)
 		}
 
+		// Guarded rollouts have metric-results we can fetch in parallel. Latest snapshot only —
+		// no time series / chart data. Failure to derive an env key (most-recent path with no
+		// --environment) drops metric-results silently rather than failing the command, since
+		// PC-019 means we can only recover the env key by parsing _links.self.href.
+		if len(rollout.MetricConfigurations) > 0 {
+			resolvedEnv := envKey
+			if resolvedEnv == "" {
+				resolvedEnv = envKeyFromLinks(rollout)
+			}
+			if resolvedEnv != "" {
+				results, mrErr := fetchMetricResults(cmd.Context(), client, accessToken, baseURI, projKey, flagKey, resolvedEnv, rollout)
+				if mrErr != nil {
+					return emitStatusError(cmd, mrErr)
+				}
+				rollout.MetricResults = results
+			}
+		}
+
 		env := rollouts.NewRolloutEnvelope(rollout)
 		return emitStatusSuccess(cmd, env, rollout)
 	}
+}
+
+// fetchMetricResults runs one GetMetricResult per metric configuration in parallel via
+// errgroup. Order in the returned slice matches the order of rollout.MetricConfigurations
+// so the plaintext renderer can pair config and result by index. If any fetch fails, the
+// entire batch fails — the operator gets one error rather than a partially-populated
+// results slice with silently-missing entries.
+func fetchMetricResults(
+	ctx context.Context,
+	client rollouts.Client,
+	accessToken, baseURI, projKey, flagKey, envKey string,
+	rollout *rollouts.Rollout,
+) ([]rollouts.MetricResult, error) {
+	results := make([]rollouts.MetricResult, len(rollout.MetricConfigurations))
+	g, gctx := errgroup.WithContext(ctx)
+	for i, mc := range rollout.MetricConfigurations {
+		i, mc := i, mc
+		g.Go(func() error {
+			mr, err := client.GetMetricResult(gctx, accessToken, baseURI, projKey, flagKey, envKey, rollout.ID, mc.MetricKey)
+			if err != nil {
+				return err
+			}
+			if mr != nil {
+				results[i] = *mr
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// envKeyFromLinks recovers the env key from the rollout's _links.self.href when the
+// operator did not pass --environment explicitly. PC-019 surface — the API response does
+// not echo environmentKey, only environmentId, so this is the only way to derive the
+// human-readable env key for downstream calls (metric-results, which needs envKey in
+// the URL path). Returns empty string on any failure to parse.
+//
+// Expected href shape: /internal/projects/{p}/environments/{e}/automated-releases/{id}
+// (per real-staging smoke 2026-05-14; see .planning/phases/03-status-watch/03-SMOKE.md).
+func envKeyFromLinks(rollout *rollouts.Rollout) string {
+	self, ok := rollout.Links["self"]
+	if !ok || self.Href == "" {
+		return ""
+	}
+	parts := strings.Split(self.Href, "/environments/")
+	if len(parts) < 2 {
+		return ""
+	}
+	rest := strings.SplitN(parts[1], "/", 2)
+	return rest[0]
 }
 
 // resolveRollout dispatches to either Client.Get (when --rollout-id is provided) or

@@ -182,6 +182,10 @@ func RenderRolloutStatusPlaintext(r *rollouts.Rollout) string {
 	if len(r.MetricConfigurations) == 0 {
 		b.WriteString("  (no metrics monitored)\n")
 	} else {
+		resultsByKey := make(map[string]*rollouts.MetricResult, len(r.MetricResults))
+		for i := range r.MetricResults {
+			resultsByKey[r.MetricResults[i].MetricKey] = &r.MetricResults[i]
+		}
 		metricsBuf := bytes.Buffer{}
 		w := tabwriter.NewWriter(&metricsBuf, 0, 0, 2, ' ', 0)
 		for _, m := range r.MetricConfigurations {
@@ -190,6 +194,20 @@ func RenderRolloutStatusPlaintext(r *rollouts.Rollout) string {
 				emptyDash(m.Status),
 				m.AutoRollback,
 			)
+			if mr := resultsByKey[m.MetricKey]; mr != nil {
+				fmt.Fprintf(w, "    control\t%s\t%s\n",
+					formatMetricValue(mr.ControlResult),
+					formatExposures(mr.ControlResult),
+				)
+				fmt.Fprintf(w, "    treatment\t%s\t%s\n",
+					formatMetricValue(mr.TreatmentResult),
+					formatExposures(mr.TreatmentResult),
+				)
+				fmt.Fprintf(w, "    difference\t%s\t%s\n",
+					formatMetricRange(mr.Difference),
+					formatProbabilityOfMismatch(mr.ProbabilityOfMismatch),
+				)
+			}
 		}
 		_ = w.Flush()
 		b.WriteString(metricsBuf.String())
@@ -247,4 +265,42 @@ func formatStage(r rollouts.Rollout) string {
 	}
 	alloc := r.Stages[r.LatestStageIndex].Allocation / 1000
 	return fmt.Sprintf("%d of %d (%d%%)", current, total, alloc)
+}
+
+// formatMetricValue renders a per-arm estimate as "value (lower–upper)" using credible
+// interval bounds when present, or just "value" otherwise. Em-dash when nil.
+func formatMetricValue(e *rollouts.MetricResultEstimate) string {
+	if e == nil {
+		return "—"
+	}
+	if e.CredibleInterval != nil {
+		return fmt.Sprintf("%.4f (%.4f–%.4f)", e.Value, e.CredibleInterval.Lower, e.CredibleInterval.Upper)
+	}
+	return fmt.Sprintf("%.4f", e.Value)
+}
+
+// formatExposures renders "<conversions>/<exposures>" — the count of converting users
+// over total exposed users. Em-dash when the estimate is nil.
+func formatExposures(e *rollouts.MetricResultEstimate) string {
+	if e == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%d/%d", e.Conversions, e.Exposures)
+}
+
+// formatMetricRange renders an absolute or relative difference as "estimate (lower–upper)".
+func formatMetricRange(r *rollouts.MetricResultRange) string {
+	if r == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%+.4f (%+.4f–%+.4f)", r.Estimate, r.Lower, r.Upper)
+}
+
+// formatProbabilityOfMismatch renders the probability-of-mismatch float as a percentage
+// rounded to one decimal place, prefixed with "P(mismatch): " for plaintext context.
+func formatProbabilityOfMismatch(p *float64) string {
+	if p == nil {
+		return "—"
+	}
+	return fmt.Sprintf("P(mismatch): %.1f%%", *p*100)
 }

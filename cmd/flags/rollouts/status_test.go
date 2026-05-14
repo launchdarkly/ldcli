@@ -276,3 +276,121 @@ func TestStatus_ListClientError_ErrorEnvelope(t *testing.T) {
 	assert.True(t, strings.HasPrefix(strings.TrimSpace(string(stdout)), "{"),
 		"expected stdout to begin with envelope JSON; got: %s", string(stdout))
 }
+
+func TestStatus_MetricResults_FetchedWhenEnvProvided(t *testing.T) {
+	mockClient := &rollouts.MockClient{}
+	r := rollouts.Rollout{
+		ID:        "RID",
+		FlagKey:   "test-flag",
+		Kind:      "guarded",
+		CreatedAt: time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
+		Status:    rollouts.StatusBlock{Status: "in_progress", Kind: "active", Label: "Monitoring"},
+		MetricConfigurations: []rollouts.MetricConfiguration{
+			{MetricKey: "metric-a", Status: "ok"},
+			{MetricKey: "metric-b", Status: "regressed"},
+		},
+	}
+	mockClient.On("Get", "abcd1234", mock.Anything, "test-proj", "test", "RID").
+		Return(&r, nil)
+	mockClient.On("GetMetricResult", "abcd1234", mock.Anything, "test-proj", "test-flag", "test", "RID", "metric-a").
+		Return(&rollouts.MetricResult{
+			MetricKey:     "metric-a",
+			ControlResult: &rollouts.MetricResultEstimate{Value: 0.1, Exposures: 100, Conversions: 10},
+		}, nil)
+	mockClient.On("GetMetricResult", "abcd1234", mock.Anything, "test-proj", "test-flag", "test", "RID", "metric-b").
+		Return(&rollouts.MetricResult{
+			MetricKey:     "metric-b",
+			ControlResult: &rollouts.MetricResultEstimate{Value: 0.2, Exposures: 100, Conversions: 20},
+		}, nil)
+
+	args := []string{
+		"flags", "rollouts-beta", "status",
+		"--access-token", "abcd1234",
+		"--flag", "test-flag",
+		"--project", "test-proj",
+		"--rollout-id", "RID",
+		"--environment", "test",
+		"--output", "json",
+	}
+	output, err := cmd.CallCmd(t, cmd.APIClients{RolloutsClient: mockClient}, analytics.NoopClientFn{}.Tracker(), args)
+	require.NoError(t, err)
+
+	var env rollouts.Envelope
+	require.NoError(t, json.Unmarshal(output, &env))
+	rawData, _ := json.Marshal(env.Data)
+	var got rollouts.Rollout
+	require.NoError(t, json.Unmarshal(rawData, &got))
+	require.Len(t, got.MetricResults, 2)
+	assert.Equal(t, "metric-a", got.MetricResults[0].MetricKey)
+	assert.Equal(t, "metric-b", got.MetricResults[1].MetricKey)
+	mockClient.AssertExpectations(t)
+}
+
+func TestStatus_MetricResults_EnvRecoveredFromLinksSelf(t *testing.T) {
+	mockClient := &rollouts.MockClient{}
+	r := rollouts.Rollout{
+		ID:        "RID",
+		FlagKey:   "test-flag",
+		Kind:      "guarded",
+		CreatedAt: time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
+		Status:    rollouts.StatusBlock{Status: "in_progress", Kind: "active", Label: "Monitoring"},
+		MetricConfigurations: []rollouts.MetricConfiguration{
+			{MetricKey: "metric-a", Status: "ok"},
+		},
+		Links: map[string]rollouts.Link{
+			"self": {Href: "/internal/projects/test-proj/environments/staging/automated-releases/RID"},
+		},
+	}
+	// Most-recent path (no --rollout-id, no --environment) — List returns the rollout.
+	mockClient.On("List", "abcd1234", mock.Anything, "test-proj", "test-flag", mock.Anything).
+		Return(&rollouts.RolloutList{Items: []rollouts.Rollout{r}}, nil)
+	// envKeyFromLinks should recover "staging" from the _links.self.href.
+	mockClient.On("GetMetricResult", "abcd1234", mock.Anything, "test-proj", "test-flag", "staging", "RID", "metric-a").
+		Return(&rollouts.MetricResult{MetricKey: "metric-a"}, nil)
+
+	args := []string{
+		"flags", "rollouts-beta", "status",
+		"--access-token", "abcd1234",
+		"--flag", "test-flag",
+		"--project", "test-proj",
+		"--output", "json",
+	}
+	output, err := cmd.CallCmd(t, cmd.APIClients{RolloutsClient: mockClient}, analytics.NoopClientFn{}.Tracker(), args)
+	require.NoError(t, err)
+
+	var env rollouts.Envelope
+	require.NoError(t, json.Unmarshal(output, &env))
+	rawData, _ := json.Marshal(env.Data)
+	var got rollouts.Rollout
+	require.NoError(t, json.Unmarshal(rawData, &got))
+	assert.Len(t, got.MetricResults, 1)
+	mockClient.AssertExpectations(t)
+}
+
+func TestStatus_MetricResults_SkippedWhenNoMetricConfigs(t *testing.T) {
+	mockClient := &rollouts.MockClient{}
+	r := rollouts.Rollout{
+		ID:        "RID",
+		FlagKey:   "test-flag",
+		Kind:      "progressive",
+		CreatedAt: time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
+		Status:    rollouts.StatusBlock{Status: "in_progress", Kind: "active", Label: "Stage 1 of 3"},
+		// No MetricConfigurations — progressive rollouts don't monitor metrics.
+	}
+	mockClient.On("List", "abcd1234", mock.Anything, "test-proj", "test-flag", mock.Anything).
+		Return(&rollouts.RolloutList{Items: []rollouts.Rollout{r}}, nil)
+
+	args := []string{
+		"flags", "rollouts-beta", "status",
+		"--access-token", "abcd1234",
+		"--flag", "test-flag",
+		"--project", "test-proj",
+		"--output", "json",
+	}
+	_, err := cmd.CallCmd(t, cmd.APIClients{RolloutsClient: mockClient}, analytics.NoopClientFn{}.Tracker(), args)
+	require.NoError(t, err)
+
+	mockClient.AssertExpectations(t)
+	mockClient.AssertNotCalled(t, "GetMetricResult",
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
