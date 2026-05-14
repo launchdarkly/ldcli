@@ -97,7 +97,7 @@ Plans:
 Plans:
 - [x] 04-01-PLAN.md — Vertical slice: NewStopCmd + Client.Stop (PATCH semantic-patch + re-fetch via List Limit:1) + ErrCodeAlreadyTerminal + ToVariationFlag + BuildUIURL/NewRolloutEnvelopeWithUI envelope helpers + StopInstruction expansion + stop_test.go (Wave 1)
 - [x] 04-02-PLAN.md — Vertical slice: NewDismissCmd + Client.DismissRegression (PATCH semantic-patch + bounded-backoff polling loop per PC-007) + ErrCodeNoActiveRegression + DismissRegressionInstruction expansion + dismiss_test.go (Wave 2; depends on 04-01 for shared substrate)
-- [ ] 04-03-PLAN.md — Real-staging smoke for stop + dismiss-regression (5+ scenarios); new papercuts appended to API-PAPERCUTS.md + Confluence (DOC-02/04); CLI-LEARNINGS.md appends (LEARN-02); answers Plan 04-02's four open questions empirically (Wave 3; depends on 04-01 + 04-02)
+- [x] 04-03-PLAN.md — Real-staging smoke for stop + dismiss-regression (5+ scenarios); new papercuts appended to API-PAPERCUTS.md + Confluence (DOC-02/04); CLI-LEARNINGS.md appends (LEARN-02); answers Plan 04-02's four open questions empirically (Wave 3; depends on 04-01 + 04-02)
 - [ ] 04-04-PLAN.md — End-of-milestone review pass (DOC-03 + LEARN-03): both learnings docs reviewed/sorted/circulated; final Confluence sync; STATE.md + PROJECT.md + ROADMAP.md mark Phase 4 / milestone v1.0 complete (Wave 4; depends on 04-03)
 
 ## Progress
