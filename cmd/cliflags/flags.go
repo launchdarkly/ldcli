@@ -56,6 +56,7 @@ const (
 	StagesFlag             = "stages"
 	SyncOnceFlag           = "sync-once"
 	TargetVariationFlag    = "target-variation"
+	ToVariationFlag        = "to-variation"
 
 	AccessTokenFlagDescription        = "LaunchDarkly access token with write-level access"
 	AllFlagDescription                = "Return all rollouts (ignores --limit; subject to upstream API limits per API-PAPERCUTS.md PC-003)"
@@ -83,6 +84,7 @@ const (
 	StagesFlagDescription             = "Comma-separated list of stages as <allocation%>:<duration> (e.g. 25:60m,50:60m,100:60m). Allocation must be a whole percent integer [1-100]; duration must include a unit (60m, 1h30m, 300s). The CLI converts allocation to basis-points and duration to milliseconds for the API."
 	SyncOnceFlagDescription           = "Only sync new projects. Existing projects will neither be resynced nor have overrides specified by CLI flags applied."
 	TargetVariationFlagDescription    = "The variation UUID (_id) that traffic will be shifted to. Obtain via: ldcli flags get --flag <key> --output json | jq '.variations[]'"
+	ToVariationFlagDescription        = "Final variation UUID (_id) the rollout will conclude on. Pass either the original variation (control) to roll back, or the target variation (test) to roll forward. Obtain UUIDs via: ldcli flags get --flag <key> --output json | jq '.variations[]'"
 )
 
 // AllFlagsHelp returns the names + descriptions of flags that can be persisted as

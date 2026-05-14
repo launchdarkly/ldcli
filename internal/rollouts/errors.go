@@ -31,6 +31,11 @@ const (
 
 	// Phase 3 status-specific error code (D-09): emitted when --rollout-id is absent and the flag has zero rollouts.
 	ErrCodeNoRolloutsFound = "no_rollouts_found"
+
+	// Phase 4 stop-specific error code: emitted by the CLI pre-read guard when the most-recent
+	// rollout's Status.Kind is in {completed, reverted}; the CLI refuses to send
+	// stopAutomatedRelease against a terminal rollout (STOP-02 / SC#1).
+	ErrCodeAlreadyTerminal = "rollout_already_terminal"
 )
 
 // RolloutError is the typed error returned from the rollouts client. The `Code` field maps to

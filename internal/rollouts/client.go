@@ -32,6 +32,7 @@ type Client interface {
 	List(ctx context.Context, accessToken, baseURI, projKey, flagKey string, opts ListOpts) (*RolloutList, error)
 	Get(ctx context.Context, accessToken, baseURI, projKey, envKey, rolloutID string) (*Rollout, error)
 	Start(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey string, instr StartInstruction) (*Rollout, error)
+	Stop(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey string, instr StopInstruction) (*Rollout, error)
 	GetMetricResult(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey, rolloutID, metricKey string) (*MetricResult, *float64, error)
 }
 

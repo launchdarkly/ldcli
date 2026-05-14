@@ -67,9 +67,15 @@ type MetricMonitoringPref struct {
 	AutoRollback bool `json:"autoRollback"`
 }
 
-// StopInstruction terminates an in-progress rollout. Phase 4 fleshes this out.
+// StopInstruction terminates an in-progress rollout, rolling out to the chosen final variation.
+//
+// PAPERCUT: PC-013 — `finalVariationId` in the instruction body corresponds to the unified
+// naming convention (not the legacy `treatmentVariationId` / `controlVariationId` names that
+// appear on legacy MeasuredRollout / MeasuredRolloutDesign responses). Consistent with how
+// StartInstruction uses `originalVariationId` / `targetVariationId`.
 type StopInstruction struct {
-	Kind string `json:"kind"`
+	Kind             string `json:"kind"`             // always "stopAutomatedRelease"
+	FinalVariationID string `json:"finalVariationId"` // UUID _id only (mirrors Start's variation-id convention)
 }
 
 // DismissRegressionInstruction clears a detected-regression flag on a guarded rollout so it
