@@ -240,11 +240,17 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.step {
 	case stepSelectProject:
-		m.projectList, cmd = m.projectList.Update(msg)
+		if len(m.projects) > 0 {
+			m.projectList, cmd = m.projectList.Update(msg)
+		}
 	case stepSelectEnvironment:
-		m.envList, cmd = m.envList.Update(msg)
+		if len(m.environments) > 0 {
+			m.envList, cmd = m.envList.Update(msg)
+		}
 	case stepSelectSDK:
-		m.sdkList, cmd = m.sdkList.Update(msg)
+		if m.sdkList.Items() != nil {
+			m.sdkList, cmd = m.sdkList.Update(msg)
+		}
 	}
 	return m, cmd
 }
@@ -354,7 +360,7 @@ func (m wizardModel) View() string {
 			return titleStyle.Render("Setup complete!") + "\n\n" +
 				fmt.Sprintf("Your %s SDK is connected to LaunchDarkly.\n", m.detectResult.SDKID) +
 				fmt.Sprintf("Flag %q is ready to use.\n\n", m.flagKey) +
-				"You can now toggle your flag at https://app.launchdarkly.com\n"
+				fmt.Sprintf("You can now toggle your flag at https://app.launchdarkly.com/projects/%s/flags/%s/targeting?env=%s\n", m.selectedProject, m.flagKey, m.selectedEnv)
 		}
 		return titleStyle.Render("Verification timed out") + "\n\n" +
 			"The SDK did not report as active within the timeout period.\n" +
