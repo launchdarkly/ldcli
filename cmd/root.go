@@ -22,8 +22,8 @@ import (
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
-	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	setupcmd "github.com/launchdarkly/ldcli/cmd/setup"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
@@ -46,6 +46,8 @@ type APIClients struct {
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
 	ResourcesClient    resources.Client
+	Detector           setup.Detector
+	Installer          setup.Installer
 }
 
 type Command interface {
@@ -256,12 +258,20 @@ func NewRootCommand(
 
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
+	detector := clients.Detector
+	if detector == nil {
+		detector = setup.FileDetector{}
+	}
+	installer := clients.Installer
+	if installer == nil {
+		installer = setup.PackageInstaller{}
+	}
 	cmd.AddCommand(setupcmd.NewSetupCmd(
 		analyticsTrackerFn,
 		clients.ResourcesClient,
 		clients.FlagsClient,
-		setup.StubDetector{},
-		setup.StubInstaller{},
+		detector,
+		installer,
 	))
 	quickStartCmd := NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient)
 	quickStartCmd.Use = "quickstart"

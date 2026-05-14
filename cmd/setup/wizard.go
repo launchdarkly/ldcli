@@ -27,6 +27,7 @@ const (
 	stepSelectProject wizardStep = iota
 	stepSelectEnvironment
 	stepDetect
+	stepSelectSDK
 	stepInstall
 	stepCreateFlag
 	stepInit
@@ -53,6 +54,7 @@ type wizardModel struct {
 	environments []envItem
 	projectList  list.Model
 	envList      list.Model
+	sdkList      list.Model
 
 	selectedProject string
 	selectedEnv     string
@@ -60,14 +62,24 @@ type wizardModel struct {
 	clientSideID    string
 	mobileKey       string
 
-	detectResult  *setup.DetectResult
-	installResult *setup.InstallResult
-	flagKey       string
+	detectedEntryPoint string
+	detectResult       *setup.DetectResult
+	flagKey      string
 	initResult    *setup.InitResult
 	verifyResult  *setup.VerifyResult
 
 	quitting bool
 }
+
+type sdkItem struct {
+	id       string
+	language string
+	name     string
+}
+
+func (s sdkItem) Title() string       { return s.name }
+func (s sdkItem) Description() string { return s.language }
+func (s sdkItem) FilterValue() string { return s.name }
 
 type projectItem struct {
 	key  string
@@ -96,6 +108,7 @@ type envDetailsFetchedMsg struct {
 	mobileKey    string
 }
 type detectDoneMsg struct{ result *setup.DetectResult }
+type detectFailedMsg struct{}
 type installDoneMsg struct{ result *setup.InstallResult }
 type flagCreatedMsg struct{ key string }
 type initDoneMsg struct{ result *setup.InitResult }
@@ -179,13 +192,18 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.step = stepDetect
 		return m, m.runDetect()
 
+	case detectFailedMsg:
+		m.sdkList = m.buildSDKList("")
+		m.step = stepSelectSDK
+		return m, nil
+
 	case detectDoneMsg:
-		m.detectResult = msg.result
-		m.step = stepInstall
-		return m, m.runInstall()
+		m.detectedEntryPoint = msg.result.EntryPoint
+		m.sdkList = m.buildSDKList(msg.result.SDKID)
+		m.step = stepSelectSDK
+		return m, nil
 
 	case installDoneMsg:
-		m.installResult = msg.result
 		m.step = stepCreateFlag
 		return m, m.runCreateFlag()
 
@@ -222,9 +240,17 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.step {
 	case stepSelectProject:
-		m.projectList, cmd = m.projectList.Update(msg)
+		if len(m.projects) > 0 {
+			m.projectList, cmd = m.projectList.Update(msg)
+		}
 	case stepSelectEnvironment:
-		m.envList, cmd = m.envList.Update(msg)
+		if len(m.environments) > 0 {
+			m.envList, cmd = m.envList.Update(msg)
+		}
+	case stepSelectSDK:
+		if m.sdkList.Items() != nil {
+			m.sdkList, cmd = m.sdkList.Update(msg)
+		}
 	}
 	return m, cmd
 }
@@ -253,6 +279,19 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 		}
 		m.selectedEnv = selected.key
 		return m, m.fetchEnvDetails()
+
+	case stepSelectSDK:
+		selected, ok := m.sdkList.SelectedItem().(sdkItem)
+		if !ok {
+			return m, nil
+		}
+		m.detectResult = &setup.DetectResult{
+			SDKID:      selected.id,
+			Language:   selected.language,
+			EntryPoint: m.detectedEntryPoint,
+		}
+		m.step = stepInstall
+		return m, m.runInstall()
 
 	case stepWaitForApp:
 		m.step = stepVerify
@@ -288,6 +327,9 @@ func (m wizardModel) View() string {
 	case stepDetect:
 		return m.spinner.View() + " Detecting project type..."
 
+	case stepSelectSDK:
+		return m.sdkList.View()
+
 	case stepInstall:
 		return m.spinner.View() + " Installing SDK..."
 
@@ -314,11 +356,11 @@ func (m wizardModel) View() string {
 				fmt.Sprintf("Flag %q has been created in project %q.\n", m.flagKey, m.selectedProject) +
 				"Once you've initialized the SDK manually, your flag will be ready to use.\n"
 		}
-		if m.verifyResult != nil && m.verifyResult.Active {
+		if m.verifyResult != nil && m.verifyResult.Active && m.detectResult != nil {
 			return titleStyle.Render("Setup complete!") + "\n\n" +
 				fmt.Sprintf("Your %s SDK is connected to LaunchDarkly.\n", m.detectResult.SDKID) +
 				fmt.Sprintf("Flag %q is ready to use.\n\n", m.flagKey) +
-				"You can now toggle your flag at https://app.launchdarkly.com\n"
+				fmt.Sprintf("You can now toggle your flag at https://app.launchdarkly.com/projects/%s/flags/%s/targeting?env=%s\n", m.selectedProject, m.flagKey, m.selectedEnv)
 		}
 		return titleStyle.Render("Verification timed out") + "\n\n" +
 			"The SDK did not report as active within the timeout period.\n" +
@@ -326,6 +368,26 @@ func (m wizardModel) View() string {
 	}
 
 	return ""
+}
+
+// buildSDKList constructs the SDK selection list. If prioritizedID is non-empty
+// the matching SDK is placed first; all others follow in their default order.
+func (m wizardModel) buildSDKList(prioritizedID string) list.Model {
+	var first, rest []list.Item
+	for _, sdk := range setup.KnownSDKs {
+		item := sdkItem{id: sdk.ID, language: sdk.Language, name: sdk.Name}
+		if sdk.ID == prioritizedID {
+			first = append(first, item)
+		} else {
+			rest = append(rest, item)
+		}
+	}
+	items := append(first, rest...)
+	delegate := list.NewDefaultDelegate()
+	l := list.New(items, delegate, m.width, m.height-4)
+	l.Title = "Select your SDK:"
+	l.SetShowStatusBar(false)
+	return l
 }
 
 // Commands that perform async work
@@ -433,7 +495,7 @@ func (m wizardModel) runDetect() tea.Cmd {
 		}
 		result, err := m.detector.Detect(dir)
 		if err != nil {
-			return wizardErrMsg{err: err}
+			return detectFailedMsg{}
 		}
 		return detectDoneMsg{result: result}
 	}

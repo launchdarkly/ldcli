@@ -1,7 +1,6 @@
 package setup
 
 import (
-	"net/url"
 	"testing"
 	"time"
 
@@ -41,9 +40,4 @@ func TestVerify_InactiveTimesOut(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.Active)
 	assert.Greater(t, result.Attempts, 1)
-}
-
-func TestVerify_URLConstruction(t *testing.T) {
-	expected, _ := url.JoinPath("https://app.launchdarkly.com", "api/v2/projects", "my-proj", "environments", "my-env", "sdk-active")
-	assert.Equal(t, "https://app.launchdarkly.com/api/v2/projects/my-proj/environments/my-env/sdk-active", expected)
 }
