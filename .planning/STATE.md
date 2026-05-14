@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-14T19:02:43.537Z"
+last_updated: "2026-05-14T20:22:37.073Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 7
+  total_plans: 11
   completed_plans: 7
-  percent: 100
+  percent: 64
 ---
 
 # STATE: ldcli — Automated Rollouts via CLI
@@ -20,16 +20,16 @@ progress:
 
 - **What this is:** A new `ldcli flags rollouts-beta` command surface for starting, monitoring, and managing automated releases (guarded + progressive rollouts) on top of LaunchDarkly's `automated-releases` API. First-class consumers: humans, CI/CD, and AI agents.
 - **Core value:** An AI agent (or human, or CI/CD pipeline) can take a merged feature behind a flag, kick off an automated rollout, monitor it through to completion, and respond to regressions — without ever needing the LaunchDarkly UI.
-- **Current focus:** Phase 04 — Stop, Dismiss, & Finalize papercuts (Phase 03 complete 2026-05-14)
+- **Current focus:** Phase 04 — stop-dismiss-finalize-papercuts
 
 ## Current Position
 
-Phase: 03 (status-watch) — COMPLETE 2026-05-14
-Plan: 2 of 2 (both 03-01 + 03-02 shipped)
+Phase: 04 (stop-dismiss-finalize-papercuts) — EXECUTING
+Plan: 1 of 4
 
 - **Phase:** 3 → 4 transition
 - **Plan:** 03-01 + 03-02 complete; Phase 4 (Stop, Dismiss, & Finalize papercuts) not yet planned
-- **Status:** Phase 03 complete — status command shipped + real-staging smoke captured (5 scenarios, 1 new papercut, 5 new CLI-LEARNINGS entries, Confluence v3 → v4)
+- **Status:** Executing Phase 04
 - **Progress:** `███████████` 7 / 7 plans complete; 3 / 4 phases complete
 
 ## Roadmap Summary
