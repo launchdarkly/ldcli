@@ -22,10 +22,10 @@ These are not phases — they are constraints every phase must honor. They are l
 
 ## Phases
 
-- [ ] **Phase 1: List (foundation + first end-to-end slice)** — Operator can enumerate every rollout (current + past) for a flag from the CLI; ships the package skeleton, JSON envelope, exit-code taxonomy, retry/idempotency layer, TTY-aware output, beta banner, and the seeded papercuts doc.
-- [ ] **Phase 2: Start a rollout** — Operator can kick off a guarded or progressive rollout from the CLI with full option surface, default-on preflight, re-fetch for rollout ID, and idempotency.
+- [x] **Phase 1: List (foundation + first end-to-end slice)** — Operator can enumerate every rollout (current + past) for a flag from the CLI; ships the package skeleton, JSON envelope, exit-code taxonomy, retry/idempotency layer, TTY-aware output, beta banner, and the seeded papercuts doc.
+- [x] **Phase 2: Start a rollout** — Operator can kick off a guarded or progressive rollout from the CLI with full option surface, default-on preflight, re-fetch for rollout ID, and idempotency.
 - [x] **Phase 3: Status** — Operator can inspect the most-recent (or a specific) rollout with UI-parity detail via a single-snapshot `status` command. (Watch removed from project 2026-05-14; polling is the agent's responsibility.)
-- [ ] **Phase 4: Stop, Dismiss, & Finalize papercuts** — Operator can manually stop a rollout to a chosen final variation and dismiss an active regression; papercuts doc is reviewed and circulated.
+- [x] **Phase 4: Stop, Dismiss, & Finalize papercuts** — Operator can manually stop a rollout to a chosen final variation and dismiss an active regression; papercuts doc is reviewed and circulated.
 
 ## Phase Details
 
@@ -98,16 +98,16 @@ Plans:
 - [x] 04-01-PLAN.md — Vertical slice: NewStopCmd + Client.Stop (PATCH semantic-patch + re-fetch via List Limit:1) + ErrCodeAlreadyTerminal + ToVariationFlag + BuildUIURL/NewRolloutEnvelopeWithUI envelope helpers + StopInstruction expansion + stop_test.go (Wave 1)
 - [x] 04-02-PLAN.md — Vertical slice: NewDismissCmd + Client.DismissRegression (PATCH semantic-patch + bounded-backoff polling loop per PC-007) + ErrCodeNoActiveRegression + DismissRegressionInstruction expansion + dismiss_test.go (Wave 2; depends on 04-01 for shared substrate)
 - [x] 04-03-PLAN.md — Real-staging smoke for stop + dismiss-regression (5+ scenarios); new papercuts appended to API-PAPERCUTS.md + Confluence (DOC-02/04); CLI-LEARNINGS.md appends (LEARN-02); answers Plan 04-02's four open questions empirically (Wave 3; depends on 04-01 + 04-02)
-- [ ] 04-04-PLAN.md — End-of-milestone review pass (DOC-03 + LEARN-03): both learnings docs reviewed/sorted/circulated; final Confluence sync; STATE.md + PROJECT.md + ROADMAP.md mark Phase 4 / milestone v1.0 complete (Wave 4; depends on 04-03)
+- [x] 04-04-PLAN.md — End-of-milestone review pass (DOC-03 + LEARN-03): both learnings docs reviewed/sorted/circulated; final Confluence sync; STATE.md + PROJECT.md + ROADMAP.md mark Phase 4 / milestone v1.0 complete (Wave 4; depends on 04-03)
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. List (foundation + first slice) | 0/3 | Not started | - |
-| 2. Start a rollout | 0/2 | Not started | - |
-| 3. Status | 1/2 | Executing | - |
-| 4. Stop, Dismiss, & Finalize papercuts | 0/4 | Not started | - |
+| 1. List (foundation + first slice) | 3/3 | Complete | 2026-05-12 |
+| 2. Start a rollout | 2/2 | Complete | 2026-05-13 |
+| 3. Status | 2/2 | Complete | 2026-05-14 |
+| 4. Stop, Dismiss, & Finalize papercuts | 4/4 | Complete | 2026-05-14 |
 
 ## Coverage Summary
 
@@ -133,4 +133,4 @@ No orphans. No duplicates.
 
 ---
 *Roadmap created: 2026-05-12*
-*Last updated: 2026-05-14 — Phase 3 complete (03-01 vertical slice + 03-02 real-staging smoke shipped; PC-019 + CL-008..CL-012 captured)*
+*Last updated: 2026-05-14 — milestone v1.0 closed. All 4 phases shipped (11 plans total). Phase 4 surfaced PC-021 + CL-013/014/015; end-of-milestone review of API-PAPERCUTS.md (21 active) and CLI-LEARNINGS.md (15 active) completed; Confluence page 4875452435 synced to v5.*

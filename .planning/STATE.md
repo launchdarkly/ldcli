@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-05-14T20:22:37.073Z"
+status: milestone_complete
+last_updated: "2026-05-14T21:00:00.000Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 11
-  completed_plans: 7
-  percent: 64
+  completed_plans: 11
+  percent: 100
 ---
 
 # STATE: ldcli — Automated Rollouts via CLI
@@ -20,26 +20,27 @@ progress:
 
 - **What this is:** A new `ldcli flags rollouts-beta` command surface for starting, monitoring, and managing automated releases (guarded + progressive rollouts) on top of LaunchDarkly's `automated-releases` API. First-class consumers: humans, CI/CD, and AI agents.
 - **Core value:** An AI agent (or human, or CI/CD pipeline) can take a merged feature behind a flag, kick off an automated rollout, monitor it through to completion, and respond to regressions — without ever needing the LaunchDarkly UI.
-- **Current focus:** Phase 04 — stop-dismiss-finalize-papercuts
+- **Current focus:** Milestone v1.0 complete (Phase 04 closed 2026-05-14)
 
 ## Current Position
 
-Phase: 04 (stop-dismiss-finalize-papercuts) — EXECUTING
-Plan: 1 of 4
+Phase: 04 (stop-dismiss-finalize-papercuts) — COMPLETE 2026-05-14
+Plan: 4 of 4 (all shipped)
 
-- **Phase:** 3 → 4 transition
-- **Plan:** 03-01 + 03-02 complete; Phase 4 (Stop, Dismiss, & Finalize papercuts) not yet planned
-- **Status:** Executing Phase 04
-- **Progress:** `███████████` 7 / 7 plans complete; 3 / 4 phases complete
+- **Phase:** 04 complete; milestone v1.0 closed.
+- **Plans shipped this phase:** 04-01 (stop), 04-02 (dismiss-regression), 04-03 (real-staging smoke + PC-021 + CL-013/014/015), 04-04 (end-of-milestone review).
+- **Status:** Milestone v1.0 complete — all 4 phases shipped; 21 active API papercuts and 15 active CLI/UX learnings captured; Confluence page 4875452435 synced to v5; both deliverables ready for hand-off.
+- **Progress:** `███████████` 11 / 11 plans complete; 4 / 4 phases complete.
+- **Next command:** `/gsd-complete-milestone v1.0` — milestone retro.
 
 ## Roadmap Summary
 
 | # | Phase | Status | Plans |
 |---|-------|--------|-------|
-| 1 | List (foundation + first end-to-end slice) | Not started | TBD |
-| 2 | Start a rollout | Not started | TBD |
-| 3 | Status & Watch | Not started | TBD |
-| 4 | Stop, Dismiss, & Finalize papercuts | Not started | TBD |
+| 1 | List (foundation + first end-to-end slice) | Complete (2026-05-12) | 3 |
+| 2 | Start a rollout | Complete (2026-05-13) | 2 |
+| 3 | Status (watch removed) | Complete (2026-05-14) | 2 |
+| 4 | Stop, Dismiss, & Finalize papercuts | Complete (2026-05-14) | 4 |
 
 ## Performance Metrics
 

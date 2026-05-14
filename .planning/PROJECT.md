@@ -21,28 +21,28 @@ An AI agent (or human, or CI/CD pipeline) can take a merged feature behind a fla
 - ✓ JSON / plaintext output formatting — existing
 - ✓ Multi-channel distribution (Homebrew, Docker, NPM, GitHub Releases) — existing
 - ✓ Analytics instrumentation via `PersistentPreRun` hooks — existing
+- ✓ **REQ-LIST-01** — List all rollouts on a flag — both currently-running and past — validated in Phase 1
 - ✓ **REQ-START-01** — Start an automated rollout via `ldcli flags rollouts-beta start` (progressive default; guarded when `--pause-on-regression`/`--revert-on-regression` supplied) — validated in Phase 2
 - ✓ **REQ-START-02** — Configure stages, metrics, randomization unit, target/original variation, auto-rollback behavior from CLI flags — validated in Phase 2 (rule/clauses + extension-duration deferred per D-07/Q5)
 - ✓ **REQ-START-03** — Target any environment via `--environment <key>` — validated in Phase 2
+- ✓ **REQ-STATUS-01** — Easily get the status of the most recent rollout on a flag (running now, or the last one that completed/failed) — validated in Phase 3
+- ✓ **REQ-STATUS-02** — Show all the information about a rollout that's currently visible in the UI: percentage stages, latest metric results, current stage, monitoring state — validated in Phase 3
+- ✓ **REQ-STOP-01** — Manually stop a rollout, with the operator choosing whether to roll out to the control (original) or test (target) variation — validated in Phase 4 (Plan 04-01 + Smoke A/B/C)
+- ✓ **REQ-DISMISS-01** — Manually dismiss a regression so the rollout can continue — validated in Phase 4 (Plan 04-02 ship; Plan 04-03 Smoke D surfaced the PC-021 contract gap that blocks the happy-path empirically — code shipped, end-to-end validation pending API team fix)
+- ✓ **REQ-UX-01** — Terminology and language for rollout statuses should be consistent with what the LaunchDarkly UI shows today — validated across Phase 3 (status renderer) and Phase 4 (stop/dismiss renderers) using `status.label` verbatim
+- ✓ **REQ-AGENT-01** — Commands produce machine-readable output (JSON option) and meaningful exit codes so AI agents and CI/CD can chain decisions safely — validated cross-cutting (every command emits the `rollouts.v1beta1` envelope and FOUND-04 exit codes)
+- ✓ **REQ-DOC-01** — Maintain a running **API papercuts** document (`.planning/API-PAPERCUTS.md`) — delivered as the milestone's primary artifact per DOC-01..04; end-of-milestone review completed in Phase 4 Plan 04 (21 active entries, 12 source-code anchors verified live, Confluence page 4875452435 synced to v5)
+- ✓ **REQ-LEARN-01** — Maintain a running **CLI / UX learnings** document (`.planning/CLI-LEARNINGS.md`) — delivered as the milestone's parallel artifact per LEARN-01..03; end-of-milestone review completed in Phase 4 Plan 04 (15 active entries, all in LEARN-01 4-field structure)
 
 ### Active
 
 <!-- New scope for this milestone. -->
 
-- [ ] **REQ-START-04** — Default to **erroring** (in non-interactive contexts) or **prompting** (interactively) when metric health checks fail; bypass with `--skip-health-checks`. Prevents agents from launching rollouts with mis-instrumented metrics. **[Preflight deferred to a future phase per D-09]**
-- [ ] **REQ-LIST-01** — List all rollouts on a flag — both currently-running and past.
-- [ ] **REQ-STATUS-01** — Easily get the status of the most recent rollout on a flag (running now, or the last one that completed/failed).
-- [ ] **REQ-STATUS-02** — Show all the information about a rollout that's currently visible in the UI: percentage stages, latest metric results, current stage, monitoring state.
-- [ ] **REQ-STATUS-03** — Provide a `--watch` mode (modeled on `gh pr checks --watch`) that surfaces **actionable** events (regressions, action-required transitions) rather than only terminal states.
-- [ ] **REQ-STOP-01** — Manually stop a rollout, with the operator choosing whether to roll out to the control (original) or test (target) variation.
-- [ ] **REQ-DISMISS-01** — Manually dismiss a regression so the rollout can continue.
-- [ ] **REQ-UX-01** — Terminology and language for rollout statuses should be consistent with what the LaunchDarkly UI shows today (nice-to-have, when it makes sense).
-- [ ] **REQ-AGENT-01** — Commands produce machine-readable output (JSON option) and meaningful exit codes so AI agents and CI/CD can chain decisions safely.
-- [ ] **REQ-DOC-01** — Maintain a running **API papercuts** document (`.planning/API-PAPERCUTS.md`) capturing confusing or high-friction parts of the `automated-releases` API, with suggested improvements for the API team. This is a first-class deliverable of the milestone. Backed by REQUIREMENTS.md `DOC-01..04` (cross-cutting; enforced every phase).
-- [ ] **REQ-LEARN-01** — Maintain a running **CLI / UX learnings** document (`.planning/CLI-LEARNINGS.md`) capturing open questions about CLI shape, agent ergonomics, deferred decisions, and surprises about agent-interaction patterns surfaced during prototype work. Companion to API-PAPERCUTS.md; feeds the production CLI build's design discussions. First-class deliverable. Backed by REQUIREMENTS.md `LEARN-01..03` (cross-cutting; enforced Phase 3 onward).
+- [ ] **REQ-START-04** — Default to **erroring** (in non-interactive contexts) or **prompting** (interactively) when metric health checks fail; bypass with `--skip-health-checks`. Prevents agents from launching rollouts with mis-instrumented metrics. **[Preflight deferred to a future phase per D-09; rolls forward past v1.0]**
 
 ### Out of Scope
 
+- **REQ-STATUS-03 (`--watch` mode)** — removed from project 2026-05-14 during Phase 3 discuss-phase as too complex for the prototype scope. Polling is the agent's responsibility. Watch-shaped use cases catalogued in `.planning/CLI-LEARNINGS.md` CL-005 for the production CLI build to revisit.
 - **Timeseries / chart data for metric results** — the UI shows these; the CLI surfaces latest values only.
 - **Release-policy-driven defaults** — future work. Today, every command takes explicit options. Once release policies are GA, the CLI may allow `start` with no options when a policy provides them.
 - **Configuring metric definitions or randomization units** — these are pre-existing LD resources; the CLI consumes them, it doesn't create them.
@@ -74,14 +74,14 @@ An AI agent (or human, or CI/CD pipeline) can take a merged feature behind a fla
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Unified `start` command (progressive default, guardrail metrics opt-in) | Simpler mental model; aligns with the API's evolution toward unification | — Pending |
-| `gh pr checks` style status + `--watch` for actionable events | Familiar UX; agents shouldn't watch multi-day rollouts continuously, but should react to regressions | — Pending |
-| Default-fail on metric health-check problems; `--skip-health-checks` to override | Protects agents from launching rollouts on mis-instrumented metrics | — Pending |
-| Maintain `.planning/API-PAPERCUTS.md` as a milestone deliverable | First-consumer feedback is the highest-leverage input to the API team before public release | — Pending |
-| Maintain `.planning/CLI-LEARNINGS.md` as a parallel deliverable | Project is prototype-shaped; CLI/UX questions surfaced here feed the production CLI design | — Pending (added 2026-05-14) |
-| Target any environment via parameter (no env-promotion workflow) | Keeps v1 scope tight; cross-env workflows can be composed by callers | — Pending |
-| Configure + start in one command | Matches user intent; pre-existing-config-only is a less useful subset | — Pending |
-| `-beta` command suffix | Signals instability; allows breaking changes as the underlying API stabilizes | — Pending |
+| Unified `start` command (progressive default, guardrail metrics opt-in) | Simpler mental model; aligns with the API's evolution toward unification | ✓ Shipped Phase 2 (progressive default; `--pause-on-regression`/`--revert-on-regression` opt into guarded) |
+| `gh pr checks` style status; `--watch` removed 2026-05-14 | Familiar UX; agents shouldn't watch multi-day rollouts continuously, but should react to regressions | ✓ Shipped one-shot `status` in Phase 3; `--watch` moved to Out of Scope, replaced by agent-driven polling per CL-005 |
+| Default-fail on metric health-check problems; `--skip-health-checks` to override | Protects agents from launching rollouts on mis-instrumented metrics | Deferred (D-09; REQ-START-04 rolls forward past v1.0) |
+| Maintain `.planning/API-PAPERCUTS.md` as a milestone deliverable | First-consumer feedback is the highest-leverage input to the API team before public release | ✓ Shipped — 21 active entries by milestone close; 12 source-code anchors; Confluence page 4875452435 v5; end-of-milestone review completed 2026-05-14 |
+| Maintain `.planning/CLI-LEARNINGS.md` as a parallel deliverable | Project is prototype-shaped; CLI/UX questions surfaced here feed the production CLI design | ✓ Shipped — 15 active entries by milestone close (high=3, medium=5, low=7); end-of-milestone review completed 2026-05-14 |
+| Target any environment via parameter (no env-promotion workflow) | Keeps v1 scope tight; cross-env workflows can be composed by callers | ✓ Shipped — every command takes `--environment`; no env-promotion surface introduced |
+| Configure + start in one command | Matches user intent; pre-existing-config-only is a less useful subset | ✓ Shipped Phase 2 — `start` accepts the full configuration surface inline |
+| `-beta` command suffix | Signals instability; allows breaking changes as the underlying API stabilizes | ✓ Shipped — `rollouts-beta` carried forward across all 4 phases |
 
 ## Evolution
 
@@ -102,3 +102,5 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 *Last updated: 2026-05-14 — added REQ-LEARN-01 (CLI-LEARNINGS.md as a parallel first-class deliverable) and CLI/UX learnings constraint*
+
+*Milestone v1.0 closed: 2026-05-14 — all 4 phases shipped (11 plans total). Validated requirements migrated from Active to Validated. The two milestone-deliverable artifacts (`.planning/API-PAPERCUTS.md` 21 active entries; `.planning/CLI-LEARNINGS.md` 15 active entries) are ready for hand-off to the API team / production-CLI-build owner. REQ-START-04 (preflight) is the only requirement carried forward past v1.0. See `.planning/phases/04-stop-dismiss-finalize-papercuts/04-04-SUMMARY.md` for milestone close details.*
