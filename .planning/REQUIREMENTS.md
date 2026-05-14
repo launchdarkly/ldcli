@@ -18,13 +18,22 @@ Cross-cutting infrastructure shared by every command. Must land first.
 - [ ] **FOUND-07**: TTY-aware output: human-readable in a TTY (with ANSI), structured JSON when piped or `--output json`; ANSI codes never leak into JSON or stderr.
 - [ ] **FOUND-08**: Errors include a stable `error.code` field and (where applicable) a `nextAction` hint so agents can branch without parsing prose.
 
-### Papercuts Deliverable
+### Learnings Deliverables
 
-The first-consumer-of-unstable-API artifact.
+This milestone's **primary outputs are two learnings artifacts**, not the CLI itself. The CLI is a prototype-shaped vehicle for surfacing what the API team and a future production-CLI build need to know. Both artifacts are first-class deliverables enforced via cross-cutting requirements.
+
+#### API papercuts (artifact #1 — primary)
 
 - [ ] **DOC-01**: `.planning/API-PAPERCUTS.md` is created early with a structured template (Discovered / API behavior / CLI workaround / What we'd prefer / Status / Removal criteria) and seeded with the 16 papercuts already cataloged by the architecture research.
-- [ ] **DOC-02**: New papercuts discovered during implementation are appended throughout the milestone with a `// PAPERCUT: PC-NNN` source-code cross-reference at every workaround site.
+- [ ] **DOC-02**: New papercuts discovered during implementation are appended throughout the milestone with a `// PAPERCUT: PC-NNN` source-code cross-reference at every workaround site. Cross-cutting — enforced every phase from Phase 1 onward.
 - [ ] **DOC-03**: At milestone end, the doc is reviewed and circulated to the API team as input for the API stabilization work that precedes public release.
+- [ ] **DOC-04**: For any API papercut that captures a *contract-shape* observation (confusing field names, missing data on responses, forced consumer workarounds, inconsistencies with the rest of the LD API surface), the matching Confluence doc at page_id 4875452435 is updated using the fetch-first pattern (`mcp__mcp-atlassian__confluence_get_page` → `confluence_update_page`) so concurrent human edits aren't clobbered. Cross-cutting — enforced every phase from Phase 1 onward.
+
+#### CLI / UX learnings (artifact #2 — secondary)
+
+- [ ] **LEARN-01**: `.planning/CLI-LEARNINGS.md` is created with a structured template (anchor table + per-topic entries with Question / What we did in prototype / What's open for production CLI build / Severity) and seeded with the open CLI/UX questions surfaced by Phases 1+2 retroactively (JSON envelope vs raw-resource shape; AGENT-04 timestamp format; structured `reason` lift; exit-code taxonomy; watch-shaped use cases; "most recent" semantics; `--rollout-id` requiring `--environment`).
+- [ ] **LEARN-02**: New CLI/UX complexities discovered during implementation are appended to `.planning/CLI-LEARNINGS.md` throughout the milestone. Includes: shape/contract questions, surprising behaviors agents would prefer differently, deferred decisions worth revisiting, ergonomic frictions surfaced by real-staging exercise. Cross-cutting — enforced every phase from Phase 3 onward (where CLI-LEARNINGS.md is first created).
+- [ ] **LEARN-03**: At milestone end, `.planning/CLI-LEARNINGS.md` is reviewed alongside `.planning/API-PAPERCUTS.md` and circulated as input for the production CLI build's design discussions. Pairs with DOC-03.
 
 ### Start
 
@@ -123,6 +132,10 @@ Every v1 requirement maps to exactly one phase. AGENT-* and DOC-02 are cross-cut
 | DOC-01 | Phase 1 | Pending |
 | DOC-02 | Phase 1 (cross-cutting, enforced every phase) | Pending |
 | DOC-03 | Phase 4 | Pending |
+| DOC-04 | Phase 1 (cross-cutting, enforced every phase) | Pending |
+| LEARN-01 | Phase 3 | Pending |
+| LEARN-02 | Phase 3 (cross-cutting, enforced Phase 3 onward) | Pending |
+| LEARN-03 | Phase 4 | Pending |
 | LIST-01 | Phase 1 | Pending |
 | LIST-02 | Phase 1 | Pending |
 | LIST-03 | Phase 1 | Pending |
@@ -148,10 +161,10 @@ Every v1 requirement maps to exactly one phase. AGENT-* and DOC-02 are cross-cut
 | STOP-04 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 34 total (STATUS-05..09 struck 2026-05-14 — watch removed from project)
-- Mapped to phases: 34
+- v1 requirements: 38 total (STATUS-05..09 struck 2026-05-14 — watch removed from project; DOC-04 + LEARN-01..03 added 2026-05-14 — learnings deliverables baked in as first-class)
+- Mapped to phases: 38
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-12*
-*Last updated: 2026-05-14 after Phase 3 discuss-phase — STATUS-05..09 struck (watch removed from project)*
+*Last updated: 2026-05-14 after Phase 3 discuss-phase — STATUS-05..09 struck (watch removed from project); DOC-04 + LEARN-01..03 added (learnings deliverables baked in as cross-cutting requirements)*

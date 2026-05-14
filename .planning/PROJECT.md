@@ -38,7 +38,8 @@ An AI agent (or human, or CI/CD pipeline) can take a merged feature behind a fla
 - [ ] **REQ-DISMISS-01** — Manually dismiss a regression so the rollout can continue.
 - [ ] **REQ-UX-01** — Terminology and language for rollout statuses should be consistent with what the LaunchDarkly UI shows today (nice-to-have, when it makes sense).
 - [ ] **REQ-AGENT-01** — Commands produce machine-readable output (JSON option) and meaningful exit codes so AI agents and CI/CD can chain decisions safely.
-- [ ] **REQ-DOC-01** — Maintain a running **API papercuts** document (`.planning/API-PAPERCUTS.md`) capturing confusing or high-friction parts of the `automated-releases` API, with suggested improvements for the API team. This is a first-class deliverable of the milestone.
+- [ ] **REQ-DOC-01** — Maintain a running **API papercuts** document (`.planning/API-PAPERCUTS.md`) capturing confusing or high-friction parts of the `automated-releases` API, with suggested improvements for the API team. This is a first-class deliverable of the milestone. Backed by REQUIREMENTS.md `DOC-01..04` (cross-cutting; enforced every phase).
+- [ ] **REQ-LEARN-01** — Maintain a running **CLI / UX learnings** document (`.planning/CLI-LEARNINGS.md`) capturing open questions about CLI shape, agent ergonomics, deferred decisions, and surprises about agent-interaction patterns surfaced during prototype work. Companion to API-PAPERCUTS.md; feeds the production CLI build's design discussions. First-class deliverable. Backed by REQUIREMENTS.md `LEARN-01..03` (cross-cutting; enforced Phase 3 onward).
 
 ### Out of Scope
 
@@ -67,6 +68,7 @@ An AI agent (or human, or CI/CD pipeline) can take a merged feature behind a fla
 - **Authentication**: Reuse existing ldcli auth (OAuth + access tokens via `ldcli config`); no new auth surface.
 - **Real-server validation**: Before declaring a phase complete, the executor must exercise the new command surface against a real LaunchDarkly instance (staging or prod) with real credentials and confirm the happy path returns the expected envelope. If this isn't possible (e.g. unstable API outage), the executor must explicitly call that out in SUMMARY.md rather than silently skip.
 - **API contract learnings → Confluence**: When working against the real automated-releases API, any *contract-shape* observation — confusing field names, missing data on responses, forced consumer workarounds, inconsistencies with the rest of the LD API surface — must be captured in the Confluence doc **[Learnings: automated release API papercuts](https://launchdarkly.atlassian.net/wiki/spaces/~62435d09f6a26900695be8d7/pages/4875452435)** (`page_id=4875452435`). Scope is the **API contract**, not our CLI's bugs. **Always fetch the page before updating** (`mcp__mcp-atlassian__confluence_get_page` then `confluence_update_page`) so concurrent human edits aren't clobbered. The on-disk `.planning/API-PAPERCUTS.md` is a complementary doc for source-code-anchored workarounds (`// PAPERCUT: PC-NNN`) — Confluence is the human-readable feedback channel for the API team.
+- **CLI / UX learnings → CLI-LEARNINGS.md**: This milestone is prototype-shaped, not the production CLI build. Open questions about CLI shape (envelope vs raw-resource JSON, exit-code taxonomy, classifier fields, timestamp format, etc.), agent ergonomics, deferred decisions, and surprising agent-interaction behaviors surfaced during prototype work must be captured in `.planning/CLI-LEARNINGS.md`. Scope is **how a production CLI should be built**, not API gotchas (those go to API-PAPERCUTS.md / Confluence). Enforced via REQUIREMENTS.md `LEARN-01..03` (cross-cutting). When in doubt about which doc an observation belongs in: if it'd be the API team's fix, it's a papercut; if it'd be the future CLI build's design decision, it's a learning.
 
 ## Key Decisions
 
@@ -76,6 +78,7 @@ An AI agent (or human, or CI/CD pipeline) can take a merged feature behind a fla
 | `gh pr checks` style status + `--watch` for actionable events | Familiar UX; agents shouldn't watch multi-day rollouts continuously, but should react to regressions | — Pending |
 | Default-fail on metric health-check problems; `--skip-health-checks` to override | Protects agents from launching rollouts on mis-instrumented metrics | — Pending |
 | Maintain `.planning/API-PAPERCUTS.md` as a milestone deliverable | First-consumer feedback is the highest-leverage input to the API team before public release | — Pending |
+| Maintain `.planning/CLI-LEARNINGS.md` as a parallel deliverable | Project is prototype-shaped; CLI/UX questions surfaced here feed the production CLI design | — Pending (added 2026-05-14) |
 | Target any environment via parameter (no env-promotion workflow) | Keeps v1 scope tight; cross-env workflows can be composed by callers | — Pending |
 | Configure + start in one command | Matches user intent; pre-existing-config-only is a less useful subset | — Pending |
 | `-beta` command suffix | Signals instability; allows breaking changes as the underlying API stabilizes | — Pending |
@@ -98,4 +101,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-13 after Phase 2 completion (start-a-rollout vertical slice)*
+*Last updated: 2026-05-14 — added REQ-LEARN-01 (CLI-LEARNINGS.md as a parallel first-class deliverable) and CLI/UX learnings constraint*
