@@ -10,6 +10,8 @@
 Active count: 15
 Resolved count: 0
 
+**End-of-milestone review completed: 2026-05-14.** This doc is now the milestone v1.0's production-CLI-build-facing deliverable per LEARN-03. All 15 active entries have been reviewed: every entry has the 4-field LEARN-01 structure (Question / What we did in prototype / What's open for production CLI build / Severity); no entries were upstream-resolved or empirically-closed during the milestone (CL-005 watch-shaped use cases stays active — the agent-polling pattern was not exercised end-to-end during Phase 4 smoke). Severity distribution: high=3 (CL-005, CL-008, CL-013); medium=5 (CL-001, CL-003, CL-006, CL-009, CL-014); low=7 (CL-002, CL-004, CL-007, CL-010, CL-011, CL-012, CL-015).
+
 Seeded during Phase 3 plan-phase (2026-05-14). Entries are open CLI/UX questions about
 how a production CLI for automated rollouts should be shaped — envelope vs raw, classifier
 fields, exit-code taxonomy, etc. They are NOT API gaps (those go to `.planning/API-PAPERCUTS.md`
