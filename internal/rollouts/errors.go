@@ -36,6 +36,11 @@ const (
 	// rollout's Status.Kind is in {completed, reverted}; the CLI refuses to send
 	// stopAutomatedRelease against a terminal rollout (STOP-02 / SC#1).
 	ErrCodeAlreadyTerminal = "rollout_already_terminal"
+
+	// Phase 4 dismiss-specific error code: emitted by the CLI pre-read guard when the most-recent
+	// rollout's Status.Kind is NOT "regressed"; agents never see a generic "failed" for a state
+	// that doesn't need dismissal (STOP-04 / SC#3).
+	ErrCodeNoActiveRegression = "no_active_regression"
 )
 
 // RolloutError is the typed error returned from the rollouts client. The `Code` field maps to

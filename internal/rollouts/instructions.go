@@ -78,8 +78,13 @@ type StopInstruction struct {
 	FinalVariationID string `json:"finalVariationId"` // UUID _id only (mirrors Start's variation-id convention)
 }
 
-// DismissRegressionInstruction clears a detected-regression flag on a guarded rollout so it
-// can resume. Phase 4 fleshes this out.
+// DismissRegressionInstruction dismisses an active regression on a guarded rollout so it
+// can resume. The upstream `instruction_dismiss_regression` body shape is empty-besides-Kind
+// per architecture research; if a real-staging exercise (Plan 04-03) reveals that a
+// `metricKey` or other body field is required, add it here and capture as a new papercut.
+//
+// PAPERCUT: PC-007 — dismiss_regression returns 204 instead of the new state. The CLI
+// workaround (bounded-backoff re-fetch loop) lives in Client.DismissRegression, not here.
 type DismissRegressionInstruction struct {
-	Kind string `json:"kind"`
+	Kind string `json:"kind"` // always "dismissRegression"
 }
