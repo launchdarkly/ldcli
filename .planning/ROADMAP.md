@@ -62,7 +62,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md — Prerequisites: SemanticPatch.EnvironmentKey + StartInstruction shape + cliflags constants + idempotency.go deletion (Wave 1)
-- [ ] 02-02-PLAN.md — Vertical slice: Client.Start (two-step PATCH+re-fetch), error-message mapping, Cobra `start` command, tests, real-staging smoke (Wave 2; depends on 02-01)
+- [x] 02-02-PLAN.md — Vertical slice: Client.Start (two-step PATCH+re-fetch), error-message mapping, Cobra `start` command, tests, real-staging smoke (Wave 2; depends on 02-01)
 
 ### Phase 3: Status & Watch
 **Goal**: Operator (human or agent) can inspect any rollout with full UI-parity detail and can watch a running rollout for actionable events (regressions, stage transitions, action-required) via diff-based NDJSON streaming — the agent's primary feedback loop.
