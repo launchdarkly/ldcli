@@ -92,7 +92,13 @@ Plans:
   3. `stop` and `dismiss-regression` handle the "nothing to do" cases gracefully — already-terminal rollout, no active regression, no current rollout — with distinct exit codes, distinct `error.code` values, and agent-friendly `nextAction` hints, so an agent never sees a generic "failed" for a state it can recover from.
   4. The operator running either mutation with `--output json` always receives a confirmation envelope containing the affected rollout's ID, the effective parameters the API accepted, a permalink to the UI (`meta.uiURL`), and the post-mutation state — no silent transformation, no `OK`-only success.
   5. **Both learnings artifacts are reviewed and circulated end-of-milestone:** `.planning/API-PAPERCUTS.md` (DOC-03) — every active workaround has a documented removal criterion and a verified source-code cross-reference, resolved papercuts have been moved to the resolved section with a date, and the doc is circulated to the API team as input for API stabilization. **AND** `.planning/CLI-LEARNINGS.md` (LEARN-03) — every entry has a documented question + what we did in the prototype + what's open for the production CLI build + severity, and the doc is circulated as input for the production CLI build's design discussions. Both syncs include the Confluence doc at page_id 4875452435 for contract-shape observations (DOC-04).
-**Plans**: TBD
+**Plans:** 4 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Vertical slice: NewStopCmd + Client.Stop (PATCH semantic-patch + re-fetch via List Limit:1) + ErrCodeAlreadyTerminal + ToVariationFlag + BuildUIURL/NewRolloutEnvelopeWithUI envelope helpers + StopInstruction expansion + stop_test.go (Wave 1)
+- [ ] 04-02-PLAN.md — Vertical slice: NewDismissCmd + Client.DismissRegression (PATCH semantic-patch + bounded-backoff polling loop per PC-007) + ErrCodeNoActiveRegression + DismissRegressionInstruction expansion + dismiss_test.go (Wave 2; depends on 04-01 for shared substrate)
+- [ ] 04-03-PLAN.md — Real-staging smoke for stop + dismiss-regression (5+ scenarios); new papercuts appended to API-PAPERCUTS.md + Confluence (DOC-02/04); CLI-LEARNINGS.md appends (LEARN-02); answers Plan 04-02's four open questions empirically (Wave 3; depends on 04-01 + 04-02)
+- [ ] 04-04-PLAN.md — End-of-milestone review pass (DOC-03 + LEARN-03): both learnings docs reviewed/sorted/circulated; final Confluence sync; STATE.md + PROJECT.md + ROADMAP.md mark Phase 4 / milestone v1.0 complete (Wave 4; depends on 04-03)
 
 ## Progress
 
@@ -101,7 +107,7 @@ Plans:
 | 1. List (foundation + first slice) | 0/3 | Not started | - |
 | 2. Start a rollout | 0/2 | Not started | - |
 | 3. Status | 1/2 | Executing | - |
-| 4. Stop, Dismiss, & Finalize papercuts | 0/? | Not started | - |
+| 4. Stop, Dismiss, & Finalize papercuts | 0/4 | Not started | - |
 
 ## Coverage Summary
 
