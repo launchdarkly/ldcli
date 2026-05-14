@@ -33,6 +33,12 @@ type Client interface {
 	Get(ctx context.Context, accessToken, baseURI, projKey, envKey, rolloutID string) (*Rollout, error)
 	Start(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey string, instr StartInstruction) (*Rollout, error)
 	Stop(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey string, instr StopInstruction) (*Rollout, error)
+	// DismissRegression dismisses an active metric regression on a guarded rollout so it can
+	// resume. Returns the post-dismiss Rollout (via bounded-backoff polling loop because the
+	// upstream PATCH returns 204 No Content — PAPERCUT: PC-007), a []string warnings slice
+	// (non-nil and non-empty only when the polling budget was exhausted before the regressed
+	// state cleared), and an error.
+	DismissRegression(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey string, instr DismissRegressionInstruction) (*Rollout, []string, error)
 	GetMetricResult(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey, rolloutID, metricKey string) (*MetricResult, *float64, error)
 }
 

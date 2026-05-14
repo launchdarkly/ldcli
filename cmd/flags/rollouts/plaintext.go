@@ -139,6 +139,24 @@ func RenderRolloutStopPlaintext(r *rollouts.Rollout) string {
 	return b.String()
 }
 
+// RenderRolloutDismissPlaintext returns a concise post-dismiss confirmation for plaintext
+// output. The post-dismiss `Status.Kind` should typically be 'active' (rollout resumed)
+// but may still read 'regressed' when the eventual-consistency window has not yet
+// propagated; in that case the command layer surfaces a `meta.warnings` line to stderr
+// separately (JSON consumers see warnings in meta.warnings instead).
+func RenderRolloutDismissPlaintext(r *rollouts.Rollout) string {
+	if r == nil {
+		return "Regression dismissed.\n"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Dismissed regression on rollout %s (%s) in environment %s\n", emptyDash(r.ID), emptyDash(r.Kind), emptyDash(r.EnvironmentKey))
+	fmt.Fprintf(&b, "Status: %s\n", emptyDash(r.Status.Kind))
+	if r.Status.Label != "" {
+		fmt.Fprintf(&b, "Label: %s\n", r.Status.Label)
+	}
+	return b.String()
+}
+
 // timeOrDash returns the RFC 3339 timestamp or an em-dash placeholder when zero.
 // Companion to timePtrOrDash for non-pointer time.Time fields (e.g., Rollout.CreatedAt).
 func timeOrDash(t time.Time) string {

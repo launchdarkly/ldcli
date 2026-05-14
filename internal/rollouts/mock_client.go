@@ -86,6 +86,27 @@ func (c *MockClient) Stop(
 	return r, args.Error(1)
 }
 
+func (c *MockClient) DismissRegression(
+	_ context.Context,
+	accessToken,
+	baseURI,
+	projKey,
+	flagKey,
+	envKey string,
+	instr DismissRegressionInstruction,
+) (*Rollout, []string, error) {
+	args := c.Called(accessToken, baseURI, projKey, flagKey, envKey, instr)
+	var r *Rollout
+	if v := args.Get(0); v != nil {
+		r = v.(*Rollout)
+	}
+	var warnings []string
+	if v := args.Get(1); v != nil {
+		warnings = v.([]string)
+	}
+	return r, warnings, args.Error(2)
+}
+
 func (c *MockClient) GetMetricResult(
 	_ context.Context,
 	accessToken,
