@@ -3,6 +3,7 @@ package setup
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -187,6 +188,44 @@ func TestInjectIntoFile_ExistingFile_Go_DoesNotBreakPackageDeclaration(t *testin
 	// package declaration must remain first
 	assert.True(t, len(content) > 0 && string(content[:12]) == "package main")
 	assert.Contains(t, string(content), "sdk-test-key")
+}
+
+func TestInjectIntoFile_ExistingFile_Go_MergesImports(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "main.go")
+
+	existing := `package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("hello")
+}
+`
+	err := os.WriteFile(filePath, []byte(existing), 0644)
+	require.NoError(t, err)
+
+	initializer := Initializer{}
+	result, err := initializer.InjectIntoFile("go-server-sdk", filePath, InitConfig{
+		SDKKey:  "sdk-test-key",
+		FlagKey: "test-flag",
+	})
+
+	require.NoError(t, err)
+	assert.True(t, result.Success)
+
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	s := string(content)
+	// package declaration must remain first
+	assert.True(t, strings.HasPrefix(s, "package main"))
+	// existing import preserved
+	assert.Contains(t, s, `"fmt"`)
+	// new imports added
+	assert.Contains(t, s, `"github.com/launchdarkly/go-sdk-common/v3/ldcontext"`)
+	assert.Contains(t, s, `ld "github.com/launchdarkly/go-server-sdk/v7"`)
+	// init code appended
+	assert.Contains(t, s, "sdk-test-key")
 }
 
 func TestInjectIntoFile_UnsupportedSDK_ReturnsDocsURL(t *testing.T) {

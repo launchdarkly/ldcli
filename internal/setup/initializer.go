@@ -5,9 +5,15 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
+
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 //go:embed sdk_init_templates/*.tmpl
@@ -180,18 +186,66 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 		return nil, fmt.Errorf("reading %s: %w", filePath, err)
 	}
 
-	content := string(existing)
-
-	if importSection != "" {
-		content = importSection + "\n" + content
+	var content string
+	if importSection != "" && filepath.Ext(filePath) == ".go" {
+		merged, err := injectGoImports(filePath, existing, importSection)
+		if err != nil {
+			return nil, fmt.Errorf("injecting imports into %s: %w", filePath, err)
+		}
+		content = merged + "\n\n" + initSection + "\n"
+	} else {
+		content = string(existing)
+		if importSection != "" {
+			content = importSection + "\n" + content
+		}
+		content = content + "\n\n" + initSection + "\n"
 	}
-	content = content + "\n\n" + initSection + "\n"
 
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 		return nil, fmt.Errorf("writing %s: %w", filePath, err)
 	}
 
 	return &InitResult{SDKID: sdkID, FilePath: filePath, Success: true}, nil
+}
+
+// injectGoImports parses importSection as a Go import block, then uses astutil to
+// add each import into the existing file's AST, preserving all existing imports.
+// Returns the formatted Go source with the new imports merged in.
+func injectGoImports(filePath string, existing []byte, importSection string) (string, error) {
+	// Wrap importSection in a minimal Go file so go/parser can parse it.
+	wrapped := "package p\n\n" + strings.TrimSpace(importSection) + "\n"
+	fset := token.NewFileSet()
+	tmplFile, err := parser.ParseFile(fset, "", wrapped, 0)
+	if err != nil {
+		return "", fmt.Errorf("parsing import section: %w", err)
+	}
+
+	// Parse the target file.
+	targetFset := token.NewFileSet()
+	targetFile, err := parser.ParseFile(targetFset, filePath, existing, parser.ParseComments)
+	if err != nil {
+		return "", fmt.Errorf("parsing %s: %w", filePath, err)
+	}
+
+	// Add each import from the template into the target file's AST.
+	for _, spec := range tmplFile.Imports {
+		path := strings.Trim(spec.Path.Value, `"`)
+		name := ""
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		if name != "" {
+			astutil.AddNamedImport(targetFset, targetFile, name, path)
+		} else {
+			astutil.AddImport(targetFset, targetFile, path)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := format.Node(&buf, targetFset, targetFile); err != nil {
+		return "", fmt.Errorf("formatting %s: %w", filePath, err)
+	}
+	return buf.String(), nil
 }
 
 // initSeparators lists the markers that divide import and init sections in templates.
