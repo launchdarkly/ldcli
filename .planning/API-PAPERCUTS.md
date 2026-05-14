@@ -9,6 +9,8 @@
 Active count: 21
 Resolved count: 0
 
+**End-of-milestone review completed: 2026-05-14.** This doc is now the milestone v1.0's API-team-facing deliverable per DOC-03. All 21 active entries have been reviewed: every entry has all 7 template fields, every `// PAPERCUT: PC-NNN` source-code annotation has been grep-verified to point at live Go code (12 anchors across 6 files: `cmd/flags/rollouts/{start,dismiss}.go`, `internal/rollouts/{client,instructions,models,status_mapping,start,stop,dismiss}.go`), and no entries were upstream-resolved during the milestone. PC-003 was amended with a Phase 4 empirical update noting the server cap of `limit=100`.
+
 Seeded during the **Phase 1: List foundation** milestone (`ldcli flags rollouts-beta list`).
 The catalog is derived from the architecture research in `.planning/research/ARCHITECTURE.md`
 (papercuts P1..P16). Later phases will append new entries here as they're encountered.
@@ -65,8 +67,8 @@ The catalog is derived from the architecture research in `.planning/research/ARC
 
 **Title:** `GET .../automated-releases` supports `limit` but no offset/cursor/pageToken
 **Discovered:** 2026-05-11 (architecture research; Phase 1 milestone)
-**API behavior:** The list endpoint exposes only `limit`. Once a flag has more than the default 20 historical rollouts, callers cannot fetch older ones without setting `limit` to a large value (and hoping it isn't capped server-side).
-**CLI workaround:** `--all` issues a single request with `limit=1000`. The list command's runE compares `len(items)` against the requested limit; when equal, the envelope's `meta.warnings` is decorated with a hint pointing at this papercut: `"List returned exactly N items; results may be truncated upstream (see API-PAPERCUTS.md PC-003)"`. Source anchor at `cmd/flags/rollouts/list.go` and `internal/rollouts/client.go`.
+**API behavior:** The list endpoint exposes only `limit`. Once a flag has more than the default 20 historical rollouts, callers cannot fetch older ones without setting `limit` to a large value (and hoping it isn't capped server-side). **Phase 4 empirical update (2026-05-14, 04-SMOKE.md secondary findings):** the server now caps `limit` at 100 (rejects larger values with `bad_request: "Limit must be less than or equal to 100"`); the CLI's `--all` flag currently requests `limit=1000` and therefore returns a `bad_request` envelope on real staging.
+**CLI workaround:** `--all` issues a single request with `limit=1000`. The list command's runE compares `len(items)` against the requested limit; when equal, the envelope's `meta.warnings` is decorated with a hint pointing at this papercut: `"List returned exactly N items; results may be truncated upstream (see API-PAPERCUTS.md PC-003)"`. Source anchor at `cmd/flags/rollouts/list.go` and `internal/rollouts/client.go`. **Phase 4 follow-up needed:** lower the `--all` request to `limit=100` (or whatever the server reports as max via an introspection call if one exists), so `--all` stops returning a `bad_request` against current staging. Tracked as a CLI follow-up; the underlying pagination gap is the same as originally captured.
 **What we'd prefer:** Add a `_links.next` cursor following the standard LD pagination pattern; the CLI's `--all` becomes a transparent multi-call fetch.
 **Status:** active (`// PAPERCUT: PC-003` in `internal/rollouts/client.go`; `PC-003` reference in `cmd/flags/rollouts/list.go` saturation-warning text)
 **Removal criteria:** API exposes a pagination cursor; CLI `--all` becomes a multi-call fetch; the saturation warning is deleted; an integration test confirms paging through > 25 rollouts works.
