@@ -31,7 +31,7 @@ This milestone's **primary outputs are two learnings artifacts**, not the CLI it
 
 #### CLI / UX learnings (artifact #2 — secondary)
 
-- [ ] **LEARN-01**: `.planning/CLI-LEARNINGS.md` is created with a structured template (anchor table + per-topic entries with Question / What we did in prototype / What's open for production CLI build / Severity) and seeded with the open CLI/UX questions surfaced by Phases 1+2 retroactively (JSON envelope vs raw-resource shape; AGENT-04 timestamp format; structured `reason` lift; exit-code taxonomy; watch-shaped use cases; "most recent" semantics; `--rollout-id` requiring `--environment`).
+- [x] **LEARN-01**: `.planning/CLI-LEARNINGS.md` is created with a structured template (anchor table + per-topic entries with Question / What we did in prototype / What's open for production CLI build / Severity) and seeded with the open CLI/UX questions surfaced by Phases 1+2 retroactively (JSON envelope vs raw-resource shape; AGENT-04 timestamp format; structured `reason` lift; exit-code taxonomy; watch-shaped use cases; "most recent" semantics; `--rollout-id` requiring `--environment`). — Phase 3 Plan 01
 - [ ] **LEARN-02**: New CLI/UX complexities discovered during implementation are appended to `.planning/CLI-LEARNINGS.md` throughout the milestone. Includes: shape/contract questions, surprising behaviors agents would prefer differently, deferred decisions worth revisiting, ergonomic frictions surfaced by real-staging exercise. Cross-cutting — enforced every phase from Phase 3 onward (where CLI-LEARNINGS.md is first created).
 - [ ] **LEARN-03**: At milestone end, `.planning/CLI-LEARNINGS.md` is reviewed alongside `.planning/API-PAPERCUTS.md` and circulated as input for the production CLI build's design discussions. Pairs with DOC-03.
 
@@ -56,10 +56,10 @@ This milestone's **primary outputs are two learnings artifacts**, not the CLI it
 
 ### Status
 
-- [ ] **STATUS-01**: `ldcli flags rollouts-beta status --flag <key>` returns the most-recent rollout's state by default (running now, or last completed/failed).
-- [ ] **STATUS-02**: Status output surfaces everything the LaunchDarkly UI shows for an automated release: stage progression (current stage, allocations, durations), latest metric results per monitored metric, monitoring state, action-required reasons, regression detail if present.
-- [ ] **STATUS-03**: A specific rollout can be addressed by `--rollout-id` to override the "most recent" default.
-- [ ] **STATUS-04**: Terminology in human output is consistent with the LaunchDarkly UI's labels for rollout states (nice-to-have where it makes sense; documented when divergent).
+- [x] **STATUS-01**: `ldcli flags rollouts-beta status --flag <key>` returns the most-recent rollout's state by default (running now, or last completed/failed). — Phase 3 Plan 01
+- [x] **STATUS-02**: Status output surfaces everything the LaunchDarkly UI shows for an automated release: stage progression (current stage, allocations, durations), latest metric results per monitored metric, monitoring state, action-required reasons, regression detail if present. — Phase 3 Plan 01
+- [x] **STATUS-03**: A specific rollout can be addressed by `--rollout-id` to override the "most recent" default. — Phase 3 Plan 01
+- [x] **STATUS-04**: Terminology in human output is consistent with the LaunchDarkly UI's labels for rollout states (nice-to-have where it makes sense; documented when divergent). — Phase 3 Plan 01
 <!-- STATUS-05..09 (the entire `--watch` surface) were struck on 2026-05-14 during Phase 3
      discuss-phase per user decision: watch is too complicated for this project. Polling is
      the agent's job — invoke `status` periodically. See
@@ -133,7 +133,7 @@ Every v1 requirement maps to exactly one phase. AGENT-* and DOC-02 are cross-cut
 | DOC-02 | Phase 1 (cross-cutting, enforced every phase) | Pending |
 | DOC-03 | Phase 4 | Pending |
 | DOC-04 | Phase 1 (cross-cutting, enforced every phase) | Pending |
-| LEARN-01 | Phase 3 | Pending |
+| LEARN-01 | Phase 3 Plan 01 | Complete |
 | LEARN-02 | Phase 3 (cross-cutting, enforced Phase 3 onward) | Pending |
 | LEARN-03 | Phase 4 | Pending |
 | LIST-01 | Phase 1 | Pending |
@@ -151,10 +151,10 @@ Every v1 requirement maps to exactly one phase. AGENT-* and DOC-02 are cross-cut
 | START-05 | Phase 2 | Pending |
 | START-06 | Phase 2 | Pending |
 | START-07 | Phase 2 | Pending |
-| STATUS-01 | Phase 3 | Pending |
-| STATUS-02 | Phase 3 | Pending |
-| STATUS-03 | Phase 3 | Pending |
-| STATUS-04 | Phase 3 | Pending |
+| STATUS-01 | Phase 3 Plan 01 | Complete |
+| STATUS-02 | Phase 3 Plan 01 | Complete |
+| STATUS-03 | Phase 3 Plan 01 | Complete |
+| STATUS-04 | Phase 3 Plan 01 | Complete |
 | STOP-01 | Phase 4 | Pending |
 | STOP-02 | Phase 4 | Pending |
 | STOP-03 | Phase 4 | Pending |

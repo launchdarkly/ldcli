@@ -78,7 +78,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Vertical slice: NewStatusCmd + sectioned plaintext renderer + RolloutIdFlag + ErrCodeNoRolloutsFound + status_test.go + CLI-LEARNINGS.md skeleton (Wave 1)
+- [x] 03-01-PLAN.md — Vertical slice: NewStatusCmd + sectioned plaintext renderer + RolloutIdFlag + ErrCodeNoRolloutsFound + status_test.go + CLI-LEARNINGS.md skeleton (Wave 1)
 - [ ] 03-02-PLAN.md — Real-staging smoke + new papercuts appended to API-PAPERCUTS.md + Confluence (DOC-02/04) + CLI-LEARNINGS.md (LEARN-02) (Wave 2; depends on 03-01)
 
 ### Phase 4: Stop, Dismiss, & Finalize papercuts
@@ -100,7 +100,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. List (foundation + first slice) | 0/3 | Not started | - |
 | 2. Start a rollout | 0/2 | Not started | - |
-| 3. Status | 0/2 | Planning complete | - |
+| 3. Status | 1/2 | Executing | - |
 | 4. Stop, Dismiss, & Finalize papercuts | 0/? | Not started | - |
 
 ## Coverage Summary
