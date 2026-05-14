@@ -31,6 +31,7 @@ type ListOpts struct {
 type Client interface {
 	List(ctx context.Context, accessToken, baseURI, projKey, flagKey string, opts ListOpts) (*RolloutList, error)
 	Get(ctx context.Context, accessToken, baseURI, projKey, envKey, rolloutID string) (*Rollout, error)
+	Start(ctx context.Context, accessToken, baseURI, projKey, flagKey, envKey string, instr StartInstruction) (*Rollout, error)
 }
 
 // RolloutsClient is the concrete Client implementation. It owns a *retryablehttp.Client so
@@ -223,6 +224,17 @@ func (c RolloutsClient) Get(
 func (c RolloutsClient) setStandardHeaders(req *retryablehttp.Request, accessToken string) {
 	req.Header.Set("Authorization", accessToken)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.cliVersion))
+	req.Header.Set("LD-API-Version", "beta")
+}
+
+// setStartHeaders is identical to setStandardHeaders except Content-Type carries the
+// semantic-patch domain-model parameter required by the flag PATCH endpoint.
+// DO NOT use setStandardHeaders for the PATCH call — the server gates on the domain-model
+// parameter and returns 400 "unsupported content type" without it (Pitfall 1, RESEARCH.md).
+func (c RolloutsClient) setStartHeaders(req *retryablehttp.Request, accessToken string) {
+	req.Header.Set("Authorization", accessToken)
+	req.Header.Set("Content-Type", "application/json; domain-model=launchdarkly.semanticpatch")
 	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.cliVersion))
 	req.Header.Set("LD-API-Version", "beta")
 }

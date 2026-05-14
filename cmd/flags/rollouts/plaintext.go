@@ -104,6 +104,22 @@ func emptyDash(s string) string {
 	return s
 }
 
+// RenderRolloutPlaintext returns a concise single-rollout summary for plaintext output from
+// the start command. Shows the rollout ID, kind, environment, and initial status so the
+// operator knows what was created. JSON output always emits the full envelope (D-07).
+func RenderRolloutPlaintext(r *rollouts.Rollout) string {
+	if r == nil {
+		return "Rollout started.\n"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Started rollout %s (%s) in environment %s\n", emptyDash(r.ID), emptyDash(r.Kind), emptyDash(r.EnvironmentKey))
+	fmt.Fprintf(&b, "Status: %s\n", emptyDash(r.Status.Kind))
+	if len(r.Stages) > 0 {
+		fmt.Fprintf(&b, "Stages: %s\n", formatStage(*r))
+	}
+	return b.String()
+}
+
 // formatStage renders "<current> of <total> (<alloc>%)" where current is LatestStageIndex+1,
 // total is len(Stages), and alloc is the current stage's Allocation / 1000 (allocations are
 // represented as parts-per-thousand). When stage data is missing, an em-dash is returned.

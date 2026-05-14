@@ -5,8 +5,8 @@
 > cross-references the anchor below. When the API team resolves an item, move its
 > entry to `## Resolved` with a date and delete the workaround in the same PR.
 
-**Last updated:** 2026-05-12
-Active count: 16
+**Last updated:** 2026-05-13
+Active count: 18
 Resolved count: 0
 
 Seeded during the **Phase 1: List foundation** milestone (`ldcli flags rollouts-beta list`).
@@ -33,6 +33,8 @@ The catalog is derived from the architecture research in `.planning/research/ARC
 | PC-014 | Stage durations only as int64 millis (no Go-style duration string)             | 2026-05-11 | start (Phase 2), status |
 | PC-015 | No documented status enum transitions (state machine implicit)                 | 2026-05-11 | watch (Phase 3)         |
 | PC-016 | `recommended-duration` requires `finalStageAllocation` even for progressive    | 2026-05-11 | start (Phase 2)         |
+| PC-017 | `startAutomatedRelease` does not support guarded releases on staging           | 2026-05-13 | start (Phase 2)         |
+| PC-018 | Non-existent variation UUID in start instruction returns 500 instead of 400    | 2026-05-13 | start (Phase 2)         |
 
 ## Entries
 
@@ -195,6 +197,26 @@ The catalog is derived from the architecture research in `.planning/research/ARC
 **What we'd prefer:** Make `finalStageAllocation` optional for progressive rollouts; OR split the endpoint per kind.
 **Status:** active (no Phase 1 source-code annotation; surfaces in Phase 2 `start --dry-run`)
 **Removal criteria:** API makes `finalStageAllocation` optional or splits the endpoint; CLI removes the dummy-value workaround.
+
+### PC-017 - `startAutomatedRelease` does not support guarded releases on staging
+
+**Title:** `startAutomatedRelease` instruction rejects `releaseKind: "guarded"` on the `alex-engelberg-dev` staging account
+**Discovered:** 2026-05-13 (Phase 2 smoke test B)
+**API behavior:** When `startAutomatedRelease` is submitted with `releaseKind: "guarded"`, the server returns HTTP 400 with message: `"instruction kind startAutomatedRelease is not enabled for guarded releases"`. Progressive rollouts work correctly.
+**CLI workaround:** The CLI correctly propagates this error via `mapAPIError` → `bad_request` code (D-08 fallthrough for unrecognized policy messages). No dedicated `ErrCode` added. Operators see the server's message verbatim.
+**What we'd prefer:** Either enable guarded rollouts uniformly for accounts with the `automated-releases` beta enabled, OR document that guarded rollouts require a separate feature gate.
+**Status:** active (no source-code annotation; falls through to `bad_request` per D-08; CLI behavior is correct)
+**Removal criteria:** API enables guarded rollouts via `startAutomatedRelease`; Smoke B re-run confirms `data.kind = "guarded"`.
+
+### PC-018 - Non-existent variation UUID in start instruction returns 500 instead of 400
+
+**Title:** Passing a UUID-format string that is not a real variation ID causes server 500
+**Discovered:** 2026-05-13 (Phase 2 smoke test E)
+**API behavior:** When `targetVariationId` is a UUID-shaped string not matching any variation in the flag (e.g., `00000000-0000-0000-0000-000000000000`), the server returns HTTP 500 Internal Server Error. The expected behavior is HTTP 400 with `"originalVariationId must be a valid variation id '<value>'"`.
+**CLI workaround:** The CLI maps the 500 to `ErrCodeUpstreamUnavailable` per the Phase 1 5xx branch — the user sees `"LaunchDarkly returned 500 Internal Server Error"`. This is a degraded experience compared to the `ErrCodeInvalidVariation` code that would fire on a 400.
+**What we'd prefer:** The server should return HTTP 400 with a descriptive error message for any UUID-shaped input that does not match a flag variation, rather than panicking.
+**Status:** active (CLI correctly handles 500 but cannot surface `invalid_variation` code for this case)
+**Removal criteria:** API returns HTTP 400 with a descriptive message for non-existent variation UUIDs; Smoke E re-run confirms `error.code = "invalid_variation"`.
 
 ## Resolved
 

@@ -49,3 +49,21 @@ func (c *MockClient) Get(
 	}
 	return r, args.Error(1)
 }
+
+func (c *MockClient) Start(
+	_ context.Context,
+	accessToken,
+	baseURI,
+	projKey,
+	flagKey,
+	envKey string,
+	instr StartInstruction,
+) (*Rollout, error) {
+	args := c.Called(accessToken, baseURI, projKey, flagKey, envKey, instr)
+
+	var r *Rollout
+	if v := args.Get(0); v != nil {
+		r = v.(*Rollout)
+	}
+	return r, args.Error(1)
+}
