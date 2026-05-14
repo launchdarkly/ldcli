@@ -51,11 +51,11 @@ The first-consumer-of-unstable-API artifact.
 - [ ] **STATUS-02**: Status output surfaces everything the LaunchDarkly UI shows for an automated release: stage progression (current stage, allocations, durations), latest metric results per monitored metric, monitoring state, action-required reasons, regression detail if present.
 - [ ] **STATUS-03**: A specific rollout can be addressed by `--rollout-id` to override the "most recent" default.
 - [ ] **STATUS-04**: Terminology in human output is consistent with the LaunchDarkly UI's labels for rollout states (nice-to-have where it makes sense; documented when divergent).
-- [ ] **STATUS-05**: `--watch` mode polls and emits **actionable** events — regression detected, stage advanced, action required, terminal — not just terminal states. Default interval ~15s, configurable via `--watch-interval`.
-- [ ] **STATUS-06**: `--watch --output json` emits NDJSON (one JSON object per event), with a final `terminal: true` record; works correctly when piped to an agent.
-- [ ] **STATUS-07**: `--watch` has a hard `--timeout` (default reasonable for hour-scale rollouts; configurable; exits non-zero with a documented code on timeout). For multi-day rollouts the default is "watch until next actionable event" rather than "watch until terminal".
-- [ ] **STATUS-08**: `--watch` uses diff-based transition detection, not "poll until terminal" — inter-poll transitions surface as a single coalesced event.
-- [ ] **STATUS-09**: SIGINT during `--watch` exits with the documented SIGINT code (130) and leaves no partial JSON on stdout.
+<!-- STATUS-05..09 (the entire `--watch` surface) were struck on 2026-05-14 during Phase 3
+     discuss-phase per user decision: watch is too complicated for this project. Polling is
+     the agent's job — invoke `status` periodically. See
+     `.planning/phases/03-status-watch/03-CONTEXT.md` D-01. The watch-shaped use cases are
+     captured in `.planning/CLI-LEARNINGS.md` for the production CLI build to revisit. -->
 
 ### Stop & Dismiss
 
@@ -142,21 +142,16 @@ Every v1 requirement maps to exactly one phase. AGENT-* and DOC-02 are cross-cut
 | STATUS-02 | Phase 3 | Pending |
 | STATUS-03 | Phase 3 | Pending |
 | STATUS-04 | Phase 3 | Pending |
-| STATUS-05 | Phase 3 | Pending |
-| STATUS-06 | Phase 3 | Pending |
-| STATUS-07 | Phase 3 | Pending |
-| STATUS-08 | Phase 3 | Pending |
-| STATUS-09 | Phase 3 | Pending |
 | STOP-01 | Phase 4 | Pending |
 | STOP-02 | Phase 4 | Pending |
 | STOP-03 | Phase 4 | Pending |
 | STOP-04 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 39 total
-- Mapped to phases: 39
+- v1 requirements: 34 total (STATUS-05..09 struck 2026-05-14 — watch removed from project)
+- Mapped to phases: 34
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-12*
-*Last updated: 2026-05-12 after roadmap creation (traceability populated)*
+*Last updated: 2026-05-14 after Phase 3 discuss-phase — STATUS-05..09 struck (watch removed from project)*

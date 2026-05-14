@@ -24,7 +24,7 @@ These are not phases — they are constraints every phase must honor. They are l
 
 - [ ] **Phase 1: List (foundation + first end-to-end slice)** — Operator can enumerate every rollout (current + past) for a flag from the CLI; ships the package skeleton, JSON envelope, exit-code taxonomy, retry/idempotency layer, TTY-aware output, beta banner, and the seeded papercuts doc.
 - [ ] **Phase 2: Start a rollout** — Operator can kick off a guarded or progressive rollout from the CLI with full option surface, default-on preflight, re-fetch for rollout ID, and idempotency.
-- [ ] **Phase 3: Status & Watch** — Operator can inspect the most-recent (or a specific) rollout with UI-parity detail, and can watch a running rollout for actionable events via NDJSON.
+- [ ] **Phase 3: Status** — Operator can inspect the most-recent (or a specific) rollout with UI-parity detail via a single-snapshot `status` command. (Watch removed from project 2026-05-14; polling is the agent's responsibility.)
 - [ ] **Phase 4: Stop, Dismiss, & Finalize papercuts** — Operator can manually stop a rollout to a chosen final variation and dismiss an active regression; papercuts doc is reviewed and circulated.
 
 ## Phase Details
@@ -64,23 +64,22 @@ Plans:
 - [x] 02-01-PLAN.md — Prerequisites: SemanticPatch.EnvironmentKey + StartInstruction shape + cliflags constants + idempotency.go deletion (Wave 1)
 - [x] 02-02-PLAN.md — Vertical slice: Client.Start (two-step PATCH+re-fetch), error-message mapping, Cobra `start` command, tests, real-staging smoke (Wave 2; depends on 02-01)
 
-### Phase 3: Status & Watch
-**Goal**: Operator (human or agent) can inspect any rollout with full UI-parity detail and can watch a running rollout for actionable events (regressions, stage transitions, action-required) via diff-based NDJSON streaming — the agent's primary feedback loop.
+### Phase 3: Status (Watch removed from project 2026-05-14)
+**Goal**: Operator (human or agent) can inspect any rollout with full UI-parity detail via a single-snapshot `status` command. Agents poll by re-invoking `status` periodically; the CLI does not do continuous monitoring.
 **Mode:** mvp
-**Depends on**: Phase 1 (Client + output envelope + exit codes), Phase 2 (rollouts to status/watch exist; semantic-patch helper not used, but realistic rollouts created during Phase 2 enable end-to-end status testing).
-**Requirements**: STATUS-01, STATUS-02, STATUS-03, STATUS-04, STATUS-05, STATUS-06, STATUS-07, STATUS-08, STATUS-09
+**Depends on**: Phase 1 (Client + output envelope + exit codes), Phase 2 (rollouts to status exist; semantic-patch helper not used, but realistic rollouts created during Phase 2 enable end-to-end status testing).
+**Requirements**: STATUS-01, STATUS-02, STATUS-03, STATUS-04
 **Success Criteria** (what must be TRUE):
-  1. The operator can run `ldcli flags rollouts-beta status --flag <key>` and receive everything the LD UI surfaces for an automated release — stage progression (current stage index, allocations, durations), latest metric results per monitored metric, monitoring state, action-required reasons, and regression detail if present — for the most-recent rollout by default, or for a specific rollout when `--rollout-id <id>` is passed.
-  2. Human-mode output uses terminology consistent with the LaunchDarkly UI's labels for rollout states (documented when divergent), while JSON-mode output exposes both a stable bucketed `state` (`running` / `paused` / `succeeded` / `failed` / `regression-detected`) and the raw upstream `status` value alongside it.
-  3. The operator can run `ldcli flags rollouts-beta status --flag <key> --watch` and see actionable events (regression detected, stage advanced, action required, terminal) — not just terminal states — at the documented default poll interval (~15s), configurable via `--watch-interval`, with diff-based transition detection so an inter-poll `running → regression_detected → rolled_back` sequence surfaces the regression event rather than only the terminal state.
-  4. With `--watch --output json`, the CLI emits NDJSON (one JSON object per line, each carrying the schema-versioned envelope) with a final `terminal: true` record; when piped to an agent the stream parses cleanly line-by-line, and SIGINT during watch exits 130 with no partial JSON object on stdout.
-  5. `--watch` has a hard `--timeout` (configurable; reasonable default for hour-scale rollouts) and exits with the dedicated watch-timeout exit code when the timeout fires while the rollout is still running — distinct from terminal-failure and from SIGINT — so an agent can re-watch or fall back to scheduled `status` polls for multi-day rollouts.
+  1. The operator can run `ldcli flags rollouts-beta status --flag <key>` and receive everything the LD UI surfaces for an automated release — stage progression (current stage index, allocations, durations), latest metric results per monitored metric, monitoring state, action-required reasons, and regression detail if present — for the most-recent rollout by default, or for a specific rollout when `--rollout-id <id>` is passed (in which case `--environment` is also required per PC-004).
+  2. Human-mode output uses terminology consistent with the LaunchDarkly UI's labels for rollout states (documented when divergent). JSON-mode output exposes the bucketed `status.kind` lifecycle classifier (per Phase 1 D-02: `active` / `regressed` / `reverted` / `paused` / `completed`) alongside the raw upstream `status` value inside the existing `rollouts.v1beta1` envelope's `data.status` block. No new top-level `state` field.
+
+**Watch removed from project (2026-05-14):** The original Phase 3 included a `--watch` mode (STATUS-05..09, SC#3..5). After Phase 3 discuss-phase the user removed `--watch` from the project entirely as too complex for the prototype scope. Polling is the agent's responsibility. The watch-shaped use cases are catalogued in `.planning/CLI-LEARNINGS.md` for the production CLI build to revisit.
 **Plans**: TBD
 
 ### Phase 4: Stop, Dismiss, & Finalize papercuts
 **Goal**: Operator (human or agent) can manually stop a rollout to a chosen final variation and dismiss an active regression so the rollout can resume; the milestone's `API-PAPERCUTS.md` deliverable is reviewed and circulated as input for the API team.
 **Mode:** mvp
-**Depends on**: Phase 2 (semantic-patch helper, re-fetch pattern, idempotency layer), Phase 3 (state pre-read pattern, `meta.availableActions` next-action hints inform error responses).
+**Depends on**: Phase 2 (semantic-patch helper, re-fetch pattern), Phase 3 (state pre-read pattern).
 **Requirements**: STOP-01, STOP-02, STOP-03, STOP-04, DOC-03
 **Success Criteria** (what must be TRUE):
   1. The operator can run `ldcli flags rollouts-beta stop --flag <key> --to-variation <key>` to manually stop the current rollout, rolling out to either the original (control) or target (test) variation — `--to-variation` is required (no implicit default), and the CLI pre-reads the rollout state and refuses to stop a rollout that's already terminal, exiting with the conflict exit code and a structured error naming the current state.
@@ -109,7 +108,7 @@ Plans:
 | DOC-* (papercuts) | 3 | DOC-01 → Phase 1; DOC-02 cross-cutting; DOC-03 → Phase 4 |
 | START-* | 7 | Phase 2 |
 | LIST-* | 3 | Phase 1 |
-| STATUS-* (one-shot + watch) | 9 | Phase 3 |
+| STATUS-* (one-shot only; watch struck 2026-05-14) | 4 | Phase 3 |
 | STOP-* (stop + dismiss) | 4 | Phase 4 |
 | AGENT-* (cross-cutting affordances) | 5 | Phase 1 (introduced); referenced in every subsequent phase's success criteria |
 
@@ -123,3 +122,4 @@ No orphans. No duplicates.
 
 ---
 *Roadmap created: 2026-05-12*
+*Last updated: 2026-05-14 — Phase 3 scope reduced (`--watch` removed from project; STATUS-05..09 and Phase 3 SC#3..5 struck)*
