@@ -21,15 +21,15 @@ An AI agent (or human, or CI/CD pipeline) can take a merged feature behind a fla
 - ✓ JSON / plaintext output formatting — existing
 - ✓ Multi-channel distribution (Homebrew, Docker, NPM, GitHub Releases) — existing
 - ✓ Analytics instrumentation via `PersistentPreRun` hooks — existing
+- ✓ **REQ-START-01** — Start an automated rollout via `ldcli flags rollouts-beta start` (progressive default; guarded when `--pause-on-regression`/`--revert-on-regression` supplied) — validated in Phase 2
+- ✓ **REQ-START-02** — Configure stages, metrics, randomization unit, target/original variation, auto-rollback behavior from CLI flags — validated in Phase 2 (rule/clauses + extension-duration deferred per D-07/Q5)
+- ✓ **REQ-START-03** — Target any environment via `--environment <key>` — validated in Phase 2
 
 ### Active
 
 <!-- New scope for this milestone. -->
 
-- [ ] **REQ-START-01** — Start an automated rollout via a unified command (`ldcli flags rollouts-beta start`); progressive by default, guardrail metrics opt-in.
-- [ ] **REQ-START-02** — Allow configuring all existing rollout options, including stages/allocations, metrics, randomization unit, target variation, and auto-rollback behavior.
-- [ ] **REQ-START-03** — Target any environment via a parameter/flag.
-- [ ] **REQ-START-04** — Default to **erroring** (in non-interactive contexts) or **prompting** (interactively) when metric health checks fail; bypass with `--skip-health-checks`. Prevents agents from launching rollouts with mis-instrumented metrics.
+- [ ] **REQ-START-04** — Default to **erroring** (in non-interactive contexts) or **prompting** (interactively) when metric health checks fail; bypass with `--skip-health-checks`. Prevents agents from launching rollouts with mis-instrumented metrics. **[Preflight deferred to a future phase per D-09]**
 - [ ] **REQ-LIST-01** — List all rollouts on a flag — both currently-running and past.
 - [ ] **REQ-STATUS-01** — Easily get the status of the most recent rollout on a flag (running now, or the last one that completed/failed).
 - [ ] **REQ-STATUS-02** — Show all the information about a rollout that's currently visible in the UI: percentage stages, latest metric results, current stage, monitoring state.
@@ -98,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-11 after initialization*
+*Last updated: 2026-05-13 after Phase 2 completion (start-a-rollout vertical slice)*
