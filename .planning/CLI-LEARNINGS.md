@@ -7,7 +7,7 @@
 > REQ-LEARN-01 (PROJECT.md) and LEARN-01..03 (REQUIREMENTS.md).
 
 **Last updated:** 2026-05-14
-Active count: 12
+Active count: 15
 Resolved count: 0
 
 Seeded during Phase 3 plan-phase (2026-05-14). Entries are open CLI/UX questions about
@@ -32,6 +32,9 @@ new entries inline as Phase 3 implementation and real-staging smoke surface them
 | CL-010 | Plaintext stage marker "in progress" while overall State is "paused"                  | 2026-05-14 | status            |
 | CL-011 | Single-stage rollout plaintext rendering vs multi-stage reference doc                 | 2026-05-14 | status            |
 | CL-012 | Plaintext `auto-rollback: false` for every metric (downstream of CL-008)              | 2026-05-14 | status            |
+| CL-013 | Dismiss pre-read gates on Status.Kind="regressed" but upstream never emits that Kind  | 2026-05-14 | dismiss-regression |
+| CL-014 | `stop --to-variation` accepts any variation UUID (no validation against orig/target)  | 2026-05-14 | stop              |
+| CL-015 | `meta.uiURL` is flag-level (`/features/{key}/targeting`), not rollout-level           | 2026-05-14 | stop, dismiss     |
 
 ## Entries
 
@@ -109,7 +112,7 @@ new entries inline as Phase 3 implementation and real-staging smoke surface them
 
 **Question:** The CLI decodes upstream responses into `internal/rollouts/models.go` Go structs and re-marshals to the envelope's `data` field. Two failure modes empirically surfaced in the Phase 3 smoke run: (a) struct fields with `json:",omitempty"` strip zero-value primitives — e.g. `MetricConfiguration.AutoRollback: false` is silently dropped on re-marshal, so the operator never sees that auto-rollback was explicitly disabled; (b) fields the API returns that have no corresponding struct field are silently dropped — e.g. `metricConfigurations[].differenceEstimateType: "absolute"` exists in the raw curl response but is missing from the CLI envelope. Both violate the project's "JSON output is API-passthrough" principle (memory `feedback_json_api_passthrough.md`).
 
-**What we did in prototype:** Shipped the typed-struct approach (Phase 1). The struct has roughly the right shape for the API's documented payload, but the upstream is in beta — any new field the API team adds will be invisible to envelope consumers until a CLI release adds the struct field. And boolean fields with `omitempty` lose the distinction between "field absent from wire" and "field present and false."
+**What we did in prototype:** Shipped the typed-struct approach (Phase 1). The struct has roughly the right shape for the API's documented payload, but the upstream is in beta — any new field the API team adds will be invisible to envelope consumers until a CLI release adds the struct field. And boolean fields with `omitempty` lose the distinction between "field absent from wire" and "field present and false." **Phase 4 confirmation:** Smoke G's plaintext rendering for stop omits `data.status.status` (the `manually_completed` / `manually_reverted` server-side field), confirming the same struct-strip pattern in the post-stop renderer. The JSON envelope's `data.status.status` field IS preserved on the wire (visible in Smokes A and B captures), so the loss is renderer-specific, not envelope-wide.
 
 **What's open for production CLI build:** Switch the envelope's `data` to `json.RawMessage` (or `map[string]interface{}`) so the wire shape is preserved bit-for-bit; only decode to the typed struct when the plaintext renderer or business logic needs typed access. Or keep the typed struct but remove `omitempty` on every boolean and add `AdditionalFields map[string]any` for forward compatibility. Pick one and apply uniformly across all rollouts-beta verbs.
 
@@ -119,7 +122,7 @@ new entries inline as Phase 3 implementation and real-staging smoke surface them
 
 **Question:** When the operator runs `status --flag <key>` without `--environment`, the most-recent path returns a rollout payload whose only env identifier is `environmentId` (opaque ObjectId, see PC-019). The plaintext renderer has no human-readable env key to display, so it shows `Env: —`. This is visually surprising — the rollout *does* belong to a specific env, and the env key is recoverable from `_links.self.href`.
 
-**What we did in prototype:** Phase 3 plaintext renders `Env: —` when neither the operator nor the API supplies an env key. No parsing of `_links.self.href`. No echoing of `environmentId` (which is operator-meaningless).
+**What we did in prototype:** Phase 3 plaintext renders `Env: —` when neither the operator nor the API supplies an env key. No parsing of `_links.self.href`. No echoing of `environmentId` (which is operator-meaningless). **Phase 4 confirmation:** Same gap reaffirmed in the stop command's plaintext renderer (Smoke G output: `Stopped rollout c42efcad... (progressive) in environment —`). The operator passed `--environment test` but the renderer doesn't carry the operator-supplied env through to the response shape. Same fix candidates apply across both `status` and `stop` renderers.
 
 **What's open for production CLI build:** Three options once PC-019 is filed: (a) parse `_links.self.href` to extract the env key, (b) echo `environmentId` with a note that it's an opaque ID, (c) require `--environment` always for `status` (more friction but no ambiguous renderings). Picks (a) and (c) require additional CLI logic; (b) is honest but unhelpful. If PC-019 lands API-side, this question disappears.
 
@@ -152,6 +155,36 @@ new entries inline as Phase 3 implementation and real-staging smoke surface them
 **What we did in prototype:** No production fix in Phase 3. The renderer faithfully shows what the typed struct holds; the typed struct happens to hold zero-value-stripped data. Once CL-008 is addressed, this fixes itself.
 
 **What's open for production CLI build:** Resolved as a downstream effect of CL-008. If CL-008 stays unfixed for some reason, the alternative is to drop the `auto-rollback:` line from plaintext until we can render reliably.
+
+**Severity:** low
+
+### CL-013 — Dismiss pre-read gates on the wrong field
+
+**Question:** How should the CLI detect "is this rollout currently in an unresolved regression?" — `Status.Kind`, `status.label`, scanning `events[]`, or a future explicit upstream predicate?
+
+**What we did in prototype:** Phase 4 dismiss-regression gates on `current.Status.Kind == "regressed"` (see `cmd/flags/rollouts/dismiss.go`). Phase 4 real-staging smoke (`04-SMOKE.md` Smoke D + history-sweep observations) found that no rollout in any observed flag carries `Status.Kind == "regressed"` — regressed guarded rollouts surface as `Kind == "paused"` with the regression encoded in `status.label` ("the default rule paused at 50%: regressions detected for ..."). The CLI's gate therefore rejects every real regression scenario, and the bounded-backoff polling loop / PC-007 timeout warning path was never exercised end-to-end. **Phase 4 confirmation: same gap; cross-references PC-021.**
+
+**What's open for production CLI build:** Reshape the pre-read to detect regression via `status.label` substring match OR by scanning `events[]` for a `regression_detected` event without a subsequent `regression_dismissed`/`safe_roll_forward`. Coordinate with the API team on PC-021 — the cleanest fix is a stable upstream predicate (`data.activeRegression: bool` or a `"regressed"` Kind value). Until upstream changes, prefer `events[]` scanning over `label` substring match — `label` text is not a stable contract. Re-run Phase 4 dismiss smoke once the pre-read is reshaped; this unblocks the empirical answers to Plan 04-02 open questions #1 (polling-budget rightness) and #2 (instruction body shape).
+
+**Severity:** high
+
+### CL-014 — `stop --to-variation` accepts any variation UUID
+
+**Question:** Should the CLI validate that `--to-variation` matches either the rollout's `originalVariationId` or `targetVariationId`, or accept arbitrary UUIDs and let the server validate?
+
+**What we did in prototype:** Pass-through; no validation. Phase 4 Smoke B used the correct original-variation UUID (`c0cf6728...`), but a typo'd or wrong-flag UUID would also pass the CLI pre-read and either fail server-side with a non-obvious error or, worse, silently stop the rollout to an unintended variation. The prototype trusts the operator to supply the right UUID.
+
+**What's open for production CLI build:** (a) Validate `--to-variation` against the flag's variations list via a pre-flight `flags get` lookup (adds one round-trip; one extra failure mode if the lookup itself fails). (b) Ship higher-level `--rollback` / `--roll-forward` flags that resolve to the original/target UUID automatically (less footgun, matches operator intent more directly; the underlying `--to-variation` stays for advanced/agent usage). (c) Reject UUIDs that don't match either original or target with a friendly error before sending the PATCH. Option (b) is the most operator-friendly; option (a) is the safest backstop.
+
+**Severity:** medium
+
+### CL-015 — `meta.uiURL` path shape is flag-level, not rollout-level
+
+**Question:** Should the UI permalink point at the flag's targeting tab (current behavior) or at a rollout-specific anchor (e.g. `/features/{flagKey}/automated-releases/{rolloutId}` or a query string anchor like `?rollout={rolloutId}`)?
+
+**What we did in prototype:** `internal/rollouts/envelope.go:BuildUIURL` constructs `https://{base}/{projectKey}/{envKey}/features/{flagKey}/targeting`. Phase 4 real-staging smoke (Smokes A + B + G) verified the URL resolves to the flag's targeting page — operators can see the active rollout from there. Not wrong, just not maximally precise.
+
+**What's open for production CLI build:** Investigate whether the LD UI exposes a stable per-rollout anchor — if so, switch `BuildUIURL` to emit it (the operator clicks once and lands on the exact rollout's view). Coordinate with the UI team. If no rollout anchor exists, file a UI feature request; in the meantime, the current flag-level URL is a defensible default.
 
 **Severity:** low
 

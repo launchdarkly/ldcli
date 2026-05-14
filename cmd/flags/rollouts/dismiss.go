@@ -111,6 +111,13 @@ func dismissRunE(client rollouts.Client) func(*cobra.Command, []string) error {
 		// No-active-regression check (SC#3): refuse to dismiss when the rollout is not regressed.
 		// The "regressed" Status.Kind bucket is the only state where a dismissal is meaningful;
 		// all other states (active, paused, completed, reverted) do not need dismissal.
+		//
+		// PAPERCUT: PC-021 — Phase 4 real-staging smoke (04-SMOKE.md Smoke D + history sweep)
+		// established that upstream never emits Status.Kind=="regressed"; regression info is
+		// encoded in status.label with Kind=="paused". The check below therefore rejects every
+		// real regression on staging. The production CLI build should reshape this gate to
+		// scan events[] for a regression_detected event without a subsequent dismissal (see
+		// CLI-LEARNINGS.md CL-013 for production CLI guidance).
 		if current.Status.Kind != "regressed" {
 			return emitDismissError(cmd, &rollouts.RolloutError{
 				Code:    rollouts.ErrCodeNoActiveRegression,

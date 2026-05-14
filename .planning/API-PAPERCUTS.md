@@ -6,7 +6,7 @@
 > entry to `## Resolved` with a date and delete the workaround in the same PR.
 
 **Last updated:** 2026-05-14
-Active count: 20
+Active count: 21
 Resolved count: 0
 
 Seeded during the **Phase 1: List foundation** milestone (`ldcli flags rollouts-beta list`).
@@ -37,6 +37,7 @@ The catalog is derived from the architecture research in `.planning/research/ARC
 | PC-018 | Non-existent variation UUID in start instruction returns 500 instead of 400    | 2026-05-13 | start (Phase 2)         |
 | PC-019 | Rollout response returns `environmentId` (opaque), not `environmentKey`        | 2026-05-14 | status (Phase 3), list  |
 | PC-020 | `probabilityOfMismatch` is Sample-Ratio-Mismatch and lives in wrong endpoint   | 2026-05-14 | status (Phase 3)        |
+| PC-021 | `Status.Kind` taxonomy omits `"regressed"`; regression hidden in `status.label` | 2026-05-14 | dismiss-regression (Phase 4) |
 
 ## Entries
 
@@ -239,6 +240,24 @@ The catalog is derived from the architecture research in `.planning/research/ARC
 **What we'd prefer:** (1) Rename the field to `probabilityOfSampleRatioMismatch` (or `probabilityOfSRM`) so the SRM semantics is unambiguous. (2) Move it to the rollout-level GET endpoint (`/internal/projects/{p}/environments/{e}/automated-releases/{id}`) where it semantically belongs. (3) Drop it from per-metric responses, or document explicitly that it is replicated. Replicated per-metric is wire waste and invites consumers to render the same number N times under a misleading name.
 **Status:** active (CLI lifts to rollout root and omits from plaintext; SRM nuance documented above)
 **Removal criteria:** API renames the field to make SRM semantics explicit AND moves it to the rollout-level GET endpoint; CLI's `fetchMetricResults` no longer needs the `*float64` second return.
+
+### PC-021 - `Status.Kind` taxonomy omits `"regressed"`; regression hidden in `status.label`
+
+**Title:** Guarded rollouts that have hit a regression surface as `status.kind == "paused"` (not `"regressed"`); the regression signal is encoded in `status.label`
+**Discovered:** 2026-05-14 (Phase 4 dismiss-regression smoke; see `.planning/phases/04-stop-dismiss-finalize-papercuts/04-SMOKE.md` Smoke D + history-sweep observations)
+**API behavior:** When a guarded rollout's monitor detects a regression, the upstream response shape is:
+```json
+"status": {
+  "status": "monitoring_stopped",
+  "kind": "paused",
+  "label": "the default rule paused at 50%: regressions detected for rg-simulator-errors"
+}
+```
+There is no `Status.Kind == "regressed"` enum value visible in any observed response. Across 12 rollouts in 5 flags surveyed during the Phase 4 smoke, the kinds seen were `{paused, reverted, completed, active}` — `"regressed"` never appeared. The `events[]` array does contain a `regression_detected` event with the offending `metricKey`, but the top-level Kind classifier collapses regression-paused, manually-paused, and other paused-reasons into a single `paused` bucket.
+**CLI workaround:** The dismiss-regression command's pre-read in `cmd/flags/rollouts/dismiss.go` gates on `current.Status.Kind != "regressed"` — under this taxonomy that gate rejects every real regression scenario observed on staging. Workaround for the prototype: leave the gate as-is and document the gap. Source anchor at `cmd/flags/rollouts/dismiss.go` (the no-active-regression check) with `// PAPERCUT: PC-021` annotation.
+**What we'd prefer:** (a) Add `"regressed"` (or `"paused_regressed"`) as a first-class `Status.Kind` value, OR (b) add an explicit `data.activeRegression: bool` (or `data.dismissibleRegression: bool`) predicate to the rollout payload. Either lets downstream consumers detect the dismissible state without substring-parsing `label` or scanning `events[]`.
+**Status:** active (`// PAPERCUT: PC-021` in `cmd/flags/rollouts/dismiss.go`)
+**Removal criteria:** Upstream exposes a stable predicate for "is this rollout currently in an unresolved regression?"; CLI dismiss pre-read reads from that predicate; Phase 4 dismiss smoke can be re-run with a real regressed fixture and exercise the polling-budget path + PC-007 timeout warning.
 
 ## Resolved
 
