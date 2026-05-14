@@ -120,6 +120,25 @@ func RenderRolloutPlaintext(r *rollouts.Rollout) string {
 	return b.String()
 }
 
+// RenderRolloutStopPlaintext returns a concise post-stop confirmation for plaintext output.
+// Mirrors RenderRolloutPlaintext's shape but uses the "Stopped rollout" header. The
+// post-stop Rollout's Status.Kind should reflect the terminal state — typically "completed"
+// or "reverted" depending on which variation was chosen — but the exact mapping is observed
+// empirically during Plan 04-03 smoke (the API team has not documented the post-stop status
+// enumeration).
+func RenderRolloutStopPlaintext(r *rollouts.Rollout) string {
+	if r == nil {
+		return "Rollout stopped.\n"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Stopped rollout %s (%s) in environment %s\n", emptyDash(r.ID), emptyDash(r.Kind), emptyDash(r.EnvironmentKey))
+	fmt.Fprintf(&b, "Status: %s\n", emptyDash(r.Status.Kind))
+	if r.Status.Label != "" {
+		fmt.Fprintf(&b, "Label: %s\n", r.Status.Label)
+	}
+	return b.String()
+}
+
 // timeOrDash returns the RFC 3339 timestamp or an em-dash placeholder when zero.
 // Companion to timePtrOrDash for non-pointer time.Time fields (e.g., Rollout.CreatedAt).
 func timeOrDash(t time.Time) string {
