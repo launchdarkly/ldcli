@@ -1,0 +1,63 @@
+# LaunchDarkly Conventions
+#
+# This file customizes how AI agents use ldcli for YOUR organization.
+# Edit the sections below to match your team's standards.
+# This file is referenced from ~/.claude/CLAUDE.md and is always in context.
+#
+# Lines starting with # are comments and are ignored by the agent.
+
+## Default Project and Environments
+#
+# Uncomment and set these so the agent uses your defaults without asking:
+#
+# - Default project key: `my-app`
+# - Environments: `dev`, `staging`, `prod`
+# - When I say "production", use environment key: `prod`
+# - When I say "dev" or "local", use environment key: `dev`
+
+## Flag Naming Conventions
+#
+# Uncomment and customize:
+#
+# - Flag keys use kebab-case
+# - Prefix flag keys with the team name: e.g., `platform-dark-mode`, `payments-new-checkout`
+# - Boolean flags should be named as positive assertions: `enable-feature` not `disable-feature`
+
+## Tagging Standards
+#
+# Uncomment and customize:
+#
+# - Always tag new flags with the team name: e.g., `team-platform`
+# - Tag temporary/experiment flags with `temporary`
+# - Tag flags related to incidents with `incident-<number>`
+
+## Flag Creation Defaults
+#
+# Uncomment and customize:
+#
+# - All new flags should be `temporary: true` unless I say otherwise
+# - Always include a description when creating flags
+# - Default flag kind is `boolean` unless specified
+
+## Segments
+#
+# Uncomment and customize:
+#
+# - Segment keys follow the pattern: `<team>-<audience>` (e.g., `platform-beta-users`)
+# - Internal testing segment: `internal-testers`
+
+## Safety Rules
+#
+# Uncomment and customize:
+#
+# - Never toggle flags in `prod` without asking me to confirm first
+# - Never delete flags - archive them instead
+# - Always check flag status before toggling off in production
+
+## Team Context
+#
+# Add any other context that helps the agent work with your LD setup:
+#
+# - Our main SDK is the Node.js server-side SDK
+# - We use LaunchDarkly contexts with kinds: user, organization, device
+# - Our CI/CD pipeline auto-creates flags tagged with `ci-managed` - don't modify those
