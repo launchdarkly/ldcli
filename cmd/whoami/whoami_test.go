@@ -34,11 +34,12 @@ func (c *sequentialMockClient) MakeUnauthenticatedRequest(_ string, _ string, _ 
 }
 
 func TestWhoAmI(t *testing.T) {
-	t.Run("shows member name, email, role, and token", func(t *testing.T) {
+	t.Run("shows member name, email, role, token, and organization", func(t *testing.T) {
 		mockClient := &sequentialMockClient{
 			responses: [][]byte{
 				[]byte(`{"memberId": "abc123", "tokenName": "my-token", "tokenKind": "personal", "accountId": "acct1"}`),
 				[]byte(`{"_id": "abc123", "email": "ariel@acme.com", "firstName": "Ariel", "lastName": "Flores", "role": "admin"}`),
+				[]byte(`{"_id": "acct1", "organization": "Acme Inc"}`),
 			},
 		}
 
@@ -55,6 +56,30 @@ func TestWhoAmI(t *testing.T) {
 		assert.Contains(t, string(output), "Ariel Flores <ariel@acme.com>")
 		assert.Contains(t, string(output), "Role:    admin")
 		assert.Contains(t, string(output), "Token:   my-token (personal)")
+		assert.Contains(t, string(output), "Account: Acme Inc (acct1)")
+	})
+
+	t.Run("falls back to account ID when organization is unavailable", func(t *testing.T) {
+		mockClient := &sequentialMockClient{
+			responses: [][]byte{
+				[]byte(`{"memberId": "abc123", "tokenName": "my-token", "tokenKind": "personal", "accountId": "acct1"}`),
+				[]byte(`{"_id": "abc123", "email": "ariel@acme.com", "firstName": "Ariel", "lastName": "Flores", "role": "admin"}`),
+				[]byte(`{"_id": "acct1"}`),
+			},
+		}
+
+		t.Setenv("LD_ACCESS_TOKEN", "abcd1234")
+
+		output, err := cmd.CallCmd(
+			t,
+			cmd.APIClients{ResourcesClient: mockClient},
+			analytics.NoopClientFn{}.Tracker(),
+			[]string{"whoami"},
+		)
+
+		require.NoError(t, err)
+		assert.Contains(t, string(output), "Account: acct1")
+		assert.NotContains(t, string(output), "Account: Acme")
 	})
 
 	t.Run("without member ID shows token info only", func(t *testing.T) {

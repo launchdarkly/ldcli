@@ -39,6 +39,10 @@ type memberSummary struct {
 	Role      string `json:"role"`
 }
 
+type accountSummary struct {
+	Organization string `json:"organization"`
+}
+
 func NewWhoAmICmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Args:  cobra.NoArgs,
@@ -119,12 +123,25 @@ func makeRequest(client resources.Client) func(*cobra.Command, []string) error {
 			}
 		}
 
-		fmt.Fprint(cmd.OutOrStdout(), formatPlaintext(identity, member)+"\n")
+		// Fetch the account to resolve the organization name. This endpoint is a
+		// real public-API route but isn't published in the OpenAPI spec, so we
+		// treat it as best-effort and fall back to the account ID on any failure.
+		var account *accountSummary
+		accountPath, _ := url.JoinPath(baseURI, "api/v2/account")
+		accountRes, err := client.MakeRequest(accessToken, "GET", accountPath, "application/json", nil, nil, false)
+		if err == nil {
+			var a accountSummary
+			if json.Unmarshal(accountRes, &a) == nil {
+				account = &a
+			}
+		}
+
+		fmt.Fprint(cmd.OutOrStdout(), formatPlaintext(identity, member, account)+"\n")
 		return nil
 	}
 }
 
-func formatPlaintext(identity callerIdentity, member *memberSummary) string {
+func formatPlaintext(identity callerIdentity, member *memberSummary, account *accountSummary) string {
 	var sb strings.Builder
 
 	if member != nil {
@@ -147,7 +164,13 @@ func formatPlaintext(identity callerIdentity, member *memberSummary) string {
 		fmt.Fprintf(&sb, "Token:   %s (%s)\n", identity.ClientID, tokenKind)
 	}
 
-	if identity.AccountID != "" {
+	if account != nil && account.Organization != "" {
+		if identity.AccountID != "" {
+			fmt.Fprintf(&sb, "Account: %s (%s)\n", account.Organization, identity.AccountID)
+		} else {
+			fmt.Fprintf(&sb, "Account: %s\n", account.Organization)
+		}
+	} else if identity.AccountID != "" {
 		fmt.Fprintf(&sb, "Account: %s\n", identity.AccountID)
 	}
 
