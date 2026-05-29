@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.1.0](https://github.com/launchdarkly/ldcli/compare/v3.0.4...v3.1.0) (2026-05-29)
+
+
+### Features
+
+* [FD-5561] implement FDv2 polling endpoint GET /sdk/poll ([#701](https://github.com/launchdarkly/ldcli/issues/701)) ([8a1cda1](https://github.com/launchdarkly/ldcli/commit/8a1cda1be133629b820005ad62f507c17ad17a00))
+* [FD-5562] Adding FDv2 Stream endpoint support in the dev server ([#703](https://github.com/launchdarkly/ldcli/issues/703)) ([ff8c116](https://github.com/launchdarkly/ldcli/commit/ff8c1167de8c80163afaf9b05f07af58c575fa82))
+* add whoami command ([#657](https://github.com/launchdarkly/ldcli/issues/657)) ([d2cca65](https://github.com/launchdarkly/ldcli/commit/d2cca6573edae7d174831cb20eb1a707da04069e))
+
+
+### Bug Fixes
+
+* **REL-13522:** convert kebab-case query params to camelCase ([#705](https://github.com/launchdarkly/ldcli/issues/705)) ([98700e4](https://github.com/launchdarkly/ldcli/commit/98700e4f94f8c2fa90c227e8831e967a6360260d))
+
 ## [3.0.4](https://github.com/launchdarkly/ldcli/compare/v3.0.3...v3.0.4) (2026-04-21)
 
 
