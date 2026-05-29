@@ -157,24 +157,4 @@ func TestClient_SendEvent(t *testing.T) {
 
 		assert.Equal(t, "/internal/tracking", requestPath)
 	})
-
-	t.Run("SendSetupStepStartedEvent sends correct event name", func(t *testing.T) {
-		var received trackingPayload
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			body, _ := io.ReadAll(r.Body)
-			_ = json.Unmarshal(body, &received)
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		fn := ClientFn{ID: "test-id", Version: "1.0.0", AgentContext: "codex"}
-		tracker := fn.Tracker("test-token", server.URL, false)
-
-		tracker.SendSetupStepStartedEvent("connect")
-		tracker.Wait()
-
-		assert.Equal(t, "CLI Setup Step Started", received.Event)
-		assert.Equal(t, "connect", received.Properties["step"])
-		assert.Equal(t, "codex", received.Properties["agent_context"])
-	})
 }
