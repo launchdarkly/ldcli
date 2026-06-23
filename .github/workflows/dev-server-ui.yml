@@ -19,7 +19,7 @@ jobs:
         working-directory: internal/dev_server/ui
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.3
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
