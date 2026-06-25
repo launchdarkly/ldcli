@@ -365,13 +365,14 @@ See each command's help for details on how to use the generated script.`, rootCm
 
 	analyticsClient.Wait()
 
+	const updateCheckTimeout = 500 * time.Millisecond
 	if !skipUpdateCheck {
 		select {
 		case result := <-updateCh:
 			if result.info != nil && result.info.IsNewer {
 				fmt.Fprint(os.Stderr, update.NotificationMessage(result.info))
 			}
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(updateCheckTimeout):
 		}
 	}
 }

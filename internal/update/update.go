@@ -16,6 +16,7 @@ import (
 const (
 	defaultGitHubReleasesURL = "https://api.github.com/repos/launchdarkly/ldcli/releases/latest"
 	cacheTTL                 = 24 * time.Hour
+	errorCacheTTL            = 1 * time.Hour
 	cacheFilename            = "update-check.json"
 	httpTimeout              = 3 * time.Second
 )
@@ -155,6 +156,10 @@ func CheckForUpdate(currentVersion string) *UpdateInfo {
 	client := &http.Client{Timeout: httpTimeout}
 	latest, err := fetchLatestVersion(client)
 	if err != nil {
+		writeCache(&cacheEntry{
+			LatestVersion: currentVersion,
+			CheckedAt:     time.Now().Add(errorCacheTTL - cacheTTL),
+		})
 		return nil
 	}
 
