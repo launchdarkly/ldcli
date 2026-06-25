@@ -27,55 +27,58 @@ const (
 	DevStreamURIDefault = "https://stream.launchdarkly.com"
 	PortDefault         = "8765"
 
-	AccessTokenFlag  = "access-token"
-	AnalyticsOptOut  = "analytics-opt-out"
-	BaseURIFlag      = "base-uri"
-	CorsEnabledFlag  = "cors-enabled"
-	CorsOriginFlag   = "cors-origin"
-	DataFlag         = "data"
-	DryRunFlag       = "dry-run"
-	DevStreamURIFlag = "dev-stream-uri"
-	EmailsFlag       = "emails"
-	EnvironmentFlag  = "environment"
-	FieldsFlag       = "fields"
-	FlagFlag         = "flag"
-	JSONFlag         = "json"
-	OutputFlag       = "output"
-	PortFlag         = "port"
-	ProjectFlag      = "project"
-	RoleFlag         = "role"
-	SyncOnceFlag     = "sync-once"
+	AccessTokenFlag   = "access-token"
+	AnalyticsOptOut   = "analytics-opt-out"
+	BaseURIFlag       = "base-uri"
+	CorsEnabledFlag   = "cors-enabled"
+	CorsOriginFlag    = "cors-origin"
+	DataFlag          = "data"
+	DryRunFlag        = "dry-run"
+	DevStreamURIFlag  = "dev-stream-uri"
+	EmailsFlag        = "emails"
+	EnvironmentFlag   = "environment"
+	FieldsFlag        = "fields"
+	FlagFlag          = "flag"
+	JSONFlag          = "json"
+	OutputFlag        = "output"
+	PortFlag          = "port"
+	ProjectFlag       = "project"
+	RoleFlag          = "role"
+	SyncOnceFlag      = "sync-once"
+	UpdateCheckOptOut = "update-check-opt-out"
 
-	AccessTokenFlagDescription = "LaunchDarkly access token with write-level access"
-	AnalyticsOptOutDescription = "Opt out of analytics tracking"
-	BaseURIFlagDescription     = "LaunchDarkly base URI"
-	CorsEnabledFlagDescription = "Enable CORS headers for browser-based developer tools (default: false)"
-	CorsOriginFlagDescription  = "Allowed CORS origin. Use '*' for all origins (default: '*')"
-	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
-	DryRunFlagDescription      = "Validate the change without persisting it. Returns a preview of the result."
-	EnvironmentFlagDescription = "Default environment key"
-	FieldsFlagDescription      = "Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)"
-	FlagFlagDescription        = "Default feature flag key"
-	JSONFlagDescription        = "Output JSON format (shorthand for --output json)"
-	OutputFlagDescription      = "Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise)"
-	PortFlagDescription        = "Port for the dev server to run on"
-	ProjectFlagDescription     = "Default project key"
-	SyncOnceFlagDescription    = "Only sync new projects. Existing projects will neither be resynced nor have overrides specified by CLI flags applied."
+	AccessTokenFlagDescription   = "LaunchDarkly access token with write-level access"
+	AnalyticsOptOutDescription   = "Opt out of analytics tracking"
+	BaseURIFlagDescription       = "LaunchDarkly base URI"
+	CorsEnabledFlagDescription   = "Enable CORS headers for browser-based developer tools (default: false)"
+	CorsOriginFlagDescription    = "Allowed CORS origin. Use '*' for all origins (default: '*')"
+	DevStreamURIDescription      = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
+	DryRunFlagDescription        = "Validate the change without persisting it. Returns a preview of the result."
+	EnvironmentFlagDescription   = "Default environment key"
+	FieldsFlagDescription        = "Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)"
+	FlagFlagDescription          = "Default feature flag key"
+	JSONFlagDescription          = "Output JSON format (shorthand for --output json)"
+	OutputFlagDescription        = "Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise)"
+	PortFlagDescription          = "Port for the dev server to run on"
+	ProjectFlagDescription       = "Default project key"
+	SyncOnceFlagDescription      = "Only sync new projects. Existing projects will neither be resynced nor have overrides specified by CLI flags applied."
+	UpdateCheckOptOutDescription = "Opt out of update check"
 )
 
 func AllFlagsHelp() map[string]string {
 	return map[string]string{
-		AccessTokenFlag:  AccessTokenFlagDescription,
-		AnalyticsOptOut:  AnalyticsOptOutDescription,
-		BaseURIFlag:      BaseURIFlagDescription,
-		CorsEnabledFlag:  CorsEnabledFlagDescription,
-		CorsOriginFlag:   CorsOriginFlagDescription,
-		DevStreamURIFlag: DevStreamURIDescription,
-		EnvironmentFlag:  EnvironmentFlagDescription,
-		FlagFlag:         FlagFlagDescription,
-		OutputFlag:       OutputFlagDescription,
-		PortFlag:         PortFlagDescription,
-		ProjectFlag:      ProjectFlagDescription,
-		SyncOnceFlag:     SyncOnceFlagDescription,
+		AccessTokenFlag:   AccessTokenFlagDescription,
+		AnalyticsOptOut:   AnalyticsOptOutDescription,
+		BaseURIFlag:       BaseURIFlagDescription,
+		CorsEnabledFlag:   CorsEnabledFlagDescription,
+		CorsOriginFlag:    CorsOriginFlagDescription,
+		DevStreamURIFlag:  DevStreamURIDescription,
+		EnvironmentFlag:   EnvironmentFlagDescription,
+		FlagFlag:          FlagFlagDescription,
+		OutputFlag:        OutputFlagDescription,
+		PortFlag:          PortFlagDescription,
+		ProjectFlag:       ProjectFlagDescription,
+		SyncOnceFlag:      SyncOnceFlagDescription,
+		UpdateCheckOptOut: UpdateCheckOptOutDescription,
 	}
 }
