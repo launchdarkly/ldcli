@@ -28,33 +28,4 @@ func (m *MockTracker) SendCommandCompletedEvent(outcome string) {
 	)
 }
 
-func (m *MockTracker) SendSetupStepStartedEvent(step string) {
-	m.sendEvent(
-		"CLI Setup Step Started",
-		map[string]interface{}{
-			"step": step,
-		},
-	)
-}
-
-func (m *MockTracker) SendSetupSDKSelectedEvent(sdk string) {
-	m.sendEvent(
-		"CLI Setup SDK Selected",
-		map[string]interface{}{
-			"sdk": sdk,
-		},
-	)
-}
-
-func (m *MockTracker) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64) {
-	m.sendEvent(
-		"CLI Setup Flag Toggled",
-		map[string]interface{}{
-			"on":          on,
-			"count":       count,
-			"duration_ms": duration_ms,
-		},
-	)
-}
-
 func (a *MockTracker) Wait() {}

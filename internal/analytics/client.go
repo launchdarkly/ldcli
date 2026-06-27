@@ -116,35 +116,6 @@ func (c *Client) SendCommandCompletedEvent(outcome string) {
 	)
 }
 
-func (c *Client) SendSetupStepStartedEvent(step string) {
-	c.sendEvent(
-		"CLI Setup Step Started",
-		map[string]interface{}{
-			"step": step,
-		},
-	)
-}
-
-func (c *Client) SendSetupSDKSelectedEvent(sdk string) {
-	c.sendEvent(
-		"CLI Setup SDK Selected",
-		map[string]interface{}{
-			"sdk": sdk,
-		},
-	)
-}
-
-func (c *Client) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64) {
-	c.sendEvent(
-		"CLI Setup Flag Toggled",
-		map[string]interface{}{
-			"on":          on,
-			"count":       count,
-			"duration_ms": duration_ms,
-		},
-	)
-}
-
 func (a *Client) Wait() {
 	a.wg.Wait()
 }
