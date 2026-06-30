@@ -7,9 +7,10 @@ import (
 )
 
 func getUsageTemplate() string {
-	return `Usage:
-  {{.CommandPath}} [command]
-
+	return `Usage:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}
+{{if not .HasParent}}
 Commands:
   {{rpad "setup" 29}} Create your first feature flag using a step-by-step guide
   {{rpad "config" 29}} View and modify specific configuration values
@@ -29,7 +30,19 @@ Common resource commands:
 
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
-`
+{{else}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}
+
+Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasInheritedFlags}}
+
+Global flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+{{end}}`
 }
 
 func HasRequiredFlags(cmd *cobra.Command) bool {
