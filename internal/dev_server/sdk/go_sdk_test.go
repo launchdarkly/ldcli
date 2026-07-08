@@ -46,9 +46,6 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 	ctx, api, sdk := mocks.WithMockApiAndSdk(ctx, mockController)
 
 	api.EXPECT().GetSdkKey(gomock.Any(), projectKey, environmentKey).Return(testSdkKey, nil).AnyTimes()
-	api.EXPECT().GetAllFlags(gomock.Any(), projectKey).
-		Return(nil, nil). // Available variations are not used for evaluation
-		AnyTimes()
 
 	// Wire up sdk routes in test server
 	router := mux.NewRouter()
@@ -67,7 +64,7 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 		AddFlag("jsonFlag", flagstate.FlagState{Value: ldvalue.CopyArbitraryValue(map[string]any{"cat": "hat"})}).
 		Build()
 
-	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(allFlags, nil)
+	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(allFlags, nil, nil)
 	_, err = model.CreateProject(ctx, projectKey, environmentKey, nil)
 	require.NoError(t, err)
 
@@ -121,7 +118,7 @@ func TestSDKRoutesViaGoSDK(t *testing.T) {
 		Build()
 	valuesMap := updatedFlags.ToValuesMap()
 
-	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(updatedFlags, nil)
+	sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), testSdkKey).Return(updatedFlags, nil, nil)
 
 	// This test is testing the "put" payload in a roundabout way by verifying each of the flags are in there.
 	t.Run("Sync sends full flag payload for project", func(t *testing.T) {

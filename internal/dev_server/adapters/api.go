@@ -24,7 +24,7 @@ func GetApi(ctx context.Context) Api {
 //go:generate go run go.uber.org/mock/mockgen -destination mocks/api.go -package mocks . Api
 type Api interface {
 	GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error)
-	GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error)
+	GetFlag(ctx context.Context, projectKey, flagKey string) (ldapi.FeatureFlag, error)
 	GetProjectEnvironments(ctx context.Context, projectKey string, query string, limit *int) ([]ldapi.Environment, error)
 }
 
@@ -45,13 +45,12 @@ func (a apiClientApi) GetSdkKey(ctx context.Context, projectKey, environmentKey 
 	return environment.ApiKey, nil
 }
 
-func (a apiClientApi) GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error) {
-	log.Printf("Fetching all flags for project '%s'", projectKey)
-	flags, err := a.getFlags(ctx, projectKey, nil)
+func (a apiClientApi) GetFlag(ctx context.Context, projectKey, flagKey string) (ldapi.FeatureFlag, error) {
+	flag, err := internal.Retry429s(a.apiClient.FeatureFlagsApi.GetFeatureFlag(ctx, projectKey, flagKey).Execute)
 	if err != nil {
-		err = errors.Wrap(err, "unable to get all flags from LD API")
+		return ldapi.FeatureFlag{}, errors.Wrapf(err, "unable to get flag '%s' from LD API", flagKey)
 	}
-	return flags, err
+	return *flag, nil
 }
 
 func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey string, query string, limit *int) ([]ldapi.Environment, error) {
@@ -61,23 +60,6 @@ func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey str
 		err = errors.Wrap(err, "unable to get environments from LD API")
 	}
 	return environments, err
-}
-
-func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *string) ([]ldapi.FeatureFlag, error) {
-	return internal.GetPaginatedItems(ctx, projectKey, href, func(ctx context.Context, projectKey string, limit, offset *int64) (flags *ldapi.FeatureFlags, err error) {
-		// loop until we do not get rate limited
-		query := a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).Limit(100)
-		query = query.Filter("purpose:all+!(holdout)")
-
-		if limit != nil {
-			query = query.Limit(*limit)
-		}
-
-		if offset != nil {
-			query = query.Offset(*offset)
-		}
-		return internal.Retry429s(query.Execute)
-	})
 }
 
 func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string, href *string, query string, limit *int) ([]ldapi.Environment, error) {

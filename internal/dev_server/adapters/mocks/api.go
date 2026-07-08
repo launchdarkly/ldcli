@@ -41,19 +41,19 @@ func (m *MockApi) EXPECT() *MockApiMockRecorder {
 	return m.recorder
 }
 
-// GetAllFlags mocks base method.
-func (m *MockApi) GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error) {
+// GetFlag mocks base method.
+func (m *MockApi) GetFlag(ctx context.Context, projectKey, flagKey string) (ldapi.FeatureFlag, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllFlags", ctx, projectKey)
-	ret0, _ := ret[0].([]ldapi.FeatureFlag)
+	ret := m.ctrl.Call(m, "GetFlag", ctx, projectKey, flagKey)
+	ret0, _ := ret[0].(ldapi.FeatureFlag)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetAllFlags indicates an expected call of GetAllFlags.
-func (mr *MockApiMockRecorder) GetAllFlags(ctx, projectKey any) *gomock.Call {
+// GetFlag indicates an expected call of GetFlag.
+func (mr *MockApiMockRecorder) GetFlag(ctx, projectKey, flagKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllFlags", reflect.TypeOf((*MockApi)(nil).GetAllFlags), ctx, projectKey)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlag", reflect.TypeOf((*MockApi)(nil).GetFlag), ctx, projectKey, flagKey)
 }
 
 // GetProjectEnvironments mocks base method.

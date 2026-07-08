@@ -5,12 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
@@ -33,22 +31,9 @@ func TestCreateProject(t *testing.T) {
 		AddFlag("boolFlag", flagstate.FlagState{Value: ldvalue.Bool(true)}).
 		Build()
 
-	trueVariationId, falseVariationId := "true", "false"
-	allFlags := []ldapi.FeatureFlag{{
-		Name: "bool flag",
-		Kind: "bool",
-		Key:  "boolFlag",
-		Variations: []ldapi.Variation{
-			{
-				Id:    &trueVariationId,
-				Value: true,
-			},
-			{
-				Id:    &falseVariationId,
-				Value: false,
-			},
-		},
-	}}
+	variationsByFlagKey := map[string][]ldvalue.Value{
+		"boolFlag": {ldvalue.Bool(true), ldvalue.Bool(false)},
+	}
 
 	t.Run("Returns error if it cant fetch flag state", func(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return("", errors.New("fetch flag state fails"))
@@ -57,19 +42,18 @@ func TestCreateProject(t *testing.T) {
 		assert.Equal(t, "fetch flag state fails", err.Error())
 	})
 
-	t.Run("Returns error if it can't fetch flags", func(t *testing.T) {
+	t.Run("Returns error if GetAllFlagsState fails", func(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
-		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(nil, errors.New("fetch flags failed"))
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).
+			Return(flagstate.AllFlags{}, nil, errors.New("stream failed"))
 		_, err := model.CreateProject(ctx, projKey, sourceEnvKey, nil)
 		assert.NotNil(t, err)
-		assert.Equal(t, "fetch flags failed", err.Error())
+		assert.Equal(t, "stream failed", err.Error())
 	})
 
 	t.Run("Returns error if it fails to insert the project", func(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
-		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, variationsByFlagKey, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(errors.New("insert fails"))
 
 		_, err := model.CreateProject(ctx, projKey, sourceEnvKey, nil)
@@ -77,10 +61,9 @@ func TestCreateProject(t *testing.T) {
 		assert.Equal(t, "insert fails", err.Error())
 	})
 
-	t.Run("Successfully creates project", func(t *testing.T) {
+	t.Run("Successfully creates project, with values-only variations from streaming", func(t *testing.T) {
 		api.EXPECT().GetSdkKey(gomock.Any(), projKey, sourceEnvKey).Return(sdkKey, nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, nil)
-		api.EXPECT().GetAllFlags(gomock.Any(), projKey).Return(allFlags, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), sdkKey).Return(allFlagsState, variationsByFlagKey, nil)
 		store.EXPECT().InsertProject(gomock.Any(), gomock.Any()).Return(nil)
 
 		p, err := model.CreateProject(ctx, projKey, sourceEnvKey, nil)
@@ -97,7 +80,16 @@ func TestCreateProject(t *testing.T) {
 		assert.Equal(t, expectedProj.SourceEnvironmentKey, p.SourceEnvironmentKey)
 		assert.Equal(t, expectedProj.Context, p.Context)
 		assert.Equal(t, expectedProj.AllFlagsState, p.AllFlagsState)
-		//TODO add assertion on AvailableVariations
+
+		require.Len(t, p.AvailableVariations, 2)
+		seenIds := map[string]bool{}
+		for _, v := range p.AvailableVariations {
+			assert.Equal(t, "boolFlag", v.FlagKey)
+			assert.NotEmpty(t, v.Id, "needs a unique placeholder id until a real one is resolved")
+			assert.False(t, seenIds[v.Id], "placeholder ids must be unique per flag")
+			seenIds[v.Id] = true
+			assert.Nil(t, v.Name, "no REST call was made, so no name is known yet")
+		}
 	})
 }
 
@@ -125,17 +117,9 @@ func TestUpdateProject(t *testing.T) {
 		AddFlag("stringFlag", flagstate.FlagState{Value: ldvalue.String("cool")}).
 		Build()
 
-	allFlags := []ldapi.FeatureFlag{{
-		Name: "string flag",
-		Kind: "multivariate",
-		Key:  "stringFlag",
-		Variations: []ldapi.Variation{
-			{
-				Id:    lo.ToPtr("string"),
-				Value: "cool",
-			},
-		},
-	}}
+	variationsByFlagKey := map[string][]ldvalue.Value{
+		"stringFlag": {ldvalue.String("cool")},
+	}
 
 	t.Run("Returns error if GetDevProject fails", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&model.Project{}, errors.New("GetDevProject fails"))
@@ -156,8 +140,8 @@ func TestUpdateProject(t *testing.T) {
 	t.Run("Returns error if UpdateProject fails", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
 		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, newSrcEnv).Return("sdkKey", nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, nil)
-		api.EXPECT().GetAllFlags(gomock.Any(), proj.Key).Return(allFlags, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, variationsByFlagKey, nil)
+		store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), proj.Key).Return(map[string][]model.Variation{}, nil)
 		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(false, errors.New("UpdateProject fails"))
 
 		_, err := model.UpdateProject(ctx, proj.Key, nil, &newSrcEnv)
@@ -168,8 +152,8 @@ func TestUpdateProject(t *testing.T) {
 	t.Run("Returns error if project was not actually updated", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
 		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, nil)
-		api.EXPECT().GetAllFlags(gomock.Any(), proj.Key).Return(allFlags, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, variationsByFlagKey, nil)
+		store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), proj.Key).Return(map[string][]model.Variation{}, nil)
 		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(false, nil)
 
 		_, err := model.UpdateProject(ctx, proj.Key, nil, nil)
@@ -177,12 +161,21 @@ func TestUpdateProject(t *testing.T) {
 		assert.Equal(t, "Project not updated", err.Error())
 	})
 
-	t.Run("Return successfully", func(t *testing.T) {
+	t.Run("Return successfully, carrying over a previously resolved name", func(t *testing.T) {
+		existingName := "Cool"
 		store.EXPECT().GetDevProject(gomock.Any(), proj.Key).Return(&proj, nil)
 		api.EXPECT().GetSdkKey(gomock.Any(), proj.Key, proj.SourceEnvironmentKey).Return("sdkKey", nil)
-		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, nil)
-		api.EXPECT().GetAllFlags(gomock.Any(), proj.Key).Return(allFlags, nil)
-		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).Return(true, nil)
+		sdk.EXPECT().GetAllFlagsState(gomock.Any(), gomock.Any(), "sdkKey").Return(allFlagsState, variationsByFlagKey, nil)
+		store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), proj.Key).Return(map[string][]model.Variation{
+			"stringFlag": {{Id: "abc", Name: &existingName, Value: ldvalue.String("cool")}},
+		}, nil)
+		store.EXPECT().UpdateProject(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, p model.Project) (bool, error) {
+				require.Len(t, p.AvailableVariations, 1)
+				assert.Equal(t, "abc", p.AvailableVariations[0].Id)
+				assert.Equal(t, &existingName, p.AvailableVariations[0].Name)
+				return true, nil
+			})
 		store.EXPECT().IncrementProjectPayloadVersion(gomock.Any(), proj.Key).Return(2, nil)
 		store.EXPECT().GetOverridesForProject(gomock.Any(), proj.Key).Return(model.Overrides{}, nil)
 		observer.
@@ -197,6 +190,7 @@ func TestUpdateProject(t *testing.T) {
 		require.Nil(t, err)
 		expectedProj := proj
 		expectedProj.PayloadVersion = 2
+		expectedProj.AvailableVariations = project.AvailableVariations // asserted above via DoAndReturn
 		assert.Equal(t, expectedProj, project)
 	})
 }

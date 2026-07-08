@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	ldcontext "github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	ldvalue "github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	flagstate "github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -43,12 +44,13 @@ func (m *MockSdk) EXPECT() *MockSdkMockRecorder {
 }
 
 // GetAllFlagsState mocks base method.
-func (m *MockSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error) {
+func (m *MockSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, map[string][]ldvalue.Value, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllFlagsState", ctx, ldContext, sdkKey)
 	ret0, _ := ret[0].(flagstate.AllFlags)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(map[string][]ldvalue.Value)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // GetAllFlagsState indicates an expected call of GetAllFlagsState.

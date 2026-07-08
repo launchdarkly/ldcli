@@ -2,12 +2,12 @@ package model
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 )
 
@@ -34,32 +34,20 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	} else {
 		project.Context = *ldCtx
 	}
-	err := project.refreshExternalState(ctx)
+	flagsState, variations, err := project.fetchFlagStateAndVariations(ctx)
 	if err != nil {
 		return Project{}, err
 	}
+	project.AllFlagsState = flagsState
+	project.AvailableVariations = variations
+	project.LastSyncTime = time.Now()
+
 	store := StoreFromContext(ctx)
 	err = store.InsertProject(ctx, project)
 	if err != nil {
 		return Project{}, err
 	}
 	return project, nil
-}
-
-func (project *Project) refreshExternalState(ctx context.Context) error {
-	flagsState, err := project.fetchFlagState(ctx)
-	if err != nil {
-		return err
-	}
-	project.AllFlagsState = flagsState
-	project.LastSyncTime = time.Now()
-
-	availableVariations, err := project.fetchAvailableVariations(ctx)
-	if err != nil {
-		return err
-	}
-	project.AvailableVariations = availableVariations
-	return nil
 }
 
 func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Context, sourceEnvironmentKey *string) (Project, error) {
@@ -76,10 +64,20 @@ func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Co
 		project.SourceEnvironmentKey = *sourceEnvironmentKey
 	}
 
-	err = project.refreshExternalState(ctx)
+	flagsState, variations, err := project.fetchFlagStateAndVariations(ctx)
 	if err != nil {
 		return Project{}, err
 	}
+	project.AllFlagsState = flagsState
+	project.LastSyncTime = time.Now()
+
+	// Streaming never carries names, so keep any names already resolved for
+	// a variation instead of wiping them out on every resync.
+	existing, err := store.GetAvailableVariationsForProject(ctx, projectKey)
+	if err != nil {
+		return Project{}, err
+	}
+	project.AvailableVariations = mergeVariationNames(variations, existing)
 
 	updated, err := store.UpdateProject(ctx, *project)
 	if err != nil {
@@ -124,44 +122,61 @@ func (project Project) GetFlagStateWithOverridesForProject(ctx context.Context) 
 	return withOverrides, nil
 }
 
-func (project Project) fetchAvailableVariations(ctx context.Context) ([]FlagVariation, error) {
-	apiAdapter := adapters.GetApi(ctx)
-	flags, err := apiAdapter.GetAllFlags(ctx, project.Key)
-	if err != nil {
-		return nil, err
-	}
-	var allVariations []FlagVariation
-	for _, flag := range flags {
-		flagKey := flag.Key
-		for _, variation := range flag.Variations {
-			allVariations = append(allVariations, FlagVariation{
-				FlagKey: flagKey,
-				Variation: Variation{
-					Id:          *variation.Id,
-					Description: variation.Description,
-					Name:        variation.Name,
-					Value:       ldvalue.CopyArbitraryValue(variation.Value),
-				},
-			})
-		}
-	}
-	return allVariations, nil
-}
-
-func (project Project) fetchFlagState(ctx context.Context) (FlagsState, error) {
+// fetchFlagStateAndVariations gets flag state and variation values off one
+// streaming connection. Values only, no name/description - that only comes
+// from the REST API, resolved lazily elsewhere (see ResolveVariationNames).
+func (project Project) fetchFlagStateAndVariations(ctx context.Context) (FlagsState, []FlagVariation, error) {
 	apiAdapter := adapters.GetApi(ctx)
 	sdkKey, err := apiAdapter.GetSdkKey(ctx, project.Key, project.SourceEnvironmentKey)
 	flagsState := make(FlagsState)
 	if err != nil {
-		return flagsState, err
+		return flagsState, nil, err
 	}
 
 	sdkAdapter := adapters.GetSdk(ctx)
-	sdkFlags, err := sdkAdapter.GetAllFlagsState(ctx, project.Context, sdkKey)
+	sdkFlags, variationsByFlagKey, err := sdkAdapter.GetAllFlagsState(ctx, project.Context, sdkKey)
 	if err != nil {
-		return flagsState, err
+		return flagsState, nil, err
 	}
 
 	flagsState = FromAllFlags(sdkFlags)
-	return flagsState, nil
+
+	var variations []FlagVariation
+	for flagKey, values := range variationsByFlagKey {
+		for i, value := range values {
+			variations = append(variations, FlagVariation{
+				FlagKey: flagKey,
+				Variation: Variation{
+					// Placeholder id, unique per flag+index. Storage requires
+					// a non-empty, per-flag-unique id (UNIQUE(project_key,
+					// flag_key, id) ON CONFLICT REPLACE) - two real empty ids
+					// would silently overwrite each other. ResolveVariationNames
+					// replaces this with the real REST id once resolved.
+					Id:    fmt.Sprintf("pending-%d", i),
+					Value: value,
+				},
+			})
+		}
+	}
+	return flagsState, variations, nil
+}
+
+// mergeVariationNames carries over name/description from existing into
+// fresh wherever a flag+value match, so a resync doesn't wipe out names
+// resolved by an earlier lazy lookup (streaming never has names, so fresh
+// always comes in nameless).
+func mergeVariationNames(fresh []FlagVariation, existingByFlagKey map[string][]Variation) []FlagVariation {
+	merged := make([]FlagVariation, len(fresh))
+	for i, fv := range fresh {
+		merged[i] = fv
+		for _, existing := range existingByFlagKey[fv.FlagKey] {
+			if existing.Value.Equal(fv.Value) {
+				merged[i].Id = existing.Id
+				merged[i].Name = existing.Name
+				merged[i].Description = existing.Description
+				break
+			}
+		}
+	}
+	return merged
 }
