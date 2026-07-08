@@ -40,6 +40,20 @@ func (m *MockMockableTime) EXPECT() *MockMockableTimeMockRecorder {
 	return m.recorder
 }
 
+// Jitter mocks base method.
+func (m *MockMockableTime) Jitter(max time.Duration) time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Jitter", max)
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// Jitter indicates an expected call of Jitter.
+func (mr *MockMockableTimeMockRecorder) Jitter(max any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Jitter", reflect.TypeOf((*MockMockableTime)(nil).Jitter), max)
+}
+
 // Now mocks base method.
 func (m *MockMockableTime) Now() time.Time {
 	m.ctrl.T.Helper()

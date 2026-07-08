@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -133,14 +134,15 @@ func TestRetry429s(t *testing.T) {
 		assert.Equal(t, 1, called)
 	})
 
-	t.Run("it should retry when a 429 is received", func(t *testing.T) {
+	t.Run("it should retry when a 429 is received, adding jitter on top of the reset wait", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		timeMock := NewMockMockableTime(ctrl)
 		defer func() { ctrl.Finish() }()
 		timeImpl = timeMock
 		defer func() { timeImpl = realTime{} }()
 		timeMock.EXPECT().Now().Return(time.UnixMilli(0))
-		timeMock.EXPECT().Sleep(time.Duration(1000) * time.Millisecond)
+		timeMock.EXPECT().Jitter(maxRetryJitter).Return(50 * time.Millisecond)
+		timeMock.EXPECT().Sleep(1050 * time.Millisecond)
 
 		called := 0
 		res, err := Retry429s(func() (string, *http.Response, error) {
@@ -156,5 +158,46 @@ func TestRetry429s(t *testing.T) {
 		assert.Equal(t, "lol", res)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, called)
+	})
+
+	t.Run("concurrent retries get decorrelated jitter instead of waking up in lockstep", func(t *testing.T) {
+		// Simulates several concurrent page fetches all getting rate-limited
+		// with the same X-Ratelimit-Reset at once. With realTime's actual
+		// Jitter (not mocked here), their computed sleep durations should
+		// differ instead of being identical, so they don't all retry at the
+		// exact same instant and recreate the burst that got them limited.
+		reset := time.Now().Add(20 * time.Millisecond).UnixMilli()
+		resetStr := strconv.FormatInt(reset, 10)
+
+		const n = 8
+		sleeps := make([]time.Duration, n)
+		var wg sync.WaitGroup
+		for i := 0; i < n; i++ {
+			i := i
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				called := 0
+				start := time.Now()
+				_, err := Retry429s(func() (string, *http.Response, error) {
+					called++
+					if called > 1 {
+						return "ok", &http.Response{StatusCode: 200}, nil
+					}
+					header := make(http.Header)
+					header.Set("X-Ratelimit-Reset", resetStr)
+					return "", &http.Response{StatusCode: 429, Header: header}, nil
+				})
+				assert.NoError(t, err)
+				sleeps[i] = time.Since(start)
+			}()
+		}
+		wg.Wait()
+
+		distinct := map[time.Duration]bool{}
+		for _, s := range sleeps {
+			distinct[s] = true
+		}
+		assert.Greater(t, len(distinct), 1, "expected jittered sleep durations to differ across concurrent retries")
 	})
 }

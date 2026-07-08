@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"log"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"sync"
@@ -82,6 +83,12 @@ func GetPaginatedItems[T any, R interface {
 type MockableTime interface {
 	Sleep(duration time.Duration)
 	Now() time.Time
+	// Jitter returns a random duration in [0, max). Used to decorrelate
+	// retries after a 429: with concurrent page fetches, several requests
+	// can get rate-limited at once and would otherwise all compute the same
+	// X-Ratelimit-Reset and wake up to retry at the exact same instant,
+	// recreating the burst that got them limited in the first place.
+	Jitter(max time.Duration) time.Duration
 }
 
 type realTime struct{}
@@ -94,7 +101,19 @@ func (realTime) Now() time.Time {
 	return time.Now()
 }
 
+func (realTime) Jitter(max time.Duration) time.Duration {
+	if max <= 0 {
+		return 0
+	}
+	return rand.N(max)
+}
+
 var timeImpl MockableTime = realTime{}
+
+// maxRetryJitter bounds the random extra delay added on top of the API's
+// requested X-Ratelimit-Reset wait, so concurrent retries spread out instead
+// of waking up in lockstep.
+const maxRetryJitter = 250 * time.Millisecond
 
 func Retry429s[T any](requester func() (T, *http.Response, error)) (result T, err error) {
 	for {
@@ -107,9 +126,9 @@ func Retry429s[T any](requester func() (T, *http.Response, error)) (result T, er
 				err = errors.Wrapf(err, `unable to retry rate limited request: X-RateLimit-Reset: "%s" was not parsable`, resetUnixMillisString)
 				return
 			}
-			sleep := resetUnixMillis - timeImpl.Now().UnixMilli()
-			log.Printf("Got 429 in API response. Retrying in %d milliseconds.", sleep)
-			timeImpl.Sleep(time.Duration(sleep) * time.Millisecond)
+			sleep := time.Duration(resetUnixMillis-timeImpl.Now().UnixMilli())*time.Millisecond + timeImpl.Jitter(maxRetryJitter)
+			log.Printf("Got 429 in API response. Retrying in %s.", sleep)
+			timeImpl.Sleep(sleep)
 		} else {
 			return
 		}
