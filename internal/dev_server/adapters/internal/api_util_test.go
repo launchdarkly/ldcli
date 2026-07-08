@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,8 +17,9 @@ type testItem struct {
 }
 
 type testResult struct {
-	items []testItem
-	links map[string]ldapi.Link
+	items      []testItem
+	links      map[string]ldapi.Link
+	totalCount int32
 }
 
 func (r testResult) GetItems() []testItem {
@@ -28,122 +30,95 @@ func (r testResult) GetLinks() map[string]ldapi.Link {
 	return r.links
 }
 
+func (r testResult) GetTotalCount() int32 {
+	return r.totalCount
+}
+
 func TestGetPaginatedItems(t *testing.T) {
 	ctx := context.Background()
 	projectKey := "test-project"
 
-	testCases := []struct {
-		name           string
-		fetchResponses []testResult
-		expectedItems  []testItem
-		expectedError  bool
-	}{
-		{
-			name: "Single page",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}},
-					links: map[string]ldapi.Link{},
-				},
-			},
-			expectedItems: []testItem{{ID: "1"}, {ID: "2"}},
-		},
-		{
-			name: "Multiple pages",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("http://example.com?limit=2&offset=2")},
-					},
-				},
-				{
-					items: []testItem{{ID: "3"}, {ID: "4"}},
-					links: map[string]ldapi.Link{},
-				},
-			},
-			expectedItems: []testItem{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}},
-		},
-		{
-			name: "Error on second page",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("http://example.com?limit=2&offset=2")},
-					},
-				},
-			},
-			expectedError: true,
-		},
-		{
-			name: "Empty response",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{},
-					links: map[string]ldapi.Link{},
-				},
-			},
-			expectedItems: []testItem{},
-		},
-		{
-			name: "Multiple pages with varying item counts",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}, {ID: "3"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("http://example.com?limit=3&offset=3")},
-					},
-				},
-				{
-					items: []testItem{{ID: "4"}, {ID: "5"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("http://example.com?limit=3&offset=5")},
-					},
-				},
-				{
-					items: []testItem{{ID: "6"}},
-					links: map[string]ldapi.Link{},
-				},
-			},
-			expectedItems: []testItem{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}, {ID: "6"}},
-		},
-		{
-			name: "Invalid next link",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("invalid-url")},
-					},
-				},
-			},
-			expectedError: true,
-		},
-	}
+	t.Run("single page", func(t *testing.T) {
+		fetchFunc := func(ctx context.Context, projectKey string, limit, offset *int64) (testResult, error) {
+			assert.Nil(t, limit)
+			assert.Nil(t, offset)
+			return testResult{items: []testItem{{ID: "1"}, {ID: "2"}}, totalCount: 2}, nil
+		}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callCount := 0
-			fetchFunc := func(ctx context.Context, projectKey string, limit, offset *int64) (testResult, error) {
-				if callCount >= len(tc.fetchResponses) {
-					return testResult{}, assert.AnError
-				}
-				result := tc.fetchResponses[callCount]
-				callCount++
-				return result, nil
+		items, err := GetPaginatedItems(ctx, projectKey, fetchFunc)
+		assert.NoError(t, err)
+		assert.Equal(t, []testItem{{ID: "1"}, {ID: "2"}}, items)
+	})
+
+	t.Run("multiple pages fetched by offset, order preserved regardless of arrival order", func(t *testing.T) {
+		pages := map[int64][]testItem{
+			0: {{ID: "1"}, {ID: "2"}},
+			2: {{ID: "3"}, {ID: "4"}},
+			4: {{ID: "5"}},
+		}
+
+		fetchFunc := func(ctx context.Context, projectKey string, limit, offset *int64) (testResult, error) {
+			if offset == nil {
+				return testResult{items: pages[0], totalCount: 5}, nil
 			}
+			return testResult{items: pages[*offset]}, nil
+		}
 
-			items, err := GetPaginatedItems(ctx, projectKey, nil, fetchFunc)
+		items, err := GetPaginatedItems(ctx, projectKey, fetchFunc)
+		assert.NoError(t, err)
+		assert.Equal(t, []testItem{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}}, items)
+	})
 
-			if tc.expectedError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedItems, items)
+	t.Run("error on any page propagates", func(t *testing.T) {
+		fetchFunc := func(ctx context.Context, projectKey string, limit, offset *int64) (testResult, error) {
+			if offset == nil {
+				return testResult{items: []testItem{{ID: "1"}, {ID: "2"}}, totalCount: 4}, nil
 			}
-		})
-	}
+			return testResult{}, assert.AnError
+		}
+
+		_, err := GetPaginatedItems(ctx, projectKey, fetchFunc)
+		assert.Error(t, err)
+	})
+
+	t.Run("empty response", func(t *testing.T) {
+		fetchFunc := func(ctx context.Context, projectKey string, limit, offset *int64) (testResult, error) {
+			return testResult{items: []testItem{}, totalCount: 0}, nil
+		}
+
+		items, err := GetPaginatedItems(ctx, projectKey, fetchFunc)
+		assert.NoError(t, err)
+		assert.Equal(t, []testItem{}, items)
+	})
+
+	t.Run("remaining pages are fetched concurrently, not one at a time", func(t *testing.T) {
+		var mu sync.Mutex
+		inFlight := 0
+		maxInFlight := 0
+
+		fetchFunc := func(ctx context.Context, projectKey string, limit, offset *int64) (testResult, error) {
+			if offset == nil {
+				return testResult{items: []testItem{{ID: "0"}}, totalCount: 4}, nil
+			}
+			mu.Lock()
+			inFlight++
+			if inFlight > maxInFlight {
+				maxInFlight = inFlight
+			}
+			mu.Unlock()
+
+			time.Sleep(20 * time.Millisecond)
+
+			mu.Lock()
+			inFlight--
+			mu.Unlock()
+			return testResult{items: []testItem{{ID: "x"}}}, nil
+		}
+
+		_, err := GetPaginatedItems(ctx, projectKey, fetchFunc)
+		assert.NoError(t, err)
+		assert.Greater(t, maxInFlight, 1, "expected more than one page in flight at once")
+	})
 }
 
 func TestRetry429s(t *testing.T) {
@@ -182,8 +157,4 @@ func TestRetry429s(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 2, called)
 	})
-}
-
-func strPtr(s string) *string {
-	return &s
 }

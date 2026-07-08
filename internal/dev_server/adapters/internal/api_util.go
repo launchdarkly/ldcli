@@ -4,69 +4,78 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/launchdarkly/api-client-go/v14"
 	"github.com/pkg/errors"
 )
 
+// maxConcurrentPageFetches bounds how many pages we fetch at once once the total
+// item count is known. Kept modest to stay well clear of the API's rate limiter;
+// Retry429s still handles any 429s that slip through.
+const maxConcurrentPageFetches = 6
+
+// GetPaginatedItems fetches all pages of a paginated list endpoint. It fetches
+// page 0 first to learn the total item count, then fetches the remaining pages
+// concurrently (bounded by maxConcurrentPageFetches) instead of following the
+// `next` link serially, since every offset is already known once the total
+// count and page size are known.
 func GetPaginatedItems[T any, R interface {
 	GetItems() []T
 	GetLinks() map[string]ldapi.Link
-}](ctx context.Context, projectKey string, href *string, fetchFunc func(context.Context, string, *int64, *int64) (R, error)) ([]T, error) {
-	var result R
-	var err error
-
-	if href == nil {
-		result, err = fetchFunc(ctx, projectKey, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		limit, offset, err := parseHref(*href)
-		if err != nil {
-			return nil, errors.Wrapf(err, "unable to parse href for next link: %s", *href)
-		}
-		result, err = fetchFunc(ctx, projectKey, &limit, &offset)
-		if err != nil {
-			return nil, err
-		}
+	GetTotalCount() int32
+}](ctx context.Context, projectKey string, fetchFunc func(context.Context, string, *int64, *int64) (R, error)) ([]T, error) {
+	first, err := fetchFunc(ctx, projectKey, nil, nil)
+	if err != nil {
+		return nil, err
 	}
 
-	items := result.GetItems()
+	firstItems := first.GetItems()
+	limit := int64(len(firstItems))
+	total := int64(first.GetTotalCount())
+	if limit == 0 || total <= limit {
+		return firstItems, nil
+	}
 
-	if links := result.GetLinks(); links != nil {
-		if next, ok := links["next"]; ok && next.Href != nil {
-			newItems, err := GetPaginatedItems(ctx, projectKey, next.Href, fetchFunc)
-			if err != nil {
-				return nil, err
+	numPages := int((total + limit - 1) / limit)
+	pages := make([][]T, numPages)
+	pages[0] = firstItems
+
+	sem := make(chan struct{}, maxConcurrentPageFetches)
+	var wg sync.WaitGroup
+	errs := make([]error, numPages)
+
+	for page := 1; page < numPages; page++ {
+		page := page
+		offset := int64(page) * limit
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			result, fetchErr := fetchFunc(ctx, projectKey, &limit, &offset)
+			if fetchErr != nil {
+				errs[page] = fetchErr
+				return
 			}
-			items = append(items, newItems...)
+			pages[page] = result.GetItems()
+		}()
+	}
+	wg.Wait()
+
+	for _, pageErr := range errs {
+		if pageErr != nil {
+			return nil, pageErr
 		}
 	}
 
+	items := make([]T, 0, total)
+	for _, p := range pages {
+		items = append(items, p...)
+	}
 	return items, nil
-}
-
-func parseHref(href string) (limit, offset int64, err error) {
-	parsedUrl, err := url.Parse(href)
-	if err != nil {
-		return
-	}
-	l, err := strconv.Atoi(parsedUrl.Query().Get("limit"))
-	if err != nil {
-		return
-	}
-	o, err := strconv.Atoi(parsedUrl.Query().Get("offset"))
-	if err != nil {
-		return
-	}
-
-	limit = int64(l)
-	offset = int64(o)
-	return
 }
 
 //go:generate go run go.uber.org/mock/mockgen -destination mocks.go -package internal . MockableTime
