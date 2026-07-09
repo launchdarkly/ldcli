@@ -168,6 +168,21 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 	}
 }
 
+var sourceMapUploadSuffixes = []string{
+	".js.map", ".js",
+	".jsbundle.map", ".jsbundle",
+	".bundle.map", ".bundle",
+}
+
+func isSourceMapUploadFile(name string) bool {
+	for _, suffix := range sourceMapUploadSuffixes {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 	var files []SourceMapFile
 	routeGroupPattern := regexp.MustCompile(`\(.+?\)/`)
@@ -194,7 +209,7 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 			return filepath.SkipDir
 		}
 
-		if !d.IsDir() && (strings.HasSuffix(filePath, ".js.map") || strings.HasSuffix(filePath, ".js")) {
+		if !d.IsDir() && isSourceMapUploadFile(filePath) {
 			relPath, err := filepath.Rel(path, filePath)
 			if err != nil {
 				return err
@@ -222,7 +237,7 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 	}
 
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no .js.map files found. Please double check that you have generated sourcemaps for your app")
+		return nil, fmt.Errorf("no sourcemap files found (looked for *.js.map, *.jsbundle.map, *.bundle.map and their minified files). Please double check that you have generated sourcemaps for your app")
 	}
 
 	return files, nil
