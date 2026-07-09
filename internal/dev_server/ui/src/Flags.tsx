@@ -59,34 +59,36 @@ function Flags({
   const filteredFlags = useMemo(() => {
     if (!flags) return [];
     const flagEntries = Object.entries(flags);
-    return flagEntries
-      // Holdout flags are experimentation plumbing, not overridable app flags.
-      .filter(([flagKey]) => !flagKey.endsWith('-ld-holdout'))
-      .filter((entry) => {
-        if (!searchTerm) return true;
-        const [flagKey] = entry;
-        if (
-          searchTerm.length > 1 &&
-          searchTerm.startsWith('"') &&
-          searchTerm.endsWith('"')
-        ) {
-          const substr = searchTerm.slice(1, -1).toLowerCase();
-          return flagKey.toLowerCase().includes(substr);
-        } else {
-          const result = fuzzysort.single(searchTerm.toLowerCase(), flagKey);
-          return result && result.score > -5000;
-        }
-      })
-      .filter((entry) => {
-        const [flagKey] = entry;
-        const hasOverride = flagKey in overrides;
+    return (
+      flagEntries
+        // Holdout flags are experimentation plumbing, not overridable app flags.
+        .filter(([flagKey]) => !flagKey.endsWith('-ld-holdout'))
+        .filter((entry) => {
+          if (!searchTerm) return true;
+          const [flagKey] = entry;
+          if (
+            searchTerm.length > 1 &&
+            searchTerm.startsWith('"') &&
+            searchTerm.endsWith('"')
+          ) {
+            const substr = searchTerm.slice(1, -1).toLowerCase();
+            return flagKey.toLowerCase().includes(substr);
+          } else {
+            const result = fuzzysort.single(searchTerm.toLowerCase(), flagKey);
+            return result && result.score > -5000;
+          }
+        })
+        .filter((entry) => {
+          const [flagKey] = entry;
+          const hasOverride = flagKey in overrides;
 
-        if (onlyShowOverrides && !hasOverride) {
-          return false;
-        }
+          if (onlyShowOverrides && !hasOverride) {
+            return false;
+          }
 
-        return true;
-      });
+          return true;
+        })
+    );
   }, [flags, searchTerm, onlyShowOverrides, overrides]);
 
   const paginatedFlags = useMemo(() => {
