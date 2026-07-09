@@ -85,6 +85,53 @@ function App() {
     );
   }, [fetchDevFlags]);
 
+  // The server resolves variation names in the background after sync, so re-poll
+  // until every variation is named (no `pending-` placeholder ids left).
+  useEffect(() => {
+    if (!selectedProject) {
+      return;
+    }
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
+      if (cancelled) {
+        return;
+      }
+      attempts += 1;
+      try {
+        const res = await fetch(
+          apiRoute(
+            `/dev/projects/${selectedProject}?expand=availableVariations`,
+          ),
+        );
+        if (!res.ok || cancelled) {
+          return;
+        }
+        const json: { availableVariations?: Record<string, FlagVariation[]> } =
+          await res.json();
+        const variations = json.availableVariations ?? {};
+        setAvailableVariations(variations);
+
+        const stillPending = Object.values(variations).some((forFlag) =>
+          forFlag.some((v) => v._id.startsWith('pending-')),
+        );
+        if (stillPending && attempts < 20) {
+          timer = setTimeout(poll, 2000);
+        }
+      } catch (err) {
+        console.error('error polling variation names', err);
+      }
+    };
+
+    timer = setTimeout(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [selectedProject]);
+
   const updateProjectSettings = useCallback(
     async (newEnvironment: Environment | null, newContext: string) => {
       if (!selectedProject) {

@@ -56,6 +56,22 @@ func (mr *MockApiMockRecorder) GetFlag(ctx, projectKey, flagKey any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlag", reflect.TypeOf((*MockApi)(nil).GetFlag), ctx, projectKey, flagKey)
 }
 
+// GetFlagsPage mocks base method.
+func (m *MockApi) GetFlagsPage(ctx context.Context, projectKey string, limit, offset int64) ([]ldapi.FeatureFlag, int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFlagsPage", ctx, projectKey, limit, offset)
+	ret0, _ := ret[0].([]ldapi.FeatureFlag)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetFlagsPage indicates an expected call of GetFlagsPage.
+func (mr *MockApiMockRecorder) GetFlagsPage(ctx, projectKey, limit, offset any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlagsPage", reflect.TypeOf((*MockApi)(nil).GetFlagsPage), ctx, projectKey, limit, offset)
+}
+
 // GetProjectEnvironments mocks base method.
 func (m *MockApi) GetProjectEnvironments(ctx context.Context, projectKey, query string, limit *int) ([]ldapi.Environment, error) {
 	m.ctrl.T.Helper()

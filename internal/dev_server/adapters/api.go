@@ -25,6 +25,8 @@ func GetApi(ctx context.Context) Api {
 type Api interface {
 	GetSdkKey(ctx context.Context, projectKey, environmentKey string) (string, error)
 	GetFlag(ctx context.Context, projectKey, flagKey string) (ldapi.FeatureFlag, error)
+	// GetFlagsPage returns one page of flags plus the project's total flag count.
+	GetFlagsPage(ctx context.Context, projectKey string, limit, offset int64) (flags []ldapi.FeatureFlag, total int, err error)
 	GetProjectEnvironments(ctx context.Context, projectKey string, query string, limit *int) ([]ldapi.Environment, error)
 }
 
@@ -51,6 +53,18 @@ func (a apiClientApi) GetFlag(ctx context.Context, projectKey, flagKey string) (
 		return ldapi.FeatureFlag{}, errors.Wrapf(err, "unable to get flag '%s' from LD API", flagKey)
 	}
 	return *flag, nil
+}
+
+func (a apiClientApi) GetFlagsPage(ctx context.Context, projectKey string, limit, offset int64) ([]ldapi.FeatureFlag, int, error) {
+	query := a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).
+		Filter("purpose:all+!(holdout)").
+		Limit(limit).
+		Offset(offset)
+	flags, err := internal.Retry429s(query.Execute)
+	if err != nil {
+		return nil, 0, errors.Wrapf(err, "unable to get flags page (offset %d) from LD API", offset)
+	}
+	return flags.Items, int(flags.GetTotalCount()), nil
 }
 
 func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey string, query string, limit *int) ([]ldapi.Environment, error) {

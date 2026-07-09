@@ -55,6 +55,8 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 		}
 	}
 
+	FillVariationNamesAsync(ctx, settings.ProjectKey)
+
 	log.Printf("Successfully synced Initial project [%s]", project.Key)
 	return nil
 }

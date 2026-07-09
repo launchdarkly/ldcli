@@ -174,6 +174,45 @@ func InsertAvailableVariations(ctx context.Context, tx *sql.Tx, project model.Pr
 	return nil
 }
 
+// UpsertAvailableVariationsForFlags replaces the stored variations for just the
+// given flags (delete then re-insert each), leaving every other flag untouched.
+func (s *Sqlite) UpsertAvailableVariationsForFlags(ctx context.Context, projectKey string, variationsByFlagKey map[string][]model.Variation) (err error) {
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	for flagKey, variations := range variationsByFlagKey {
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM available_variations WHERE project_key = ? AND flag_key = ?
+		`, projectKey, flagKey)
+		if err != nil {
+			return err
+		}
+		for _, variation := range variations {
+			var jsonValue []byte
+			jsonValue, err = variation.Value.MarshalJSON()
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO available_variations
+					(project_key, flag_key, id, value, description, name)
+				VALUES (?, ?, ?, ?, ?, ?)
+			`, projectKey, flagKey, variation.Id, string(jsonValue), variation.Description, variation.Name)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *Sqlite) InsertProject(ctx context.Context, project model.Project) (err error) {
 	flagsStateJson, err := json.Marshal(project.AllFlagsState)
 	if err != nil {

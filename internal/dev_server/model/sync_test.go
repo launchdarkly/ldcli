@@ -17,6 +17,11 @@ import (
 )
 
 func TestInitialSync(t *testing.T) {
+	// Stub out the background name fill so it doesn't race the mock controller.
+	original := model.FillVariationNamesAsync
+	model.FillVariationNamesAsync = func(context.Context, string) {}
+	defer func() { model.FillVariationNamesAsync = original }()
+
 	ctx := context.Background()
 	mockController := gomock.NewController(t)
 	observers := model.NewObservers()

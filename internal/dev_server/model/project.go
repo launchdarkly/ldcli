@@ -50,14 +50,14 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	return project, nil
 }
 
-func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Context, sourceEnvironmentKey *string) (Project, error) {
+func UpdateProject(ctx context.Context, projectKey string, ldCtx *ldcontext.Context, sourceEnvironmentKey *string) (Project, error) {
 	store := StoreFromContext(ctx)
 	project, err := store.GetDevProject(ctx, projectKey)
 	if err != nil {
 		return Project{}, err
 	}
-	if context != nil {
-		project.Context = *context
+	if ldCtx != nil {
+		project.Context = *ldCtx
 	}
 
 	if sourceEnvironmentKey != nil {

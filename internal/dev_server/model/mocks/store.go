@@ -103,6 +103,20 @@ func (mr *MockStoreMockRecorder) GetAvailableVariationsForProject(ctx, projectKe
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailableVariationsForProject", reflect.TypeOf((*MockStore)(nil).GetAvailableVariationsForProject), ctx, projectKey)
 }
 
+// UpsertAvailableVariationsForFlags mocks base method.
+func (m *MockStore) UpsertAvailableVariationsForFlags(ctx context.Context, projectKey string, variationsByFlagKey map[string][]model.Variation) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAvailableVariationsForFlags", ctx, projectKey, variationsByFlagKey)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertAvailableVariationsForFlags indicates an expected call of UpsertAvailableVariationsForFlags.
+func (mr *MockStoreMockRecorder) UpsertAvailableVariationsForFlags(ctx, projectKey, variationsByFlagKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAvailableVariationsForFlags", reflect.TypeOf((*MockStore)(nil).UpsertAvailableVariationsForFlags), ctx, projectKey, variationsByFlagKey)
+}
+
 // GetDevProject mocks base method.
 func (m *MockStore) GetDevProject(ctx context.Context, projectKey string) (*model.Project, error) {
 	m.ctrl.T.Helper()
