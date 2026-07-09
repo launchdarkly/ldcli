@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Label,
   ListBox,
@@ -9,7 +9,13 @@ import {
 import { Box, Stack } from '@launchpad-ui/core';
 import { fetchEnvironments } from './api';
 import { Environment } from './types';
-import debounce from 'lodash/debounce';
+
+// Cached across dialog remounts so reopening doesn't reload; cleared on sync.
+const environmentsCache = new Map<string, Environment[]>();
+
+export function clearEnvironmentsCache() {
+  environmentsCache.clear();
+}
 
 type Props = {
   projectKey: string;
@@ -24,49 +30,56 @@ export function EnvironmentSelector({
   selectedEnvironment,
   setSelectedEnvironment,
 }: Props) {
-  const [environments, setEnvironments] = useState<Environment[] | null>(null);
-
+  const [environments, setEnvironments] = useState<Environment[] | null>(
+    () => environmentsCache.get(projectKey) ?? null,
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchEnvironmentsDebounced = useCallback(
-    debounce((query: string) => {
-      setIsLoading(true);
-      fetchEnvironments(projectKey, query)
-        .then((envs) => {
-          setEnvironments(envs);
-          if (!selectedEnvironment) {
-            const sourceEnv = envs.find(
-              (env) => env.key === sourceEnvironmentKey,
-            );
-            if (sourceEnv) {
-              setSelectedEnvironment(sourceEnv);
-            } else if (envs.length > 0) {
-              setSelectedEnvironment({
-                name: '',
-                key: sourceEnvironmentKey || '',
-              });
-            }
-          }
-        })
-        .catch((error) => {
-          console.error('Error fetching environments:', error);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    }, 300),
-    [
-      projectKey,
-      sourceEnvironmentKey,
-      selectedEnvironment,
-      setSelectedEnvironment,
-    ],
-  );
-
   useEffect(() => {
-    fetchEnvironmentsDebounced(searchQuery);
-  }, [fetchEnvironmentsDebounced, searchQuery]);
+    if (environmentsCache.has(projectKey)) {
+      return;
+    }
+    setIsLoading(true);
+    fetchEnvironments(projectKey)
+      .then((envs) => {
+        environmentsCache.set(projectKey, envs);
+        setEnvironments(envs);
+        if (!selectedEnvironment) {
+          const sourceEnv = envs.find(
+            (env) => env.key === sourceEnvironmentKey,
+          );
+          if (sourceEnv) {
+            setSelectedEnvironment(sourceEnv);
+          } else if (envs.length > 0) {
+            setSelectedEnvironment({
+              name: '',
+              key: sourceEnvironmentKey || '',
+            });
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching environments:', error);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [
+    projectKey,
+    sourceEnvironmentKey,
+    selectedEnvironment,
+    setSelectedEnvironment,
+  ]);
+
+  const filteredEnvironments = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return (environments ?? []).filter(
+      (env) =>
+        env.name.toLowerCase().includes(query) ||
+        env.key.toLowerCase().includes(query),
+    );
+  }, [environments, searchQuery]);
 
   return (
     <Stack gap="3">
@@ -128,7 +141,7 @@ export function EnvironmentSelector({
           selectionMode="single"
           selectedKeys={[selectedEnvironment?.key || '']}
           onSelectionChange={(keys) => {
-            const selectedKey = Array.from(keys)[0] as string;
+            const selectedKey = String(Array.from(keys)[0]);
             const selected = environments?.find(
               (env) => env.key === selectedKey,
             );
@@ -137,7 +150,7 @@ export function EnvironmentSelector({
             }
           }}
         >
-          {environments?.map((env) => (
+          {filteredEnvironments.map((env) => (
             <ListBoxItem key={env.key} id={env.key}>
               {env.name}
             </ListBoxItem>

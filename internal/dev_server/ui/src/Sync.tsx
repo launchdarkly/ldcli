@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { Inline } from '@launchpad-ui/core';
 import { FlagVariation } from './api.ts';
+import { clearEnvironmentsCache } from './EnvironmentSelector.tsx';
 
 const syncProject = async (selectedProject: string) => {
   const res = await fetch(
@@ -47,6 +48,7 @@ const SyncButton = ({
     setIsLoading(true);
     try {
       const result = await syncProject(selectedProject!);
+      clearEnvironmentsCache();
       setAvailableVariations(result.availableVariations);
       setFlags(sortFlags(result.flagsState));
     } catch (error) {
