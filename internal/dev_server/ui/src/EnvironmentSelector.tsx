@@ -37,13 +37,22 @@ export function EnvironmentSelector({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (environmentsCache.has(projectKey)) {
+    let cancelled = false;
+
+    const cached = environmentsCache.get(projectKey);
+    if (cached) {
+      setEnvironments(cached);
       return;
     }
+
+    setEnvironments(null);
     setIsLoading(true);
     fetchEnvironments(projectKey)
       .then((envs) => {
         environmentsCache.set(projectKey, envs);
+        if (cancelled) {
+          return;
+        }
         setEnvironments(envs);
         if (!selectedEnvironment) {
           const sourceEnv = envs.find(
@@ -63,8 +72,14 @@ export function EnvironmentSelector({
         console.error('Error fetching environments:', error);
       })
       .finally(() => {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     projectKey,
     sourceEnvironmentKey,

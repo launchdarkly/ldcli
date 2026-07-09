@@ -9,7 +9,6 @@ import { Heading, Text } from '@launchpad-ui/components';
 import { FlagVariation } from './api.ts';
 import { apiRoute, sortFlags } from './util.ts';
 import { ProjectEditor } from './ProjectEditor';
-import { clearEnvironmentsCache } from './EnvironmentSelector.tsx';
 
 interface Environment {
   key: string;
@@ -85,10 +84,6 @@ function App() {
       console.error.bind(console, 'error when fetching flags'),
     );
   }, [fetchDevFlags]);
-
-  useEffect(() => {
-    clearEnvironmentsCache();
-  }, [selectedProject]);
 
   const updateProjectSettings = useCallback(
     async (newEnvironment: Environment | null, newContext: string) => {
