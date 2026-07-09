@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Label,
   ListBox,
@@ -7,91 +7,20 @@ import {
   ProgressBar,
 } from '@launchpad-ui/components';
 import { Box, Stack } from '@launchpad-ui/core';
-import { fetchEnvironments } from './api';
 import { Environment } from './types';
 
-// Cached across dialog remounts so reopening doesn't reload; cleared on sync.
-const environmentsCache = new Map<string, Environment[]>();
-
-export function clearEnvironmentsCache() {
-  environmentsCache.clear();
-}
-
 type Props = {
-  projectKey: string;
-  sourceEnvironmentKey: string | null;
+  environments: Environment[] | null;
   selectedEnvironment: Environment | null;
   setSelectedEnvironment: (environment: Environment | null) => void;
 };
 
 export function EnvironmentSelector({
-  projectKey,
-  sourceEnvironmentKey,
+  environments,
   selectedEnvironment,
   setSelectedEnvironment,
 }: Props) {
-  const [environments, setEnvironments] = useState<Environment[] | null>(
-    () => environmentsCache.get(projectKey) ?? null,
-  );
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Reset to the new project's cached list synchronously so no stale frame renders.
-  const [loadedKey, setLoadedKey] = useState(projectKey);
-  if (loadedKey !== projectKey) {
-    setLoadedKey(projectKey);
-    setEnvironments(environmentsCache.get(projectKey) ?? null);
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const applyEnvironments = (envs: Environment[]) => {
-      setEnvironments(envs);
-      if (!selectedEnvironment) {
-        const sourceEnv = envs.find((env) => env.key === sourceEnvironmentKey);
-        if (sourceEnv) {
-          setSelectedEnvironment(sourceEnv);
-        } else if (envs.length > 0) {
-          setSelectedEnvironment({ name: '', key: sourceEnvironmentKey || '' });
-        }
-      }
-    };
-
-    const cached = environmentsCache.get(projectKey);
-    if (cached) {
-      applyEnvironments(cached);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    fetchEnvironments(projectKey)
-      .then((envs) => {
-        if (cancelled) {
-          return;
-        }
-        environmentsCache.set(projectKey, envs);
-        applyEnvironments(envs);
-      })
-      .catch((error) => {
-        console.error('Error fetching environments:', error);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    projectKey,
-    sourceEnvironmentKey,
-    selectedEnvironment,
-    setSelectedEnvironment,
-  ]);
 
   const filteredEnvironments = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -121,7 +50,7 @@ export function EnvironmentSelector({
             placeholder="Search environments..."
             aria-label="Search environments"
           />
-          {isLoading && (
+          {environments === null && (
             <Box
               position="absolute"
               right="0.5rem"
