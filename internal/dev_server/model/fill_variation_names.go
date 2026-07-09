@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"log"
+	"strings"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -15,20 +16,21 @@ const (
 	maxConcurrentPages = 6
 )
 
-// FillVariationNamesAsync runs FillVariationNames in the background on a context
-// detached from the caller's, so it outlives the request/sync that started it.
-// It's a var so tests can stub out the background work.
+// FillVariationNamesAsync is a var so tests can stub out the background work.
 var FillVariationNamesAsync = func(ctx context.Context, projectKey string) {
 	go FillVariationNames(context.WithoutCancel(ctx), projectKey)
 }
 
-// FillVariationNames fetches every flag's variation names from REST and upserts
-// them a page at a time as each page returns, so the override picker's raw
-// streaming values pick up friendly names shortly after sync. It does no work
-// on the sync path itself - callers run it in a goroutine on a detached context.
+// FillVariationNames fills in variation names from REST, a page at a time, for
+// the streaming values that arrive nameless. Callers run it detached from the sync path.
 func FillVariationNames(ctx context.Context, projectKey string) {
 	api := adapters.GetApi(ctx)
 	store := StoreFromContext(ctx)
+
+	// Skip the fan-out when a prior fill already resolved everything.
+	if existing, err := store.GetAvailableVariationsForProject(ctx, projectKey); err == nil && !hasPendingVariations(existing) {
+		return
+	}
 
 	first, total, err := api.GetFlagsPage(ctx, projectKey, fillPageSize, 0)
 	if err != nil {
@@ -46,7 +48,6 @@ func FillVariationNames(ctx context.Context, projectKey string) {
 		g.Go(func() error {
 			page, _, err := api.GetFlagsPage(ctx, projectKey, fillPageSize, offset)
 			if err != nil {
-				// Skip the failed page; the rest still fill in.
 				log.Printf("variation name fill: page at offset %d failed for %q: %v", offset, projectKey, err)
 				return nil
 			}
@@ -68,6 +69,17 @@ func upsertPageNames(ctx context.Context, store Store, projectKey string, flags 
 		return nil
 	}
 	return store.UpsertAvailableVariationsForFlags(ctx, projectKey, byFlagKey)
+}
+
+func hasPendingVariations(existing map[string][]Variation) bool {
+	for _, variations := range existing {
+		for _, v := range variations {
+			if strings.HasPrefix(v.Id, pendingIDPrefix) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func variationsFromFlag(flag ldapi.FeatureFlag) []Variation {

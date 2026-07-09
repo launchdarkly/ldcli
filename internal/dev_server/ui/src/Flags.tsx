@@ -60,6 +60,8 @@ function Flags({
     if (!flags) return [];
     const flagEntries = Object.entries(flags);
     return flagEntries
+      // Holdout flags are experimentation plumbing, not overridable app flags.
+      .filter(([flagKey]) => !flagKey.endsWith('-ld-holdout'))
       .filter((entry) => {
         if (!searchTerm) return true;
         const [flagKey] = entry;

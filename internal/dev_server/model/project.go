@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -10,6 +11,12 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 )
+
+// pendingIDPrefix marks a streaming variation whose name hasn't been resolved from REST yet.
+const pendingIDPrefix = "pending-"
+
+// holdoutFlagKeySuffix identifies LaunchDarkly's auto-generated holdout flags, which REST excludes.
+const holdoutFlagKeySuffix = "-ld-holdout"
 
 type Project struct {
 	Key                  string
@@ -143,6 +150,10 @@ func (project Project) fetchFlagStateAndVariations(ctx context.Context) (FlagsSt
 
 	var variations []FlagVariation
 	for flagKey, values := range variationsByFlagKey {
+		// Holdouts never resolve from REST, so don't store nameless placeholders for them.
+		if strings.HasSuffix(flagKey, holdoutFlagKeySuffix) {
+			continue
+		}
 		for i, value := range values {
 			variations = append(variations, FlagVariation{
 				FlagKey: flagKey,
@@ -150,9 +161,9 @@ func (project Project) fetchFlagStateAndVariations(ctx context.Context) (FlagsSt
 					// Placeholder id, unique per flag+index. Storage requires
 					// a non-empty, per-flag-unique id (UNIQUE(project_key,
 					// flag_key, id) ON CONFLICT REPLACE) - two real empty ids
-					// would silently overwrite each other. ResolveVariationNames
+					// would silently overwrite each other. FillVariationNames
 					// replaces this with the real REST id once resolved.
-					Id:    fmt.Sprintf("pending-%d", i),
+					Id:    fmt.Sprintf(pendingIDPrefix+"%d", i),
 					Value: value,
 				},
 			})

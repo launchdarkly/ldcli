@@ -33,6 +33,10 @@ func TestFillVariationNames(t *testing.T) {
 		}
 	}
 
+	// A pending variation means work remains, so the fill proceeds.
+	store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), projKey).
+		Return(map[string][]model.Variation{"a": {{Id: "pending-0"}}}, nil)
+
 	// total 250 with page size 100 => pages at offsets 0, 100, 200.
 	api.EXPECT().GetFlagsPage(gomock.Any(), projKey, int64(100), int64(0)).
 		Return([]ldapi.FeatureFlag{flag("a")}, 250, nil)
@@ -67,9 +71,27 @@ func TestFillVariationNamesInitialPageError(t *testing.T) {
 	store := mocks.NewMockStore(ctrl)
 	ctx = model.ContextWithStore(ctx, store)
 
+	store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), "proj").
+		Return(map[string][]model.Variation{"a": {{Id: "pending-0"}}}, nil)
+
 	// A failed first page bails out entirely - no upserts, no panic.
 	api.EXPECT().GetFlagsPage(gomock.Any(), "proj", int64(100), int64(0)).
 		Return(nil, 0, assert.AnError)
+
+	model.FillVariationNames(ctx, "proj")
+}
+
+func TestFillVariationNamesSkipsWhenResolved(t *testing.T) {
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	ctx, _, _ = adapters_mocks.WithMockApiAndSdk(ctx, ctrl)
+	store := mocks.NewMockStore(ctrl)
+	ctx = model.ContextWithStore(ctx, store)
+
+	// Every variation already has a real id, so the fill makes no REST calls.
+	strPtr := func(s string) *string { return &s }
+	store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), "proj").
+		Return(map[string][]model.Variation{"a": {{Id: "abc", Name: strPtr("On")}}}, nil)
 
 	model.FillVariationNames(ctx, "proj")
 }
