@@ -47,9 +47,6 @@ export function EnvironmentSelector({
     let cancelled = false;
 
     const applyEnvironments = (envs: Environment[]) => {
-      if (cancelled) {
-        return;
-      }
       setEnvironments(envs);
       if (!selectedEnvironment) {
         const sourceEnv = envs.find((env) => env.key === sourceEnvironmentKey);
@@ -71,6 +68,9 @@ export function EnvironmentSelector({
     setIsLoading(true);
     fetchEnvironments(projectKey)
       .then((envs) => {
+        if (cancelled) {
+          return;
+        }
         environmentsCache.set(projectKey, envs);
         applyEnvironments(envs);
       })
