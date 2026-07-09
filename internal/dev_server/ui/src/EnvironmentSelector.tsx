@@ -36,37 +36,43 @@ export function EnvironmentSelector({
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Reset to the new project's cached list synchronously so no stale frame renders.
+  const [loadedKey, setLoadedKey] = useState(projectKey);
+  if (loadedKey !== projectKey) {
+    setLoadedKey(projectKey);
+    setEnvironments(environmentsCache.get(projectKey) ?? null);
+  }
+
   useEffect(() => {
     let cancelled = false;
 
+    const applyEnvironments = (envs: Environment[]) => {
+      if (cancelled) {
+        return;
+      }
+      setEnvironments(envs);
+      if (!selectedEnvironment) {
+        const sourceEnv = envs.find((env) => env.key === sourceEnvironmentKey);
+        if (sourceEnv) {
+          setSelectedEnvironment(sourceEnv);
+        } else if (envs.length > 0) {
+          setSelectedEnvironment({ name: '', key: sourceEnvironmentKey || '' });
+        }
+      }
+    };
+
     const cached = environmentsCache.get(projectKey);
     if (cached) {
-      setEnvironments(cached);
+      applyEnvironments(cached);
+      setIsLoading(false);
       return;
     }
 
-    setEnvironments(null);
     setIsLoading(true);
     fetchEnvironments(projectKey)
       .then((envs) => {
         environmentsCache.set(projectKey, envs);
-        if (cancelled) {
-          return;
-        }
-        setEnvironments(envs);
-        if (!selectedEnvironment) {
-          const sourceEnv = envs.find(
-            (env) => env.key === sourceEnvironmentKey,
-          );
-          if (sourceEnv) {
-            setSelectedEnvironment(sourceEnv);
-          } else if (envs.length > 0) {
-            setSelectedEnvironment({
-              name: '',
-              key: sourceEnvironmentKey || '',
-            });
-          }
-        }
+        applyEnvironments(envs);
       })
       .catch((error) => {
         console.error('Error fetching environments:', error);
