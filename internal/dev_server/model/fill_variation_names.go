@@ -43,7 +43,8 @@ func FillVariationNames(ctx context.Context, projectKey string) {
 		incomplete.Store(true)
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	// Not WithContext: the returned ctx cancels on Wait, which would kill the reconcile read below.
+	var g errgroup.Group
 	g.SetLimit(maxConcurrentPages)
 	for offset := int64(fillPageSize); offset < int64(total); offset += fillPageSize {
 		offset := offset
