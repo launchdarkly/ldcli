@@ -15,6 +15,9 @@ import (
 // pendingIDPrefix marks a streaming variation whose name hasn't been resolved from REST yet.
 const pendingIDPrefix = "pending-"
 
+// unresolvableIDPrefix marks a variation the REST flag list never returns, so the gate stops retrying it.
+const unresolvableIDPrefix = "unresolvable-"
+
 // holdoutFlagKeySuffix identifies LaunchDarkly's auto-generated holdout flags, which REST excludes.
 const holdoutFlagKeySuffix = "-ld-holdout"
 

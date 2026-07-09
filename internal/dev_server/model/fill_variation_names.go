@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"sync/atomic"
 
 	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -21,8 +22,7 @@ var FillVariationNamesAsync = func(ctx context.Context, projectKey string) {
 	go FillVariationNames(context.WithoutCancel(ctx), projectKey)
 }
 
-// FillVariationNames fills in variation names from REST, a page at a time, for
-// the streaming values that arrive nameless. Callers run it detached from the sync path.
+// FillVariationNames fills in names from REST for the nameless streaming values; run it detached from the sync path.
 func FillVariationNames(ctx context.Context, projectKey string) {
 	api := adapters.GetApi(ctx)
 	store := StoreFromContext(ctx)
@@ -37,8 +37,10 @@ func FillVariationNames(ctx context.Context, projectKey string) {
 		log.Printf("variation name fill: initial page failed for %q: %v", projectKey, err)
 		return
 	}
+	var incomplete atomic.Bool
 	if err := upsertPageNames(ctx, store, projectKey, first); err != nil {
 		log.Printf("variation name fill: upsert page 0 failed for %q: %v", projectKey, err)
+		incomplete.Store(true)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -49,15 +51,49 @@ func FillVariationNames(ctx context.Context, projectKey string) {
 			page, _, err := api.GetFlagsPage(ctx, projectKey, fillPageSize, offset)
 			if err != nil {
 				log.Printf("variation name fill: page at offset %d failed for %q: %v", offset, projectKey, err)
+				incomplete.Store(true)
 				return nil
 			}
 			if err := upsertPageNames(ctx, store, projectKey, page); err != nil {
 				log.Printf("variation name fill: upsert at offset %d failed for %q: %v", offset, projectKey, err)
+				incomplete.Store(true)
 			}
 			return nil
 		})
 	}
 	_ = g.Wait()
+
+	// Anything still pending after a complete pass isn't in the REST list, so mark it terminal for the gate.
+	if !incomplete.Load() {
+		markUnresolvableVariations(ctx, store, projectKey)
+	}
+}
+
+func markUnresolvableVariations(ctx context.Context, store Store, projectKey string) {
+	existing, err := store.GetAvailableVariationsForProject(ctx, projectKey)
+	if err != nil {
+		log.Printf("variation name fill: reconciling unresolved flags failed for %q: %v", projectKey, err)
+		return
+	}
+	stragglers := make(map[string][]Variation)
+	for flagKey, variations := range existing {
+		var pending bool
+		for i, v := range variations {
+			if strings.HasPrefix(v.Id, pendingIDPrefix) {
+				variations[i].Id = unresolvableIDPrefix + strings.TrimPrefix(v.Id, pendingIDPrefix)
+				pending = true
+			}
+		}
+		if pending {
+			stragglers[flagKey] = variations
+		}
+	}
+	if len(stragglers) == 0 {
+		return
+	}
+	if err := store.UpsertAvailableVariationsForFlags(ctx, projectKey, stragglers); err != nil {
+		log.Printf("variation name fill: marking unresolved flags failed for %q: %v", projectKey, err)
+	}
 }
 
 func upsertPageNames(ctx context.Context, store Store, projectKey string, flags []ldapi.FeatureFlag) error {

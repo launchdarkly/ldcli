@@ -33,9 +33,13 @@ func TestFillVariationNames(t *testing.T) {
 		}
 	}
 
-	// A pending variation means work remains, so the fill proceeds.
-	store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), projKey).
-		Return(map[string][]model.Variation{"a": {{Id: "pending-0"}}}, nil)
+	// First read is the gate; second is the post-pass reconcile (all resolved => nothing to mark).
+	gomock.InOrder(
+		store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), projKey).
+			Return(map[string][]model.Variation{"a": {{Id: "pending-0"}}}, nil),
+		store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), projKey).
+			Return(map[string][]model.Variation{"a": {{Id: "a-0"}}, "b": {{Id: "b-0"}}, "c": {{Id: "c-0"}}}, nil),
+	)
 
 	// total 250 with page size 100 => pages at offsets 0, 100, 200.
 	api.EXPECT().GetFlagsPage(gomock.Any(), projKey, int64(100), int64(0)).
@@ -92,6 +96,44 @@ func TestFillVariationNamesSkipsWhenResolved(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 	store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), "proj").
 		Return(map[string][]model.Variation{"a": {{Id: "abc", Name: strPtr("On")}}}, nil)
+
+	model.FillVariationNames(ctx, "proj")
+}
+
+func TestFillVariationNamesMarksUnresolvable(t *testing.T) {
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	ctx, api, _ := adapters_mocks.WithMockApiAndSdk(ctx, ctrl)
+	store := mocks.NewMockStore(ctrl)
+	ctx = model.ContextWithStore(ctx, store)
+
+	strPtr := func(s string) *string { return &s }
+
+	gomock.InOrder(
+		store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), "proj").
+			Return(map[string][]model.Variation{"exotic": {{Id: "pending-0"}}}, nil),
+		// After a clean pass "exotic" is still pending - the list never returned it.
+		store.EXPECT().GetAvailableVariationsForProject(gomock.Any(), "proj").
+			Return(map[string][]model.Variation{"exotic": {{Id: "pending-0"}}}, nil),
+	)
+
+	// Single page (total 1), and the list doesn't include "exotic".
+	api.EXPECT().GetFlagsPage(gomock.Any(), "proj", int64(100), int64(0)).
+		Return([]ldapi.FeatureFlag{{
+			Key:        "normal",
+			Variations: []ldapi.Variation{{Id: strPtr("normal-0"), Name: strPtr("On"), Value: true}},
+		}}, 1, nil)
+
+	store.EXPECT().UpsertAvailableVariationsForFlags(gomock.Any(), "proj", gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string, byFlagKey map[string][]model.Variation) error {
+			if v, ok := byFlagKey["normal"]; ok {
+				assert.Equal(t, "normal-0", v[0].Id)
+				return nil
+			}
+			// Reconcile pass: the straggler is flipped from pending to unresolvable.
+			assert.Equal(t, "unresolvable-0", byFlagKey["exotic"][0].Id)
+			return nil
+		}).Times(2)
 
 	model.FillVariationNames(ctx, "proj")
 }
