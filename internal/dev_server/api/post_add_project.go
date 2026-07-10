@@ -30,6 +30,10 @@ func (s server) PostAddProject(ctx context.Context, request PostAddProjectReques
 		return nil, err
 	}
 
+	if model.StreamStartupFromContext(ctx) {
+		model.FillVariationsAsync(ctx, request.ProjectKey)
+	}
+
 	response := ProjectJSONResponse{
 		LastSyncedFromSource: project.LastSyncTime.Unix(),
 		Context:              project.Context,

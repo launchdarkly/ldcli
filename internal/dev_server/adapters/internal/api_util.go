@@ -10,15 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// FetchPagesConcurrently returns every item across an offset-paginated list.
-//
-// It fetches page 0, and only if that page is full keeps pulling pages in
-// bounded concurrent batches (concurrency at a time) until a short page marks
-// the end of the list. It deliberately never relies on a reported total count:
-// that field is optional and reads back as 0 when absent, which would silently
-// truncate a large result set. A short (or empty) page is the only end signal.
-// Small lists cost a single request; large ones parallelise instead of paging
-// serially. The first page error is returned as-is.
+// FetchPagesConcurrently returns every item across an offset-paginated list, fetching pages in bounded concurrent batches until a short page ends the list. It never trusts a reported total count (0 when absent would truncate); a short page is the only end signal.
 func FetchPagesConcurrently[T any](pageSize, concurrency int, fetch func(offset int64) ([]T, error)) ([]T, error) {
 	first, err := fetch(0)
 	if err != nil {
@@ -42,20 +34,15 @@ func FetchPagesConcurrently[T any](pageSize, concurrency int, fetch func(offset 
 		}
 		wg.Wait()
 
-		// Pages are contiguous by offset, so the first short/empty page ends the
-		// list and every page after it in the batch is empty.
-		done := false
+		// Stop at the first short/empty page; pages after it are speculative probes past the end, so ignore their errors.
 		for i := 0; i < concurrency; i++ {
 			if errs[i] != nil {
 				return nil, errs[i]
 			}
 			all = append(all, batch[i]...)
 			if len(batch[i]) < pageSize {
-				done = true
+				return all, nil
 			}
-		}
-		if done {
-			return all, nil
 		}
 	}
 }
@@ -82,11 +69,7 @@ func Retry429s[T any](requester func() (T, *http.Response, error)) (result T, er
 	for {
 		var res *http.Response
 		result, res, err = requester()
-		// On a transport-level failure (DNS, connection refused, timeout) the
-		// client returns a nil response, so guard before touching it - otherwise
-		// the deref panics. A 429 arrives as a non-nil error *with* a non-nil
-		// response, so only bail on a nil response, never on err alone, or we'd
-		// skip the rate-limit retry below.
+		// Only bail on a nil response (transport failure); a 429 comes back as a non-nil error with a non-nil response, so never bail on err alone or the retry is skipped.
 		if res == nil {
 			return
 		}

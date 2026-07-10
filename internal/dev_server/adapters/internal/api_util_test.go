@@ -62,6 +62,24 @@ func TestFetchPagesConcurrently(t *testing.T) {
 		assert.Len(t, items, 250)
 	})
 
+	t.Run("an error on a speculative page past the end is ignored", func(t *testing.T) {
+		// 150 items: page 0 full, offset 100 short (end). Offsets past that are
+		// speculative probes in the same batch; their errors must not fail the fetch.
+		fetch := func(offset int64) ([]int, error) {
+			switch {
+			case offset == 0:
+				return make([]int, pageSize), nil
+			case offset == pageSize:
+				return make([]int, 50), nil
+			default:
+				return nil, assert.AnError
+			}
+		}
+		items, err := FetchPagesConcurrently(pageSize, concurrency, fetch)
+		require.NoError(t, err)
+		assert.Len(t, items, 150)
+	})
+
 	t.Run("a page error aborts and propagates", func(t *testing.T) {
 		fetch := func(offset int64) ([]int, error) {
 			if offset == 0 {

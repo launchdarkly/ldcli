@@ -16,6 +16,10 @@ func (s server) PatchProject(ctx context.Context, request PatchProjectRequestObj
 		return PatchProject404Response{}, nil
 	}
 
+	if model.StreamStartupFromContext(ctx) {
+		model.FillVariationsAsync(ctx, request.ProjectKey)
+	}
+
 	response := ProjectJSONResponse{
 		LastSyncedFromSource: project.LastSyncTime.Unix(),
 		Context:              project.Context,
