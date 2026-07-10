@@ -1,72 +1,63 @@
 package internal
 
 import (
-	"context"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
-	"github.com/launchdarkly/api-client-go/v14"
 	"github.com/pkg/errors"
 )
 
-func GetPaginatedItems[T any, R interface {
-	GetItems() []T
-	GetLinks() map[string]ldapi.Link
-}](ctx context.Context, projectKey string, href *string, fetchFunc func(context.Context, string, *int64, *int64) (R, error)) ([]T, error) {
-	var result R
-	var err error
-
-	if href == nil {
-		result, err = fetchFunc(ctx, projectKey, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		limit, offset, err := parseHref(*href)
-		if err != nil {
-			return nil, errors.Wrapf(err, "unable to parse href for next link: %s", *href)
-		}
-		result, err = fetchFunc(ctx, projectKey, &limit, &offset)
-		if err != nil {
-			return nil, err
-		}
+// FetchPagesConcurrently returns every item across an offset-paginated list.
+//
+// It fetches page 0, and only if that page is full keeps pulling pages in
+// bounded concurrent batches (concurrency at a time) until a short page marks
+// the end of the list. It deliberately never relies on a reported total count:
+// that field is optional and reads back as 0 when absent, which would silently
+// truncate a large result set. A short (or empty) page is the only end signal.
+// Small lists cost a single request; large ones parallelise instead of paging
+// serially. The first page error is returned as-is.
+func FetchPagesConcurrently[T any](pageSize, concurrency int, fetch func(offset int64) ([]T, error)) ([]T, error) {
+	first, err := fetch(0)
+	if err != nil {
+		return nil, err
+	}
+	all := first
+	if len(first) < pageSize {
+		return all, nil
 	}
 
-	items := result.GetItems()
+	for offset := int64(pageSize); ; offset += int64(concurrency) * int64(pageSize) {
+		batch := make([][]T, concurrency)
+		errs := make([]error, concurrency)
+		var wg sync.WaitGroup
+		for i := 0; i < concurrency; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				batch[i], errs[i] = fetch(offset + int64(i)*int64(pageSize))
+			}(i)
+		}
+		wg.Wait()
 
-	if links := result.GetLinks(); links != nil {
-		if next, ok := links["next"]; ok && next.Href != nil {
-			newItems, err := GetPaginatedItems(ctx, projectKey, next.Href, fetchFunc)
-			if err != nil {
-				return nil, err
+		// Pages are contiguous by offset, so the first short/empty page ends the
+		// list and every page after it in the batch is empty.
+		done := false
+		for i := 0; i < concurrency; i++ {
+			if errs[i] != nil {
+				return nil, errs[i]
 			}
-			items = append(items, newItems...)
+			all = append(all, batch[i]...)
+			if len(batch[i]) < pageSize {
+				done = true
+			}
+		}
+		if done {
+			return all, nil
 		}
 	}
-
-	return items, nil
-}
-
-func parseHref(href string) (limit, offset int64, err error) {
-	parsedUrl, err := url.Parse(href)
-	if err != nil {
-		return
-	}
-	l, err := strconv.Atoi(parsedUrl.Query().Get("limit"))
-	if err != nil {
-		return
-	}
-	o, err := strconv.Atoi(parsedUrl.Query().Get("offset"))
-	if err != nil {
-		return
-	}
-
-	limit = int64(l)
-	offset = int64(o)
-	return
 }
 
 //go:generate go run go.uber.org/mock/mockgen -destination mocks.go -package internal . MockableTime
@@ -91,6 +82,14 @@ func Retry429s[T any](requester func() (T, *http.Response, error)) (result T, er
 	for {
 		var res *http.Response
 		result, res, err = requester()
+		// On a transport-level failure (DNS, connection refused, timeout) the
+		// client returns a nil response, so guard before touching it - otherwise
+		// the deref panics. A 429 arrives as a non-nil error *with* a non-nil
+		// response, so only bail on a nil response, never on err alone, or we'd
+		// skip the rate-limit retry below.
+		if res == nil {
+			return
+		}
 		if res.StatusCode == 429 {
 			resetUnixMillisString := res.Header.Get("X-Ratelimit-Reset")
 			resetUnixMillis, strconvErr := strconv.ParseInt(resetUnixMillisString, 10, 64)
