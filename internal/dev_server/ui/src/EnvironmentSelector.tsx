@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Label,
   ListBox,
@@ -7,66 +7,29 @@ import {
   ProgressBar,
 } from '@launchpad-ui/components';
 import { Box, Stack } from '@launchpad-ui/core';
-import { fetchEnvironments } from './api';
 import { Environment } from './types';
-import debounce from 'lodash/debounce';
 
 type Props = {
-  projectKey: string;
-  sourceEnvironmentKey: string | null;
+  environments: Environment[] | null;
   selectedEnvironment: Environment | null;
   setSelectedEnvironment: (environment: Environment | null) => void;
 };
 
 export function EnvironmentSelector({
-  projectKey,
-  sourceEnvironmentKey,
+  environments,
   selectedEnvironment,
   setSelectedEnvironment,
 }: Props) {
-  const [environments, setEnvironments] = useState<Environment[] | null>(null);
-
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
-  const fetchEnvironmentsDebounced = useCallback(
-    debounce((query: string) => {
-      setIsLoading(true);
-      fetchEnvironments(projectKey, query)
-        .then((envs) => {
-          setEnvironments(envs);
-          if (!selectedEnvironment) {
-            const sourceEnv = envs.find(
-              (env) => env.key === sourceEnvironmentKey,
-            );
-            if (sourceEnv) {
-              setSelectedEnvironment(sourceEnv);
-            } else if (envs.length > 0) {
-              setSelectedEnvironment({
-                name: '',
-                key: sourceEnvironmentKey || '',
-              });
-            }
-          }
-        })
-        .catch((error) => {
-          console.error('Error fetching environments:', error);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    }, 300),
-    [
-      projectKey,
-      sourceEnvironmentKey,
-      selectedEnvironment,
-      setSelectedEnvironment,
-    ],
-  );
-
-  useEffect(() => {
-    fetchEnvironmentsDebounced(searchQuery);
-  }, [fetchEnvironmentsDebounced, searchQuery]);
+  const filteredEnvironments = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return (environments ?? []).filter(
+      (env) =>
+        env.name.toLowerCase().includes(query) ||
+        env.key.toLowerCase().includes(query),
+    );
+  }, [environments, searchQuery]);
 
   return (
     <Stack gap="3">
@@ -87,7 +50,7 @@ export function EnvironmentSelector({
             placeholder="Search environments..."
             aria-label="Search environments"
           />
-          {isLoading && (
+          {environments === null && (
             <Box
               position="absolute"
               right="0.5rem"
@@ -128,7 +91,7 @@ export function EnvironmentSelector({
           selectionMode="single"
           selectedKeys={[selectedEnvironment?.key || '']}
           onSelectionChange={(keys) => {
-            const selectedKey = Array.from(keys)[0] as string;
+            const selectedKey = String(Array.from(keys)[0]);
             const selected = environments?.find(
               (env) => env.key === selectedKey,
             );
@@ -137,7 +100,7 @@ export function EnvironmentSelector({
             }
           }}
         >
-          {environments?.map((env) => (
+          {filteredEnvironments.map((env) => (
             <ListBoxItem key={env.key} id={env.key}>
               {env.name}
             </ListBoxItem>
