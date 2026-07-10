@@ -198,7 +198,56 @@ func TestGetAllSourceMapFiles(t *testing.T) {
 	defer os.RemoveAll(emptyDir)
 	_, err = getAllSourceMapFiles(emptyDir)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no .js.map files found")
+	assert.Contains(t, err.Error(), "no sourcemap files found")
+}
+
+func TestIsSourceMapUploadFile(t *testing.T) {
+	// Web bundles + maps.
+	assert.True(t, isSourceMapUploadFile("app.js"))
+	assert.True(t, isSourceMapUploadFile("app.js.map"))
+	// React Native iOS bundle + map.
+	assert.True(t, isSourceMapUploadFile("main.jsbundle"))
+	assert.True(t, isSourceMapUploadFile("main.jsbundle.map"))
+	// React Native Android bundle + map.
+	assert.True(t, isSourceMapUploadFile("index.android.bundle"))
+	assert.True(t, isSourceMapUploadFile("index.android.bundle.map"))
+	// Unrelated files are ignored.
+	assert.False(t, isSourceMapUploadFile("styles.css"))
+	assert.False(t, isSourceMapUploadFile("styles.css.map"))
+	assert.False(t, isSourceMapUploadFile("README.md"))
+}
+
+func TestGetAllSourceMapFilesReactNative(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sourcemap-rn-test")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// The names React Native's `react-native bundle` produces.
+	rnFiles := []string{
+		"main.jsbundle",
+		"main.jsbundle.map",
+		"index.android.bundle",
+		"index.android.bundle.map",
+	}
+	for _, name := range rnFiles {
+		err = os.WriteFile(filepath.Join(tempDir, name), []byte("{}"), 0644)
+		assert.NoError(t, err)
+	}
+	// A non-sourcemap file that must be skipped.
+	err = os.WriteFile(filepath.Join(tempDir, "assets.png"), []byte("x"), 0644)
+	assert.NoError(t, err)
+
+	files, err := getAllSourceMapFiles(tempDir)
+	assert.NoError(t, err)
+
+	found := make(map[string]bool)
+	for _, f := range files {
+		found[f.Name] = true
+	}
+	for _, name := range rnFiles {
+		assert.True(t, found[name], "expected %s to be discovered for upload", name)
+	}
+	assert.False(t, found["assets.png"], "non-sourcemap files must be skipped")
 }
 
 func TestGetSourceMapUploadUrlsErrors(t *testing.T) {
