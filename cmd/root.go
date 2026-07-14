@@ -22,8 +22,8 @@ import (
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
-	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
 	whoamicmd "github.com/launchdarkly/ldcli/cmd/whoami"
@@ -268,6 +268,7 @@ func NewRootCommand(
 			c.AddCommand(flagscmd.NewToggleOnCmd(clients.ResourcesClient))
 			c.AddCommand(flagscmd.NewToggleOffCmd(clients.ResourcesClient))
 			c.AddCommand(flagscmd.NewArchiveCmd(clients.ResourcesClient))
+			c.AddCommand(flagscmd.NewUsageCmd())
 		}
 		if c.Name() == "members" {
 			c.AddCommand(memberscmd.NewMembersInviteCmd(clients.ResourcesClient))
