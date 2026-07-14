@@ -37,6 +37,7 @@ const (
 	DevStreamURIFlag = "dev-stream-uri"
 	EmailsFlag       = "emails"
 	EnvironmentFlag  = "environment"
+	EnvsFlag         = "envs"
 	FieldsFlag       = "fields"
 	FlagFlag         = "flag"
 	JSONFlag         = "json"
@@ -54,6 +55,7 @@ const (
 	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
 	DryRunFlagDescription      = "Validate the change without persisting it. Returns a preview of the result."
 	EnvironmentFlagDescription = "Default environment key"
+	EnvsFlagDescription        = "Default comma-separated environment keys to check flag status across (default: auto-discover the project's critical environments)"
 	FieldsFlagDescription      = "Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)"
 	FlagFlagDescription        = "Default feature flag key"
 	JSONFlagDescription        = "Output JSON format (shorthand for --output json)"
@@ -72,6 +74,7 @@ func AllFlagsHelp() map[string]string {
 		CorsOriginFlag:   CorsOriginFlagDescription,
 		DevStreamURIFlag: DevStreamURIDescription,
 		EnvironmentFlag:  EnvironmentFlagDescription,
+		EnvsFlag:         EnvsFlagDescription,
 		FlagFlag:         FlagFlagDescription,
 		OutputFlag:       OutputFlagDescription,
 		PortFlag:         PortFlagDescription,

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/mitchellh/go-homedir"
 	"gopkg.in/yaml.v3"
@@ -20,14 +21,15 @@ type ReadFile func(name string) ([]byte, error)
 
 // Config represents the data stored in the config file.
 type Config struct {
-	AccessToken     string `json:"access-token,omitempty" yaml:"access-token,omitempty"`
-	AnalyticsOptOut *bool  `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
-	BaseURI         string `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
-	DevStreamURI    string `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
-	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
-	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
-	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
-	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
+	AccessToken     string   `json:"access-token,omitempty" yaml:"access-token,omitempty"`
+	AnalyticsOptOut *bool    `json:"analytics-opt-out,omitempty" yaml:"analytics-opt-out,omitempty"`
+	BaseURI         string   `json:"base-uri,omitempty" yaml:"base-uri,omitempty"`
+	DevStreamURI    string   `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
+	Environment     string   `json:"environment,omitempty" yaml:"environment,omitempty"`
+	Envs            []string `json:"envs,omitempty" yaml:"envs,omitempty"`
+	Flag            string   `json:"flag,omitempty" yaml:"flag,omitempty"`
+	Output          string   `json:"output,omitempty" yaml:"output,omitempty"`
+	Project         string   `json:"project,omitempty" yaml:"project,omitempty"`
 }
 
 func New(filename string, readFile ReadFile) (Config, error) {
@@ -85,6 +87,8 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 				c.DevStreamURI = v
 			case cliflags.EnvironmentFlag:
 				c.Environment = v
+			case cliflags.EnvsFlag:
+				c.Envs = splitCSV(v)
 			case cliflags.FlagFlag:
 				c.Flag = v
 			case cliflags.OutputFlag:
@@ -100,6 +104,21 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 	}
 
 	return c, updatedFields, nil
+}
+
+// splitCSV splits a comma-separated flag value into a trimmed, non-empty slice.
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // Remove validates the key exists but doesn't do anything else since we unset the value when

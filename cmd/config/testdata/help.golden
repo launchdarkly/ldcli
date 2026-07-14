@@ -8,6 +8,7 @@ Supported settings:
 - `cors-origin`: Allowed CORS origin. Use '*' for all origins (default: '*')
 - `dev-stream-uri`: Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint
 - `environment`: Default environment key
+- `envs`: Default comma-separated environment keys to check flag status across (default: auto-discover the project's critical environments)
 - `flag`: Default feature flag key
 - `output`: Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise)
 - `port`: Port for the dev server to run on
