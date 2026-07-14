@@ -1,4 +1,4 @@
-package sourcemaps
+package symbols
 
 import (
 	"bytes"
@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -26,6 +25,7 @@ import (
 )
 
 const (
+	typeFlag       = "type"
 	appVersionFlag = "app-version"
 	pathFlag       = "path"
 	basePathFlag   = "base-path"
@@ -34,9 +34,18 @@ const (
 	defaultPath       = "."
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
 
-	getSourceMapUrlsQuery = `
-	  query GetSourceMapUploadUrls($api_key: String!, $project_id: String!, $paths: [String!]!) {
-	    get_source_map_upload_urls_ld(
+	// typeReactNative is the only symbol type supported today. React Native
+	// Hermes/Metro sourcemaps are ordinary JavaScript sourcemaps; they are
+	// uploaded through the dedicated symbol path and land under the same key the
+	// symbolication backend already reads.
+	typeReactNative = "react-native"
+
+	// getSymbolUrlsQuery uses the dedicated `get_symbol_upload_urls_ld` query
+	// (separate from `sourcemaps upload`) so symbol uploads travel over the
+	// symbol endpoint, which accepts larger, multi-segment uploads.
+	getSymbolUrlsQuery = `
+	  query GetSymbolUploadUrls($api_key: String!, $project_id: String!, $paths: [String!]!) {
+	    get_symbol_upload_urls_ld(
 			api_key: $api_key
 			project_id: $project_id
 			paths: $paths
@@ -45,25 +54,22 @@ const (
 	`
 )
 
-type ApiKeyResponse struct {
-	Data struct {
-		Credential struct {
-			ProjectID string `json:"project_id"`
-			APIKey    string `json:"api_key"`
-		} `json:"ld_credential"`
-	} `json:"data"`
-	Errors []struct {
-		Message string `json:"message"`
-	} `json:"errors"`
+// reactNativeUploadSuffixes are the files produced by `react-native bundle`:
+// `main.jsbundle`(.map) on iOS and `index.android.bundle`(.map) on Android.
+// The minified bundle is uploaded alongside its map so `sourceMappingURL` and
+// column offsets resolve during symbolication.
+var reactNativeUploadSuffixes = []string{
+	".jsbundle.map", ".jsbundle",
+	".bundle.map", ".bundle",
 }
 
-type SourceMapUrlsResponse struct {
+type SymbolUrlsResponse struct {
 	Data struct {
-		GetSourceMapUploadUrls []string `json:"get_source_map_upload_urls_ld"`
+		GetSymbolUploadUrls []string `json:"get_symbol_upload_urls_ld"`
 	} `json:"data"`
 }
 
-type SourceMapFile struct {
+type SymbolFile struct {
 	Path string
 	Name string
 }
@@ -72,8 +78,8 @@ func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerF
 	cmd := &cobra.Command{
 		Args:  validators.Validate(),
 		Use:   "upload",
-		Short: "Upload sourcemaps",
-		Long:  "Upload JavaScript sourcemaps to LaunchDarkly for error monitoring",
+		Short: "Upload symbol files",
+		Long:  "Upload symbol files (for example, React Native sourcemaps) to LaunchDarkly for error monitoring",
 		RunE:  runE(client),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			tracker := analyticsTrackerFn(
@@ -83,7 +89,7 @@ func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerF
 			)
 			tracker.SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(
 				cmd,
-				"sourcemaps",
+				"symbols",
 				map[string]interface{}{
 					"action": cmd.Name(),
 				}))
@@ -98,6 +104,11 @@ func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerF
 
 func runE(client resources.Client) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
+		symbolType := viper.GetString(typeFlag)
+		if symbolType != typeReactNative {
+			return fmt.Errorf("unsupported --type %q; supported types: %s", symbolType, typeReactNative)
+		}
+
 		projectKey := viper.GetString(cliflags.ProjectFlag)
 		u, _ := url.JoinPath(
 			viper.GetString(cliflags.BaseURIFlag),
@@ -136,15 +147,15 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			backendUrl = defaultBackendUrl
 		}
 
-		fmt.Printf("Starting to upload source maps from %s\n", path)
+		fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
 
-		files, err := getAllSourceMapFiles(path)
+		files, err := getAllSymbolFiles(path, symbolType)
 		if err != nil {
-			return fmt.Errorf("failed to find sourcemap files: %w", err)
+			return fmt.Errorf("failed to find symbol files: %w", err)
 		}
 
 		if len(files) == 0 {
-			return fmt.Errorf("no source maps found in %s, is this the correct path?", path)
+			return fmt.Errorf("no symbol files found in %s, is this the correct path?", path)
 		}
 
 		s3Keys := make([]string, 0, len(files))
@@ -152,7 +163,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			s3Keys = append(s3Keys, getS3Key(appVersion, basePath, file.Name))
 		}
 
-		uploadUrls, err := getSourceMapUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl)
+		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl)
 		if err != nil {
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
@@ -163,14 +174,25 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			}
 		}
 
-		fmt.Println("Successfully uploaded all sourcemaps")
+		fmt.Println("Successfully uploaded all symbols")
 		return nil
 	}
 }
 
-func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
-	var files []SourceMapFile
-	routeGroupPattern := regexp.MustCompile(`\(.+?\)/`)
+func isReactNativeUploadFile(name string) bool {
+	for _, suffix := range reactNativeUploadSuffixes {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
+	// symbolType is validated by the caller; only react-native is supported.
+	_ = symbolType
+
+	var files []SymbolFile
 
 	fileInfo, err := os.Stat(path)
 	if err != nil {
@@ -178,7 +200,7 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 	}
 
 	if !fileInfo.IsDir() {
-		files = append(files, SourceMapFile{
+		files = append(files, SymbolFile{
 			Path: path,
 			Name: filepath.Base(path),
 		})
@@ -194,24 +216,16 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 			return filepath.SkipDir
 		}
 
-		if !d.IsDir() && (strings.HasSuffix(filePath, ".js.map") || strings.HasSuffix(filePath, ".js")) {
+		if !d.IsDir() && isReactNativeUploadFile(filePath) {
 			relPath, err := filepath.Rel(path, filePath)
 			if err != nil {
 				return err
 			}
 
-			files = append(files, SourceMapFile{
+			files = append(files, SymbolFile{
 				Path: filePath,
 				Name: relPath,
 			})
-
-			routeGroupRemovedPath := routeGroupPattern.ReplaceAllString(relPath, "")
-			if routeGroupRemovedPath != relPath {
-				files = append(files, SourceMapFile{
-					Path: filePath,
-					Name: routeGroupRemovedPath,
-				})
-			}
 		}
 
 		return nil
@@ -222,7 +236,7 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 	}
 
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no .js.map files found. Please double check that you have generated sourcemaps for your app")
+		return nil, fmt.Errorf("no React Native symbol files found (looked for *.jsbundle, *.jsbundle.map, *.bundle, *.bundle.map). Please double check that you have generated sourcemaps for your app")
 	}
 
 	return files, nil
@@ -240,7 +254,7 @@ func getS3Key(version, basePath, fileName string) string {
 	return fmt.Sprintf("%s/%s%s", version, basePath, fileName)
 }
 
-func getSourceMapUploadUrls(apiKey, projectID string, paths []string, backendUrl string) ([]string, error) {
+func getSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl string) ([]string, error) {
 	variables := map[string]interface{}{
 		"api_key":    apiKey,
 		"project_id": projectID,
@@ -248,7 +262,7 @@ func getSourceMapUploadUrls(apiKey, projectID string, paths []string, backendUrl
 	}
 
 	reqBody, err := json.Marshal(map[string]interface{}{
-		"query":     getSourceMapUrlsQuery,
+		"query":     getSymbolUrlsQuery,
 		"variables": variables,
 	})
 	if err != nil {
@@ -274,16 +288,16 @@ func getSourceMapUploadUrls(apiKey, projectID string, paths []string, backendUrl
 		return nil, err
 	}
 
-	var urlsResp SourceMapUrlsResponse
+	var urlsResp SymbolUrlsResponse
 	if err := json.Unmarshal(body, &urlsResp); err != nil {
 		return nil, err
 	}
 
-	if len(urlsResp.Data.GetSourceMapUploadUrls) == 0 {
-		return nil, fmt.Errorf("unable to generate source map upload urls %w", err)
+	if len(urlsResp.Data.GetSymbolUploadUrls) == 0 {
+		return nil, fmt.Errorf("unable to generate symbol upload urls %w", err)
 	}
 
-	return urlsResp.Data.GetSourceMapUploadUrls, nil
+	return urlsResp.Data.GetSymbolUploadUrls, nil
 }
 
 func uploadFile(filePath, uploadUrl, name string) error {
@@ -313,6 +327,11 @@ func uploadFile(filePath, uploadUrl, name string) error {
 }
 
 func initFlags(cmd *cobra.Command) {
+	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s)", typeReactNative))
+	_ = cmd.MarkFlagRequired(typeFlag)
+	_ = cmd.Flags().SetAnnotation(typeFlag, "required", []string{"true"})
+	_ = viper.BindPFlag(typeFlag, cmd.Flags().Lookup(typeFlag))
+
 	cmd.Flags().String(cliflags.ProjectFlag, "", "The project key")
 	_ = cmd.MarkFlagRequired(cliflags.ProjectFlag)
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
@@ -321,10 +340,10 @@ func initFlags(cmd *cobra.Command) {
 	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
 
-	cmd.Flags().String(pathFlag, defaultPath, "Sets the directory of where the sourcemaps are")
+	cmd.Flags().String(pathFlag, defaultPath, "Sets the directory of where the symbol files are")
 	_ = viper.BindPFlag(pathFlag, cmd.Flags().Lookup(pathFlag))
 
-	cmd.Flags().String(basePathFlag, "", "An optional base path for the uploaded sourcemaps")
+	cmd.Flags().String(basePathFlag, "", "An optional base path for the uploaded symbol files")
 	_ = viper.BindPFlag(basePathFlag, cmd.Flags().Lookup(basePathFlag))
 
 	cmd.Flags().String(backendUrlFlag, defaultBackendUrl, "An optional backend url for self-hosted deployments")

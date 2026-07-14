@@ -26,6 +26,7 @@ import (
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
+	symbolscmd "github.com/launchdarkly/ldcli/cmd/symbols"
 	whoamicmd "github.com/launchdarkly/ldcli/cmd/whoami"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/config"
@@ -259,6 +260,7 @@ func NewRootCommand(
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(clients.ResourcesClient, analyticsTrackerFn, clients.DevClient))
 	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(clients.ResourcesClient, analyticsTrackerFn))
+	cmd.AddCommand(symbolscmd.NewSymbolsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	cmd.AddCommand(whoamicmd.NewWhoAmICmd(clients.ResourcesClient))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
