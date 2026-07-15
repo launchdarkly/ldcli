@@ -1,6 +1,6 @@
 module github.com/launchdarkly/ldcli
 
-go 1.24.3
+go 1.25.0
 
 require (
 	github.com/adrg/xdg v0.5.3
@@ -31,7 +31,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.5.2
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
-	golang.org/x/term v0.40.0
+	golang.org/x/term v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -98,11 +98,11 @@ require (
 	github.com/yuin/goldmark v1.7.8 // indirect
 	github.com/yuin/goldmark-emoji v1.0.5 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/mod v0.33.0 // indirect
-	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.34.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
 )
