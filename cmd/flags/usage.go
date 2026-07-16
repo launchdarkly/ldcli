@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/flagusage/enrich"
 	"github.com/launchdarkly/ldcli/internal/flagusage/render"
+	"github.com/launchdarkly/ldcli/internal/flagusage/repoconfig"
 	"github.com/launchdarkly/ldcli/internal/flagusage/scanner"
 )
 
@@ -24,6 +26,7 @@ const (
 	usageFormatFlag         = "format"
 	usageWrapperModulesFlag = "wrapper-modules"
 	usageDefinitionsFlag    = "definitions"
+	usageSaveFlag           = "save"
 	usageEvalWindowFlag     = "eval-window"
 	usageEvalSeriesFlag     = "eval-series"
 	usageExposuresFlag      = "exposures"
@@ -53,6 +56,7 @@ func initUsageFlags(cmd *cobra.Command) {
 	cmd.Flags().String(usageFormatFlag, "text", "Output format: text, json")
 	cmd.Flags().String(usageWrapperModulesFlag, "", "OVERRIDE (rarely needed): comma-separated wrapper module paths to force-track; modules are auto-discovered via node_modules")
 	cmd.Flags().String(usageDefinitionsFlag, "", "OVERRIDE (rarely needed): dir of wrapper definition files; definitions are auto-discovered via node_modules — pass this only if deps aren't installed")
+	cmd.Flags().Bool(usageSaveFlag, false, fmt.Sprintf("Persist --%s/--%s for this repo to %s at the repo root (found by walking up from --dir to the nearest .git); the file is only created when --%s is passed", usageWrapperModulesFlag, usageDefinitionsFlag, repoconfig.Filename, usageSaveFlag))
 	cmd.Flags().StringSlice(cliflags.EnvsFlag, nil, cliflags.EnvsFlagDescription)
 	_ = viper.BindPFlag(cliflags.EnvsFlag, cmd.Flags().Lookup(cliflags.EnvsFlag))
 	cmd.Flags().String(usageEvalWindowFlag, "", "Evaluation lookback window (e.g. 24h, 6h); default 168h (7d)")
@@ -72,12 +76,44 @@ func runUsage(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString(usageFormatFlag)
 	wrapperModules, _ := cmd.Flags().GetString(usageWrapperModulesFlag)
 	definitionsDir, _ := cmd.Flags().GetString(usageDefinitionsFlag)
+	save, _ := cmd.Flags().GetBool(usageSaveFlag)
 	evalWindowRaw, _ := cmd.Flags().GetString(usageEvalWindowFlag)
 	evalSeries, _ := cmd.Flags().GetBool(usageEvalSeriesFlag)
 	exposures, _ := cmd.Flags().GetBool(usageExposuresFlag)
 	contextKindsRaw, _ := cmd.Flags().GetString(usageContextKindsFlag)
 	flagFilter, _ := cmd.Flags().GetString(cliflags.FlagFlag)
 	width, _ := cmd.Flags().GetInt(usageWidthFlag)
+
+	// definitions/wrapper-modules are per-repo settings (a source path and a
+	// module name specific to this codebase), not per-user ones, so they're
+	// pinned via a repo-local file rather than ldcli's global config — an
+	// explicit CLI flag always wins over what's saved there.
+	repoRoot, foundRepoRoot := repoconfig.FindRepoRoot(dir)
+	if foundRepoRoot {
+		local, err := repoconfig.Load(repoRoot)
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", repoconfig.Filename, err)
+		}
+		if !cmd.Flags().Changed(usageWrapperModulesFlag) && local.WrapperModules != "" {
+			wrapperModules = local.WrapperModules
+		}
+		if !cmd.Flags().Changed(usageDefinitionsFlag) && local.Definitions != "" {
+			definitionsDir = local.Definitions
+		}
+	}
+
+	if save {
+		if !foundRepoRoot {
+			return fmt.Errorf("--%s requires --%s to be inside a git repository (no .git found above %s)", usageSaveFlag, usageDirFlag, dir)
+		}
+		if err := repoconfig.Save(repoRoot, repoconfig.Config{
+			WrapperModules: wrapperModules,
+			Definitions:    definitionsDir,
+		}); err != nil {
+			return fmt.Errorf("saving %s: %w", repoconfig.Filename, err)
+		}
+		fmt.Fprintf(cmd.ErrOrStderr(), "Saved --%s/--%s to %s\n", usageWrapperModulesFlag, usageDefinitionsFlag, filepath.Join(repoRoot, repoconfig.Filename))
+	}
 
 	project := viper.GetString(cliflags.ProjectFlag)
 	token := viper.GetString(cliflags.AccessTokenFlag)
