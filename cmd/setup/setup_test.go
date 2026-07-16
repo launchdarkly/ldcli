@@ -14,6 +14,21 @@ import (
 	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
+func TestSetup_NoAuth_ReturnsLoginGuidance(t *testing.T) {
+	// No --access-token and no LD_ACCESS_TOKEN: the wizard must bail before the
+	// TUI with clear guidance rather than dumping a raw 401.
+	args := []string{"setup"}
+	_, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{ResourcesClient: &resources.MockClient{}},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ldcli login")
+}
+
 func TestInit(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "index.js")

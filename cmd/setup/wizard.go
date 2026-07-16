@@ -16,6 +16,7 @@ import (
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
+	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/flags"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/launchdarkly/ldcli/internal/setup"
@@ -123,6 +124,12 @@ func runSetupWizard(
 	installer setup.Installer,
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
+		// Pre-flight: the wizard's first action is an authenticated API call, so
+		// bail early with clear guidance rather than dumping a raw 401 mid-TUI.
+		if viper.GetString(cliflags.AccessTokenFlag) == "" {
+			return errors.NewError("You're not logged in. Run `ldcli login` to authenticate, or pass --access-token (or set LD_ACCESS_TOKEN), then run `ldcli setup` again.")
+		}
+
 		s := spinner.New()
 		s.Spinner = spinner.Dot
 
