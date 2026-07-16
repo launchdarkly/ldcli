@@ -49,6 +49,9 @@ func (FileDetector) Detect(dir string) (*DetectResult, error) {
 	if result := detectPython(dir); result != nil {
 		return result, nil
 	}
+	if result := detectRuby(dir); result != nil {
+		return result, nil
+	}
 	if result := detectJava(dir); result != nil {
 		return result, nil
 	}
@@ -85,6 +88,8 @@ func detectNode(dir string) *DetectResult {
 
 	pm := detectNodePM(dir)
 
+	// Next.js apps run a Node server (SSR and API routes), so server-side flag
+	// evaluation uses the Node server SDK rather than a browser client SDK.
 	if _, ok := allDeps["next"]; ok {
 		return &DetectResult{
 			Language:       "JavaScript",
@@ -148,7 +153,6 @@ func detectNode(dir string) *DetectResult {
 			}
 		}
 	}
-	
 
 	return &DetectResult{
 		Language:       "JavaScript",
@@ -202,6 +206,29 @@ func detectPython(dir string) *DetectResult {
 		}
 	}
 	return nil
+}
+
+func detectRuby(dir string) *DetectResult {
+	found := false
+	for _, indicator := range []string{"Gemfile", "Gemfile.lock", "config.ru"} {
+		if _, err := os.Stat(filepath.Join(dir, indicator)); err == nil {
+			found = true
+			break
+		}
+	}
+	if !found {
+		if matches, _ := filepath.Glob(filepath.Join(dir, "*.gemspec")); len(matches) == 0 {
+			return nil
+		}
+	}
+	return &DetectResult{
+		Language:       "Ruby",
+		PackageManager: "gem",
+		SDKID:          "ruby-server-sdk",
+		EntryPoint: filepath.Join(dir, firstExistingIn(dir, []string{
+			"config.ru", "app.rb", "main.rb",
+		})),
+	}
 }
 
 func detectJava(dir string) *DetectResult {

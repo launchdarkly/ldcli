@@ -13,6 +13,7 @@ type InstallResult struct {
 	Package string `json:"package"`
 	Version string `json:"version"`
 	Command string `json:"command"`
+	DryRun  bool   `json:"dry_run,omitempty"`
 	Success bool   `json:"success"`
 }
 
@@ -38,12 +39,29 @@ type PackageInstaller struct {
 
 var _ Installer = PackageInstaller{}
 
+// manualInstallSDKs lists SDKs that have no automated package-manager command
+// (Java, Android, Swift) but ARE recognised. For these, Install returns
+// Success=false without an error so the wizard can proceed and show the package
+// identifier. An SDK ID that is neither installable nor in this set is unknown
+// and is treated as an error rather than a silent no-op.
+var manualInstallSDKs = map[string]bool{
+	"java-server-sdk":    true,
+	"android":            true,
+	"android-client-sdk": true,
+	"swift-client-sdk":   true,
+	"ios-client-sdk":     true,
+}
+
 // Install runs the appropriate package manager command to add the SDK dependency.
 // For SDKs that require manual installation (e.g. Java, Android, Swift), Install
-// returns a result with Success=false without returning an error.
+// returns a result with Success=false without returning an error. An unknown SDK
+// ID returns an error.
 func (p PackageInstaller) Install(dir string, detection *DetectResult) (*InstallResult, error) {
 	args, pkg := InstallArgs(detection.SDKID, detection.PackageManager)
 	if len(args) == 0 {
+		if !manualInstallSDKs[detection.SDKID] {
+			return nil, fmt.Errorf("unknown SDK %q: no install command available; specify a supported --sdk-id", detection.SDKID)
+		}
 		return &InstallResult{
 			SDKID:   detection.SDKID,
 			Package: pkg,
@@ -128,7 +146,7 @@ func nodeInstallCmd(pm, pkg string) []string {
 		return []string{"yarn", "add", pkg}
 	case "pnpm":
 		return []string{"pnpm", "add", pkg}
-    case "bun":
+	case "bun":
 		return []string{"bun", "add", pkg}
 	default:
 		return []string{"npm", "install", pkg}

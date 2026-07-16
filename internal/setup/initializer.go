@@ -5,15 +5,9 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"go/format"
-	"go/parser"
-	"go/token"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/template"
-
-	"golang.org/x/tools/go/ast/astutil"
 )
 
 //go:embed sdk_init_templates/*.tmpl
@@ -28,11 +22,30 @@ type InitConfig struct {
 }
 
 // InitResult describes the outcome of injecting SDK initialization code.
+//
+// Success is true only when initialization code was actually written to a file
+// as valid, ready-to-run code. When Success is false, Snippet (if set) holds the
+// rendered code the user must place manually, and DocsURL points at the setup
+// guide.
 type InitResult struct {
 	SDKID    string `json:"sdk_id"`
 	FilePath string `json:"file_path,omitempty"`
 	DocsURL  string `json:"docs_url,omitempty"`
+	Snippet  string `json:"snippet,omitempty"`
 	Success  bool   `json:"success"`
+}
+
+// appendSafeSDKs lists SDKs whose entry file is an interpreted script executed
+// top-to-bottom, so initialization statements can be appended at file scope and
+// still run. For every other SDK — compiled/scoped languages (Go, Java, C#,
+// Swift, Android) whose statements are illegal at file scope, and framework SDKs
+// (React, React Native) that must be wired into a component tree — appending
+// produces code that does not compile or does not run, so we return the snippet
+// as guidance instead of writing a broken file.
+var appendSafeSDKs = map[string]bool{
+	"node-server":       true,
+	"python-server-sdk": true,
+	"ruby-server-sdk":   true,
 }
 
 // Initializer injects SDK initialization code into a target file.
@@ -44,17 +57,17 @@ type sdkTemplateInfo struct {
 }
 
 var sdkTemplates = map[string]sdkTemplateInfo{
-	"react-client-sdk":  {TemplateFile: "react-client-sdk.tmpl"},
-	"react-native":      {TemplateFile: "react-native.tmpl"},
-	"js-client-sdk":     {TemplateFile: "js-client-sdk.tmpl"},
-	"swift-client-sdk":  {TemplateFile: "swift-client-sdk.tmpl"},
+	"react-client-sdk":   {TemplateFile: "react-client-sdk.tmpl"},
+	"react-native":       {TemplateFile: "react-native.tmpl"},
+	"js-client-sdk":      {TemplateFile: "js-client-sdk.tmpl"},
+	"swift-client-sdk":   {TemplateFile: "swift-client-sdk.tmpl"},
 	"android-client-sdk": {TemplateFile: "android.tmpl"},
-	"java-server-sdk":   {TemplateFile: "java-server-sdk.tmpl"},
-	"ruby-server-sdk":   {TemplateFile: "ruby-server-sdk.tmpl"},
-	"go-server-sdk":     {TemplateFile: "go-server-sdk.tmpl"},
-	"python-server-sdk": {TemplateFile: "python-server-sdk.tmpl"},
-	"dotnet-server-sdk": {TemplateFile: "dotnet-server-sdk.tmpl"},
-	"node-server":       {TemplateFile: "node-server.tmpl"},
+	"java-server-sdk":    {TemplateFile: "java-server-sdk.tmpl"},
+	"ruby-server-sdk":    {TemplateFile: "ruby-server-sdk.tmpl"},
+	"go-server-sdk":      {TemplateFile: "go-server-sdk.tmpl"},
+	"python-server-sdk":  {TemplateFile: "python-server-sdk.tmpl"},
+	"dotnet-server-sdk":  {TemplateFile: "dotnet-server-sdk.tmpl"},
+	"node-server":        {TemplateFile: "node-server.tmpl"},
 }
 
 // sdkDocsPaths maps SDK IDs to their documentation path on launchdarkly.com/docs.
@@ -145,14 +158,21 @@ func RenderTemplate(sdkID string, cfg InitConfig) (string, error) {
 	return buf.String(), nil
 }
 
-// InjectIntoFile reads the file at filePath, injects the rendered SDK initialization code,
-// and writes the result back. If no template exists for the SDK, it returns a result with
-// the documentation URL instead of an error.
+// InjectIntoFile renders the SDK initialization code and, for SDKs whose entry
+// file is an interpreted script (see appendSafeSDKs), writes it into filePath:
+// imports are placed at the top and init code appended after existing content.
+//
+// For SDKs that are not append-safe — because file-scope statements would not
+// compile (Go, Java, C#, Swift, Android) or because the code must be wired into
+// a component tree (React, React Native) — the file is left untouched and the
+// result carries the rendered Snippet plus DocsURL as guidance, with
+// Success=false so callers do not report a broken file as ready.
+//
+// If no template exists for the SDK at all, the result carries only the
+// documentation URL.
 //
 // The template output is split into an IMPORTS section and an INIT section by a
 // separator line ("// --- init ---" or "# --- init ---" depending on language).
-// Imports are placed at the top of the file, and init code is appended after the
-// existing content.
 func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*InitResult, error) {
 	if !HasTemplate(sdkID) {
 		return &InitResult{
@@ -168,6 +188,16 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 	}
 
 	importSection, initSection := splitInitSections(rendered)
+
+	if !appendSafeSDKs[sdkID] {
+		return &InitResult{
+			SDKID:    sdkID,
+			FilePath: filePath,
+			DocsURL:  GetDocsURL(sdkID),
+			Snippet:  joinSnippet(importSection, initSection),
+			Success:  false,
+		}, nil
+	}
 
 	existing, err := os.ReadFile(filePath)
 	if err != nil {
@@ -186,20 +216,11 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 		return nil, fmt.Errorf("reading %s: %w", filePath, err)
 	}
 
-	var content string
-	if importSection != "" && filepath.Ext(filePath) == ".go" {
-		merged, err := injectGoImports(filePath, existing, importSection)
-		if err != nil {
-			return nil, fmt.Errorf("injecting imports into %s: %w", filePath, err)
-		}
-		content = merged + "\n\n" + initSection + "\n"
-	} else {
-		content = string(existing)
-		if importSection != "" {
-			content = importSection + "\n" + content
-		}
-		content = content + "\n\n" + initSection + "\n"
+	content := string(existing)
+	if importSection != "" {
+		content = importSection + "\n" + content
 	}
+	content = content + "\n\n" + initSection + "\n"
 
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 		return nil, fmt.Errorf("writing %s: %w", filePath, err)
@@ -208,44 +229,13 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 	return &InitResult{SDKID: sdkID, FilePath: filePath, Success: true}, nil
 }
 
-// injectGoImports parses importSection as a Go import block, then uses astutil to
-// add each import into the existing file's AST, preserving all existing imports.
-// Returns the formatted Go source with the new imports merged in.
-func injectGoImports(filePath string, existing []byte, importSection string) (string, error) {
-	// Wrap importSection in a minimal Go file so go/parser can parse it.
-	wrapped := "package p\n\n" + strings.TrimSpace(importSection) + "\n"
-	fset := token.NewFileSet()
-	tmplFile, err := parser.ParseFile(fset, "", wrapped, 0)
-	if err != nil {
-		return "", fmt.Errorf("parsing import section: %w", err)
+// joinSnippet recombines the import and init sections into a single human-readable
+// snippet the user can copy into the correct place in their code.
+func joinSnippet(importSection, initSection string) string {
+	if importSection == "" {
+		return initSection
 	}
-
-	// Parse the target file.
-	targetFset := token.NewFileSet()
-	targetFile, err := parser.ParseFile(targetFset, filePath, existing, parser.ParseComments)
-	if err != nil {
-		return "", fmt.Errorf("parsing %s: %w", filePath, err)
-	}
-
-	// Add each import from the template into the target file's AST.
-	for _, spec := range tmplFile.Imports {
-		path := strings.Trim(spec.Path.Value, `"`)
-		name := ""
-		if spec.Name != nil {
-			name = spec.Name.Name
-		}
-		if name != "" {
-			astutil.AddNamedImport(targetFset, targetFile, name, path)
-		} else {
-			astutil.AddImport(targetFset, targetFile, path)
-		}
-	}
-
-	var buf bytes.Buffer
-	if err := format.Node(&buf, targetFset, targetFile); err != nil {
-		return "", fmt.Errorf("formatting %s: %w", filePath, err)
-	}
-	return buf.String(), nil
+	return importSection + "\n\n" + initSection
 }
 
 // initSeparators lists the markers that divide import and init sections in templates.

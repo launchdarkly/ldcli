@@ -3,7 +3,6 @@ package setup
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -147,7 +146,7 @@ func TestInjectIntoFile_NewFile_OmitsSeparator(t *testing.T) {
 	}
 }
 
-func TestInjectIntoFile_NewFile_AndroidClientSdk(t *testing.T) {
+func TestInjectIntoFile_AndroidClientSdk_ReturnsGuidance(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "MainActivity.java")
 
@@ -158,19 +157,23 @@ func TestInjectIntoFile_NewFile_AndroidClientSdk(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.True(t, result.Success)
+	// Android is a scoped language: statements can't live at file scope, so we
+	// return guidance rather than write a broken file.
+	assert.False(t, result.Success)
 	assert.Equal(t, "android-client-sdk", result.SDKID)
+	assert.Contains(t, result.Snippet, "mob-test-key")
+	assert.NotEmpty(t, result.DocsURL)
 
-	content, err := os.ReadFile(filePath)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "mob-test-key")
+	// The file must not have been created.
+	_, statErr := os.Stat(filePath)
+	assert.True(t, os.IsNotExist(statErr), "guidance-only SDK must not create the file")
 }
 
-func TestInjectIntoFile_ExistingFile_Go_DoesNotBreakPackageDeclaration(t *testing.T) {
+func TestInjectIntoFile_Go_ReturnsGuidanceDoesNotModifyFile(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "main.go")
 
-	existing := "package main\n\nfunc main() {\n}\n"
+	existing := "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n"
 	err := os.WriteFile(filePath, []byte(existing), 0644)
 	require.NoError(t, err)
 
@@ -181,51 +184,40 @@ func TestInjectIntoFile_ExistingFile_Go_DoesNotBreakPackageDeclaration(t *testin
 	})
 
 	require.NoError(t, err)
-	assert.True(t, result.Success)
+	// Go statements are illegal at file scope, so appending would not compile.
+	// We return the snippet as guidance and leave the file untouched.
+	assert.False(t, result.Success)
+	assert.Contains(t, result.Snippet, "sdk-test-key")
+	assert.Contains(t, result.Snippet, "github.com/launchdarkly/go-server-sdk/v7")
 
 	content, err := os.ReadFile(filePath)
 	require.NoError(t, err)
-	// package declaration must remain first
-	assert.True(t, len(content) > 0 && string(content[:12]) == "package main")
-	assert.Contains(t, string(content), "sdk-test-key")
+	assert.Equal(t, existing, string(content), "existing file must not be modified")
 }
 
-func TestInjectIntoFile_ExistingFile_Go_MergesImports(t *testing.T) {
+func TestInjectIntoFile_React_ReturnsGuidanceDoesNotModifyFile(t *testing.T) {
 	dir := t.TempDir()
-	filePath := filepath.Join(dir, "main.go")
+	filePath := filepath.Join(dir, "App.tsx")
 
-	existing := `package main
-
-import "fmt"
-
-func main() {
-	fmt.Println("hello")
-}
-`
+	existing := "export default function App() { return null }\n"
 	err := os.WriteFile(filePath, []byte(existing), 0644)
 	require.NoError(t, err)
 
 	initializer := Initializer{}
-	result, err := initializer.InjectIntoFile("go-server-sdk", filePath, InitConfig{
-		SDKKey:  "sdk-test-key",
-		FlagKey: "test-flag",
+	result, err := initializer.InjectIntoFile("react-client-sdk", filePath, InitConfig{
+		ClientSideID: "client-id-456",
+		FlagKey:      "test-flag",
 	})
 
 	require.NoError(t, err)
-	assert.True(t, result.Success)
+	// React init must be wired into the component tree, not appended, so we
+	// return guidance rather than corrupt the file.
+	assert.False(t, result.Success)
+	assert.Contains(t, result.Snippet, "asyncWithLDProvider")
 
 	content, err := os.ReadFile(filePath)
 	require.NoError(t, err)
-	s := string(content)
-	// package declaration must remain first
-	assert.True(t, strings.HasPrefix(s, "package main"))
-	// existing import preserved
-	assert.Contains(t, s, `"fmt"`)
-	// new imports added
-	assert.Contains(t, s, `"github.com/launchdarkly/go-sdk-common/v3/ldcontext"`)
-	assert.Contains(t, s, `ld "github.com/launchdarkly/go-server-sdk/v7"`)
-	// init code appended
-	assert.Contains(t, s, "sdk-test-key")
+	assert.Equal(t, existing, string(content), "existing file must not be modified")
 }
 
 func TestInjectIntoFile_UnsupportedSDK_ReturnsDocsURL(t *testing.T) {

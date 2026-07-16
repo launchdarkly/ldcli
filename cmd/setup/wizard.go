@@ -64,9 +64,9 @@ type wizardModel struct {
 
 	detectedEntryPoint string
 	detectResult       *setup.DetectResult
-	flagKey      string
-	initResult    *setup.InitResult
-	verifyResult  *setup.VerifyResult
+	flagKey            string
+	initResult         *setup.InitResult
+	verifyResult       *setup.VerifyResult
 
 	quitting bool
 }
@@ -350,8 +350,14 @@ func (m wizardModel) View() string {
 
 	case stepDone:
 		if m.initResult != nil && !m.initResult.Success {
-			return titleStyle.Render("Manual SDK setup required") + "\n\n" +
-				fmt.Sprintf("No initialization template is available for %s.\n", m.initResult.SDKID) +
+			body := titleStyle.Render("Manual SDK setup required") + "\n\n"
+			if m.initResult.Snippet != "" {
+				body += fmt.Sprintf("Add the following %s initialization code to %s:\n\n%s\n\n",
+					m.initResult.SDKID, m.initResult.FilePath, m.initResult.Snippet)
+			} else {
+				body += fmt.Sprintf("No initialization template is available for %s.\n", m.initResult.SDKID)
+			}
+			return body +
 				fmt.Sprintf("Follow the setup guide at: %s\n\n", m.initResult.DocsURL) +
 				fmt.Sprintf("Flag %q has been created in project %q.\n", m.flagKey, m.selectedProject) +
 				"Once you've initialized the SDK manually, your flag will be ready to use.\n"

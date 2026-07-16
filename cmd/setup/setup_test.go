@@ -247,6 +247,28 @@ func TestInstall_Plaintext_WithVersion(t *testing.T) {
 	assert.Contains(t, string(output), "@launchdarkly/node-server-sdk@9.7.0")
 }
 
+func TestInstall_DryRun(t *testing.T) {
+	args := []string{
+		"setup", "install",
+		"--access-token", "test-token",
+		"--sdk-id", "node-server",
+		"--dry-run",
+	}
+	// No Installer provided: dry-run must not invoke it or shell out.
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), "npm install @launchdarkly/node-server-sdk")
+	assert.Contains(t, string(output), "Dry run")
+}
+
 func TestInstall_JSON(t *testing.T) {
 	args := []string{
 		"setup", "install",

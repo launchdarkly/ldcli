@@ -150,6 +150,15 @@ func TestPackageInstaller_Install_ManualSDK_ReturnsNoError(t *testing.T) {
 	assert.Empty(t, result.Command)
 }
 
+func TestPackageInstaller_Install_UnknownSDK_ReturnsError(t *testing.T) {
+	installer := PackageInstaller{}
+
+	_, err := installer.Install("/tmp", &DetectResult{SDKID: "totally-unknown-sdk"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown SDK")
+}
+
 func TestPackageInstaller_Install_DefaultRunner_UsedWhenNil(t *testing.T) {
 	// PackageInstaller{} (zero value) should not panic — it uses execRun.
 	// We test this by using a manual SDK so no real command is executed.

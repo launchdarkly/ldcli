@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -11,7 +12,10 @@ import (
 	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
-const sdkIDFlag = "sdk-id"
+const (
+	sdkIDFlag  = "sdk-id"
+	dryRunFlag = "dry-run"
+)
 
 func newInstallCmd(installer setup.Installer) *cobra.Command {
 	cmd := &cobra.Command{
@@ -25,6 +29,7 @@ func newInstallCmd(installer setup.Installer) *cobra.Command {
 	cmd.Flags().String(sdkIDFlag, "", "SDK identifier to install (e.g. node-server, react-client-sdk)")
 	_ = cmd.MarkFlagRequired(sdkIDFlag)
 	cmd.Flags().String("package-manager", "", "Package manager to use (e.g. npm, pip, go)")
+	cmd.Flags().Bool(dryRunFlag, false, "Print the install command that would run without executing it")
 
 	return cmd
 }
@@ -42,14 +47,27 @@ func runInstall(installer setup.Installer) func(*cobra.Command, []string) error 
 
 		sdkID, _ := cmd.Flags().GetString(sdkIDFlag)
 		pkgMgr, _ := cmd.Flags().GetString("package-manager")
+		dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
 		detection := &setup.DetectResult{
 			SDKID:          sdkID,
 			PackageManager: pkgMgr,
 		}
 
-		result, err := installer.Install(dir, detection)
-		if err != nil {
-			return err
+		var result *setup.InstallResult
+		if dryRun {
+			args, pkg := setup.InstallArgs(sdkID, pkgMgr)
+			result = &setup.InstallResult{
+				SDKID:   sdkID,
+				Package: pkg,
+				Command: strings.Join(args, " "),
+				DryRun:  true,
+			}
+		} else {
+			var err error
+			result, err = installer.Install(dir, detection)
+			if err != nil {
+				return err
+			}
 		}
 
 		outputKind := cliflags.GetOutputKind(cmd)
@@ -66,7 +84,11 @@ func runInstall(installer setup.Installer) func(*cobra.Command, []string) error 
 			fmt.Fprintf(cmd.OutOrStdout(), "Package: %s\n", result.Package)
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Command: %s\n", result.Command)
-		fmt.Fprintf(cmd.OutOrStdout(), "Success: %t\n", result.Success)
+		if result.DryRun {
+			fmt.Fprintln(cmd.OutOrStdout(), "Dry run: command not executed")
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "Success: %t\n", result.Success)
+		}
 
 		return nil
 	}
