@@ -3,7 +3,10 @@ package flags
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +17,7 @@ import (
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/flagusage/enrich"
 	"github.com/launchdarkly/ldcli/internal/flagusage/render"
+	"github.com/launchdarkly/ldcli/internal/flagusage/repoconfig"
 	"github.com/launchdarkly/ldcli/internal/flagusage/scanner"
 )
 
@@ -22,7 +26,7 @@ const (
 	usageFormatFlag         = "format"
 	usageWrapperModulesFlag = "wrapper-modules"
 	usageDefinitionsFlag    = "definitions"
-	usageEnvsFlag           = "envs"
+	usageSaveFlag           = "save"
 	usageEvalWindowFlag     = "eval-window"
 	usageEvalSeriesFlag     = "eval-series"
 	usageExposuresFlag      = "exposures"
@@ -52,7 +56,9 @@ func initUsageFlags(cmd *cobra.Command) {
 	cmd.Flags().String(usageFormatFlag, "text", "Output format: text, json")
 	cmd.Flags().String(usageWrapperModulesFlag, "", "OVERRIDE (rarely needed): comma-separated wrapper module paths to force-track; modules are auto-discovered via node_modules")
 	cmd.Flags().String(usageDefinitionsFlag, "", "OVERRIDE (rarely needed): dir of wrapper definition files; definitions are auto-discovered via node_modules — pass this only if deps aren't installed")
-	cmd.Flags().String(usageEnvsFlag, "", "Comma-separated environment keys to check (default: all)")
+	cmd.Flags().Bool(usageSaveFlag, false, fmt.Sprintf("Persist --%s/--%s for this repo to %s at the repo root (found by walking up from --dir to the nearest .git); the file is only created when --%s is passed", usageWrapperModulesFlag, usageDefinitionsFlag, repoconfig.Filename, usageSaveFlag))
+	cmd.Flags().StringSlice(cliflags.EnvsFlag, nil, cliflags.EnvsFlagDescription)
+	_ = viper.BindPFlag(cliflags.EnvsFlag, cmd.Flags().Lookup(cliflags.EnvsFlag))
 	cmd.Flags().String(usageEvalWindowFlag, "", "Evaluation lookback window (e.g. 24h, 6h); default 168h (7d)")
 	cmd.Flags().Bool(usageEvalSeriesFlag, false, "Fetch the per-bucket evaluation timeseries (daily, or hourly for windows <24h); default fetches window totals only via a single batched call per flag")
 	cmd.Flags().Bool(usageExposuresFlag, false, "Fetch true unique-context counts per context kind (the figure a guarded release gates on), not just total evaluations")
@@ -70,7 +76,7 @@ func runUsage(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString(usageFormatFlag)
 	wrapperModules, _ := cmd.Flags().GetString(usageWrapperModulesFlag)
 	definitionsDir, _ := cmd.Flags().GetString(usageDefinitionsFlag)
-	envsRaw, _ := cmd.Flags().GetString(usageEnvsFlag)
+	save, _ := cmd.Flags().GetBool(usageSaveFlag)
 	evalWindowRaw, _ := cmd.Flags().GetString(usageEvalWindowFlag)
 	evalSeries, _ := cmd.Flags().GetBool(usageEvalSeriesFlag)
 	exposures, _ := cmd.Flags().GetBool(usageExposuresFlag)
@@ -78,9 +84,53 @@ func runUsage(cmd *cobra.Command, args []string) error {
 	flagFilter, _ := cmd.Flags().GetString(cliflags.FlagFlag)
 	width, _ := cmd.Flags().GetInt(usageWidthFlag)
 
+	// definitions/wrapper-modules are per-repo settings (a source path and a
+	// module name specific to this codebase), not per-user ones, so they're
+	// pinned via a repo-local file rather than ldcli's global config — an
+	// explicit CLI flag always wins over what's saved there.
+	repoRoot, foundRepoRoot := repoconfig.FindRepoRoot(dir)
+	if foundRepoRoot {
+		local, err := repoconfig.Load(repoRoot)
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", repoconfig.Filename, err)
+		}
+		if !cmd.Flags().Changed(usageWrapperModulesFlag) && local.WrapperModules != "" {
+			wrapperModules = local.WrapperModules
+		}
+		if !cmd.Flags().Changed(usageDefinitionsFlag) && local.Definitions != "" {
+			definitionsDir = local.Definitions
+		}
+	}
+
+	if save {
+		if !foundRepoRoot {
+			return fmt.Errorf("--%s requires --%s to be inside a git repository (no .git found above %s)", usageSaveFlag, usageDirFlag, dir)
+		}
+		if err := repoconfig.Save(repoRoot, repoconfig.Config{
+			WrapperModules: wrapperModules,
+			Definitions:    definitionsDir,
+		}); err != nil {
+			return fmt.Errorf("saving %s: %w", repoconfig.Filename, err)
+		}
+		fmt.Fprintf(cmd.ErrOrStderr(), "Saved --%s/--%s to %s\n", usageWrapperModulesFlag, usageDefinitionsFlag, filepath.Join(repoRoot, repoconfig.Filename))
+	}
+
 	project := viper.GetString(cliflags.ProjectFlag)
 	token := viper.GetString(cliflags.AccessTokenFlag)
 	baseURL := viper.GetString(cliflags.BaseURIFlag)
+
+	// --envs, then LD_ENVS, then the ldcli config file (all via viper); if none of
+	// those set anything, fall back to live-discovering the project's critical
+	// environments — the same signal `flagpls setup` persists, just resolved lazily
+	// instead of requiring an explicit setup step.
+	envs := viper.GetStringSlice(cliflags.EnvsFlag)
+	if len(envs) == 0 {
+		discovered, err := fetchCriticalEnvs(token, baseURL, project)
+		if err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: couldn't auto-discover critical environments (%v); pass --envs explicitly\n", err)
+		}
+		envs = discovered
+	}
 
 	var evalWindow time.Duration
 	if evalWindowRaw != "" {
@@ -114,7 +164,7 @@ func runUsage(cmd *cobra.Command, args []string) error {
 	client := enrich.NewClient(token, baseURL)
 	details, err := enrich.Enrich(client, scanResult, enrich.Options{
 		ProjectKey:   project,
-		Environments: splitNonEmpty(envsRaw),
+		Environments: envs,
 		EvalWindow:   evalWindow,
 		Series:       evalSeries,
 		Exposures:    exposures,
@@ -134,9 +184,55 @@ func runUsage(cmd *cobra.Command, args []string) error {
 	if windowLabel == "" {
 		windowLabel = "7d"
 	}
-	render.Enriched(os.Stdout, details, windowLabel, splitNonEmpty(envsRaw), width)
+	render.Enriched(os.Stdout, details, windowLabel, envs, width)
 
 	return nil
+}
+
+// fetchCriticalEnvs lists the project's environments and returns the keys marked
+// `critical` in LaunchDarkly (the env-level "Critical environment" toggle). It hits
+// the REST API directly rather than the generated api-client-go SDK because ldcli's
+// current SDK version (v14) doesn't expose the Critical field on its Environment
+// model (added in a later API/SDK version).
+func fetchCriticalEnvs(token, baseURL, projectKey string) ([]string, error) {
+	u, err := url.JoinPath(baseURL, "api/v2/projects", projectKey, "environments")
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodGet, u+"?limit=200", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", token)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("listing environments failed (HTTP %d)", resp.StatusCode)
+	}
+
+	var body struct {
+		Items []struct {
+			Key      string `json:"key"`
+			Critical bool   `json:"critical"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+
+	var critical []string
+	for _, e := range body.Items {
+		if e.Critical {
+			critical = append(critical, e.Key)
+		}
+	}
+	return critical, nil
 }
 
 func splitNonEmpty(s string) []string {
