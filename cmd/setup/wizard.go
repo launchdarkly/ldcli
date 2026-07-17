@@ -345,6 +345,9 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// quitHint is appended to terminal (done) screens so the user knows how to exit.
+var quitHint = "\n" + lipgloss.NewStyle().Faint(true).Render("Press q to quit.") + "\n"
+
 func (m wizardModel) View() string {
 	if m.quitting {
 		return ""
@@ -405,17 +408,20 @@ func (m wizardModel) View() string {
 			return body +
 				fmt.Sprintf("Follow the setup guide at: %s\n\n", m.initResult.DocsURL) +
 				fmt.Sprintf("Flag %q has been created in project %q.\n", m.flagKey, m.selectedProject) +
-				"Once you've initialized the SDK manually, your flag will be ready to use.\n"
+				"Once you've initialized the SDK manually, your flag will be ready to use.\n" +
+				quitHint
 		}
 		if m.verifyResult != nil && m.verifyResult.Active && m.detectResult != nil {
 			return titleStyle.Render("Setup complete!") + "\n\n" +
 				fmt.Sprintf("Your %s SDK is connected to LaunchDarkly.\n", m.detectResult.SDKID) +
 				fmt.Sprintf("Flag %q is ready to use.\n\n", m.flagKey) +
-				fmt.Sprintf("You can now toggle your flag at https://app.launchdarkly.com/projects/%s/flags/%s/targeting?env=%s\n", m.selectedProject, m.flagKey, m.selectedEnv)
+				fmt.Sprintf("You can now toggle your flag at https://app.launchdarkly.com/projects/%s/flags/%s/targeting?env=%s\n", m.selectedProject, m.flagKey, m.selectedEnv) +
+				quitHint
 		}
 		return titleStyle.Render("Verification timed out") + "\n\n" +
 			"The SDK did not report as active within the timeout period.\n" +
-			"Make sure your application is running and try again.\n"
+			"Make sure your application is running and try again.\n" +
+			quitHint
 	}
 
 	return ""

@@ -158,6 +158,19 @@ func TestWizard_DetectDone_EntryPointStoredForLaterUse(t *testing.T) {
 	assert.Equal(t, "/my/project/main.go", selected.detectResult.EntryPoint)
 }
 
+func TestWizard_Done_Success_ShowsQuitHint(t *testing.T) {
+	m := wizardModel{
+		step:         stepDone,
+		detectResult: &setup.DetectResult{SDKID: "node-server"},
+		verifyResult: &setup.VerifyResult{Active: true},
+		flagKey:      "my-new-flag",
+		width:        80,
+		height:       30,
+	}
+
+	assert.Contains(t, m.View(), "Press q to quit")
+}
+
 func TestWizard_WaitForApp_EnterTriggersVerify(t *testing.T) {
 	m := wizardModel{
 		step:       stepWaitForApp,
