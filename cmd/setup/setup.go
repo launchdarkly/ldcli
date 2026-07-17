@@ -3,7 +3,6 @@ package setup
 import (
 	"fmt"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -34,7 +33,7 @@ and verifies the connection.`,
 		PreRun: func(cmd *cobra.Command, args []string) {
 			// Dim the notice and set it off with a blank line so it reads as a
 			// transitional notice, visually distinct from command output.
-			notice := lipgloss.NewStyle().Faint(true).Render(
+			notice := mutedStyle.Render(
 				"Notice: 'ldcli setup' now runs the new guided setup wizard (project detection, SDK installation, and initialization).\n" +
 					"The previous quickstart wizard is still available via 'ldcli quickstart' during the transition period.")
 			fmt.Fprintf(cmd.ErrOrStderr(), "%s\n\n", notice)

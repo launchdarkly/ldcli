@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -362,14 +361,12 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 }
 
 // quitHint is appended to terminal (done) screens so the user knows how to exit.
-var quitHint = "\n" + lipgloss.NewStyle().Faint(true).Render("Press q to quit.") + "\n"
+var quitHint = "\n" + mutedStyle.Render("Press q to quit.") + "\n"
 
 func (m wizardModel) View() string {
 	if m.quitting {
 		return ""
 	}
-
-	titleStyle := lipgloss.NewStyle().Bold(true).MarginBottom(1)
 
 	if m.err != nil {
 		return titleStyle.Render("Error") + "\n\n" + m.err.Error() + "\n\nPress ctrl+c to quit."
@@ -515,33 +512,22 @@ func (m wizardModel) sdkSelectView() string {
 	}
 
 	boxW := m.sdkBoxWidth()
-	focused := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6")).Padding(0, 1).Width(boxW)
-	blurred := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1).Width(boxW)
-	faint := lipgloss.NewStyle().Faint(true)
+	panelStyle := box(m.sdkFocus == 0, boxW)
+	listStyle := box(m.sdkFocus == 1, boxW)
 
-	panelStyle, listStyle := blurred, blurred
-	if m.sdkFocus == 0 {
-		panelStyle = focused
-	} else {
-		listStyle = focused
-	}
-
-	// Show a purple pointer on the detected SDK when the panel is focused, so the
-	// auto-detected choice is highlighted the same way the list highlights its cursor.
+	// Point to the detected SDK when its panel is focused, matching the list's cursor.
 	pointer, line := "  ", fmt.Sprintf("%s  (%s)", m.detectedSDK.name, m.detectedSDK.language)
 	if m.sdkFocus == 0 {
-		sel := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
-		pointer, line = sel.Render("❯ "), sel.Render(line)
+		pointer, line = selectedStyle.Render("❯ "), selectedStyle.Render(line)
 	}
 	panel := panelStyle.Render(
-		lipgloss.NewStyle().Bold(true).Render("We identified this as your SDK") + "\n" +
+		headerStyle.Render("We identified this as your SDK") + "\n" +
 			pointer + line + "\n" +
-			faint.Render("Press Enter to use it"))
+			mutedStyle.Render("Press Enter to use it"))
 
 	listBox := listStyle.Render(m.sdkList.View())
 
-	hint := faint.Render("↑/↓ move · Enter select · q quit")
-	return panel + "\n\n" + listBox + "\n" + hint
+	return panel + "\n\n" + listBox + "\n" + mutedStyle.Render("↑/↓ move · Enter select · q quit")
 }
 
 // planView lists the steps setup will take, before any of them run, so the user
@@ -550,25 +536,23 @@ func (m wizardModel) planView() string {
 	if m.detectResult == nil {
 		return ""
 	}
-	title := lipgloss.NewStyle().Bold(true)
-	faint := lipgloss.NewStyle().Faint(true)
-	num := lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
-
 	name := m.detectResult.SDKID
 	if nm, ok := findKnownSDK(m.detectResult.SDKID); ok {
 		name = nm.name
 	}
 
 	var steps []string
-	add := func(s string) { steps = append(steps, num.Render(fmt.Sprintf("%d.", len(steps)+1))+" "+s) }
+	add := func(s string) {
+		steps = append(steps, selectedStyle.Render(fmt.Sprintf("%d.", len(steps)+1))+" "+s)
+	}
 
 	switch {
 	case m.planAlready:
-		add(fmt.Sprintf("Install the %s SDK — %s", name, faint.Render("already installed, will skip")))
+		add(fmt.Sprintf("Install the %s SDK — %s", name, mutedStyle.Render("already installed, will skip")))
 	case m.planInstallCmd != "":
-		add(fmt.Sprintf("Install the %s SDK — %s", name, faint.Render(m.planInstallCmd)))
+		add(fmt.Sprintf("Install the %s SDK — %s", name, mutedStyle.Render(m.planInstallCmd)))
 	default:
-		add(fmt.Sprintf("Add the %s SDK %s", name, faint.Render("(manual install)")))
+		add(fmt.Sprintf("Add the %s SDK %s", name, mutedStyle.Render("(manual install)")))
 	}
 	add(fmt.Sprintf("Create a feature flag in %s / %s", m.selectedProject, m.selectedEnv))
 	if setup.InjectsInPlace(m.detectResult.SDKID) {
@@ -578,9 +562,9 @@ func (m wizardModel) planView() string {
 		add("Show initialization code for you to add")
 	}
 
-	return title.Render("Here's what setup will do:") + "\n\n" +
+	return headerStyle.Render("Here's what setup will do:") + "\n\n" +
 		strings.Join(steps, "\n") + "\n\n" +
-		faint.Render("Press Enter to continue · q to quit")
+		mutedStyle.Render("Press Enter to continue · q to quit")
 }
 
 // Commands that perform async work
