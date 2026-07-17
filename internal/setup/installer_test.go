@@ -2,6 +2,8 @@ package setup
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -147,6 +149,27 @@ func TestPackageInstaller_Install_ManualSDK_ReturnsNoError(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.Success)
 	assert.Equal(t, "java-server-sdk", result.SDKID)
+	assert.Empty(t, result.Command)
+}
+
+func TestPackageInstaller_Install_AlreadyInstalled_SkipsCommand(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "package.json"),
+		[]byte(`{"dependencies":{"@launchdarkly/node-server-sdk":"^9.0.0"}}`), 0644))
+
+	installer := PackageInstaller{
+		run: func(_ string, _ []string) ([]byte, error) {
+			t.Fatal("package manager must not run when the SDK is already installed")
+			return nil, nil
+		},
+	}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "node-server", PackageManager: "npm"})
+
+	require.NoError(t, err)
+	assert.True(t, result.AlreadyInstalled)
+	assert.True(t, result.Success)
 	assert.Empty(t, result.Command)
 }
 

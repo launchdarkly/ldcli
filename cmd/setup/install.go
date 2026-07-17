@@ -83,6 +83,10 @@ func runInstall(installer setup.Installer) func(*cobra.Command, []string) error 
 		} else {
 			fmt.Fprintf(cmd.OutOrStdout(), "Package: %s\n", result.Package)
 		}
+		if result.AlreadyInstalled {
+			fmt.Fprintln(cmd.OutOrStdout(), "Already installed — skipping install.")
+			return nil
+		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Command: %s\n", result.Command)
 		if result.DryRun {
 			fmt.Fprintln(cmd.OutOrStdout(), "Dry run: command not executed")

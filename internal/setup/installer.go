@@ -3,18 +3,21 @@ package setup
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
 // InstallResult contains the outcome of installing an SDK package.
 type InstallResult struct {
-	SDKID   string `json:"sdk_id"`
-	Package string `json:"package"`
-	Version string `json:"version"`
-	Command string `json:"command"`
-	DryRun  bool   `json:"dry_run,omitempty"`
-	Success bool   `json:"success"`
+	SDKID            string `json:"sdk_id"`
+	Package          string `json:"package"`
+	Version          string `json:"version"`
+	Command          string `json:"command"`
+	DryRun           bool   `json:"dry_run,omitempty"`
+	AlreadyInstalled bool   `json:"already_installed,omitempty"`
+	Success          bool   `json:"success"`
 }
 
 // Installer runs the appropriate package manager command to add an SDK dependency.
@@ -66,6 +69,16 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 			SDKID:   detection.SDKID,
 			Package: pkg,
 			Success: false,
+		}, nil
+	}
+
+	// Skip the install if the SDK is already a dependency of the project.
+	if IsInstalled(dir, detection.SDKID) {
+		return &InstallResult{
+			SDKID:            detection.SDKID,
+			Package:          pkg,
+			AlreadyInstalled: true,
+			Success:          true,
 		}, nil
 	}
 
@@ -161,4 +174,49 @@ func resolveNodePM(pm string) string {
 	default:
 		return "npm"
 	}
+}
+
+// IsInstalled reports whether the SDK is already a dependency of the project in
+// dir, by looking for its package identifier in the relevant manifest(s). Only
+// covers SDKs with an automated install command; returns false for manual SDKs
+// and unknowns.
+func IsInstalled(dir, sdkID string) bool {
+	_, pkg := InstallArgs(sdkID, "")
+	if pkg == "" {
+		return false
+	}
+
+	var manifests []string
+	switch sdkID {
+	case "react-client-sdk", "react-native", "node-server", "js-client-sdk":
+		manifests = []string{"package.json"}
+	case "go-server-sdk":
+		manifests = []string{"go.mod", "go.sum"}
+	case "python-server-sdk":
+		manifests = []string{"requirements.txt", "pyproject.toml", "setup.py"}
+	case "ruby-server-sdk":
+		manifests = []string{"Gemfile", "Gemfile.lock"}
+	case "dotnet-server-sdk":
+		matches, _ := filepath.Glob(filepath.Join(dir, "*.csproj"))
+		for _, f := range matches {
+			if fileContains(f, pkg) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+
+	for _, mf := range manifests {
+		if fileContains(filepath.Join(dir, mf), pkg) {
+			return true
+		}
+	}
+	return false
+}
+
+func fileContains(path, substr string) bool {
+	b, err := os.ReadFile(path)
+	return err == nil && strings.Contains(string(b), substr)
 }
