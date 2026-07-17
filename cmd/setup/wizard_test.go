@@ -61,7 +61,9 @@ func TestWizard_DetectDone_ShowsIdentifiedPanel(t *testing.T) {
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk", Language: "Go"}})
 	updated := next.(wizardModel)
 
-	assert.Contains(t, updated.View(), "We identified this as your SDK")
+	view := updated.View()
+	assert.Contains(t, view, "We identified this as your SDK")
+	assert.Contains(t, view, "❯") // detected choice is pointed to while its panel is focused
 }
 
 // detectFailedMsg goes to stepSelectSDK in default KnownSDKs order.

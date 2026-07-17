@@ -481,9 +481,16 @@ func (m wizardModel) sdkSelectView() string {
 		listStyle = focused
 	}
 
+	// Show a purple pointer on the detected SDK when the panel is focused, so the
+	// auto-detected choice is highlighted the same way the list highlights its cursor.
+	pointer, line := "  ", fmt.Sprintf("%s  (%s)", m.detectedSDK.name, m.detectedSDK.language)
+	if m.sdkFocus == 0 {
+		sel := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
+		pointer, line = sel.Render("❯ "), sel.Render(line)
+	}
 	panel := panelStyle.Render(
 		lipgloss.NewStyle().Bold(true).Render("We identified this as your SDK") + "\n" +
-			fmt.Sprintf("%s  (%s)\n", m.detectedSDK.name, m.detectedSDK.language) +
+			pointer + line + "\n" +
 			faint.Render("Press Enter to use it"))
 
 	listBox := listStyle.Render(m.sdkList.View())
