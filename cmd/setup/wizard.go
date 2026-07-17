@@ -498,6 +498,7 @@ func (m wizardModel) newSDKList(items []list.Item, title string, focused bool) l
 	}
 	l := list.New(items, sdkDelegate(focused), m.sdkBoxWidth()-2, h)
 	l.Title = title
+	l.Styles.Title = headerStyle // match the detected-SDK panel header, not the default title bar
 	l.SetShowStatusBar(false)
 	return l
 }
