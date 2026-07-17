@@ -64,6 +64,8 @@ type wizardModel struct {
 	clientSideID    string
 	mobileKey       string
 
+	detectComplete     bool   // detection (run once at launch) has finished
+	detectedSDKID      string // detected SDK id, cached from the one-time detection ("" if none)
 	detectedEntryPoint string
 	detectResult       *setup.DetectResult
 	detectedSDK        *sdkItem // the auto-detected SDK, shown in its own panel; nil if detection failed
@@ -155,7 +157,8 @@ func runSetupWizard(
 }
 
 func (m wizardModel) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, m.fetchProjects())
+	// Detect the project once, up front, so navigating the flow never re-runs it.
+	return tea.Batch(m.spinner.Tick, m.fetchProjects(), m.runDetect())
 }
 
 func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -212,28 +215,30 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sdkKey = msg.sdkKey
 		m.clientSideID = msg.clientSideID
 		m.mobileKey = msg.mobileKey
-		m.step = stepDetect
-		return m, m.runDetect()
+		// Detection was kicked off at launch; go straight to the SDK screen if
+		// it's already done, otherwise show a brief wait until it lands.
+		if m.detectComplete {
+			m.enterSDKStep()
+		} else {
+			m.step = stepDetect
+		}
+		return m, nil
 
 	case detectFailedMsg:
-		m.detectedSDK = nil
-		m.sdkFocus = 1
-		m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:", true)
-		m.step = stepSelectSDK
+		m.detectComplete = true
+		m.detectedSDKID = ""
+		if m.step == stepDetect {
+			m.enterSDKStep()
+		}
 		return m, nil
 
 	case detectDoneMsg:
+		m.detectComplete = true
+		m.detectedSDKID = msg.result.SDKID
 		m.detectedEntryPoint = msg.result.EntryPoint
-		if det, ok := findKnownSDK(msg.result.SDKID); ok {
-			m.detectedSDK = &det
-			m.sdkFocus = 0
-			m.sdkList = m.newSDKList(sdkItemsExcept(det.id), "Other SDKs:", false)
-		} else {
-			m.detectedSDK = nil
-			m.sdkFocus = 1
-			m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:", true)
+		if m.step == stepDetect {
+			m.enterSDKStep()
 		}
-		m.step = stepSelectSDK
 		return m, nil
 
 	case installDoneMsg:
@@ -322,6 +327,25 @@ func (m wizardModel) isFiltering() bool {
 		return m.sdkList.FilterState() == list.Filtering
 	}
 	return false
+}
+
+// enterSDKStep builds the SDK-selection screen from the cached one-time
+// detection result and switches to it. Rebuilding the list is cheap and uses
+// the current width; detection itself is never re-run.
+func (m *wizardModel) enterSDKStep() {
+	if id := m.detectedSDKID; id != "" {
+		if det, ok := findKnownSDK(id); ok {
+			m.detectedSDK = &det
+			m.sdkFocus = 0
+			m.sdkList = m.newSDKList(sdkItemsExcept(det.id), "Other SDKs:", false)
+			m.step = stepSelectSDK
+			return
+		}
+	}
+	m.detectedSDK = nil
+	m.sdkFocus = 1
+	m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:", true)
+	m.step = stepSelectSDK
 }
 
 // handleBack returns to the previous selection so the user can change the
