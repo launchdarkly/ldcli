@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -29,6 +30,7 @@ const (
 	stepSelectEnvironment
 	stepDetect
 	stepSelectSDK
+	stepPlan
 	stepInstall
 	stepCreateFlag
 	stepInit
@@ -67,6 +69,8 @@ type wizardModel struct {
 	detectResult       *setup.DetectResult
 	detectedSDK        *sdkItem // the auto-detected SDK, shown in its own panel; nil if detection failed
 	sdkFocus           int      // on the SDK screen: 0 = detected panel, 1 = the list of other SDKs
+	planInstallCmd     string   // install command previewed on the plan screen
+	planAlready        bool     // whether the SDK is already installed (previewed on the plan screen)
 	flagKey            string
 	initResult         *setup.InitResult
 	verifyResult       *setup.VerifyResult
@@ -337,6 +341,16 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 			Language:   chosen.language,
 			EntryPoint: m.detectedEntryPoint,
 		}
+		// Compute the plan preview shown before any action is taken.
+		args, _ := setup.InstallArgs(chosen.id, "")
+		m.planInstallCmd = strings.Join(args, " ")
+		if dir, err := os.Getwd(); err == nil {
+			m.planAlready = setup.IsInstalled(dir, chosen.id)
+		}
+		m.step = stepPlan
+		return m, nil
+
+	case stepPlan:
 		m.step = stepInstall
 		return m, m.runInstall()
 
@@ -379,6 +393,9 @@ func (m wizardModel) View() string {
 
 	case stepSelectSDK:
 		return m.sdkSelectView()
+
+	case stepPlan:
+		return m.planView()
 
 	case stepInstall:
 		return m.spinner.View() + " Installing SDK..."
@@ -525,6 +542,45 @@ func (m wizardModel) sdkSelectView() string {
 
 	hint := faint.Render("↑/↓ move · Enter select · q quit")
 	return panel + "\n\n" + listBox + "\n" + hint
+}
+
+// planView lists the steps setup will take, before any of them run, so the user
+// knows what's about to happen and can confirm.
+func (m wizardModel) planView() string {
+	if m.detectResult == nil {
+		return ""
+	}
+	title := lipgloss.NewStyle().Bold(true)
+	faint := lipgloss.NewStyle().Faint(true)
+	num := lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
+
+	name := m.detectResult.SDKID
+	if nm, ok := findKnownSDK(m.detectResult.SDKID); ok {
+		name = nm.name
+	}
+
+	var steps []string
+	add := func(s string) { steps = append(steps, num.Render(fmt.Sprintf("%d.", len(steps)+1))+" "+s) }
+
+	switch {
+	case m.planAlready:
+		add(fmt.Sprintf("Install the %s SDK — %s", name, faint.Render("already installed, will skip")))
+	case m.planInstallCmd != "":
+		add(fmt.Sprintf("Install the %s SDK — %s", name, faint.Render(m.planInstallCmd)))
+	default:
+		add(fmt.Sprintf("Add the %s SDK %s", name, faint.Render("(manual install)")))
+	}
+	add(fmt.Sprintf("Create a feature flag in %s / %s", m.selectedProject, m.selectedEnv))
+	if setup.InjectsInPlace(m.detectResult.SDKID) {
+		add(fmt.Sprintf("Add initialization code to %s", m.detectResult.EntryPoint))
+		add("Verify the SDK connects to LaunchDarkly")
+	} else {
+		add("Show initialization code for you to add")
+	}
+
+	return title.Render("Here's what setup will do:") + "\n\n" +
+		strings.Join(steps, "\n") + "\n\n" +
+		faint.Render("Press Enter to continue · q to quit")
 }
 
 // Commands that perform async work

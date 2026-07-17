@@ -101,21 +101,43 @@ func TestWizard_DetectFailed_ListInDefaultOrder(t *testing.T) {
 
 // Selecting an SDK always sets detectResult and proceeds to install.
 
-func TestWizard_SelectSDK_SetsDetectResultAndProceedsToInstall(t *testing.T) {
+func TestWizard_SelectSDK_ProceedsToPlanThenInstall(t *testing.T) {
 	m := wizardModel{step: stepDetect}
 
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk", Language: "Go"}})
 	updated := next.(wizardModel)
 	require.Equal(t, stepSelectSDK, updated.step)
 
-	// Press enter — selects the first (prioritized) SDK
-	next, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	selected := next.(wizardModel)
+	// Enter accepts the detected SDK and shows the plan (no action taken yet).
+	next, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	planned := next.(wizardModel)
+	assert.Equal(t, stepPlan, planned.step)
+	require.NotNil(t, planned.detectResult)
+	assert.Equal(t, "go-server-sdk", planned.detectResult.SDKID)
 
-	assert.Equal(t, stepInstall, selected.step)
-	require.NotNil(t, selected.detectResult)
-	assert.Equal(t, "go-server-sdk", selected.detectResult.SDKID)
+	// Enter on the plan proceeds to install.
+	next, cmd := planned.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	installing := next.(wizardModel)
+	assert.Equal(t, stepInstall, installing.step)
 	assert.NotNil(t, cmd)
+}
+
+func TestWizard_Plan_ListsSteps(t *testing.T) {
+	m := wizardModel{
+		step:            stepPlan,
+		selectedProject: "default",
+		selectedEnv:     "test",
+		detectResult:    &setup.DetectResult{SDKID: "node-server", EntryPoint: "src/index.js"},
+		planInstallCmd:  "npm install @launchdarkly/node-server-sdk",
+		width:           80,
+		height:          30,
+	}
+
+	view := m.planView()
+	assert.Contains(t, view, "Here's what setup will do:")
+	assert.Contains(t, view, "npm install @launchdarkly/node-server-sdk")
+	assert.Contains(t, view, "Create a feature flag")
+	assert.Contains(t, view, "Verify") // node-server injects in place -> verify step listed
 }
 
 func TestWizard_SelectSDK_UserCanOverrideDetection(t *testing.T) {

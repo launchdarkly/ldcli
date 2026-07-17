@@ -133,6 +133,13 @@ func HasTemplate(sdkID string) bool {
 	return ok
 }
 
+// InjectsInPlace reports whether `init` writes runnable code directly into the
+// entry file (true) versus returning a snippet for the user to place manually
+// (false). Also indicates whether a live verify step is meaningful afterward.
+func InjectsInPlace(sdkID string) bool {
+	return HasTemplate(sdkID) && appendSafeSDKs[sdkID]
+}
+
 // RenderTemplate renders the initialization code for the given SDK.
 func RenderTemplate(sdkID string, cfg InitConfig) (string, error) {
 	info, ok := sdkTemplates[sdkID]
