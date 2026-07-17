@@ -204,7 +204,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case detectFailedMsg:
 		m.detectedSDK = nil
 		m.sdkFocus = 1
-		m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:")
+		m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:", true)
 		m.step = stepSelectSDK
 		return m, nil
 
@@ -213,11 +213,11 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if det, ok := findKnownSDK(msg.result.SDKID); ok {
 			m.detectedSDK = &det
 			m.sdkFocus = 0
-			m.sdkList = m.newSDKList(sdkItemsExcept(det.id), "Other SDKs:")
+			m.sdkList = m.newSDKList(sdkItemsExcept(det.id), "Other SDKs:", false)
 		} else {
 			m.detectedSDK = nil
 			m.sdkFocus = 1
-			m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:")
+			m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:", true)
 		}
 		m.step = stepSelectSDK
 		return m, nil
@@ -275,11 +275,13 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "down", "tab", "j":
 					if m.sdkFocus == 0 {
 						m.sdkFocus = 1
+						m.sdkList.SetDelegate(sdkDelegate(true))
 						return m, nil
 					}
 				case "up", "shift+tab", "k":
 					if m.sdkFocus == 1 && m.sdkList.Index() == 0 {
 						m.sdkFocus = 0
+						m.sdkList.SetDelegate(sdkDelegate(false))
 						return m, nil
 					}
 				}
@@ -449,13 +451,38 @@ func sdkItemsExcept(exclude string) []list.Item {
 	return items
 }
 
+// sdkBoxWidth is the shared width for the detected panel and the SDK list box,
+// so both areas line up.
+func (m wizardModel) sdkBoxWidth() int {
+	w := m.width - 4
+	if w < 40 {
+		w = 40
+	}
+	if w > 72 {
+		w = 72
+	}
+	return w
+}
+
+// sdkDelegate returns the list row renderer. When the list isn't the focused
+// area, the selected row is styled like a normal row so it doesn't look active
+// while the detected-SDK panel holds focus.
+func sdkDelegate(focused bool) list.DefaultDelegate {
+	d := list.NewDefaultDelegate()
+	if !focused {
+		d.Styles.SelectedTitle = d.Styles.NormalTitle
+		d.Styles.SelectedDesc = d.Styles.NormalDesc
+	}
+	return d
+}
+
 // newSDKList builds the list model for the SDK selection screen.
-func (m wizardModel) newSDKList(items []list.Item, title string) list.Model {
+func (m wizardModel) newSDKList(items []list.Item, title string, focused bool) list.Model {
 	h := m.height - 12
 	if h < 3 {
 		h = 3
 	}
-	l := list.New(items, list.NewDefaultDelegate(), m.width, h)
+	l := list.New(items, sdkDelegate(focused), m.sdkBoxWidth()-2, h)
 	l.Title = title
 	l.SetShowStatusBar(false)
 	return l
@@ -470,8 +497,9 @@ func (m wizardModel) sdkSelectView() string {
 		return m.sdkList.View()
 	}
 
-	focused := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6")).Padding(0, 1)
-	blurred := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1)
+	boxW := m.sdkBoxWidth()
+	focused := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6")).Padding(0, 1).Width(boxW)
+	blurred := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1).Width(boxW)
 	faint := lipgloss.NewStyle().Faint(true)
 
 	panelStyle, listStyle := blurred, blurred
