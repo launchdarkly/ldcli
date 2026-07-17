@@ -182,6 +182,26 @@ func TestWizard_DetectDone_EntryPointStoredForLaterUse(t *testing.T) {
 	assert.Equal(t, "/my/project/main.go", selected.detectResult.EntryPoint)
 }
 
+func TestWizard_Back_ReturnsToPreviousStep(t *testing.T) {
+	cases := []struct{ from, want wizardStep }{
+		{stepPlan, stepSelectSDK},
+		{stepSelectSDK, stepSelectEnvironment},
+		{stepSelectEnvironment, stepSelectProject},
+	}
+	for _, c := range cases {
+		m := wizardModel{step: c.from}
+		next, _ := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+		assert.Equal(t, c.want, next.(wizardModel).step)
+	}
+}
+
+func TestWizard_Esc_Quits(t *testing.T) {
+	m := wizardModel{step: stepSelectSDK}
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	assert.True(t, next.(wizardModel).quitting)
+	assert.NotNil(t, cmd)
+}
+
 func TestWizard_Done_Success_ShowsQuitHint(t *testing.T) {
 	m := wizardModel{
 		step:         stepDone,

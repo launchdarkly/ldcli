@@ -166,9 +166,20 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
+		case "q", "esc":
+			if m.isFiltering() {
+				break // let the list receive 'q' / clear its filter
+			}
+			m.quitting = true
+			return m, tea.Quit
+		case "left":
+			if m.isFiltering() {
+				break // let the list move the filter cursor
+			}
+			return m.handleBack()
 		case "enter":
 			return m.handleEnter()
 		}
@@ -299,6 +310,34 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// isFiltering reports whether the current step's list is in filter-typing mode,
+// so keys like esc/q are left for the list instead of triggering back/quit.
+func (m wizardModel) isFiltering() bool {
+	switch m.step {
+	case stepSelectProject:
+		return m.projectList.FilterState() == list.Filtering
+	case stepSelectEnvironment:
+		return m.envList.FilterState() == list.Filtering
+	case stepSelectSDK:
+		return m.sdkList.FilterState() == list.Filtering
+	}
+	return false
+}
+
+// handleBack returns to the previous selection so the user can change the
+// project, environment, or SDK.
+func (m wizardModel) handleBack() (tea.Model, tea.Cmd) {
+	switch m.step {
+	case stepSelectEnvironment:
+		m.step = stepSelectProject
+	case stepSelectSDK:
+		m.step = stepSelectEnvironment
+	case stepPlan:
+		m.step = stepSelectSDK
+	}
+	return m, nil
+}
+
 func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 	switch m.step {
 	case stepSelectProject:
@@ -377,13 +416,13 @@ func (m wizardModel) View() string {
 		if len(m.projects) == 0 {
 			return m.spinner.View() + " Loading projects..."
 		}
-		return m.projectList.View()
+		return m.projectList.View() + "\n" + mutedStyle.Render("esc quit")
 
 	case stepSelectEnvironment:
 		if len(m.environments) == 0 {
 			return m.spinner.View() + " Loading environments..."
 		}
-		return m.envList.View()
+		return m.envList.View() + "\n" + mutedStyle.Render("← back · esc quit")
 
 	case stepDetect:
 		return m.spinner.View() + " Detecting project type..."
@@ -528,7 +567,7 @@ func (m wizardModel) sdkSelectView() string {
 
 	listBox := listStyle.Render(m.sdkList.View())
 
-	return panel + "\n\n" + listBox + "\n" + mutedStyle.Render("↑/↓ move · Enter select · q quit")
+	return panel + "\n\n" + listBox + "\n" + mutedStyle.Render("↑/↓ move · Enter select · ← back · esc quit")
 }
 
 // planView lists the steps setup will take, before any of them run, so the user
@@ -565,7 +604,7 @@ func (m wizardModel) planView() string {
 
 	return headerStyle.Render("Here's what setup will do:") + "\n\n" +
 		strings.Join(steps, "\n") + "\n\n" +
-		mutedStyle.Render("Press Enter to continue · q to quit")
+		mutedStyle.Render("Enter continue · ← back · esc quit")
 }
 
 // Commands that perform async work
