@@ -133,7 +133,7 @@ func runSetupWizard(
 		// Pre-flight: the wizard's first action is an authenticated API call, so
 		// bail early with clear guidance rather than dumping a raw 401 mid-TUI.
 		if viper.GetString(cliflags.AccessTokenFlag) == "" {
-			return errors.NewError("Hey — it looks like you're not logged in yet. Run `ldcli login` to authenticate, then run `ldcli setup` again. (Or pass --access-token, or set LD_ACCESS_TOKEN.)")
+			return errors.NewError("It looks like you're not logged in yet.\n\nRun `ldcli login` to authenticate, then run `ldcli setup` again.\n(Or pass --access-token, or set LD_ACCESS_TOKEN.)")
 		}
 
 		s := spinner.New()
