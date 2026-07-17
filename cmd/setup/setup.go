@@ -3,6 +3,7 @@ package setup
 import (
 	"fmt"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -31,10 +32,12 @@ Detects your project's language and framework, installs the correct SDK,
 initializes it with your environment's SDK key, creates a feature flag,
 and verifies the connection.`,
 		PreRun: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintln(cmd.ErrOrStderr(),
-				"Notice: 'ldcli setup' now runs the new guided setup wizard (project detection, SDK installation, and initialization).",
-				"\nThe previous quickstart wizard is still available via 'ldcli quickstart' during the transition period.",
-			)
+			// Dim the notice and set it off with a blank line so it reads as a
+			// transitional notice, visually distinct from command output.
+			notice := lipgloss.NewStyle().Faint(true).Render(
+				"Notice: 'ldcli setup' now runs the new guided setup wizard (project detection, SDK installation, and initialization).\n" +
+					"The previous quickstart wizard is still available via 'ldcli quickstart' during the transition period.")
+			fmt.Fprintf(cmd.ErrOrStderr(), "%s\n\n", notice)
 			analyticsTrackerFn(
 				viper.GetString(cliflags.AccessTokenFlag),
 				viper.GetString(cliflags.BaseURIFlag),
