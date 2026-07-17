@@ -50,7 +50,26 @@ func TestWizard_DetectDone_DetectResultNotSetUntilUserConfirms(t *testing.T) {
 	assert.Nil(t, updated.detectResult)
 }
 
+func TestWizard_DetectDone_ShowsDetectionMessage(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk", Language: "Go"}})
+	updated := next.(wizardModel)
+
+	assert.Contains(t, updated.sdkList.Title, "We've detected")
+	assert.Contains(t, updated.sdkList.Title, "Go") // go-server-sdk display name
+}
+
 // detectFailedMsg goes to stepSelectSDK in default KnownSDKs order.
+
+func TestWizard_DetectFailed_UsesGenericSDKTitle(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectFailedMsg{})
+	updated := next.(wizardModel)
+
+	assert.Equal(t, "Select your SDK:", updated.sdkList.Title)
+}
 
 func TestWizard_DetectFailed_TransitionsToSDKSelection(t *testing.T) {
 	m := wizardModel{step: stepDetect}

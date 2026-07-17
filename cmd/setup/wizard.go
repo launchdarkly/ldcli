@@ -127,7 +127,7 @@ func runSetupWizard(
 		// Pre-flight: the wizard's first action is an authenticated API call, so
 		// bail early with clear guidance rather than dumping a raw 401 mid-TUI.
 		if viper.GetString(cliflags.AccessTokenFlag) == "" {
-			return errors.NewError("You're not logged in. Run `ldcli login` to authenticate, or pass --access-token (or set LD_ACCESS_TOKEN), then run `ldcli setup` again.")
+			return errors.NewError("Hey — it looks like you're not logged in yet. Run `ldcli login` to authenticate, then run `ldcli setup` again. (Or pass --access-token, or set LD_ACCESS_TOKEN.)")
 		}
 
 		s := spinner.New()
@@ -387,10 +387,12 @@ func (m wizardModel) View() string {
 // the matching SDK is placed first; all others follow in their default order.
 func (m wizardModel) buildSDKList(prioritizedID string) list.Model {
 	var first, rest []list.Item
+	var detectedName string
 	for _, sdk := range setup.KnownSDKs {
 		item := sdkItem{id: sdk.ID, language: sdk.Language, name: sdk.Name}
 		if sdk.ID == prioritizedID {
 			first = append(first, item)
+			detectedName = sdk.Name
 		} else {
 			rest = append(rest, item)
 		}
@@ -398,7 +400,11 @@ func (m wizardModel) buildSDKList(prioritizedID string) list.Model {
 	items := append(first, rest...)
 	delegate := list.NewDefaultDelegate()
 	l := list.New(items, delegate, m.width, m.height-4)
-	l.Title = "Select your SDK:"
+	if detectedName != "" {
+		l.Title = fmt.Sprintf("We've detected %s — press Enter to use it, or choose a different SDK below:", detectedName)
+	} else {
+		l.Title = "Select your SDK:"
+	}
 	l.SetShowStatusBar(false)
 	return l
 }
