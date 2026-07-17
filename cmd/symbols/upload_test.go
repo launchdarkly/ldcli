@@ -25,6 +25,7 @@ func TestNewUploadCmd(t *testing.T) {
 	assert.NotNil(t, cmd.Flags().Lookup(typeFlag))
 	assert.NotNil(t, cmd.Flags().Lookup("project"))
 	assert.NotNil(t, cmd.Flags().Lookup(appVersionFlag))
+	assert.NotNil(t, cmd.Flags().Lookup(symbolsIdFlag))
 	assert.NotNil(t, cmd.Flags().Lookup(pathFlag))
 	assert.NotNil(t, cmd.Flags().Lookup(basePathFlag))
 	assert.NotNil(t, cmd.Flags().Lookup(backendUrlFlag))
@@ -91,12 +92,84 @@ func TestGetAllSymbolFilesEmpty(t *testing.T) {
 	_, err = getAllSymbolFiles(emptyDir, typeReactNative)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no React Native symbol files found")
+
+	_, err = getAllSymbolFiles(emptyDir, typeAndroid)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no Android symbol files found")
+}
+
+func TestIsSymbolUploadFileAndroid(t *testing.T) {
+	// Only mapping.txt is uploaded for the android type.
+	assert.True(t, isSymbolUploadFile(typeAndroid, "mapping.txt"))
+	assert.True(t, isSymbolUploadFile(typeAndroid, "outputs/mapping/release/mapping.txt"))
+	assert.False(t, isSymbolUploadFile(typeAndroid, "seeds.txt"))
+	assert.False(t, isSymbolUploadFile(typeAndroid, "main.jsbundle.map"))
+	// React Native discovery is unaffected.
+	assert.True(t, isSymbolUploadFile(typeReactNative, "index.android.bundle.map"))
+	assert.False(t, isSymbolUploadFile(typeReactNative, "mapping.txt"))
+}
+
+func TestGetAllSymbolFilesAndroid(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "symbols-android-test")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	err = os.WriteFile(filepath.Join(tempDir, androidMappingFileName), []byte("com.example.Foo -> a:\n"), 0644)
+	assert.NoError(t, err)
+	// A React Native map alongside must NOT be picked up for the android type.
+	err = os.WriteFile(filepath.Join(tempDir, "main.jsbundle.map"), []byte("{}"), 0644)
+	assert.NoError(t, err)
+
+	files, err := getAllSymbolFiles(tempDir, typeAndroid)
+	assert.NoError(t, err)
+	assert.Len(t, files, 1)
+	assert.Equal(t, androidMappingFileName, files[0].Name)
 }
 
 func TestGetS3Key(t *testing.T) {
-	assert.Equal(t, "1.0.1/index.android.bundle.map", getS3Key("1.0.1", "", "index.android.bundle.map"))
-	assert.Equal(t, "unversioned/main.jsbundle.map", getS3Key("", "", "main.jsbundle.map"))
-	assert.Equal(t, "1.0.1/dist/main.jsbundle", getS3Key("1.0.1", "dist", "main.jsbundle"))
+	// Version Lane (version/basePath) addressing; prefix is unused when symbolsID is "".
+	assert.Equal(t, "1.0.1/index.android.bundle.map", getS3Key(reactNativeSymbolsIDPrefix, "", "1.0.1", "", "index.android.bundle.map"))
+	assert.Equal(t, "unversioned/main.jsbundle.map", getS3Key(reactNativeSymbolsIDPrefix, "", "", "", "main.jsbundle.map"))
+	assert.Equal(t, "1.0.1/dist/main.jsbundle", getS3Key(reactNativeSymbolsIDPrefix, "", "1.0.1", "dist", "main.jsbundle"))
+	assert.Equal(t, "1.0.1/mapping.txt", getS3Key(androidSymbolsIDPrefix, "", "1.0.1", "", "mapping.txt"))
+}
+
+func TestGetS3KeySymbolsID(t *testing.T) {
+	symbolsID := "0123456789abcdef0123456789abcdef"
+	// Symbols Id Lane: a symbols id supersedes version/basePath and keys by basename.
+	assert.Equal(t,
+		"_sym/js/id/"+symbolsID+"/main.jsbundle.map",
+		getS3Key(reactNativeSymbolsIDPrefix, symbolsID, "1.0.1", "dist", "main.jsbundle.map"))
+	assert.Equal(t,
+		"_sym/js/id/"+symbolsID+"/index.android.bundle.map",
+		getS3Key(reactNativeSymbolsIDPrefix, symbolsID, "", "", "nested/index.android.bundle.map"))
+	// Android uses its own Symbols Id Lane namespace so JS and mapping ids never collide.
+	assert.Equal(t,
+		"_sym/android/id/"+symbolsID+"/mapping.txt",
+		getS3Key(androidSymbolsIDPrefix, symbolsID, "1.0.0", "", "mapping.txt"))
+}
+
+func TestSymbolsIDPrefixForType(t *testing.T) {
+	assert.Equal(t, "_sym/js/id", symbolsIDPrefixForType(typeReactNative))
+	assert.Equal(t, "_sym/android/id", symbolsIDPrefixForType(typeAndroid))
+}
+
+func TestReadSymbolsIDSidecar(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "symbols-id")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// No sidecar yet -> empty (falls back to the Version Lane).
+	assert.Equal(t, "", readSymbolsIDSidecar(tempDir))
+
+	err = os.WriteFile(filepath.Join(tempDir, "main.jsbundle"), []byte("//bundle"), 0644)
+	assert.NoError(t, err)
+	err = os.WriteFile(filepath.Join(tempDir, "main.jsbundle"+symbolsIDSidecarSuffix), []byte("abc123\n"), 0644)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "abc123", readSymbolsIDSidecar(tempDir))
+	// Direct bundle path resolves its adjacent sidecar too.
+	assert.Equal(t, "abc123", readSymbolsIDSidecar(filepath.Join(tempDir, "main.jsbundle")))
 }
 
 func TestUnsupportedType(t *testing.T) {

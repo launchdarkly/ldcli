@@ -27,6 +27,7 @@ import (
 const (
 	typeFlag       = "type"
 	appVersionFlag = "app-version"
+	symbolsIdFlag  = "symbols-id"
 	pathFlag       = "path"
 	basePathFlag   = "base-path"
 	backendUrlFlag = "backend-url"
@@ -34,11 +35,32 @@ const (
 	defaultPath       = "."
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
 
-	// typeReactNative is the only symbol type supported today. React Native
-	// Hermes/Metro sourcemaps are ordinary JavaScript sourcemaps; they are
-	// uploaded through the dedicated symbol path and land under the same key the
-	// symbolication backend already reads.
+	// reactNativeSymbolsIDPrefix is the storage "version" segment for symbols-id
+	// addressed JS maps (Symbols Id Lane). Keys become _sym/js/id/<symbolsID>/<file>,
+	// matching what the symbolication backend derives from the reported symbols id.
+	reactNativeSymbolsIDPrefix = "_sym/js/id"
+
+	// androidSymbolsIDPrefix is the equivalent Symbols Id Lane segment for Android
+	// R8 / ProGuard mappings. Keys become _sym/android/id/<symbolsID>/mapping.txt.
+	androidSymbolsIDPrefix = "_sym/android/id"
+
+	// symbolsIDSidecarSuffix names the file written next to an artifact to record
+	// its symbols id (the Metro plugin for React Native, the Gradle task for
+	// Android), so `ldcli` can upload with the exact id the app reports without a
+	// manual --symbols-id.
+	symbolsIDSidecarSuffix = ".symbolsid"
+
+	// androidMappingFileName is the R8/ProGuard mapping file `ldcli` discovers
+	// for --type android.
+	androidMappingFileName = "mapping.txt"
+
+	// typeReactNative uploads React Native Hermes/Metro sourcemaps (ordinary
+	// JavaScript sourcemaps).
 	typeReactNative = "react-native"
+
+	// typeAndroid uploads an Android R8/ProGuard `mapping.txt` for Java/Kotlin
+	// stack-trace retrace.
+	typeAndroid = "android"
 
 	// getSymbolUrlsQuery uses the dedicated `get_symbol_upload_urls_ld` query
 	// (separate from `sourcemaps upload`) so symbol uploads travel over the
@@ -79,7 +101,7 @@ func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerF
 		Args:  validators.Validate(),
 		Use:   "upload",
 		Short: "Upload symbol files",
-		Long:  "Upload symbol files (for example, React Native sourcemaps) to LaunchDarkly for error monitoring",
+		Long:  "Upload symbol files (React Native sourcemaps or Android R8/ProGuard mappings) to LaunchDarkly for error monitoring",
 		RunE:  runE(client),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			tracker := analyticsTrackerFn(
@@ -105,8 +127,8 @@ func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerF
 func runE(client resources.Client) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		symbolType := viper.GetString(typeFlag)
-		if symbolType != typeReactNative {
-			return fmt.Errorf("unsupported --type %q; supported types: %s", symbolType, typeReactNative)
+		if !isSupportedType(symbolType) {
+			return fmt.Errorf("unsupported --type %q; supported types: %s, %s", symbolType, typeReactNative, typeAndroid)
 		}
 
 		projectKey := viper.GetString(cliflags.ProjectFlag)
@@ -139,6 +161,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		}
 
 		appVersion := viper.GetString(appVersionFlag)
+		symbolsID := viper.GetString(symbolsIdFlag)
 		path := viper.GetString(pathFlag)
 		basePath := viper.GetString(basePathFlag)
 		backendUrl := viper.GetString(backendUrlFlag)
@@ -147,7 +170,19 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			backendUrl = defaultBackendUrl
 		}
 
+		// Symbols Id Lane: if no --symbols-id was given, fall back to a *.symbolsid
+		// sidecar written next to the bundle by the Metro plugin, so the upload key
+		// matches the id the app reports at runtime.
+		if symbolsID == "" {
+			symbolsID = readSymbolsIDSidecar(path)
+		}
+
+		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
+
 		fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
+		if symbolsID != "" {
+			fmt.Printf("Using symbols id %s (Symbols Id Lane: %s/%s)\n", symbolsID, symbolsIDPrefix, symbolsID)
+		}
 
 		files, err := getAllSymbolFiles(path, symbolType)
 		if err != nil {
@@ -160,7 +195,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 
 		s3Keys := make([]string, 0, len(files))
 		for _, file := range files {
-			s3Keys = append(s3Keys, getS3Key(appVersion, basePath, file.Name))
+			s3Keys = append(s3Keys, getS3Key(symbolsIDPrefix, symbolsID, appVersion, basePath, file.Name))
 		}
 
 		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl)
@@ -179,6 +214,19 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 	}
 }
 
+func isSupportedType(symbolType string) bool {
+	return symbolType == typeReactNative || symbolType == typeAndroid
+}
+
+// symbolsIDPrefixForType picks the Symbols Id Lane storage segment for the symbol
+// type so JS and Android maps never collide in the same symbols-id namespace.
+func symbolsIDPrefixForType(symbolType string) string {
+	if symbolType == typeAndroid {
+		return androidSymbolsIDPrefix
+	}
+	return reactNativeSymbolsIDPrefix
+}
+
 func isReactNativeUploadFile(name string) bool {
 	for _, suffix := range reactNativeUploadSuffixes {
 		if strings.HasSuffix(name, suffix) {
@@ -188,10 +236,16 @@ func isReactNativeUploadFile(name string) bool {
 	return false
 }
 
-func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
-	// symbolType is validated by the caller; only react-native is supported.
-	_ = symbolType
+// isSymbolUploadFile reports whether a discovered file should be uploaded for
+// the given symbol type: React Native bundles/maps, or an Android mapping.txt.
+func isSymbolUploadFile(symbolType, name string) bool {
+	if symbolType == typeAndroid {
+		return filepath.Base(name) == androidMappingFileName
+	}
+	return isReactNativeUploadFile(name)
+}
 
+func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 	var files []SymbolFile
 
 	fileInfo, err := os.Stat(path)
@@ -216,7 +270,7 @@ func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 			return filepath.SkipDir
 		}
 
-		if !d.IsDir() && isReactNativeUploadFile(filePath) {
+		if !d.IsDir() && isSymbolUploadFile(symbolType, filePath) {
 			relPath, err := filepath.Rel(path, filePath)
 			if err != nil {
 				return err
@@ -236,13 +290,23 @@ func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 	}
 
 	if len(files) == 0 {
+		if symbolType == typeAndroid {
+			return nil, fmt.Errorf("no Android symbol files found (looked for %s). Please double check that R8/ProGuard produced a mapping file", androidMappingFileName)
+		}
 		return nil, fmt.Errorf("no React Native symbol files found (looked for *.jsbundle, *.jsbundle.map, *.bundle, *.bundle.map). Please double check that you have generated sourcemaps for your app")
 	}
 
 	return files, nil
 }
 
-func getS3Key(version, basePath, fileName string) string {
+func getS3Key(symbolsIDPrefix, symbolsID, version, basePath, fileName string) string {
+	// Symbols Id Lane: a symbols id fully addresses the artifact, so it supersedes
+	// the version+basePath scheme. The key becomes <prefix>/<symbolsID>/<basename>
+	// so it matches the key the backend derives from the reported symbols id.
+	if symbolsID != "" {
+		return fmt.Sprintf("%s/%s/%s", symbolsIDPrefix, symbolsID, filepath.Base(fileName))
+	}
+
 	if version == "" {
 		version = "unversioned"
 	}
@@ -252,6 +316,47 @@ func getS3Key(version, basePath, fileName string) string {
 	}
 
 	return fmt.Sprintf("%s/%s%s", version, basePath, fileName)
+}
+
+// readSymbolsIDSidecar returns the symbols id recorded in a *.symbolsid file at
+// or under path (the Metro plugin writes <bundle>.symbolsid next to each bundle).
+// It is best-effort: any error, or no sidecar, yields "" so the caller falls
+// back to the Version Lane (version) addressing.
+func readSymbolsIDSidecar(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+
+	if !info.IsDir() {
+		return readSymbolsIDFile(path + symbolsIDSidecarSuffix)
+	}
+
+	var found string
+	_ = filepath.WalkDir(path, func(filePath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && d.Name() == "node_modules" {
+			return filepath.SkipDir
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), symbolsIDSidecarSuffix) {
+			if id := readSymbolsIDFile(filePath); id != "" {
+				found = id
+				return filepath.SkipAll
+			}
+		}
+		return nil
+	})
+	return found
+}
+
+func readSymbolsIDFile(filePath string) string {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(content))
 }
 
 func getSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl string) ([]string, error) {
@@ -327,7 +432,7 @@ func uploadFile(filePath, uploadUrl, name string) error {
 }
 
 func initFlags(cmd *cobra.Command) {
-	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s)", typeReactNative))
+	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s, %s)", typeReactNative, typeAndroid))
 	_ = cmd.MarkFlagRequired(typeFlag)
 	_ = cmd.Flags().SetAnnotation(typeFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(typeFlag, cmd.Flags().Lookup(typeFlag))
@@ -339,6 +444,9 @@ func initFlags(cmd *cobra.Command) {
 
 	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
+
+	cmd.Flags().String(symbolsIdFlag, "", "The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present")
+	_ = viper.BindPFlag(symbolsIdFlag, cmd.Flags().Lookup(symbolsIdFlag))
 
 	cmd.Flags().String(pathFlag, defaultPath, "Sets the directory of where the symbol files are")
 	_ = viper.BindPFlag(pathFlag, cmd.Flags().Lookup(pathFlag))
