@@ -10,7 +10,8 @@ import (
 	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
-// detectDoneMsg always goes to stepSelectSDK with the detected SDK prioritized.
+// detectDoneMsg goes to stepSelectSDK: detected SDK in its own panel, the rest
+// in a separate list, focus defaulting to the detected panel.
 
 func TestWizard_DetectDone_TransitionsToSDKSelection(t *testing.T) {
 	m := wizardModel{step: stepDetect}
@@ -19,26 +20,30 @@ func TestWizard_DetectDone_TransitionsToSDKSelection(t *testing.T) {
 	updated := next.(wizardModel)
 
 	assert.Equal(t, stepSelectSDK, updated.step)
-	assert.Equal(t, len(setup.KnownSDKs), len(updated.sdkList.Items()))
+	// detected SDK lives in the panel, not the list, so the list has the rest.
+	assert.Equal(t, len(setup.KnownSDKs)-1, len(updated.sdkList.Items()))
 }
 
-func TestWizard_DetectDone_PrioritizesDetectedSDK(t *testing.T) {
+func TestWizard_DetectDone_DetectedSDKInOwnPanel_FocusedFirst(t *testing.T) {
 	m := wizardModel{step: stepDetect}
 
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk", Language: "Go"}})
 	updated := next.(wizardModel)
 
-	first := updated.sdkList.Items()[0].(sdkItem)
-	assert.Equal(t, "go-server-sdk", first.id)
+	require.NotNil(t, updated.detectedSDK)
+	assert.Equal(t, "go-server-sdk", updated.detectedSDK.id)
+	assert.Equal(t, 0, updated.sdkFocus) // detected panel focused by default
 }
 
-func TestWizard_DetectDone_DoesNotDuplicateDetectedSDK(t *testing.T) {
+func TestWizard_DetectDone_ListExcludesDetectedSDK(t *testing.T) {
 	m := wizardModel{step: stepDetect}
 
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk"}})
 	updated := next.(wizardModel)
 
-	assert.Equal(t, len(setup.KnownSDKs), len(updated.sdkList.Items()))
+	for _, item := range updated.sdkList.Items() {
+		assert.NotEqual(t, "go-server-sdk", item.(sdkItem).id)
+	}
 }
 
 func TestWizard_DetectDone_DetectResultNotSetUntilUserConfirms(t *testing.T) {
@@ -50,14 +55,13 @@ func TestWizard_DetectDone_DetectResultNotSetUntilUserConfirms(t *testing.T) {
 	assert.Nil(t, updated.detectResult)
 }
 
-func TestWizard_DetectDone_ShowsDetectionMessage(t *testing.T) {
-	m := wizardModel{step: stepDetect}
+func TestWizard_DetectDone_ShowsIdentifiedPanel(t *testing.T) {
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
 
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk", Language: "Go"}})
 	updated := next.(wizardModel)
 
-	assert.Contains(t, updated.sdkList.Title, "We've detected")
-	assert.Contains(t, updated.sdkList.Title, "Go") // go-server-sdk display name
+	assert.Contains(t, updated.View(), "We identified this as your SDK")
 }
 
 // detectFailedMsg goes to stepSelectSDK in default KnownSDKs order.

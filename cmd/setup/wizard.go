@@ -65,6 +65,8 @@ type wizardModel struct {
 
 	detectedEntryPoint string
 	detectResult       *setup.DetectResult
+	detectedSDK        *sdkItem // the auto-detected SDK, shown in its own panel; nil if detection failed
+	sdkFocus           int      // on the SDK screen: 0 = detected panel, 1 = the list of other SDKs
 	flagKey            string
 	initResult         *setup.InitResult
 	verifyResult       *setup.VerifyResult
@@ -200,13 +202,23 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.runDetect()
 
 	case detectFailedMsg:
-		m.sdkList = m.buildSDKList("")
+		m.detectedSDK = nil
+		m.sdkFocus = 1
+		m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:")
 		m.step = stepSelectSDK
 		return m, nil
 
 	case detectDoneMsg:
 		m.detectedEntryPoint = msg.result.EntryPoint
-		m.sdkList = m.buildSDKList(msg.result.SDKID)
+		if det, ok := findKnownSDK(msg.result.SDKID); ok {
+			m.detectedSDK = &det
+			m.sdkFocus = 0
+			m.sdkList = m.newSDKList(sdkItemsExcept(det.id), "Other SDKs:")
+		} else {
+			m.detectedSDK = nil
+			m.sdkFocus = 1
+			m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:")
+		}
 		m.step = stepSelectSDK
 		return m, nil
 
@@ -255,7 +267,27 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.envList, cmd = m.envList.Update(msg)
 		}
 	case stepSelectSDK:
-		if m.sdkList.Items() != nil {
+		// Two panels when a detected SDK is shown: the detected panel (focus 0)
+		// and the list of other SDKs (focus 1). Arrows move focus between them.
+		if m.detectedSDK != nil {
+			if km, ok := msg.(tea.KeyMsg); ok {
+				switch km.String() {
+				case "down", "tab", "j":
+					if m.sdkFocus == 0 {
+						m.sdkFocus = 1
+						return m, nil
+					}
+				case "up", "shift+tab", "k":
+					if m.sdkFocus == 1 && m.sdkList.Index() == 0 {
+						m.sdkFocus = 0
+						return m, nil
+					}
+				}
+			}
+			if m.sdkFocus == 1 && m.sdkList.Items() != nil {
+				m.sdkList, cmd = m.sdkList.Update(msg)
+			}
+		} else if m.sdkList.Items() != nil {
 			m.sdkList, cmd = m.sdkList.Update(msg)
 		}
 	}
@@ -288,13 +320,19 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 		return m, m.fetchEnvDetails()
 
 	case stepSelectSDK:
-		selected, ok := m.sdkList.SelectedItem().(sdkItem)
-		if !ok {
-			return m, nil
+		var chosen sdkItem
+		if m.detectedSDK != nil && m.sdkFocus == 0 {
+			chosen = *m.detectedSDK
+		} else {
+			selected, ok := m.sdkList.SelectedItem().(sdkItem)
+			if !ok {
+				return m, nil
+			}
+			chosen = selected
 		}
 		m.detectResult = &setup.DetectResult{
-			SDKID:      selected.id,
-			Language:   selected.language,
+			SDKID:      chosen.id,
+			Language:   chosen.language,
 			EntryPoint: m.detectedEntryPoint,
 		}
 		m.step = stepInstall
@@ -335,7 +373,7 @@ func (m wizardModel) View() string {
 		return m.spinner.View() + " Detecting project type..."
 
 	case stepSelectSDK:
-		return m.sdkList.View()
+		return m.sdkSelectView()
 
 	case stepInstall:
 		return m.spinner.View() + " Installing SDK..."
@@ -383,30 +421,69 @@ func (m wizardModel) View() string {
 	return ""
 }
 
-// buildSDKList constructs the SDK selection list. If prioritizedID is non-empty
-// the matching SDK is placed first; all others follow in their default order.
-func (m wizardModel) buildSDKList(prioritizedID string) list.Model {
-	var first, rest []list.Item
-	var detectedName string
+// findKnownSDK returns the sdkItem for the given SDK id, if it is one we know.
+func findKnownSDK(id string) (sdkItem, bool) {
 	for _, sdk := range setup.KnownSDKs {
-		item := sdkItem{id: sdk.ID, language: sdk.Language, name: sdk.Name}
-		if sdk.ID == prioritizedID {
-			first = append(first, item)
-			detectedName = sdk.Name
-		} else {
-			rest = append(rest, item)
+		if sdk.ID == id {
+			return sdkItem{id: sdk.ID, language: sdk.Language, name: sdk.Name}, true
 		}
 	}
-	items := append(first, rest...)
-	delegate := list.NewDefaultDelegate()
-	l := list.New(items, delegate, m.width, m.height-4)
-	if detectedName != "" {
-		l.Title = fmt.Sprintf("We've detected %s — press Enter to use it, or choose a different SDK below:", detectedName)
-	} else {
-		l.Title = "Select your SDK:"
+	return sdkItem{}, false
+}
+
+// sdkItemsExcept returns all known SDKs as list items, omitting the given id.
+func sdkItemsExcept(exclude string) []list.Item {
+	items := make([]list.Item, 0, len(setup.KnownSDKs))
+	for _, sdk := range setup.KnownSDKs {
+		if sdk.ID == exclude {
+			continue
+		}
+		items = append(items, sdkItem{id: sdk.ID, language: sdk.Language, name: sdk.Name})
 	}
+	return items
+}
+
+// newSDKList builds the list model for the SDK selection screen.
+func (m wizardModel) newSDKList(items []list.Item, title string) list.Model {
+	h := m.height - 12
+	if h < 3 {
+		h = 3
+	}
+	l := list.New(items, list.NewDefaultDelegate(), m.width, h)
+	l.Title = title
 	l.SetShowStatusBar(false)
 	return l
+}
+
+// sdkSelectView renders the SDK selection screen. When an SDK was auto-detected
+// it shows two areas: an "identified" panel on top and the list of other SDKs
+// below; the focused area is highlighted. When detection failed, only the list
+// is shown.
+func (m wizardModel) sdkSelectView() string {
+	if m.detectedSDK == nil {
+		return m.sdkList.View()
+	}
+
+	focused := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6")).Padding(0, 1)
+	blurred := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1)
+	faint := lipgloss.NewStyle().Faint(true)
+
+	panelStyle, listStyle := blurred, blurred
+	if m.sdkFocus == 0 {
+		panelStyle = focused
+	} else {
+		listStyle = focused
+	}
+
+	panel := panelStyle.Render(
+		lipgloss.NewStyle().Bold(true).Render("We identified this as your SDK") + "\n" +
+			fmt.Sprintf("%s  (%s)\n", m.detectedSDK.name, m.detectedSDK.language) +
+			faint.Render("Press Enter to use it"))
+
+	listBox := listStyle.Render(m.sdkList.View())
+
+	hint := faint.Render("↑/↓ move · Enter select · q quit")
+	return panel + "\n\n" + listBox + "\n" + hint
 }
 
 // Commands that perform async work
