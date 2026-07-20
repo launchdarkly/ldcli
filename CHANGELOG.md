@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/launchdarkly/ldcli/compare/v3.1.0...v3.2.0) (2026-07-20)
+
+
+### Features
+
+* **symbols:** add `symbols upload` command for React Native + Android symbols ([#745](https://github.com/launchdarkly/ldcli/issues/745)) ([8dae666](https://github.com/launchdarkly/ldcli/commit/8dae666d28c22068ba0b068adbc3f87804ef92e7))
+
 ## [3.1.0](https://github.com/launchdarkly/ldcli/compare/v3.0.4...v3.1.0) (2026-07-10)
 
 
