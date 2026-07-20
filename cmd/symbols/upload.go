@@ -189,13 +189,14 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// Symbols Id Lane: resolve the id per file so a single upload of multiple
 		// platforms (e.g. iOS + Android maps in one dir) keys each artifact by the
 		// id its app reports. An explicit --symbols-id overrides all files;
-		// otherwise each file's <file>.symbolsid sidecar is used, falling back to
-		// the Version Lane (version+basePath) when there is none.
+		// otherwise each artifact's *.symbolsid sidecar (or its sibling's — see
+		// symbolsIDForArtifact) is used, falling back to the Version Lane
+		// (version+basePath) when there is none.
 		s3Keys := make([]string, 0, len(files))
 		for _, file := range files {
 			fileSymbolsID := symbolsID
 			if fileSymbolsID == "" {
-				fileSymbolsID = readSymbolsIDFile(file.Path + symbolsIDSidecarSuffix)
+				fileSymbolsID = symbolsIDForArtifact(file.Path)
 				if fileSymbolsID != "" {
 					fmt.Printf("Using symbols id %s for %s (Symbols Id Lane: %s/%s)\n", fileSymbolsID, file.Name, symbolsIDPrefix, fileSymbolsID)
 				}
@@ -323,8 +324,29 @@ func getS3Key(symbolsIDPrefix, symbolsID, version, basePath, fileName string) st
 	return fmt.Sprintf("%s/%s%s", version, basePath, fileName)
 }
 
+// symbolsIDForArtifact resolves the symbols id for one uploaded artifact from a
+// *.symbolsid sidecar. A React Native build's bundle and its .map share a single
+// id, but the Metro plugin writes only one sidecar (named after the source map
+// it's handed). So for a .map we also check the bundle's sidecar and for a
+// bundle we also check the .map's sidecar — keeping both files on the same lane
+// instead of splitting one to the Version Lane. Returns "" when none is found.
+func symbolsIDForArtifact(filePath string) string {
+	candidates := []string{filePath + symbolsIDSidecarSuffix}
+	if strings.HasSuffix(filePath, ".map") {
+		candidates = append(candidates, strings.TrimSuffix(filePath, ".map")+symbolsIDSidecarSuffix)
+	} else {
+		candidates = append(candidates, filePath+".map"+symbolsIDSidecarSuffix)
+	}
+	for _, candidate := range candidates {
+		if id := readSymbolsIDFile(candidate); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
 // readSymbolsIDFile returns the symbols id recorded in a *.symbolsid sidecar
-// (the Metro plugin writes <bundle>.symbolsid next to each bundle; the Android
+// (the Metro plugin writes it next to the composed source map; the Android
 // Gradle task writes mapping.txt.symbolsid). Best-effort: any error, or no
 // sidecar, yields "" so the caller falls back to the Version Lane addressing.
 func readSymbolsIDFile(filePath string) string {

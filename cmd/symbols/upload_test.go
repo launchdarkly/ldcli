@@ -182,6 +182,39 @@ func TestReadSymbolsIDFile(t *testing.T) {
 		getS3Key(reactNativeSymbolsIDPrefix, "androidid", "1.0.0", "", "index.android.bundle.map"))
 }
 
+func TestSymbolsIDForArtifact(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "symbols-id-sibling")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	bundle := filepath.Join(tempDir, "main.jsbundle")
+	bundleMap := bundle + ".map"
+
+	// The Metro plugin writes a single sidecar named after the source map.
+	err = os.WriteFile(bundleMap+symbolsIDSidecarSuffix, []byte("sharedid\n"), 0644)
+	assert.NoError(t, err)
+
+	// Both the bundle and its .map must resolve to the same id, even though only
+	// the map has an adjacent sidecar — otherwise the bundle would drop to the
+	// Version Lane while the map stays on the Symbols Id Lane.
+	assert.Equal(t, "sharedid", symbolsIDForArtifact(bundleMap))
+	assert.Equal(t, "sharedid", symbolsIDForArtifact(bundle))
+
+	// Symmetric case: sidecar written beside the bundle instead of the map.
+	tempDir2, err := os.MkdirTemp("", "symbols-id-sibling2")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir2)
+
+	bundle2 := filepath.Join(tempDir2, "index.android.bundle")
+	err = os.WriteFile(bundle2+symbolsIDSidecarSuffix, []byte("bundleid\n"), 0644)
+	assert.NoError(t, err)
+	assert.Equal(t, "bundleid", symbolsIDForArtifact(bundle2))
+	assert.Equal(t, "bundleid", symbolsIDForArtifact(bundle2+".map"))
+
+	// No sidecar anywhere -> empty (Version Lane fallback).
+	assert.Equal(t, "", symbolsIDForArtifact(filepath.Join(tempDir2, "other.jsbundle")))
+}
+
 func TestUnsupportedType(t *testing.T) {
 	viper.Set(typeFlag, "apple-dsym")
 	defer viper.Set(typeFlag, "")
