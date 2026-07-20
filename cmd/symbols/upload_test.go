@@ -154,22 +154,32 @@ func TestSymbolsIDPrefixForType(t *testing.T) {
 	assert.Equal(t, "_sym/android/id", symbolsIDPrefixForType(typeAndroid))
 }
 
-func TestReadSymbolsIDSidecar(t *testing.T) {
+func TestReadSymbolsIDFile(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "symbols-id")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
+	map1 := filepath.Join(tempDir, "main.jsbundle.map")
+	map2 := filepath.Join(tempDir, "index.android.bundle.map")
+
 	// No sidecar yet -> empty (falls back to the Version Lane).
-	assert.Equal(t, "", readSymbolsIDSidecar(tempDir))
+	assert.Equal(t, "", readSymbolsIDFile(map1+symbolsIDSidecarSuffix))
 
-	err = os.WriteFile(filepath.Join(tempDir, "main.jsbundle"), []byte("//bundle"), 0644)
+	err = os.WriteFile(map1+symbolsIDSidecarSuffix, []byte("iosid\n"), 0644)
 	assert.NoError(t, err)
-	err = os.WriteFile(filepath.Join(tempDir, "main.jsbundle"+symbolsIDSidecarSuffix), []byte("abc123\n"), 0644)
+	err = os.WriteFile(map2+symbolsIDSidecarSuffix, []byte("androidid\n"), 0644)
 	assert.NoError(t, err)
 
-	assert.Equal(t, "abc123", readSymbolsIDSidecar(tempDir))
-	// Direct bundle path resolves its adjacent sidecar too.
-	assert.Equal(t, "abc123", readSymbolsIDSidecar(filepath.Join(tempDir, "main.jsbundle")))
+	// Each artifact resolves its own adjacent sidecar so a mixed-platform dir
+	// keys each map by the id its app reports (not the first one found).
+	assert.Equal(t, "iosid", readSymbolsIDFile(map1+symbolsIDSidecarSuffix))
+	assert.Equal(t, "androidid", readSymbolsIDFile(map2+symbolsIDSidecarSuffix))
+	assert.Equal(t,
+		"_sym/js/id/iosid/main.jsbundle.map",
+		getS3Key(reactNativeSymbolsIDPrefix, "iosid", "1.0.0", "", "main.jsbundle.map"))
+	assert.Equal(t,
+		"_sym/js/id/androidid/index.android.bundle.map",
+		getS3Key(reactNativeSymbolsIDPrefix, "androidid", "1.0.0", "", "index.android.bundle.map"))
 }
 
 func TestUnsupportedType(t *testing.T) {

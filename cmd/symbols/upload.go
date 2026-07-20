@@ -170,18 +170,11 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			backendUrl = defaultBackendUrl
 		}
 
-		// Symbols Id Lane: if no --symbols-id was given, fall back to a *.symbolsid
-		// sidecar written next to the bundle by the Metro plugin, so the upload key
-		// matches the id the app reports at runtime.
-		if symbolsID == "" {
-			symbolsID = readSymbolsIDSidecar(path)
-		}
-
 		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
 
 		fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
 		if symbolsID != "" {
-			fmt.Printf("Using symbols id %s (Symbols Id Lane: %s/%s)\n", symbolsID, symbolsIDPrefix, symbolsID)
+			fmt.Printf("Using symbols id %s for all files (Symbols Id Lane: %s/%s)\n", symbolsID, symbolsIDPrefix, symbolsID)
 		}
 
 		files, err := getAllSymbolFiles(path, symbolType)
@@ -193,9 +186,21 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("no symbol files found in %s, is this the correct path?", path)
 		}
 
+		// Symbols Id Lane: resolve the id per file so a single upload of multiple
+		// platforms (e.g. iOS + Android maps in one dir) keys each artifact by the
+		// id its app reports. An explicit --symbols-id overrides all files;
+		// otherwise each file's <file>.symbolsid sidecar is used, falling back to
+		// the Version Lane (version+basePath) when there is none.
 		s3Keys := make([]string, 0, len(files))
 		for _, file := range files {
-			s3Keys = append(s3Keys, getS3Key(symbolsIDPrefix, symbolsID, appVersion, basePath, file.Name))
+			fileSymbolsID := symbolsID
+			if fileSymbolsID == "" {
+				fileSymbolsID = readSymbolsIDFile(file.Path + symbolsIDSidecarSuffix)
+				if fileSymbolsID != "" {
+					fmt.Printf("Using symbols id %s for %s (Symbols Id Lane: %s/%s)\n", fileSymbolsID, file.Name, symbolsIDPrefix, fileSymbolsID)
+				}
+			}
+			s3Keys = append(s3Keys, getS3Key(symbolsIDPrefix, fileSymbolsID, appVersion, basePath, file.Name))
 		}
 
 		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl)
@@ -318,39 +323,10 @@ func getS3Key(symbolsIDPrefix, symbolsID, version, basePath, fileName string) st
 	return fmt.Sprintf("%s/%s%s", version, basePath, fileName)
 }
 
-// readSymbolsIDSidecar returns the symbols id recorded in a *.symbolsid file at
-// or under path (the Metro plugin writes <bundle>.symbolsid next to each bundle).
-// It is best-effort: any error, or no sidecar, yields "" so the caller falls
-// back to the Version Lane (version) addressing.
-func readSymbolsIDSidecar(path string) string {
-	info, err := os.Stat(path)
-	if err != nil {
-		return ""
-	}
-
-	if !info.IsDir() {
-		return readSymbolsIDFile(path + symbolsIDSidecarSuffix)
-	}
-
-	var found string
-	_ = filepath.WalkDir(path, func(filePath string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() && d.Name() == "node_modules" {
-			return filepath.SkipDir
-		}
-		if !d.IsDir() && strings.HasSuffix(d.Name(), symbolsIDSidecarSuffix) {
-			if id := readSymbolsIDFile(filePath); id != "" {
-				found = id
-				return filepath.SkipAll
-			}
-		}
-		return nil
-	})
-	return found
-}
-
+// readSymbolsIDFile returns the symbols id recorded in a *.symbolsid sidecar
+// (the Metro plugin writes <bundle>.symbolsid next to each bundle; the Android
+// Gradle task writes mapping.txt.symbolsid). Best-effort: any error, or no
+// sidecar, yields "" so the caller falls back to the Version Lane addressing.
 func readSymbolsIDFile(filePath string) string {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
