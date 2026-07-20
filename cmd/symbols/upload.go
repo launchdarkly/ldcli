@@ -212,6 +212,12 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
 
+		// The loop below pairs each file with uploadUrls[i], so a short list
+		// (fewer URLs than files) would panic. Require one URL per requested key.
+		if len(uploadUrls) != len(files) {
+			return fmt.Errorf("expected %d upload URLs but received %d", len(files), len(uploadUrls))
+		}
+
 		for i, file := range files {
 			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
 				return fmt.Errorf("failed to upload file %s: %w", file.Path, err)
