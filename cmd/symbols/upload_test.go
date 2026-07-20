@@ -98,6 +98,38 @@ func TestGetAllSymbolFilesEmpty(t *testing.T) {
 	assert.Contains(t, err.Error(), "no Android symbol files found")
 }
 
+func TestGetAllSymbolFilesSingleFile(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "symbols-single")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	validMap := filepath.Join(tempDir, "main.jsbundle.map")
+	assert.NoError(t, os.WriteFile(validMap, []byte("{}"), 0644))
+	unrelated := filepath.Join(tempDir, "secrets.txt")
+	assert.NoError(t, os.WriteFile(unrelated, []byte("nope"), 0644))
+	mapping := filepath.Join(tempDir, androidMappingFileName)
+	assert.NoError(t, os.WriteFile(mapping, []byte("a -> b:\n"), 0644))
+
+	// A matching file for the type is accepted.
+	files, err := getAllSymbolFiles(validMap, typeReactNative)
+	assert.NoError(t, err)
+	assert.Len(t, files, 1)
+	assert.Equal(t, "main.jsbundle.map", files[0].Name)
+
+	// An unrelated single file is rejected instead of uploaded under symbol keys.
+	_, err = getAllSymbolFiles(unrelated, typeReactNative)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "is not a React Native symbol file")
+
+	// A file valid for one type is rejected when the wrong type is chosen.
+	_, err = getAllSymbolFiles(validMap, typeAndroid)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "is not an Android symbol file")
+
+	_, err = getAllSymbolFiles(mapping, typeAndroid)
+	assert.NoError(t, err)
+}
+
 func TestIsSymbolUploadFileAndroid(t *testing.T) {
 	// Only mapping.txt is uploaded for the android type.
 	assert.True(t, isSymbolUploadFile(typeAndroid, "mapping.txt"))

@@ -89,6 +89,9 @@ type SymbolUrlsResponse struct {
 	Data struct {
 		GetSymbolUploadUrls []string `json:"get_symbol_upload_urls_ld"`
 	} `json:"data"`
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
 }
 
 type SymbolFile struct {
@@ -260,6 +263,11 @@ func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 	}
 
 	if !fileInfo.IsDir() {
+		// Validate the explicit file against --type too, so a single --path can't
+		// upload an unrelated file under this type's symbol keys.
+		if !isSymbolUploadFile(symbolType, path) {
+			return nil, unexpectedSymbolFileError(path, symbolType)
+		}
 		files = append(files, SymbolFile{
 			Path: path,
 			Name: filepath.Base(path),
@@ -303,6 +311,15 @@ func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 	}
 
 	return files, nil
+}
+
+// unexpectedSymbolFileError reports that an explicit --path file doesn't match
+// the artifacts expected for the given --type.
+func unexpectedSymbolFileError(path, symbolType string) error {
+	if symbolType == typeAndroid {
+		return fmt.Errorf("file %s is not an Android symbol file (expected %s)", path, androidMappingFileName)
+	}
+	return fmt.Errorf("file %s is not a React Native symbol file (expected *.jsbundle, *.jsbundle.map, *.bundle, *.bundle.map)", path)
 }
 
 func getS3Key(symbolsIDPrefix, symbolsID, version, basePath, fileName string) string {
@@ -396,8 +413,16 @@ func getSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl st
 		return nil, err
 	}
 
+	if len(urlsResp.Errors) > 0 {
+		messages := make([]string, 0, len(urlsResp.Errors))
+		for _, e := range urlsResp.Errors {
+			messages = append(messages, e.Message)
+		}
+		return nil, fmt.Errorf("unable to generate symbol upload urls: %s", strings.Join(messages, "; "))
+	}
+
 	if len(urlsResp.Data.GetSymbolUploadUrls) == 0 {
-		return nil, fmt.Errorf("unable to generate symbol upload urls %w", err)
+		return nil, fmt.Errorf("unable to generate symbol upload urls: server returned no urls for %d path(s)", len(paths))
 	}
 
 	return urlsResp.Data.GetSymbolUploadUrls, nil
