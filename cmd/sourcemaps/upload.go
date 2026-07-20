@@ -168,21 +168,6 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 	}
 }
 
-var sourceMapUploadSuffixes = []string{
-	".js.map", ".js",
-	".jsbundle.map", ".jsbundle",
-	".bundle.map", ".bundle",
-}
-
-func isSourceMapUploadFile(name string) bool {
-	for _, suffix := range sourceMapUploadSuffixes {
-		if strings.HasSuffix(name, suffix) {
-			return true
-		}
-	}
-	return false
-}
-
 func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 	var files []SourceMapFile
 	routeGroupPattern := regexp.MustCompile(`\(.+?\)/`)
@@ -200,6 +185,7 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 		return files, nil
 	}
 
+	skippedReactNative := false
 	err = filepath.WalkDir(path, func(filePath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -209,7 +195,7 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 			return filepath.SkipDir
 		}
 
-		if !d.IsDir() && isSourceMapUploadFile(filePath) {
+		if !d.IsDir() && (strings.HasSuffix(filePath, ".js.map") || strings.HasSuffix(filePath, ".js")) {
 			relPath, err := filepath.Rel(path, filePath)
 			if err != nil {
 				return err
@@ -227,6 +213,8 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 					Name: routeGroupRemovedPath,
 				})
 			}
+		} else if !d.IsDir() && isReactNativeArtifact(filePath) {
+			skippedReactNative = true
 		}
 
 		return nil
@@ -236,11 +224,31 @@ func getAllSourceMapFiles(path string) ([]SourceMapFile, error) {
 		return nil, err
 	}
 
+	// Transitional notice: `sourcemaps upload` used to also collect React Native
+	// bundles, but they now go through the dedicated `symbols upload` flow. Warn
+	// (instead of silently skipping) so anyone relying on the old behavior knows
+	// to switch, rather than shipping a build with no usable RN symbols.
+	if skippedReactNative {
+		fmt.Fprintln(os.Stderr, "warning: skipped React Native bundle(s) (*.jsbundle / *.bundle). `sourcemaps upload` only handles web sourcemaps (*.js / *.js.map); upload React Native symbols with `ldcli symbols upload --type react-native` instead.")
+	}
+
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no sourcemap files found (looked for *.js.map, *.jsbundle.map, *.bundle.map and their minified files). Please double check that you have generated sourcemaps for your app")
+		return nil, fmt.Errorf("no .js.map files found. Please double check that you have generated sourcemaps for your app")
 	}
 
 	return files, nil
+}
+
+// isReactNativeArtifact reports whether name looks like a React Native bundle or
+// its sourcemap. Used only to warn that these are skipped by `sourcemaps upload`
+// (they belong to `symbols upload`), never to select files for upload here.
+func isReactNativeArtifact(name string) bool {
+	for _, suffix := range []string{".jsbundle.map", ".jsbundle", ".bundle.map", ".bundle"} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func getS3Key(version, basePath, fileName string) string {
