@@ -1,0 +1,12 @@
+require 'ldclient-rb'
+# --- init ---
+ld_client = LaunchDarkly::LDClient.new("{{.SDKKey}}")
+
+context = LaunchDarkly::LDContext.create({
+  key: "example-user-key",
+  kind: "user",
+  name: "Example User"
+})
+
+flag_value = ld_client.variation("{{.FlagKey}}", context, false)
+puts "Flag '{{.FlagKey}}' is #{flag_value}"
