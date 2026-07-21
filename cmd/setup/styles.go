@@ -13,7 +13,18 @@ var (
 	headerStyle   = lipgloss.NewStyle().Bold(true)
 	selectedStyle = lipgloss.NewStyle().Foreground(colorSelected).Bold(true)
 	mutedStyle    = lipgloss.NewStyle().Faint(true)
+
+	// codeStyle marks copy-me code (snippets, commands) with a left gutter bar
+	// and a distinct foreground, so the user can tell what to copy versus read.
+	codeStyle = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), false, false, false, true).
+			BorderForeground(colorBorder).
+			Foreground(lipgloss.Color("252")).
+			PaddingLeft(1)
 )
+
+// code renders a snippet or command as a distinct code block.
+func code(s string) string { return codeStyle.Render(s) }
 
 // wrapText reflows prose to the given width so it doesn't overflow narrow
 // terminals. Returns the input unchanged when width is unknown (<=0).

@@ -488,12 +488,12 @@ func (m wizardModel) View() string {
 		if m.installResult != nil && m.installResult.Failed {
 			body := titleStyle.Render("Manual install needed") + "\n\n" +
 				m.wrap("The SDK couldn't be installed automatically. Install it yourself with:") + "\n\n" +
-				"  " + m.installResult.Command + "\n\n"
+				code(m.installResult.Command) + "\n\n"
 			if m.initResult != nil && m.initResult.Success {
 				body += m.wrap(fmt.Sprintf("Initialization code was added to %s.", m.initResult.FilePath)) + "\n"
 			} else if m.initResult != nil && m.initResult.Snippet != "" {
 				body += m.wrap(fmt.Sprintf("Then add this initialization code to %s:", m.initResult.FilePath)) +
-					"\n\n" + m.initResult.Snippet + "\n"
+					"\n\n" + code(m.initResult.Snippet) + "\n"
 			}
 			body += "\n" + m.wrap(fmt.Sprintf("Flag %q was created in project %q.", m.flagKey, m.selectedProject)) + "\n"
 			return body + quitHint
@@ -501,8 +501,8 @@ func (m wizardModel) View() string {
 		if m.initResult != nil && !m.initResult.Success {
 			body := titleStyle.Render("Manual SDK setup required") + "\n\n"
 			if m.initResult.Snippet != "" {
-				body += fmt.Sprintf("Add the following %s initialization code to %s:\n\n%s\n\n",
-					m.initResult.SDKID, m.initResult.FilePath, m.initResult.Snippet)
+				body += m.wrap(fmt.Sprintf("Add the following %s initialization code to %s:", m.initResult.SDKID, m.initResult.FilePath)) +
+					"\n\n" + code(m.initResult.Snippet) + "\n\n"
 			} else {
 				body += fmt.Sprintf("No initialization template is available for %s.\n", m.initResult.SDKID)
 			}
