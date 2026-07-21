@@ -17,7 +17,14 @@ type InstallResult struct {
 	Command          string `json:"command"`
 	DryRun           bool   `json:"dry_run,omitempty"`
 	AlreadyInstalled bool   `json:"already_installed,omitempty"`
+	Failed           bool   `json:"failed,omitempty"`
 	Success          bool   `json:"success"`
+}
+
+// RequiresManualInstall reports whether the SDK has no automated package-manager
+// command and must be added by hand (e.g. Java, Android, Swift).
+func RequiresManualInstall(sdkID string) bool {
+	return manualInstallSDKs[sdkID]
 }
 
 // Installer runs the appropriate package manager command to add an SDK dependency.

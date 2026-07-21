@@ -15,6 +15,18 @@ var (
 	mutedStyle    = lipgloss.NewStyle().Faint(true)
 )
 
+// wrapText reflows prose to the given width so it doesn't overflow narrow
+// terminals. Returns the input unchanged when width is unknown (<=0).
+func wrapText(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	if width > 100 {
+		width = 100
+	}
+	return lipgloss.NewStyle().Width(width).Render(s)
+}
+
 // box returns the panel style used on the SDK screen, highlighted when focused.
 func box(focused bool, width int) lipgloss.Style {
 	border := colorBlur

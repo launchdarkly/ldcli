@@ -202,6 +202,27 @@ func TestWizard_Esc_Quits(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
+func TestSDKItem_Title_MarksManualInstall(t *testing.T) {
+	assert.Contains(t, sdkItem{id: "java-server-sdk", name: "Java"}.Title(), "manual install")
+	assert.Equal(t, "Node.js", sdkItem{id: "node-server", name: "Node.js"}.Title())
+}
+
+func TestWizard_Done_InstallFailed_ShowsManualCommand(t *testing.T) {
+	m := wizardModel{
+		step:            stepDone,
+		width:           80,
+		height:          30,
+		flagKey:         "my-new-flag",
+		selectedProject: "default",
+		installResult:   &setup.InstallResult{SDKID: "ruby-server-sdk", Command: "gem install launchdarkly-server-sdk", Failed: true},
+		initResult:      &setup.InitResult{SDKID: "ruby-server-sdk", FilePath: "app.rb", Success: true},
+	}
+
+	v := m.View()
+	assert.Contains(t, v, "Manual install needed")
+	assert.Contains(t, v, "gem install launchdarkly-server-sdk")
+}
+
 func TestWizard_Done_Success_ShowsQuitHint(t *testing.T) {
 	m := wizardModel{
 		step:         stepDone,

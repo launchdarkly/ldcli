@@ -173,6 +173,13 @@ func TestPackageInstaller_Install_AlreadyInstalled_SkipsCommand(t *testing.T) {
 	assert.Empty(t, result.Command)
 }
 
+func TestRequiresManualInstall(t *testing.T) {
+	assert.True(t, RequiresManualInstall("java-server-sdk"))
+	assert.True(t, RequiresManualInstall("swift-client-sdk"))
+	assert.False(t, RequiresManualInstall("node-server"))
+	assert.False(t, RequiresManualInstall("ruby-server-sdk"))
+}
+
 func TestPackageInstaller_Install_UnknownSDK_ReturnsError(t *testing.T) {
 	installer := PackageInstaller{}
 

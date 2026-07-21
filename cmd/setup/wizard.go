@@ -72,6 +72,7 @@ type wizardModel struct {
 	sdkFocus           int      // on the SDK screen: 0 = detected panel, 1 = the list of other SDKs
 	planInstallCmd     string   // install command previewed on the plan screen
 	planAlready        bool     // whether the SDK is already installed (previewed on the plan screen)
+	installResult      *setup.InstallResult
 	flagKey            string
 	initResult         *setup.InitResult
 	verifyResult       *setup.VerifyResult
@@ -85,7 +86,12 @@ type sdkItem struct {
 	name     string
 }
 
-func (s sdkItem) Title() string       { return s.name }
+func (s sdkItem) Title() string {
+	if setup.RequiresManualInstall(s.id) {
+		return s.name + " (manual install)"
+	}
+	return s.name
+}
 func (s sdkItem) Description() string { return s.language }
 func (s sdkItem) FilterValue() string { return s.name }
 
@@ -242,6 +248,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case installDoneMsg:
+		m.installResult = msg.result
 		m.step = stepCreateFlag
 		return m, m.runCreateFlag()
 
@@ -252,7 +259,9 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case initDoneMsg:
 		m.initResult = msg.result
-		if !msg.result.Success {
+		// Skip the live verify if init didn't inject runnable code, or if the SDK
+		// wasn't actually installed (auto-install failed) — the app can't connect.
+		if !msg.result.Success || (m.installResult != nil && m.installResult.Failed) {
 			m.step = stepDone
 			return m, nil
 		}
@@ -476,6 +485,19 @@ func (m wizardModel) View() string {
 		return m.spinner.View() + " Waiting for SDK to connect..."
 
 	case stepDone:
+		if m.installResult != nil && m.installResult.Failed {
+			body := titleStyle.Render("Manual install needed") + "\n\n" +
+				m.wrap("The SDK couldn't be installed automatically. Install it yourself with:") + "\n\n" +
+				"  " + m.installResult.Command + "\n\n"
+			if m.initResult != nil && m.initResult.Success {
+				body += m.wrap(fmt.Sprintf("Initialization code was added to %s.", m.initResult.FilePath)) + "\n"
+			} else if m.initResult != nil && m.initResult.Snippet != "" {
+				body += m.wrap(fmt.Sprintf("Then add this initialization code to %s:", m.initResult.FilePath)) +
+					"\n\n" + m.initResult.Snippet + "\n"
+			}
+			body += "\n" + m.wrap(fmt.Sprintf("Flag %q was created in project %q.", m.flagKey, m.selectedProject)) + "\n"
+			return body + quitHint
+		}
 		if m.initResult != nil && !m.initResult.Success {
 			body := titleStyle.Render("Manual SDK setup required") + "\n\n"
 			if m.initResult.Snippet != "" {
@@ -532,13 +554,19 @@ func sdkItemsExcept(exclude string) []list.Item {
 // so both areas line up.
 func (m wizardModel) sdkBoxWidth() int {
 	w := m.width - 4
-	if w < 40 {
-		w = 40
-	}
 	if w > 72 {
 		w = 72
 	}
+	if w < 20 { // never wider than a very narrow terminal can show
+		w = 20
+	}
 	return w
+}
+
+// wrap reflows prose to the terminal width so it doesn't overflow narrow
+// terminals. Code snippets are rendered raw (not passed through here).
+func (m wizardModel) wrap(s string) string {
+	return wrapText(s, m.width)
 }
 
 // sdkDelegate returns the list row renderer. When the list isn't the focused
@@ -572,8 +600,12 @@ func (m wizardModel) newSDKList(items []list.Item, title string, focused bool) l
 // below; the focused area is highlighted. When detection failed, only the list
 // is shown.
 func (m wizardModel) sdkSelectView() string {
+	hint := mutedStyle.Render("↑/↓ move · enter select · ← back · esc quit")
+	catalog := mutedStyle.Render("Don't see your language? All LaunchDarkly SDKs: https://launchdarkly.com/docs/sdk")
+
 	if m.detectedSDK == nil {
-		return m.sdkList.View()
+		listBox := box(true, m.sdkBoxWidth()).Render(m.sdkList.View() + "\n" + hint)
+		return listBox + "\n" + catalog
 	}
 
 	boxW := m.sdkBoxWidth()
@@ -581,19 +613,22 @@ func (m wizardModel) sdkSelectView() string {
 	listStyle := box(m.sdkFocus == 1, boxW)
 
 	// Point to the detected SDK when its panel is focused, matching the list's cursor.
-	pointer, line := "  ", fmt.Sprintf("%s  (%s)", m.detectedSDK.name, m.detectedSDK.language)
+	label := fmt.Sprintf("%s  (%s)", m.detectedSDK.name, m.detectedSDK.language)
+	if setup.RequiresManualInstall(m.detectedSDK.id) {
+		label += " — manual install"
+	}
+	pointer := "  "
 	if m.sdkFocus == 0 {
-		pointer, line = selectedStyle.Render("❯ "), selectedStyle.Render(line)
+		pointer, label = selectedStyle.Render("❯ "), selectedStyle.Render(label)
 	}
 	panel := panelStyle.Render(
 		headerStyle.Render("We identified this as your SDK") + "\n" +
-			pointer + line + "\n" +
+			pointer + label + "\n" +
 			mutedStyle.Render("Press Enter to use it"))
 
-	hint := mutedStyle.Render("↑/↓ move · enter select · ← back · esc quit")
 	listBox := listStyle.Render(m.sdkList.View() + "\n" + hint)
 
-	return panel + "\n\n" + listBox
+	return panel + "\n\n" + listBox + "\n" + catalog
 }
 
 // planView lists the steps setup will take, before any of them run, so the user
@@ -752,7 +787,14 @@ func (m wizardModel) runInstall() tea.Cmd {
 		}
 		result, err := m.installer.Install(dir, m.detectResult)
 		if err != nil {
-			return wizardErrMsg{err: err}
+			// Don't dead-end on a failed auto-install (e.g. Ruby gem perms, no
+			// network): continue and surface the command to run by hand.
+			args, _ := setup.InstallArgs(m.detectResult.SDKID, m.detectResult.PackageManager)
+			return installDoneMsg{result: &setup.InstallResult{
+				SDKID:   m.detectResult.SDKID,
+				Command: strings.Join(args, " "),
+				Failed:  true,
+			}}
 		}
 		return installDoneMsg{result: result}
 	}
