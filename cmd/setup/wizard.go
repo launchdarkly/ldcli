@@ -178,9 +178,9 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.quitting = true
 			return m, tea.Quit
-		case "left":
+		case "left", "h":
 			if m.isFiltering() {
-				break // let the list move the filter cursor
+				break // let the list receive the key as filter input
 			}
 			return m.handleBack()
 		case "enter":
@@ -563,6 +563,7 @@ func (m wizardModel) newSDKList(items []list.Item, title string, focused bool) l
 	l.Title = title
 	l.Styles.Title = headerStyle // match the detected-SDK panel header, not the default title bar
 	l.SetShowStatusBar(false)
+	l.SetShowHelp(false) // we render a single key hint inside the box instead
 	return l
 }
 
@@ -589,9 +590,10 @@ func (m wizardModel) sdkSelectView() string {
 			pointer + line + "\n" +
 			mutedStyle.Render("Press Enter to use it"))
 
-	listBox := listStyle.Render(m.sdkList.View())
+	hint := mutedStyle.Render("↑/↓ move · enter select · ← back · esc quit")
+	listBox := listStyle.Render(m.sdkList.View() + "\n" + hint)
 
-	return panel + "\n\n" + listBox + "\n" + mutedStyle.Render("↑/↓ move · Enter select · ← back · esc quit")
+	return panel + "\n\n" + listBox
 }
 
 // planView lists the steps setup will take, before any of them run, so the user
