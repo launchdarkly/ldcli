@@ -248,11 +248,19 @@ func TestSymbolsIDForArtifact(t *testing.T) {
 }
 
 func TestUnsupportedType(t *testing.T) {
-	viper.Set(typeFlag, "apple-dsym")
+	viper.Set(typeFlag, "flutter")
 	defer viper.Set(typeFlag, "")
 
 	client := resources.NewClient("")
 	err := runE(client)(&cobra.Command{}, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported --type")
+}
+
+func TestIsSupportedType(t *testing.T) {
+	assert.True(t, isSupportedType(typeReactNative))
+	assert.True(t, isSupportedType(typeAndroid))
+	assert.True(t, isSupportedType(typeAppleDSYM))
+	assert.False(t, isSupportedType("flutter"))
+	assert.False(t, isSupportedType(""))
 }

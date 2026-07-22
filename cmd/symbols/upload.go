@@ -62,6 +62,10 @@ const (
 	// stack-trace retrace.
 	typeAndroid = "android"
 
+	// typeAppleDSYM compiles Apple dSYM debug info into per-architecture .ldsm
+	// symbol maps (keyed by build UUID) for iOS/macOS crash symbolication.
+	typeAppleDSYM = "apple-dsym"
+
 	// getSymbolUrlsQuery uses the dedicated `get_symbol_upload_urls_ld` query
 	// (separate from `sourcemaps upload`) so symbol uploads travel over the
 	// symbol endpoint, which accepts larger, multi-segment uploads.
@@ -104,7 +108,7 @@ func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerF
 		Args:  validators.Validate(),
 		Use:   "upload",
 		Short: "Upload symbol files",
-		Long:  "Upload symbol files (React Native sourcemaps or Android R8/ProGuard mappings) to LaunchDarkly for error monitoring",
+		Long:  "Upload symbol files (React Native sourcemaps, Android R8/ProGuard mappings, or Apple dSYMs) to LaunchDarkly for error monitoring",
 		RunE:  runE(client),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			tracker := analyticsTrackerFn(
@@ -131,7 +135,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 	return func(cmd *cobra.Command, args []string) error {
 		symbolType := viper.GetString(typeFlag)
 		if !isSupportedType(symbolType) {
-			return fmt.Errorf("unsupported --type %q; supported types: %s, %s", symbolType, typeReactNative, typeAndroid)
+			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s", symbolType, typeReactNative, typeAndroid, typeAppleDSYM)
 		}
 
 		projectKey := viper.GetString(cliflags.ProjectFlag)
@@ -171,6 +175,13 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 
 		if backendUrl == "" {
 			backendUrl = defaultBackendUrl
+		}
+
+		// Apple dSYMs take a dedicated path: they are compiled to per-arch .ldsm
+		// symbol maps keyed by build UUID, ignoring the version/symbols-id lanes.
+		if symbolType == typeAppleDSYM {
+			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
+			return uploadAppleDSYMs(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, backendUrl)
 		}
 
 		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
@@ -230,7 +241,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 }
 
 func isSupportedType(symbolType string) bool {
-	return symbolType == typeReactNative || symbolType == typeAndroid
+	return symbolType == typeReactNative || symbolType == typeAndroid || symbolType == typeAppleDSYM
 }
 
 // symbolsIDPrefixForType picks the Symbols Id Lane storage segment for the symbol
@@ -461,7 +472,7 @@ func uploadFile(filePath, uploadUrl, name string) error {
 }
 
 func initFlags(cmd *cobra.Command) {
-	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s, %s)", typeReactNative, typeAndroid))
+	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s, %s, %s)", typeReactNative, typeAndroid, typeAppleDSYM))
 	_ = cmd.MarkFlagRequired(typeFlag)
 	_ = cmd.Flags().SetAnnotation(typeFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(typeFlag, cmd.Flags().Lookup(typeFlag))

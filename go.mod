@@ -4,6 +4,8 @@ go 1.24.3
 
 require (
 	github.com/adrg/xdg v0.5.3
+	github.com/blacktop/go-dwarf v1.0.14
+	github.com/blacktop/go-macho v1.1.282
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.6
 	github.com/charmbracelet/glamour v0.10.0
@@ -13,6 +15,7 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/iancoleman/strcase v0.3.0
+	github.com/ianlancetaylor/demangle v0.0.0-20260505044615-1ff4bf46051f
 	github.com/launchdarkly/api-client-go/v14 v14.0.0
 	github.com/launchdarkly/go-sdk-common/v3 v3.4.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.13.4
