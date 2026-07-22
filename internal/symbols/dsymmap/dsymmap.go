@@ -1,13 +1,12 @@
-// Package ldsm implements the LaunchDarkly Symbol Map (".ldsm") format: a
-// compact, mmap-friendly, binary-searchable index that maps an image-relative
-// instruction offset to a function name, source file:line, and any inlined call
-// frames.
+// Package dsymmap implements the dSYM Map (".dsymmap") format: a compact,
+// mmap-friendly, binary-searchable index that maps an image-relative instruction
+// offset to a function name, source file:line, and any inlined call frames.
 //
 // It is produced by `ldcli symbols upload --type apple-dsym` from a Mach-O dSYM
 // (one file per architecture, keyed by the build UUID) and consumed by the
 // backend Apple enhancer. The two sides live in separate repos and intentionally
 // duplicate this layout rather than share a module; this file is byte-for-byte
-// identical to backend/stacktraces/ldsm/ldsm.go, and the `Magic`+`Version`
+// identical to backend/stacktraces/dsymmap/dsymmap.go, and the `Magic`+`Version`
 // header plus a shared golden file guard against drift.
 //
 // # Design goals
@@ -30,7 +29,7 @@
 // # Binary layout (little-endian)
 //
 //	Header (72 bytes):
-//	  0  magic       [4]byte "LDSM"
+//	  0  magic       [4]byte "DSMP"
 //	  4  version     u16
 //	  6  flags       u16
 //	  8  cpuType     u32     (mach cputype)
@@ -68,7 +67,7 @@
 //	  28 depth       u32   (1 = outermost inline; increases inward)
 //
 //	strtab: NUL-terminated UTF-8 strings; offset 0 is the empty string.
-package ldsm
+package dsymmap
 
 import (
 	"encoding/binary"
@@ -80,7 +79,7 @@ import (
 
 const (
 	// Magic identifies the file format.
-	Magic = "LDSM"
+	Magic = "DSMP"
 	// Version is bumped on any incompatible layout change; the reader rejects
 	// versions it does not understand.
 	Version = uint16(1)
@@ -159,7 +158,7 @@ func (s *strtab) intern(str string) uint32 {
 	return off
 }
 
-// Encode writes the .ldsm representation to w.
+// Encode writes the .dsymmap representation to w.
 func (b *Builder) Encode(w io.Writer) error {
 	funcs := append([]Function(nil), b.Funcs...)
 	sort.Slice(funcs, func(i, j int) bool { return funcs[i].Start < funcs[j].Start })
@@ -229,7 +228,7 @@ func (b *Builder) Encode(w io.Writer) error {
 
 	for _, chunk := range [][]byte{hdr, funcBuf, lineBuf, inlineBuf, st.buf} {
 		if _, err := w.Write(chunk); err != nil {
-			return e.Wrap(err, "writing ldsm")
+			return e.Wrap(err, "writing dsymmap")
 		}
 	}
 	return nil
@@ -237,7 +236,7 @@ func (b *Builder) Encode(w io.Writer) error {
 
 // --- Map (decode + lookup side) ---
 
-// Map is a read-only view over encoded .ldsm bytes (typically an mmap'd region).
+// Map is a read-only view over encoded .dsymmap bytes (typically an mmap'd region).
 // It does not copy or parse the record sections; lookups index into data.
 type Map struct {
 	data       []byte
@@ -259,13 +258,13 @@ type Map struct {
 // (not unmapped) for the lifetime of the Map.
 func Open(data []byte) (*Map, error) {
 	if len(data) < headerSize {
-		return nil, e.New("ldsm: data shorter than header")
+		return nil, e.New("dsymmap: data shorter than header")
 	}
 	if string(data[0:4]) != Magic {
-		return nil, e.Errorf("ldsm: bad magic %q", data[0:4])
+		return nil, e.Errorf("dsymmap: bad magic %q", data[0:4])
 	}
 	if v := binary.LittleEndian.Uint16(data[4:]); v != Version {
-		return nil, e.Errorf("ldsm: unsupported version %d (want %d)", v, Version)
+		return nil, e.Errorf("dsymmap: unsupported version %d (want %d)", v, Version)
 	}
 
 	m := &Map{data: data}
@@ -297,7 +296,7 @@ func Open(data []byte) (*Map, error) {
 		return nil, err
 	}
 	if strtabLen == 0 || m.strtab[len(m.strtab)-1] != 0 {
-		return nil, e.New("ldsm: strtab not NUL-terminated")
+		return nil, e.New("dsymmap: strtab not NUL-terminated")
 	}
 	m.nFuncs = int(nFuncs)
 	m.nLines = int(nLines)
@@ -307,7 +306,7 @@ func Open(data []byte) (*Map, error) {
 func section(data []byte, off, count, size uint32, name string) ([]byte, error) {
 	end := uint64(off) + uint64(count)*uint64(size)
 	if uint64(off) > uint64(len(data)) || end > uint64(len(data)) {
-		return nil, e.Errorf("ldsm: %s section out of bounds", name)
+		return nil, e.Errorf("dsymmap: %s section out of bounds", name)
 	}
 	return data[off:end], nil
 }

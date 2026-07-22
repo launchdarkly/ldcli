@@ -13,11 +13,16 @@ import (
 )
 
 // appleSymbolsIDPrefix is the storage segment for Apple symbol maps. Each map is
-// keyed by its build UUID: _sym/apple/id/<UUID>. The backend derives the same
-// key from the image_uuid the device reports for a crashing frame.
+// keyed by its build UUID: _sym/apple/id/<UUID>.dsymmap. The backend derives the
+// same key from the image_uuid the device reports for a crashing frame.
 const appleSymbolsIDPrefix = "_sym/apple/id"
 
-// appleSymbolMap is one architecture's compiled .ldsm ready to upload.
+// appleSymbolExt is appended to the build UUID to form the object name, so
+// uploaded artifacts carry a human-recognizable file extension. It has no role
+// in lookup (maps are keyed by UUID); the backend appends the same extension.
+const appleSymbolExt = ".dsymmap"
+
+// appleSymbolMap is one architecture's compiled .dsymmap ready to upload.
 type appleSymbolMap struct {
 	Key  string
 	UUID string
@@ -26,7 +31,7 @@ type appleSymbolMap struct {
 }
 
 // uploadAppleDSYMs discovers .dSYM bundles under path, compiles each contained
-// architecture to a .ldsm symbol map, and uploads one object per build UUID.
+// architecture to a .dsymmap symbol map, and uploads one object per build UUID.
 func uploadAppleDSYMs(apiKey, projectID, path, backendURL string) error {
 	images, err := findDSYMImages(path)
 	if err != nil {
@@ -69,7 +74,7 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string) error {
 	return nil
 }
 
-// buildAppleMaps compiles every architecture of every dSYM image into a .ldsm,
+// buildAppleMaps compiles every architecture of every dSYM image into a .dsymmap,
 // deduplicating by UUID (a universal binary and its per-arch slices can repeat).
 func buildAppleMaps(images []string) ([]appleSymbolMap, error) {
 	var maps []appleSymbolMap
@@ -104,7 +109,7 @@ func buildAppleMaps(images []string) ([]appleSymbolMap, error) {
 }
 
 func appleKey(uuid string) string {
-	return fmt.Sprintf("%s/%s", appleSymbolsIDPrefix, uuid)
+	return fmt.Sprintf("%s/%s%s", appleSymbolsIDPrefix, uuid, appleSymbolExt)
 }
 
 // findDSYMImages resolves path to the DWARF Mach-O images to symbolicate. path

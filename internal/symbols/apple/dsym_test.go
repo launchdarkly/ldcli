@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/ldcli/internal/symbols/ldsm"
+	"github.com/launchdarkly/ldcli/internal/symbols/dsymmap"
 )
 
 // fixtureDWARF is the DWARF Mach-O inside the checked-in universal .dSYM.
@@ -52,7 +52,7 @@ func TestBuildFromMachO_SymbolicatesInlineChain(t *testing.T) {
 
 			var buf bytes.Buffer
 			require.NoError(t, a.Builder.Encode(&buf))
-			m, err := ldsm.Open(buf.Bytes())
+			m, err := dsymmap.Open(buf.Bytes())
 			require.NoError(t, err)
 			assert.Equal(t, a.Builder.UUID, m.UUID())
 
@@ -82,7 +82,7 @@ func TestBuildFromMachO_MissingFile(t *testing.T) {
 	require.Error(t, err)
 }
 
-func findFunc(b *ldsm.Builder, nameSubstr string) *ldsm.Function {
+func findFunc(b *dsymmap.Builder, nameSubstr string) *dsymmap.Function {
 	for i := range b.Funcs {
 		if strings.Contains(b.Funcs[i].Name, nameSubstr) {
 			return &b.Funcs[i]
@@ -91,7 +91,7 @@ func findFunc(b *ldsm.Builder, nameSubstr string) *ldsm.Function {
 	return nil
 }
 
-func findInline(fn *ldsm.Function, nameSubstr string) *ldsm.Inline {
+func findInline(fn *dsymmap.Function, nameSubstr string) *dsymmap.Inline {
 	for i := range fn.Inlines {
 		if strings.Contains(fn.Inlines[i].Name, nameSubstr) {
 			return &fn.Inlines[i]

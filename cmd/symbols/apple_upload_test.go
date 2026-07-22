@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/ldcli/internal/symbols/ldsm"
+	"github.com/launchdarkly/ldcli/internal/symbols/dsymmap"
 )
 
 // fixtureDSYM is the checked-in universal dSYM shared with the apple package's
@@ -20,7 +20,7 @@ const fixtureDSYM = "../../internal/symbols/apple/testdata/symbolsdemo.dSYM"
 var uuidHex = regexp.MustCompile(`^[0-9A-F]{32}$`)
 
 func TestAppleKey(t *testing.T) {
-	assert.Equal(t, "_sym/apple/id/ABC123", appleKey("ABC123"))
+	assert.Equal(t, "_sym/apple/id/ABC123.dsymmap", appleKey("ABC123"))
 }
 
 func TestFindDSYMImages_Bundle(t *testing.T) {
@@ -54,7 +54,7 @@ func TestFindDSYMImages_Missing(t *testing.T) {
 }
 
 // TestBuildAppleMaps exercises the command's build/encode/dedupe step against
-// the real fixture and confirms the produced bytes are valid, keyed .ldsm maps.
+// the real fixture and confirms the produced bytes are valid, keyed .dsymmap maps.
 func TestBuildAppleMaps(t *testing.T) {
 	image := filepath.Join(fixtureDSYM, "Contents", "Resources", "DWARF", "symbolsdemo")
 	maps, err := buildAppleMaps([]string{image})
@@ -69,8 +69,8 @@ func TestBuildAppleMaps(t *testing.T) {
 		assert.False(t, keys[m.Key], "each arch gets a distinct key")
 		keys[m.Key] = true
 
-		// The uploaded bytes must decode as a valid .ldsm the backend can read.
-		parsed, err := ldsm.Open(m.Data)
+		// The uploaded bytes must decode as a valid .dsymmap the backend can read.
+		parsed, err := dsymmap.Open(m.Data)
 		require.NoError(t, err)
 		assert.Equal(t, strings.ToUpper(m.UUID), keySuffixHex(m.Key))
 		_ = parsed
@@ -93,5 +93,5 @@ func TestArchLabel(t *testing.T) {
 }
 
 func keySuffixHex(key string) string {
-	return key[strings.LastIndex(key, "/")+1:]
+	return strings.TrimSuffix(key[strings.LastIndex(key, "/")+1:], appleSymbolExt)
 }

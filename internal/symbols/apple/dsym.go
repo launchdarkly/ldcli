@@ -1,5 +1,5 @@
 // Package apple converts an Apple dSYM (Mach-O + DWARF) into the compact,
-// per-architecture .ldsm symbol maps the backend consumes.
+// per-architecture .dsymmap symbol maps the backend consumes.
 //
 // It is the ldcli-side (encode) half of the Apple symbolication pipeline: it
 // extracts each architecture's build UUID, walks the DWARF debug info to recover
@@ -25,7 +25,7 @@ import (
 	"github.com/ianlancetaylor/demangle"
 	e "github.com/pkg/errors"
 
-	"github.com/launchdarkly/ldcli/internal/symbols/ldsm"
+	"github.com/launchdarkly/ldcli/internal/symbols/dsymmap"
 )
 
 // Arch is one architecture's symbol map recovered from a dSYM image.
@@ -35,12 +35,12 @@ type Arch struct {
 	UUID       string
 	CPUType    uint32
 	CPUSubtype uint32
-	Builder    *ldsm.Builder
+	Builder    *dsymmap.Builder
 }
 
 // BuildFromMachO opens a dSYM's DWARF Mach-O image at path — thin or fat —
 // and returns one symbol map per architecture. The caller encodes each
-// Arch.Builder to its own .ldsm keyed by Arch.UUID.
+// Arch.Builder to its own .dsymmap keyed by Arch.UUID.
 func BuildFromMachO(path string) ([]Arch, error) {
 	// NewFatFile/NewFile read sections lazily from the ReaderAt, so f must stay
 	// open through the DWARF walk below.
@@ -92,7 +92,7 @@ func buildArch(f *macho.File) (Arch, error) {
 		textVM = seg.Addr
 	}
 
-	b := &ldsm.Builder{
+	b := &dsymmap.Builder{
 		UUID:       uuid,
 		TextVMAddr: textVM,
 		CPUType:    uint32(f.CPU),
@@ -115,14 +115,14 @@ func buildArch(f *macho.File) (Arch, error) {
 // function to attach to); inlineDepth is how many inlined_subroutine ancestors
 // deep we are (0 inside the physical function body).
 type scope struct {
-	fn          *ldsm.Function
+	fn          *dsymmap.Function
 	inlineDepth uint32
 }
 
-func populate(d *dwarf.Data, textVM uint64, b *ldsm.Builder) error {
+func populate(d *dwarf.Data, textVM uint64, b *dsymmap.Builder) error {
 	r := d.Reader()
 	var stack []scope
-	var funcs []*ldsm.Function
+	var funcs []*dsymmap.Function
 	var curFiles []*dwarf.LineFile
 
 	top := func() scope {
@@ -183,17 +183,17 @@ func populate(d *dwarf.Data, textVM uint64, b *ldsm.Builder) error {
 
 // makeFunction builds a single Function spanning a subprogram's PC ranges, or
 // nil for a declaration / fully-inlined subprogram with no code of its own.
-func makeFunction(d *dwarf.Data, ent *dwarf.Entry, textVM uint64) *ldsm.Function {
+func makeFunction(d *dwarf.Data, ent *dwarf.Entry, textVM uint64) *dsymmap.Function {
 	lo, hi, ok := spanOf(d, ent, textVM)
 	if !ok {
 		return nil
 	}
-	return &ldsm.Function{Start: lo, End: hi, Name: entryName(d, ent)}
+	return &dsymmap.Function{Start: lo, End: hi, Name: entryName(d, ent)}
 }
 
 // makeInlines builds one Inline per PC range of an inlined_subroutine, all
 // sharing the resolved callee name, call-site file:line, and nesting depth.
-func makeInlines(d *dwarf.Data, ent *dwarf.Entry, textVM uint64, depth uint32, files []*dwarf.LineFile) []ldsm.Inline {
+func makeInlines(d *dwarf.Data, ent *dwarf.Entry, textVM uint64, depth uint32, files []*dwarf.LineFile) []dsymmap.Inline {
 	ranges, err := d.Ranges(ent)
 	if err != nil || len(ranges) == 0 {
 		return nil
@@ -201,13 +201,13 @@ func makeInlines(d *dwarf.Data, ent *dwarf.Entry, textVM uint64, depth uint32, f
 	name := entryName(d, ent)
 	callFile, callLine := callSite(ent, files)
 
-	out := make([]ldsm.Inline, 0, len(ranges))
+	out := make([]dsymmap.Inline, 0, len(ranges))
 	for _, rng := range ranges {
 		start, end, ok := relRange(rng[0], rng[1], textVM)
 		if !ok {
 			continue
 		}
-		out = append(out, ldsm.Inline{
+		out = append(out, dsymmap.Inline{
 			Start:    start,
 			End:      end,
 			Name:     name,
@@ -263,7 +263,7 @@ func callSite(ent *dwarf.Entry, files []*dwarf.LineFile) (string, uint32) {
 	return file, line
 }
 
-func addLines(d *dwarf.Data, cu *dwarf.Entry, textVM uint64, b *ldsm.Builder) {
+func addLines(d *dwarf.Data, cu *dwarf.Entry, textVM uint64, b *dsymmap.Builder) {
 	lr, err := d.LineReader(cu)
 	if err != nil || lr == nil {
 		return
@@ -280,14 +280,14 @@ func addLines(d *dwarf.Data, cu *dwarf.Entry, textVM uint64, b *ldsm.Builder) {
 		if le.EndSequence {
 			// Mark the end of a code range so a lookup in the following gap
 			// resolves to no source location rather than the previous row.
-			b.Lines = append(b.Lines, ldsm.LineRow{Addr: rel})
+			b.Lines = append(b.Lines, dsymmap.LineRow{Addr: rel})
 			continue
 		}
 		file := ""
 		if le.File != nil {
 			file = le.File.Name
 		}
-		b.Lines = append(b.Lines, ldsm.LineRow{Addr: rel, File: file, Line: uint32(le.Line)})
+		b.Lines = append(b.Lines, dsymmap.LineRow{Addr: rel, File: file, Line: uint32(le.Line)})
 	}
 }
 

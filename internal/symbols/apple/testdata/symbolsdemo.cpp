@@ -1,4 +1,4 @@
-// Fixture source for the dSYM -> .ldsm golden test. Built into a checked-in
+// Fixture source for the dSYM -> .dsymmap golden test. Built into a checked-in
 // universal .dSYM via build.sh; the test asserts UUID extraction, C++
 // demangling, and inline-frame recovery (demo::inner inlined into demo::outer).
 //

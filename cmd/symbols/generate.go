@@ -60,9 +60,9 @@ func NewGenerateCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 
 func generateRunE() func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		symbolType := viper.GetString(typeFlag)
+		symbolType := canonicalizeSymbolType(viper.GetString(typeFlag))
 		if !isSupportedType(symbolType) {
-			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s", symbolType, typeReactNative, typeAndroid, typeAppleDSYM)
+			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s", viper.GetString(typeFlag), typeReactNative, typeAndroid, typeAppleDSYM)
 		}
 
 		path := viper.GetString(pathFlag)
@@ -73,7 +73,7 @@ func generateRunE() func(cmd *cobra.Command, args []string) error {
 
 		fmt.Printf("Generating %s symbols from %s into %s\n", symbolType, path, outputDir)
 
-		// Apple dSYMs are compiled into per-arch .ldsm symbol maps keyed by build
+		// Apple dSYMs are compiled into per-arch .dsymmap symbol maps keyed by build
 		// UUID, ignoring the version/symbols-id lanes.
 		if symbolType == typeAppleDSYM {
 			return generateAppleDSYMs(path, outputDir)
@@ -83,9 +83,9 @@ func generateRunE() func(cmd *cobra.Command, args []string) error {
 	}
 }
 
-// generateAppleDSYMs compiles the discovered dSYM images to .ldsm symbol maps
+// generateAppleDSYMs compiles the discovered dSYM images to .dsymmap symbol maps
 // and writes one file per build UUID under outputDir, using the same storage
-// key (_sym/apple/id/<UUID>) that `symbols upload` would use.
+// key (_sym/apple/id/<UUID>.dsymmap) that `symbols upload` would use.
 func generateAppleDSYMs(path, outputDir string) error {
 	images, err := findDSYMImages(path)
 	if err != nil {
@@ -166,7 +166,7 @@ func writeSymbolFile(outputDir, key string, data []byte) error {
 }
 
 func initGenerateFlags(cmd *cobra.Command) {
-	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to generate (supported: %s, %s, %s)", typeReactNative, typeAndroid, typeAppleDSYM))
+	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to generate (supported: %s, %s, %s; %s also accepts ios/ipados/tvos/watchos/visionos/macos/apple/dsym)", typeReactNative, typeAndroid, typeAppleDSYM, typeAppleDSYM))
 	_ = cmd.MarkFlagRequired(typeFlag)
 	_ = cmd.Flags().SetAnnotation(typeFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(typeFlag, cmd.Flags().Lookup(typeFlag))

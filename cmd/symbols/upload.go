@@ -62,8 +62,9 @@ const (
 	// stack-trace retrace.
 	typeAndroid = "android"
 
-	// typeAppleDSYM compiles Apple dSYM debug info into per-architecture .ldsm
-	// symbol maps (keyed by build UUID) for iOS/macOS crash symbolication.
+	// typeAppleDSYM compiles Apple dSYM debug info into per-architecture .dsymmap
+	// symbol maps (keyed by build UUID) for iOS/macOS crash symbolication. It is
+	// the canonical value; see symbolTypeAliases for accepted synonyms.
 	typeAppleDSYM = "apple-dsym"
 
 	// getSymbolUrlsQuery uses the dedicated `get_symbol_upload_urls_ld` query
@@ -133,9 +134,9 @@ func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerF
 
 func runE(client resources.Client) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		symbolType := viper.GetString(typeFlag)
+		symbolType := canonicalizeSymbolType(viper.GetString(typeFlag))
 		if !isSupportedType(symbolType) {
-			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s", symbolType, typeReactNative, typeAndroid, typeAppleDSYM)
+			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s", viper.GetString(typeFlag), typeReactNative, typeAndroid, typeAppleDSYM)
 		}
 
 		projectKey := viper.GetString(cliflags.ProjectFlag)
@@ -177,7 +178,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			backendUrl = defaultBackendUrl
 		}
 
-		// Apple dSYMs take a dedicated path: they are compiled to per-arch .ldsm
+		// Apple dSYMs take a dedicated path: they are compiled to per-arch .dsymmap
 		// symbol maps keyed by build UUID, ignoring the version/symbols-id lanes.
 		if symbolType == typeAppleDSYM {
 			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
@@ -238,6 +239,34 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		fmt.Println("Successfully uploaded all symbols")
 		return nil
 	}
+}
+
+// symbolTypeAliases maps user-friendly synonyms to a canonical --type value.
+// All Apple platforms share the single dSYM-based pipeline, so any Apple
+// platform acronym resolves to apple-dsym.
+var symbolTypeAliases = map[string]string{
+	"apple":      typeAppleDSYM,
+	"apple-dsym": typeAppleDSYM,
+	"dsym":       typeAppleDSYM,
+	"ios":        typeAppleDSYM,
+	"ipados":     typeAppleDSYM,
+	"tvos":       typeAppleDSYM,
+	"watchos":    typeAppleDSYM,
+	"visionos":   typeAppleDSYM,
+	"macos":      typeAppleDSYM,
+	"osx":        typeAppleDSYM,
+}
+
+// canonicalizeSymbolType resolves a user-supplied --type to its canonical value.
+// Matching is case-insensitive and understands platform synonyms (e.g. "ios",
+// "macos" -> apple-dsym). Unknown values are returned lower-cased/trimmed so
+// isSupportedType can reject them with a clear error.
+func canonicalizeSymbolType(symbolType string) string {
+	s := strings.ToLower(strings.TrimSpace(symbolType))
+	if canonical, ok := symbolTypeAliases[s]; ok {
+		return canonical
+	}
+	return s
 }
 
 func isSupportedType(symbolType string) bool {
@@ -472,7 +501,7 @@ func uploadFile(filePath, uploadUrl, name string) error {
 }
 
 func initFlags(cmd *cobra.Command) {
-	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s, %s, %s)", typeReactNative, typeAndroid, typeAppleDSYM))
+	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s, %s, %s; %s also accepts ios/ipados/tvos/watchos/visionos/macos/apple/dsym)", typeReactNative, typeAndroid, typeAppleDSYM, typeAppleDSYM))
 	_ = cmd.MarkFlagRequired(typeFlag)
 	_ = cmd.Flags().SetAnnotation(typeFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(typeFlag, cmd.Flags().Lookup(typeFlag))
