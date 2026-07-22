@@ -12,7 +12,8 @@ func getUsageTemplate() string {
   {{.CommandPath}} [command]{{end}}
 {{if not .HasParent}}
 Commands:
-  {{rpad "setup" 29}} Create your first feature flag using a step-by-step guide
+  {{rpad "setup" 29}} Set up LaunchDarkly in your project (detect, install, initialize)
+  {{rpad "quickstart" 29}} Create your first feature flag using a step-by-step guide (deprecated: use setup)
   {{rpad "config" 29}} View and modify specific configuration values
   {{rpad "completion" 29}} Enable command autocompletion within supported shells
   {{rpad "login" 29}} Log in to your LaunchDarkly account
@@ -26,7 +27,6 @@ Common resource commands:
   {{rpad "members" 29}} Invite new members to an account
   {{rpad "segments" 29}} List, create, modify, and delete segments
   {{rpad "sourcemaps" 29}} Manage sourcemaps for error monitoring
-  {{rpad "symbols" 29}} Manage symbol files for error monitoring
   {{rpad "..." 29}} To see more resource commands, run 'ldcli resources'
 
 Flags:
