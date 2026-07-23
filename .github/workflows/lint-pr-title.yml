@@ -9,4 +9,7 @@ on:
 
 jobs:
   lint-pr-title:
+    permissions:
+      contents: read
+      pull-requests: read
     uses: launchdarkly/gh-actions/.github/workflows/lint-pr-title.yml@main
