@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blacktop/go-macho/pkg/swift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -80,6 +81,24 @@ func TestBuildFromMachO_SymbolicatesInlineChain(t *testing.T) {
 func TestBuildFromMachO_MissingFile(t *testing.T) {
 	_, err := BuildFromMachO("testdata/does-not-exist")
 	require.Error(t, err)
+}
+
+// TestBestNameSwiftSimplified verifies that a private Swift declaration is
+// rendered without its discriminator hash ("... in _<hash>"), which otherwise
+// surfaces as a partial-looking symbol. Skips when no platform Swift demangler
+// is available (the pure-Go engine passes symbols through unchanged).
+func TestBestNameSwiftSimplified(t *testing.T) {
+	const mangled = "$s12TestAppFruta17MainMenuViewModelC12runCatchable33_17034F2FACCE8EAB00EC5D8288C5BB0DLLyyAA13CrashScenarioOKFTf4nd_n"
+	require.True(t, swift.IsMangled(mangled))
+
+	simple, err := swift.DemangleSimple(mangled)
+	if err != nil || simple == "" || simple == mangled {
+		t.Skipf("swift demangler unavailable (engine=%s)", swift.EngineMode())
+	}
+
+	got := bestName("", mangled)
+	assert.NotContains(t, got, "17034F2FACCE8EAB00EC5D8288C5BB0D", "private discriminator hash must be stripped")
+	assert.Contains(t, got, "runCatchable")
 }
 
 func findFunc(b *dsymmap.Builder, nameSubstr string) *dsymmap.Function {

@@ -343,11 +343,21 @@ func resolveName(d *dwarf.Data, off dwarf.Offset, depth int) (name, linkage stri
 	return name, linkage
 }
 
-// bestName prefers a demangled linkage name (fuller: module/type-qualified) and
-// falls back to the plain DW_AT_name, then the raw linkage, then a placeholder.
+// bestName prefers a demangled linkage name and falls back to the plain
+// DW_AT_name, then the raw linkage, then a placeholder.
+//
+// For Swift it uses the simplified form (matching `swift-demangle -simplified`):
+// the full demangling keeps a private declaration's discriminator hash
+// (e.g. "cast in _17034F2FACCE8EAB00EC5D8288C5BB0D") plus verbose
+// specialization/signature noise, which reads as a broken/partial symbol in the
+// UI. Simplified renders it as "MainMenuViewModel.cast(_:to:)". Falls back to
+// the full demangling if the simplified form is unavailable.
 func bestName(name, linkage string) string {
 	if linkage != "" {
 		if swift.IsMangled(linkage) {
+			if s, err := swift.DemangleSimple(linkage); err == nil && s != "" && s != linkage {
+				return s
+			}
 			if s, err := swift.Demangle(linkage); err == nil && s != "" {
 				return s
 			}
