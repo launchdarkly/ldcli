@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0](https://github.com/launchdarkly/ldcli/compare/v3.2.0...v3.3.0) (2026-07-23)
+
+
+### Features
+
+* **symbols:** Apple dSYM upload (dsymmap) ([#747](https://github.com/launchdarkly/ldcli/issues/747)) ([1d5553f](https://github.com/launchdarkly/ldcli/commit/1d5553f2d172da1717dc39bf8727d7450fb2da45))
+
 ## [3.2.0](https://github.com/launchdarkly/ldcli/compare/v3.1.0...v3.2.0) (2026-07-20)
 
 
