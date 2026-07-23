@@ -436,12 +436,23 @@ func (m *Map) coveringInlines(rel uint64, off, count uint32) []int {
 	if count == 0 {
 		return nil
 	}
+	// off/count come straight from the (untrusted) file record; a corrupt or
+	// malicious map could point past the inlines table. Clamp to the records
+	// that actually exist so a malformed map yields fewer frames instead of an
+	// out-of-range slice panic in inlineAt.
+	total := uint32(len(m.inlines) / inlineRecSize)
+	if off >= total {
+		return nil
+	}
+	end := off + count
+	if end < off || end > total { // end < off guards uint32 overflow
+		end = total
+	}
 	var out []int
-	for j := uint32(0); j < count; j++ {
-		idx := int(off + j)
-		s, en, _, _, _, _ := m.inlineAt(idx)
+	for idx := off; idx < end; idx++ {
+		s, en, _, _, _, _ := m.inlineAt(int(idx))
 		if rel >= s && rel < en {
-			out = append(out, idx)
+			out = append(out, int(idx))
 		}
 	}
 	// Records are stored depth-ascending within a func group, so out is already
