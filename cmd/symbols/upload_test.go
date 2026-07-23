@@ -248,11 +248,42 @@ func TestSymbolsIDForArtifact(t *testing.T) {
 }
 
 func TestUnsupportedType(t *testing.T) {
-	viper.Set(typeFlag, "apple-dsym")
+	viper.Set(typeFlag, "flutter")
 	defer viper.Set(typeFlag, "")
 
 	client := resources.NewClient("")
 	err := runE(client)(&cobra.Command{}, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported --type")
+}
+
+func TestIsSupportedType(t *testing.T) {
+	assert.True(t, isSupportedType(typeReactNative))
+	assert.True(t, isSupportedType(typeAndroid))
+	assert.True(t, isSupportedType(typeAppleDSYM))
+	assert.False(t, isSupportedType("flutter"))
+	assert.False(t, isSupportedType(""))
+}
+
+func TestCanonicalizeSymbolType(t *testing.T) {
+	// Apple platform synonyms all resolve to apple-dsym.
+	for _, alias := range []string{"apple-dsym", "apple", "dsym", "ios", "ipados", "tvos", "watchos", "visionos", "macos", "osx"} {
+		assert.Equal(t, typeAppleDSYM, canonicalizeSymbolType(alias), alias)
+	}
+
+	// Case-insensitive and whitespace-tolerant.
+	assert.Equal(t, typeAppleDSYM, canonicalizeSymbolType("iOS"))
+	assert.Equal(t, typeAppleDSYM, canonicalizeSymbolType("  Apple-DSYM  "))
+	assert.Equal(t, typeReactNative, canonicalizeSymbolType("React-Native"))
+
+	// Canonical values pass through; unknown values are lower-cased for rejection.
+	assert.Equal(t, typeReactNative, canonicalizeSymbolType(typeReactNative))
+	assert.Equal(t, typeAndroid, canonicalizeSymbolType(typeAndroid))
+	assert.Equal(t, "flutter", canonicalizeSymbolType("Flutter"))
+	assert.False(t, isSupportedType(canonicalizeSymbolType("flutter")))
+
+	// Every alias must map to a supported canonical type.
+	for alias, canonical := range symbolTypeAliases {
+		assert.True(t, isSupportedType(canonical), alias)
+	}
 }
