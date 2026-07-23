@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -37,6 +38,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/members"
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/internal/update"
 )
 
 type APIClients struct {
@@ -324,6 +326,19 @@ See each command's help for details on how to use the generated script.`, rootCm
 
 	rootCmd.cmd.SetUsageTemplate(getUsageTemplate())
 
+	// Start update check in the background so it runs in parallel with command execution.
+	type updateResult struct {
+		info *update.UpdateInfo
+	}
+	updateCh := make(chan updateResult, 1)
+	skipUpdateCheck := viper.GetBool(cliflags.UpdateCheckOptOut) ||
+		!term.IsTerminal(int(os.Stderr.Fd()))
+	if !skipUpdateCheck {
+		go func() {
+			updateCh <- updateResult{info: update.CheckForUpdate(version)}
+		}()
+	}
+
 	err = rootCmd.Execute()
 
 	var outcome string
@@ -354,6 +369,17 @@ See each command's help for details on how to use the generated script.`, rootCm
 	}
 
 	analyticsClient.Wait()
+
+	const updateCheckTimeout = 500 * time.Millisecond
+	if !skipUpdateCheck {
+		select {
+		case result := <-updateCh:
+			if result.info != nil && result.info.IsNewer {
+				fmt.Fprint(os.Stderr, update.NotificationMessage(result.info))
+			}
+		case <-time.After(updateCheckTimeout):
+		}
+	}
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
