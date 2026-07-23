@@ -33,6 +33,7 @@ type ServerParams struct {
 	Port                   string
 	CorsEnabled            bool
 	CorsOrigin             string
+	StreamFlagStartup      bool
 	InitialProjectSettings model.InitialProjectSettings
 }
 
@@ -72,6 +73,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	r.Use(model.EventStoreMiddleware(sqlEventStore))
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(observers))
+	r.Use(model.StreamStartupMiddleware(serverParams.StreamFlagStartup))
 	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	r.Handle("/ui/{_}.svg", http.StripPrefix("/ui/", ui.AssetHandler))
@@ -103,6 +105,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	ctx = adapters.WithApiAndSdk(ctx, *ldClient, serverParams.DevStreamURI)
 	ctx = model.SetObserversOnContext(ctx, observers)
 	ctx = model.ContextWithStore(ctx, sqlStore)
+	ctx = model.WithStreamStartup(ctx, serverParams.StreamFlagStartup)
 	syncErr := model.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings)
 	if syncErr != nil {
 		log.Fatal(syncErr)

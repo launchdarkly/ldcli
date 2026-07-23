@@ -1,149 +1,95 @@
 package internal
 
 import (
-	"context"
 	"net/http"
 	"testing"
 	"time"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
-type testItem struct {
-	ID string
-}
+func TestFetchPagesConcurrently(t *testing.T) {
+	const pageSize, concurrency = 100, 6
 
-type testResult struct {
-	items []testItem
-	links map[string]ldapi.Link
-}
-
-func (r testResult) GetItems() []testItem {
-	return r.items
-}
-
-func (r testResult) GetLinks() map[string]ldapi.Link {
-	return r.links
-}
-
-func TestGetPaginatedItems(t *testing.T) {
-	ctx := context.Background()
-	projectKey := "test-project"
-
-	testCases := []struct {
-		name           string
-		fetchResponses []testResult
-		expectedItems  []testItem
-		expectedError  bool
-	}{
-		{
-			name: "Single page",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}},
-					links: map[string]ldapi.Link{},
-				},
-			},
-			expectedItems: []testItem{{ID: "1"}, {ID: "2"}},
-		},
-		{
-			name: "Multiple pages",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("http://example.com?limit=2&offset=2")},
-					},
-				},
-				{
-					items: []testItem{{ID: "3"}, {ID: "4"}},
-					links: map[string]ldapi.Link{},
-				},
-			},
-			expectedItems: []testItem{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}},
-		},
-		{
-			name: "Error on second page",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("http://example.com?limit=2&offset=2")},
-					},
-				},
-			},
-			expectedError: true,
-		},
-		{
-			name: "Empty response",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{},
-					links: map[string]ldapi.Link{},
-				},
-			},
-			expectedItems: []testItem{},
-		},
-		{
-			name: "Multiple pages with varying item counts",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}, {ID: "3"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("http://example.com?limit=3&offset=3")},
-					},
-				},
-				{
-					items: []testItem{{ID: "4"}, {ID: "5"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("http://example.com?limit=3&offset=5")},
-					},
-				},
-				{
-					items: []testItem{{ID: "6"}},
-					links: map[string]ldapi.Link{},
-				},
-			},
-			expectedItems: []testItem{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}, {ID: "6"}},
-		},
-		{
-			name: "Invalid next link",
-			fetchResponses: []testResult{
-				{
-					items: []testItem{{ID: "1"}, {ID: "2"}},
-					links: map[string]ldapi.Link{
-						"next": {Href: strPtr("invalid-url")},
-					},
-				},
-			},
-			expectedError: true,
-		},
+	// pager returns a fetch func that serves `total` sequential ints across
+	// pages of pageSize, recording every offset requested.
+	pager := func(total int) (func(offset int64) ([]int, error), *[]int64) {
+		var requested []int64
+		fetch := func(offset int64) ([]int, error) {
+			requested = append(requested, offset)
+			var page []int
+			for i := offset; i < offset+pageSize && i < int64(total); i++ {
+				page = append(page, int(i))
+			}
+			return page, nil
+		}
+		return fetch, &requested
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callCount := 0
-			fetchFunc := func(ctx context.Context, projectKey string, limit, offset *int64) (testResult, error) {
-				if callCount >= len(tc.fetchResponses) {
-					return testResult{}, assert.AnError
-				}
-				result := tc.fetchResponses[callCount]
-				callCount++
-				return result, nil
-			}
+	t.Run("single short page costs one request", func(t *testing.T) {
+		fetch, requested := pager(42)
+		items, err := FetchPagesConcurrently(pageSize, concurrency, fetch)
+		require.NoError(t, err)
+		assert.Len(t, items, 42)
+		assert.Equal(t, []int64{0}, *requested)
+	})
 
-			items, err := GetPaginatedItems(ctx, projectKey, nil, fetchFunc)
+	t.Run("exactly one full page still probes for more, then stops", func(t *testing.T) {
+		fetch, _ := pager(100)
+		items, err := FetchPagesConcurrently(pageSize, concurrency, fetch)
+		require.NoError(t, err)
+		assert.Len(t, items, 100)
+	})
 
-			if tc.expectedError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedItems, items)
+	t.Run("many pages are all collected in order", func(t *testing.T) {
+		fetch, _ := pager(1350) // 13 full pages + a short one
+		items, err := FetchPagesConcurrently(pageSize, concurrency, fetch)
+		require.NoError(t, err)
+		require.Len(t, items, 1350)
+		for i := range items {
+			assert.Equal(t, i, items[i])
+		}
+	})
+
+	t.Run("never trusts a total: keeps paging while pages are full", func(t *testing.T) {
+		// A source that reports nothing about totals; end is only inferable from
+		// a short page. 250 items => pages at 0,100,200(short).
+		fetch, _ := pager(250)
+		items, err := FetchPagesConcurrently(pageSize, concurrency, fetch)
+		require.NoError(t, err)
+		assert.Len(t, items, 250)
+	})
+
+	t.Run("an error on a speculative page past the end is ignored", func(t *testing.T) {
+		// 150 items: page 0 full, offset 100 short (end). Offsets past that are
+		// speculative probes in the same batch; their errors must not fail the fetch.
+		fetch := func(offset int64) ([]int, error) {
+			switch {
+			case offset == 0:
+				return make([]int, pageSize), nil
+			case offset == pageSize:
+				return make([]int, 50), nil
+			default:
+				return nil, assert.AnError
 			}
-		})
-	}
+		}
+		items, err := FetchPagesConcurrently(pageSize, concurrency, fetch)
+		require.NoError(t, err)
+		assert.Len(t, items, 150)
+	})
+
+	t.Run("a page error aborts and propagates", func(t *testing.T) {
+		fetch := func(offset int64) ([]int, error) {
+			if offset == 0 {
+				return make([]int, pageSize), nil // full, so it fans out
+			}
+			return nil, assert.AnError
+		}
+		_, err := FetchPagesConcurrently(pageSize, concurrency, fetch)
+		assert.ErrorIs(t, err, assert.AnError)
+	})
 }
 
 func TestRetry429s(t *testing.T) {
@@ -175,15 +121,23 @@ func TestRetry429s(t *testing.T) {
 			} else {
 				header := make(http.Header)
 				header.Set("X-Ratelimit-Reset", "1000")
-				return "", &http.Response{StatusCode: 429, Header: header}, nil
+				// The generated client returns a non-nil error alongside the 429
+				// response; the retry must not bail on err alone.
+				return "", &http.Response{StatusCode: 429, Header: header}, assert.AnError
 			}
 		})
 		assert.Equal(t, "lol", res)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, called)
 	})
-}
 
-func strPtr(s string) *string {
-	return &s
+	t.Run("it returns the error without panicking on a nil response", func(t *testing.T) {
+		called := 0
+		_, err := Retry429s(func() (string, *http.Response, error) {
+			called++
+			return "", nil, assert.AnError
+		})
+		assert.ErrorIs(t, err, assert.AnError)
+		assert.Equal(t, 1, called)
+	})
 }
