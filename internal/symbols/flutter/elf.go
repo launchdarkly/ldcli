@@ -146,8 +146,14 @@ func buildIDFromNotes(data []byte, bo binary.ByteOrder) string {
 		if ntype == ntGNUBuildID && descsz > 0 {
 			return hex.EncodeToString(data[descStart:descEnd])
 		}
+		// The descriptor's padding may run past the end when the note is the last
+		// one and the section isn't 4-byte aligned; there is nothing left to read.
+		next := align4(descEnd)
+		if next > len(data) {
+			return ""
+		}
 		// Each note record is at least 12 bytes (header), so this always advances.
-		data = data[align4(descEnd):]
+		data = data[next:]
 	}
 	return ""
 }
