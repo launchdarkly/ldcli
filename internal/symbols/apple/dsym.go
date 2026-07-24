@@ -17,6 +17,7 @@ package apple
 import (
 	"encoding/hex"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/blacktop/go-dwarf"
@@ -36,6 +37,12 @@ type Arch struct {
 	CPUType    uint32
 	CPUSubtype uint32
 	Builder    *dsymmap.Builder
+	// Sources maps each source path referenced by this image's DWARF — keyed by
+	// the exact string stored in the .dsymmap, so a resolved frame's FileName is
+	// the lookup key — to its absolute path on this machine. It is only used to
+	// build the optional .srcbundle (`--include-sources`); files that aren't
+	// present locally (SDK/system code) simply fail to read and are skipped.
+	Sources map[string]string
 }
 
 // BuildFromMachO opens a dSYM's DWARF Mach-O image at path — thin or fat —
@@ -98,7 +105,8 @@ func buildArch(f *macho.File) (Arch, error) {
 		CPUType:    uint32(f.CPU),
 		CPUSubtype: uint32(f.SubCPU),
 	}
-	if err := populate(d, textVM, b); err != nil {
+	sources := make(map[string]string)
+	if err := populate(d, textVM, b, sources); err != nil {
 		return Arch{}, err
 	}
 
@@ -107,6 +115,7 @@ func buildArch(f *macho.File) (Arch, error) {
 		CPUType:    uint32(f.CPU),
 		CPUSubtype: uint32(f.SubCPU),
 		Builder:    b,
+		Sources:    sources,
 	}, nil
 }
 
@@ -119,11 +128,15 @@ type scope struct {
 	inlineDepth uint32
 }
 
-func populate(d *dwarf.Data, textVM uint64, b *dsymmap.Builder) error {
+// populate walks the DWARF DIE tree into b. It also records every source path it
+// encounters into sources (keyed exactly as stored in the map) so the caller can
+// optionally bundle those files; pass nil to skip that.
+func populate(d *dwarf.Data, textVM uint64, b *dsymmap.Builder, sources map[string]string) error {
 	r := d.Reader()
 	var stack []scope
 	var funcs []*dsymmap.Function
 	var curFiles []*dwarf.LineFile
+	var curCompDir string
 
 	top := func() scope {
 		if len(stack) == 0 {
@@ -153,7 +166,8 @@ func populate(d *dwarf.Data, textVM uint64, b *dsymmap.Builder) error {
 		switch ent.Tag {
 		case dwarf.TagCompileUnit:
 			curFiles = filesForEntry(d, ent)
-			addLines(d, ent, textVM, b)
+			curCompDir, _ = ent.Val(dwarf.AttrCompDir).(string)
+			addLines(d, ent, textVM, b, sources, curCompDir)
 
 		case dwarf.TagSubprogram:
 			if fn := makeFunction(d, ent, textVM); fn != nil {
@@ -165,7 +179,13 @@ func populate(d *dwarf.Data, textVM uint64, b *dsymmap.Builder) error {
 		case dwarf.TagInlinedSubroutine:
 			depth := top().inlineDepth + 1
 			if fn := top().fn; fn != nil {
-				fn.Inlines = append(fn.Inlines, makeInlines(d, ent, textVM, depth, curFiles)...)
+				inlines := makeInlines(d, ent, textVM, depth, curFiles)
+				for i := range inlines {
+					// Call-site files are rendered for outer inline frames, so they
+					// need to be bundled too.
+					recordSource(sources, inlines[i].CallFile, curCompDir)
+				}
+				fn.Inlines = append(fn.Inlines, inlines...)
 			}
 			push.inlineDepth = depth
 		}
@@ -263,7 +283,7 @@ func callSite(ent *dwarf.Entry, files []*dwarf.LineFile) (string, uint32) {
 	return file, line
 }
 
-func addLines(d *dwarf.Data, cu *dwarf.Entry, textVM uint64, b *dsymmap.Builder) {
+func addLines(d *dwarf.Data, cu *dwarf.Entry, textVM uint64, b *dsymmap.Builder, sources map[string]string, compDir string) {
 	lr, err := d.LineReader(cu)
 	if err != nil || lr == nil {
 		return
@@ -287,8 +307,26 @@ func addLines(d *dwarf.Data, cu *dwarf.Entry, textVM uint64, b *dsymmap.Builder)
 		if le.File != nil {
 			file = le.File.Name
 		}
+		recordSource(sources, file, compDir)
 		b.Lines = append(b.Lines, dsymmap.LineRow{Addr: rel, File: file, Line: uint32(le.Line)})
 	}
+}
+
+// recordSource notes that file (as spelled in the map) is referenced by this
+// image, resolving where to read it from on this machine. DWARF paths are
+// usually absolute; relative ones are resolved against the CU's DW_AT_comp_dir.
+func recordSource(sources map[string]string, file, compDir string) {
+	if sources == nil || file == "" {
+		return
+	}
+	if _, ok := sources[file]; ok {
+		return
+	}
+	abs := file
+	if !filepath.IsAbs(abs) && compDir != "" {
+		abs = filepath.Join(compDir, abs)
+	}
+	sources[file] = abs
 }
 
 func filesForEntry(d *dwarf.Data, cu *dwarf.Entry) []*dwarf.LineFile {

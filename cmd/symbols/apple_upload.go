@@ -22,17 +22,31 @@ const appleSymbolsIDPrefix = "_sym/apple/id"
 // in lookup (maps are keyed by UUID); the backend appends the same extension.
 const appleSymbolExt = ".dsymmap"
 
-// appleSymbolMap is one architecture's compiled .dsymmap ready to upload.
+// appleSymbolMap is one compiled artifact ready to upload: an architecture's
+// .dsymmap symbol map, or (with --include-sources) its .srcbundle sources.
 type appleSymbolMap struct {
 	Key  string
 	UUID string
 	Arch string
 	Data []byte
+	// Kind labels the artifact in progress output ("" for a symbol map).
+	Kind string
+}
+
+// label describes the artifact for upload logs.
+func (m appleSymbolMap) label() string {
+	if m.Kind == "" {
+		return fmt.Sprintf("%s (%s)", m.UUID, m.Arch)
+	}
+	return fmt.Sprintf("%s (%s, %s)", m.UUID, m.Arch, m.Kind)
 }
 
 // uploadAppleDSYMs discovers .dSYM bundles under path, compiles each contained
 // architecture to a .dsymmap symbol map, and uploads one object per build UUID.
-func uploadAppleDSYMs(apiKey, projectID, path, backendURL string) error {
+// When includeSources is set, each image's referenced source files are packed
+// into a .srcbundle and uploaded alongside its map so the UI can show source
+// context around native frames.
+func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources bool) error {
 	images, err := findDSYMImages(path)
 	if err != nil {
 		return fmt.Errorf("failed to find dSYM files: %w", err)
@@ -41,7 +55,7 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string) error {
 		return fmt.Errorf("no .dSYM bundles found in %s, is this the correct path?", path)
 	}
 
-	maps, err := buildAppleMaps(images)
+	maps, err := buildAppleMaps(images, includeSources)
 	if err != nil {
 		return err
 	}
@@ -65,7 +79,7 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string) error {
 	}
 
 	for i, m := range maps {
-		if err := uploadBytes(m.Data, uploadURLs[i], fmt.Sprintf("%s (%s)", m.UUID, m.Arch)); err != nil {
+		if err := uploadBytes(m.Data, uploadURLs[i], m.label()); err != nil {
 			return fmt.Errorf("failed to upload symbol map for %s: %w", m.UUID, err)
 		}
 	}
@@ -76,7 +90,9 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string) error {
 
 // buildAppleMaps compiles every architecture of every dSYM image into a .dsymmap,
 // deduplicating by UUID (a universal binary and its per-arch slices can repeat).
-func buildAppleMaps(images []string) ([]appleSymbolMap, error) {
+// With includeSources it also emits a .srcbundle per image, keyed by the same
+// UUID.
+func buildAppleMaps(images []string, includeSources bool) ([]appleSymbolMap, error) {
 	var maps []appleSymbolMap
 	seen := make(map[string]bool)
 
@@ -103,6 +119,29 @@ func buildAppleMaps(images []string) ([]appleSymbolMap, error) {
 				Data: buf.Bytes(),
 			})
 			fmt.Printf("Built symbol map for %s (%s, %d bytes)\n", a.UUID, arch, buf.Len())
+
+			if !includeSources {
+				continue
+			}
+			srcData, nFiles, err := buildAppleSourceBundle(a)
+			if err != nil {
+				return nil, err
+			}
+			if srcData == nil {
+				// None of the DWARF-referenced sources are readable here (e.g.
+				// uploading a dSYM archived on another machine). Not fatal: the map
+				// alone still symbolicates, just without source context.
+				fmt.Printf("No local sources found for %s (%s); skipping source bundle\n", a.UUID, arch)
+				continue
+			}
+			maps = append(maps, appleSymbolMap{
+				Key:  appleSourceKey(a.UUID),
+				UUID: a.UUID,
+				Arch: arch,
+				Data: srcData,
+				Kind: "sources",
+			})
+			fmt.Printf("Built source bundle for %s (%s, %d files, %d bytes)\n", a.UUID, arch, nFiles, len(srcData))
 		}
 	}
 	return maps, nil
