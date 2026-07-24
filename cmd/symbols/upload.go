@@ -67,6 +67,11 @@ const (
 	// the canonical value; see symbolTypeAliases for accepted synonyms.
 	typeAppleDSYM = "apple-dsym"
 
+	// typeFlutter compiles Flutter/Dart AOT debug symbols (app.<platform>.symbols)
+	// into per-build .dartmap symbol maps (keyed by the Dart snapshot build id,
+	// surfaced as symbols_id) for obfuscated Dart crash symbolication.
+	typeFlutter = "flutter"
+
 	// getSymbolUrlsQuery uses the dedicated `get_symbol_upload_urls_ld` query
 	// (separate from `sourcemaps upload`) so symbol uploads travel over the
 	// symbol endpoint, which accepts larger, multi-segment uploads.
@@ -136,7 +141,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 	return func(cmd *cobra.Command, args []string) error {
 		symbolType := canonicalizeSymbolType(viper.GetString(typeFlag))
 		if !isSupportedType(symbolType) {
-			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s", viper.GetString(typeFlag), typeReactNative, typeAndroid, typeAppleDSYM)
+			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s, %s", viper.GetString(typeFlag), typeReactNative, typeAndroid, typeAppleDSYM, typeFlutter)
 		}
 
 		projectKey := viper.GetString(cliflags.ProjectFlag)
@@ -183,6 +188,14 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		if symbolType == typeAppleDSYM {
 			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
 			return uploadAppleDSYMs(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, backendUrl)
+		}
+
+		// Flutter/Dart symbols take a dedicated path too: each app.<platform>.symbols
+		// is compiled to a .dartmap keyed by its build id (Id Lane), plus a
+		// Version-lane copy when --app-version is set.
+		if symbolType == typeFlutter {
+			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
+			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl)
 		}
 
 		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
@@ -255,6 +268,8 @@ var symbolTypeAliases = map[string]string{
 	"visionos":   typeAppleDSYM,
 	"macos":      typeAppleDSYM,
 	"osx":        typeAppleDSYM,
+	"flutter":    typeFlutter,
+	"dart":       typeFlutter,
 }
 
 // canonicalizeSymbolType resolves a user-supplied --type to its canonical value.
@@ -270,7 +285,7 @@ func canonicalizeSymbolType(symbolType string) string {
 }
 
 func isSupportedType(symbolType string) bool {
-	return symbolType == typeReactNative || symbolType == typeAndroid || symbolType == typeAppleDSYM
+	return symbolType == typeReactNative || symbolType == typeAndroid || symbolType == typeAppleDSYM || symbolType == typeFlutter
 }
 
 // symbolsIDPrefixForType picks the Symbols Id Lane storage segment for the symbol
@@ -501,7 +516,7 @@ func uploadFile(filePath, uploadUrl, name string) error {
 }
 
 func initFlags(cmd *cobra.Command) {
-	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s, %s, %s; %s also accepts ios/ipados/tvos/watchos/visionos/macos/apple/dsym)", typeReactNative, typeAndroid, typeAppleDSYM, typeAppleDSYM))
+	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s, %s, %s, %s; %s also accepts ios/ipados/tvos/watchos/visionos/macos/apple/dsym; %s also accepts dart)", typeReactNative, typeAndroid, typeAppleDSYM, typeFlutter, typeAppleDSYM, typeFlutter))
 	_ = cmd.MarkFlagRequired(typeFlag)
 	_ = cmd.Flags().SetAnnotation(typeFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(typeFlag, cmd.Flags().Lookup(typeFlag))

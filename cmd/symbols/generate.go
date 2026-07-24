@@ -62,7 +62,7 @@ func generateRunE() func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		symbolType := canonicalizeSymbolType(viper.GetString(typeFlag))
 		if !isSupportedType(symbolType) {
-			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s", viper.GetString(typeFlag), typeReactNative, typeAndroid, typeAppleDSYM)
+			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s, %s", viper.GetString(typeFlag), typeReactNative, typeAndroid, typeAppleDSYM, typeFlutter)
 		}
 
 		path := viper.GetString(pathFlag)
@@ -77,6 +77,12 @@ func generateRunE() func(cmd *cobra.Command, args []string) error {
 		// UUID, ignoring the version/symbols-id lanes.
 		if symbolType == typeAppleDSYM {
 			return generateAppleDSYMs(path, outputDir)
+		}
+
+		// Flutter symbols compile to .dartmap maps keyed by build id (Id Lane),
+		// plus a Version-lane copy when --app-version is set.
+		if symbolType == typeFlutter {
+			return generateFlutterSymbols(path, viper.GetString(appVersionFlag), outputDir)
 		}
 
 		return generateSymbolFiles(symbolType, path, outputDir)
@@ -110,6 +116,23 @@ func generateAppleDSYMs(path, outputDir string) error {
 	}
 
 	fmt.Printf("Successfully generated %d symbol file(s) in %s\n", len(maps), outputDir)
+	return nil
+}
+
+// generateFlutterSymbols compiles the discovered app.*.symbols to .dartmap
+// symbol maps and writes them under outputDir using the same storage keys
+// `symbols upload` would use (Id lane, plus Version lane when appVersion is set).
+func generateFlutterSymbols(path, appVersion, outputDir string) error {
+	uploads, err := buildFlutterMaps(path, appVersion)
+	if err != nil {
+		return err
+	}
+	for _, u := range uploads {
+		if err := writeSymbolFile(outputDir, u.Key, u.Data); err != nil {
+			return fmt.Errorf("failed to write symbol map %s: %w", u.Label, err)
+		}
+	}
+	fmt.Printf("Successfully generated %d symbol file(s) in %s\n", len(uploads), outputDir)
 	return nil
 }
 
@@ -166,7 +189,7 @@ func writeSymbolFile(outputDir, key string, data []byte) error {
 }
 
 func initGenerateFlags(cmd *cobra.Command) {
-	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to generate (supported: %s, %s, %s; %s also accepts ios/ipados/tvos/watchos/visionos/macos/apple/dsym)", typeReactNative, typeAndroid, typeAppleDSYM, typeAppleDSYM))
+	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to generate (supported: %s, %s, %s, %s; %s also accepts ios/ipados/tvos/watchos/visionos/macos/apple/dsym; %s also accepts dart)", typeReactNative, typeAndroid, typeAppleDSYM, typeFlutter, typeAppleDSYM, typeFlutter))
 	_ = cmd.MarkFlagRequired(typeFlag)
 	_ = cmd.Flags().SetAnnotation(typeFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(typeFlag, cmd.Flags().Lookup(typeFlag))
