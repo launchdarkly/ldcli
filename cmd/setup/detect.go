@@ -13,12 +13,12 @@ import (
 
 const pathFlag = "path"
 
-func newDetectCmd(detector setup.Detector) *cobra.Command {
+func newDetectCmd(svc setup.Service) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "detect",
 		Short:  "Detect language, framework, and recommended SDK for a project",
 		Hidden: true,
-		RunE:   runDetect(detector),
+		RunE:   runDetect(svc),
 	}
 
 	cmd.Flags().String(pathFlag, "", "Path to the project directory (defaults to current directory)")
@@ -26,7 +26,7 @@ func newDetectCmd(detector setup.Detector) *cobra.Command {
 	return cmd
 }
 
-func runDetect(detector setup.Detector) func(*cobra.Command, []string) error {
+func runDetect(svc setup.Service) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		dir, _ := cmd.Flags().GetString(pathFlag)
 		if dir == "" {
@@ -37,7 +37,7 @@ func runDetect(detector setup.Detector) func(*cobra.Command, []string) error {
 			}
 		}
 
-		result, err := detector.Detect(dir)
+		result, err := svc.Detect(dir)
 		if err != nil {
 			return err
 		}

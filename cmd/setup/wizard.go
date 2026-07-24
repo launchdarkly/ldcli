@@ -1,10 +1,7 @@
 package setup
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -17,8 +14,6 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/errors"
-	"github.com/launchdarkly/ldcli/internal/flags"
-	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
@@ -40,10 +35,8 @@ const (
 
 type wizardModel struct {
 	analyticsTrackerFn analytics.TrackerFn
-	resourcesClient    resources.Client
-	flagsClient        flags.Client
-	detector           setup.Detector
-	installer          setup.Installer
+	svc                setup.Service
+	auth               setup.Auth
 
 	step    wizardStep
 	spinner spinner.Model
@@ -131,10 +124,7 @@ type wizardErrMsg struct{ err error }
 
 func runSetupWizard(
 	analyticsTrackerFn analytics.TrackerFn,
-	resourcesClient resources.Client,
-	flagsClient flags.Client,
-	detector setup.Detector,
-	installer setup.Installer,
+	svc setup.Service,
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// Pre-flight: the wizard's first action is an authenticated API call, so
@@ -148,12 +138,13 @@ func runSetupWizard(
 
 		m := wizardModel{
 			analyticsTrackerFn: analyticsTrackerFn,
-			resourcesClient:    resourcesClient,
-			flagsClient:        flagsClient,
-			detector:           detector,
-			installer:          installer,
-			step:               stepSelectProject,
-			spinner:            s,
+			svc:                svc,
+			auth: setup.Auth{
+				AccessToken: viper.GetString(cliflags.AccessTokenFlag),
+				BaseURI:     viper.GetString(cliflags.BaseURIFlag),
+			},
+			step:    stepSelectProject,
+			spinner: s,
 		}
 
 		p := tea.NewProgram(m, tea.WithAltScreen())
@@ -681,35 +672,20 @@ func (m wizardModel) planView() string {
 		mutedStyle.Render("Enter continue · ← back · esc quit")
 }
 
-// Commands that perform async work
+// Commands that perform async work. Each is a thin tea.Cmd adapter over the
+// orchestration service: it calls a step method and maps the result or error
+// onto a wizard message. All API/filesystem work and business rules live in
+// internal/setup.Service.
 
 func (m wizardModel) fetchProjects() tea.Cmd {
 	return func() tea.Msg {
-		path, _ := url.JoinPath(
-			viper.GetString(cliflags.BaseURIFlag),
-			"api/v2/projects",
-		)
-		res, err := m.resourcesClient.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
-			"GET", path, "application/json", nil, nil, false,
-		)
+		ps, err := m.svc.ListProjects(m.auth)
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
-
-		var resp struct {
-			Items []struct {
-				Key  string `json:"key"`
-				Name string `json:"name"`
-			} `json:"items"`
-		}
-		if err := json.Unmarshal(res, &resp); err != nil {
-			return wizardErrMsg{err: fmt.Errorf("parsing projects: %w", err)}
-		}
-
-		projects := make([]projectItem, len(resp.Items))
-		for i, item := range resp.Items {
-			projects[i] = projectItem{key: item.Key, name: item.Name}
+		projects := make([]projectItem, len(ps))
+		for i, p := range ps {
+			projects[i] = projectItem{key: p.Key, name: p.Name}
 		}
 		return projectsFetchedMsg{projects: projects}
 	}
@@ -717,31 +693,13 @@ func (m wizardModel) fetchProjects() tea.Cmd {
 
 func (m wizardModel) fetchEnvironments() tea.Cmd {
 	return func() tea.Msg {
-		path, _ := url.JoinPath(
-			viper.GetString(cliflags.BaseURIFlag),
-			"api/v2/projects", m.selectedProject, "environments",
-		)
-		res, err := m.resourcesClient.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
-			"GET", path, "application/json", nil, nil, false,
-		)
+		es, err := m.svc.ListEnvironments(m.auth, m.selectedProject)
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
-
-		var resp struct {
-			Items []struct {
-				Key  string `json:"key"`
-				Name string `json:"name"`
-			} `json:"items"`
-		}
-		if err := json.Unmarshal(res, &resp); err != nil {
-			return wizardErrMsg{err: fmt.Errorf("parsing environments: %w", err)}
-		}
-
-		envs := make([]envItem, len(resp.Items))
-		for i, item := range resp.Items {
-			envs[i] = envItem{key: item.Key, name: item.Name}
+		envs := make([]envItem, len(es))
+		for i, e := range es {
+			envs[i] = envItem{key: e.Key, name: e.Name}
 		}
 		return envsFetchedMsg{environments: envs}
 	}
@@ -749,31 +707,14 @@ func (m wizardModel) fetchEnvironments() tea.Cmd {
 
 func (m wizardModel) fetchEnvDetails() tea.Cmd {
 	return func() tea.Msg {
-		path, _ := url.JoinPath(
-			viper.GetString(cliflags.BaseURIFlag),
-			"api/v2/projects", m.selectedProject, "environments", m.selectedEnv,
-		)
-		res, err := m.resourcesClient.MakeRequest(
-			viper.GetString(cliflags.AccessTokenFlag),
-			"GET", path, "application/json", nil, nil, false,
-		)
+		keys, err := m.svc.EnvKeys(m.auth, m.selectedProject, m.selectedEnv)
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
-
-		var resp struct {
-			SDKKey       string `json:"apiKey"`
-			ClientSideId string `json:"_id"`
-			MobileKey    string `json:"mobileKey"`
-		}
-		if err := json.Unmarshal(res, &resp); err != nil {
-			return wizardErrMsg{err: fmt.Errorf("parsing environment details: %w", err)}
-		}
-
 		return envDetailsFetchedMsg{
-			sdkKey:       resp.SDKKey,
-			clientSideID: resp.ClientSideId,
-			mobileKey:    resp.MobileKey,
+			sdkKey:       keys.SDKKey,
+			clientSideID: keys.ClientSideID,
+			mobileKey:    keys.MobileKey,
 		}
 	}
 }
@@ -784,7 +725,7 @@ func (m wizardModel) runDetect() tea.Cmd {
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
-		result, err := m.detector.Detect(dir)
+		result, err := m.svc.Detect(dir)
 		if err != nil {
 			return detectFailedMsg{}
 		}
@@ -798,10 +739,10 @@ func (m wizardModel) runInstall() tea.Cmd {
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
-		result, err := m.installer.Install(dir, m.detectResult)
+		result, err := m.svc.Install(dir, m.detectResult)
 		if err != nil {
-			// Don't dead-end on a failed auto-install (e.g. Ruby gem perms, no
-			// network): continue and surface the command to run by hand.
+			// Don't dead-end the interactive flow on a failed auto-install (e.g.
+			// Ruby gem perms, no network): surface the command to run by hand.
 			args, _ := setup.InstallArgs(m.detectResult.SDKID, m.detectResult.PackageManager)
 			return installDoneMsg{result: &setup.InstallResult{
 				SDKID:         m.detectResult.SDKID,
@@ -816,25 +757,11 @@ func (m wizardModel) runInstall() tea.Cmd {
 
 func (m wizardModel) runCreateFlag() tea.Cmd {
 	return func() tea.Msg {
-		flagKey := "my-new-flag"
-		flagName := "My New Flag"
-
-		_, err := m.flagsClient.Create(
-			context.Background(),
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			flagName,
-			flagKey,
-			m.selectedProject,
-		)
+		key, err := m.svc.CreateFlag(m.auth, m.selectedProject, "my-new-flag", "My New Flag")
 		if err != nil {
-			// If flag already exists (conflict), continue using it
-			if jsonErr, parseErr := parseJSONError(err); parseErr == nil && jsonErr.Code == "conflict" {
-				return flagCreatedMsg{key: flagKey}
-			}
 			return wizardErrMsg{err: err}
 		}
-		return flagCreatedMsg{key: flagKey}
+		return flagCreatedMsg{key: key}
 	}
 }
 
@@ -846,8 +773,7 @@ func (m wizardModel) runInit() tea.Cmd {
 			MobileKey:    m.mobileKey,
 			FlagKey:      m.flagKey,
 		}
-		initializer := setup.Initializer{}
-		result, err := initializer.InjectIntoFile(m.detectResult.SDKID, m.detectResult.EntryPoint, cfg)
+		result, err := m.svc.Inject(m.detectResult.SDKID, m.detectResult.EntryPoint, cfg)
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
@@ -857,29 +783,10 @@ func (m wizardModel) runInit() tea.Cmd {
 
 func (m wizardModel) runVerify() tea.Cmd {
 	return func() tea.Msg {
-		verifier := setup.DefaultVerifier(m.resourcesClient)
-		result, err := verifier.Verify(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
-			m.selectedProject,
-			m.selectedEnv,
-		)
+		result, err := m.svc.Verify(m.auth, m.selectedProject, m.selectedEnv)
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
 		return verifyDoneMsg{result: result}
 	}
-}
-
-type jsonError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-func parseJSONError(err error) (*jsonError, error) {
-	var je jsonError
-	if parseErr := json.Unmarshal([]byte(err.Error()), &je); parseErr != nil {
-		return nil, parseErr
-	}
-	return &je, nil
 }

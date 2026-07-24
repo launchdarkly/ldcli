@@ -23,12 +23,12 @@ const (
 	flagKeyFlag  = "flag-key"
 )
 
-func newInitCmd() *cobra.Command {
+func newInitCmd(svc setup.Service) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "init",
 		Short:  "Inject LaunchDarkly SDK initialization code into a file",
 		Hidden: true,
-		RunE:   runInit(),
+		RunE:   runInit(svc),
 	}
 
 	cmd.Flags().String(sdkIDFlag, "", "SDK identifier (e.g. node-server, react-client-sdk)")
@@ -45,7 +45,7 @@ func newInitCmd() *cobra.Command {
 	return cmd
 }
 
-func runInit() func(*cobra.Command, []string) error {
+func runInit(svc setup.Service) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		sdkID, _ := cmd.Flags().GetString(sdkIDFlag)
 		filePath, _ := cmd.Flags().GetString(fileFlag)
@@ -56,8 +56,7 @@ func runInit() func(*cobra.Command, []string) error {
 			FlagKey:      getFlag(cmd, flagKeyFlag),
 		}
 
-		initializer := setup.Initializer{}
-		result, err := initializer.InjectIntoFile(sdkID, filePath, cfg)
+		result, err := svc.Inject(sdkID, filePath, cfg)
 		if err != nil {
 			return err
 		}

@@ -9,7 +9,6 @@ import (
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
-	"github.com/launchdarkly/ldcli/internal/flags"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/launchdarkly/ldcli/internal/setup"
 )
@@ -18,10 +17,15 @@ import (
 func NewSetupCmd(
 	analyticsTrackerFn analytics.TrackerFn,
 	resourcesClient resources.Client,
-	flagsClient flags.Client,
 	detector setup.Detector,
 	installer setup.Installer,
 ) *cobra.Command {
+	svc := setup.Service{
+		Client:      resourcesClient,
+		Detector:    detector,
+		Installer:   installer,
+		Initializer: setup.Initializer{},
+	}
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Set up LaunchDarkly in your project",
@@ -43,12 +47,12 @@ and verifies the connection.`,
 				viper.GetBool(cliflags.AnalyticsOptOut),
 			).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, "setup", nil))
 		},
-		RunE: runSetupWizard(analyticsTrackerFn, resourcesClient, flagsClient, detector, installer),
+		RunE: runSetupWizard(analyticsTrackerFn, svc),
 	}
 
-	cmd.AddCommand(newDetectCmd(detector))
-	cmd.AddCommand(newInstallCmd(installer))
-	cmd.AddCommand(newInitCmd())
+	cmd.AddCommand(newDetectCmd(svc))
+	cmd.AddCommand(newInstallCmd(svc))
+	cmd.AddCommand(newInitCmd(svc))
 
 	return cmd
 }

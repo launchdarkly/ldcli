@@ -17,12 +17,12 @@ const (
 	dryRunFlag = "dry-run"
 )
 
-func newInstallCmd(installer setup.Installer) *cobra.Command {
+func newInstallCmd(svc setup.Service) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "install",
 		Short:  "Install the LaunchDarkly SDK package for the detected project",
 		Hidden: true,
-		RunE:   runInstall(installer),
+		RunE:   runInstall(svc),
 	}
 
 	cmd.Flags().String(pathFlag, "", "Path to the project directory (defaults to current directory)")
@@ -34,7 +34,7 @@ func newInstallCmd(installer setup.Installer) *cobra.Command {
 	return cmd
 }
 
-func runInstall(installer setup.Installer) func(*cobra.Command, []string) error {
+func runInstall(svc setup.Service) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		dir, _ := cmd.Flags().GetString(pathFlag)
 		if dir == "" {
@@ -64,7 +64,7 @@ func runInstall(installer setup.Installer) func(*cobra.Command, []string) error 
 			}
 		} else {
 			var err error
-			result, err = installer.Install(dir, detection)
+			result, err = svc.Install(dir, detection)
 			if err != nil {
 				return err
 			}

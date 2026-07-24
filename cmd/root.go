@@ -279,7 +279,6 @@ func NewRootCommand(
 	cmd.AddCommand(setupcmd.NewSetupCmd(
 		analyticsTrackerFn,
 		clients.ResourcesClient,
-		clients.FlagsClient,
 		detector,
 		installer,
 	))
