@@ -88,25 +88,49 @@ func buildFlutterMaps(path, appVersion string) ([]flutterUpload, error) {
 	}
 
 	var uploads []flutterUpload
-	seen := make(map[string]bool)
+	seenID := make(map[string]bool)
+	seenVersionKey := make(map[string]bool)
+	var noBuildID []string
 	for _, file := range files {
 		img, err := flutter.BuildFromELF(file)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process %s: %w", file, err)
 		}
-		if img.SymbolsID == "" {
-			return nil, fmt.Errorf("no build id found in %s", file)
-		}
-		if seen[img.SymbolsID] {
-			continue
-		}
-		seen[img.SymbolsID] = true
 
 		var buf bytes.Buffer
 		if err := img.Builder.Encode(&buf); err != nil {
-			return nil, fmt.Errorf("failed to encode symbol map for %s: %w", img.SymbolsID, err)
+			return nil, fmt.Errorf("failed to encode symbol map for %s: %w", file, err)
 		}
 		data := buf.Bytes()
+
+		// iOS/macOS .symbols files carry no Dart build id (see readBuildID), so the
+		// Id lane can't be keyed from the file. Fall back to the Version lane, which
+		// the backend also tries for Flutter crashes (keyed by app version +
+		// platform). This requires --app-version and a platform token.
+		if img.SymbolsID == "" {
+			if appVersion == "" || img.Platform == "" {
+				noBuildID = append(noBuildID, file)
+				fmt.Printf("Skipping %s: no build id in file (e.g. iOS .symbols). Re-run with --app-version to upload it to the Version lane.\n", filepath.Base(file))
+				continue
+			}
+			vKey := flutterVersionKey(appVersion, img.Platform)
+			if seenVersionKey[vKey] {
+				continue
+			}
+			seenVersionKey[vKey] = true
+			uploads = append(uploads, flutterUpload{
+				Data:  data,
+				Key:   vKey,
+				Label: fmt.Sprintf("%s (Version Lane, no build id)", img.Platform),
+			})
+			fmt.Printf("Built symbol map for %s (Version lane only, no build id, %d bytes)\n", img.Platform, len(data))
+			continue
+		}
+
+		if seenID[img.SymbolsID] {
+			continue
+		}
+		seenID[img.SymbolsID] = true
 
 		uploads = append(uploads, flutterUpload{
 			Data:  data,
@@ -114,13 +138,24 @@ func buildFlutterMaps(path, appVersion string) ([]flutterUpload, error) {
 			Label: fmt.Sprintf("%s (%s, Id Lane)", img.SymbolsID, img.Platform),
 		})
 		if appVersion != "" && img.Platform != "" {
-			uploads = append(uploads, flutterUpload{
-				Data:  data,
-				Key:   flutterVersionKey(appVersion, img.Platform),
-				Label: fmt.Sprintf("%s (%s, Version Lane)", img.SymbolsID, img.Platform),
-			})
+			vKey := flutterVersionKey(appVersion, img.Platform)
+			if !seenVersionKey[vKey] {
+				seenVersionKey[vKey] = true
+				uploads = append(uploads, flutterUpload{
+					Data:  data,
+					Key:   vKey,
+					Label: fmt.Sprintf("%s (%s, Version Lane)", img.SymbolsID, img.Platform),
+				})
+			}
 		}
 		fmt.Printf("Built symbol map for %s (%s, %d bytes)\n", img.SymbolsID, img.Platform, len(data))
+	}
+
+	if len(uploads) == 0 {
+		if len(noBuildID) > 0 {
+			return nil, fmt.Errorf("found %d Flutter symbol file(s) with no build id (e.g. iOS .symbols) and no --app-version was given, so none could be uploaded. Re-run with --app-version <app-version> to use the Version lane", len(noBuildID))
+		}
+		return nil, fmt.Errorf("no Flutter symbol maps could be built from %s", path)
 	}
 	return uploads, nil
 }

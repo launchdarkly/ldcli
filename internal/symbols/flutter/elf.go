@@ -93,7 +93,11 @@ func platformFromFilename(path string) string {
 }
 
 // readBuildID returns the GNU build id of an ELF as lowercase hex, scanning both
-// note sections and PT_NOTE segments (Dart emits it as a .note.gnu.build-id).
+// note sections and PT_NOTE segments (Dart emits it as a .note.gnu.build-id on
+// ELF targets such as Android/Linux). iOS/macOS .symbols files are ELF but carry
+// no build-id note (the snapshot ships in a Mach-O App.framework), so this
+// returns "" (not an error) there; the caller then falls back to the Version
+// lane, which keys by app version + platform instead of the build id.
 func readBuildID(f *elf.File) (string, error) {
 	for _, sec := range f.Sections {
 		if sec.Type != elf.SHT_NOTE {
@@ -119,7 +123,9 @@ func readBuildID(f *elf.File) (string, error) {
 			return id, nil
 		}
 	}
-	return "", e.New("no GNU build-id note found")
+	// No build-id note (e.g. iOS/macOS .symbols): not an error — the caller uses
+	// the Version lane instead.
+	return "", nil
 }
 
 // buildIDFromNotes walks a note section/segment (a sequence of ELF notes) and
