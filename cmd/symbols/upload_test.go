@@ -248,7 +248,7 @@ func TestSymbolsIDForArtifact(t *testing.T) {
 }
 
 func TestUnsupportedType(t *testing.T) {
-	viper.Set(typeFlag, "flutter")
+	viper.Set(typeFlag, "totally-unknown")
 	defer viper.Set(typeFlag, "")
 
 	client := resources.NewClient("")
@@ -261,7 +261,8 @@ func TestIsSupportedType(t *testing.T) {
 	assert.True(t, isSupportedType(typeReactNative))
 	assert.True(t, isSupportedType(typeAndroid))
 	assert.True(t, isSupportedType(typeAppleDSYM))
-	assert.False(t, isSupportedType("flutter"))
+	assert.True(t, isSupportedType(typeFlutter))
+	assert.False(t, isSupportedType("totally-unknown"))
 	assert.False(t, isSupportedType(""))
 }
 
@@ -271,6 +272,11 @@ func TestCanonicalizeSymbolType(t *testing.T) {
 		assert.Equal(t, typeAppleDSYM, canonicalizeSymbolType(alias), alias)
 	}
 
+	// Flutter synonyms resolve to the flutter type.
+	assert.Equal(t, typeFlutter, canonicalizeSymbolType("flutter"))
+	assert.Equal(t, typeFlutter, canonicalizeSymbolType("dart"))
+	assert.Equal(t, typeFlutter, canonicalizeSymbolType("Flutter"))
+
 	// Case-insensitive and whitespace-tolerant.
 	assert.Equal(t, typeAppleDSYM, canonicalizeSymbolType("iOS"))
 	assert.Equal(t, typeAppleDSYM, canonicalizeSymbolType("  Apple-DSYM  "))
@@ -279,11 +285,28 @@ func TestCanonicalizeSymbolType(t *testing.T) {
 	// Canonical values pass through; unknown values are lower-cased for rejection.
 	assert.Equal(t, typeReactNative, canonicalizeSymbolType(typeReactNative))
 	assert.Equal(t, typeAndroid, canonicalizeSymbolType(typeAndroid))
-	assert.Equal(t, "flutter", canonicalizeSymbolType("Flutter"))
-	assert.False(t, isSupportedType(canonicalizeSymbolType("flutter")))
+	assert.Equal(t, "totally-unknown", canonicalizeSymbolType("Totally-Unknown"))
+	assert.False(t, isSupportedType(canonicalizeSymbolType("totally-unknown")))
 
 	// Every alias must map to a supported canonical type.
 	for alias, canonical := range symbolTypeAliases {
 		assert.True(t, isSupportedType(canonical), alias)
 	}
+}
+
+func TestFlutterKeys(t *testing.T) {
+	symbolsID := "0f8a1b2c3d4e5f60718293a4b5c6d7e8"
+	// Id lane: keyed by symbols_id (arch-unique), constant object name.
+	assert.Equal(t, "_sym/flutter/id/"+symbolsID+"/app.dartmap", flutterIDKey(symbolsID))
+	// Version lane: keyed by version, with the platform token disambiguating arches.
+	assert.Equal(t, "1.2.3/app.android-arm64.dartmap", flutterVersionKey("1.2.3", "android-arm64"))
+	assert.Equal(t, "1.2.3/app.ios-arm64.dartmap", flutterVersionKey("1.2.3", "ios-arm64"))
+}
+
+func TestIsFlutterSymbolFile(t *testing.T) {
+	assert.True(t, isFlutterSymbolFile("app.android-arm64.symbols"))
+	assert.True(t, isFlutterSymbolFile("build/symbols/app.ios-arm64.symbols"))
+	assert.False(t, isFlutterSymbolFile("app.android-arm64.dartmap"))
+	assert.False(t, isFlutterSymbolFile("mapping.txt"))
+	assert.False(t, isFlutterSymbolFile("other.symbols"))
 }
