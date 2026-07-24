@@ -489,6 +489,9 @@ func (m wizardModel) View() string {
 			body := titleStyle.Render("Manual install needed") + "\n\n" +
 				m.wrap("The SDK couldn't be installed automatically. Install it yourself with:") + "\n\n" +
 				code(m.installResult.Command) + "\n\n"
+			if m.installResult.FailureReason != "" {
+				body += m.wrap("Reason: "+m.installResult.FailureReason) + "\n\n"
+			}
 			if m.initResult != nil && m.initResult.Success {
 				body += m.wrap(fmt.Sprintf("Initialization code was added to %s.", m.initResult.FilePath)) + "\n"
 			} else if m.initResult != nil && m.initResult.Snippet != "" {
@@ -513,10 +516,11 @@ func (m wizardModel) View() string {
 				quitHint
 		}
 		if m.verifyResult != nil && m.verifyResult.Active && m.detectResult != nil {
+			appHost := strings.TrimRight(viper.GetString(cliflags.BaseURIFlag), "/")
 			return titleStyle.Render("Setup complete!") + "\n\n" +
 				fmt.Sprintf("Your %s SDK is connected to LaunchDarkly.\n", m.detectResult.SDKID) +
 				fmt.Sprintf("Flag %q is ready to use.\n\n", m.flagKey) +
-				fmt.Sprintf("You can now toggle your flag at https://app.launchdarkly.com/projects/%s/flags/%s/targeting?env=%s\n", m.selectedProject, m.flagKey, m.selectedEnv) +
+				fmt.Sprintf("You can now toggle your flag at %s/projects/%s/flags/%s/targeting?env=%s\n", appHost, m.selectedProject, m.flagKey, m.selectedEnv) +
 				quitHint
 		}
 		return titleStyle.Render("Verification timed out") + "\n\n" +
@@ -791,9 +795,10 @@ func (m wizardModel) runInstall() tea.Cmd {
 			// network): continue and surface the command to run by hand.
 			args, _ := setup.InstallArgs(m.detectResult.SDKID, m.detectResult.PackageManager)
 			return installDoneMsg{result: &setup.InstallResult{
-				SDKID:   m.detectResult.SDKID,
-				Command: strings.Join(args, " "),
-				Failed:  true,
+				SDKID:         m.detectResult.SDKID,
+				Command:       strings.Join(args, " "),
+				Failed:        true,
+				FailureReason: err.Error(),
 			}}
 		}
 		return installDoneMsg{result: result}

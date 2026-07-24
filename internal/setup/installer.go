@@ -18,7 +18,10 @@ type InstallResult struct {
 	DryRun           bool   `json:"dry_run,omitempty"`
 	AlreadyInstalled bool   `json:"already_installed,omitempty"`
 	Failed           bool   `json:"failed,omitempty"`
-	Success          bool   `json:"success"`
+	// FailureReason carries the underlying error when Failed is true, so callers
+	// can tell the user why the automatic install did not run.
+	FailureReason string `json:"failure_reason,omitempty"`
+	Success       bool   `json:"success"`
 }
 
 // RequiresManualInstall reports whether the SDK has no automated package-manager
