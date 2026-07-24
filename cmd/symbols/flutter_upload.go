@@ -91,6 +91,7 @@ func buildFlutterMaps(path, appVersion string) ([]flutterUpload, error) {
 	seenID := make(map[string]bool)
 	seenVersionKey := make(map[string]bool)
 	var noBuildID []string
+	var missingAppVersion, missingPlatform int
 	for _, file := range files {
 		img, err := flutter.BuildFromELF(file)
 		if err != nil {
@@ -110,7 +111,13 @@ func buildFlutterMaps(path, appVersion string) ([]flutterUpload, error) {
 		if img.SymbolsID == "" {
 			if appVersion == "" || img.Platform == "" {
 				noBuildID = append(noBuildID, file)
-				fmt.Printf("Skipping %s: no build id in file (e.g. iOS .symbols). Re-run with --app-version to upload it to the Version lane.\n", filepath.Base(file))
+				if appVersion == "" {
+					missingAppVersion++
+					fmt.Printf("Skipping %s: no build id in file (e.g. iOS .symbols). Re-run with --app-version to upload it to the Version lane.\n", filepath.Base(file))
+				} else {
+					missingPlatform++
+					fmt.Printf("Skipping %s: no build id in file and no platform token could be parsed from the filename (expected app.<platform>.symbols), so the Version lane can't be keyed.\n", filepath.Base(file))
+				}
 				continue
 			}
 			vKey := flutterVersionKey(appVersion, img.Platform)
@@ -153,7 +160,14 @@ func buildFlutterMaps(path, appVersion string) ([]flutterUpload, error) {
 
 	if len(uploads) == 0 {
 		if len(noBuildID) > 0 {
-			return nil, fmt.Errorf("found %d Flutter symbol file(s) with no build id (e.g. iOS .symbols) and no --app-version was given, so none could be uploaded. Re-run with --app-version <app-version> to use the Version lane", len(noBuildID))
+			switch {
+			case missingAppVersion > 0 && missingPlatform > 0:
+				return nil, fmt.Errorf("found %d Flutter symbol file(s) with no build id (e.g. iOS .symbols) that could not be uploaded: %d were missing --app-version, and %d had no platform token parsable from the filename (expected app.<platform>.symbols). Re-run with --app-version <app-version> and ensure filenames include a platform token to use the Version lane", len(noBuildID), missingAppVersion, missingPlatform)
+			case missingPlatform > 0:
+				return nil, fmt.Errorf("found %d Flutter symbol file(s) with no build id (e.g. iOS .symbols) and no platform token parsable from the filename (expected app.<platform>.symbols), so the Version lane could not be keyed and none could be uploaded", len(noBuildID))
+			default:
+				return nil, fmt.Errorf("found %d Flutter symbol file(s) with no build id (e.g. iOS .symbols) and no --app-version was given, so none could be uploaded. Re-run with --app-version <app-version> to use the Version lane", len(noBuildID))
+			}
 		}
 		return nil, fmt.Errorf("no Flutter symbol maps could be built from %s", path)
 	}
