@@ -32,11 +32,18 @@ const (
 	basePathFlag   = "base-path"
 	backendUrlFlag = "backend-url"
 
-	// includeSourcesFlag opts into uploading the source files a dSYM's DWARF
-	// references (as a .srcbundle beside the .dsymmap) so the errors page can show
-	// source context around native frames. Off by default: it ships your source
-	// to LaunchDarkly.
+	// includeSourcesFlag opts into uploading source files (as a .srcbundle beside
+	// the symbol map) so the errors page can show source context around native
+	// frames. Off by default: it ships your source to LaunchDarkly. Supported for
+	// apple-dsym (sources come from the dSYM's DWARF) and android (sources are
+	// scanned from --source-path, since an R8 mapping records no paths).
 	includeSourcesFlag = "include-sources"
+
+	// sourcePathFlag is the directory scanned for .java/.kt sources when
+	// --include-sources is used with --type android. It defaults to the current
+	// directory because --path points at the mapping.txt output dir, which holds
+	// no sources.
+	sourcePathFlag = "source-path"
 
 	defaultPath       = "."
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
@@ -227,7 +234,8 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// symbolsIDForArtifact) is used, falling back to the Version Lane
 		// (version+basePath) when there is none.
 		s3Keys := make([]string, 0, len(files))
-		for _, file := range files {
+		firstSymbolsID := ""
+		for i, file := range files {
 			fileSymbolsID := symbolsID
 			if fileSymbolsID == "" {
 				fileSymbolsID = symbolsIDForArtifact(file.Path)
@@ -235,7 +243,32 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 					fmt.Printf("Using symbols id %s for %s (Symbols Id Lane: %s/%s)\n", fileSymbolsID, file.Name, symbolsIDPrefix, fileSymbolsID)
 				}
 			}
+			if i == 0 {
+				firstSymbolsID = fileSymbolsID
+			}
 			s3Keys = append(s3Keys, getS3Key(symbolsIDPrefix, fileSymbolsID, appVersion, basePath, file.Name))
+		}
+
+		// Android sources are packed into one bundle uploaded beside the mapping,
+		// on the same lane, so the errors page can show the code around each
+		// retraced frame. Keyed off the first mapping's lane: a build has one
+		// mapping, and its sources are the app's sources.
+		var sourceBundle []byte
+		if symbolType == typeAndroid && viper.GetBool(includeSourcesFlag) {
+			sourceRoot := viper.GetString(sourcePathFlag)
+			data, count, bErr := buildAndroidSourceBundle(sourceRoot)
+			if bErr != nil {
+				return bErr
+			}
+			if data == nil {
+				// Not fatal: the mapping alone still retraces, just without source.
+				fmt.Printf("No .java/.kt sources found under %s; skipping source bundle\n", sourceRoot)
+			} else {
+				sourceBundle = data
+				bundleName := filepath.Join(filepath.Dir(files[0].Name), androidSourceBundleName)
+				s3Keys = append(s3Keys, getS3Key(symbolsIDPrefix, firstSymbolsID, appVersion, basePath, bundleName))
+				fmt.Printf("Built source bundle from %s (%d files, %d bytes)\n", sourceRoot, count, len(data))
+			}
 		}
 
 		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl)
@@ -243,15 +276,21 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
 
-		// The loop below pairs each file with uploadUrls[i], so a short list
-		// (fewer URLs than files) would panic. Require one URL per requested key.
-		if len(uploadUrls) != len(files) {
-			return fmt.Errorf("expected %d upload URLs but received %d", len(files), len(uploadUrls))
+		// The loops below pair each requested key with uploadUrls[i], so a short
+		// list would panic. Require one URL per requested key.
+		if len(uploadUrls) != len(s3Keys) {
+			return fmt.Errorf("expected %d upload URLs but received %d", len(s3Keys), len(uploadUrls))
 		}
 
 		for i, file := range files {
 			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
 				return fmt.Errorf("failed to upload file %s: %w", file.Path, err)
+			}
+		}
+		if sourceBundle != nil {
+			// The bundle's key was appended last, so it takes the final URL.
+			if err := uploadBytes(sourceBundle, uploadUrls[len(files)], androidSourceBundleName); err != nil {
+				return fmt.Errorf("failed to upload source bundle: %w", err)
 			}
 		}
 
@@ -547,6 +586,9 @@ func initFlags(cmd *cobra.Command) {
 	cmd.Flags().String(backendUrlFlag, defaultBackendUrl, "An optional backend url for self-hosted deployments")
 	_ = viper.BindPFlag(backendUrlFlag, cmd.Flags().Lookup(backendUrlFlag))
 
-	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also upload the source files referenced by the debug info so the errors page can show source context around native frames (%s only). Your source is stored in LaunchDarkly", typeAppleDSYM))
+	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also upload your source files so the errors page can show source context around native frames (%s and %s). Your source is stored in LaunchDarkly", typeAppleDSYM, typeAndroid))
 	_ = viper.BindPFlag(includeSourcesFlag, cmd.Flags().Lookup(includeSourcesFlag))
+
+	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to scan for .java/.kt sources when using --%s with --type %s", includeSourcesFlag, typeAndroid))
+	_ = viper.BindPFlag(sourcePathFlag, cmd.Flags().Lookup(sourcePathFlag))
 }
