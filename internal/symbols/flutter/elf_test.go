@@ -46,6 +46,11 @@ func TestBuildIDFromNotes(t *testing.T) {
 	// Truncated data must not panic and must return "".
 	assert.Equal(t, "", buildIDFromNotes([]byte{1, 2, 3}, bo))
 
+	// A skipped note whose descriptor ends at the very end of the data but whose
+	// padding would run past it must not panic.
+	unaligned := note(bo, "GNU", 1, []byte{1, 2, 3})
+	assert.Equal(t, "", buildIDFromNotes(unaligned[:len(unaligned)-1], bo))
+
 	// Big-endian is honored.
 	be := binary.BigEndian
 	assert.Equal(t, "0f8a1b2c3d4e5f60", buildIDFromNotes(note(be, "GNU", ntGNUBuildID, id), be))
