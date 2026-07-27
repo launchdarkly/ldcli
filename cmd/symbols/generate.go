@@ -85,6 +85,12 @@ func generateRunE() func(cmd *cobra.Command, args []string) error {
 			return generateFlutterSymbols(path, viper.GetString(appVersionFlag), outputDir)
 		}
 
+		// Flutter symbols compile to .dartmap maps keyed by build id (Id Lane),
+		// plus a Version-lane copy when --app-version is set.
+		if symbolType == typeFlutter {
+			return generateFlutterSymbols(path, viper.GetString(appVersionFlag), outputDir)
+		}
+
 		return generateSymbolFiles(symbolType, path, outputDir)
 	}
 }
