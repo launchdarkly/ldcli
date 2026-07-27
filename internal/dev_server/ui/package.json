@@ -45,6 +45,6 @@
     "vite": "6.4.1",
     "vite-plugin-singlefile": "2.2.0",
     "vite-plugin-svgr": "4.3.0",
-    "vitest": "2.1.9"
+    "vitest": "3.2.7"
   }
 }

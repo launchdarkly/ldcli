@@ -13,6 +13,15 @@ func GetOutputKind(cmd *cobra.Command) string {
 	return viper.GetString(OutputFlag)
 }
 
+// GetFields returns the list of fields to include in JSON output, or nil if not specified.
+func GetFields(cmd *cobra.Command) []string {
+	fields, err := cmd.Root().PersistentFlags().GetStringSlice(FieldsFlag)
+	if err != nil {
+		return nil
+	}
+	return fields
+}
+
 const (
 	BaseURIDefault      = "https://app.launchdarkly.com"
 	DevStreamURIDefault = "https://stream.launchdarkly.com"
@@ -24,9 +33,11 @@ const (
 	CorsEnabledFlag  = "cors-enabled"
 	CorsOriginFlag   = "cors-origin"
 	DataFlag         = "data"
+	DryRunFlag       = "dry-run"
 	DevStreamURIFlag = "dev-stream-uri"
 	EmailsFlag       = "emails"
 	EnvironmentFlag  = "environment"
+	FieldsFlag       = "fields"
 	FlagFlag         = "flag"
 	JSONFlag         = "json"
 	OutputFlag       = "output"
@@ -41,10 +52,12 @@ const (
 	CorsEnabledFlagDescription = "Enable CORS headers for browser-based developer tools (default: false)"
 	CorsOriginFlagDescription  = "Allowed CORS origin. Use '*' for all origins (default: '*')"
 	DevStreamURIDescription    = "Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint"
+	DryRunFlagDescription      = "Validate the change without persisting it. Returns a preview of the result."
 	EnvironmentFlagDescription = "Default environment key"
+	FieldsFlagDescription      = "Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)"
 	FlagFlagDescription        = "Default feature flag key"
 	JSONFlagDescription        = "Output JSON format (shorthand for --output json)"
-	OutputFlagDescription      = "Command response output format in either JSON or plain text"
+	OutputFlagDescription      = "Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise)"
 	PortFlagDescription        = "Port for the dev server to run on"
 	ProjectFlagDescription     = "Default project key"
 	SyncOnceFlagDescription    = "Only sync new projects. Existing projects will neither be resynced nor have overrides specified by CLI flags applied."

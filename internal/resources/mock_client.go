@@ -8,6 +8,7 @@ import (
 type MockClient struct {
 	Err        error
 	Input      []byte
+	Query      url.Values
 	Response   []byte
 	StatusCode int
 }
@@ -21,6 +22,7 @@ func (c *MockClient) MakeRequest(
 	isBeta bool,
 ) ([]byte, error) {
 	c.Input = data
+	c.Query = query
 
 	if c.StatusCode > http.StatusBadRequest {
 		return c.Response, c.Err

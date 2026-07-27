@@ -8,8 +8,8 @@ import (
 )
 
 type mockEnvChecker struct {
-	envVars       map[string]string
-	stdinTerminal bool
+	envVars        map[string]string
+	stdinTerminal  bool
 	stdoutTerminal bool
 }
 

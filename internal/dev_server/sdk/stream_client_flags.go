@@ -25,7 +25,7 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 	updateChan, doneChan := OpenStream(
 		w,
 		r.Context().Done(),
-		Message{Event: TYPE_PUT, Data: jsonBody},
+		Message{Event: TYPE_PUT, Data: jsonBody}.ToPayload(),
 	)
 	defer close(updateChan)
 	projectKey := GetProjectKeyFromContext(ctx)
@@ -46,7 +46,7 @@ func StreamClientFlags(w http.ResponseWriter, r *http.Request) {
 }
 
 type clientFlagsObserver struct {
-	updateChan chan<- Message
+	updateChan chan<- []byte
 	projectKey string
 }
 

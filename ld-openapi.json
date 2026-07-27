@@ -2310,6 +2310,111 @@
         "operationId": "postAuditLogEntries"
       }
     },
+    "/api/v2/auditlog/counts": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Audit log entry counts response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountBucketsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorRep"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Audit log"
+        ],
+        "summary": "Get audit log entry counts",
+        "description": "Returns aggregate counts of audit log entries per time bucket. Used for dashboard overlays that show flag targeting changes.",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "description": "A timestamp filter, expressed as a Unix epoch time in milliseconds. Defaults to now.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "description": "A timestamp filter, expressed as a Unix epoch time in milliseconds. Defaults to now."
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "A timestamp filter, expressed as a Unix epoch time in milliseconds. Required.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "description": "A timestamp filter, expressed as a Unix epoch time in milliseconds. Required."
+            }
+          },
+          {
+            "name": "buckets",
+            "in": "query",
+            "description": "Number of time buckets to divide the range into. Default 50, max 500.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "description": "Number of time buckets to divide the range into. Default 50, max 500."
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementPostList"
+              }
+            }
+          },
+          "required": true
+        },
+        "operationId": "postAuditLogEntryCounts"
+      }
+    },
     "/api/v2/auditlog/{id}": {
       "get": {
         "responses": {
@@ -10705,11 +10810,11 @@
           {
             "name": "filter",
             "in": "query",
-            "description": "A comma-separated list of filters. This endpoint accepts filtering by `query`, `tags`, 'eventKind', 'isNumeric', 'unitAggregationType`, `hasConnections`, `maintainerIds`, `maintainerTeamKey`, `view`, `dataSourceKeys`, and `metricUsedIn`. To learn more about the filter syntax, read the 'Filtering metrics' section above.",
+            "description": "A comma-separated list of filters. This endpoint accepts filtering by `query`, `tags`, 'eventKind', 'isNumeric', 'unitAggregationType`, `hasConnections`, `maintainerIds`, `maintainerTeamKey`, `view`, `dataSourceKeys`, `metricUsedIn`, `eventKeys`, and `versionIds`. To learn more about the filter syntax, read the 'Filtering metrics' section above.",
             "schema": {
               "type": "string",
               "format": "string",
-              "description": "A comma-separated list of filters. This endpoint accepts filtering by `query`, `tags`, 'eventKind', 'isNumeric', 'unitAggregationType`, `hasConnections`, `maintainerIds`, `maintainerTeamKey`, `view`, `dataSourceKeys`, and `metricUsedIn`. To learn more about the filter syntax, read the 'Filtering metrics' section above."
+              "description": "A comma-separated list of filters. This endpoint accepts filtering by `query`, `tags`, 'eventKind', 'isNumeric', 'unitAggregationType`, `hasConnections`, `maintainerIds`, `maintainerTeamKey`, `view`, `dataSourceKeys`, `metricUsedIn`, `eventKeys`, and `versionIds`. To learn more about the filter syntax, read the 'Filtering metrics' section above."
             }
           }
         ],
@@ -12338,7 +12443,7 @@
           "Environments"
         ],
         "summary": "Create environment",
-        "description": "> ### Approval settings\n>\n> The `approvalSettings` key is only returned when the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n>\n> You cannot update approval settings when creating new environments. Update approval settings with the [https://launchdarkly.com/docs/api/environments/patch-environment).\n\nCreate a new environment in a specified project with a given name, key, swatch color, and default TTL.\n",
+        "description": "> ### Approval settings\n>\n> You cannot configure approval settings when you create a new environment. Use [Update environment](https://launchdarkly.com/docs/api/environments/patch-environment) to update approval settings.\n>\n> The `approvalSettings` and `resourceApprovalSettings` keys are only returned when the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n\nCreate a new environment in a specified project with a given name, key, swatch color, and default TTL.\n",
         "parameters": [
           {
             "name": "projectKey",
@@ -12428,7 +12533,7 @@
           "Environments"
         ],
         "summary": "Get environment",
-        "description": "> ### Approval settings\n>\n> The `approvalSettings` key is only returned when [approvals](https://launchdarkly.com/docs/home/releases/approvals) for flags or segments are enabled.\n\nGet an environment given a project and key.\n",
+        "description": "> ### Approval settings\n>\n> The `approvalSettings` and `resourceApprovalSettings` keys are only returned when the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n\nGet an environment given a project and key.\n",
         "parameters": [
           {
             "name": "projectKey",
@@ -12522,7 +12627,7 @@
           "Environments"
         ],
         "summary": "Update environment",
-        "description": "\nUpdate an environment. Updating an environment uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](https://launchdarkly.com/docs/api#updates).\n\nTo update fields in the environment object that are arrays, set the `path` to the name of the field and then append `/<array index>`. Using `/0` appends to the beginning of the array.\n\n### Approval settings\n\nThis request only returns the `approvalSettings` key if the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n\nOnly the `canReviewOwnRequest`, `canApplyDeclinedChanges`, `minNumApprovals`, `required` and `requiredApprovalTagsfields` are editable.\n\nIf you try to patch the environment by setting both `required` and `requiredApprovalTags`, the request fails and an error appears. You can specify either required approvals for all flags in an environment or those with specific tags, but not both.\n",
+        "description": "\nUpdate an environment. Updating an environment uses a [JSON patch](https://datatracker.ietf.org/doc/html/rfc6902) representation of the desired changes. To learn more, read [Updates](https://launchdarkly.com/docs/api#updates).\n\nTo update fields in the environment object that are arrays, set the `path` to the name of the field and then append `/<array index>`. Using `/0` appends to the beginning of the array.\n\n### Approval settings\n\nThis request only returns the `approvalSettings` and `resourceApprovalSettings` if the [approvals](https://launchdarkly.com/docs/home/releases/approvals/) feature is enabled.\n\nOnly the `canReviewOwnRequest`, `canApplyDeclinedChanges`, `minNumApprovals`, `required` and `requiredApprovalTagsfields` are editable.\n\nIf you try to patch the environment by setting both `required` and `requiredApprovalTags`, the request fails and an error appears. You can specify either required approvals for all flags in an environment or those with specific tags, but not both.\n",
         "parameters": [
           {
             "name": "projectKey",
@@ -13894,7 +13999,7 @@
           "Experiments"
         ],
         "summary": "Get experiments",
-        "description": "Get details about all experiments in an environment.\n\n### Filtering experiments\n\nLaunchDarkly supports the `filter` query param for filtering, with the following fields:\n\n- `flagKey` filters for only experiments that use the flag with the given key.\n- `metricKey` filters for only experiments that use the metric with the given key.\n- `status` filters for only experiments with an iteration with the given status. An iteration can have the status `not_started`, `running` or `stopped`.\n\nFor example, `filter=flagKey:my-flag,status:running,metricKey:page-load-ms` filters for experiments for the given flag key and the given metric key which have a currently running iteration.\n\n### Expanding the experiments response\n\nLaunchDarkly supports four fields for expanding the \"Get experiments\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
+        "description": "Get details about all experiments in an environment.\n\n### Filtering experiments\n\nLaunchDarkly supports the `filter` query param for filtering, with the following fields:\n\n- `flagKey` filters for only experiments that use the flag with the given key.\n- `metricKey` filters for only experiments that use the metric with the given key.\n- `status` filters for only experiments with an iteration with the given status. An iteration can have the status `not_started`, `running` or `stopped`.\n\nFor example, `filter=flagKey:my-flag,status:running,metricKey:page-load-ms` filters for experiments for the given flag key and the given metric key which have a currently running iteration.\n\n### Expanding the experiments response\n\nLaunchDarkly supports five fields for expanding the \"Get experiments\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n- `analysisConfig` includes the analysis configuration for the experiment, such as the Bayesian threshold or significance threshold.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
         "parameters": [
           {
             "name": "projectKey",
@@ -14038,7 +14143,7 @@
           "Experiments"
         ],
         "summary": "Create experiment",
-        "description": "Create an experiment.\n\nTo run this experiment, you'll need to [create an iteration](https://launchdarkly.com/docs/api/experiments/create-iteration) and then [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` instruction.\n\nTo learn more, read [Creating experiments](https://launchdarkly.com/docs/home/experimentation/create).\n",
+        "description": "Create an experiment.\n\nTo run this experiment, you'll need to [create an iteration](https://launchdarkly.com/docs/api/experiments/create-iteration) and then [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` instruction.\n\n### Experiment types\n\nUse the `type` field to specify the experiment type: `experiment` (default), `mab` (multi-armed bandit), or `holdout`.\n\nFor multi-armed bandit experiments, set `reallocationFrequencyMillis` on the iteration to control how often traffic is reallocated across variations.\n\n### Results analysis\n\nUse the `methodology` field to specify the results analysis approach: `bayesian` (default) or `frequentist`.\n\nUse the `dataSource` field to specify the source of metric data: `launchdarkly` (default), `snowflake`, or `databricks`.\n\nUse the `analysisConfig` field to customize analysis settings such as the Bayesian threshold, significance threshold, or multiple comparison correction method.\n\nTo learn more, read [Creating experiments](https://launchdarkly.com/docs/home/experimentation/create).\n",
         "parameters": [
           {
             "name": "projectKey",
@@ -14154,7 +14259,7 @@
           "Experiments"
         ],
         "summary": "Get experiment",
-        "description": "Get details about an experiment.\n\n### Expanding the experiment response\n\nLaunchDarkly supports four fields for expanding the \"Get experiment\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
+        "description": "Get details about an experiment.\n\n### Expanding the experiment response\n\nLaunchDarkly supports five fields for expanding the \"Get experiment\" response. By default, these fields are **not** included in the response.\n\nTo expand the response, append the `expand` query parameter and add a comma-separated list with any of the following fields:\n\n- `previousIterations` includes all iterations prior to the current iteration. By default only the current iteration is included in the response.\n- `draftIteration` includes the iteration which has not been started yet, if any.\n- `secondaryMetrics` includes secondary metrics. By default only the primary metric is included in the response.\n- `treatments` includes all treatment and parameter details. By default treatment data is not included in the response.\n- `analysisConfig` includes the analysis configuration for the experiment, such as the Bayesian threshold or significance threshold.\n\nFor example, `expand=draftIteration,treatments` includes the `draftIteration` and `treatments` fields in the response. If fields that you request with the `expand` query parameter are empty, they are not included in the response.\n",
         "parameters": [
           {
             "name": "projectKey",
@@ -14405,7 +14510,7 @@
           "Experiments"
         ],
         "summary": "Create iteration",
-        "description": "Create an experiment iteration.\n\nExperiment iterations let you record experiments in individual blocks of time. Initially, iterations are created with a status of `not_started` and appear in the `draftIteration` field of an experiment. To start or stop an iteration, [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` or `stopIteration` instruction. \n\nTo learn more, read [Start experiment iterations](https://launchdarkly.com/docs/home/experimentation/create#start-an-experiment-iteration).\n",
+        "description": "Create an experiment iteration.\n\nExperiment iterations let you record experiments in individual blocks of time. Initially, iterations are created with a status of `not_started` and appear in the `draftIteration` field of an experiment. To start or stop an iteration, [update the experiment](https://launchdarkly.com/docs/api/experiments/patch-experiment) with the `startIteration` or `stopIteration` instruction.\n\nTo learn more, read [Start experiment iterations](https://launchdarkly.com/docs/home/experimentation/create#start-an-experiment-iteration).\n",
         "parameters": [
           {
             "name": "projectKey",
@@ -14451,7 +14556,8 @@
           },
           "required": true
         },
-        "operationId": "createIteration"
+        "operationId": "createIteration",
+        "deprecated": true
       }
     },
     "/api/v2/projects/{projectKey}/environments/{environmentKey}/flags/evaluate": {
@@ -15605,6 +15711,151 @@
           "required": true
         },
         "operationId": "putExperimentationSettings"
+      }
+    },
+    "/api/v2/projects/{projectKey}/experiments": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Experiment collection response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentCollectionRep"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorRep"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorRep"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid resource identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorRep"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MethodNotAllowedErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Experiments"
+        ],
+        "summary": "Get experiments any environment",
+        "description": "Get a list of experiments from across all environments in the project",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "description": "The project key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "The project key"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "The maximum number of experiments to return. Defaults to 20.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "description": "The maximum number of experiments to return. Defaults to 20."
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "description": "Where to start in the list. Use this with pagination. For example, an offset of 10 skips the first ten items and then returns the next items in the list, up to the query `limit`."
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "description": "A comma-separated list of filters. Each filter is of the form `field:value`. Supported fields are explained above.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "A comma-separated list of filters. Each filter is of the form `field:value`. Supported fields are explained above."
+            }
+          },
+          {
+            "name": "expand",
+            "in": "query",
+            "description": "A comma-separated list of properties that can reveal additional information in the response. Supported fields are explained above.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "A comma-separated list of properties that can reveal additional information in the response. Supported fields are explained above."
+            }
+          },
+          {
+            "name": "lifecycleState",
+            "in": "query",
+            "description": "A comma-separated list of experiment archived states. Supports `archived`, `active`, or both. Defaults to `active` experiments.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "A comma-separated list of experiment archived states. Supports `archived`, `active`, or both. Defaults to `active` experiments."
+            }
+          }
+        ],
+        "operationId": "getExperimentsAnyEnv"
       }
     },
     "/api/v2/projects/{projectKey}/flag-defaults": {
@@ -25365,6 +25616,130 @@
         "operationId": "getObservabilityLogsUsage"
       }
     },
+    "/api/v2/usage/observability/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Usage response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesListRep"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorRep"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorRep"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid resource identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Account usage (beta)"
+        ],
+        "summary": "Get observability metrics usage",
+        "description": "Get time-series arrays of the number of observability metrics. Supports `hourly`, `daily`, and `monthly` granularity.",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month."
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time."
+            }
+          },
+          {
+            "name": "projectKey",
+            "in": "query",
+            "description": "A project key to filter results by. Can be specified multiple times, one query parameter per project key.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "A project key to filter results by. Can be specified multiple times, one query parameter per project key."
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "description": "Specifies the data granularity. Defaults to `daily`. Valid values depend on `aggregationType`: **month_to_date** supports `hourly`, `daily`, and `monthly`; **average** supports `hourly`, `daily`, and `monthly`.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "Specifies the data granularity. Defaults to `daily`. Valid values depend on `aggregationType`: **month_to_date** supports `hourly`, `daily`, and `monthly`; **average** supports `hourly`, `daily`, and `monthly`."
+            }
+          },
+          {
+            "name": "aggregationType",
+            "in": "query",
+            "description": "Specifies the aggregation method. Defaults to `month_to_date`.<br/>Valid values: `month_to_date`, `average`.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "Specifies the aggregation method. Defaults to `month_to_date`.<br/>Valid values: `month_to_date`, `average`."
+            }
+          }
+        ],
+        "operationId": "getObservabilityMetricsUsage"
+      }
+    },
     "/api/v2/usage/observability/sessions": {
       "get": {
         "responses": {
@@ -25611,6 +25986,81 @@
           }
         ],
         "operationId": "getObservabilityTracesUsage"
+      }
+    },
+    "/api/v2/usage/sdk-versions/details": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "SDK versions usage response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SdkVersionDetailsRep"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorRep"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusServiceUnavailable"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Account usage (beta)"
+        ],
+        "summary": "Get SDK versions usage details",
+        "description": "Get detailed SDK version usage data for your account, including version information, EOL status, and relay proxy metadata. Refreshed hourly, returns the max version for each SDK observed in the last day, including those without EOL metadata available.<br/><br/>This endpoint provides comprehensive information about SDK versions in use across your projects and environments.",
+        "operationId": "getSdkVersionsDetails"
       }
     },
     "/api/v2/usage/serverside-contexts": {
@@ -25948,13 +26398,23 @@
             }
           },
           {
-            "name": "groupBy",
+            "name": "sdkAppId",
             "in": "query",
-            "description": "If specified, returns data for each distinct value of the given field. Can be specified multiple times to group data by multiple dimensions, one query parameter per dimension.<br/>Valid values: `projectId`, `environmentId`, `connectionType`, `relayVersion`, `sdkName`, `sdkVersion`, `sdkType`.",
+            "description": "An SDK app ID to filter results by. Can be specified multiple times, one query parameter per SDK app ID.",
             "schema": {
               "type": "string",
               "format": "string",
-              "description": "If specified, returns data for each distinct value of the given field. Can be specified multiple times to group data by multiple dimensions, one query parameter per dimension.<br/>Valid values: `projectId`, `environmentId`, `connectionType`, `relayVersion`, `sdkName`, `sdkVersion`, `sdkType`."
+              "description": "An SDK app ID to filter results by. Can be specified multiple times, one query parameter per SDK app ID."
+            }
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "description": "If specified, returns data for each distinct value of the given field. Can be specified multiple times to group data by multiple dimensions, one query parameter per dimension.<br/>Valid values: `projectId`, `environmentId`, `connectionType`, `relayVersion`, `sdkName`, `sdkVersion`, `sdkType`, `sdkAppId`.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "If specified, returns data for each distinct value of the given field. Can be specified multiple times to group data by multiple dimensions, one query parameter per dimension.<br/>Valid values: `projectId`, `environmentId`, `connectionType`, `relayVersion`, `sdkName`, `sdkVersion`, `sdkType`, `sdkAppId`."
             }
           },
           {
@@ -26652,6 +27112,130 @@
           }
         ],
         "operationId": "getMAUTotalUsage"
+      }
+    },
+    "/api/v2/usage/vega-ai": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Usage response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesListRep"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorRep"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorRep"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenErrorRep"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid resource identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorRep"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedErrorRep"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Account usage (beta)"
+        ],
+        "summary": "Get Vega AI usage",
+        "description": "Get time-series arrays of the number of Vega AI usage. Supports `daily` and `monthly` granularity.",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "The series of data returned starts from this timestamp (Unix seconds). Defaults to the beginning of the current month."
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "The series of data returned ends at this timestamp (Unix seconds). Defaults to the current time."
+            }
+          },
+          {
+            "name": "projectKey",
+            "in": "query",
+            "description": "A project key to filter results by. Can be specified multiple times, one query parameter per project key.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "A project key to filter results by. Can be specified multiple times, one query parameter per project key."
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "description": "Specifies the data granularity. Defaults to `daily`. Valid values depend on `aggregationType`: **month_to_date** supports `daily` and `monthly`; **incremental** and **rolling_30d** support `daily` only.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "Specifies the data granularity. Defaults to `daily`. Valid values depend on `aggregationType`: **month_to_date** supports `daily` and `monthly`; **incremental** and **rolling_30d** support `daily` only."
+            }
+          },
+          {
+            "name": "aggregationType",
+            "in": "query",
+            "description": "Specifies the aggregation method. Defaults to `month_to_date`.<br/>Valid values: `month_to_date`, `incremental`, `rolling_30d`.",
+            "schema": {
+              "type": "string",
+              "format": "string",
+              "description": "Specifies the aggregation method. Defaults to `month_to_date`.<br/>Valid values: `month_to_date`, `incremental`, `rolling_30d`."
+            }
+          }
+        ],
+        "operationId": "getVegaAIUsage"
       }
     },
     "/api/v2/user-attributes/{projectKey}/{environmentKey}": {
@@ -28713,6 +29297,16 @@
             },
             "description": "Forbidden"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Rate Limited"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -29049,6 +29643,16 @@
               }
             },
             "description": "Forbidden"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Rate Limited"
           },
           "500": {
             "content": {
@@ -30247,6 +30851,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -30617,6 +31231,101 @@
           }
         },
         "summary": "Update AI tool",
+        "tags": [
+          "AI Configs"
+        ]
+      }
+    },
+    "/api/v2/projects/{projectKey}/ai-configs/prompt-snippets": {
+      "post": {
+        "description": "Create a new prompt snippet within the given project.",
+        "operationId": "postPromptSnippet",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "path",
+            "name": "projectKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "style": "simple"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptSnippetPost"
+              }
+            }
+          },
+          "description": "Prompt snippet object to create",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptSnippet"
+                }
+              }
+            },
+            "description": "Prompt snippet created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Create a prompt snippet",
         "tags": [
           "AI Configs"
         ]
@@ -31726,7 +32435,7 @@
             "style": "form"
           },
           {
-            "description": "A filter to apply to the list of views.",
+            "description": "A filter to apply to the list of views. Supports the following fields and operators: `name` (equals, notEquals, startsWith, contains, anyOf), `key` (equals, notEquals, startsWith, contains, anyOf), `tag` (equals, anyOf), `maintainerId` (equals, anyOf), `isPayloadView` (equals).",
             "explode": true,
             "in": "query",
             "name": "filter",
@@ -31747,8 +32456,6 @@
                 "enum": [
                   "flagsSummary",
                   "segmentsSummary",
-                  "metricsSummary",
-                  "aiConfigsSummary",
                   "resourceSummary"
                 ],
                 "type": "string"
@@ -32075,7 +32782,7 @@
             "style": "form"
           },
           {
-            "description": "A filter to apply to the list of views.",
+            "description": "A filter to apply to the list of views. Supports the following fields and operators: `name` (equals, notEquals, startsWith, contains, anyOf), `key` (equals, notEquals, startsWith, contains, anyOf), `tag` (equals, anyOf), `maintainerId` (equals, anyOf), `isPayloadView` (equals).",
             "explode": true,
             "in": "query",
             "name": "filter",
@@ -32096,13 +32803,10 @@
                 "enum": [
                   "allFlags",
                   "allSegments",
-                  "allMetrics",
-                  "allAIConfigs",
                   "allResources",
+                  "maintainer",
                   "flagsSummary",
                   "segmentsSummary",
-                  "metricsSummary",
-                  "aiConfigsSummary",
                   "resourceSummary"
                 ],
                 "type": "string"
@@ -32281,7 +32985,7 @@
     },
     "/api/v2/projects/{projectKey}/views/{viewKey}/link/{resourceType}": {
       "delete": {
-        "description": "Unlink one or multiple resources from a view:\n- Unlink flags using flag keys\n- Unlink segments using segment IDs\n- Unlink AI Configs using AI Config keys\n- Unlink metrics using metric keys\n",
+        "description": "Unlink one or multiple resources from a view:\n- Unlink flags using flag keys\n- Unlink segments using segment IDs\n",
         "operationId": "unlinkResource",
         "parameters": [
           {
@@ -32329,9 +33033,7 @@
             "schema": {
               "enum": [
                 "flags",
-                "segments",
-                "aiConfigs",
-                "metrics"
+                "segments"
               ],
               "type": "string"
             },
@@ -32407,7 +33109,7 @@
         ]
       },
       "post": {
-        "description": "Link one or multiple resources to a view by keys, filters, or both:\n- Link flags using flag keys or filters (maintainerId, maintainerTeamKey, tags, state, query)\n- Link AI Configs using AI Config keys\n- Link metrics using metric keys\n- Link segments using segment IDs or filters (tags, query, unbounded)\n\nWhen both keys and filters are provided, resources matching either condition are linked (union).\n",
+        "description": "Link one or multiple resources to a view by keys, filters, or both:\n- Link flags using flag keys or filters (maintainerId, maintainerTeamKey, tags, state, query)\n- Link segments using segment IDs or filters (tags, query, unbounded)\n\nWhen both keys and filters are provided, resources matching either condition are linked (union).\n",
         "operationId": "linkResource",
         "parameters": [
           {
@@ -32455,9 +33157,7 @@
             "schema": {
               "enum": [
                 "flags",
-                "segments",
-                "aiConfigs",
-                "metrics"
+                "segments"
               ],
               "type": "string"
             },
@@ -32472,7 +33172,7 @@
               }
             }
           },
-          "description": "Resources to link to the view. You can provide explicit keys/IDs, filters, or both.\n- Flags: identified by key or filtered by maintainerId, maintainerTeamKey, tags, state, query\n- Segments: identified by segment ID or filtered by tags, query, unbounded\n- AI configs and metrics: identified by key\n",
+          "description": "Resources to link to the view. You can provide explicit keys/IDs, filters, or both.\n- Flags: identified by key or filtered by maintainerId, maintainerTeamKey, tags, state, query\n- Segments: identified by segment ID or filtered by tags, query, unbounded\n",
           "required": true
         },
         "responses": {
@@ -32583,9 +33283,7 @@
             "schema": {
               "enum": [
                 "flags",
-                "segments",
-                "aiConfigs",
-                "metrics"
+                "segments"
               ],
               "type": "string"
             },
@@ -32626,6 +33324,46 @@
                 "name"
               ],
               "type": "string"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Case-insensitive search query for linked resources. Matches resource key and, when expanded, resource name.",
+            "explode": true,
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Optional resource filter expression for linked resources.\n- Supported for `flags` and `segments` resource types.\n- Uses the same syntax as link/unlink and list endpoints.\n- For `segments`, `environmentId` is required when `filter` is provided.\n",
+            "explode": true,
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "style": "form"
+          },
+          {
+            "description": "A comma-separated list of fields to expand.",
+            "explode": false,
+            "in": "query",
+            "name": "expand",
+            "required": false,
+            "schema": {
+              "items": {
+                "enum": [
+                  "maintainer",
+                  "resourceDetails"
+                ],
+                "type": "string"
+              },
+              "type": "array"
             },
             "style": "form"
           }
@@ -32690,7 +33428,7 @@
     },
     "/api/v2/projects/{projectKey}/view-associations/{resourceType}/{resourceKey}": {
       "get": {
-        "description": "Get a list of all linked views for a resource. Flags, AI configs and metrics are identified by key. Segments are identified by segment ID.",
+        "description": "Get a list of all linked views for a resource. Flags are identified by key. Segments are identified by segment ID.",
         "operationId": "getLinkedViews",
         "parameters": [
           {
@@ -32727,9 +33465,7 @@
             "schema": {
               "enum": [
                 "flags",
-                "segments",
-                "aiConfigs",
-                "metrics"
+                "segments"
               ],
               "type": "string"
             },
@@ -36246,6 +36982,86 @@
           "$ref": "#/components/schemas/VariationSummary"
         }
       },
+      "AnalysisConfigInput": {
+        "type": "object",
+        "properties": {
+          "bayesianThreshold": {
+            "type": "string",
+            "description": "The threshold for the Probability to Beat Baseline (PBBL) and Probability to Be Best (PBB) comparisons for the Bayesian results analysis approach.",
+            "example": "10"
+          },
+          "significanceThreshold": {
+            "type": "string",
+            "description": "The significance threshold for the frequentist results analysis approach.",
+            "example": "5"
+          },
+          "testDirection": {
+            "type": "string",
+            "description": "The test sided direction for the frequentist results analysis approach."
+          },
+          "multipleComparisonCorrectionMethod": {
+            "type": "string",
+            "description": "The method to use for multiple comparison correction.",
+            "example": "bonferroni",
+            "enum": [
+              "bonferroni",
+              "benjamini-hochberg"
+            ]
+          },
+          "multipleComparisonCorrectionScope": {
+            "type": "string",
+            "description": "The scope of the multiple comparison correction.",
+            "example": "variations",
+            "enum": [
+              "variations",
+              "variations-and-metrics",
+              "metrics"
+            ]
+          },
+          "sequentialTestingEnabled": {
+            "type": "boolean",
+            "description": "Whether sequential testing is enabled for Frequentist analysis"
+          }
+        }
+      },
+      "AnalysisConfigRep": {
+        "type": "object",
+        "properties": {
+          "bayesianThreshold": {
+            "type": "string",
+            "description": "The threshold for the Probability to Beat Baseline (PBBL) and Probability to Be Best (PBB) comparisons for the Bayesian results analysis approach.  Value should be between 0-100 inclusive."
+          },
+          "significanceThreshold": {
+            "type": "string",
+            "description": "The significance threshold for the frequentist results analysis approach. Value should be between 0.0-1.0 inclusive."
+          },
+          "testDirection": {
+            "type": "string",
+            "description": "The test sided direction for the frequentist results analysis approach."
+          },
+          "multipleComparisonCorrectionMethod": {
+            "type": "string",
+            "description": "The method for multiple comparison correction.",
+            "enum": [
+              "bonferroni",
+              "benjamini-hochberg"
+            ]
+          },
+          "multipleComparisonCorrectionScope": {
+            "type": "string",
+            "description": "The scope for multiple comparison correction.",
+            "enum": [
+              "variations",
+              "variations-and-metrics",
+              "metrics"
+            ]
+          },
+          "sequentialTestingEnabled": {
+            "type": "boolean",
+            "description": "Whether sequential testing is enabled for Frequentist analysis"
+          }
+        }
+      },
       "ApplicationCollectionRep": {
         "type": "object",
         "properties": {
@@ -36655,10 +37471,6 @@
             "type": "string",
             "description": "Optional field for integration configuration ID of a custom approval integration. This is an Enterprise-only feature.",
             "example": "1ef45a85-218f-4428-a8b2-a97e5f56c258"
-          },
-          "resourceKind": {
-            "type": "string",
-            "description": "The kind of resource for which the approval settings apply, for example, flag or segment"
           }
         }
       },
@@ -38652,6 +39464,72 @@
           }
         }
       },
+      "CountBucket": {
+        "type": "object",
+        "required": [
+          "timestamp",
+          "count"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CountBucketsResult": {
+        "type": "object",
+        "required": [
+          "buckets",
+          "totalCount",
+          "bucketIntervalMs"
+        ],
+        "properties": {
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountBucket"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucketIntervalMs": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CovariateInfoRep": {
+        "type": "object",
+        "required": [
+          "id",
+          "fileName",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the covariate matrix",
+            "example": "74a49a2b-4834-4246-917e-5d85231d8c2a"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "The file name of the uploaded covariate matrix",
+            "example": "covariate.csv"
+          },
+          "createdAt": {
+            "description": "Timestamp of when the covariate was uploaded",
+            "example": "1654104600000",
+            "$ref": "#/components/schemas/UnixMillis"
+          }
+        }
+      },
       "CreateApprovalRequestRequest": {
         "type": "object",
         "required": [
@@ -39469,8 +40347,7 @@
             "example": "funnel",
             "enum": [
               "funnel",
-              "standard",
-              "guardrail"
+              "standard"
             ]
           },
           "_links": {
@@ -39517,8 +40394,7 @@
             "example": "funnel",
             "enum": [
               "funnel",
-              "standard",
-              "guardrail"
+              "standard"
             ]
           },
           "_links": {
@@ -39581,8 +40457,7 @@
               "click",
               "custom",
               "funnel",
-              "standard",
-              "guardrail"
+              "standard"
             ]
           },
           "isNumeric": {
@@ -39892,7 +40767,7 @@
             ]
           },
           "approvalSettings": {
-            "description": "Details on the approval settings for this environment",
+            "description": "Details about the approval settings for flags in this environment",
             "$ref": "#/components/schemas/ApprovalSettings"
           },
           "resourceApprovalSettings": {
@@ -39900,7 +40775,7 @@
             "additionalProperties": {
               "$ref": "#/components/schemas/ApprovalSettings"
             },
-            "description": "Details on the approval settings for this environment for each resource kind"
+            "description": "Details about the approval settings for other resources in this environment, organized by resource kind (for example, \"aiconfig\" and \"segment\")"
           },
           "critical": {
             "type": "boolean",
@@ -40547,6 +41422,27 @@
           "environmentKey": {
             "type": "string"
           },
+          "methodology": {
+            "type": "string",
+            "description": "The results analysis approach.",
+            "example": "bayesian",
+            "enum": [
+              "bayesian",
+              "frequentist",
+              "export_only"
+            ]
+          },
+          "dataSource": {
+            "type": "string",
+            "description": "The source of metric data in order to analyze results. Defaults to \"launchdarkly\" when not provided.",
+            "example": "snowflake",
+            "enum": [
+              "launchdarkly",
+              "snowflake",
+              "databricks",
+              "redshift"
+            ]
+          },
           "archivedDate": {
             "description": "Timestamp of when the experiment was archived",
             "example": "1654104600000",
@@ -40589,6 +41485,11 @@
             "description": "Details on the current iteration",
             "$ref": "#/components/schemas/IterationRep"
           },
+          "type": {
+            "type": "string",
+            "description": "The experiment type",
+            "example": "experiment"
+          },
           "draftIteration": {
             "description": "Details on the current iteration. This iteration may be already started, or may still be a draft.",
             "$ref": "#/components/schemas/IterationRep"
@@ -40599,6 +41500,10 @@
             "items": {
               "$ref": "#/components/schemas/IterationRep"
             }
+          },
+          "analysisConfig": {
+            "description": "Details of the Analysis Configuration for this experiment.",
+            "$ref": "#/components/schemas/AnalysisConfigRep"
           }
         }
       },
@@ -40750,6 +41655,41 @@
             "items": {
               "type": "string"
             }
+          },
+          "methodology": {
+            "type": "string",
+            "description": "The results analysis approach.",
+            "example": "bayesian",
+            "enum": [
+              "bayesian",
+              "frequentist",
+              "export_only"
+            ]
+          },
+          "analysisConfig": {
+            "description": "Details of the Analysis Configuration for this experiment",
+            "$ref": "#/components/schemas/AnalysisConfigInput"
+          },
+          "dataSource": {
+            "type": "string",
+            "description": "The source of metric data in order to analyze results. Defaults to \"launchdarkly\" when not provided.",
+            "example": "snowflake",
+            "enum": [
+              "launchdarkly",
+              "snowflake",
+              "databricks",
+              "redshift"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "description": "The type of experiment.",
+            "example": "experiment",
+            "enum": [
+              "experiment",
+              "mab",
+              "holdout"
+            ]
           }
         }
       },
@@ -43403,6 +44343,10 @@
             "description": "The capability configuration for the integration",
             "example": "{\"auditLogEventsHook\": \"statements\": []\"}",
             "$ref": "#/components/schemas/CapabilityConfigRep"
+          },
+          "snowflakeSetupScript": {
+            "type": "string",
+            "description": "Consolidated SQL script for Snowflake Warehouse Native Experimentation setup. Present only for snowflake-experimentation integrations."
           }
         }
       },
@@ -43751,6 +44695,15 @@
             "description": "The unit of randomization for this iteration. Defaults to user.",
             "example": "user"
           },
+          "reallocationFrequencyMillis": {
+            "type": "integer",
+            "description": "The cadence (in milliseconds) to update the allocation.",
+            "example": 3600000
+          },
+          "covariateId": {
+            "type": "string",
+            "description": "The ID of the covariate CSV"
+          },
           "attributes": {
             "type": "array",
             "description": "The attributes that this iteration's results can be sliced by",
@@ -43890,6 +44843,10 @@
           "layerSnapshot": {
             "description": "Snapshot of the layer state on iteration stop, if part of a layer. Otherwise omitted.",
             "$ref": "#/components/schemas/LayerSnapshotRep"
+          },
+          "covariateInfo": {
+            "description": "Details of the covariate file for stratified sampling",
+            "$ref": "#/components/schemas/CovariateInfoRep"
           }
         }
       },
@@ -44683,8 +45640,7 @@
             "example": "funnel",
             "enum": [
               "funnel",
-              "standard",
-              "guardrail"
+              "standard"
             ]
           },
           "description": {
@@ -44753,8 +45709,7 @@
             "example": "funnel",
             "enum": [
               "funnel",
-              "standard",
-              "guardrail"
+              "standard"
             ]
           },
           "description": {
@@ -47475,6 +48430,65 @@
               "Java",
               "Node.js"
             ]
+          }
+        }
+      },
+      "SdkVersionDetailsRep": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectKey": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "environmentKey": {
+            "type": "string"
+          },
+          "environmentName": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "ldLatestVersion": {
+            "type": "string"
+          },
+          "eolStatus": {
+            "type": "string"
+          },
+          "latestReleaseUrl": {
+            "type": "string"
+          },
+          "connectionType": {
+            "type": "string"
+          },
+          "relayVersion": {
+            "type": "string"
+          },
+          "relayEolStatus": {
+            "type": "string"
+          },
+          "relayLatestVersion": {
+            "type": "string"
+          },
+          "relayLatestReleaseUrl": {
+            "type": "string"
           }
         }
       },
@@ -50535,10 +51549,9 @@
             },
             "example": [
               {
-                "contextKey": "contextKey",
-                "contextKind": "user",
-                "kind": "updateExpiringTarget",
+                "kind": "updateExpireUserTargetDate",
                 "targetType": "included",
+                "userKey": "user-key-123abc",
                 "value": 1587582000000,
                 "version": 0
               }
@@ -54953,6 +55966,181 @@
         },
         "type": "object"
       },
+      "PromptSnippet": {
+        "example": {
+          "createdAt": 6,
+          "_access": {
+            "allowed": [
+              {
+                "reason": {
+                  "role_name": "role_name",
+                  "notActions": [
+                    null,
+                    null
+                  ],
+                  "notResources": [
+                    "notResources",
+                    "notResources"
+                  ],
+                  "effect": "allow",
+                  "resources": [
+                    "proj/*:env/*;qa_*:/flag/*"
+                  ],
+                  "actions": [
+                    "*"
+                  ]
+                },
+                "action": "action"
+              },
+              {
+                "reason": {
+                  "role_name": "role_name",
+                  "notActions": [
+                    null,
+                    null
+                  ],
+                  "notResources": [
+                    "notResources",
+                    "notResources"
+                  ],
+                  "effect": "allow",
+                  "resources": [
+                    "proj/*:env/*;qa_*:/flag/*"
+                  ],
+                  "actions": [
+                    "*"
+                  ]
+                },
+                "action": "action"
+              }
+            ],
+            "denied": [
+              {
+                "reason": {
+                  "role_name": "role_name",
+                  "notActions": [
+                    null,
+                    null
+                  ],
+                  "notResources": [
+                    "notResources",
+                    "notResources"
+                  ],
+                  "effect": "allow",
+                  "resources": [
+                    "proj/*:env/*;qa_*:/flag/*"
+                  ],
+                  "actions": [
+                    "*"
+                  ]
+                },
+                "action": "action"
+              },
+              {
+                "reason": {
+                  "role_name": "role_name",
+                  "notActions": [
+                    null,
+                    null
+                  ],
+                  "notResources": [
+                    "notResources",
+                    "notResources"
+                  ],
+                  "effect": "allow",
+                  "resources": [
+                    "proj/*:env/*;qa_*:/flag/*"
+                  ],
+                  "actions": [
+                    "*"
+                  ]
+                },
+                "action": "action"
+              }
+            ]
+          },
+          "_links": {
+            "parent": {
+              "href": "href",
+              "type": "type"
+            },
+            "self": {
+              "href": "href",
+              "type": "type"
+            }
+          },
+          "name": "name",
+          "description": "description",
+          "text": "text",
+          "version": 0,
+          "key": "key"
+        },
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "_access": {
+            "$ref": "#/components/schemas/AiConfigsAccess"
+          },
+          "_links": {
+            "$ref": "#/components/schemas/ParentAndSelfLinks"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "text": {
+            "description": "The text content of the prompt snippet",
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "createdAt",
+          "key",
+          "name",
+          "text",
+          "version"
+        ],
+        "type": "object"
+      },
+      "PromptSnippetPost": {
+        "example": {
+          "name": "name",
+          "description": "description",
+          "text": "text",
+          "key": "key"
+        },
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "text": {
+            "description": "The text content of the prompt snippet",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "text"
+        ],
+        "type": "object"
+      },
       "VariationToolPost": {
         "example": {
           "version": 0,
@@ -58757,8 +59945,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -58781,8 +59999,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -59135,8 +60383,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -59159,8 +60437,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -59406,8 +60714,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -59430,8 +60768,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -59784,8 +61152,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -59808,8 +61206,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -60078,8 +61506,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -60102,8 +61560,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -60456,8 +61944,38 @@
                 "name": "name",
                 "description": "description",
                 "creationDate": 7,
-                "version": 1,
+                "_version": 1,
                 "key": "key",
+                "maintainer": {
+                  "kind": "member",
+                  "_member": {
+                    "firstName": "Ariel",
+                    "lastName": "Flores",
+                    "role": "admin",
+                    "_links": {
+                      "self": {
+                        "href": "/api/v2/members/569f183514f4432160000007",
+                        "type": "application/json"
+                      }
+                    },
+                    "_id": "569f183514f4432160000007",
+                    "email": "ariel@acme.com"
+                  },
+                  "_team": {
+                    "_links": {
+                      "key": {
+                        "href": "href",
+                        "type": "type"
+                      }
+                    },
+                    "name": "QA Team",
+                    "customRoleKeys": [
+                      "access-to-test-projects"
+                    ],
+                    "key": "team-key-123abc"
+                  },
+                  "key": "key"
+                },
                 "tags": [
                   "tags",
                   "tags"
@@ -60480,8 +61998,38 @@
                 "name": "name",
                 "description": "description",
                 "creationDate": 7,
-                "version": 1,
+                "_version": 1,
                 "key": "key",
+                "maintainer": {
+                  "kind": "member",
+                  "_member": {
+                    "firstName": "Ariel",
+                    "lastName": "Flores",
+                    "role": "admin",
+                    "_links": {
+                      "self": {
+                        "href": "/api/v2/members/569f183514f4432160000007",
+                        "type": "application/json"
+                      }
+                    },
+                    "_id": "569f183514f4432160000007",
+                    "email": "ariel@acme.com"
+                  },
+                  "_team": {
+                    "_links": {
+                      "key": {
+                        "href": "href",
+                        "type": "type"
+                      }
+                    },
+                    "name": "QA Team",
+                    "customRoleKeys": [
+                      "access-to-test-projects"
+                    ],
+                    "key": "team-key-123abc"
+                  },
+                  "key": "key"
+                },
                 "tags": [
                   "tags",
                   "tags"
@@ -61091,8 +62639,38 @@
                             "name": "name",
                             "description": "description",
                             "creationDate": 7,
-                            "version": 1,
+                            "_version": 1,
                             "key": "key",
+                            "maintainer": {
+                              "kind": "member",
+                              "_member": {
+                                "firstName": "Ariel",
+                                "lastName": "Flores",
+                                "role": "admin",
+                                "_links": {
+                                  "self": {
+                                    "href": "/api/v2/members/569f183514f4432160000007",
+                                    "type": "application/json"
+                                  }
+                                },
+                                "_id": "569f183514f4432160000007",
+                                "email": "ariel@acme.com"
+                              },
+                              "_team": {
+                                "_links": {
+                                  "key": {
+                                    "href": "href",
+                                    "type": "type"
+                                  }
+                                },
+                                "name": "QA Team",
+                                "customRoleKeys": [
+                                  "access-to-test-projects"
+                                ],
+                                "key": "team-key-123abc"
+                              },
+                              "key": "key"
+                            },
                             "tags": [
                               "tags",
                               "tags"
@@ -61115,8 +62693,38 @@
                             "name": "name",
                             "description": "description",
                             "creationDate": 7,
-                            "version": 1,
+                            "_version": 1,
                             "key": "key",
+                            "maintainer": {
+                              "kind": "member",
+                              "_member": {
+                                "firstName": "Ariel",
+                                "lastName": "Flores",
+                                "role": "admin",
+                                "_links": {
+                                  "self": {
+                                    "href": "/api/v2/members/569f183514f4432160000007",
+                                    "type": "application/json"
+                                  }
+                                },
+                                "_id": "569f183514f4432160000007",
+                                "email": "ariel@acme.com"
+                              },
+                              "_team": {
+                                "_links": {
+                                  "key": {
+                                    "href": "href",
+                                    "type": "type"
+                                  }
+                                },
+                                "name": "QA Team",
+                                "customRoleKeys": [
+                                  "access-to-test-projects"
+                                ],
+                                "key": "team-key-123abc"
+                              },
+                              "key": "key"
+                            },
                             "tags": [
                               "tags",
                               "tags"
@@ -61469,8 +63077,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -61493,8 +63131,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -61520,8 +63188,38 @@
                   "name": "name",
                   "description": "description",
                   "creationDate": 7,
-                  "version": 1,
+                  "_version": 1,
                   "key": "key",
+                  "maintainer": {
+                    "kind": "member",
+                    "_member": {
+                      "firstName": "Ariel",
+                      "lastName": "Flores",
+                      "role": "admin",
+                      "_links": {
+                        "self": {
+                          "href": "/api/v2/members/569f183514f4432160000007",
+                          "type": "application/json"
+                        }
+                      },
+                      "_id": "569f183514f4432160000007",
+                      "email": "ariel@acme.com"
+                    },
+                    "_team": {
+                      "_links": {
+                        "key": {
+                          "href": "href",
+                          "type": "type"
+                        }
+                      },
+                      "name": "QA Team",
+                      "customRoleKeys": [
+                        "access-to-test-projects"
+                      ],
+                      "key": "team-key-123abc"
+                    },
+                    "key": "key"
+                  },
                   "tags": [
                     "tags",
                     "tags"
@@ -61858,8 +63556,38 @@
                             "name": "name",
                             "description": "description",
                             "creationDate": 7,
-                            "version": 1,
+                            "_version": 1,
                             "key": "key",
+                            "maintainer": {
+                              "kind": "member",
+                              "_member": {
+                                "firstName": "Ariel",
+                                "lastName": "Flores",
+                                "role": "admin",
+                                "_links": {
+                                  "self": {
+                                    "href": "/api/v2/members/569f183514f4432160000007",
+                                    "type": "application/json"
+                                  }
+                                },
+                                "_id": "569f183514f4432160000007",
+                                "email": "ariel@acme.com"
+                              },
+                              "_team": {
+                                "_links": {
+                                  "key": {
+                                    "href": "href",
+                                    "type": "type"
+                                  }
+                                },
+                                "name": "QA Team",
+                                "customRoleKeys": [
+                                  "access-to-test-projects"
+                                ],
+                                "key": "team-key-123abc"
+                              },
+                              "key": "key"
+                            },
                             "tags": [
                               "tags",
                               "tags"
@@ -61882,8 +63610,38 @@
                             "name": "name",
                             "description": "description",
                             "creationDate": 7,
-                            "version": 1,
+                            "_version": 1,
                             "key": "key",
+                            "maintainer": {
+                              "kind": "member",
+                              "_member": {
+                                "firstName": "Ariel",
+                                "lastName": "Flores",
+                                "role": "admin",
+                                "_links": {
+                                  "self": {
+                                    "href": "/api/v2/members/569f183514f4432160000007",
+                                    "type": "application/json"
+                                  }
+                                },
+                                "_id": "569f183514f4432160000007",
+                                "email": "ariel@acme.com"
+                              },
+                              "_team": {
+                                "_links": {
+                                  "key": {
+                                    "href": "href",
+                                    "type": "type"
+                                  }
+                                },
+                                "name": "QA Team",
+                                "customRoleKeys": [
+                                  "access-to-test-projects"
+                                ],
+                                "key": "team-key-123abc"
+                              },
+                              "key": "key"
+                            },
                             "tags": [
                               "tags",
                               "tags"
@@ -62236,8 +63994,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -62260,8 +64048,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -62287,8 +64105,38 @@
                   "name": "name",
                   "description": "description",
                   "creationDate": 7,
-                  "version": 1,
+                  "_version": 1,
                   "key": "key",
+                  "maintainer": {
+                    "kind": "member",
+                    "_member": {
+                      "firstName": "Ariel",
+                      "lastName": "Flores",
+                      "role": "admin",
+                      "_links": {
+                        "self": {
+                          "href": "/api/v2/members/569f183514f4432160000007",
+                          "type": "application/json"
+                        }
+                      },
+                      "_id": "569f183514f4432160000007",
+                      "email": "ariel@acme.com"
+                    },
+                    "_team": {
+                      "_links": {
+                        "key": {
+                          "href": "href",
+                          "type": "type"
+                        }
+                      },
+                      "name": "QA Team",
+                      "customRoleKeys": [
+                        "access-to-test-projects"
+                      ],
+                      "key": "team-key-123abc"
+                    },
+                    "key": "key"
+                  },
                   "tags": [
                     "tags",
                     "tags"
@@ -62648,8 +64496,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -62672,8 +64550,38 @@
                         "name": "name",
                         "description": "description",
                         "creationDate": 7,
-                        "version": 1,
+                        "_version": 1,
                         "key": "key",
+                        "maintainer": {
+                          "kind": "member",
+                          "_member": {
+                            "firstName": "Ariel",
+                            "lastName": "Flores",
+                            "role": "admin",
+                            "_links": {
+                              "self": {
+                                "href": "/api/v2/members/569f183514f4432160000007",
+                                "type": "application/json"
+                              }
+                            },
+                            "_id": "569f183514f4432160000007",
+                            "email": "ariel@acme.com"
+                          },
+                          "_team": {
+                            "_links": {
+                              "key": {
+                                "href": "href",
+                                "type": "type"
+                              }
+                            },
+                            "name": "QA Team",
+                            "customRoleKeys": [
+                              "access-to-test-projects"
+                            ],
+                            "key": "team-key-123abc"
+                          },
+                          "key": "key"
+                        },
                         "tags": [
                           "tags",
                           "tags"
@@ -63026,8 +64934,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -63050,8 +64988,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -63077,8 +65045,38 @@
               "name": "name",
               "description": "description",
               "creationDate": 7,
-              "version": 1,
+              "_version": 1,
               "key": "key",
+              "maintainer": {
+                "kind": "member",
+                "_member": {
+                  "firstName": "Ariel",
+                  "lastName": "Flores",
+                  "role": "admin",
+                  "_links": {
+                    "self": {
+                      "href": "/api/v2/members/569f183514f4432160000007",
+                      "type": "application/json"
+                    }
+                  },
+                  "_id": "569f183514f4432160000007",
+                  "email": "ariel@acme.com"
+                },
+                "_team": {
+                  "_links": {
+                    "key": {
+                      "href": "href",
+                      "type": "type"
+                    }
+                  },
+                  "name": "QA Team",
+                  "customRoleKeys": [
+                    "access-to-test-projects"
+                  ],
+                  "key": "team-key-123abc"
+                },
+                "key": "key"
+              },
               "tags": [
                 "tags",
                 "tags"
@@ -63169,7 +65167,7 @@
             "$ref": "#/components/schemas/ParentAndSelfLinks"
           },
           "resourceKey": {
-            "description": "Key of the resource (flag, segment, AI config or metric)",
+            "description": "Key of the resource (flag or segment)",
             "type": "string"
           },
           "environmentId": {
@@ -63183,9 +65181,7 @@
           "resourceType": {
             "enum": [
               "flag",
-              "segment",
-              "metric",
-              "aiConfig"
+              "segment"
             ],
             "type": "string"
           },
@@ -63239,9 +65235,7 @@
             "description": "The type of the resource that failed to link.",
             "enum": [
               "flag",
-              "segment",
-              "metric",
-              "aiConfig"
+              "segment"
             ],
             "type": "string"
           },
@@ -63535,8 +65529,38 @@
                               "name": "name",
                               "description": "description",
                               "creationDate": 7,
-                              "version": 1,
+                              "_version": 1,
                               "key": "key",
+                              "maintainer": {
+                                "kind": "member",
+                                "_member": {
+                                  "firstName": "Ariel",
+                                  "lastName": "Flores",
+                                  "role": "admin",
+                                  "_links": {
+                                    "self": {
+                                      "href": "/api/v2/members/569f183514f4432160000007",
+                                      "type": "application/json"
+                                    }
+                                  },
+                                  "_id": "569f183514f4432160000007",
+                                  "email": "ariel@acme.com"
+                                },
+                                "_team": {
+                                  "_links": {
+                                    "key": {
+                                      "href": "href",
+                                      "type": "type"
+                                    }
+                                  },
+                                  "name": "QA Team",
+                                  "customRoleKeys": [
+                                    "access-to-test-projects"
+                                  ],
+                                  "key": "team-key-123abc"
+                                },
+                                "key": "key"
+                              },
                               "tags": [
                                 "tags",
                                 "tags"
@@ -63559,8 +65583,38 @@
                               "name": "name",
                               "description": "description",
                               "creationDate": 7,
-                              "version": 1,
+                              "_version": 1,
                               "key": "key",
+                              "maintainer": {
+                                "kind": "member",
+                                "_member": {
+                                  "firstName": "Ariel",
+                                  "lastName": "Flores",
+                                  "role": "admin",
+                                  "_links": {
+                                    "self": {
+                                      "href": "/api/v2/members/569f183514f4432160000007",
+                                      "type": "application/json"
+                                    }
+                                  },
+                                  "_id": "569f183514f4432160000007",
+                                  "email": "ariel@acme.com"
+                                },
+                                "_team": {
+                                  "_links": {
+                                    "key": {
+                                      "href": "href",
+                                      "type": "type"
+                                    }
+                                  },
+                                  "name": "QA Team",
+                                  "customRoleKeys": [
+                                    "access-to-test-projects"
+                                  ],
+                                  "key": "team-key-123abc"
+                                },
+                                "key": "key"
+                              },
                               "tags": [
                                 "tags",
                                 "tags"
@@ -63913,8 +65967,38 @@
                           "name": "name",
                           "description": "description",
                           "creationDate": 7,
-                          "version": 1,
+                          "_version": 1,
                           "key": "key",
+                          "maintainer": {
+                            "kind": "member",
+                            "_member": {
+                              "firstName": "Ariel",
+                              "lastName": "Flores",
+                              "role": "admin",
+                              "_links": {
+                                "self": {
+                                  "href": "/api/v2/members/569f183514f4432160000007",
+                                  "type": "application/json"
+                                }
+                              },
+                              "_id": "569f183514f4432160000007",
+                              "email": "ariel@acme.com"
+                            },
+                            "_team": {
+                              "_links": {
+                                "key": {
+                                  "href": "href",
+                                  "type": "type"
+                                }
+                              },
+                              "name": "QA Team",
+                              "customRoleKeys": [
+                                "access-to-test-projects"
+                              ],
+                              "key": "team-key-123abc"
+                            },
+                            "key": "key"
+                          },
                           "tags": [
                             "tags",
                             "tags"
@@ -63937,8 +66021,38 @@
                           "name": "name",
                           "description": "description",
                           "creationDate": 7,
-                          "version": 1,
+                          "_version": 1,
                           "key": "key",
+                          "maintainer": {
+                            "kind": "member",
+                            "_member": {
+                              "firstName": "Ariel",
+                              "lastName": "Flores",
+                              "role": "admin",
+                              "_links": {
+                                "self": {
+                                  "href": "/api/v2/members/569f183514f4432160000007",
+                                  "type": "application/json"
+                                }
+                              },
+                              "_id": "569f183514f4432160000007",
+                              "email": "ariel@acme.com"
+                            },
+                            "_team": {
+                              "_links": {
+                                "key": {
+                                  "href": "href",
+                                  "type": "type"
+                                }
+                              },
+                              "name": "QA Team",
+                              "customRoleKeys": [
+                                "access-to-test-projects"
+                              ],
+                              "key": "team-key-123abc"
+                            },
+                            "key": "key"
+                          },
                           "tags": [
                             "tags",
                             "tags"
@@ -63964,8 +66078,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -64302,8 +66446,38 @@
                               "name": "name",
                               "description": "description",
                               "creationDate": 7,
-                              "version": 1,
+                              "_version": 1,
                               "key": "key",
+                              "maintainer": {
+                                "kind": "member",
+                                "_member": {
+                                  "firstName": "Ariel",
+                                  "lastName": "Flores",
+                                  "role": "admin",
+                                  "_links": {
+                                    "self": {
+                                      "href": "/api/v2/members/569f183514f4432160000007",
+                                      "type": "application/json"
+                                    }
+                                  },
+                                  "_id": "569f183514f4432160000007",
+                                  "email": "ariel@acme.com"
+                                },
+                                "_team": {
+                                  "_links": {
+                                    "key": {
+                                      "href": "href",
+                                      "type": "type"
+                                    }
+                                  },
+                                  "name": "QA Team",
+                                  "customRoleKeys": [
+                                    "access-to-test-projects"
+                                  ],
+                                  "key": "team-key-123abc"
+                                },
+                                "key": "key"
+                              },
                               "tags": [
                                 "tags",
                                 "tags"
@@ -64326,8 +66500,38 @@
                               "name": "name",
                               "description": "description",
                               "creationDate": 7,
-                              "version": 1,
+                              "_version": 1,
                               "key": "key",
+                              "maintainer": {
+                                "kind": "member",
+                                "_member": {
+                                  "firstName": "Ariel",
+                                  "lastName": "Flores",
+                                  "role": "admin",
+                                  "_links": {
+                                    "self": {
+                                      "href": "/api/v2/members/569f183514f4432160000007",
+                                      "type": "application/json"
+                                    }
+                                  },
+                                  "_id": "569f183514f4432160000007",
+                                  "email": "ariel@acme.com"
+                                },
+                                "_team": {
+                                  "_links": {
+                                    "key": {
+                                      "href": "href",
+                                      "type": "type"
+                                    }
+                                  },
+                                  "name": "QA Team",
+                                  "customRoleKeys": [
+                                    "access-to-test-projects"
+                                  ],
+                                  "key": "team-key-123abc"
+                                },
+                                "key": "key"
+                              },
                               "tags": [
                                 "tags",
                                 "tags"
@@ -64680,8 +66884,38 @@
                           "name": "name",
                           "description": "description",
                           "creationDate": 7,
-                          "version": 1,
+                          "_version": 1,
                           "key": "key",
+                          "maintainer": {
+                            "kind": "member",
+                            "_member": {
+                              "firstName": "Ariel",
+                              "lastName": "Flores",
+                              "role": "admin",
+                              "_links": {
+                                "self": {
+                                  "href": "/api/v2/members/569f183514f4432160000007",
+                                  "type": "application/json"
+                                }
+                              },
+                              "_id": "569f183514f4432160000007",
+                              "email": "ariel@acme.com"
+                            },
+                            "_team": {
+                              "_links": {
+                                "key": {
+                                  "href": "href",
+                                  "type": "type"
+                                }
+                              },
+                              "name": "QA Team",
+                              "customRoleKeys": [
+                                "access-to-test-projects"
+                              ],
+                              "key": "team-key-123abc"
+                            },
+                            "key": "key"
+                          },
                           "tags": [
                             "tags",
                             "tags"
@@ -64704,8 +66938,38 @@
                           "name": "name",
                           "description": "description",
                           "creationDate": 7,
-                          "version": 1,
+                          "_version": 1,
                           "key": "key",
+                          "maintainer": {
+                            "kind": "member",
+                            "_member": {
+                              "firstName": "Ariel",
+                              "lastName": "Flores",
+                              "role": "admin",
+                              "_links": {
+                                "self": {
+                                  "href": "/api/v2/members/569f183514f4432160000007",
+                                  "type": "application/json"
+                                }
+                              },
+                              "_id": "569f183514f4432160000007",
+                              "email": "ariel@acme.com"
+                            },
+                            "_team": {
+                              "_links": {
+                                "key": {
+                                  "href": "href",
+                                  "type": "type"
+                                }
+                              },
+                              "name": "QA Team",
+                              "customRoleKeys": [
+                                "access-to-test-projects"
+                              ],
+                              "key": "team-key-123abc"
+                            },
+                            "key": "key"
+                          },
                           "tags": [
                             "tags",
                             "tags"
@@ -64731,8 +66995,38 @@
                     "name": "name",
                     "description": "description",
                     "creationDate": 7,
-                    "version": 1,
+                    "_version": 1,
                     "key": "key",
+                    "maintainer": {
+                      "kind": "member",
+                      "_member": {
+                        "firstName": "Ariel",
+                        "lastName": "Flores",
+                        "role": "admin",
+                        "_links": {
+                          "self": {
+                            "href": "/api/v2/members/569f183514f4432160000007",
+                            "type": "application/json"
+                          }
+                        },
+                        "_id": "569f183514f4432160000007",
+                        "email": "ariel@acme.com"
+                      },
+                      "_team": {
+                        "_links": {
+                          "key": {
+                            "href": "href",
+                            "type": "type"
+                          }
+                        },
+                        "name": "QA Team",
+                        "customRoleKeys": [
+                          "access-to-test-projects"
+                        ],
+                        "key": "team-key-123abc"
+                      },
+                      "key": "key"
+                    },
                     "tags": [
                       "tags",
                       "tags"
@@ -65024,12 +67318,6 @@
           "segmentCount": {
             "type": "integer"
           },
-          "metricCount": {
-            "type": "integer"
-          },
-          "aiConfigCount": {
-            "type": "integer"
-          },
           "totalCount": {
             "type": "integer"
           }
@@ -65222,8 +67510,38 @@
               "name": "name",
               "description": "description",
               "creationDate": 7,
-              "version": 1,
+              "_version": 1,
               "key": "key",
+              "maintainer": {
+                "kind": "member",
+                "_member": {
+                  "firstName": "Ariel",
+                  "lastName": "Flores",
+                  "role": "admin",
+                  "_links": {
+                    "self": {
+                      "href": "/api/v2/members/569f183514f4432160000007",
+                      "type": "application/json"
+                    }
+                  },
+                  "_id": "569f183514f4432160000007",
+                  "email": "ariel@acme.com"
+                },
+                "_team": {
+                  "_links": {
+                    "key": {
+                      "href": "href",
+                      "type": "type"
+                    }
+                  },
+                  "name": "QA Team",
+                  "customRoleKeys": [
+                    "access-to-test-projects"
+                  ],
+                  "key": "team-key-123abc"
+                },
+                "key": "key"
+              },
               "tags": [
                 "tags",
                 "tags"
@@ -65246,8 +67564,38 @@
               "name": "name",
               "description": "description",
               "creationDate": 7,
-              "version": 1,
+              "_version": 1,
               "key": "key",
+              "maintainer": {
+                "kind": "member",
+                "_member": {
+                  "firstName": "Ariel",
+                  "lastName": "Flores",
+                  "role": "admin",
+                  "_links": {
+                    "self": {
+                      "href": "/api/v2/members/569f183514f4432160000007",
+                      "type": "application/json"
+                    }
+                  },
+                  "_id": "569f183514f4432160000007",
+                  "email": "ariel@acme.com"
+                },
+                "_team": {
+                  "_links": {
+                    "key": {
+                      "href": "href",
+                      "type": "type"
+                    }
+                  },
+                  "name": "QA Team",
+                  "customRoleKeys": [
+                    "access-to-test-projects"
+                  ],
+                  "key": "team-key-123abc"
+                },
+                "key": "key"
+              },
               "tags": [
                 "tags",
                 "tags"
@@ -65517,8 +67865,38 @@
                   "name": "name",
                   "description": "description",
                   "creationDate": 7,
-                  "version": 1,
+                  "_version": 1,
                   "key": "key",
+                  "maintainer": {
+                    "kind": "member",
+                    "_member": {
+                      "firstName": "Ariel",
+                      "lastName": "Flores",
+                      "role": "admin",
+                      "_links": {
+                        "self": {
+                          "href": "/api/v2/members/569f183514f4432160000007",
+                          "type": "application/json"
+                        }
+                      },
+                      "_id": "569f183514f4432160000007",
+                      "email": "ariel@acme.com"
+                    },
+                    "_team": {
+                      "_links": {
+                        "key": {
+                          "href": "href",
+                          "type": "type"
+                        }
+                      },
+                      "name": "QA Team",
+                      "customRoleKeys": [
+                        "access-to-test-projects"
+                      ],
+                      "key": "team-key-123abc"
+                    },
+                    "key": "key"
+                  },
                   "tags": [
                     "tags",
                     "tags"
@@ -65541,8 +67919,38 @@
                   "name": "name",
                   "description": "description",
                   "creationDate": 7,
-                  "version": 1,
+                  "_version": 1,
                   "key": "key",
+                  "maintainer": {
+                    "kind": "member",
+                    "_member": {
+                      "firstName": "Ariel",
+                      "lastName": "Flores",
+                      "role": "admin",
+                      "_links": {
+                        "self": {
+                          "href": "/api/v2/members/569f183514f4432160000007",
+                          "type": "application/json"
+                        }
+                      },
+                      "_id": "569f183514f4432160000007",
+                      "email": "ariel@acme.com"
+                    },
+                    "_team": {
+                      "_links": {
+                        "key": {
+                          "href": "href",
+                          "type": "type"
+                        }
+                      },
+                      "name": "QA Team",
+                      "customRoleKeys": [
+                        "access-to-test-projects"
+                      ],
+                      "key": "team-key-123abc"
+                    },
+                    "key": "key"
+                  },
                   "tags": [
                     "tags",
                     "tags"
@@ -65813,8 +68221,38 @@
           "name": "name",
           "description": "description",
           "creationDate": 7,
-          "version": 1,
+          "_version": 1,
           "key": "key",
+          "maintainer": {
+            "kind": "member",
+            "_member": {
+              "firstName": "Ariel",
+              "lastName": "Flores",
+              "role": "admin",
+              "_links": {
+                "self": {
+                  "href": "/api/v2/members/569f183514f4432160000007",
+                  "type": "application/json"
+                }
+              },
+              "_id": "569f183514f4432160000007",
+              "email": "ariel@acme.com"
+            },
+            "_team": {
+              "_links": {
+                "key": {
+                  "href": "href",
+                  "type": "type"
+                }
+              },
+              "name": "QA Team",
+              "customRoleKeys": [
+                "access-to-test-projects"
+              ],
+              "key": "team-key-123abc"
+            },
+            "key": "key"
+          },
           "tags": [
             "tags",
             "tags"
@@ -65838,7 +68276,7 @@
             "format": "int64",
             "type": "integer"
           },
-          "version": {
+          "_version": {
             "description": "Version of the flag",
             "type": "integer"
           },
@@ -65861,6 +68299,9 @@
             "description": "Whether to include in snippet",
             "type": "boolean"
           },
+          "maintainer": {
+            "$ref": "#/components/schemas/ExpandedFlagMaintainer"
+          },
           "_links": {
             "$ref": "#/components/schemas/ParentAndSelfLinks"
           }
@@ -65869,8 +68310,65 @@
           "key",
           "name"
         ],
+        "type": "object"
+      },
+      "ExpandedFlagMaintainer": {
+        "example": {
+          "kind": "member",
+          "_member": {
+            "firstName": "Ariel",
+            "lastName": "Flores",
+            "role": "admin",
+            "_links": {
+              "self": {
+                "href": "/api/v2/members/569f183514f4432160000007",
+                "type": "application/json"
+              }
+            },
+            "_id": "569f183514f4432160000007",
+            "email": "ariel@acme.com"
+          },
+          "_team": {
+            "_links": {
+              "key": {
+                "href": "href",
+                "type": "type"
+              }
+            },
+            "name": "QA Team",
+            "customRoleKeys": [
+              "access-to-test-projects"
+            ],
+            "key": "team-key-123abc"
+          },
+          "key": "key"
+        },
+        "properties": {
+          "key": {
+            "description": "The ID of the maintainer member, or the key of the maintainer team",
+            "type": "string"
+          },
+          "kind": {
+            "description": "The type of the maintainer",
+            "enum": [
+              "member",
+              "team"
+            ],
+            "type": "string"
+          },
+          "_member": {
+            "$ref": "#/components/schemas/ViewsMemberSummary"
+          },
+          "_team": {
+            "$ref": "#/components/schemas/ViewsMemberTeamSummaryRep"
+          }
+        },
+        "required": [
+          "key",
+          "kind"
+        ],
         "type": "object",
-        "x-go-type": "reps2.FlagGlobalAttributesRep",
+        "x-go-type": "reps2.MaintainerRep",
         "x-go-type-import": {
           "path": "github.com/launchdarkly/gonfalon/internal/reps2",
           "name": "reps2"
@@ -66247,6 +68745,117 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "ViewsMemberSummary": {
+        "example": {
+          "firstName": "Ariel",
+          "lastName": "Flores",
+          "role": "admin",
+          "_links": {
+            "self": {
+              "href": "/api/v2/members/569f183514f4432160000007",
+              "type": "application/json"
+            }
+          },
+          "_id": "569f183514f4432160000007",
+          "email": "ariel@acme.com"
+        },
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ViewsLink"
+            },
+            "description": "The location and content type of related resources",
+            "example": {
+              "self": {
+                "href": "/api/v2/members/569f183514f4432160000007",
+                "type": "application/json"
+              }
+            },
+            "type": "object"
+          },
+          "_id": {
+            "description": "The member's ID",
+            "example": "569f183514f4432160000007",
+            "type": "string"
+          },
+          "firstName": {
+            "description": "The member's first name",
+            "example": "Ariel",
+            "type": "string"
+          },
+          "lastName": {
+            "description": "The member's last name",
+            "example": "Flores",
+            "type": "string"
+          },
+          "role": {
+            "description": "The member's base role. If the member has no additional roles, this role will be in effect.",
+            "example": "admin",
+            "type": "string"
+          },
+          "email": {
+            "description": "The member's email address",
+            "example": "ariel@acme.com",
+            "type": "string"
+          }
+        },
+        "required": [
+          "_id",
+          "_links",
+          "email",
+          "role"
+        ],
+        "type": "object"
+      },
+      "ViewsMemberTeamSummaryRep": {
+        "example": {
+          "_links": {
+            "key": {
+              "href": "href",
+              "type": "type"
+            }
+          },
+          "name": "QA Team",
+          "customRoleKeys": [
+            "access-to-test-projects"
+          ],
+          "key": "team-key-123abc"
+        },
+        "properties": {
+          "customRoleKeys": {
+            "description": "A list of keys of the custom roles this team has access to",
+            "example": [
+              "access-to-test-projects"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "key": {
+            "description": "The team key",
+            "example": "team-key-123abc",
+            "type": "string"
+          },
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ViewsLink"
+            },
+            "type": "object"
+          },
+          "name": {
+            "description": "The team name",
+            "example": "QA Team",
+            "type": "string"
+          }
+        },
+        "required": [
+          "customRoleKeys",
+          "key",
+          "name"
+        ],
         "type": "object"
       },
       "ViewsAccess": {
@@ -66725,8 +69334,38 @@
                       "name": "name",
                       "description": "description",
                       "creationDate": 7,
-                      "version": 1,
+                      "_version": 1,
                       "key": "key",
+                      "maintainer": {
+                        "kind": "member",
+                        "_member": {
+                          "firstName": "Ariel",
+                          "lastName": "Flores",
+                          "role": "admin",
+                          "_links": {
+                            "self": {
+                              "href": "/api/v2/members/569f183514f4432160000007",
+                              "type": "application/json"
+                            }
+                          },
+                          "_id": "569f183514f4432160000007",
+                          "email": "ariel@acme.com"
+                        },
+                        "_team": {
+                          "_links": {
+                            "key": {
+                              "href": "href",
+                              "type": "type"
+                            }
+                          },
+                          "name": "QA Team",
+                          "customRoleKeys": [
+                            "access-to-test-projects"
+                          ],
+                          "key": "team-key-123abc"
+                        },
+                        "key": "key"
+                      },
                       "tags": [
                         "tags",
                         "tags"
@@ -66749,8 +69388,38 @@
                       "name": "name",
                       "description": "description",
                       "creationDate": 7,
-                      "version": 1,
+                      "_version": 1,
                       "key": "key",
+                      "maintainer": {
+                        "kind": "member",
+                        "_member": {
+                          "firstName": "Ariel",
+                          "lastName": "Flores",
+                          "role": "admin",
+                          "_links": {
+                            "self": {
+                              "href": "/api/v2/members/569f183514f4432160000007",
+                              "type": "application/json"
+                            }
+                          },
+                          "_id": "569f183514f4432160000007",
+                          "email": "ariel@acme.com"
+                        },
+                        "_team": {
+                          "_links": {
+                            "key": {
+                              "href": "href",
+                              "type": "type"
+                            }
+                          },
+                          "name": "QA Team",
+                          "customRoleKeys": [
+                            "access-to-test-projects"
+                          ],
+                          "key": "team-key-123abc"
+                        },
+                        "key": "key"
+                      },
                       "tags": [
                         "tags",
                         "tags"
@@ -67103,8 +69772,38 @@
                   "name": "name",
                   "description": "description",
                   "creationDate": 7,
-                  "version": 1,
+                  "_version": 1,
                   "key": "key",
+                  "maintainer": {
+                    "kind": "member",
+                    "_member": {
+                      "firstName": "Ariel",
+                      "lastName": "Flores",
+                      "role": "admin",
+                      "_links": {
+                        "self": {
+                          "href": "/api/v2/members/569f183514f4432160000007",
+                          "type": "application/json"
+                        }
+                      },
+                      "_id": "569f183514f4432160000007",
+                      "email": "ariel@acme.com"
+                    },
+                    "_team": {
+                      "_links": {
+                        "key": {
+                          "href": "href",
+                          "type": "type"
+                        }
+                      },
+                      "name": "QA Team",
+                      "customRoleKeys": [
+                        "access-to-test-projects"
+                      ],
+                      "key": "team-key-123abc"
+                    },
+                    "key": "key"
+                  },
                   "tags": [
                     "tags",
                     "tags"
@@ -67127,8 +69826,38 @@
                   "name": "name",
                   "description": "description",
                   "creationDate": 7,
-                  "version": 1,
+                  "_version": 1,
                   "key": "key",
+                  "maintainer": {
+                    "kind": "member",
+                    "_member": {
+                      "firstName": "Ariel",
+                      "lastName": "Flores",
+                      "role": "admin",
+                      "_links": {
+                        "self": {
+                          "href": "/api/v2/members/569f183514f4432160000007",
+                          "type": "application/json"
+                        }
+                      },
+                      "_id": "569f183514f4432160000007",
+                      "email": "ariel@acme.com"
+                    },
+                    "_team": {
+                      "_links": {
+                        "key": {
+                          "href": "href",
+                          "type": "type"
+                        }
+                      },
+                      "name": "QA Team",
+                      "customRoleKeys": [
+                        "access-to-test-projects"
+                      ],
+                      "key": "team-key-123abc"
+                    },
+                    "key": "key"
+                  },
                   "tags": [
                     "tags",
                     "tags"
@@ -67154,8 +69883,38 @@
             "name": "name",
             "description": "description",
             "creationDate": 7,
-            "version": 1,
+            "_version": 1,
             "key": "key",
+            "maintainer": {
+              "kind": "member",
+              "_member": {
+                "firstName": "Ariel",
+                "lastName": "Flores",
+                "role": "admin",
+                "_links": {
+                  "self": {
+                    "href": "/api/v2/members/569f183514f4432160000007",
+                    "type": "application/json"
+                  }
+                },
+                "_id": "569f183514f4432160000007",
+                "email": "ariel@acme.com"
+              },
+              "_team": {
+                "_links": {
+                  "key": {
+                    "href": "href",
+                    "type": "type"
+                  }
+                },
+                "name": "QA Team",
+                "customRoleKeys": [
+                  "access-to-test-projects"
+                ],
+                "key": "team-key-123abc"
+              },
+              "key": "key"
+            },
             "tags": [
               "tags",
               "tags"
@@ -67269,7 +70028,7 @@
         },
         "properties": {
           "keys": {
-            "description": "Keys of the resources (flags, segments, AI configs) to link/unlink",
+            "description": "Keys of the resources (flags, segments) to link/unlink",
             "example": [
               "flag-1",
               "flag-2"
@@ -67388,8 +70147,38 @@
               "name": "name",
               "description": "description",
               "creationDate": 7,
-              "version": 1,
+              "_version": 1,
               "key": "key",
+              "maintainer": {
+                "kind": "member",
+                "_member": {
+                  "firstName": "Ariel",
+                  "lastName": "Flores",
+                  "role": "admin",
+                  "_links": {
+                    "self": {
+                      "href": "/api/v2/members/569f183514f4432160000007",
+                      "type": "application/json"
+                    }
+                  },
+                  "_id": "569f183514f4432160000007",
+                  "email": "ariel@acme.com"
+                },
+                "_team": {
+                  "_links": {
+                    "key": {
+                      "href": "href",
+                      "type": "type"
+                    }
+                  },
+                  "name": "QA Team",
+                  "customRoleKeys": [
+                    "access-to-test-projects"
+                  ],
+                  "key": "team-key-123abc"
+                },
+                "key": "key"
+              },
               "tags": [
                 "tags",
                 "tags"
@@ -67412,8 +70201,38 @@
               "name": "name",
               "description": "description",
               "creationDate": 7,
-              "version": 1,
+              "_version": 1,
               "key": "key",
+              "maintainer": {
+                "kind": "member",
+                "_member": {
+                  "firstName": "Ariel",
+                  "lastName": "Flores",
+                  "role": "admin",
+                  "_links": {
+                    "self": {
+                      "href": "/api/v2/members/569f183514f4432160000007",
+                      "type": "application/json"
+                    }
+                  },
+                  "_id": "569f183514f4432160000007",
+                  "email": "ariel@acme.com"
+                },
+                "_team": {
+                  "_links": {
+                    "key": {
+                      "href": "href",
+                      "type": "type"
+                    }
+                  },
+                  "name": "QA Team",
+                  "customRoleKeys": [
+                    "access-to-test-projects"
+                  ],
+                  "key": "team-key-123abc"
+                },
+                "key": "key"
+              },
               "tags": [
                 "tags",
                 "tags"
@@ -67517,150 +70336,6 @@
         "title": "ExpandedLinkedResourcesSegments",
         "type": "object"
       },
-      "ExpandedLinkedResourcesAIConfigs": {
-        "example": {
-          "totalCount": 3,
-          "items": [
-            {
-              "createdAt": 2,
-              "_links": {
-                "parent": {
-                  "href": "href",
-                  "type": "type"
-                },
-                "self": {
-                  "href": "href",
-                  "type": "type"
-                }
-              },
-              "name": "name",
-              "description": "description",
-              "version": 1,
-              "key": "key",
-              "flagKey": "flagKey",
-              "tags": [
-                "tags",
-                "tags"
-              ],
-              "updatedAt": 6
-            },
-            {
-              "createdAt": 2,
-              "_links": {
-                "parent": {
-                  "href": "href",
-                  "type": "type"
-                },
-                "self": {
-                  "href": "href",
-                  "type": "type"
-                }
-              },
-              "name": "name",
-              "description": "description",
-              "version": 1,
-              "key": "key",
-              "flagKey": "flagKey",
-              "tags": [
-                "tags",
-                "tags"
-              ],
-              "updatedAt": 6
-            }
-          ]
-        },
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ExpandedAIConfig"
-            },
-            "type": "array"
-          },
-          "totalCount": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "totalCount"
-        ],
-        "title": "ExpandedLinkedResourcesAIConfigs",
-        "type": "object"
-      },
-      "ExpandedLinkedResourcesMetrics": {
-        "example": {
-          "totalCount": 3,
-          "items": [
-            {
-              "_links": {
-                "parent": {
-                  "href": "href",
-                  "type": "type"
-                },
-                "self": {
-                  "href": "href",
-                  "type": "type"
-                }
-              },
-              "kind": "kind",
-              "description": "description",
-              "creationDate": 9,
-              "isActive": true,
-              "lastSeen": 3,
-              "eventKey": "eventKey",
-              "_versionId": "_versionId",
-              "isNumeric": true,
-              "name": "name",
-              "lastModified": 6,
-              "_id": "_id",
-              "category": "category",
-              "key": "key"
-            },
-            {
-              "_links": {
-                "parent": {
-                  "href": "href",
-                  "type": "type"
-                },
-                "self": {
-                  "href": "href",
-                  "type": "type"
-                }
-              },
-              "kind": "kind",
-              "description": "description",
-              "creationDate": 9,
-              "isActive": true,
-              "lastSeen": 3,
-              "eventKey": "eventKey",
-              "_versionId": "_versionId",
-              "isNumeric": true,
-              "name": "name",
-              "lastModified": 6,
-              "_id": "_id",
-              "category": "category",
-              "key": "key"
-            }
-          ]
-        },
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ExpandedMetric"
-            },
-            "type": "array"
-          },
-          "totalCount": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "totalCount"
-        ],
-        "title": "ExpandedLinkedResourcesMetrics",
-        "type": "object"
-      },
       "ExpandedLinkedResourcesItems": {
         "example": {
           "flags": {
@@ -67683,8 +70358,38 @@
                 "name": "name",
                 "description": "description",
                 "creationDate": 7,
-                "version": 1,
+                "_version": 1,
                 "key": "key",
+                "maintainer": {
+                  "kind": "member",
+                  "_member": {
+                    "firstName": "Ariel",
+                    "lastName": "Flores",
+                    "role": "admin",
+                    "_links": {
+                      "self": {
+                        "href": "/api/v2/members/569f183514f4432160000007",
+                        "type": "application/json"
+                      }
+                    },
+                    "_id": "569f183514f4432160000007",
+                    "email": "ariel@acme.com"
+                  },
+                  "_team": {
+                    "_links": {
+                      "key": {
+                        "href": "href",
+                        "type": "type"
+                      }
+                    },
+                    "name": "QA Team",
+                    "customRoleKeys": [
+                      "access-to-test-projects"
+                    ],
+                    "key": "team-key-123abc"
+                  },
+                  "key": "key"
+                },
                 "tags": [
                   "tags",
                   "tags"
@@ -67707,8 +70412,38 @@
                 "name": "name",
                 "description": "description",
                 "creationDate": 7,
-                "version": 1,
+                "_version": 1,
                 "key": "key",
+                "maintainer": {
+                  "kind": "member",
+                  "_member": {
+                    "firstName": "Ariel",
+                    "lastName": "Flores",
+                    "role": "admin",
+                    "_links": {
+                      "self": {
+                        "href": "/api/v2/members/569f183514f4432160000007",
+                        "type": "application/json"
+                      }
+                    },
+                    "_id": "569f183514f4432160000007",
+                    "email": "ariel@acme.com"
+                  },
+                  "_team": {
+                    "_links": {
+                      "key": {
+                        "href": "href",
+                        "type": "type"
+                      }
+                    },
+                    "name": "QA Team",
+                    "customRoleKeys": [
+                      "access-to-test-projects"
+                    ],
+                    "key": "team-key-123abc"
+                  },
+                  "key": "key"
+                },
                 "tags": [
                   "tags",
                   "tags"
@@ -67888,12 +70623,6 @@
           },
           "segments": {
             "$ref": "#/components/schemas/ExpandedLinkedResourcesSegments"
-          },
-          "aiConfigs": {
-            "$ref": "#/components/schemas/ExpandedLinkedResourcesAIConfigs"
-          },
-          "metrics": {
-            "$ref": "#/components/schemas/ExpandedLinkedResourcesMetrics"
           }
         },
         "required": [
@@ -67939,7 +70668,6 @@
               "latency"
             ],
             "rolloutContextKindKey": "user",
-            "metricRegressionThreshold": 0.05,
             "metricGroupKeys": [
               "frontend-metrics",
               "backend-metrics"
@@ -68028,7 +70756,6 @@
               "latency"
             ],
             "rolloutContextKindKey": "user",
-            "metricRegressionThreshold": 0.05,
             "metricGroupKeys": [
               "frontend-metrics",
               "backend-metrics"
@@ -68202,7 +70929,6 @@
               "latency"
             ],
             "rolloutContextKindKey": "user",
-            "metricRegressionThreshold": 0.05,
             "metricGroupKeys": [
               "frontend-metrics",
               "backend-metrics"
@@ -68318,7 +71044,6 @@
             "latency"
           ],
           "rolloutContextKindKey": "user",
-          "metricRegressionThreshold": 0.05,
           "metricGroupKeys": [
             "frontend-metrics",
             "backend-metrics"
@@ -68547,7 +71272,6 @@
                   "latency"
                 ],
                 "rolloutContextKindKey": "user",
-                "metricRegressionThreshold": 0.05,
                 "metricGroupKeys": [
                   "frontend-metrics",
                   "backend-metrics"
@@ -68695,7 +71419,6 @@
                   "latency"
                 ],
                 "rolloutContextKindKey": "user",
-                "metricRegressionThreshold": 0.05,
                 "metricGroupKeys": [
                   "frontend-metrics",
                   "backend-metrics"

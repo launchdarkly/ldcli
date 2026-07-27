@@ -18,6 +18,7 @@ type Project struct {
 	LastSyncTime         time.Time
 	AllFlagsState        FlagsState
 	AvailableVariations  []FlagVariation
+	PayloadVersion       int
 }
 
 // CreateProject creates a project and adds it to the database.
@@ -25,6 +26,7 @@ func CreateProject(ctx context.Context, projectKey, sourceEnvironmentKey string,
 	project := Project{
 		Key:                  projectKey,
 		SourceEnvironmentKey: sourceEnvironmentKey,
+		PayloadVersion:       1,
 	}
 
 	if ldCtx == nil {
@@ -87,14 +89,21 @@ func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Co
 		return Project{}, errors.New("Project not updated")
 	}
 
+	newPayloadVersion, err := store.IncrementProjectPayloadVersion(ctx, projectKey)
+	if err != nil {
+		return Project{}, errors.Wrap(err, "unable to increment payload version")
+	}
+	project.PayloadVersion = newPayloadVersion
+
 	allFlagsWithOverrides, err := project.GetFlagStateWithOverridesForProject(ctx)
 	if err != nil {
 		return Project{}, errors.Wrapf(err, "unable to get overrides for project, %s", projectKey)
 	}
 
 	GetObserversFromContext(ctx).Notify(SyncEvent{
-		ProjectKey:    project.Key,
-		AllFlagsState: allFlagsWithOverrides,
+		ProjectKey:     project.Key,
+		AllFlagsState:  allFlagsWithOverrides,
+		PayloadVersion: project.PayloadVersion,
 	})
 	return *project, nil
 }

@@ -27,7 +27,7 @@ func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 	updateChan, doneChan := OpenStream(
 		w,
 		r.Context().Done(),
-		Message{Event: TYPE_PUT, Data: jsonBody},
+		Message{Event: TYPE_PUT, Data: jsonBody}.ToPayload(),
 	)
 	defer close(updateChan)
 	observer := serverFlagsObserver{updateChan, projectKey}
@@ -47,7 +47,7 @@ func StreamServerAllPayload(w http.ResponseWriter, r *http.Request) {
 }
 
 type serverFlagsObserver struct {
-	updateChan chan<- Message
+	updateChan chan<- []byte
 	projectKey string
 }
 

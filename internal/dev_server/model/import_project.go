@@ -53,6 +53,7 @@ func ImportProject(ctx context.Context, projectKey string, importData ImportData
 		Context:              importData.Context,
 		AllFlagsState:        importData.FlagsState,
 		AvailableVariations:  []FlagVariation{},
+		PayloadVersion:       1,
 	}
 
 	// Convert available variations if present

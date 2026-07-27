@@ -73,12 +73,14 @@ func TestUpsertOverride(t *testing.T) {
 	t.Run("override is applied, observers are notified", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
 		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
+		store.EXPECT().IncrementProjectPayloadVersion(gomock.Any(), projKey).Return(1, nil)
 		observer.
 			EXPECT().
 			Handle(model.OverrideEvent{
-				FlagKey:    flagKey,
-				ProjectKey: projKey,
-				FlagState:  model.FlagState{Value: ldvalue.Bool(true), Version: 2, TrackEvents: true},
+				FlagKey:        flagKey,
+				ProjectKey:     projKey,
+				FlagState:      model.FlagState{Value: ldvalue.Bool(true), Version: 2, TrackEvents: true},
+				PayloadVersion: 1,
 			})
 
 		o, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
@@ -128,6 +130,7 @@ func TestDeleteOverride(t *testing.T) {
 	t.Run("override is applied, observers are notified", func(t *testing.T) {
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
 		store.EXPECT().DeactivateOverride(gomock.Any(), projKey, flagKey).Return(2, nil)
+		store.EXPECT().IncrementProjectPayloadVersion(gomock.Any(), projKey).Return(1, nil)
 		observer.
 			EXPECT().
 			Handle(model.OverrideEvent{
@@ -137,6 +140,7 @@ func TestDeleteOverride(t *testing.T) {
 					Value:   ldvalue.Bool(false),
 					Version: 3, // override version 2 + flag version 1
 				},
+				PayloadVersion: 1,
 			})
 
 		err := model.DeleteOverride(ctx, projKey, flagKey)
@@ -198,11 +202,13 @@ func TestDeleteOverrides(t *testing.T) {
 		// Expectations for first override
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
 		store.EXPECT().DeactivateOverride(gomock.Any(), projKey, flagKey).Return(2, nil)
+		store.EXPECT().IncrementProjectPayloadVersion(gomock.Any(), projKey).Return(1, nil)
 		observer.EXPECT().Handle(gomock.Any())
 
 		// Expectations for second override
 		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
 		store.EXPECT().DeactivateOverride(gomock.Any(), projKey, "flag2").Return(2, nil)
+		store.EXPECT().IncrementProjectPayloadVersion(gomock.Any(), projKey).Return(2, nil)
 		observer.EXPECT().Handle(gomock.Any())
 
 		err := model.DeleteOverrides(ctx, projKey)

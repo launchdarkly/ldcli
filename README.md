@@ -67,7 +67,7 @@ Supported settings:
 * `base-uri` LaunchDarkly base URI (default "https://app.launchdarkly.com")
 - `environment`: Default environment key
 - `flag`: Default feature flag key
-- `output`: Command response output format in either JSON or plain text
+- `output`: Output format: json or plaintext (default: plaintext in a terminal, json otherwise)
 - `project`: Default project key
 
 Available `config` commands:
@@ -89,6 +89,16 @@ ldcli config --set access-token api-00000000-0000-0000-0000-000000000000
 ```
 
 Running this command creates a configuration file located at `$XDG_CONFIG_HOME/ldcli/config.yml` with the access token. Subsequent commands read from this file, so you do not need to specify the access token each time.
+
+### Output format defaults
+
+When you do not pass `--output` or `--json`, the default format depends on whether standard output is a terminal: **plaintext** in an interactive terminal, **json** when stdout is not a TTY (for example when piped, in CI, or in agent environments).
+
+To force the plaintext default even when stdout is not a TTY, set either **`FORCE_TTY`** or **`LD_FORCE_TTY`** to any non-empty value (similar to tools that use `NO_COLOR`). That only affects the default; explicit `--output`, `--json`, `LD_OUTPUT`, and the `output` setting in your config file still apply.
+
+**`LD_OUTPUT`** is the same setting as `output` in the config file, exposed as an environment variable (see the `LD_` prefix above). It is not new with TTY detection; the test suite locks in that it overrides the non-TTY JSON default when set to `plaintext`.
+
+Effective output is resolved in this order: **`--json`** (if set, wins over `--output` when both are present), then **`--output`**, then **`LD_OUTPUT`**, then the **`output`** value from your config file, then the TTY-based default above.
 
 ## Commands
 

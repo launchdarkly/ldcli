@@ -1,5 +1,88 @@
 # Changelog
 
+## [3.3.0](https://github.com/launchdarkly/ldcli/compare/v3.2.0...v3.3.0) (2026-07-23)
+
+
+### Features
+
+* **symbols:** Apple dSYM upload (dsymmap) ([#747](https://github.com/launchdarkly/ldcli/issues/747)) ([1d5553f](https://github.com/launchdarkly/ldcli/commit/1d5553f2d172da1717dc39bf8727d7450fb2da45))
+
+## [3.2.0](https://github.com/launchdarkly/ldcli/compare/v3.1.0...v3.2.0) (2026-07-20)
+
+
+### Features
+
+* **symbols:** add `symbols upload` command for React Native + Android symbols ([#745](https://github.com/launchdarkly/ldcli/issues/745)) ([8dae666](https://github.com/launchdarkly/ldcli/commit/8dae666d28c22068ba0b068adbc3f87804ef92e7))
+
+## [3.1.0](https://github.com/launchdarkly/ldcli/compare/v3.0.4...v3.1.0) (2026-07-10)
+
+
+### Features
+
+* [FD-5561] implement FDv2 polling endpoint GET /sdk/poll ([#701](https://github.com/launchdarkly/ldcli/issues/701)) ([8a1cda1](https://github.com/launchdarkly/ldcli/commit/8a1cda1be133629b820005ad62f507c17ad17a00))
+* [FD-5562] Adding FDv2 Stream endpoint support in the dev server ([#703](https://github.com/launchdarkly/ldcli/issues/703)) ([ff8c116](https://github.com/launchdarkly/ldcli/commit/ff8c1167de8c80163afaf9b05f07af58c575fa82))
+* add whoami command ([#657](https://github.com/launchdarkly/ldcli/issues/657)) ([d2cca65](https://github.com/launchdarkly/ldcli/commit/d2cca6573edae7d174831cb20eb1a707da04069e))
+* support React Native sourcemaps in sourcemaps upload ([#735](https://github.com/launchdarkly/ldcli/issues/735)) ([e41a87f](https://github.com/launchdarkly/ldcli/commit/e41a87fb47c6bbb00fa7eb33eda5eb630a5661e2))
+
+
+### Bug Fixes
+
+* prevent subcommands from showing root-level commands in help output ([#730](https://github.com/launchdarkly/ldcli/issues/730)) ([ca49101](https://github.com/launchdarkly/ldcli/commit/ca49101740c24be673c002a1752001ea48528a95))
+* **REL-13522:** convert kebab-case query params to camelCase ([#705](https://github.com/launchdarkly/ldcli/issues/705)) ([98700e4](https://github.com/launchdarkly/ldcli/commit/98700e4f94f8c2fa90c227e8831e967a6360260d))
+* update install-hooks target to use pre-commit install ([#731](https://github.com/launchdarkly/ldcli/issues/731)) ([424147f](https://github.com/launchdarkly/ldcli/commit/424147fea6bd6818e4c2ba5bbc99afb35dd4744c))
+
+## [3.0.4](https://github.com/launchdarkly/ldcli/compare/v3.0.3...v3.0.4) (2026-04-21)
+
+
+### Bug Fixes
+
+* noop to trigger release please ([#696](https://github.com/launchdarkly/ldcli/issues/696)) ([7db5e7d](https://github.com/launchdarkly/ldcli/commit/7db5e7dd8175a0abea60d83a7ea31ed846257d14))
+
+## [3.0.3](https://github.com/launchdarkly/ldcli/compare/v3.0.2...v3.0.3) (2026-04-17)
+
+
+### Bug Fixes
+
+* tolerate missing *.zip in gh release upload ([#693](https://github.com/launchdarkly/ldcli/issues/693)) ([c016748](https://github.com/launchdarkly/ldcli/commit/c016748968b9bfcb5511b99d314aa0307c4c7bc1))
+
+## [3.0.2](https://github.com/launchdarkly/ldcli/compare/3.0.1...v3.0.2) (2026-04-17)
+
+
+### Miscellaneous Chores
+
+* align release-please state with v3.0.1 tag ([#691](https://github.com/launchdarkly/ldcli/issues/691)) ([314b18f](https://github.com/launchdarkly/ldcli/commit/314b18ff937937d67883a1ccef9834236613bea0))
+
+## [3.0.0](https://github.com/launchdarkly/ldcli/compare/v2.2.0...v3.0.0) (2026-04-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* agent-forward CLI — TTY-aware output, structured errors, --fields, table formatting [REL-12752] ([#660](https://github.com/launchdarkly/ldcli/issues/660))
+
+### Features
+
+* add --dry-run flag to toggle-on, toggle-off, and archive commands ([#677](https://github.com/launchdarkly/ldcli/issues/677)) ([ad4ab2d](https://github.com/launchdarkly/ldcli/commit/ad4ab2df38c31092182d7671471dbe545fe5a4b3))
+* add --json flag as shorthand for --output json ([#656](https://github.com/launchdarkly/ldcli/issues/656)) ([65d1bc3](https://github.com/launchdarkly/ldcli/commit/65d1bc3bc173e270df20a950e180d8f17e9d5f5e))
+* add --output markdown format ([#678](https://github.com/launchdarkly/ldcli/issues/678)) ([9872c28](https://github.com/launchdarkly/ldcli/commit/9872c28040407a7f9f81b5faf584f9428ad345d3))
+* add hand-rolled get-sdk-active command for environments ([#671](https://github.com/launchdarkly/ldcli/issues/671)) ([b3c447b](https://github.com/launchdarkly/ldcli/commit/b3c447b00ccd8c56e7f1ccd26b1e408242a0bf49))
+* add import project API endpoint ([#643](https://github.com/launchdarkly/ldcli/issues/643)) ([8623f37](https://github.com/launchdarkly/ldcli/commit/8623f37bce6c4030ffd7c4eb45c739bbf0a42991))
+* agent-forward CLI — TTY-aware output, structured errors, --fields, table formatting [REL-12752] ([#660](https://github.com/launchdarkly/ldcli/issues/660)) ([ecf7705](https://github.com/launchdarkly/ldcli/commit/ecf77050a89f27eed20a5c1012a004c9940a905c))
+* **REL-12753:** adding agent flag for agent telemetry ([#659](https://github.com/launchdarkly/ldcli/issues/659)) ([a7206fd](https://github.com/launchdarkly/ldcli/commit/a7206fd79b56c0a8cae19da0f97b810cb3de3b7e))
+* **REL-12779:** Add a command to sign up that directs the user to the sign up page ([#665](https://github.com/launchdarkly/ldcli/issues/665)) ([2f0042f](https://github.com/launchdarkly/ldcli/commit/2f0042fcfb9b76c71116e6c1ca55973b06ffedee))
+
+
+### Bug Fixes
+
+* add permissions for release-please job ([#680](https://github.com/launchdarkly/ldcli/issues/680)) ([0f2645d](https://github.com/launchdarkly/ldcli/commit/0f2645d78666d327ec5723214c41d66ce34ecbc4))
+
+## [Unreleased]
+
+### ⚠ BREAKING CHANGES
+
+* When stdout is not a TTY, the default `--output` format is now **json** instead of plaintext. Scripts that assumed plaintext when output was piped or redirected should set `LD_OUTPUT=plaintext`, run `ldcli config --set output plaintext`, or pass `--output plaintext` (or `--output json` explicitly if you want JSON regardless of TTY). You can also set **`FORCE_TTY`** or **`LD_FORCE_TTY`** to any non-empty value to keep plaintext as the default when stdout is not a TTY, without changing the saved `output` setting.
+* Error responses now include `statusCode` (integer) and `suggestion` (string) fields in the JSON body. The `message` field for empty-body errors uses `http.StatusText` casing (e.g., `"Method Not Allowed"` instead of the previous `"method not allowed"`). If you parse error JSON from `ldcli`, update any assertions on the exact shape or casing.
+* Plaintext list output for `flags`, `projects`, `environments`, `members`, and `segments` now renders as aligned tables instead of `* name (key)` bullets. Singular resources render as key-value blocks. If you parse plaintext output programmatically, switch to `--output json`.
+
 ## [2.2.0](https://github.com/launchdarkly/ldcli/compare/v2.1.0...v2.2.0) (2026-02-20)
 
 

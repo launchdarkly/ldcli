@@ -19,6 +19,7 @@ function App() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedEnvironment, setSelectedEnvironment] =
     useState<Environment | null>(null);
+  const [environments, setEnvironments] = useState<Environment[] | null>(null);
   const [sourceEnvironmentKey, setSourceEnvironmentKey] = useState<
     string | null
   >(null);
@@ -61,8 +62,9 @@ function App() {
     setContext(JSON.stringify(fetchedContext || `{}`, null, 2));
 
     // Fetch the environment details and set the selectedEnvironment
-    const environments = await fetchEnvironments(selectedProject);
-    const currentEnvironment = environments.find(
+    const envList = await fetchEnvironments(selectedProject);
+    setEnvironments(envList);
+    const currentEnvironment = envList.find(
       (env: Environment) => env.key === sourceEnvironmentKey,
     );
     if (currentEnvironment) {
@@ -164,7 +166,7 @@ function App() {
               />
               {selectedProject && (
                 <ProjectEditor
-                  projectKey={selectedProject}
+                  environments={environments}
                   selectedEnvironment={selectedEnvironment}
                   setSelectedEnvironment={setSelectedEnvironment}
                   sourceEnvironmentKey={sourceEnvironmentKey}
@@ -204,7 +206,9 @@ function App() {
 }
 
 async function fetchEnvironments(projectKey: string) {
-  const res = await fetch(apiRoute(`/dev/projects/${projectKey}/environments`));
+  const res = await fetch(
+    apiRoute(`/dev/projects/${projectKey}/environments?limit=1000`),
+  );
   if (!res.ok) {
     throw new Error(
       `Got ${res.status}, ${res.statusText} from environments fetch`,

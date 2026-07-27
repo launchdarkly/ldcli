@@ -45,5 +45,11 @@ func TestInvite(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, `[{"email":"test1@test.com","role":"writer"},{"email":"test2@test.com","role":"writer"}]`, string(mockClient.Input))
-	assert.Equal(t, "Successfully updated\n* test1@test.com (000000000000000000000001)\n* test2@test.com (000000000000000000000002)\n", string(output))
+	assert.Contains(t, string(output), "Successfully updated")
+	assert.Contains(t, string(output), "EMAIL")
+	assert.Contains(t, string(output), "ROLE")
+	assert.Contains(t, string(output), "test1@test.com")
+	assert.Contains(t, string(output), "test2@test.com")
+	assert.Contains(t, string(output), "writer")
+	assert.NotContains(t, string(output), "* ")
 }

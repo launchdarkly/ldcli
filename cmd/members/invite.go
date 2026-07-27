@@ -63,7 +63,10 @@ func runE(client resources.Client) func(*cobra.Command, []string) error {
 			return output.NewCmdOutputError(err, cliflags.GetOutputKind(cmd))
 		}
 
-		output, err := output.CmdOutput("update", cliflags.GetOutputKind(cmd), res)
+		output, err := output.CmdOutput("update", cliflags.GetOutputKind(cmd), res, output.CmdOutputOpts{
+			Fields:       cliflags.GetFields(cmd),
+			ResourceName: "members",
+		})
 		if err != nil {
 			return errors.NewError(err.Error())
 		}
