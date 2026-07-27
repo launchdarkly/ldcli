@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.0](https://github.com/launchdarkly/ldcli/compare/v3.3.0...v3.4.0) (2026-07-27)
+
+
+### Features
+
+* **symbols:** add Flutter (Dart AOT) symbol upload (--type flutter) ([#756](https://github.com/launchdarkly/ldcli/issues/756)) ([b372e2b](https://github.com/launchdarkly/ldcli/commit/b372e2ba9cc66db4630ed48a16ecc9ac01f18fb5))
+
 ## [3.3.0](https://github.com/launchdarkly/ldcli/compare/v3.2.0...v3.3.0) (2026-07-23)
 
 
