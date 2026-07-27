@@ -1,0 +1,6 @@
+.git
+*.log
+ldcli
+dist/
+node_modules
+internal/dev_server/ui/node_modules

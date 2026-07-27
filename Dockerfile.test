@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1
+
+# Test / sandbox image for ldcli.
+#
+# It carries the Go toolchain and Node so it can serve two purposes:
+#   1. run the full automated suite (Go tests + dev-server UI Vitest), and
+#   2. act as a disposable sandbox for manually walking `ldcli setup` through a
+#      real Node project. The wizard installs SDKs and edits project files, so a
+#      throwaway container is the safe place to exercise it.
+#
+# Build (from repo root):   docker build -f Dockerfile.test -t ldcli-test .
+# Automated tests:          docker run --rm ldcli-test
+# Manual setup sandbox:     docker run --rm -it -e LD_ACCESS_TOKEN=$TOKEN ldcli-test sandbox
+FROM golang:1.24.3-bookworm
+
+# Node for the dev-server UI Vitest suite and for the Node SDK path of the
+# setup wizard. Pulled from the official node image (same bookworm base, so
+# ABI-compatible) rather than a curl|bash installer that can be rate-limited.
+COPY --from=node:20-bookworm /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:20-bookworm /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && node --version && npm --version
+
+WORKDIR /src
+
+# Prime Go modules and UI deps first so edits to source don't bust these layers.
+COPY go.mod go.sum ./
+RUN go mod download
+COPY internal/dev_server/ui/package.json internal/dev_server/ui/package-lock.json ./internal/dev_server/ui/
+RUN cd internal/dev_server/ui && npm ci
+
+# Copy the rest of the source and build the CLI onto PATH. CGO is on (sqlite);
+# gcc ships with the golang bookworm image.
+COPY . .
+RUN go build -o /usr/local/bin/ldcli .
+
+# A throwaway Node project the sandbox drops you into for manual walkthroughs.
+COPY test/docker/sample-node/ /work/sample-node/
+
+COPY test/docker/run-tests.sh /usr/local/bin/run-tests
+COPY test/docker/sandbox.sh /usr/local/bin/sandbox
+RUN chmod +x /usr/local/bin/run-tests /usr/local/bin/sandbox
+
+# Default: run the automated suite. Override with `sandbox` for manual testing.
+CMD ["run-tests"]

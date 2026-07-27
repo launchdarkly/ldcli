@@ -1,0 +1,10 @@
+{
+  "name": "ldcli-setup-sandbox",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Throwaway Node project for manually testing `ldcli setup` in Docker.",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

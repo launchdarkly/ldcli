@@ -1,4 +1,4 @@
-.PHONY: build generate log test vendor
+.PHONY: build generate log test test-docker sandbox-docker vendor
 
 build:
 	go build -o ldcli
@@ -25,6 +25,17 @@ openapi-spec-update:
 
 test:
 	go test ./...
+
+# Build the test image and run the full automated suite (Go + dev-server UI) in it.
+test-docker:
+	docker build -f Dockerfile.test -t ldcli-test .
+	docker run --rm ldcli-test
+
+# Interactive sandbox for manually walking `ldcli setup` in a throwaway Node project.
+# Pass your token: make sandbox-docker LD_ACCESS_TOKEN=<token>
+sandbox-docker:
+	docker build -f Dockerfile.test -t ldcli-test .
+	docker run --rm -it -e LD_ACCESS_TOKEN=$(LD_ACCESS_TOKEN) ldcli-test sandbox
 
 vendor:
 	go mod tidy && go mod vendor
