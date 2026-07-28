@@ -76,7 +76,7 @@ func generateRunE() func(cmd *cobra.Command, args []string) error {
 		// Apple dSYMs are compiled into per-arch .dsymmap symbol maps keyed by build
 		// UUID, ignoring the version/symbols-id lanes.
 		if symbolType == typeAppleDSYM {
-			return generateAppleDSYMs(path, outputDir)
+			return generateAppleDSYMs(path, outputDir, viper.GetBool(includeSourcesFlag))
 		}
 
 		// Flutter symbols compile to .dartmap maps keyed by build id (Id Lane),
@@ -92,7 +92,7 @@ func generateRunE() func(cmd *cobra.Command, args []string) error {
 // generateAppleDSYMs compiles the discovered dSYM images to .dsymmap symbol maps
 // and writes one file per build UUID under outputDir, using the same storage
 // key (_sym/apple/id/<UUID>.dsymmap) that `symbols upload` would use.
-func generateAppleDSYMs(path, outputDir string) error {
+func generateAppleDSYMs(path, outputDir string, includeSources bool) error {
 	images, err := findDSYMImages(path)
 	if err != nil {
 		return fmt.Errorf("failed to find dSYM files: %w", err)
@@ -101,7 +101,7 @@ func generateAppleDSYMs(path, outputDir string) error {
 		return fmt.Errorf("no .dSYM bundles found in %s, is this the correct path?", path)
 	}
 
-	maps, err := buildAppleMaps(images)
+	maps, err := buildAppleMaps(images, includeSources)
 	if err != nil {
 		return err
 	}
@@ -202,6 +202,9 @@ func initGenerateFlags(cmd *cobra.Command) {
 
 	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
+
+	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also generate a source bundle from the files referenced by the debug info, for source context on native frames (%s only)", typeAppleDSYM))
+	_ = viper.BindPFlag(includeSourcesFlag, cmd.Flags().Lookup(includeSourcesFlag))
 
 	cmd.Flags().String(symbolsIdFlag, "", "The symbols id (launchdarkly.symbols_id.htlhash) to key files by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present")
 	_ = viper.BindPFlag(symbolsIdFlag, cmd.Flags().Lookup(symbolsIdFlag))

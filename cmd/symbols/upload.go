@@ -32,6 +32,12 @@ const (
 	basePathFlag   = "base-path"
 	backendUrlFlag = "backend-url"
 
+	// includeSourcesFlag opts into uploading the source files a dSYM's DWARF
+	// references (as a .srcbundle beside the .dsymmap) so the errors page can show
+	// source context around native frames. Off by default: it ships your source
+	// to LaunchDarkly.
+	includeSourcesFlag = "include-sources"
+
 	defaultPath       = "."
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
 
@@ -187,7 +193,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// symbol maps keyed by build UUID, ignoring the version/symbols-id lanes.
 		if symbolType == typeAppleDSYM {
 			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
-			return uploadAppleDSYMs(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, backendUrl)
+			return uploadAppleDSYMs(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, backendUrl, viper.GetBool(includeSourcesFlag))
 		}
 
 		// Flutter/Dart symbols take a dedicated path too: each app.<platform>.symbols
@@ -540,4 +546,7 @@ func initFlags(cmd *cobra.Command) {
 
 	cmd.Flags().String(backendUrlFlag, defaultBackendUrl, "An optional backend url for self-hosted deployments")
 	_ = viper.BindPFlag(backendUrlFlag, cmd.Flags().Lookup(backendUrlFlag))
+
+	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also upload the source files referenced by the debug info so the errors page can show source context around native frames (%s only). Your source is stored in LaunchDarkly", typeAppleDSYM))
+	_ = viper.BindPFlag(includeSourcesFlag, cmd.Flags().Lookup(includeSourcesFlag))
 }
