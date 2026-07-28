@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.5.0](https://github.com/launchdarkly/ldcli/compare/v3.4.0...v3.5.0) (2026-07-28)
+
+
+### Features
+
+* **symbols:** upload Swift/ObjC sources with dSYMs (--include-sources) ([#757](https://github.com/launchdarkly/ldcli/issues/757)) ([67a0092](https://github.com/launchdarkly/ldcli/commit/67a00921787522059a05a57bc0ab691920e5411a))
+
 ## [3.4.0](https://github.com/launchdarkly/ldcli/compare/v3.3.0...v3.4.0) (2026-07-27)
 
 
