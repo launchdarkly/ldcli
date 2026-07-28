@@ -127,6 +127,121 @@ func TestBuildAndroidSourceBundleSkipsBuildDirs(t *testing.T) {
 	assert.False(t, ok, "node_modules must be skipped")
 }
 
+func TestAndroidSourceSetOf(t *testing.T) {
+	cases := []struct {
+		rel  string
+		want string
+	}{
+		{"app/src/main/java/com/example/Foo.java", "main"},
+		{"app/src/debug/kotlin/com/example/Foo.kt", "debug"},
+		{"features/login/src/free/java/com/example/Foo.java", "free"},
+		{"src/main/Foo.kt", "main"},
+		// Not the src/<set>/ layout: a bare tree, or "src" with nothing under it.
+		{"com/example/Foo.java", ""},
+		{"src/Foo.java", ""},
+		// The innermost "src" names the set, so a module called "src" upstream of
+		// the real one does not.
+		{"src/vendor/app/src/main/java/com/example/Foo.java", "main"},
+	}
+	for _, c := range cases {
+		t.Run(c.rel, func(t *testing.T) {
+			assert.Equal(t, c.want, androidSourceSetOf(filepath.FromSlash(c.rel)))
+		})
+	}
+}
+
+func TestIsAndroidTestSourceSet(t *testing.T) {
+	for _, name := range []string{"test", "androidTest", "testDebug", "androidTestFreeRelease", "testFixtures"} {
+		assert.True(t, isAndroidTestSourceSet(name), name)
+	}
+	// A flavor is not a test source set because its name opens with the same
+	// letters ("testing" is a perfectly good flavor name).
+	for _, name := range []string{"main", "debug", "release", "testing", "androidTesting", "latest", ""} {
+		assert.False(t, isAndroidTestSourceSet(name), name)
+	}
+}
+
+// Defining a class per build variant is ordinary Gradle practice, so two files
+// legitimately claim one bundle key. The main source set has to win: "debug"
+// sorts before "main", so taking the first file the walk reaches would ship the
+// debug copy as the source for every retraced frame in that class.
+func TestBuildAndroidSourceBundlePrefersMainSourceSet(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app/src/debug/java/com/example/Config.java", "package com.example;\nclass Config { boolean debug = true; }\n")
+	writeFile(t, dir, "app/src/main/java/com/example/Config.java", "package com.example;\nclass Config { boolean debug = false; }\n")
+
+	data, count, err := buildAndroidSourceBundle(dir)
+	require.NoError(t, err)
+	require.NotNil(t, data)
+	assert.Equal(t, 1, count, "one key, one file")
+
+	bundle, err := srcbundle.Open(data)
+	require.NoError(t, err)
+	_, content, _, ok := bundle.Window("com/example/Config.java", 2, 0)
+	require.True(t, ok)
+	assert.Equal(t, "class Config { boolean debug = false; }\n", content, "main wins over the variant")
+}
+
+// Ranks tie between two flavors overriding the same class. Whichever is chosen,
+// it must be the same one every run, or successive uploads of an unchanged tree
+// would disagree about a frame's source.
+func TestBuildAndroidSourceBundleResolvesFlavorTieDeterministically(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app/src/paid/java/com/example/Config.java", "package com.example;\nclass Config { int tier = 2; }\n")
+	writeFile(t, dir, "app/src/free/java/com/example/Config.java", "package com.example;\nclass Config { int tier = 1; }\n")
+
+	first, count, err := buildAndroidSourceBundle(dir)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	second, _, err := buildAndroidSourceBundle(dir)
+	require.NoError(t, err)
+	assert.Equal(t, first, second, "same tree, same bundle bytes")
+
+	bundle, err := srcbundle.Open(first)
+	require.NoError(t, err)
+	_, content, _, ok := bundle.Window("com/example/Config.java", 2, 0)
+	require.True(t, ok)
+	assert.Equal(t, "class Config { int tier = 1; }\n", content, "walk order settles the tie")
+}
+
+// Test code is compiled into neither the app nor its mapping.txt, so no retraced
+// frame can point at it — and a test-only class sharing a production class's
+// package and file name would otherwise take its key.
+func TestBuildAndroidSourceBundleSkipsTestSourceSets(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app/src/main/java/com/example/Config.java", "package com.example;\nclass Config { int tier = 1; }\n")
+	writeFile(t, dir, "app/src/androidTest/java/com/example/Config.java", "package com.example;\nclass Config { int tier = 99; }\n")
+	writeFile(t, dir, "app/src/test/java/com/example/ConfigTest.java", "package com.example;\nclass ConfigTest {}\n")
+	writeFile(t, dir, "app/src/testDebug/java/com/example/Fixtures.java", "package com.example;\nclass Fixtures {}\n")
+
+	data, count, err := buildAndroidSourceBundle(dir)
+	require.NoError(t, err)
+	require.NotNil(t, data)
+	assert.Equal(t, 1, count, "only the production source is bundled")
+
+	bundle, err := srcbundle.Open(data)
+	require.NoError(t, err)
+	_, content, _, ok := bundle.Window("com/example/Config.java", 2, 0)
+	require.True(t, ok)
+	assert.Equal(t, "class Config { int tier = 1; }\n", content)
+	_, ok = bundle.File("com/example/ConfigTest.java")
+	assert.False(t, ok, "unit tests must be skipped")
+	_, ok = bundle.File("com/example/Fixtures.java")
+	assert.False(t, ok, "variant-specific test sets must be skipped too")
+}
+
+// A --source-path aimed straight at a test source set asks for it by name, so the
+// prune must not empty the bundle.
+func TestBuildAndroidSourceBundleHonoursTestSourceSetAsRoot(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app/src/androidTest/java/com/example/ConfigTest.java", "package com.example;\nclass ConfigTest {}\n")
+
+	data, count, err := buildAndroidSourceBundle(filepath.Join(dir, "app", "src", "androidTest"))
+	require.NoError(t, err)
+	require.NotNil(t, data)
+	assert.Equal(t, 1, count)
+}
+
 func TestBuildAndroidSourceBundleSkipsOversizeFile(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "com/example/Small.java", "package com.example;\nclass Small {}\n")

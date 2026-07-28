@@ -34,6 +34,13 @@ var androidSkipDirs = map[string]bool{
 	"node_modules": true,
 }
 
+// androidSource is one file competing for a bundle key, kept with the rank of the
+// source set it came from so a later, better copy can displace it.
+type androidSource struct {
+	data []byte
+	rank int
+}
+
 // buildAndroidSourceBundle scans root for .java/.kt files and packs them keyed by
 // their package-relative path (e.g. com/example/MainActivity.kt), which is what
 // the backend reconstructs from a retraced frame's fully-qualified class name.
@@ -42,6 +49,12 @@ var androidSkipDirs = map[string]bool{
 // directory layout, because Kotlin does not require the two to agree. A file with
 // no package declaration is keyed by its bare name (the JVM default package).
 // Returns nil when nothing was found, so the caller can skip the upload.
+//
+// A key can be claimed by more than one file, because defining a class per build
+// variant is ordinary Gradle practice: src/debug and src/main can each hold
+// com/example/Config.kt. The winner is chosen by source set (see
+// androidSourceRank) rather than by whichever the walk reached first, which would
+// hand the key to src/debug purely because "debug" sorts before "main".
 func buildAndroidSourceBundle(root string) ([]byte, int, error) {
 	info, err := os.Stat(root)
 	if err != nil {
@@ -51,7 +64,7 @@ func buildAndroidSourceBundle(root string) ([]byte, int, error) {
 		return nil, 0, fmt.Errorf("source path %s is not a directory", root)
 	}
 
-	b := &srcbundle.Builder{}
+	chosen := make(map[string]androidSource)
 	total := 0
 	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -59,6 +72,12 @@ func buildAndroidSourceBundle(root string) ([]byte, int, error) {
 		}
 		if d.IsDir() {
 			if androidSkipDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			// Pruned rather than filtered per file: nothing under a test source set
+			// is wanted. Skipping root itself is the exception, since a --source-path
+			// aimed straight at one is an explicit request for it.
+			if p != root && isAndroidTestSourceSet(d.Name()) && filepath.Base(filepath.Dir(p)) == "src" {
 				return filepath.SkipDir
 			}
 			return nil
@@ -70,18 +89,39 @@ func buildAndroidSourceBundle(root string) ([]byte, int, error) {
 		if err != nil {
 			return nil // unreadable: skip, same as Apple
 		}
-		if len(data) > maxSourceFileBytes || total+len(data) > maxSourceBundleBytes {
+		if len(data) > maxSourceFileBytes {
 			return nil
 		}
-		total += len(data)
-		b.Add(androidSourceKey(data, d.Name()), data)
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			rel = p
+		}
+		key := androidSourceKey(data, d.Name())
+		rank := androidSourceRank(androidSourceSetOf(rel))
+		prev, seen := chosen[key]
+		if seen && rank >= prev.rank {
+			return nil // an equal or better copy already holds the key
+		}
+		// Displacing an earlier pick returns what it was holding to the budget
+		// (len is 0 for the zero value, i.e. a key seen for the first time).
+		next := total + len(data) - len(prev.data)
+		if next > maxSourceBundleBytes {
+			return nil
+		}
+		total = next
+		chosen[key] = androidSource{data: data, rank: rank}
 		return nil
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to scan sources in %s: %w", root, err)
 	}
-	if b.Len() == 0 {
+	if len(chosen) == 0 {
 		return nil, 0, nil
+	}
+
+	b := &srcbundle.Builder{}
+	for key, src := range chosen {
+		b.Add(key, src.data)
 	}
 
 	var buf bytes.Buffer
@@ -89,6 +129,62 @@ func buildAndroidSourceBundle(root string) ([]byte, int, error) {
 		return nil, 0, fmt.Errorf("failed to encode source bundle: %w", err)
 	}
 	return buf.Bytes(), b.Len(), nil
+}
+
+// androidSourceSetOf returns the Gradle source set a file belongs to — "main",
+// "debug", a flavor name — read from the src/<set>/ segment of its root-relative
+// path, or "" when the file is not laid out that way. Modules nest freely
+// (app/src/main, features/login/src/main), so the innermost "src" is the one that
+// names the set.
+func androidSourceSetOf(rel string) string {
+	segs := strings.Split(filepath.ToSlash(rel), "/")
+	// Starts below the file name and the set directory: "src" itself must have a
+	// directory after it for there to be a set.
+	for i := len(segs) - 3; i >= 0; i-- {
+		if segs[i] == "src" {
+			return segs[i+1]
+		}
+	}
+	return ""
+}
+
+// androidSourceRank orders files claiming one bundle key, lower winning. A
+// variant's own copy of a class is compiled only into that variant, while the
+// main source set is in every one of them, so main is the copy a frame from an
+// arbitrary build is likeliest to have come from. Files outside the src/<set>/
+// layout rank with the variants: nothing says they are overrides, and they are
+// often the only copy there is.
+//
+// Ranks tie between variants (src/free and src/paid both overriding the same
+// class), and the walk's lexical order settles those, so a given tree always
+// bundles the same file.
+func androidSourceRank(sourceSet string) int {
+	if sourceSet == "main" {
+		return 0
+	}
+	return 1
+}
+
+// androidTestSourceSets are the source sets holding test code. Both unit tests
+// and instrumented tests are excluded: neither is compiled into the app whose
+// mapping.txt is being uploaded, so no retraced frame can point at them, and a
+// test-only class sharing a production class's package and file name would
+// otherwise compete for its bundle key.
+var androidTestSourceSets = []string{"test", "androidTest"}
+
+// isAndroidTestSourceSet reports whether a source set name is a test one. Gradle
+// appends the variant in camel case for the variant-specific sets ("testDebug",
+// "androidTestFreeRelease"), and testFixtures is caught by the same rule.
+func isAndroidTestSourceSet(sourceSet string) bool {
+	for _, name := range androidTestSourceSets {
+		if sourceSet == name {
+			return true
+		}
+		if rest, ok := strings.CutPrefix(sourceSet, name); ok && rest != "" && rest[0] >= 'A' && rest[0] <= 'Z' {
+			return true
+		}
+	}
+	return false
 }
 
 // androidSourceKey is the bundle key for one source file: its package as a path,
