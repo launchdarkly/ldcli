@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.0](https://github.com/launchdarkly/ldcli/compare/v3.5.0...v3.6.0) (2026-07-28)
+
+
+### Features
+
+* **symbols:** upload Java/Kotlin sources with R8 mappings (--include-sources) ([#758](https://github.com/launchdarkly/ldcli/issues/758)) ([a303f6c](https://github.com/launchdarkly/ldcli/commit/a303f6c7baaa4fdd7a798822bc9730401a5bc412))
+
 ## [3.5.0](https://github.com/launchdarkly/ldcli/compare/v3.4.0...v3.5.0) (2026-07-28)
 
 
