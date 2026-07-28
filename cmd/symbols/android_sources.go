@@ -101,31 +101,122 @@ func androidSourceKey(data []byte, fileName string) string {
 	return path.Join(strings.ReplaceAll(pkg, ".", "/"), fileName)
 }
 
+// androidPackageScanLimit bounds how much of a file is examined for its package
+// statement. The statement must precede every declaration, so it is always near
+// the top; the limit only keeps a pathological file from being scanned in full.
+const androidPackageScanLimit = 64 * 1024
+
 // javaPackageOf extracts the package name from Java or Kotlin source, or "" when
 // there is none. It reads the leading declarations only: the package statement
 // must precede any type declaration in both languages, so scanning stops at the
 // first import (Kotlin allows a semicolon-less package line, hence the trim).
+//
+// Comments are removed before scanning rather than skipped line by line. A
+// per-line rule can't see that a line belongs to a block comment: a license
+// header written without a leading "*" on each line looks exactly like source,
+// and would be read as a declaration proving the file has no package — losing
+// the package for every such file, and with it the bundle key the backend
+// rebuilds from a retraced class name.
 func javaPackageOf(data []byte) string {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
+	if len(data) > androidPackageScanLimit {
+		data = data[:androidPackageScanLimit]
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(stripJVMComments(data)))
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "//") || strings.HasPrefix(line, "/*") ||
-			strings.HasPrefix(line, "*") || strings.HasPrefix(line, "@") {
+		// File annotations (@file:JvmName, and Java's package annotations) may
+		// precede the package statement.
+		if line == "" || strings.HasPrefix(line, "@") {
 			continue
 		}
-		if rest, ok := strings.CutPrefix(line, "package "); ok {
+		if rest, ok := cutJVMKeyword(line, "package"); ok {
 			pkg := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(rest), ";"))
-			// Guard against a stray trailing comment ("package a.b; // note").
-			if i := strings.IndexAny(pkg, " \t/"); i >= 0 {
+			// Guard against anything following on the same line ("package a.b; class C").
+			if i := strings.IndexAny(pkg, " \t"); i >= 0 {
 				pkg = pkg[:i]
 			}
 			return strings.TrimSuffix(pkg, ";")
 		}
-		if strings.HasPrefix(line, "import ") {
+		if _, ok := cutJVMKeyword(line, "import"); ok {
 			return "" // past the package slot
 		}
 		return "" // a real declaration: this file has no package
 	}
 	return ""
+}
+
+// cutJVMKeyword reports whether line opens with keyword as a whole word,
+// returning the remainder. Matching the bare prefix would also accept an
+// identifier that merely starts with it ("packageName" is not "package").
+func cutJVMKeyword(line, keyword string) (string, bool) {
+	rest, ok := strings.CutPrefix(line, keyword)
+	if !ok || rest == "" {
+		return "", false
+	}
+	if rest[0] != ' ' && rest[0] != '\t' {
+		return "", false
+	}
+	return rest, true
+}
+
+// stripJVMComments replaces Java/Kotlin comments with a space, preserving
+// newlines so the result stays line-addressable. String and character literals
+// are honoured so a "//" or "/*" inside one (an annotation argument, the only
+// literal that can appear before a package statement) does not open a comment.
+//
+// Nested block comments are Kotlin-legal, so nesting is tracked; in Java the
+// first "*/" closes, but a Java file with "/*" inside a block comment is
+// vanishingly rare next to a Kotlin file that nests deliberately.
+func stripJVMComments(data []byte) []byte {
+	out := make([]byte, 0, len(data))
+	depth := 0
+	for i := 0; i < len(data); i++ {
+		c := data[i]
+		if depth > 0 {
+			switch {
+			case c == '/' && i+1 < len(data) && data[i+1] == '*':
+				depth++
+				i++
+			case c == '*' && i+1 < len(data) && data[i+1] == '/':
+				depth--
+				i++
+			case c == '\n':
+				out = append(out, '\n')
+			}
+			continue
+		}
+		switch {
+		case c == '/' && i+1 < len(data) && data[i+1] == '*':
+			depth++
+			i++
+			out = append(out, ' ')
+		case c == '/' && i+1 < len(data) && data[i+1] == '/':
+			for i < len(data) && data[i] != '\n' {
+				i++
+			}
+			out = append(out, ' ')
+			if i < len(data) {
+				out = append(out, '\n')
+			}
+		case c == '"' || c == '\'':
+			quote := c
+			out = append(out, c)
+			i++
+			for i < len(data) && data[i] != quote && data[i] != '\n' {
+				if data[i] == '\\' && i+1 < len(data) {
+					out = append(out, data[i])
+					i++
+				}
+				out = append(out, data[i])
+				i++
+			}
+			if i < len(data) {
+				out = append(out, data[i])
+			}
+		default:
+			out = append(out, c)
+		}
+	}
+	return out
 }

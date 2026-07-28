@@ -34,6 +34,27 @@ func TestJavaPackageOf(t *testing.T) {
 		{"default package", "class Foo {}\n", ""},
 		{"import first means none", "import java.util.List;\nclass Foo {}\n", ""},
 		{"empty", "", ""},
+
+		// A block comment's continuation lines need no leading "*", so they look
+		// exactly like source to a per-line rule. This is the shape of most
+		// license headers.
+		{
+			"license header without leading stars",
+			"/*\n   Copyright 2026 Example Inc.\n\n   Licensed under the Apache License, Version 2.0.\n   http://www.apache.org/licenses/LICENSE-2.0\n*/\npackage com.example;\n",
+			"com.example",
+		},
+		{"block comment on the package line", "/* header */ package com.example;\n", "com.example"},
+		{"block comment before the keyword", "/*\n c\n*/ package com.example\n", "com.example"},
+		{"comment between annotation and package", "@file:JvmName(\"Utils\")\n/*\n note\n*/\npackage com.example\n", "com.example"},
+		{"nested block comment", "/* outer /* inner */ still outer */\npackage com.example;\n", "com.example"},
+		{"comment closes and declares on one line", "/* c */ class Foo {}\n", ""},
+
+		// "//" inside an annotation's string argument is not a comment.
+		{"url in annotation argument", "@file:Suppress(\"http://x\")\npackage com.example\n", "com.example"},
+
+		// An identifier that merely starts with the keyword is not the keyword.
+		{"packageName identifier", "packageName = 1\n", ""},
+		{"tab after keyword", "package\tcom.example;\n", "com.example"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -51,6 +72,10 @@ func TestAndroidSourceKey(t *testing.T) {
 		androidSourceKey([]byte("package com.example;\n"), "Foo.java"))
 	// No package declaration: the JVM default package, keyed by bare name.
 	assert.Equal(t, "Foo.java", androidSourceKey([]byte("class Foo {}\n"), "Foo.java"))
+	// A license header must not cost the file its package: a bare "Foo.java" key
+	// would never match the "com/example/Foo.java" the backend looks up.
+	assert.Equal(t, "com/example/Foo.java", androidSourceKey(
+		[]byte("/*\n   Copyright 2026 Example Inc.\n*/\npackage com.example;\n"), "Foo.java"))
 }
 
 // The key comes from the package declaration, not the directory layout, because
