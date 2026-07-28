@@ -133,3 +133,76 @@ func TestBuildFromMachOCollectsSources(t *testing.T) {
 	}
 	assert.True(t, found, "fixture DWARF should reference at least one source file")
 }
+
+// The bug this guards: readability is not ownership. On any machine with Xcode
+// the SDK headers a build referenced are present and read fine, so relying on a
+// failed read to exclude them uploads Apple's code. Observed on a real dSYM,
+// where all five referenced SDK headers were readable and every app source was
+// not — the bundle would have contained nothing but Apple's headers.
+func TestBuildAppleSourceBundleExcludesVendorSources(t *testing.T) {
+	dir := t.TempDir()
+	// Stand-ins for readable toolchain files, and one real app source.
+	sdkHeader := filepath.Join(dir, "_ctype.h")
+	toolchainSwift := filepath.Join(dir, "Concurrency.swift")
+	appSwift := filepath.Join(dir, "Cart.swift")
+	for _, p := range []string{sdkHeader, toolchainSwift, appSwift} {
+		require.NoError(t, os.WriteFile(p, []byte("let x = 1\n"), 0o644))
+	}
+
+	a := apple.Arch{
+		UUID: "A5121984B70C3CA0BCC22FB671D75A20",
+		Sources: map[string]string{
+			// Exactly as observed in a dSYM's DWARF.
+			"/Applications/Xcode26.2.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/_ctype.h": sdkHeader,
+			"/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/Concurrency.swift":                            toolchainSwift,
+			"/usr/include/stdio.h":                         sdkHeader,
+			"/Library/Developer/CommandLineTools/SDKs/x.h": sdkHeader,
+			"/Users/dev/MyApp/Sources/Cart.swift":          appSwift,
+		},
+	}
+
+	data, nFiles, err := buildAppleSourceBundle(a)
+	require.NoError(t, err)
+	require.NotNil(t, data)
+	assert.Equal(t, 1, nFiles, "only the app's own source is packed")
+
+	bundle, err := srcbundle.Open(data)
+	require.NoError(t, err)
+	_, ok := bundle.File("/Users/dev/MyApp/Sources/Cart.swift")
+	assert.True(t, ok)
+	for _, vendor := range []string{
+		"/Applications/Xcode26.2.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/_ctype.h",
+		"/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/Concurrency.swift",
+		"/usr/include/stdio.h",
+		"/Library/Developer/CommandLineTools/SDKs/x.h",
+	} {
+		_, ok := bundle.File(vendor)
+		assert.False(t, ok, "vendor source must not be uploaded: %s", vendor)
+	}
+}
+
+func TestIsAppleVendorSource(t *testing.T) {
+	vendor := []string{
+		"/Applications/Xcode26.2.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/_ctype.h",
+		"/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/shims/x.h",
+		"/Library/Developer/CommandLineTools/usr/include/c++/v1/vector",
+		"/System/Library/Frameworks/Foundation.framework/Headers/NSObject.h",
+		"/usr/include/stdio.h",
+		"/usr/lib/swift/shims/HeapObject.h",
+		"/opt/homebrew/include/zlib.h",
+	}
+	for _, p := range vendor {
+		assert.True(t, isAppleVendorSource(p), "expected vendor: %s", p)
+	}
+
+	own := []string{
+		"/Users/dev/MyApp/Sources/Cart.swift",
+		"/Users/dev/MyApp/Pods/Alamofire/Source/Request.swift",
+		"/Users/dev/Library/Developer/Xcode/DerivedData/App-abc/SourcePackages/checkouts/swift-log/Logging.swift",
+		"/builds/ci/project/App/AppDelegate.swift",
+		"/Users/dev/System Design/App.swift", // not the /System root
+	}
+	for _, p := range own {
+		assert.False(t, isAppleVendorSource(p), "expected project source: %s", p)
+	}
+}

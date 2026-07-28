@@ -40,8 +40,9 @@ type Arch struct {
 	// Sources maps each source path referenced by this image's DWARF — keyed by
 	// the exact string stored in the .dsymmap, so a resolved frame's FileName is
 	// the lookup key — to its absolute path on this machine. It is only used to
-	// build the optional .srcbundle (`--include-sources`); files that aren't
-	// present locally (SDK/system code) simply fail to read and are skipped.
+	// build the optional .srcbundle (`--include-sources`). Every path the DWARF
+	// mentions is included, toolchain and SDK headers among them; selecting which
+	// of those may be uploaded is the bundler's job.
 	Sources map[string]string
 }
 
