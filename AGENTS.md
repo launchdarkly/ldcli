@@ -84,3 +84,17 @@ Installed via `make install-hooks`. Checks:
 
 - Go: `golangci-lint` (v1.63.4) via pre-commit
 - Frontend: ESLint + Prettier
+
+## Cursor Cloud specific instructions
+
+Services and how to run/verify them (standard commands live in the sections above; only non-obvious caveats are noted here):
+
+- **`ldcli` CLI** — `make build` produces `./ldcli`. Tests: `make test`. Lint: `golangci-lint run ./...` (see gotcha below). No credentials needed to build/test/lint.
+- **Dev server (Go HTTP + SQLite + embedded React UI)** — `./ldcli dev-server start` serves the API and the embedded UI at `http://localhost:8765/ui/`.
+  - `--access-token` is a required flag even to boot. The token is only used when syncing a project from LaunchDarkly, so any placeholder in the `api-<uuid>` token format (e.g. an all-zero UUID) is enough to start the server, serve the UI, and exercise the local HTTP API offline (e.g. `curl http://localhost:8765/dev/projects` → `[]`). Real flag data requires a real token.
+  - SQLite DBs live at `~/.local/state/ldcli/dev_server.db` (and `_events.db`).
+- **Dev server UI** — standard `npm` scripts in `internal/dev_server/ui` (`npm run lint` / `npm test` / `npm run build`). The production build (`dist/`) is checked into the repo and embedded into the Go binary.
+
+Gotchas:
+
+- **golangci-lint toolchain downgrade:** v1.63.4 refuses to run when the Go version it was *built with* is lower than the repo's `go.mod` target (currently 1.24.3), failing with `the Go language version (go1.22) used to build golangci-lint is lower than the targeted Go version`. Plain `go install .../golangci-lint@v1.63.4` (and the `make install-hooks` / pre-commit `golangci-lint` hook) auto-downgrade the toolchain to go1.22.2, so lint fails locally. Install it forcing the local toolchain: `GOTOOLCHAIN=$(go env GOVERSION) go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4`. CI avoids this only because it runs on a newer Go (stable). Ensure `$(go env GOPATH)/bin` (`~/go/bin`) is on `PATH`.
