@@ -204,14 +204,6 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl)
 		}
 
-		// Flutter/Dart symbols take a dedicated path too: each app.<platform>.symbols
-		// is compiled to a .dartmap keyed by its build id (Id Lane), plus a
-		// Version-lane copy when --app-version is set.
-		if symbolType == typeFlutter {
-			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
-			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl)
-		}
-
 		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
 
 		fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
