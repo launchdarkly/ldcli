@@ -8,6 +8,10 @@ import (
 
 var DevNull = ConstantResponseHandler(http.StatusAccepted, "")
 
+// methodReport is the non-standard HTTP method client-side SDKs use to send an
+// evaluation context in the body of an otherwise cacheable read.
+const methodReport = "REPORT"
+
 func BindRoutes(router *mux.Router) {
 	// events
 	router.HandleFunc("/bulk", SdkEventsReceiveHandler)
@@ -38,7 +42,7 @@ func BindRoutes(router *mux.Router) {
 	evalRouter.Use(CorsHeaders)
 	evalRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
 	evalRouter.PathPrefix("/{envId}").
-		Methods(http.MethodGet, "REPORT", http.MethodOptions).
+		Methods(http.MethodGet, methodReport, http.MethodOptions).
 		HandlerFunc(StreamClientFlags)
 
 	goalsRouter := router.Path("/sdk/goals/{envId}").Subrouter()
@@ -49,5 +53,24 @@ func BindRoutes(router *mux.Router) {
 	evalXRouter := router.PathPrefix("/sdk/evalx/{envId}").Subrouter()
 	evalXRouter.Use(CorsHeaders)
 	evalXRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
-	evalXRouter.Methods(http.MethodGet, http.MethodOptions, "REPORT").HandlerFunc(GetClientFlags)
+	evalXRouter.Methods(http.MethodGet, http.MethodOptions, methodReport).HandlerFunc(GetClientFlags)
+
+	// FDv2 unifies the browser and mobile client-side endpoints, so these four routes
+	// replace the /eval/{envId}, /meval, /sdk/evalx/{envId} and /msdk/evalx families above.
+	bindClientFdv2Route(router, "/sdk/poll/eval", PollClientV2, http.MethodPost, methodReport)
+	bindClientFdv2Route(router, "/sdk/poll/eval/{context}", PollClientV2, http.MethodGet)
+	bindClientFdv2Route(router, "/sdk/stream/eval", StreamClientV2, http.MethodPost, methodReport)
+	bindClientFdv2Route(router, "/sdk/stream/eval/{context}", StreamClientV2, http.MethodGet)
+}
+
+// bindClientFdv2Route registers a client-side FDv2 route along with the three pieces of
+// middleware the protocol requires of every one of them: CORS (including the OPTIONS
+// preflight, which the gorilla handler answers before the rest of the chain runs),
+// credential resolution, and evaluation context validation.
+func bindClientFdv2Route(router *mux.Router, path string, handler http.HandlerFunc, methods ...string) {
+	route := router.Path(path).Subrouter()
+	route.Use(ClientFdv2CorsHeaders)
+	route.Use(GetProjectKeyFromClientCredential)
+	route.Use(ParseClientContext)
+	route.Methods(append(methods, http.MethodOptions)...).HandlerFunc(handler)
 }
