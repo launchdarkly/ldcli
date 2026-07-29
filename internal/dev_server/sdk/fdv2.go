@@ -175,27 +175,35 @@ func makePayloadTransferredEvent(payloadID string, version int) (subsystems.RawE
 	return subsystems.RawEvent{Name: subsystems.EventPayloadTransferred, Data: data}, nil
 }
 
-// serveFdv2Poll answers an FDv2 polling request for the project on the request context.
-// Server-side and client-side polling differ only in how flags are encoded.
-func serveFdv2Poll(w http.ResponseWriter, r *http.Request, objects fdv2ObjectEncoder) {
+// buildRequestInitialResponse loads the current flag state for the project on the
+// request context and turns it into the initial FDv2 response, honouring the ?basis the
+// SDK echoed back from its last payload-transferred event.
+func buildRequestInitialResponse(r *http.Request, objects fdv2ObjectEncoder) (subsystems.PollingPayload, error) {
 	ctx := r.Context()
 	projectKey := GetProjectKeyFromContext(ctx)
 
 	project, err := model.StoreFromContext(ctx).GetDevProject(ctx, projectKey)
 	if err != nil {
-		WriteError(ctx, w, errors.Wrap(err, "failed to get project"))
-		return
+		return subsystems.PollingPayload{}, errors.Wrap(err, "failed to get project")
 	}
 
 	allFlags, err := project.GetFlagStateWithOverridesForProject(ctx)
 	if err != nil {
-		WriteError(ctx, w, errors.Wrap(err, "failed to get flag state"))
-		return
+		return subsystems.PollingPayload{}, errors.Wrap(err, "failed to get flag state")
 	}
 
 	response, err := buildInitialResponse(projectKey, project.PayloadVersion, allFlags, r.URL.Query().Get("basis"), objects)
+	return response, errors.Wrap(err, "failed to build initial payload")
+}
+
+// serveFdv2Poll answers an FDv2 polling request for the project on the request context.
+// Server-side and client-side polling differ only in how flags are encoded.
+func serveFdv2Poll(w http.ResponseWriter, r *http.Request, objects fdv2ObjectEncoder) {
+	ctx := r.Context()
+
+	response, err := buildRequestInitialResponse(r, objects)
 	if err != nil {
-		WriteError(ctx, w, errors.Wrap(err, "failed to build poll response"))
+		WriteError(ctx, w, err)
 		return
 	}
 
@@ -213,21 +221,9 @@ func serveFdv2Stream(w http.ResponseWriter, r *http.Request, objects fdv2ObjectE
 	ctx := r.Context()
 	projectKey := GetProjectKeyFromContext(ctx)
 
-	project, err := model.StoreFromContext(ctx).GetDevProject(ctx, projectKey)
+	initialPayload, err := buildRequestInitialResponse(r, objects)
 	if err != nil {
-		WriteError(ctx, w, errors.Wrap(err, "failed to get project"))
-		return
-	}
-
-	allFlags, err := project.GetFlagStateWithOverridesForProject(ctx)
-	if err != nil {
-		WriteError(ctx, w, errors.Wrap(err, "failed to get flag state"))
-		return
-	}
-
-	initialPayload, err := buildInitialResponse(projectKey, project.PayloadVersion, allFlags, r.URL.Query().Get("basis"), objects)
-	if err != nil {
-		WriteError(ctx, w, errors.Wrap(err, "failed to build initial payload"))
+		WriteError(ctx, w, err)
 		return
 	}
 
