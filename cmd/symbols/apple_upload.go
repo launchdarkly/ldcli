@@ -47,8 +47,10 @@ func (m appleSymbolMap) label() string {
 // into a .srcbundle and uploaded alongside its map so the UI can show source
 // context around native frames.
 //
-// Every key here is addressed by build UUID, so skipExisting applies to all of
-// them: an unchanged binary keeps its UUID, so a repeat upload sends nothing.
+// With skipExisting, an unchanged binary keeps its UUID, so re-running this sends
+// nothing. Source bundles are exempt (the backend decides): they are keyed by their
+// image's UUID rather than their own contents, so sources that were unreadable on the
+// machine that uploaded first still need to overwrite.
 func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources, skipExisting bool) error {
 	images, err := findDSYMImages(path)
 	if err != nil {
@@ -93,11 +95,7 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources
 		}
 	}
 
-	if skipped > 0 {
-		fmt.Printf("Successfully uploaded all symbols (%d already present)\n", skipped)
-	} else {
-		fmt.Println("Successfully uploaded all symbols")
-	}
+	reportUploadSummary(skipped)
 	return nil
 }
 

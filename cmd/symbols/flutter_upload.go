@@ -79,11 +79,7 @@ func uploadFlutterSymbols(apiKey, projectID, path, appVersion, backendURL string
 		}
 	}
 
-	if skipped > 0 {
-		fmt.Printf("Successfully uploaded all symbols (%d already present)\n", skipped)
-	} else {
-		fmt.Println("Successfully uploaded all symbols")
-	}
+	reportUploadSummary(skipped)
 	return nil
 }
 

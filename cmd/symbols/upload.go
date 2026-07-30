@@ -273,7 +273,10 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// Android sources are packed into one bundle uploaded beside the mapping,
 		// on the same lane, so the errors page can show the code around each
 		// retraced frame. Keyed off the first mapping's lane: a build has one
-		// mapping, and its sources are the app's sources.
+		// mapping, and its sources are the app's sources. Because that key is the
+		// mapping's id and not the bundle's, the bundle is never skipped as already
+		// uploaded (the backend decides) — a source-only change keeps the mapping's
+		// id, and re-running with --include-sources must replace the stale sources.
 		var sourceBundle []byte
 		if symbolType == typeAndroid && viper.GetBool(includeSourcesFlag) {
 			sourceRoot := viper.GetString(sourcePathFlag)
@@ -324,11 +327,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			}
 		}
 
-		if skipped > 0 {
-			fmt.Printf("Successfully uploaded all symbols (%d already present)\n", skipped)
-		} else {
-			fmt.Println("Successfully uploaded all symbols")
-		}
+		reportUploadSummary(skipped)
 		return nil
 	}
 }
@@ -337,6 +336,26 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 // than a URL. The empty string is the signal, which is why asking for it is opt-in.
 func alreadyUploaded(uploadURL string) bool {
 	return uploadURL == ""
+}
+
+// reportUploadSummary closes out an upload, and when anything was skipped says so on
+// stderr as well.
+//
+// Skipping is new behavior, and someone re-uploading to repair a stored object would
+// otherwise read "Successfully uploaded" from a run that sent nothing. The notice is
+// transitional and can come out once a release or two has gone by; the counts stay on
+// stdout so scripts parsing them are unaffected.
+func reportUploadSummary(skipped int) {
+	if skipped == 0 {
+		fmt.Println("Successfully uploaded all symbols")
+		return
+	}
+
+	fmt.Printf("Successfully uploaded all symbols (%d already present)\n", skipped)
+	fmt.Fprintf(os.Stderr,
+		"Note: %d file(s) were skipped because LaunchDarkly already stores them under the same content-derived id. This is new in this release; re-run with --%s to upload them anyway.\n",
+		skipped, noSkipExistingFlag,
+	)
 }
 
 // symbolTypeAliases maps user-friendly synonyms to a canonical --type value.

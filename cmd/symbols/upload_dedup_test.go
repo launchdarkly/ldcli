@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -47,6 +48,43 @@ func TestAlreadyUploaded(t *testing.T) {
 	// The empty string must never be mistaken for a URL to PUT to.
 	assert.True(t, alreadyUploaded(""))
 	assert.False(t, alreadyUploaded("https://example.com/presigned"))
+}
+
+// A run that skipped everything still prints "Successfully uploaded", so the notice
+// is what tells someone re-uploading to repair an object that nothing was sent.
+func TestReportUploadSummaryNotesSkippedFiles(t *testing.T) {
+	stdout, stderr := captureOutput(t, func() { reportUploadSummary(2) })
+	assert.Contains(t, stdout, "(2 already present)")
+	assert.Contains(t, stderr, noSkipExistingFlag, "the notice should name the opt-out")
+
+	stdout, stderr = captureOutput(t, func() { reportUploadSummary(0) })
+	assert.Contains(t, stdout, "Successfully uploaded all symbols")
+	assert.Empty(t, stderr, "nothing was skipped, so there is nothing to warn about")
+}
+
+// captureOutput runs fn with os.Stdout and os.Stderr redirected, returning what each
+// received. Both are small enough here to stay inside the pipe buffer.
+func captureOutput(t *testing.T, fn func()) (string, string) {
+	t.Helper()
+
+	outR, outW, err := os.Pipe()
+	require.NoError(t, err)
+	errR, errW, err := os.Pipe()
+	require.NoError(t, err)
+
+	origOut, origErr := os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = outW, errW
+	fn()
+	os.Stdout, os.Stderr = origOut, origErr
+
+	require.NoError(t, outW.Close())
+	require.NoError(t, errW.Close())
+
+	out, err := io.ReadAll(outR)
+	require.NoError(t, err)
+	errOut, err := io.ReadAll(errR)
+	require.NoError(t, err)
+	return string(out), string(errOut)
 }
 
 func TestGetSymbolUploadUrlsRequestsDedup(t *testing.T) {
