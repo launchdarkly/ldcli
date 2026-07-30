@@ -22,6 +22,10 @@ const appleSymbolsIDPrefix = "_sym/apple/id"
 // in lookup (maps are keyed by UUID); the backend appends the same extension.
 const appleSymbolExt = ".dsymmap"
 
+// kindSources marks an appleSymbolMap that carries packed sources rather than a
+// symbol map.
+const kindSources = "sources"
+
 // appleSymbolMap is one compiled artifact ready to upload: an architecture's
 // .dsymmap symbol map, or (with --include-sources) its .srcbundle sources.
 type appleSymbolMap struct {
@@ -48,9 +52,9 @@ func (m appleSymbolMap) label() string {
 // context around native frames.
 //
 // With skipExisting, an unchanged binary keeps its UUID, so re-running this sends
-// nothing. Source bundles are exempt (the backend decides): they are keyed by their
-// image's UUID rather than their own contents, so sources that were unreadable on the
-// machine that uploaded first still need to overwrite.
+// nothing. Source bundles borrow that UUID rather than being keyed by their own
+// contents — sources unreadable on the machine that uploaded first must still be able
+// to overwrite — so those are skipped only when their digest matches what is stored.
 func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources, skipExisting bool) error {
 	images, err := findDSYMImages(path)
 	if err != nil {
@@ -69,11 +73,17 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources
 	}
 
 	keys := make([]string, len(maps))
+	digests := make([]string, len(maps))
 	for i, m := range maps {
 		keys[i] = m.Key
+		if m.Kind == kindSources {
+			// Sources are keyed by their image's UUID rather than by their own
+			// contents, so only a digest can show that re-sending them is a no-op.
+			digests[i] = contentDigest(m.Data)
+		}
 	}
 
-	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, backendURL, skipExisting)
+	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, digests, backendURL, skipExisting)
 	if err != nil {
 		return fmt.Errorf("failed to get upload URLs: %w", err)
 	}
@@ -150,7 +160,7 @@ func buildAppleMaps(images []string, includeSources bool) ([]appleSymbolMap, err
 				UUID: a.UUID,
 				Arch: arch,
 				Data: srcData,
-				Kind: "sources",
+				Kind: kindSources,
 			})
 			fmt.Printf("Built source bundle for %s (%s, %d files, %d bytes)\n", a.UUID, arch, nFiles, len(srcData))
 		}

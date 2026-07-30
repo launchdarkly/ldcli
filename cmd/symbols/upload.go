@@ -2,6 +2,7 @@ package symbols
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -104,15 +106,16 @@ const (
 	`
 
 	// getSymbolUrlsDedupQuery asks the backend to answer keys it already stores with
-	// an empty string. A separate document because a backend that predates the
-	// argument rejects the whole query, which getSymbolUploadUrls falls back from.
+	// an empty string. A separate document because a backend that predates these
+	// arguments rejects the whole query, which getSymbolUploadUrls falls back from.
 	getSymbolUrlsDedupQuery = `
-	  query GetSymbolUploadUrls($api_key: String!, $project_id: String!, $paths: [String!]!, $skip_existing: Boolean) {
+	  query GetSymbolUploadUrls($api_key: String!, $project_id: String!, $paths: [String!]!, $skip_existing: Boolean, $digests: [String!]) {
 	    get_symbol_upload_urls_ld(
 			api_key: $api_key
 			project_id: $project_id
 			paths: $paths
 			skip_existing: $skip_existing
+			digests: $digests
 		)
 	  }
 	`
@@ -274,9 +277,9 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// on the same lane, so the errors page can show the code around each
 		// retraced frame. Keyed off the first mapping's lane: a build has one
 		// mapping, and its sources are the app's sources. Because that key is the
-		// mapping's id and not the bundle's, the bundle is never skipped as already
-		// uploaded (the backend decides) — a source-only change keeps the mapping's
-		// id, and re-running with --include-sources must replace the stale sources.
+		// mapping's id and not the bundle's, an object being there says nothing
+		// about these sources — a source-only change keeps the mapping's id — so the
+		// bundle is skipped only when its digest matches what is already stored.
 		var sourceBundle []byte
 		if symbolType == typeAndroid && viper.GetBool(includeSourcesFlag) {
 			sourceRoot := viper.GetString(sourcePathFlag)
@@ -295,7 +298,15 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			}
 		}
 
-		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl, skipExisting)
+		// Only the source bundle needs a digest: every other key here is derived from
+		// the artifact's own content, so the backend settles those by existence alone
+		// and we never have to read a large mapping back off disk to hash it.
+		digests := make([]string, len(s3Keys))
+		if sourceBundle != nil {
+			digests[len(s3Keys)-1] = contentDigest(sourceBundle)
+		}
+
+		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, digests, backendUrl, skipExisting)
 		if err != nil {
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
@@ -541,25 +552,44 @@ func readSymbolsIDFile(filePath string) string {
 
 // getSymbolUploadUrls returns one upload URL per requested key, in order.
 //
-// With skipExisting, a key the backend already stores comes back empty and callers
-// must skip it; only content-addressed symbols-id keys are answered that way, so a
-// Version Lane key still gets a URL and still overwrites.
+// With skipExisting, a key whose bytes the backend already stores comes back empty
+// and callers must skip it. digests is parallel to paths and may be nil or hold ""
+// for a key the caller has no digest for; it is what lets the backend settle a key
+// that isn't derived from its own contents, since there existence proves nothing.
 //
-// A backend that predates the argument rejects the query, so this retries once
-// without it, keeping an updated CLI working against an older deployment.
-func getSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl string, skipExisting bool) ([]string, error) {
-	urls, err := requestSymbolUploadUrls(apiKey, projectID, paths, backendUrl, skipExisting)
-	if err != nil && skipExisting && strings.Contains(err.Error(), skipExistingArgument) {
-		return requestSymbolUploadUrls(apiKey, projectID, paths, backendUrl, false)
+// A backend that predates these arguments rejects the query, so this retries once
+// without them, keeping an updated CLI working against an older deployment.
+func getSymbolUploadUrls(apiKey, projectID string, paths, digests []string, backendUrl string, skipExisting bool) ([]string, error) {
+	urls, err := requestSymbolUploadUrls(apiKey, projectID, paths, digests, backendUrl, skipExisting)
+	if err != nil && skipExisting && mentionsDedupArgument(err) {
+		return requestSymbolUploadUrls(apiKey, projectID, paths, nil, backendUrl, false)
 	}
 	return urls, err
 }
 
-// skipExistingArgument names the query argument, in both the request and the
-// validation error a backend without it returns.
-const skipExistingArgument = "skip_existing"
+// The dedup arguments, named in both the request and the validation error a backend
+// without them returns.
+const (
+	skipExistingArgument = "skip_existing"
+	digestsArgument      = "digests"
+)
 
-func requestSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl string, skipExisting bool) ([]string, error) {
+// mentionsDedupArgument reports whether err is a backend rejecting an argument it
+// doesn't know. Either name means the deployment predates dedup, since both arrived
+// together; validation names whichever it reached.
+func mentionsDedupArgument(err error) bool {
+	return strings.Contains(err.Error(), skipExistingArgument) ||
+		strings.Contains(err.Error(), digestsArgument)
+}
+
+// contentDigest is the hex MD5 of bytes about to be uploaded, which is what S3
+// reports as the ETag of an object stored in one part. Sending it lets the backend
+// prove that what it already stores under a key is exactly these bytes.
+func contentDigest(data []byte) string {
+	return fmt.Sprintf("%x", md5.Sum(data))
+}
+
+func requestSymbolUploadUrls(apiKey, projectID string, paths, digests []string, backendUrl string, skipExisting bool) ([]string, error) {
 	variables := map[string]interface{}{
 		"api_key":    apiKey,
 		"project_id": projectID,
@@ -569,6 +599,11 @@ func requestSymbolUploadUrls(apiKey, projectID string, paths []string, backendUr
 	if skipExisting {
 		query = getSymbolUrlsDedupQuery
 		variables[skipExistingArgument] = true
+		// The backend wants one digest per path or none, so an all-empty slice is
+		// left off entirely rather than sent as padding.
+		if slices.ContainsFunc(digests, func(d string) bool { return d != "" }) {
+			variables[digestsArgument] = digests
+		}
 	}
 
 	reqBody, err := json.Marshal(map[string]interface{}{

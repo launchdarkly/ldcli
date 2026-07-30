@@ -2,6 +2,7 @@ package symbols
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -90,7 +91,7 @@ func captureOutput(t *testing.T, fn func()) (string, string) {
 func TestGetSymbolUploadUrlsRequestsDedup(t *testing.T) {
 	srv, got := dedupTestServer(t, `{"data":{"get_symbol_upload_urls_ld":["","https://u/2"]}}`)
 
-	urls, err := getSymbolUploadUrls("key", "proj", []string{"a", "b"}, srv.URL, true)
+	urls, err := getSymbolUploadUrls("key", "proj", []string{"a", "b"}, nil, srv.URL, true)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"", "https://u/2"}, urls)
 
@@ -98,12 +99,40 @@ func TestGetSymbolUploadUrlsRequestsDedup(t *testing.T) {
 	req := (*got)[0]
 	assert.Contains(t, req.Query, skipExistingArgument, "the dedup document should be sent")
 	assert.Equal(t, true, req.Variables[skipExistingArgument])
+	assert.NotContains(t, req.Variables, digestsArgument, "no key needed a digest")
+}
+
+// A digest is what lets the backend settle a key that isn't derived from its own
+// contents, so it has to arrive aligned with the paths it describes.
+func TestGetSymbolUploadUrlsSendsDigests(t *testing.T) {
+	srv, got := dedupTestServer(t, `{"data":{"get_symbol_upload_urls_ld":["https://u/1",""]}}`)
+
+	digest := contentDigest([]byte("sources"))
+	_, err := getSymbolUploadUrls("key", "proj", []string{"mapping.txt", "sources.srcbundle"}, []string{"", digest}, srv.URL, true)
+	require.NoError(t, err)
+
+	require.Len(t, *got, 1)
+	req := (*got)[0]
+	assert.Contains(t, req.Query, digestsArgument)
+	assert.Equal(t, []interface{}{"", digest}, req.Variables[digestsArgument])
+}
+
+// An all-empty slice is padding, and the backend takes either one digest per path or
+// none at all, so it is left off rather than sent.
+func TestGetSymbolUploadUrlsOmitsEmptyDigests(t *testing.T) {
+	srv, got := dedupTestServer(t, `{"data":{"get_symbol_upload_urls_ld":["https://u/1"]}}`)
+
+	_, err := getSymbolUploadUrls("key", "proj", []string{"a"}, []string{""}, srv.URL, true)
+	require.NoError(t, err)
+
+	require.Len(t, *got, 1)
+	assert.NotContains(t, (*got)[0].Variables, digestsArgument)
 }
 
 func TestGetSymbolUploadUrlsOmitsDedupWhenDisabled(t *testing.T) {
 	srv, got := dedupTestServer(t, `{"data":{"get_symbol_upload_urls_ld":["https://u/1"]}}`)
 
-	urls, err := getSymbolUploadUrls("key", "proj", []string{"a"}, srv.URL, false)
+	urls, err := getSymbolUploadUrls("key", "proj", []string{"a"}, []string{contentDigest([]byte("a"))}, srv.URL, false)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"https://u/1"}, urls)
 
@@ -111,23 +140,30 @@ func TestGetSymbolUploadUrlsOmitsDedupWhenDisabled(t *testing.T) {
 	req := (*got)[0]
 	assert.NotContains(t, req.Query, skipExistingArgument, "--no-skip-existing must not ask for dedup")
 	assert.NotContains(t, req.Variables, skipExistingArgument)
+	assert.NotContains(t, req.Variables, digestsArgument)
 }
 
-// A backend that predates the argument rejects the whole query, and an updated CLI
-// must still work against it by re-asking without dedup.
+// A backend that predates the arguments rejects the whole query, and an updated CLI
+// must still work against it by re-asking without dedup. Validation names whichever
+// argument it reached, so either one has to trigger the retry.
 func TestGetSymbolUploadUrlsFallsBackWhenArgumentUnknown(t *testing.T) {
-	srv, got := dedupTestServer(t,
-		`{"errors":[{"message":"Unknown argument \"skip_existing\" on field \"Query.get_symbol_upload_urls_ld\"."}]}`,
-		`{"data":{"get_symbol_upload_urls_ld":["https://u/1"]}}`,
-	)
+	for _, unknown := range []string{skipExistingArgument, digestsArgument} {
+		t.Run(unknown, func(t *testing.T) {
+			srv, got := dedupTestServer(t,
+				fmt.Sprintf(`{"errors":[{"message":"Unknown argument \"%s\" on field \"Query.get_symbol_upload_urls_ld\"."}]}`, unknown),
+				`{"data":{"get_symbol_upload_urls_ld":["https://u/1"]}}`,
+			)
 
-	urls, err := getSymbolUploadUrls("key", "proj", []string{"a"}, srv.URL, true)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"https://u/1"}, urls)
+			urls, err := getSymbolUploadUrls("key", "proj", []string{"a"}, []string{contentDigest([]byte("a"))}, srv.URL, true)
+			require.NoError(t, err)
+			assert.Equal(t, []string{"https://u/1"}, urls)
 
-	require.Len(t, *got, 2, "expected one rejected attempt and one retry")
-	assert.Contains(t, (*got)[0].Query, skipExistingArgument)
-	assert.NotContains(t, (*got)[1].Query, skipExistingArgument, "the retry must drop the argument")
+			require.Len(t, *got, 2, "expected one rejected attempt and one retry")
+			assert.Contains(t, (*got)[0].Query, skipExistingArgument)
+			assert.NotContains(t, (*got)[1].Query, skipExistingArgument, "the retry must drop the arguments")
+			assert.NotContains(t, (*got)[1].Variables, digestsArgument)
+		})
+	}
 }
 
 // Only the unknown-argument case is retried, so a credential or project error still
@@ -135,8 +171,15 @@ func TestGetSymbolUploadUrlsFallsBackWhenArgumentUnknown(t *testing.T) {
 func TestGetSymbolUploadUrlsDoesNotRetryOtherErrors(t *testing.T) {
 	srv, got := dedupTestServer(t, `{"errors":[{"message":"error querying project"}]}`)
 
-	_, err := getSymbolUploadUrls("key", "proj", []string{"a"}, srv.URL, true)
+	_, err := getSymbolUploadUrls("key", "proj", []string{"a"}, nil, srv.URL, true)
 	require.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "error querying project"))
 	assert.Len(t, *got, 1, "a non-argument error must not trigger a retry")
+}
+
+// The digest has to be the one S3 reports as a one-part object's ETag, or the backend
+// can never match it against what it stores.
+func TestContentDigestMatchesS3ETagForm(t *testing.T) {
+	assert.Equal(t, "d41d8cd98f00b204e9800998ecf8427e", contentDigest(nil))
+	assert.Equal(t, "5d41402abc4b2a76b9719d911017c592", contentDigest([]byte("hello")))
 }

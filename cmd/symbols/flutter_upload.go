@@ -58,7 +58,9 @@ func uploadFlutterSymbols(apiKey, projectID, path, appVersion, backendURL string
 		keys[i] = u.Key
 	}
 
-	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, backendURL, skipExisting)
+	// No digests: every key here is either the dartmap's own build id or a Version
+	// Lane copy, which the backend re-presigns so it can overwrite.
+	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, nil, backendURL, skipExisting)
 	if err != nil {
 		return fmt.Errorf("failed to get upload URLs: %w", err)
 	}
