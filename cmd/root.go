@@ -278,7 +278,12 @@ func NewRootCommand(
 	}
 	cmd.AddCommand(setupcmd.NewSetupCmd(
 		analyticsTrackerFn,
-		clients.ResourcesClient,
+		setup.Clients{
+			Projects:     clients.ProjectsClient,
+			Environments: clients.EnvironmentsClient,
+			Flags:        clients.FlagsClient,
+			Resources:    clients.ResourcesClient,
+		},
 		detector,
 		installer,
 	))

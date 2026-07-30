@@ -9,19 +9,18 @@ import (
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/analytics"
-	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
 // NewSetupCmd creates the top-level setup command and registers its hidden subcommands.
 func NewSetupCmd(
 	analyticsTrackerFn analytics.TrackerFn,
-	resourcesClient resources.Client,
+	clients setup.Clients,
 	detector setup.Detector,
 	installer setup.Installer,
 ) *cobra.Command {
 	svc := setup.Service{
-		Client:      resourcesClient,
+		Clients:     clients,
 		Detector:    detector,
 		Installer:   installer,
 		Initializer: setup.Initializer{},

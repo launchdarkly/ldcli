@@ -7,7 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/launchdarkly/ldcli/internal/environments"
 	"github.com/launchdarkly/ldcli/internal/errors"
+	"github.com/launchdarkly/ldcli/internal/flags"
+	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
@@ -32,9 +35,10 @@ func (f fakeInstaller) Install(string, *DetectResult) (*InstallResult, error) {
 }
 
 func TestService_ListProjects(t *testing.T) {
-	svc := Service{Client: &resources.MockClient{
-		Response: []byte(`{"items":[{"key":"p1","name":"Project One"},{"key":"p2","name":"Project Two"}]}`),
-	}}
+	mockProjects := &projects.MockClient{}
+	mockProjects.On("List", testAuth.AccessToken, testAuth.BaseURI).
+		Return([]byte(`{"items":[{"key":"p1","name":"Project One"},{"key":"p2","name":"Project Two"}]}`), nil)
+	svc := Service{Clients: Clients{Projects: mockProjects}}
 
 	got, err := svc.ListProjects(testAuth)
 
@@ -43,9 +47,10 @@ func TestService_ListProjects(t *testing.T) {
 }
 
 func TestService_ListEnvironments(t *testing.T) {
-	svc := Service{Client: &resources.MockClient{
-		Response: []byte(`{"items":[{"key":"production","name":"Production"}]}`),
-	}}
+	mockEnvs := &environments.MockClient{}
+	mockEnvs.On("List", testAuth.AccessToken, testAuth.BaseURI, "p1").
+		Return([]byte(`{"items":[{"key":"production","name":"Production"}]}`), nil)
+	svc := Service{Clients: Clients{Environments: mockEnvs}}
 
 	got, err := svc.ListEnvironments(testAuth, "p1")
 
@@ -54,9 +59,10 @@ func TestService_ListEnvironments(t *testing.T) {
 }
 
 func TestService_EnvKeys(t *testing.T) {
-	svc := Service{Client: &resources.MockClient{
-		Response: []byte(`{"apiKey":"sdk-123","_id":"client-456","mobileKey":"mob-789"}`),
-	}}
+	mockEnvs := &environments.MockClient{}
+	mockEnvs.On("Get", testAuth.AccessToken, testAuth.BaseURI, "production", "p1").
+		Return([]byte(`{"apiKey":"sdk-123","_id":"client-456","mobileKey":"mob-789"}`), nil)
+	svc := Service{Clients: Clients{Environments: mockEnvs}}
 
 	got, err := svc.EnvKeys(testAuth, "p1", "production")
 
@@ -65,7 +71,10 @@ func TestService_EnvKeys(t *testing.T) {
 }
 
 func TestService_CreateFlag_Success(t *testing.T) {
-	svc := Service{Client: &resources.MockClient{Response: []byte(`{"key":"my-new-flag"}`)}}
+	mockFlags := &flags.MockClient{}
+	mockFlags.On("Create", testAuth.AccessToken, testAuth.BaseURI, "My New Flag", "my-new-flag", "p1").
+		Return([]byte(`{"key":"my-new-flag"}`), nil)
+	svc := Service{Clients: Clients{Flags: mockFlags}}
 
 	key, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag")
 
@@ -74,10 +83,10 @@ func TestService_CreateFlag_Success(t *testing.T) {
 }
 
 func TestService_CreateFlag_ConflictIsSuccess(t *testing.T) {
-	svc := Service{Client: &resources.MockClient{
-		StatusCode: 409,
-		Err:        errors.NewError(`{"code":"conflict","message":"already exists"}`),
-	}}
+	mockFlags := &flags.MockClient{}
+	mockFlags.On("Create", testAuth.AccessToken, testAuth.BaseURI, "My New Flag", "my-new-flag", "p1").
+		Return([]byte(nil), errors.NewError(`{"code":"conflict","message":"already exists"}`))
+	svc := Service{Clients: Clients{Flags: mockFlags}}
 
 	key, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag")
 
@@ -86,10 +95,10 @@ func TestService_CreateFlag_ConflictIsSuccess(t *testing.T) {
 }
 
 func TestService_CreateFlag_OtherErrorPropagates(t *testing.T) {
-	svc := Service{Client: &resources.MockClient{
-		StatusCode: 500,
-		Err:        errors.NewError(`{"code":"internal_error"}`),
-	}}
+	mockFlags := &flags.MockClient{}
+	mockFlags.On("Create", testAuth.AccessToken, testAuth.BaseURI, "My New Flag", "my-new-flag", "p1").
+		Return([]byte(nil), errors.NewError(`{"code":"internal_error"}`))
+	svc := Service{Clients: Clients{Flags: mockFlags}}
 
 	_, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag")
 
@@ -138,7 +147,7 @@ func TestService_Inject(t *testing.T) {
 }
 
 func TestService_Verify_Active(t *testing.T) {
-	svc := Service{Client: &resources.MockClient{Response: []byte(`{"active":true}`)}}
+	svc := Service{Clients: Clients{Resources: &resources.MockClient{Response: []byte(`{"active":true}`)}}}
 
 	result, err := svc.Verify(testAuth, "p1", "production")
 

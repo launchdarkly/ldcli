@@ -1,10 +1,13 @@
 package setup
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 
+	"github.com/launchdarkly/ldcli/internal/environments"
+	"github.com/launchdarkly/ldcli/internal/flags"
+	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
@@ -14,11 +17,21 @@ type Auth struct {
 	BaseURI     string
 }
 
+// Clients groups the LaunchDarkly API clients the service depends on. Projects,
+// Environments, and Flags use the shared typed clients; Resources backs Verify,
+// whose sdk-active endpoint has no typed-client wrapper.
+type Clients struct {
+	Projects     projects.Client
+	Environments environments.Client
+	Flags        flags.Client
+	Resources    resources.Client
+}
+
 // Service orchestrates the setup steps over the LaunchDarkly API and the local
 // project. It holds no UI or CLI state; callers resolve credentials into Auth
 // and pass them in.
 type Service struct {
-	Client      resources.Client
+	Clients     Clients
 	Detector    Detector
 	Installer   Installer
 	Initializer Initializer
@@ -45,8 +58,7 @@ type EnvKeys struct {
 
 // ListProjects returns the account's projects.
 func (s Service) ListProjects(a Auth) ([]ProjectSummary, error) {
-	path, _ := url.JoinPath(a.BaseURI, "api/v2/projects")
-	res, err := s.Client.MakeRequest(a.AccessToken, "GET", path, "application/json", nil, nil, false)
+	res, err := s.Clients.Projects.List(context.Background(), a.AccessToken, a.BaseURI)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +82,7 @@ func (s Service) ListProjects(a Auth) ([]ProjectSummary, error) {
 
 // ListEnvironments returns the environments in a project.
 func (s Service) ListEnvironments(a Auth, projectKey string) ([]EnvSummary, error) {
-	path, _ := url.JoinPath(a.BaseURI, "api/v2/projects", projectKey, "environments")
-	res, err := s.Client.MakeRequest(a.AccessToken, "GET", path, "application/json", nil, nil, false)
+	res, err := s.Clients.Environments.List(context.Background(), a.AccessToken, a.BaseURI, projectKey)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +106,7 @@ func (s Service) ListEnvironments(a Auth, projectKey string) ([]EnvSummary, erro
 
 // EnvKeys returns the SDK credentials for an environment.
 func (s Service) EnvKeys(a Auth, projectKey, envKey string) (EnvKeys, error) {
-	path, _ := url.JoinPath(a.BaseURI, "api/v2/projects", projectKey, "environments", envKey)
-	res, err := s.Client.MakeRequest(a.AccessToken, "GET", path, "application/json", nil, nil, false)
+	res, err := s.Clients.Environments.Get(context.Background(), a.AccessToken, a.BaseURI, envKey, projectKey)
 	if err != nil {
 		return EnvKeys{}, err
 	}
@@ -132,13 +142,7 @@ func (s Service) Install(dir string, detection *DetectResult) (*InstallResult, e
 // CreateFlag creates a feature flag, treating an existing flag (conflict) as
 // success and returning its key.
 func (s Service) CreateFlag(a Auth, projectKey, key, name string) (string, error) {
-	path, _ := url.JoinPath(a.BaseURI, "api/v2/flags", projectKey)
-	body, err := json.Marshal(map[string]string{"key": key, "name": name})
-	if err != nil {
-		return "", err
-	}
-
-	_, err = s.Client.MakeRequest(a.AccessToken, "POST", path, "application/json", nil, body, false)
+	_, err := s.Clients.Flags.Create(context.Background(), a.AccessToken, a.BaseURI, name, key, projectKey)
 	if err != nil {
 		if je, parseErr := parseJSONError(err); parseErr == nil && je.Code == "conflict" {
 			return key, nil
@@ -155,7 +159,7 @@ func (s Service) Inject(sdkID, filePath string, cfg InitConfig) (*InitResult, er
 
 // Verify polls until the SDK reports as active or a timeout is reached.
 func (s Service) Verify(a Auth, projectKey, envKey string) (*VerifyResult, error) {
-	return DefaultVerifier(s.Client).Verify(a.AccessToken, a.BaseURI, projectKey, envKey)
+	return DefaultVerifier(s.Clients.Resources).Verify(a.AccessToken, a.BaseURI, projectKey, envKey)
 }
 
 type jsonError struct {
