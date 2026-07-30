@@ -39,6 +39,11 @@ const (
 	// scanned from --source-path, since an R8 mapping records no paths).
 	includeSourcesFlag = "include-sources"
 
+	// noSkipExistingFlag forces a re-upload of symbols LaunchDarkly already has.
+	// Dedup is on by default and only applies to symbols-id (content addressed)
+	// keys, so this is for repairing a corrupt stored object, not normal use.
+	noSkipExistingFlag = "no-skip-existing"
+
 	// sourcePathFlag is the directory scanned for .java/.kt sources when
 	// --include-sources is used with --type android. It defaults to the current
 	// directory because --path points at the mapping.txt output dir, which holds
@@ -94,6 +99,20 @@ const (
 			api_key: $api_key
 			project_id: $project_id
 			paths: $paths
+		)
+	  }
+	`
+
+	// getSymbolUrlsDedupQuery asks the backend to answer keys it already stores with
+	// an empty string. A separate document because a backend that predates the
+	// argument rejects the whole query, which getSymbolUploadUrls falls back from.
+	getSymbolUrlsDedupQuery = `
+	  query GetSymbolUploadUrls($api_key: String!, $project_id: String!, $paths: [String!]!, $skip_existing: Boolean) {
+	    get_symbol_upload_urls_ld(
+			api_key: $api_key
+			project_id: $project_id
+			paths: $paths
+			skip_existing: $skip_existing
 		)
 	  }
 	`
@@ -191,6 +210,8 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		path := viper.GetString(pathFlag)
 		basePath := viper.GetString(basePathFlag)
 		backendUrl := viper.GetString(backendUrlFlag)
+		// Dedup is the default; --no-skip-existing forces every byte to be resent.
+		skipExisting := !viper.GetBool(noSkipExistingFlag)
 
 		if backendUrl == "" {
 			backendUrl = defaultBackendUrl
@@ -200,7 +221,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// symbol maps keyed by build UUID, ignoring the version/symbols-id lanes.
 		if symbolType == typeAppleDSYM {
 			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
-			return uploadAppleDSYMs(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, backendUrl, viper.GetBool(includeSourcesFlag))
+			return uploadAppleDSYMs(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, backendUrl, viper.GetBool(includeSourcesFlag), skipExisting)
 		}
 
 		// Flutter/Dart symbols take a dedicated path too: each app.<platform>.symbols
@@ -208,7 +229,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// Version-lane copy when --app-version is set.
 		if symbolType == typeFlutter {
 			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
-			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl)
+			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl, skipExisting)
 		}
 
 		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
@@ -271,7 +292,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			}
 		}
 
-		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl)
+		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl, skipExisting)
 		if err != nil {
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
@@ -282,21 +303,40 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("expected %d upload URLs but received %d", len(s3Keys), len(uploadUrls))
 		}
 
+		skipped := 0
 		for i, file := range files {
+			if alreadyUploaded(uploadUrls[i]) {
+				fmt.Printf("Skipping %s, already uploaded\n", file.Name)
+				skipped++
+				continue
+			}
 			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
 				return fmt.Errorf("failed to upload file %s: %w", file.Path, err)
 			}
 		}
 		if sourceBundle != nil {
 			// The bundle's key was appended last, so it takes the final URL.
-			if err := uploadBytes(sourceBundle, uploadUrls[len(files)], androidSourceBundleName); err != nil {
+			if alreadyUploaded(uploadUrls[len(files)]) {
+				fmt.Printf("Skipping %s, already uploaded\n", androidSourceBundleName)
+				skipped++
+			} else if err := uploadBytes(sourceBundle, uploadUrls[len(files)], androidSourceBundleName); err != nil {
 				return fmt.Errorf("failed to upload source bundle: %w", err)
 			}
 		}
 
-		fmt.Println("Successfully uploaded all symbols")
+		if skipped > 0 {
+			fmt.Printf("Successfully uploaded all symbols (%d already present)\n", skipped)
+		} else {
+			fmt.Println("Successfully uploaded all symbols")
+		}
 		return nil
 	}
+}
+
+// alreadyUploaded reports whether the backend answered a key with "skip" rather
+// than a URL. The empty string is the signal, which is why asking for it is opt-in.
+func alreadyUploaded(uploadURL string) bool {
+	return uploadURL == ""
 }
 
 // symbolTypeAliases maps user-friendly synonyms to a canonical --type value.
@@ -480,15 +520,40 @@ func readSymbolsIDFile(filePath string) string {
 	return strings.TrimSpace(string(content))
 }
 
-func getSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl string) ([]string, error) {
+// getSymbolUploadUrls returns one upload URL per requested key, in order.
+//
+// With skipExisting, a key the backend already stores comes back empty and callers
+// must skip it; only content-addressed symbols-id keys are answered that way, so a
+// Version Lane key still gets a URL and still overwrites.
+//
+// A backend that predates the argument rejects the query, so this retries once
+// without it, keeping an updated CLI working against an older deployment.
+func getSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl string, skipExisting bool) ([]string, error) {
+	urls, err := requestSymbolUploadUrls(apiKey, projectID, paths, backendUrl, skipExisting)
+	if err != nil && skipExisting && strings.Contains(err.Error(), skipExistingArgument) {
+		return requestSymbolUploadUrls(apiKey, projectID, paths, backendUrl, false)
+	}
+	return urls, err
+}
+
+// skipExistingArgument names the query argument, in both the request and the
+// validation error a backend without it returns.
+const skipExistingArgument = "skip_existing"
+
+func requestSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl string, skipExisting bool) ([]string, error) {
 	variables := map[string]interface{}{
 		"api_key":    apiKey,
 		"project_id": projectID,
 		"paths":      paths,
 	}
+	query := getSymbolUrlsQuery
+	if skipExisting {
+		query = getSymbolUrlsDedupQuery
+		variables[skipExistingArgument] = true
+	}
 
 	reqBody, err := json.Marshal(map[string]interface{}{
-		"query":     getSymbolUrlsQuery,
+		"query":     query,
 		"variables": variables,
 	})
 	if err != nil {
@@ -588,6 +653,9 @@ func initFlags(cmd *cobra.Command) {
 
 	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also upload your source files so the errors page can show source context around native frames (%s and %s). Your source is stored in LaunchDarkly", typeAppleDSYM, typeAndroid))
 	_ = viper.BindPFlag(includeSourcesFlag, cmd.Flags().Lookup(includeSourcesFlag))
+
+	cmd.Flags().Bool(noSkipExistingFlag, false, "Re-upload symbols even when LaunchDarkly already has them. By default a symbols-id file that is already stored is skipped, since its id is derived from its contents")
+	_ = viper.BindPFlag(noSkipExistingFlag, cmd.Flags().Lookup(noSkipExistingFlag))
 
 	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to scan for .java/.kt sources when using --%s with --type %s", includeSourcesFlag, typeAndroid))
 	_ = viper.BindPFlag(sourcePathFlag, cmd.Flags().Lookup(sourcePathFlag))

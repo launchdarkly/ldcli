@@ -46,7 +46,10 @@ func (m appleSymbolMap) label() string {
 // When includeSources is set, each image's referenced source files are packed
 // into a .srcbundle and uploaded alongside its map so the UI can show source
 // context around native frames.
-func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources bool) error {
+//
+// Every key here is addressed by build UUID, so skipExisting applies to all of
+// them: an unchanged binary keeps its UUID, so a repeat upload sends nothing.
+func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources, skipExisting bool) error {
 	images, err := findDSYMImages(path)
 	if err != nil {
 		return fmt.Errorf("failed to find dSYM files: %w", err)
@@ -68,7 +71,7 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources
 		keys[i] = m.Key
 	}
 
-	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, backendURL)
+	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, backendURL, skipExisting)
 	if err != nil {
 		return fmt.Errorf("failed to get upload URLs: %w", err)
 	}
@@ -78,13 +81,23 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources
 		return fmt.Errorf("expected %d upload URLs but received %d", len(maps), len(uploadURLs))
 	}
 
+	skipped := 0
 	for i, m := range maps {
+		if alreadyUploaded(uploadURLs[i]) {
+			fmt.Printf("Skipping %s, already uploaded\n", m.label())
+			skipped++
+			continue
+		}
 		if err := uploadBytes(m.Data, uploadURLs[i], m.label()); err != nil {
 			return fmt.Errorf("failed to upload symbol map for %s: %w", m.UUID, err)
 		}
 	}
 
-	fmt.Println("Successfully uploaded all symbols")
+	if skipped > 0 {
+		fmt.Printf("Successfully uploaded all symbols (%d already present)\n", skipped)
+	} else {
+		fmt.Println("Successfully uploaded all symbols")
+	}
 	return nil
 }
 
