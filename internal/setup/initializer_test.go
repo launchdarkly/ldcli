@@ -60,14 +60,16 @@ func TestRenderTemplateUnknownSDK_KnownDocsPath(t *testing.T) {
 func TestHasTemplate(t *testing.T) {
 	assert.True(t, HasTemplate("node-server"))
 	assert.True(t, HasTemplate("react-client-sdk"))
+	// The detector emits "android"; "android-client-sdk" stays as an alias so any
+	// caller still passing the old ID keeps working.
+	assert.True(t, HasTemplate("android"))
 	assert.True(t, HasTemplate("android-client-sdk"))
-	assert.False(t, HasTemplate("android"))
 	assert.False(t, HasTemplate("nonexistent-sdk"))
 }
 
 func TestSupportedSDKIDs(t *testing.T) {
 	ids := SupportedSDKIDs()
-	assert.Len(t, ids, 11)
+	assert.Len(t, ids, 12)
 	assert.Contains(t, ids, "node-server")
 	assert.Contains(t, ids, "react-client-sdk")
 	assert.Contains(t, ids, "go-server-sdk")
