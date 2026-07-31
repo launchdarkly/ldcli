@@ -235,12 +235,15 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl, skipExisting)
 		}
 
-		// An Android project already knows where R8 put the mapping and what version
-		// it shipped, so read both out of the build instead of asking for them.
+		// An Android project already knows where R8 put the mapping, what version it
+		// shipped, and which symbols id the app reports, so read all three out of
+		// the build instead of asking for them.
 		if symbolType == typeAndroid {
-			if path, appVersion, err = resolveAndroidBuild(path, appVersion); err != nil {
-				return err
+			resolved, aErr := resolveAndroidBuild(androidUpload{Path: path, AppVersion: appVersion, SymbolsID: symbolsID})
+			if aErr != nil {
+				return aErr
 			}
+			path, appVersion, symbolsID = resolved.Path, resolved.AppVersion, resolved.SymbolsID
 		}
 
 		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
@@ -714,7 +717,7 @@ func initFlags(cmd *cobra.Command) {
 	cmd.Flags().String(appVersionFlag, "", fmt.Sprintf("The current version of your deploy. With --type %s this is read from the packaged build when omitted", typeAndroid))
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
 
-	cmd.Flags().String(symbolsIdFlag, "", "The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present")
+	cmd.Flags().String(symbolsIdFlag, "", fmt.Sprintf("The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present, and with --type %s the id the packaged app reports", typeAndroid))
 	_ = viper.BindPFlag(symbolsIdFlag, cmd.Flags().Lookup(symbolsIdFlag))
 
 	cmd.Flags().String(pathFlag, defaultPath, fmt.Sprintf("Sets the directory of where the symbol files are. With --type %s, run from your project root and the R8 mapping is found for you", typeAndroid))

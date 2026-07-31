@@ -35,31 +35,44 @@ const (
 	androidMappingGlob3 = "*/*/build/outputs/mapping/*/" + androidMappingFileName
 )
 
+// androidUpload is what an Android upload has to know about a build: which
+// mapping to send, and how symbolication will look it up again.
+type androidUpload struct {
+	Path       string
+	AppVersion string
+	SymbolsID  string
+}
+
 // resolveAndroidBuild fills in from the build itself whatever the command line
-// left out: the mapping to upload, and the version to key it by. Both are
-// returned unchanged when path is not an AGP output tree, or when the caller
-// already said which mapping and version it means.
-func resolveAndroidBuild(path, appVersion string) (string, string, error) {
-	info, err := os.Stat(path)
+// left out. Everything is returned unchanged when the path is not an AGP output
+// tree, or when the caller already said what it means.
+func resolveAndroidBuild(upload androidUpload) (androidUpload, error) {
+	info, err := os.Stat(upload.Path)
 	if err != nil || !info.IsDir() {
 		// A path naming one file is already an answer; a path naming nothing is
 		// reported by the ordinary search, whose error says what was looked for.
-		return path, appVersion, nil
+		return upload, nil
 	}
 
-	build, err := discoverAndroidBuild(path)
+	build, err := discoverAndroidBuild(upload.Path)
 	if err != nil || build == nil {
-		return path, appVersion, err
+		return upload, err
 	}
+	upload.Path = build.MappingPath
 
 	fmt.Printf("Found the %s mapping at %s\n", build.Variant, build.MappingPath)
-	if appVersion == "" {
+	if upload.AppVersion == "" {
 		if version := build.AppVersion(); version != "" {
-			appVersion = version
+			upload.AppVersion = version
 			fmt.Printf("Using app version %s, as packaged for %s\n", version, build.Variant)
 		}
 	}
-	return build.MappingPath, appVersion, nil
+	if upload.SymbolsID == "" {
+		// Read from the app that ships rather than derived here, so the id keyed on
+		// is the id reported. See android_symbolsid.go.
+		upload.SymbolsID = build.SymbolsID()
+	}
+	return upload, nil
 }
 
 // androidBuild is one obfuscated variant found in an AGP output tree.
@@ -144,40 +157,28 @@ func findAndroidBuilds(root string) ([]*androidBuild, error) {
 // it as the observability service version; a build that leaves that at its default
 // reports the SDK's version instead, and needs a symbols id to be symbolicated.
 func (b *androidBuild) AppVersion() string {
-	for _, metadataPath := range b.outputMetadataPaths() {
-		content, err := os.ReadFile(metadataPath)
-		if err != nil {
-			continue
-		}
-		var metadata struct {
-			VariantName string `json:"variantName"`
-			Elements    []struct {
-				VersionName string `json:"versionName"`
-			} `json:"elements"`
-		}
-		if err := json.Unmarshal(content, &metadata); err != nil {
-			continue
-		}
-		// A module builds many variants into one outputs tree, so the metadata has
-		// to name this one: taking another variant's version would key the upload
-		// to a build these symbols do not describe.
-		if metadata.VariantName != b.Variant {
-			continue
-		}
-		for _, element := range metadata.Elements {
-			if element.VersionName != "" {
-				return element.VersionName
-			}
+	for _, app := range b.packagedApps() {
+		if app.VersionName != "" {
+			return app.VersionName
 		}
 	}
 	return ""
 }
 
-// outputMetadataPaths are where AGP writes packaging metadata, which is under the
-// APK's flavor/buildType directories rather than the variant directory the mapping
-// uses — hence the wildcards, with the variant identified by the file's contents.
-func (b *androidBuild) outputMetadataPaths() []string {
-	var paths []string
+// androidPackagedApp is an APK or AAB AGP built for the variant, named by the
+// output metadata written beside it.
+type androidPackagedApp struct {
+	Path        string
+	VersionName string
+}
+
+// packagedApps reads AGP's packaging metadata for this variant. The metadata is
+// written under the APK's flavor/buildType directories rather than the variant
+// directory the mapping uses — hence the wildcards, with the variant identified
+// by each file's contents. A module builds every variant into one outputs tree,
+// so reading another's would describe a different app.
+func (b *androidBuild) packagedApps() []androidPackagedApp {
+	var metadataPaths []string
 	for _, glob := range []string{
 		filepath.Join("outputs", "apk", "*", "*", androidOutputMetadataName),
 		filepath.Join("outputs", "apk", "*", androidOutputMetadataName),
@@ -187,8 +188,34 @@ func (b *androidBuild) outputMetadataPaths() []string {
 		if err != nil {
 			continue
 		}
-		paths = append(paths, found...)
+		metadataPaths = append(metadataPaths, found...)
 	}
-	sort.Strings(paths)
-	return paths
+	sort.Strings(metadataPaths)
+
+	var apps []androidPackagedApp
+	for _, metadataPath := range metadataPaths {
+		content, err := os.ReadFile(metadataPath)
+		if err != nil {
+			continue
+		}
+		var metadata struct {
+			VariantName string `json:"variantName"`
+			Elements    []struct {
+				VersionName string `json:"versionName"`
+				OutputFile  string `json:"outputFile"`
+			} `json:"elements"`
+		}
+		if err := json.Unmarshal(content, &metadata); err != nil || metadata.VariantName != b.Variant {
+			continue
+		}
+		for _, element := range metadata.Elements {
+			app := androidPackagedApp{VersionName: element.VersionName}
+			if element.OutputFile != "" {
+				// outputFile is recorded relative to the metadata, as a bare name.
+				app.Path = filepath.Join(filepath.Dir(metadataPath), filepath.Base(element.OutputFile))
+			}
+			apps = append(apps, app)
+		}
+	}
+	return apps
 }

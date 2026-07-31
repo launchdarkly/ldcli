@@ -165,10 +165,10 @@ func TestResolveAndroidBuildFillsInPathAndVersion(t *testing.T) {
 	mapping := writeAndroidMapping(t, root, "app", "composeRelease", "com.example.App -> a.a:\n")
 	writeAndroidOutputMetadata(t, root, "app", "composeRelease", "1.0.1", "compose", "release")
 
-	path, version, err := resolveAndroidBuild(root, "")
+	resolved, err := resolveAndroidBuild(androidUpload{Path: root})
 	require.NoError(t, err)
-	assert.Equal(t, mapping, path)
-	assert.Equal(t, "1.0.1", version)
+	assert.Equal(t, mapping, resolved.Path)
+	assert.Equal(t, "1.0.1", resolved.AppVersion)
 }
 
 // What the caller asked for wins: an explicit version is the one the app reports,
@@ -178,9 +178,9 @@ func TestResolveAndroidBuildKeepsExplicitVersion(t *testing.T) {
 	writeAndroidMapping(t, root, "app", "composeRelease", "com.example.App -> a.a:\n")
 	writeAndroidOutputMetadata(t, root, "app", "composeRelease", "1.0.1", "compose", "release")
 
-	_, version, err := resolveAndroidBuild(root, "2.0.0")
+	resolved, err := resolveAndroidBuild(androidUpload{Path: root, AppVersion: "2.0.0"})
 	require.NoError(t, err)
-	assert.Equal(t, "2.0.0", version)
+	assert.Equal(t, "2.0.0", resolved.AppVersion)
 }
 
 // An explicit --path names the mapping, so there is nothing to discover.
@@ -188,10 +188,10 @@ func TestResolveAndroidBuildLeavesExplicitFileAlone(t *testing.T) {
 	root := t.TempDir()
 	mapping := writeAndroidMapping(t, root, "app", "composeRelease", "com.example.App -> a.a:\n")
 
-	path, version, err := resolveAndroidBuild(mapping, "")
+	resolved, err := resolveAndroidBuild(androidUpload{Path: mapping})
 	require.NoError(t, err)
-	assert.Equal(t, mapping, path)
-	assert.Empty(t, version)
+	assert.Equal(t, mapping, resolved.Path)
+	assert.Empty(t, resolved.AppVersion)
 }
 
 // The mapping is stored as mapping.txt however deep it was found, because that is
