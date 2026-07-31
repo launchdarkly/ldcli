@@ -18,7 +18,7 @@ func TestFileDetector_DetectsRuby_Gemfile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ruby-server-sdk", result.SDKID)
 	assert.Equal(t, "Ruby", result.Language)
-	assert.Equal(t, "gem", result.PackageManager)
+	assert.Equal(t, "bundle", result.PackageManager)
 	assert.Equal(t, filepath.Join(dir, "app.rb"), result.EntryPoint)
 }
 

@@ -30,6 +30,7 @@ func TestFileDetector_DetectsReact(t *testing.T) {
 	assert.Equal(t, "React", result.Framework)
 	assert.Equal(t, "npm", result.PackageManager)
 	assert.Equal(t, filepath.Join(dir, "src/App.tsx"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
 }
 
 func TestFileDetector_DetectsReactNative(t *testing.T) {
@@ -70,6 +71,7 @@ func TestFileDetector_DetectsNodeJs(t *testing.T) {
 	assert.Equal(t, "JavaScript", result.Language)
 	assert.Empty(t, result.Framework)
 	assert.Equal(t, filepath.Join(dir, "index.js"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
 }
 
 func TestFileDetector_DetectsGo(t *testing.T) {
@@ -84,6 +86,7 @@ func TestFileDetector_DetectsGo(t *testing.T) {
 	assert.Equal(t, "Go", result.Language)
 	assert.Equal(t, "go", result.PackageManager)
 	assert.Equal(t, filepath.Join(dir, "main.go"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
 }
 
 func TestFileDetector_DetectsPython_RequirementsTxt(t *testing.T) {
@@ -98,6 +101,7 @@ func TestFileDetector_DetectsPython_RequirementsTxt(t *testing.T) {
 	assert.Equal(t, "Python", result.Language)
 	assert.Equal(t, "pip", result.PackageManager)
 	assert.Equal(t, filepath.Join(dir, "app.py"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
 }
 
 func TestFileDetector_DetectsPython_Pyproject(t *testing.T) {
@@ -141,7 +145,7 @@ func TestFileDetector_DetectsAndroid_BuildGradle(t *testing.T) {
 	result, err := FileDetector{}.Detect(dir)
 
 	require.NoError(t, err)
-	assert.Equal(t, "android-client-sdk", result.SDKID)
+	assert.Equal(t, "android", result.SDKID)
 	assert.Equal(t, "Java", result.Language)
 	assert.Equal(t, "gradle", result.PackageManager)
 }
@@ -154,7 +158,7 @@ func TestFileDetector_DetectsAndroid_KotlinDsl(t *testing.T) {
 	result, err := FileDetector{}.Detect(dir)
 
 	require.NoError(t, err)
-	assert.Equal(t, "android-client-sdk", result.SDKID)
+	assert.Equal(t, "android", result.SDKID)
 	assert.Equal(t, "gradle", result.PackageManager)
 }
 
@@ -284,6 +288,7 @@ func TestFileDetector_DetectsDotnet_Csproj(t *testing.T) {
 	assert.Equal(t, "C#", result.Language)
 	assert.Equal(t, "dotnet", result.PackageManager)
 	assert.Equal(t, filepath.Join(dir, "Program.cs"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
 }
 
 func TestFileDetector_DetectsDotnet_Sln(t *testing.T) {
@@ -321,8 +326,8 @@ func TestFileDetector_EntryPointFallback_WhenNoneExist(t *testing.T) {
 	result, err := FileDetector{}.Detect(dir)
 
 	require.NoError(t, err)
-	// Falls back to last candidate
-	assert.NotEmpty(t, result.EntryPoint)
+	assert.Equal(t, filepath.Join(dir, "src/App.tsx"), result.EntryPoint)
+	assert.False(t, result.EntryPointExists, "a suggested path must not look like one we found")
 }
 
 func TestFileDetector_MalformedPackageJSON_FallsThrough(t *testing.T) {
@@ -337,21 +342,380 @@ func TestFileDetector_MalformedPackageJSON_FallsThrough(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not detect")
 }
 
-func TestFirstExistingIn_EmptySlice_ReturnsEmpty(t *testing.T) {
-	result := firstExistingIn(t.TempDir(), []string{})
-	assert.Empty(t, result)
-}
-
-func TestFirstExistingIn_NoMatch_ReturnLastCandidate(t *testing.T) {
+func TestFileDetector_NextJs_AppRouter_SuggestsInstrumentation(t *testing.T) {
 	dir := t.TempDir()
-	result := firstExistingIn(dir, []string{"nonexistent.go", "also-nonexistent.go"})
-	assert.Equal(t, "also-nonexistent.go", result)
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0","next":"^15.0.0"}}`)
+	writeDetectFile(t, dir, "app/page.tsx", "export default function Page() {}")
+	writeDetectFile(t, dir, "app/layout.tsx", "export default function Layout() {}")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "node-server", result.SDKID)
+	// An App Router project has no pages/ or src/index, so the old candidate list
+	// fell through to a nonexistent index.js at the repo root.
+	assert.Equal(t, filepath.Join(dir, "app/page.tsx"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
 }
 
-func TestFirstExistingIn_MatchesFirst(t *testing.T) {
+func TestFileDetector_NextJs_PrefersExistingInstrumentation(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"next":"^15.0.0"}}`)
+	writeDetectFile(t, dir, "instrumentation.ts", "export function register() {}")
+	writeDetectFile(t, dir, "app/page.tsx", "export default function Page() {}")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "instrumentation.ts"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestFileDetector_NextJs_PagesRouter(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0","next":"^13.0.0"}}`)
+	writeDetectFile(t, dir, "pages/index.tsx", "export default function Home() {}")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "pages/index.tsx"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestFileDetector_NextJs_Empty_SuggestsInstrumentation(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"next":"^15.0.0"}}`)
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "instrumentation.ts"), result.EntryPoint)
+	assert.False(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Android_FindsKotlinActivityInPackageDir(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "build.gradle.kts", "plugins { id(\"com.android.application\") }")
+	writeDetectFile(t, dir, "app/src/main/AndroidManifest.xml", "<manifest/>")
+	writeDetectFile(t, dir, "app/src/main/java/com/example/myapp/MainActivity.kt", "class MainActivity")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "android", result.SDKID)
+	assert.Equal(t, filepath.Join(dir, "app/src/main/java/com/example/myapp/MainActivity.kt"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Android_KotlinSourceRoot(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "build.gradle.kts", "plugins { id(\"com.android.application\") }")
+	writeDetectFile(t, dir, "app/src/main/AndroidManifest.xml", "<manifest/>")
+	writeDetectFile(t, dir, "app/src/main/kotlin/com/example/MainActivity.kt", "class MainActivity")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "app/src/main/kotlin/com/example/MainActivity.kt"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Android_NoAppModule_UsesMatchedSourceRoot(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "build.gradle", "plugins { id 'com.android.application' }")
+	writeDetectFile(t, dir, "src/main/AndroidManifest.xml", "<manifest/>")
+	writeDetectFile(t, dir, "src/main/java/com/example/MainActivity.java", "class MainActivity {}")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	// The old code hardcoded app/src/main/... even for this single-module layout.
+	assert.Equal(t, filepath.Join(dir, "src/main/java/com/example/MainActivity.java"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Android_NoActivity_SuggestsUnderMatchedRoot(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "build.gradle", "plugins { id 'com.android.application' }")
+	writeDetectFile(t, dir, "src/main/AndroidManifest.xml", "<manifest/>")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "src/main/java/MainActivity.kt"), result.EntryPoint)
+	assert.False(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Java_FindsMainInPackageDir(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "pom.xml", "<project></project>")
+	writeDetectFile(t, dir, "src/main/java/com/example/app/Application.java", "class Application {}")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "java-server-sdk", result.SDKID)
+	assert.Equal(t, filepath.Join(dir, "src/main/java/com/example/app/Application.java"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Ruby_GemfileReportsBundler(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "bundle", result.PackageManager)
+}
+
+func TestFileDetector_Ruby_NoGemfileReportsGem(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "mygem.gemspec", "Gem::Specification.new\n")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "gem", result.PackageManager)
+}
+
+func TestFileDetector_PythonPackageManagers(t *testing.T) {
+	tests := []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{"pip", map[string]string{"requirements.txt": "flask\n"}, "pip"},
+		{"poetry", map[string]string{"pyproject.toml": "[tool.poetry]\nname = \"myapp\"\n"}, "poetry"},
+		{"uv lockfile", map[string]string{"pyproject.toml": "[project]\nname = \"myapp\"\n", "uv.lock": "version = 1\n"}, "uv"},
+		{"uv section", map[string]string{"pyproject.toml": "[project]\nname = \"a\"\n[tool.uv]\n"}, "uv"},
+		{"pipenv", map[string]string{"Pipfile": "[packages]\n"}, "pipenv"},
+		{"bare pyproject", map[string]string{"pyproject.toml": "[project]\nname = \"myapp\"\n"}, "pip"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, content := range tt.files {
+				writeDetectFile(t, dir, name, content)
+			}
+
+			result, err := FileDetector{}.Detect(dir)
+
+			require.NoError(t, err)
+			assert.Equal(t, "python-server-sdk", result.SDKID)
+			assert.Equal(t, tt.want, result.PackageManager)
+		})
+	}
+}
+
+func TestFileDetector_DetectsNodePM_BunBinaryLockfile(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{}`)
+	writeDetectFile(t, dir, "bun.lockb", "")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, "bun", result.PackageManager)
+}
+
+func TestKnownSDKs_UsesAndroidID(t *testing.T) {
+	ids := make([]string, len(KnownSDKs))
+	for i, sdk := range KnownSDKs {
+		ids[i] = sdk.ID
+	}
+	assert.Contains(t, ids, "android")
+	assert.NotContains(t, ids, "android-client-sdk")
+}
+
+func TestEntryPoint_NoCandidateExists_ReturnsFallback(t *testing.T) {
+	dir := t.TempDir()
+
+	got, exists := entryPoint(dir, "fallback.go", "nonexistent.go", "also-nonexistent.go")
+
+	assert.Equal(t, filepath.Join(dir, "fallback.go"), got)
+	assert.False(t, exists)
+}
+
+func TestEntryPoint_MatchesFirstExisting(t *testing.T) {
 	dir := t.TempDir()
 	writeDetectFile(t, dir, "second.go", "")
 	writeDetectFile(t, dir, "first.go", "")
-	result := firstExistingIn(dir, []string{"first.go", "second.go"})
-	assert.Equal(t, "first.go", result)
+
+	got, exists := entryPoint(dir, "fallback.go", "first.go", "second.go")
+
+	assert.Equal(t, filepath.Join(dir, "first.go"), got)
+	assert.True(t, exists)
+}
+
+func TestEntryPoint_SkipsEmptyAndDirectoryCandidates(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src"), 0755))
+	writeDetectFile(t, dir, "real.go", "")
+
+	got, exists := entryPoint(dir, "fallback.go", "", "src", "real.go")
+
+	assert.Equal(t, filepath.Join(dir, "real.go"), got)
+	assert.True(t, exists)
+}
+
+func TestFindFileUnder(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "src/main/java/com/example/App.java", "")
+
+	assert.Equal(t, filepath.Join("src/main/java/com/example/App.java"),
+		findFileUnder(dir, "src/main/java", "Main.java", "App.java"))
+	assert.Empty(t, findFileUnder(dir, "src/main/java", "Missing.java"))
+	assert.Empty(t, findFileUnder(dir, "does/not/exist", "App.java"))
+}
+
+// Multi-binary repos have no single entry point, so the detector must not pick one
+// of them arbitrarily and report it as found.
+func TestFileDetector_Go_MultipleBinaries_Suggests(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "go.mod", "module example.com/app\n\ngo 1.22\n")
+	writeDetectFile(t, dir, "cmd/server/main.go", "package main\n")
+	writeDetectFile(t, dir, "cmd/worker/main.go", "package main\n")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "main.go"), result.EntryPoint)
+	assert.False(t, result.EntryPointExists)
+}
+
+// An entry file named after the module, as ld-relay and gonfalon do, is not something
+// we can guess at either.
+func TestFileDetector_Go_ModuleNamedEntryFile_Suggests(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "go.mod", "module github.com/launchdarkly/ld-relay/v8\n\ngo 1.22\n")
+	writeDetectFile(t, dir, "ld-relay.go", "package main\n")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.False(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Swift_NestedSourcesTarget(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "Package.swift", "// swift-tools-version:5.9")
+	// `swift package init` names the file after the target, not main.swift.
+	writeDetectFile(t, dir, "Sources/MyTool/MyTool.swift", "print(1)")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "Sources/MyTool/MyTool.swift"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Swift_PrefersMainSwiftInSources(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "Package.swift", "// swift-tools-version:5.9")
+	writeDetectFile(t, dir, "Sources/MyTool/Helper.swift", "")
+	writeDetectFile(t, dir, "Sources/MyTool/main.swift", "print(1)")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "Sources/MyTool/main.swift"), result.EntryPoint)
+}
+
+func TestFileDetector_Swift_XcodeAppNamedDirectory(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "MyApp.xcodeproj"), 0755))
+	// Xcode's SwiftUI template puts the app code in a directory named after the project.
+	writeDetectFile(t, dir, "MyApp/MyAppApp.swift", "@main struct MyAppApp {}")
+	writeDetectFile(t, dir, "MyApp/ContentView.swift", "struct ContentView {}")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "MyApp/MyAppApp.swift"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Swift_NoSources_Suggests(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "Package.swift", "// swift-tools-version:5.9")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "App.swift"), result.EntryPoint)
+	assert.False(t, result.EntryPointExists)
+}
+
+func TestFileDetector_React_ViteMountPoint(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0"}}`)
+	// Vite scaffolds src/main.tsx; without App.tsx the old list fell through to a
+	// nonexistent src/App.tsx even though the mount point was right there.
+	writeDetectFile(t, dir, "src/main.tsx", "createRoot()")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "src/main.tsx"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestFindFileUnder_SuffixPattern(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "MyApp/MyAppApp.swift", "")
+
+	assert.Equal(t, filepath.Join("MyApp/MyAppApp.swift"), findFileUnder(dir, "MyApp", "*App.swift"))
+	assert.Empty(t, findFileUnder(dir, "MyApp", "*.kt"))
+}
+
+// An empty root must not walk the whole project.
+func TestFindFileUnder_EmptyRoot(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "deep/nested/App.swift", "")
+
+	assert.Empty(t, findFileUnder(dir, "", "App.swift"))
+}
+
+// With several targets there is no way to tell an entry point from a helper, so the
+// detector must not present an arbitrary pick as found.
+func TestFileDetector_Swift_MultipleTargets_Suggests(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "Package.swift", "// swift-tools-version:5.9")
+	writeDetectFile(t, dir, "Sources/Alpha/Helper.swift", "struct Helper {}")
+	writeDetectFile(t, dir, "Sources/Beta/Beta.swift", "@main struct Beta {}")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "App.swift"), result.EntryPoint)
+	assert.False(t, result.EntryPointExists)
+}
+
+func TestFileDetector_Swift_SingleTarget_PrefersTargetNamedFile(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "Package.swift", "// swift-tools-version:5.9")
+	// Helper.swift sorts first, but MyTool.swift is the entry file.
+	writeDetectFile(t, dir, "Sources/MyTool/Helper.swift", "struct Helper {}")
+	writeDetectFile(t, dir, "Sources/MyTool/MyTool.swift", "@main struct MyTool {}")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "Sources/MyTool/MyTool.swift"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}
+
+func TestSoleSubdir(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "one/Alpha/a.swift", "")
+	writeDetectFile(t, dir, "two/Alpha/a.swift", "")
+	writeDetectFile(t, dir, "two/Beta/b.swift", "")
+	writeDetectFile(t, dir, "files/a.swift", "")
+
+	assert.Equal(t, filepath.Join("one/Alpha"), soleSubdir(dir, "one"))
+	assert.Empty(t, soleSubdir(dir, "two"), "two subdirectories is ambiguous")
+	assert.Empty(t, soleSubdir(dir, "files"), "files are not targets")
+	assert.Empty(t, soleSubdir(dir, "missing"))
 }
