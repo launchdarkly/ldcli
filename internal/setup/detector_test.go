@@ -720,3 +720,75 @@ func TestSoleSubdir(t *testing.T) {
 	assert.Empty(t, soleSubdir(dir, "files"), "files are not targets")
 	assert.Empty(t, soleSubdir(dir, "missing"))
 }
+
+// A root package.json is often only build tooling, so a backend manifest wins.
+func TestFileDetector_Polyglot_BackendManifestWins(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string]string
+		wantSDK string
+	}{
+		{"rails with jsbundling", map[string]string{
+			"Gemfile": "source 'https://rubygems.org'\ngem 'rails'\n", "package.json": `{"dependencies":{"esbuild":"0.20.0"}}`,
+		}, "ruby-server-sdk"},
+		{"django with tailwind", map[string]string{
+			"requirements.txt": "Django==5.0\n", "package.json": `{"devDependencies":{"tailwindcss":"3.4.0"}}`,
+		}, "python-server-sdk"},
+		{"go binary published to npm", map[string]string{
+			"go.mod": "module example.com/app\n\ngo 1.22\n", "package.json": `{"name":"app-cli"}`,
+		}, "go-server-sdk"},
+		{"dotnet with npm assets", map[string]string{
+			"App.csproj": "<Project/>", "package.json": `{"devDependencies":{"vite":"5.0.0"}}`,
+		}, "dotnet-server-sdk"},
+		// package.json is the only manifest, so Node still claims it.
+		{"plain next.js", map[string]string{
+			"package.json": `{"dependencies":{"next":"15.0.0"}}`,
+		}, "node-server"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, content := range tt.files {
+				writeDetectFile(t, dir, name, content)
+			}
+
+			result, err := FileDetector{}.Detect(dir)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantSDK, result.SDKID)
+		})
+	}
+}
+
+// Searching Sources/ is confined to single-target packages, so neither main.swift
+// nor a *App.swift in one of several targets may be reported as found.
+func TestFileDetector_Swift_MultipleTargets_NeverReportsFound(t *testing.T) {
+	for _, entry := range []string{"Sources/Beta/main.swift", "Sources/Zeta/ZetaApp.swift", "Sources/Beta/Beta.swift"} {
+		t.Run(entry, func(t *testing.T) {
+			dir := t.TempDir()
+			writeDetectFile(t, dir, "Package.swift", "// swift-tools-version:5.9")
+			writeDetectFile(t, dir, "Sources/Alpha/Helper.swift", "struct Helper {}")
+			writeDetectFile(t, dir, entry, "// entry")
+
+			result, err := FileDetector{}.Detect(dir)
+
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(dir, "App.swift"), result.EntryPoint)
+			assert.False(t, result.EntryPointExists)
+		})
+	}
+}
+
+func TestFileDetector_Swift_SingleTarget_PrefersMainSwift(t *testing.T) {
+	dir := t.TempDir()
+	writeDetectFile(t, dir, "Package.swift", "// swift-tools-version:5.9")
+	writeDetectFile(t, dir, "Sources/MyTool/Helper.swift", "")
+	writeDetectFile(t, dir, "Sources/MyTool/MyTool.swift", "")
+	writeDetectFile(t, dir, "Sources/MyTool/main.swift", "print(1)")
+
+	result, err := FileDetector{}.Detect(dir)
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "Sources/MyTool/main.swift"), result.EntryPoint)
+	assert.True(t, result.EntryPointExists)
+}

@@ -46,27 +46,22 @@ var _ Detector = FileDetector{}
 // Detect scans dir for known project files and returns a DetectResult with language,
 // framework, SDK ID, package manager, and a suggested entry point file.
 // Returns an error if the project type cannot be determined.
+// A root package.json is often only build tooling — Rails with jsbundling, Django
+// with Tailwind, a Go binary published to npm — so the backend manifests are
+// checked first and Node claims the project only when it is the sole manifest.
 func (FileDetector) Detect(dir string) (*DetectResult, error) {
-	if result := detectNode(dir); result != nil {
-		return result, nil
-	}
-	if result := detectGo(dir); result != nil {
-		return result, nil
-	}
-	if result := detectPython(dir); result != nil {
-		return result, nil
-	}
-	if result := detectRuby(dir); result != nil {
-		return result, nil
-	}
-	if result := detectJava(dir); result != nil {
-		return result, nil
-	}
-	if result := detectSwift(dir); result != nil {
-		return result, nil
-	}
-	if result := detectDotnet(dir); result != nil {
-		return result, nil
+	for _, detect := range []func(string) *DetectResult{
+		detectGo,
+		detectPython,
+		detectRuby,
+		detectJava,
+		detectSwift,
+		detectDotnet,
+		detectNode,
+	} {
+		if result := detect(dir); result != nil {
+			return result, nil
+		}
 	}
 	return nil, errors.New("could not detect project language from directory; try specifying --sdk-id manually")
 }
@@ -393,13 +388,14 @@ func swiftEntryCandidates(dir, appRoot string) []string {
 	candidates := []string{
 		"App.swift", "ContentView.swift", "AppDelegate.swift",
 		findFileUnder(dir, appRoot, "*App.swift", "ContentView.swift", "AppDelegate.swift"),
-		findFileUnder(dir, "Sources", "main.swift", "*App.swift"),
 	}
+	// Searching Sources/ at all is confined to a single-target package. Across
+	// several targets there is no way to tell an executable's entry file from a
+	// library's, so report a suggestion instead of an arbitrary hit.
 	if target := soleSubdir(dir, "Sources"); target != "" {
-		candidates = append(candidates,
-			findFileUnder(dir, target, filepath.Base(target)+".swift"),
-			findFileUnder(dir, target, "*.swift"),
-		)
+		candidates = append(candidates, findFileUnder(dir, target,
+			"main.swift", filepath.Base(target)+".swift", "*App.swift", "*.swift",
+		))
 	}
 	return candidates
 }
