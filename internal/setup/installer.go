@@ -122,26 +122,30 @@ func InstallArgs(sdkID, packageManager string) (args []string, pkg string) {
 		pkg = "launchdarkly-react-client-sdk"
 		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
 	case "react-native":
-		pkg = "launchdarkly-react-native-client-sdk"
+		pkg = "@launchdarkly/react-native-client-sdk"
 		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
 	case "node-server":
 		pkg = "@launchdarkly/node-server-sdk"
 		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
 	case "js-client-sdk":
-		pkg = "@launchdarkly/js-client-sdk"
+		// The unscoped v3 package, whose initialize API the init template and the
+		// quickstart instructions both use. The scoped @launchdarkly/js-client-sdk is
+		// v4 and exposes createClient instead.
+		pkg = "launchdarkly-js-client-sdk"
 		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
 	case "python-server-sdk":
-		pm := packageManager
-		if pm == "" {
-			pm = "pip"
-		}
 		pkg = "launchdarkly-server-sdk"
-		return []string{pm, "install", pkg}, pkg
+		return pythonInstallCmd(packageManager, pkg), pkg
 	case "go-server-sdk":
 		pkg = "github.com/launchdarkly/go-server-sdk/v7"
 		return []string{"go", "get", pkg}, pkg
 	case "ruby-server-sdk":
 		pkg = "launchdarkly-server-sdk"
+		// Bundler-managed projects need the gem recorded in the Gemfile; a bare
+		// `gem install` would succeed without making the SDK available to the app.
+		if packageManager == "bundle" {
+			return []string{"bundle", "add", pkg}, pkg
+		}
 		return []string{"gem", "install", pkg}, pkg
 	case "dotnet-server-sdk":
 		pkg = "LaunchDarkly.ServerSdk"
@@ -156,6 +160,22 @@ func InstallArgs(sdkID, packageManager string) (args []string, pkg string) {
 		return nil, "LaunchDarkly" // Swift Package Manager / CocoaPods
 	default:
 		return nil, sdkID
+	}
+}
+
+// pythonInstallCmd returns the install command arguments for a Python package
+// manager. Anything unrecognised — including the empty string, which IsInstalled
+// passes — falls back to pip.
+func pythonInstallCmd(pm, pkg string) []string {
+	switch pm {
+	case "poetry":
+		return []string{"poetry", "add", pkg}
+	case "uv":
+		return []string{"uv", "add", pkg}
+	case "pipenv":
+		return []string{"pipenv", "install", pkg}
+	default:
+		return []string{"pip", "install", pkg}
 	}
 }
 
@@ -200,7 +220,7 @@ func IsInstalled(dir, sdkID string) bool {
 	case "go-server-sdk":
 		manifests = []string{"go.mod", "go.sum"}
 	case "python-server-sdk":
-		manifests = []string{"requirements.txt", "pyproject.toml", "setup.py"}
+		manifests = []string{"requirements.txt", "pyproject.toml", "setup.py", "Pipfile", "uv.lock"}
 	case "ruby-server-sdk":
 		manifests = []string{"Gemfile", "Gemfile.lock"}
 	case "dotnet-server-sdk":
