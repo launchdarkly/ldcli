@@ -235,6 +235,14 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl, skipExisting)
 		}
 
+		// An Android project already knows where R8 put the mapping and what version
+		// it shipped, so read both out of the build instead of asking for them.
+		if symbolType == typeAndroid {
+			if path, appVersion, err = resolveAndroidBuild(path, appVersion); err != nil {
+				return err
+			}
+		}
+
 		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
 
 		fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
@@ -430,6 +438,15 @@ func isSymbolUploadFile(symbolType, name string) bool {
 	return isReactNativeUploadFile(name)
 }
 
+// uploadName is the name an artifact is stored under, given its path relative to
+// the directory searched.
+func uploadName(symbolType, relPath string) string {
+	if symbolType == typeAndroid {
+		return filepath.Base(relPath)
+	}
+	return relPath
+}
+
 func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 	var files []SymbolFile
 
@@ -468,7 +485,11 @@ func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 
 			files = append(files, SymbolFile{
 				Path: filePath,
-				Name: relPath,
+				// Symbolication reads an Android mapping at <lane>/mapping.txt, so
+				// the object is named for the file alone however deep it was found.
+				// A React Native bundle keeps its path, which is part of how a map
+				// is matched to the bundle that references it.
+				Name: uploadName(symbolType, relPath),
 			})
 		}
 
@@ -690,13 +711,13 @@ func initFlags(cmd *cobra.Command) {
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
-	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
+	cmd.Flags().String(appVersionFlag, "", fmt.Sprintf("The current version of your deploy. With --type %s this is read from the packaged build when omitted", typeAndroid))
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
 
 	cmd.Flags().String(symbolsIdFlag, "", "The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present")
 	_ = viper.BindPFlag(symbolsIdFlag, cmd.Flags().Lookup(symbolsIdFlag))
 
-	cmd.Flags().String(pathFlag, defaultPath, "Sets the directory of where the symbol files are")
+	cmd.Flags().String(pathFlag, defaultPath, fmt.Sprintf("Sets the directory of where the symbol files are. With --type %s, run from your project root and the R8 mapping is found for you", typeAndroid))
 	_ = viper.BindPFlag(pathFlag, cmd.Flags().Lookup(pathFlag))
 
 	cmd.Flags().String(basePathFlag, "", "An optional base path for the uploaded symbol files")
