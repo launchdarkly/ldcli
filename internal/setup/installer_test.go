@@ -22,15 +22,15 @@ func TestInstallArgs_NodeSDKs(t *testing.T) {
 		{"react-client-sdk", "pnpm", "pnpm", "launchdarkly-react-client-sdk"},
 		{"react-client-sdk", "bun", "bun", "launchdarkly-react-client-sdk"},
 		{"react-client-sdk", "", "npm", "launchdarkly-react-client-sdk"},
-		{"react-native", "npm", "npm", "launchdarkly-react-native-client-sdk"},
-		{"react-native", "bun", "bun", "launchdarkly-react-native-client-sdk"},
+		{"react-native", "npm", "npm", "@launchdarkly/react-native-client-sdk"},
+		{"react-native", "bun", "bun", "@launchdarkly/react-native-client-sdk"},
 		{"node-server", "npm", "npm", "@launchdarkly/node-server-sdk"},
 		{"node-server", "yarn", "yarn", "@launchdarkly/node-server-sdk"},
 		{"node-server", "pnpm", "pnpm", "@launchdarkly/node-server-sdk"},
 		{"node-server", "bun", "bun", "@launchdarkly/node-server-sdk"},
 		{"node-server", "", "npm", "@launchdarkly/node-server-sdk"},
-		{"js-client-sdk", "npm", "npm", "@launchdarkly/js-client-sdk"},
-		{"js-client-sdk", "bun", "bun", "@launchdarkly/js-client-sdk"},
+		{"js-client-sdk", "npm", "npm", "launchdarkly-js-client-sdk"},
+		{"js-client-sdk", "bun", "bun", "launchdarkly-js-client-sdk"},
 	}
 
 	for _, tt := range tests {
@@ -45,14 +45,26 @@ func TestInstallArgs_NodeSDKs(t *testing.T) {
 }
 
 func TestInstallArgs_Python(t *testing.T) {
-	args, pkg := InstallArgs("python-server-sdk", "")
-	require.NotEmpty(t, args)
-	assert.Equal(t, "pip", args[0])
-	assert.Equal(t, "launchdarkly-server-sdk", pkg)
-
-	args2, _ := InstallArgs("python-server-sdk", "pip3")
-	require.NotEmpty(t, args2)
-	assert.Equal(t, "pip3", args2[0])
+	tests := []struct {
+		packageManager string
+		want           []string
+	}{
+		// IsInstalled calls InstallArgs with no package manager.
+		{"", []string{"pip", "install", "launchdarkly-server-sdk"}},
+		{"pip", []string{"pip", "install", "launchdarkly-server-sdk"}},
+		{"poetry", []string{"poetry", "add", "launchdarkly-server-sdk"}},
+		{"uv", []string{"uv", "add", "launchdarkly-server-sdk"}},
+		{"pipenv", []string{"pipenv", "install", "launchdarkly-server-sdk"}},
+		// Unrecognised values fall back to pip rather than being run as a command.
+		{"conda", []string{"pip", "install", "launchdarkly-server-sdk"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.packageManager, func(t *testing.T) {
+			args, pkg := InstallArgs("python-server-sdk", tt.packageManager)
+			assert.Equal(t, tt.want, args)
+			assert.Equal(t, "launchdarkly-server-sdk", pkg)
+		})
+	}
 }
 
 func TestInstallArgs_Go(t *testing.T) {
@@ -68,6 +80,23 @@ func TestInstallArgs_Ruby(t *testing.T) {
 	require.NotEmpty(t, args)
 	assert.Equal(t, "gem", args[0])
 	assert.Equal(t, "launchdarkly-server-sdk", pkg)
+}
+
+// A Gemfile means Bundler owns the project's gems, so the SDK must be added to the
+// Gemfile; `gem install` would leave the app unable to require it under bundler.
+func TestInstallArgs_Ruby_Bundler(t *testing.T) {
+	args, pkg := InstallArgs("ruby-server-sdk", "bundle")
+	assert.Equal(t, []string{"bundle", "add", "launchdarkly-server-sdk"}, args)
+	assert.Equal(t, "launchdarkly-server-sdk", pkg)
+}
+
+func TestInstallArgs_Android_BothSpellings(t *testing.T) {
+	for _, id := range []string{"android", "android-client-sdk"} {
+		args, pkg := InstallArgs(id, "gradle")
+		assert.Nil(t, args, "Android has no automated install command")
+		assert.Equal(t, "com.launchdarkly:launchdarkly-android-client-sdk", pkg)
+		assert.True(t, RequiresManualInstall(id))
+	}
 }
 
 func TestInstallArgs_Dotnet(t *testing.T) {
