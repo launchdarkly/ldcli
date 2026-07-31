@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.0](https://github.com/launchdarkly/ldcli/compare/v3.6.0...v3.7.0) (2026-07-31)
+
+
+### Features
+
+* **symbols:** skip uploading symbols LaunchDarkly already has ([#765](https://github.com/launchdarkly/ldcli/issues/765)) ([5dfc7a7](https://github.com/launchdarkly/ldcli/commit/5dfc7a717f43cf21ed03c8d4ff2be5e6631668cf))
+
 ## [3.6.0](https://github.com/launchdarkly/ldcli/compare/v3.5.0...v3.6.0) (2026-07-28)
 
 
