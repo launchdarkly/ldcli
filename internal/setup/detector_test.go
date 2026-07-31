@@ -342,6 +342,8 @@ func TestFileDetector_MalformedPackageJSON_FallsThrough(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not detect")
 }
 
+// A page module may carry 'use client' or be imported by something that does, which
+// would ship the server SDK key to the browser, so never target one.
 func TestFileDetector_NextJs_AppRouter_SuggestsInstrumentation(t *testing.T) {
 	dir := t.TempDir()
 	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0","next":"^15.0.0"}}`)
@@ -352,10 +354,8 @@ func TestFileDetector_NextJs_AppRouter_SuggestsInstrumentation(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "node-server", result.SDKID)
-	// An App Router project has no pages/ or src/index, so the old candidate list
-	// fell through to a nonexistent index.js at the repo root.
-	assert.Equal(t, filepath.Join(dir, "app/page.tsx"), result.EntryPoint)
-	assert.True(t, result.EntryPointExists)
+	assert.Equal(t, filepath.Join(dir, "instrumentation.ts"), result.EntryPoint)
+	assert.False(t, result.EntryPointExists)
 }
 
 func TestFileDetector_NextJs_PrefersExistingInstrumentation(t *testing.T) {
@@ -371,7 +371,7 @@ func TestFileDetector_NextJs_PrefersExistingInstrumentation(t *testing.T) {
 	assert.True(t, result.EntryPointExists)
 }
 
-func TestFileDetector_NextJs_PagesRouter(t *testing.T) {
+func TestFileDetector_NextJs_PagesRouter_SuggestsInstrumentation(t *testing.T) {
 	dir := t.TempDir()
 	writeDetectFile(t, dir, "package.json", `{"dependencies":{"react":"^18.0.0","next":"^13.0.0"}}`)
 	writeDetectFile(t, dir, "pages/index.tsx", "export default function Home() {}")
@@ -379,8 +379,9 @@ func TestFileDetector_NextJs_PagesRouter(t *testing.T) {
 	result, err := FileDetector{}.Detect(dir)
 
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, "pages/index.tsx"), result.EntryPoint)
-	assert.True(t, result.EntryPointExists)
+	// pages/* is bundled for the browser, so it is never a server SDK target.
+	assert.Equal(t, filepath.Join(dir, "instrumentation.ts"), result.EntryPoint)
+	assert.False(t, result.EntryPointExists)
 }
 
 func TestFileDetector_NextJs_Empty_SuggestsInstrumentation(t *testing.T) {

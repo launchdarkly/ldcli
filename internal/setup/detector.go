@@ -98,16 +98,14 @@ func detectNode(dir string) *DetectResult {
 	// Next.js apps run a Node server (SSR and API routes), so server-side flag
 	// evaluation uses the Node server SDK rather than a browser client SDK.
 	if _, ok := allDeps["next"]; ok {
-		// instrumentation.ts is Next's server-startup hook, which runs once before
-		// any request and is the only entry file that suits a server SDK in both
-		// the App Router and the Pages Router. It is also what we create when the
-		// project has no suitable file yet.
+		// Only instrumentation.ts, Next's server-startup hook, is guaranteed to stay
+		// out of the browser bundle. A page or route module may carry 'use client' or
+		// be imported by something that does, which would ship the server SDK key to
+		// the browser, and nothing here can tell which. Suggest creating the hook
+		// rather than picking a page that happens to exist.
 		ep, exists := entryPoint(dir, "instrumentation.ts",
 			"instrumentation.ts", "instrumentation.js",
 			"src/instrumentation.ts", "src/instrumentation.js",
-			"app/page.tsx", "src/app/page.tsx",
-			"pages/index.tsx", "pages/index.ts", "pages/index.js",
-			"src/index.ts", "src/index.js",
 		)
 		return &DetectResult{
 			Language:         "JavaScript",
