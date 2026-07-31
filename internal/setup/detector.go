@@ -98,11 +98,9 @@ func detectNode(dir string) *DetectResult {
 	// Next.js apps run a Node server (SSR and API routes), so server-side flag
 	// evaluation uses the Node server SDK rather than a browser client SDK.
 	if _, ok := allDeps["next"]; ok {
-		// Only instrumentation.ts, Next's server-startup hook, is guaranteed to stay
-		// out of the browser bundle. A page or route module may carry 'use client' or
-		// be imported by something that does, which would ship the server SDK key to
-		// the browser, and nothing here can tell which. Suggest creating the hook
-		// rather than picking a page that happens to exist.
+		// Entry point: https://nextjs.org/docs/app/guides/instrumentation
+		// Only the hook is guaranteed to stay out of the browser bundle; a page or
+		// route module may carry 'use client' and ship the SDK key to the browser.
 		ep, exists := entryPoint(dir, "instrumentation.ts",
 			"instrumentation.ts", "instrumentation.js",
 			"src/instrumentation.ts", "src/instrumentation.js",
@@ -118,6 +116,7 @@ func detectNode(dir string) *DetectResult {
 	}
 
 	if _, ok := allDeps["react-native"]; ok {
+		// Entry point: https://reactnative.dev/docs/appregistry
 		ep, exists := entryPoint(dir, "index.js",
 			"src/App.tsx", "src/App.jsx", "src/App.js",
 			"src/index.tsx", "src/index.jsx", "src/index.js",
@@ -133,9 +132,9 @@ func detectNode(dir string) *DetectResult {
 		}
 	}
 	if _, ok := allDeps["react"]; ok {
-		// src/main.tsx is where Vite mounts the app and src/index.tsx is where
-		// Create React App does; either is a better home for the provider than a
-		// component file, but App.tsx works and is the more familiar edit.
+		// Vite entry: https://vite.dev/guide/#index-html-and-project-root
+		// CRA entry: https://create-react-app.dev/docs/folder-structure
+		// Mounting: https://react.dev/reference/react-dom/client/createRoot
 		ep, exists := entryPoint(dir, "src/App.tsx",
 			"src/App.tsx", "src/App.jsx", "src/App.js",
 			"src/main.tsx", "src/main.jsx",
@@ -161,6 +160,8 @@ func detectNode(dir string) *DetectResult {
 	}
 	for _, fw := range jsClientFrameworks {
 		if _, ok := allDeps[fw.dep]; ok {
+			// Vite entry: https://vite.dev/guide/#index-html-and-project-root
+			// Angular entry: https://angular.dev/reference/configs/file-structure
 			ep, exists := entryPoint(dir, "src/main.ts",
 				"src/App.tsx", "src/App.jsx", "src/App.js",
 				"src/index.tsx", "src/index.jsx", "src/index.js",
@@ -177,6 +178,7 @@ func detectNode(dir string) *DetectResult {
 		}
 	}
 
+	// Entry point: https://docs.npmjs.com/cli/v11/configuring-npm/package-json#main
 	ep, exists := entryPoint(dir, "index.js",
 		"src/index.ts", "src/index.js",
 		"index.ts", "index.js",
@@ -199,7 +201,7 @@ func detectNodePM(dir string) string {
 	if _, err := os.Stat(filepath.Join(dir, "yarn.lock")); err == nil {
 		return "yarn"
 	}
-	// bun.lock is the text lockfile from Bun 1.2 onwards; bun.lockb is the older binary one.
+	// Lockfiles: https://bun.com/docs/install/lockfile
 	for _, lock := range []string{"bun.lock", "bun.lockb"} {
 		if _, err := os.Stat(filepath.Join(dir, lock)); err == nil {
 			return "bun"
@@ -212,6 +214,7 @@ func detectGo(dir string) *DetectResult {
 	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
 		return nil
 	}
+	// Entry point: https://go.dev/ref/spec#Program_execution
 	ep, exists := entryPoint(dir, "main.go", "main.go", "cmd/main.go")
 	return &DetectResult{
 		Language:         "Go",
@@ -225,6 +228,8 @@ func detectGo(dir string) *DetectResult {
 func detectPython(dir string) *DetectResult {
 	for _, indicator := range []string{"requirements.txt", "pyproject.toml", "setup.py", "Pipfile"} {
 		if _, err := os.Stat(filepath.Join(dir, indicator)); err == nil {
+			// Django entry: https://docs.djangoproject.com/en/stable/ref/django-admin/
+			// Flask entry: https://flask.palletsprojects.com/en/stable/quickstart/
 			ep, exists := entryPoint(dir, "main.py",
 				"src/main.py", "manage.py", "app.py", "main.py",
 			)
@@ -243,6 +248,10 @@ func detectPython(dir string) *DetectResult {
 // detectPythonPM identifies the tool that manages the project's dependencies, so
 // callers install into the project rather than running pip against whatever
 // interpreter happens to be on PATH.
+//
+// https://docs.astral.sh/uv/concepts/projects/layout/
+// https://pipenv.pypa.io/en/latest/
+// https://python-poetry.org/docs/pyproject/
 func detectPythonPM(dir string) string {
 	if _, err := os.Stat(filepath.Join(dir, "uv.lock")); err == nil {
 		return "uv"
@@ -274,12 +283,12 @@ func detectRuby(dir string) *DetectResult {
 			return nil
 		}
 	}
-	// A Gemfile means Bundler manages the project's gems, so the SDK has to be
-	// added to the Gemfile rather than installed into the global gem set.
+	// Gemfile: https://bundler.io/guides/gemfile.html
 	pm := "gem"
 	if _, err := os.Stat(filepath.Join(dir, "Gemfile")); err == nil {
 		pm = "bundle"
 	}
+	// config.ru: https://github.com/rack/rack/blob/main/SPEC.rdoc
 	ep, exists := entryPoint(dir, "main.rb", "config.ru", "app.rb", "main.rb")
 	return &DetectResult{
 		Language:         "Ruby",
@@ -297,7 +306,7 @@ func detectJava(dir string) *DetectResult {
 			if indicator == "pom.xml" {
 				pm = "mvn"
 			}
-			// Android projects use Gradle but are distinguished by AndroidManifest.xml.
+			// Manifest: https://developer.android.com/guide/topics/manifest/manifest-intro
 			for _, manifest := range []string{
 				"app/src/main/AndroidManifest.xml",
 				"src/main/AndroidManifest.xml",
@@ -305,8 +314,8 @@ func detectJava(dir string) *DetectResult {
 				if _, err := os.Stat(filepath.Join(dir, manifest)); err != nil {
 					continue
 				}
-				// The manifest tells us which source root this project uses; the
-				// activity itself lives under a package directory, so search for it
+				// Entry point: https://developer.android.com/reference/android/app/Activity
+				// The activity lives under a package directory, so search for it
 				// rather than guessing the package name.
 				srcRoot := strings.TrimSuffix(manifest, "/AndroidManifest.xml")
 				ep, exists := entryPoint(dir, srcRoot+"/java/MainActivity.kt",
@@ -321,6 +330,8 @@ func detectJava(dir string) *DetectResult {
 					EntryPointExists: exists,
 				}
 			}
+			// Gradle layout: https://docs.gradle.org/current/userguide/building_java_projects.html
+			// Maven layout: https://maven.apache.org/guides/introduction/introduction-to-the-pom.html
 			ep, exists := entryPoint(dir, "src/main/java/Main.java",
 				findFileUnder(dir, "src/main/java", "Main.java", "Application.java", "App.java"),
 			)
@@ -375,6 +386,9 @@ func detectSwift(dir string) *DetectResult {
 // project. Any-name matches are confined to a package with a single target, where
 // the entry file is named after that target; with several targets there is no way to
 // tell an entry point from a helper.
+//
+// App struct: https://developer.apple.com/documentation/swiftui/app
+// Package targets: https://developer.apple.com/documentation/packagedescription/target
 func swiftEntryCandidates(dir, appRoot string) []string {
 	candidates := []string{
 		"App.swift", "ContentView.swift", "AppDelegate.swift",
@@ -413,6 +427,8 @@ func soleSubdir(dir, root string) string {
 // xcodeAppRoot returns the source directory an Xcode project keeps its app code in,
 // which the templates name after the project (MyApp.xcodeproj alongside MyApp/).
 // Returns an empty string when dir holds no Xcode project.
+//
+// https://developer.apple.com/documentation/xcode/creating-an-xcode-project-for-an-app
 func xcodeAppRoot(dir string) string {
 	matches, _ := filepath.Glob(filepath.Join(dir, "*.xcodeproj"))
 	if len(matches) == 0 {
@@ -425,6 +441,7 @@ func detectDotnet(dir string) *DetectResult {
 	for _, pattern := range []string{"*.csproj", "*.sln"} {
 		matches, _ := filepath.Glob(filepath.Join(dir, pattern))
 		if len(matches) > 0 {
+			// Entry point: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/startup
 			ep, exists := entryPoint(dir, "Program.cs",
 				"Program.cs", "Startup.cs", "src/Program.cs",
 			)
