@@ -13,9 +13,9 @@ import (
 	"github.com/launchdarkly/ldcli/internal/symbols/srcbundle"
 )
 
-// androidSourceBundleName is the object name of the source bundle uploaded beside
-// an R8 mapping, so a build's mapping and its sources share one key prefix:
-// _sym/android/id/<symbolsID>/mapping.txt and .../sources.srcbundle.
+// androidSourceBundleName is the object name of the source bundle uploaded beside a
+// build's mapping index, so an index and the sources behind it share one key prefix:
+// _sym/android/id/<symbolsID>/mapping.v1.index and .../sources.srcbundle.
 const androidSourceBundleName = "sources.srcbundle"
 
 // androidSourceExtensions are the JVM source types R8 stack frames can point at.
@@ -167,7 +167,7 @@ func androidSourceRank(sourceSet string) int {
 
 // androidTestSourceSets are the source sets holding test code. Both unit tests
 // and instrumented tests are excluded: neither is compiled into the app whose
-// mapping.txt is being uploaded, so no retraced frame can point at them, and a
+// mapping is being indexed, so no retraced frame can point at them, and a
 // test-only class sharing a production class's package and file name would
 // otherwise compete for its bundle key.
 var androidTestSourceSets = []string{"test", "androidTest"}

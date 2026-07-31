@@ -85,6 +85,12 @@ func generateRunE() func(cmd *cobra.Command, args []string) error {
 			return generateFlutterSymbols(path, viper.GetString(appVersionFlag), outputDir)
 		}
 
+		// An Android mapping compiles to the index symbolication reads, on the Id and
+		// Version lanes, which is why generating one is not a copy either.
+		if symbolType == typeAndroid {
+			return generateAndroidSymbols(path, outputDir)
+		}
+
 		return generateSymbolFiles(symbolType, path, outputDir)
 	}
 }
@@ -136,9 +142,36 @@ func generateFlutterSymbols(path, appVersion, outputDir string) error {
 	return nil
 }
 
-// generateSymbolFiles discovers React Native or Android artifacts and copies
-// each one to outputDir under the same storage key `symbols upload` would use,
-// so the generated folder matches what the backend expects.
+// generateAndroidSymbols indexes the discovered R8 mapping and writes it under
+// outputDir at the same storage keys `symbols upload` would store it at.
+//
+// The objects are written uncompressed: an upload gzips a body to send it, and a
+// folder is read from disk rather than fetched.
+func generateAndroidSymbols(path, outputDir string) error {
+	objects, err := buildAndroidObjects(
+		path,
+		viper.GetString(appVersionFlag),
+		viper.GetString(symbolsIdFlag),
+		viper.GetBool(includeSourcesFlag),
+		viper.GetString(sourcePathFlag),
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, object := range objects {
+		if err := writeSymbolFile(outputDir, object.Key(), object.Data); err != nil {
+			return fmt.Errorf("failed to write %s: %w", object.Label(), err)
+		}
+	}
+
+	fmt.Printf("Successfully generated %d symbol file(s) in %s\n", len(objects), outputDir)
+	return nil
+}
+
+// generateSymbolFiles discovers React Native artifacts and copies each one to
+// outputDir under the same storage key `symbols upload` would use, so the generated
+// folder matches what the backend expects.
 func generateSymbolFiles(symbolType, path, outputDir string) error {
 	files, err := getAllSymbolFiles(path, symbolType)
 	if err != nil {
@@ -151,14 +184,13 @@ func generateSymbolFiles(symbolType, path, outputDir string) error {
 	symbolsID := viper.GetString(symbolsIdFlag)
 	appVersion := viper.GetString(appVersionFlag)
 	basePath := viper.GetString(basePathFlag)
-	symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
 
 	for _, file := range files {
 		fileSymbolsID := symbolsID
 		if fileSymbolsID == "" {
 			fileSymbolsID = symbolsIDForArtifact(file.Path)
 		}
-		key := getS3Key(symbolsIDPrefix, fileSymbolsID, appVersion, basePath, file.Name)
+		key := getS3Key(reactNativeSymbolsIDPrefix, fileSymbolsID, appVersion, basePath, file.Name)
 
 		data, err := os.ReadFile(file.Path)
 		if err != nil {

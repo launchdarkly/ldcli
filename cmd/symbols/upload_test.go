@@ -181,11 +181,6 @@ func TestGetS3KeySymbolsID(t *testing.T) {
 		getS3Key(androidSymbolsIDPrefix, symbolsID, "1.0.0", "", "mapping.txt"))
 }
 
-func TestSymbolsIDPrefixForType(t *testing.T) {
-	assert.Equal(t, "_sym/js/id", symbolsIDPrefixForType(typeReactNative))
-	assert.Equal(t, "_sym/android/id", symbolsIDPrefixForType(typeAndroid))
-}
-
 func TestReadSymbolsIDFile(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "symbols-id")
 	assert.NoError(t, err)

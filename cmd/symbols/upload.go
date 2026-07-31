@@ -61,7 +61,7 @@ const (
 	reactNativeSymbolsIDPrefix = "_sym/js/id"
 
 	// androidSymbolsIDPrefix is the equivalent Symbols Id Lane segment for Android
-	// R8 / ProGuard mappings. Keys become _sym/android/id/<symbolsID>/mapping.txt.
+	// builds. Keys become _sym/android/id/<symbolsID>/mapping.v1.index.
 	androidSymbolsIDPrefix = "_sym/android/id"
 
 	// symbolsIDSidecarSuffix names the file written next to an artifact to record
@@ -70,16 +70,17 @@ const (
 	// manual --symbols-id.
 	symbolsIDSidecarSuffix = ".symbolsid"
 
-	// androidMappingFileName is the R8/ProGuard mapping file `ldcli` discovers
-	// for --type android.
+	// androidMappingFileName is the R8/ProGuard mapping `ldcli` discovers for
+	// --type android and indexes. The mapping itself is not uploaded; see
+	// android_upload.go.
 	androidMappingFileName = "mapping.txt"
 
 	// typeReactNative uploads React Native Hermes/Metro sourcemaps (ordinary
 	// JavaScript sourcemaps).
 	typeReactNative = "react-native"
 
-	// typeAndroid uploads an Android R8/ProGuard `mapping.txt` for Java/Kotlin
-	// stack-trace retrace.
+	// typeAndroid indexes an Android R8/ProGuard `mapping.txt` and uploads the
+	// index, for Java/Kotlin stack-trace retrace.
 	typeAndroid = "android"
 
 	// typeAppleDSYM compiles Apple dSYM debug info into per-architecture .dsymmap
@@ -235,22 +236,15 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl, skipExisting)
 		}
 
-		// An Android project already knows where R8 put the mapping, what version it
-		// shipped, and which symbols id the app reports, so read all three out of
-		// the build instead of asking for them.
+		// Android takes a dedicated path as well: the R8 mapping is compiled into the
+		// index symbolication reads, and stored under the lanes a crash can arrive on.
 		if symbolType == typeAndroid {
-			resolved, aErr := resolveAndroidBuild(androidUpload{Path: path, AppVersion: appVersion, SymbolsID: symbolsID})
-			if aErr != nil {
-				return aErr
-			}
-			path, appVersion, symbolsID = resolved.Path, resolved.AppVersion, resolved.SymbolsID
+			return uploadAndroidSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, symbolsID, backendUrl, viper.GetBool(includeSourcesFlag), viper.GetString(sourcePathFlag), skipExisting)
 		}
-
-		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
 
 		fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
 		if symbolsID != "" {
-			fmt.Printf("Using symbols id %s for all files (Symbols Id Lane: %s/%s)\n", symbolsID, symbolsIDPrefix, symbolsID)
+			fmt.Printf("Using symbols id %s for all files (Symbols Id Lane: %s/%s)\n", symbolsID, reactNativeSymbolsIDPrefix, symbolsID)
 		}
 
 		files, err := getAllSymbolFiles(path, symbolType)
@@ -262,70 +256,32 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("no symbol files found in %s, is this the correct path?", path)
 		}
 
-		// Symbols Id Lane: resolve the id per file so a single upload of multiple
-		// platforms (e.g. iOS + Android maps in one dir) keys each artifact by the
-		// id its app reports. An explicit --symbols-id overrides all files;
-		// otherwise each artifact's *.symbolsid sidecar (or its sibling's — see
-		// symbolsIDForArtifact) is used, falling back to the Version Lane
-		// (version+basePath) when there is none.
+		// Symbols Id Lane: resolve the id per file so one upload of a build's bundle
+		// and its map keys both by the id the app reports. An explicit --symbols-id
+		// overrides all files; otherwise each artifact's *.symbolsid sidecar (or its
+		// sibling's — see symbolsIDForArtifact) is used, falling back to the Version
+		// Lane (version+basePath) when there is none.
 		s3Keys := make([]string, 0, len(files))
-		firstSymbolsID := ""
-		for i, file := range files {
+		for _, file := range files {
 			fileSymbolsID := symbolsID
 			if fileSymbolsID == "" {
 				fileSymbolsID = symbolsIDForArtifact(file.Path)
 				if fileSymbolsID != "" {
-					fmt.Printf("Using symbols id %s for %s (Symbols Id Lane: %s/%s)\n", fileSymbolsID, file.Name, symbolsIDPrefix, fileSymbolsID)
+					fmt.Printf("Using symbols id %s for %s (Symbols Id Lane: %s/%s)\n", fileSymbolsID, file.Name, reactNativeSymbolsIDPrefix, fileSymbolsID)
 				}
 			}
-			if i == 0 {
-				firstSymbolsID = fileSymbolsID
-			}
-			s3Keys = append(s3Keys, getS3Key(symbolsIDPrefix, fileSymbolsID, appVersion, basePath, file.Name))
+			s3Keys = append(s3Keys, getS3Key(reactNativeSymbolsIDPrefix, fileSymbolsID, appVersion, basePath, file.Name))
 		}
 
-		// Android sources are packed into one bundle uploaded beside the mapping,
-		// on the same lane, so the errors page can show the code around each
-		// retraced frame. Keyed off the first mapping's lane: a build has one
-		// mapping, and its sources are the app's sources. Because that key is the
-		// mapping's id and not the bundle's, an object being there says nothing
-		// about these sources — a source-only change keeps the mapping's id — so the
-		// bundle is skipped only when its digest matches what is already stored.
-		var sourceBundle *uploadBody
-		if symbolType == typeAndroid && viper.GetBool(includeSourcesFlag) {
-			sourceRoot := viper.GetString(sourcePathFlag)
-			data, count, bErr := buildAndroidSourceBundle(sourceRoot)
-			if bErr != nil {
-				return bErr
-			}
-			if data == nil {
-				// Not fatal: the mapping alone still retraces, just without source.
-				fmt.Printf("No .java/.kt sources found under %s; skipping source bundle\n", sourceRoot)
-			} else {
-				// Compressed here rather than at the point of sending, so the digest
-				// below describes the bytes that get stored.
-				body := compressBody(data)
-				sourceBundle = &body
-				bundleName := filepath.Join(filepath.Dir(files[0].Name), androidSourceBundleName)
-				s3Keys = append(s3Keys, getS3Key(symbolsIDPrefix, firstSymbolsID, appVersion, basePath, bundleName))
-				fmt.Printf("Built source bundle from %s (%d files, %d bytes)\n", sourceRoot, count, len(data))
-			}
-		}
-
-		// Only the source bundle needs a digest: every other key here is derived from
-		// the artifact's own content, so the backend settles those by existence alone
-		// and we never have to read a large mapping back off disk to hash it.
-		digests := make([]string, len(s3Keys))
-		if sourceBundle != nil {
-			digests[len(s3Keys)-1] = contentDigest(sourceBundle.Data)
-		}
-
-		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, digests, backendUrl, skipExisting)
+		// No digests: a JavaScript map is keyed either by its own content id or by a
+		// Version Lane key the backend re-presigns so it can overwrite, so nothing
+		// here needs a hash to settle whether it is already stored.
+		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, nil, backendUrl, skipExisting)
 		if err != nil {
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
 
-		// The loops below pair each requested key with uploadUrls[i], so a short
+		// The loop below pairs each requested key with uploadUrls[i], so a short
 		// list would panic. Require one URL per requested key.
 		if len(uploadUrls) != len(s3Keys) {
 			return fmt.Errorf("expected %d upload URLs but received %d", len(s3Keys), len(uploadUrls))
@@ -340,15 +296,6 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			}
 			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
 				return fmt.Errorf("failed to upload file %s: %w", file.Path, err)
-			}
-		}
-		if sourceBundle != nil {
-			// The bundle's key was appended last, so it takes the final URL.
-			if alreadyUploaded(uploadUrls[len(files)]) {
-				fmt.Printf("Skipping %s, already uploaded\n", androidSourceBundleName)
-				skipped++
-			} else if err := uploadBytes(*sourceBundle, uploadUrls[len(files)], androidSourceBundleName); err != nil {
-				return fmt.Errorf("failed to upload source bundle: %w", err)
 			}
 		}
 
@@ -417,15 +364,6 @@ func isSupportedType(symbolType string) bool {
 	return symbolType == typeReactNative || symbolType == typeAndroid || symbolType == typeAppleDSYM || symbolType == typeFlutter
 }
 
-// symbolsIDPrefixForType picks the Symbols Id Lane storage segment for the symbol
-// type so JS and Android maps never collide in the same symbols-id namespace.
-func symbolsIDPrefixForType(symbolType string) string {
-	if symbolType == typeAndroid {
-		return androidSymbolsIDPrefix
-	}
-	return reactNativeSymbolsIDPrefix
-}
-
 func isReactNativeUploadFile(name string) bool {
 	for _, suffix := range reactNativeUploadSuffixes {
 		if strings.HasSuffix(name, suffix) {
@@ -435,8 +373,8 @@ func isReactNativeUploadFile(name string) bool {
 	return false
 }
 
-// isSymbolUploadFile reports whether a discovered file should be uploaded for
-// the given symbol type: React Native bundles/maps, or an Android mapping.txt.
+// isSymbolUploadFile reports whether a discovered file is an input for the given
+// symbol type: React Native bundles and maps, or an Android mapping.txt.
 func isSymbolUploadFile(symbolType, name string) bool {
 	if symbolType == typeAndroid {
 		return filepath.Base(name) == androidMappingFileName
@@ -491,10 +429,10 @@ func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 
 			files = append(files, SymbolFile{
 				Path: filePath,
-				// Symbolication reads an Android mapping at <lane>/mapping.txt, so
-				// the object is named for the file alone however deep it was found.
-				// A React Native bundle keeps its path, which is part of how a map
-				// is matched to the bundle that references it.
+				// An Android mapping is named for the file alone however deep it was
+				// found, since what it is stored as is decided by the indexer. A
+				// React Native bundle keeps its path, which is part of how a map is
+				// matched to the bundle that references it.
 				Name: uploadName(symbolType, relPath),
 			})
 		}

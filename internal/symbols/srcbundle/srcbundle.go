@@ -82,7 +82,18 @@ var le = binary.LittleEndian
 // Builder accumulates source files for one image and encodes them. Add is
 // keyed by the same path string the sibling .dsymmap records.
 type Builder struct {
-	files map[string][]byte
+	files map[string]entry
+	// err latches the first compression failure, so Add can stay a statement.
+	err error
+}
+
+// entry is one added file, already compressed. Holding the compressed form is what
+// bounds a builder to roughly the size of what it is about to write: an R8 mapping
+// index adds an entry per class, and those blocks together are several times the
+// bundle they end up in.
+type entry struct {
+	data   []byte
+	rawLen int
 }
 
 // Add registers one source file's contents under path. Empty paths and repeats
@@ -92,12 +103,28 @@ func (b *Builder) Add(path string, content []byte) {
 		return
 	}
 	if b.files == nil {
-		b.files = make(map[string][]byte)
+		b.files = make(map[string]entry)
 	}
 	if _, ok := b.files[path]; ok {
 		return
 	}
-	b.files[path] = content
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if _, err := zw.Write(content); err != nil {
+		b.latch(e.Wrapf(err, "srcbundle: compressing %s", path))
+		return
+	}
+	if err := zw.Close(); err != nil {
+		b.latch(e.Wrapf(err, "srcbundle: finishing %s", path))
+		return
+	}
+	b.files[path] = entry{data: buf.Bytes(), rawLen: len(content)}
+}
+
+func (b *Builder) latch(err error) {
+	if b.err == nil {
+		b.err = err
+	}
 }
 
 // Len is the number of distinct files added.
@@ -105,6 +132,10 @@ func (b *Builder) Len() int { return len(b.files) }
 
 // Encode writes the bundle. Paths are sorted so the reader can binary search.
 func (b *Builder) Encode(w io.Writer) error {
+	if b.err != nil {
+		return b.err
+	}
+
 	paths := make([]string, 0, len(b.files))
 	for p := range b.files {
 		paths = append(paths, p)
@@ -121,21 +152,15 @@ func (b *Builder) Encode(w io.Writer) error {
 		strtab.WriteString(p)
 		strtab.WriteByte(0)
 
-		raw := b.files[p]
+		file := b.files[p]
 		dataOff := uint32(payload.Len())
-		zw := gzip.NewWriter(&payload)
-		if _, err := zw.Write(raw); err != nil {
-			return e.Wrapf(err, "srcbundle: compressing %s", p)
-		}
-		if err := zw.Close(); err != nil {
-			return e.Wrapf(err, "srcbundle: finishing %s", p)
-		}
+		payload.Write(file.data)
 
 		rec := make([]byte, indexRecSize)
 		le.PutUint32(rec[0:], pathOff)
 		le.PutUint32(rec[4:], dataOff)
-		le.PutUint32(rec[8:], uint32(payload.Len())-dataOff)
-		le.PutUint32(rec[12:], uint32(len(raw)))
+		le.PutUint32(rec[8:], uint32(len(file.data)))
+		le.PutUint32(rec[12:], uint32(file.rawLen))
 		index = append(index, rec...)
 	}
 
@@ -282,6 +307,14 @@ func (b *Bundle) File(path string) ([]byte, bool) {
 	}
 	b.memo[path] = out
 	return out, true
+}
+
+// Read is File without the memo, for a caller that caches what it decoded itself,
+// or that queries enough distinct entries that remembering every one of them would
+// grow into the whole bundle. It touches only the immutable view, so it is safe to
+// call concurrently.
+func (b *Bundle) Read(path string) ([]byte, bool) {
+	return b.readFile(path)
 }
 
 func (b *Bundle) readFile(path string) ([]byte, bool) {
