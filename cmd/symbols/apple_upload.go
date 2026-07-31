@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,12 +73,16 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources
 
 	keys := make([]string, len(maps))
 	digests := make([]string, len(maps))
+	bodies := make([]uploadBody, len(maps))
 	for i, m := range maps {
 		keys[i] = m.Key
+		// Compressed here rather than at the point of sending, so a digest below
+		// describes the bytes that get stored.
+		bodies[i] = compressBody(m.Data)
 		if m.Kind == kindSources {
 			// Sources are keyed by their image's UUID rather than by their own
 			// contents, so only a digest can show that re-sending them is a no-op.
-			digests[i] = contentDigest(m.Data)
+			digests[i] = contentDigest(bodies[i].Data)
 		}
 	}
 
@@ -100,7 +103,7 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources
 			skipped++
 			continue
 		}
-		if err := uploadBytes(m.Data, uploadURLs[i], m.label()); err != nil {
+		if err := uploadBytes(bodies[i], uploadURLs[i], m.label()); err != nil {
 			return fmt.Errorf("failed to upload symbol map for %s: %w", m.UUID, err)
 		}
 	}
@@ -246,23 +249,19 @@ func archLabel(cpuType uint32) string {
 	}
 }
 
-func uploadBytes(data []byte, uploadURL, name string) error {
-	req, err := http.NewRequest("PUT", uploadURL, bytes.NewReader(data))
-	if err != nil {
+// uploadBytes sends an artifact built in memory. It takes an already-compressed
+// body rather than raw bytes so that a caller which sends a digest hashes exactly
+// what gets stored; see compress.go.
+func uploadBytes(body uploadBody, uploadURL, name string) error {
+	if err := putObject(uploadURL, bytes.NewReader(body.Data), int64(len(body.Data)), body.Encoding); err != nil {
 		return err
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
+	if body.Encoding == gzipEncoding {
+		fmt.Printf("[LaunchDarkly] Uploaded symbol map %s (%s gzipped to %s)\n",
+			name, byteSize(int64(body.RawSize)), byteSize(int64(len(body.Data))))
+		return nil
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("upload failed with status code: %d", resp.StatusCode)
-	}
-
-	fmt.Printf("[LaunchDarkly] Uploaded symbol map %s\n", name)
+	fmt.Printf("[LaunchDarkly] Uploaded symbol map %s (%s)\n", name, byteSize(int64(len(body.Data))))
 	return nil
 }
