@@ -258,3 +258,44 @@ func TestWizard_SelectSDK_EmptyList_DoesNotPanic(t *testing.T) {
 	assert.Equal(t, stepSelectSDK, updated.step)
 	assert.Nil(t, updated.detectResult)
 }
+
+func TestWizard_Plan_ExistingEntryPoint_SaysAdd(t *testing.T) {
+	m := wizardModel{
+		step:            stepPlan,
+		selectedProject: "default",
+		selectedEnv:     "test",
+		detectResult: &setup.DetectResult{
+			SDKID:            "node-server",
+			EntryPoint:       "src/index.js",
+			EntryPointExists: true,
+		},
+		width:  80,
+		height: 30,
+	}
+
+	view := m.planView()
+	assert.Contains(t, view, "Add initialization code to src/index.js")
+	assert.NotContains(t, view, "Create src/index.js")
+}
+
+// A guessed entry point means we would write a file the project does not load, so
+// the plan has to say so while the user can still back out.
+func TestWizard_Plan_MissingEntryPoint_SaysCreate(t *testing.T) {
+	m := wizardModel{
+		step:            stepPlan,
+		selectedProject: "default",
+		selectedEnv:     "test",
+		detectResult: &setup.DetectResult{
+			SDKID:            "node-server",
+			EntryPoint:       "instrumentation.ts",
+			EntryPointExists: false,
+		},
+		width:  80,
+		height: 30,
+	}
+
+	view := m.planView()
+	assert.Contains(t, view, "Create instrumentation.ts")
+	assert.Contains(t, view, "no entry file found")
+	assert.NotContains(t, view, "Add initialization code to")
+}

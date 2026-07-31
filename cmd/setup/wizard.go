@@ -661,7 +661,16 @@ func (m wizardModel) planView() string {
 	}
 	add(fmt.Sprintf("Create a feature flag in %s / %s", m.selectedProject, m.selectedEnv))
 	if setup.InjectsInPlace(m.detectResult.SDKID) {
-		add(fmt.Sprintf("Add initialization code to %s", m.detectResult.EntryPoint))
+		// Say when the entry file does not exist yet: a file we create is not loaded
+		// by the project, so the user needs the chance to back out and point us at
+		// the real entry point.
+		if m.detectResult.EntryPointExists {
+			add(fmt.Sprintf("Add initialization code to %s", m.detectResult.EntryPoint))
+		} else {
+			add(fmt.Sprintf("Create %s with initialization code %s",
+				m.detectResult.EntryPoint,
+				mutedStyle.Render("(no entry file found — check this is where your app starts)")))
+		}
 		add("Verify the SDK connects to LaunchDarkly")
 	} else {
 		add("Show initialization code for you to add")

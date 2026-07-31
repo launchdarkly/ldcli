@@ -55,7 +55,11 @@ func runDetect(detector setup.Detector) func(*cobra.Command, []string) error {
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Package Manager: %s\n", result.PackageManager)
 		fmt.Fprintf(cmd.OutOrStdout(), "Recommended SDK: %s\n", result.SDKID)
-		fmt.Fprintf(cmd.OutOrStdout(), "Entry Point: %s\n", result.EntryPoint)
+		if result.EntryPointExists {
+			fmt.Fprintf(cmd.OutOrStdout(), "Entry Point: %s\n", result.EntryPoint)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "Entry Point: %s (suggested, does not exist)\n", result.EntryPoint)
+		}
 
 		return nil
 	}
