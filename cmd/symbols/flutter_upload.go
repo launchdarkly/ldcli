@@ -76,7 +76,9 @@ func uploadFlutterSymbols(apiKey, projectID, path, appVersion, backendURL string
 			skipped++
 			continue
 		}
-		if err := uploadBytes(u.Data, uploadURLs[i], u.Label); err != nil {
+		// Nothing here carries a digest, so unlike the Apple uploader this can wait
+		// until a map is known to be going, and skip the work for one that isn't.
+		if err := uploadBytes(compressBody(u.Data), uploadURLs[i], u.Label); err != nil {
 			return fmt.Errorf("failed to upload symbol map %s: %w", u.Label, err)
 		}
 	}

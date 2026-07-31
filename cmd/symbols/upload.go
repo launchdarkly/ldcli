@@ -235,6 +235,17 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl, skipExisting)
 		}
 
+		// An Android project already knows where R8 put the mapping, what version it
+		// shipped, and which symbols id the app reports, so read all three out of
+		// the build instead of asking for them.
+		if symbolType == typeAndroid {
+			resolved, aErr := resolveAndroidBuild(androidUpload{Path: path, AppVersion: appVersion, SymbolsID: symbolsID})
+			if aErr != nil {
+				return aErr
+			}
+			path, appVersion, symbolsID = resolved.Path, resolved.AppVersion, resolved.SymbolsID
+		}
+
 		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
 
 		fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
@@ -280,7 +291,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// mapping's id and not the bundle's, an object being there says nothing
 		// about these sources — a source-only change keeps the mapping's id — so the
 		// bundle is skipped only when its digest matches what is already stored.
-		var sourceBundle []byte
+		var sourceBundle *uploadBody
 		if symbolType == typeAndroid && viper.GetBool(includeSourcesFlag) {
 			sourceRoot := viper.GetString(sourcePathFlag)
 			data, count, bErr := buildAndroidSourceBundle(sourceRoot)
@@ -291,7 +302,10 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 				// Not fatal: the mapping alone still retraces, just without source.
 				fmt.Printf("No .java/.kt sources found under %s; skipping source bundle\n", sourceRoot)
 			} else {
-				sourceBundle = data
+				// Compressed here rather than at the point of sending, so the digest
+				// below describes the bytes that get stored.
+				body := compressBody(data)
+				sourceBundle = &body
 				bundleName := filepath.Join(filepath.Dir(files[0].Name), androidSourceBundleName)
 				s3Keys = append(s3Keys, getS3Key(symbolsIDPrefix, firstSymbolsID, appVersion, basePath, bundleName))
 				fmt.Printf("Built source bundle from %s (%d files, %d bytes)\n", sourceRoot, count, len(data))
@@ -303,7 +317,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// and we never have to read a large mapping back off disk to hash it.
 		digests := make([]string, len(s3Keys))
 		if sourceBundle != nil {
-			digests[len(s3Keys)-1] = contentDigest(sourceBundle)
+			digests[len(s3Keys)-1] = contentDigest(sourceBundle.Data)
 		}
 
 		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, digests, backendUrl, skipExisting)
@@ -333,7 +347,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			if alreadyUploaded(uploadUrls[len(files)]) {
 				fmt.Printf("Skipping %s, already uploaded\n", androidSourceBundleName)
 				skipped++
-			} else if err := uploadBytes(sourceBundle, uploadUrls[len(files)], androidSourceBundleName); err != nil {
+			} else if err := uploadBytes(*sourceBundle, uploadUrls[len(files)], androidSourceBundleName); err != nil {
 				return fmt.Errorf("failed to upload source bundle: %w", err)
 			}
 		}
@@ -430,6 +444,15 @@ func isSymbolUploadFile(symbolType, name string) bool {
 	return isReactNativeUploadFile(name)
 }
 
+// uploadName is the name an artifact is stored under, given its path relative to
+// the directory searched.
+func uploadName(symbolType, relPath string) string {
+	if symbolType == typeAndroid {
+		return filepath.Base(relPath)
+	}
+	return relPath
+}
+
 func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 	var files []SymbolFile
 
@@ -468,7 +491,11 @@ func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 
 			files = append(files, SymbolFile{
 				Path: filePath,
-				Name: relPath,
+				// Symbolication reads an Android mapping at <lane>/mapping.txt, so
+				// the object is named for the file alone however deep it was found.
+				// A React Native bundle keeps its path, which is part of how a map
+				// is matched to the bundle that references it.
+				Name: uploadName(symbolType, relPath),
 			})
 		}
 
@@ -653,15 +680,59 @@ func requestSymbolUploadUrls(apiKey, projectID string, paths, digests []string, 
 	return urlsResp.Data.GetSymbolUploadUrls, nil
 }
 
+// uploadFile sends a file on disk, gzipped. Nothing keyed to a file carries a
+// digest — those keys are derived from the artifact's own contents — so unlike an
+// artifact held in memory this can be compressed here, as it is read.
 func uploadFile(filePath, uploadUrl, name string) error {
-	fileContent, err := os.ReadFile(filePath)
+	info, err := os.Stat(filePath)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("PUT", uploadUrl, bytes.NewBuffer(fileContent))
+	compressed, err := gzipFile(filePath)
 	if err != nil {
 		return err
+	}
+
+	// Compressing an artifact that is already compressed can make it bigger; send
+	// the file as it is rather than pay to store the difference.
+	if int64(len(compressed)) >= info.Size() {
+		file, err := os.Open(filePath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		if err := putObject(uploadUrl, file, info.Size(), ""); err != nil {
+			return err
+		}
+		fmt.Printf("[LaunchDarkly] Uploaded %s to %s (%s)\n", filePath, name, byteSize(info.Size()))
+		return nil
+	}
+
+	if err := putObject(uploadUrl, bytes.NewReader(compressed), int64(len(compressed)), gzipEncoding); err != nil {
+		return err
+	}
+	fmt.Printf("[LaunchDarkly] Uploaded %s to %s (%s gzipped to %s)\n",
+		filePath, name, byteSize(info.Size()), byteSize(int64(len(compressed))))
+	return nil
+}
+
+// putObject PUTs a body to a presigned URL.
+//
+// The length is passed explicitly because S3 will not take a chunked upload, and
+// net/http only measures a body it recognises — a file streamed from disk would
+// otherwise be sent with no Content-Length at all.
+func putObject(uploadURL string, body io.Reader, length int64, encoding string) error {
+	req, err := http.NewRequest("PUT", uploadURL, body)
+	if err != nil {
+		return err
+	}
+	req.ContentLength = length
+	if encoding != "" {
+		// Stored as object metadata and handed back on read, so the object says how
+		// to read it instead of the reader having to guess.
+		req.Header.Set("Content-Encoding", encoding)
 	}
 
 	client := &http.Client{}
@@ -674,8 +745,6 @@ func uploadFile(filePath, uploadUrl, name string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("upload failed with status code: %d", resp.StatusCode)
 	}
-
-	fmt.Printf("[LaunchDarkly] Uploaded %s to %s\n", filePath, name)
 	return nil
 }
 
@@ -690,13 +759,13 @@ func initFlags(cmd *cobra.Command) {
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
-	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
+	cmd.Flags().String(appVersionFlag, "", fmt.Sprintf("The current version of your deploy. With --type %s this is read from the packaged build when omitted", typeAndroid))
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
 
-	cmd.Flags().String(symbolsIdFlag, "", "The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present")
+	cmd.Flags().String(symbolsIdFlag, "", fmt.Sprintf("The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present, and with --type %s the id the packaged app reports", typeAndroid))
 	_ = viper.BindPFlag(symbolsIdFlag, cmd.Flags().Lookup(symbolsIdFlag))
 
-	cmd.Flags().String(pathFlag, defaultPath, "Sets the directory of where the symbol files are")
+	cmd.Flags().String(pathFlag, defaultPath, fmt.Sprintf("Sets the directory of where the symbol files are. With --type %s, run from your project root and the R8 mapping is found for you", typeAndroid))
 	_ = viper.BindPFlag(pathFlag, cmd.Flags().Lookup(pathFlag))
 
 	cmd.Flags().String(basePathFlag, "", "An optional base path for the uploaded symbol files")
