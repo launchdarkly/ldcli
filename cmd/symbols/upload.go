@@ -700,7 +700,7 @@ func initFlags(cmd *cobra.Command) {
 	cmd.Flags().String(appVersionFlag, "", fmt.Sprintf("The current version of your deploy. With --type %s this is read from the packaged build when omitted", typeAndroid))
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
 
-	cmd.Flags().String(symbolsIdFlag, "", fmt.Sprintf("The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present, and with --type %s the id the packaged app reports", typeAndroid))
+	cmd.Flags().String(symbolsIdFlag, "", fmt.Sprintf("The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present, and with --type %s the id the packaged app reports, or failing that the one R8 recorded in the mapping", typeAndroid))
 	_ = viper.BindPFlag(symbolsIdFlag, cmd.Flags().Lookup(symbolsIdFlag))
 
 	cmd.Flags().String(pathFlag, defaultPath, fmt.Sprintf("Sets the directory of where the symbol files are. With --type %s, run from your project root and the R8 mapping is found for you", typeAndroid))
