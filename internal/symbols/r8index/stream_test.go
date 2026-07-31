@@ -88,7 +88,7 @@ func (failingReader) Read([]byte) (int, error) { return 0, assert.AnError }
 // — both ways end holding the same index — so this samples the live heap while the
 // work runs instead of measuring it afterwards.
 //
-//	R8_MAPPING=/path/to/mapping.txt go test ./backend/stacktraces/r8index/ -run RealMappingStream -v
+//	go test ./backend/stacktraces/r8index/ -run RealMappingStream -v -mapping /path/to/mapping.txt
 func TestRealMappingStreamFootprint(t *testing.T) {
 	data := realMapping(t)
 
@@ -149,11 +149,7 @@ func peakHeapMB(f func()) float64 {
 }
 
 func TestEncodeFromRealMappingIsReadable(t *testing.T) {
-	path := os.Getenv("R8_MAPPING")
-	if path == "" {
-		t.Skip("set R8_MAPPING to a release mapping.txt")
-	}
-	file, err := os.Open(path)
+	file, err := os.Open(realMappingFile(t))
 	require.NoError(t, err)
 	defer file.Close()
 

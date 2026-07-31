@@ -3,8 +3,8 @@ package r8index
 // An opt-in check that an index a build machine actually produced answers the way this
 // reader expects, over a real release mapping rather than a fixture:
 //
-//	R8_MAPPING=.../mapping.txt R8_INDEX=.../mapping.v1.index \
-//	  go test ./backend/stacktraces/r8index/ -run RealIndex -v
+//	go test ./backend/stacktraces/r8index/ -run RealIndex -v \
+//	  -mapping .../mapping.txt -index .../mapping.v1.index
 //
 // The mapping is the oracle. The golden fixture makes the same guarantee automatic, but
 // only over bytes this repo encoded; this is what closes the loop on an artifact that
@@ -18,10 +18,10 @@ import (
 )
 
 func TestRealIndexMatchesMapping(t *testing.T) {
-	indexPath := os.Getenv("R8_INDEX")
-	if indexPath == "" {
-		t.Skip("set R8_INDEX to an index built by the CLI, and R8_MAPPING to the mapping it was built from")
+	if *realIndexPath == "" {
+		t.Skip("pass -index <index the CLI built> and -mapping <the mapping it was built from>")
 	}
+	indexPath := *realIndexPath
 	raw, err := os.ReadFile(indexPath)
 	require.NoError(t, err)
 	ix, err := Open(raw)

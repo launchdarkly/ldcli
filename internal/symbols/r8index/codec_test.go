@@ -1,6 +1,7 @@
 package r8index
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"runtime"
@@ -213,16 +214,30 @@ func TestNilIndexAnswersNothing(t *testing.T) {
 	assert.Empty(t, ix.SourceFile("a"))
 }
 
-// realMapping reads the mapping named by R8_MAPPING, for the opt-in tests below:
+// The checks against a real build are opt-in, since they need one:
 //
-//	R8_MAPPING=/path/to/mapping.txt go test ./backend/stacktraces/r8index/ -run RealMapping -v
+//	go test ./backend/stacktraces/r8index/ -run RealMapping -v -mapping /path/to/mapping.txt
+//
+// Flags rather than environment variables, so that `go test -args -h` lists them, and
+// because os.Getenv is banned throughout the backend.
+var (
+	realMappingPath = flag.String("mapping", "", "path to a release mapping.txt, for the opt-in checks against a real build")
+	realIndexPath   = flag.String("index", "", "path to a mapping.v1.index the CLI built from -mapping")
+)
+
+// realMappingFile names the mapping to check against, skipping when there is none. For
+// the tests that read it themselves, either to time the reading or to stream it.
+func realMappingFile(t *testing.T) string {
+	t.Helper()
+	if *realMappingPath == "" {
+		t.Skip("pass -mapping <release mapping.txt> to run this")
+	}
+	return *realMappingPath
+}
+
 func realMapping(t *testing.T) []byte {
 	t.Helper()
-	path := os.Getenv("R8_MAPPING")
-	if path == "" {
-		t.Skip("set R8_MAPPING to a release mapping.txt")
-	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(realMappingFile(t))
 	require.NoError(t, err)
 	return data
 }
@@ -281,10 +296,7 @@ func TestRealMapping(t *testing.T) {
 // memory to answer lookups for one build. Each half takes its own baseline before it
 // allocates anything, so neither is measured against the other's leftovers.
 func TestRealMappingFootprint(t *testing.T) {
-	path := os.Getenv("R8_MAPPING")
-	if path == "" {
-		t.Skip("set R8_MAPPING to a release mapping.txt")
-	}
+	path := realMappingFile(t)
 
 	var withMapping, withIndex float64
 
