@@ -235,8 +235,11 @@ func initGenerateFlags(cmd *cobra.Command) {
 	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
 
-	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also generate a source bundle from the files referenced by the debug info, for source context on native frames (%s only)", typeAppleDSYM))
+	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also generate a source bundle, for source context around native frames (%s and %s)", typeAppleDSYM, typeAndroid))
 	_ = viper.BindPFlag(includeSourcesFlag, cmd.Flags().Lookup(includeSourcesFlag))
+
+	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to scan for .java/.kt sources when using --%s with --type %s", includeSourcesFlag, typeAndroid))
+	_ = viper.BindPFlag(sourcePathFlag, cmd.Flags().Lookup(sourcePathFlag))
 
 	cmd.Flags().String(symbolsIdFlag, "", "The symbols id (launchdarkly.symbols_id.htlhash) to key files by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present")
 	_ = viper.BindPFlag(symbolsIdFlag, cmd.Flags().Lookup(symbolsIdFlag))
