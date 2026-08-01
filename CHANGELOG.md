@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.8.0](https://github.com/launchdarkly/ldcli/compare/v3.7.0...v3.8.0) (2026-08-01)
+
+
+### Features
+
+* **symbols:** build the R8 mapping index in the CLI ([#768](https://github.com/launchdarkly/ldcli/issues/768)) ([8693730](https://github.com/launchdarkly/ldcli/commit/8693730eb9930ad5a55626ad82dfc7a6316d934a))
+* **symbols:** zero-config Android uploads, and gzip what an upload sends ([#767](https://github.com/launchdarkly/ldcli/issues/767)) ([edcf301](https://github.com/launchdarkly/ldcli/commit/edcf3018f84e6b3c48e0e749eda5f5a5c18898a8))
+
 ## [3.7.0](https://github.com/launchdarkly/ldcli/compare/v3.6.0...v3.7.0) (2026-07-31)
 
 
