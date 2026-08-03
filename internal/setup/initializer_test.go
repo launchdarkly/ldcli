@@ -244,3 +244,36 @@ func TestGetDocsURL(t *testing.T) {
 	assert.Equal(t, "https://launchdarkly.com/docs/sdk/server-side/python", GetDocsURL("python-server-sdk"))
 	assert.Equal(t, "https://launchdarkly.com/docs/sdk", GetDocsURL("totally-unknown"))
 }
+
+// The mobile SDKs return a snippet the user pastes by hand, so a snippet that does
+// not compile is the whole deliverable being wrong. Neither config type can be
+// built without its environment-attributes argument: LDConfig's only public
+// initializer takes autoEnvAttributes, and LDConfig.Builder's only constructor
+// takes AutoEnvAttributes. There is no Swift or Java toolchain here to catch it.
+func TestRenderTemplate_MobileConfigCarriesRequiredArguments(t *testing.T) {
+	tests := []struct {
+		sdkID string
+		want  []string
+	}{
+		{"swift-client-sdk", []string{`LDConfig(mobileKey: "mob-456", autoEnvAttributes: .enabled)`}},
+		{"android", []string{
+			"new LDConfig.Builder(AutoEnvAttributes.Enabled)",
+			// AutoEnvAttributes is nested in LDConfig.Builder, so the package
+			// wildcard import does not bring it into scope.
+			"import com.launchdarkly.sdk.android.LDConfig.Builder.AutoEnvAttributes;",
+		}},
+		{"android-client-sdk", []string{"new LDConfig.Builder(AutoEnvAttributes.Enabled)"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.sdkID, func(t *testing.T) {
+			result, err := RenderTemplate(tt.sdkID, InitConfig{MobileKey: "mob-456", FlagKey: "my-flag"})
+
+			require.NoError(t, err)
+			for _, want := range tt.want {
+				assert.Contains(t, result, want)
+			}
+			assert.NotContains(t, result, "new LDConfig.Builder()",
+				"the no-argument Builder constructor does not exist")
+		})
+	}
+}

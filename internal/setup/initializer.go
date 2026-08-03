@@ -48,6 +48,22 @@ var appendSafeSDKs = map[string]bool{
 	"ruby-server-sdk":   true,
 }
 
+// defaultEntryPoints names the file to create for an SDK when there is no detected
+// entry point to write into. Only the append-safe SDKs need one, since every other
+// SDK returns a snippet and never touches the filesystem. The names match the
+// fallbacks detection already suggests for these languages.
+var defaultEntryPoints = map[string]string{
+	"node-server":       "index.js",
+	"python-server-sdk": "main.py",
+	"ruby-server-sdk":   "main.rb",
+}
+
+// DefaultEntryPoint returns the file to create for sdkID when no entry point was
+// detected for it, or an empty string when the SDK does not write to disk.
+func DefaultEntryPoint(sdkID string) string {
+	return defaultEntryPoints[sdkID]
+}
+
 // Initializer injects SDK initialization code into a target file.
 type Initializer struct{}
 
