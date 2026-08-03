@@ -23,3 +23,14 @@ func (c *MockClient) Get(
 
 	return args.Get(0).([]byte), args.Error(1)
 }
+
+func (c *MockClient) List(
+	ctx context.Context,
+	accessToken,
+	baseURI,
+	projKey string,
+) ([]byte, error) {
+	args := c.Called(accessToken, baseURI, projKey)
+
+	return args.Get(0).([]byte), args.Error(1)
+}
