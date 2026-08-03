@@ -255,7 +255,12 @@ func TestRenderTemplate_MobileConfigCarriesRequiredArguments(t *testing.T) {
 		sdkID string
 		want  []string
 	}{
-		{"swift-client-sdk", []string{`LDConfig(mobileKey: "mob-456", autoEnvAttributes: .enabled)`}},
+		{"swift-client-sdk", []string{
+			`LDConfig(mobileKey: "mob-456", autoEnvAttributes: .enabled)`,
+			// build() returns a Result. `try ...get()` only compiles inside a
+			// throwing function, and the paste sites are not throwing.
+			`guard case .success(let ldContext) = LDContextBuilder(key: "example-user-key").build()`,
+		}},
 		{"android", []string{
 			"new LDConfig.Builder(AutoEnvAttributes.Enabled)",
 			// AutoEnvAttributes is nested in LDConfig.Builder, so the package
@@ -274,6 +279,8 @@ func TestRenderTemplate_MobileConfigCarriesRequiredArguments(t *testing.T) {
 			}
 			assert.NotContains(t, result, "new LDConfig.Builder()",
 				"the no-argument Builder constructor does not exist")
+			assert.NotContains(t, result, "try ",
+				"a snippet pasted into a non-throwing function cannot use try")
 		})
 	}
 }
