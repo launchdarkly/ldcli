@@ -228,3 +228,147 @@ func TestPackageInstaller_Install_DefaultRunner_UsedWhenNil(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.Success)
 }
+
+// A related package that starts with the SDK's name is not the SDK. Treating it as
+// installed skips the install and leaves the integration package without the SDK
+// it depends on.
+func TestIsInstalled_RelatedPackageIsNotTheSDK(t *testing.T) {
+	tests := []struct {
+		name     string
+		manifest string
+		content  string
+		sdkID    string
+		want     bool
+	}{
+		{"node redis integration only", "package.json",
+			`{"dependencies":{"@launchdarkly/node-server-sdk-redis":"^4.0.0"}}`, "node-server", false},
+		{"node sdk present", "package.json",
+			`{"dependencies":{"@launchdarkly/node-server-sdk":"^9.13.0"}}`, "node-server", true},
+		{"node sdk alongside integration", "package.json",
+			`{"dependencies":{"@launchdarkly/node-server-sdk":"^9.13.0","@launchdarkly/node-server-sdk-redis":"^4.0.0"}}`, "node-server", true},
+		{"python otel plugin only", "requirements.txt",
+			"launchdarkly-server-sdk-otel==1.0.0\n", "python-server-sdk", false},
+		{"python sdk pinned", "requirements.txt",
+			"launchdarkly-server-sdk==9.16.1\n", "python-server-sdk", true},
+		{"ruby sdk in gemfile", "Gemfile",
+			"gem 'launchdarkly-server-sdk', '~> 8.14'\n", "ruby-server-sdk", true},
+		{"ruby related gem only", "Gemfile",
+			"gem 'launchdarkly-server-sdk-redis-store'\n", "ruby-server-sdk", false},
+		{"go module in go.mod", "go.mod",
+			"require github.com/launchdarkly/go-server-sdk/v7 v7.15.5\n", "go-server-sdk", true},
+		{"go sdk name as a prefix", "go.mod",
+			"require github.com/launchdarkly/go-server-sdk/v7-fork v1.0.0\n", "go-server-sdk", false},
+		{"dotnet telemetry package only", "App.csproj",
+			`<PackageReference Include="LaunchDarkly.ServerSdk.Telemetry" Version="1.0.0" />`, "dotnet-server-sdk", false},
+		{"dotnet sdk present", "App.csproj",
+			`<PackageReference Include="LaunchDarkly.ServerSdk" Version="8.16.0" />`, "dotnet-server-sdk", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, tt.manifest), []byte(tt.content), 0600))
+
+			assert.Equal(t, tt.want, IsInstalled(dir, tt.sdkID))
+		})
+	}
+}
+
+// Detection accepts a solution with no project file beside it, so the install has
+// to find the project the solution refers to.
+func TestIsInstalled_Dotnet_FindsNestedProject(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0600))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src/MyApp"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "src/MyApp/MyApp.csproj"),
+		[]byte(`<PackageReference Include="LaunchDarkly.ServerSdk" Version="8.16.0" />`), 0600))
+
+	assert.True(t, IsInstalled(dir, "dotnet-server-sdk"))
+}
+
+func TestInstall_Dotnet_SolutionLayout_TargetsTheProject(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0600))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src/MyApp"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "src/MyApp/MyApp.csproj"), []byte("<Project/>"), 0600))
+
+	var got []string
+	installer := PackageInstaller{run: func(_ string, args []string) ([]byte, error) {
+		got = args
+		return nil, nil
+	}}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "dotnet-server-sdk", PackageManager: "dotnet"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Success)
+	// A bare `dotnet add package` fails when the working directory holds no project.
+	assert.Equal(t, []string{"dotnet", "add", "package", "LaunchDarkly.ServerSdk",
+		"--project", filepath.Join("src", "MyApp", "MyApp.csproj")}, got)
+}
+
+func TestInstall_Dotnet_SingleRootProject_RunsBareCommand(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.csproj"), []byte("<Project/>"), 0600))
+
+	var got []string
+	installer := PackageInstaller{run: func(_ string, args []string) ([]byte, error) {
+		got = args
+		return nil, nil
+	}}
+
+	_, err := installer.Install(dir, &DetectResult{SDKID: "dotnet-server-sdk", PackageManager: "dotnet"})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dotnet", "add", "package", "LaunchDarkly.ServerSdk"}, got)
+}
+
+// Adding the SDK to an arbitrary assembly is worse than saying which projects exist.
+func TestInstall_Dotnet_SeveralProjects_ReportsWhyItStopped(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0600))
+	for _, p := range []string{"src/Api/Api.csproj", "src/Worker/Worker.csproj"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, filepath.Dir(p)), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, p), []byte("<Project/>"), 0600))
+	}
+
+	ran := false
+	installer := PackageInstaller{run: func(_ string, _ []string) ([]byte, error) {
+		ran = true
+		return nil, nil
+	}}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "dotnet-server-sdk", PackageManager: "dotnet"})
+
+	require.NoError(t, err)
+	assert.False(t, ran, "a command that cannot succeed must not run")
+	assert.True(t, result.Failed)
+	assert.False(t, result.Success)
+	assert.Contains(t, result.FailureReason, "--project")
+	assert.Equal(t, "LaunchDarkly.ServerSdk", result.Package)
+}
+
+func TestInstall_Dotnet_NoProjectAtAll_ReportsWhyItStopped(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0600))
+
+	result, err := PackageInstaller{run: func(_ string, _ []string) ([]byte, error) {
+		t.Fatal("install must not run without a project")
+		return nil, nil
+	}}.Install(dir, &DetectResult{SDKID: "dotnet-server-sdk", PackageManager: "dotnet"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Failed)
+	assert.Contains(t, result.FailureReason, "no .csproj")
+}
+
+// Build output can hold copies of project files and is large enough to matter.
+func TestCsprojFiles_SkipsBuildOutput(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0600))
+	for _, p := range []string{"src/MyApp/MyApp.csproj", "src/MyApp/obj/Copy.csproj", "bin/Debug/Stale.csproj"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, filepath.Dir(p)), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, p), []byte("<Project/>"), 0600))
+	}
+
+	assert.Equal(t, []string{filepath.Join(dir, "src/MyApp/MyApp.csproj")}, csprojFiles(dir))
+}

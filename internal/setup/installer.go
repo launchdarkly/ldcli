@@ -3,9 +3,11 @@ package setup
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -18,7 +20,10 @@ type InstallResult struct {
 	DryRun           bool   `json:"dry_run,omitempty"`
 	AlreadyInstalled bool   `json:"already_installed,omitempty"`
 	Failed           bool   `json:"failed,omitempty"`
-	Success          bool   `json:"success"`
+	// FailureReason carries the underlying error when Failed is true, so callers
+	// can tell the user why the automatic install did not run.
+	FailureReason string `json:"failure_reason,omitempty"`
+	Success       bool   `json:"success"`
 }
 
 // RequiresManualInstall reports whether the SDK has no automated package-manager
@@ -89,6 +94,19 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 		}, nil
 	}
 
+	if detection.SDKID == "dotnet-server-sdk" {
+		target, reason := dotnetProjectArg(dir)
+		if reason != "" {
+			return &InstallResult{
+				SDKID:         detection.SDKID,
+				Package:       pkg,
+				Failed:        true,
+				FailureReason: reason,
+			}, nil
+		}
+		args = append(args, target...)
+	}
+
 	runner := p.run
 	if runner == nil {
 		runner = execRun
@@ -105,6 +123,32 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 		Command: command,
 		Success: true,
 	}, nil
+}
+
+// dotnetProjectArg returns the extra arguments needed to point `dotnet add
+// package` at a project, or a reason the install cannot run unattended. A bare
+// `dotnet add package` only works when the working directory holds exactly one
+// project file, but detection also accepts a solution whose projects live in
+// subdirectories.
+func dotnetProjectArg(dir string) (args []string, reason string) {
+	if matches, _ := filepath.Glob(filepath.Join(dir, "*.csproj")); len(matches) == 1 {
+		return nil, ""
+	}
+	projects := csprojFiles(dir)
+	switch len(projects) {
+	case 0:
+		return nil, "no .csproj file found; add LaunchDarkly.ServerSdk to your project manually"
+	case 1:
+		rel, err := filepath.Rel(dir, projects[0])
+		if err != nil {
+			rel = projects[0]
+		}
+		return []string{"--project", rel}, ""
+	default:
+		// Picking one of several projects would add the SDK to an arbitrary
+		// assembly, so let the user say which.
+		return nil, fmt.Sprintf("found %d projects in this solution; run `dotnet add package LaunchDarkly.ServerSdk --project <path>` for the one that needs the SDK", len(projects))
+	}
 }
 
 func execRun(dir string, args []string) ([]byte, error) {
@@ -224,9 +268,8 @@ func IsInstalled(dir, sdkID string) bool {
 	case "ruby-server-sdk":
 		manifests = []string{"Gemfile", "Gemfile.lock"}
 	case "dotnet-server-sdk":
-		matches, _ := filepath.Glob(filepath.Join(dir, "*.csproj"))
-		for _, f := range matches {
-			if fileContains(f, pkg) {
+		for _, f := range csprojFiles(dir) {
+			if fileMentionsPackage(f, pkg) {
 				return true
 			}
 		}
@@ -236,14 +279,78 @@ func IsInstalled(dir, sdkID string) bool {
 	}
 
 	for _, mf := range manifests {
-		if fileContains(filepath.Join(dir, mf), pkg) {
+		if fileMentionsPackage(filepath.Join(dir, mf), pkg) {
 			return true
 		}
 	}
 	return false
 }
 
-func fileContains(path, substr string) bool {
+func fileMentionsPackage(path, pkg string) bool {
 	b, err := os.ReadFile(path)
-	return err == nil && strings.Contains(string(b), substr)
+	return err == nil && mentionsPackage(string(b), pkg)
+}
+
+// mentionsPackage reports whether content names pkg as a whole dependency rather
+// than as the prefix of a longer name. A plain substring test treats
+// @launchdarkly/node-server-sdk-redis as proof that @launchdarkly/node-server-sdk
+// is installed, so setup skips installing the SDK the integration package needs.
+// Every manifest format delimits a dependency name with a quote, whitespace, or a
+// comparison operator, so requiring a non-name character on both sides works for
+// all of them without parsing each one.
+func mentionsPackage(content, pkg string) bool {
+	for i := 0; ; {
+		at := strings.Index(content[i:], pkg)
+		if at < 0 {
+			return false
+		}
+		at += i
+		end := at + len(pkg)
+		beforeOK := at == 0 || !isPackageNameChar(rune(content[at-1]))
+		afterOK := end == len(content) || !isPackageNameChar(rune(content[end]))
+		if beforeOK && afterOK {
+			return true
+		}
+		i = at + 1
+	}
+}
+
+// isPackageNameChar reports whether r can appear inside a package name, and so
+// whether it continues a name rather than terminating one.
+func isPackageNameChar(r rune) bool {
+	switch {
+	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		return true
+	case r == '-', r == '_', r == '.', r == '/', r == '@':
+		return true
+	}
+	return false
+}
+
+// csprojFiles returns the project files to consider for a .NET project, preferring
+// those in dir. Detection accepts a solution with no project file beside it, so
+// fall back to searching for the projects the solution refers to.
+func csprojFiles(dir string) []string {
+	if matches, _ := filepath.Glob(filepath.Join(dir, "*.csproj")); len(matches) > 0 {
+		return matches
+	}
+	var found []string
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			// Build output holds copies of nothing useful and can be large.
+			if name := d.Name(); name == "bin" || name == "obj" || name == ".git" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(d.Name(), ".csproj") {
+			found = append(found, path)
+		}
+		return nil
+	})
+	sort.Strings(found)
+	return found
 }
