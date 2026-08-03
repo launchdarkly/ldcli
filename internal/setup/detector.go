@@ -174,8 +174,10 @@ func detectNode(dir string) *DetectResult {
 	}
 
 	// Entry point: https://docs.npmjs.com/cli/v11/configuring-npm/package-json#main
+	// NestJS bootstraps from src/main.ts: https://docs.nestjs.com/first-steps
 	ep, exists := entryPoint(dir, "index.js",
 		"src/index.ts", "src/index.js",
+		"src/main.ts", "src/main.js",
 		"index.ts", "index.js",
 		"server.ts", "server.js",
 		"app.ts", "app.js",

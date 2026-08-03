@@ -119,6 +119,16 @@ func TestFileDetector_ProjectShapes(t *testing.T) {
 			want:  DetectResult{Language: "JavaScript", PackageManager: "pnpm", SDKID: "node-server", EntryPoint: "src/index.ts", EntryPointExists: true},
 		},
 		{
+			name:  "nest bootstraps from src/main.ts",
+			files: map[string]string{"package.json": pkgJSON("@nestjs/core", "@nestjs/common"), "src/main.ts": "bootstrap()"},
+			want:  DetectResult{Language: "JavaScript", PackageManager: "npm", SDKID: "node-server", EntryPoint: "src/main.ts", EntryPointExists: true},
+		},
+		{
+			name:  "node prefers src/index over src/main",
+			files: map[string]string{"package.json": pkgJSON("express"), "src/index.ts": "// entry", "src/main.ts": "// other"},
+			want:  DetectResult{Language: "JavaScript", PackageManager: "npm", SDKID: "node-server", EntryPoint: "src/index.ts", EntryPointExists: true},
+		},
+		{
 			name:  "node yarn server file",
 			files: map[string]string{"package.json": pkgJSON("fastify"), "yarn.lock": "", "server.js": "// entry"},
 			want:  DetectResult{Language: "JavaScript", PackageManager: "yarn", SDKID: "node-server", EntryPoint: "server.js", EntryPointExists: true},
