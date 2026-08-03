@@ -1,0 +1,124 @@
+package setup
+
+import (
+	"os"
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/launchdarkly/ldcli/internal/setup"
+)
+
+func (m wizardModel) fetchProjects() tea.Cmd {
+	return func() tea.Msg {
+		ps, err := m.svc.ListProjects(m.auth)
+		if err != nil {
+			return wizardErrMsg{err: err}
+		}
+		projects := make([]projectItem, len(ps))
+		for i, p := range ps {
+			projects[i] = projectItem{key: p.Key, name: p.Name}
+		}
+		return projectsFetchedMsg{projects: projects}
+	}
+}
+
+func (m wizardModel) fetchEnvironments() tea.Cmd {
+	return func() tea.Msg {
+		es, err := m.svc.ListEnvironments(m.auth, m.selectedProject)
+		if err != nil {
+			return wizardErrMsg{err: err}
+		}
+		envs := make([]envItem, len(es))
+		for i, e := range es {
+			envs[i] = envItem{key: e.Key, name: e.Name}
+		}
+		return envsFetchedMsg{environments: envs}
+	}
+}
+
+func (m wizardModel) fetchEnvDetails() tea.Cmd {
+	return func() tea.Msg {
+		keys, err := m.svc.EnvKeys(m.auth, m.selectedProject, m.selectedEnv)
+		if err != nil {
+			return wizardErrMsg{err: err}
+		}
+		return envDetailsFetchedMsg{
+			sdkKey:       keys.SDKKey,
+			clientSideID: keys.ClientSideID,
+			mobileKey:    keys.MobileKey,
+		}
+	}
+}
+
+func (m wizardModel) runDetect() tea.Cmd {
+	return func() tea.Msg {
+		dir, err := os.Getwd()
+		if err != nil {
+			return wizardErrMsg{err: err}
+		}
+		result, err := m.svc.Detect(dir)
+		if err != nil {
+			return detectFailedMsg{}
+		}
+		return detectDoneMsg{result: result}
+	}
+}
+
+func (m wizardModel) runInstall() tea.Cmd {
+	return func() tea.Msg {
+		dir, err := os.Getwd()
+		if err != nil {
+			return wizardErrMsg{err: err}
+		}
+		result, err := m.svc.Install(dir, m.detectResult)
+		if err != nil {
+			// Don't dead-end the interactive flow on a failed auto-install (e.g.
+			// Ruby gem perms, no network): surface the command to run by hand.
+			args, _ := setup.InstallArgs(m.detectResult.SDKID, m.detectResult.PackageManager)
+			return installDoneMsg{result: &setup.InstallResult{
+				SDKID:         m.detectResult.SDKID,
+				Command:       strings.Join(args, " "),
+				Failed:        true,
+				FailureReason: err.Error(),
+			}}
+		}
+		return installDoneMsg{result: result}
+	}
+}
+
+func (m wizardModel) runCreateFlag() tea.Cmd {
+	return func() tea.Msg {
+		key, err := m.svc.CreateFlag(m.auth, m.selectedProject, "my-new-flag", "My New Flag")
+		if err != nil {
+			return wizardErrMsg{err: err}
+		}
+		return flagCreatedMsg{key: key}
+	}
+}
+
+func (m wizardModel) runInit() tea.Cmd {
+	return func() tea.Msg {
+		cfg := setup.InitConfig{
+			SDKKey:       m.sdkKey,
+			ClientSideID: m.clientSideID,
+			MobileKey:    m.mobileKey,
+			FlagKey:      m.flagKey,
+		}
+		result, err := m.svc.Inject(m.detectResult.SDKID, m.detectResult.EntryPoint, cfg)
+		if err != nil {
+			return wizardErrMsg{err: err}
+		}
+		return initDoneMsg{result: result}
+	}
+}
+
+func (m wizardModel) runVerify() tea.Cmd {
+	return func() tea.Msg {
+		result, err := m.svc.Verify(m.auth, m.selectedProject, m.selectedEnv, m.detectResult.SDKID)
+		if err != nil {
+			return wizardErrMsg{err: err}
+		}
+		return verifyDoneMsg{result: result}
+	}
+}
