@@ -349,14 +349,24 @@ func splitPrologue(sdkID, content string) (prologue, rest string) {
 	return prologue, rest
 }
 
-// skipCommentHeader advances past blank lines and whole-line comments.
+// skipCommentHeader advances past blank lines and comments, including the /* */
+// block a license or JSDoc header usually opens with.
 func skipCommentHeader(lines []string, i int) int {
 	for i < len(lines) {
 		t := strings.TrimSpace(lines[i])
-		if t != "" && !strings.HasPrefix(t, "#") && !strings.HasPrefix(t, "//") {
+		switch {
+		case t == "" || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "//"):
+			i++
+		case strings.HasPrefix(t, "/*"):
+			for i < len(lines) && !strings.Contains(lines[i], "*/") {
+				i++
+			}
+			if i < len(lines) {
+				i++
+			}
+		default:
 			return i
 		}
-		i++
 	}
 	return i
 }
@@ -418,7 +428,14 @@ func skipUseStrict(lines []string, i int) int {
 	if i >= len(lines) {
 		return i
 	}
-	switch strings.TrimSuffix(strings.TrimSpace(lines[i]), ";") {
+	directive := lines[i]
+	if j := strings.Index(directive, "//"); j >= 0 {
+		directive = directive[:j]
+	}
+	if j := strings.Index(directive, "/*"); j >= 0 {
+		directive = directive[:j]
+	}
+	switch strings.TrimSuffix(strings.TrimSpace(directive), ";") {
 	case `'use strict'`, `"use strict"`:
 		return i + 1
 	}

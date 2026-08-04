@@ -199,6 +199,27 @@ func TestInjectIntoFile_KeepsPrologueFirst(t *testing.T) {
 			existing: "'use strict';\nconsole.log('hi');\n",
 			wantHead: "'use strict';\n",
 		},
+		{
+			name:     "use strict below a block comment header stays first",
+			sdkID:    "node-server",
+			fileName: "licensed.js",
+			existing: "/*\n * Copyright someone.\n */\n'use strict';\nconsole.log('hi');\n",
+			wantHead: "/*\n * Copyright someone.\n */\n'use strict';\n",
+		},
+		{
+			name:     "single-line block comment header stays first",
+			sdkID:    "node-server",
+			fileName: "oneline.js",
+			existing: "/* @flow */\n'use strict';\nconsole.log('hi');\n",
+			wantHead: "/* @flow */\n'use strict';\n",
+		},
+		{
+			name:     "use strict with a trailing comment stays first",
+			sdkID:    "node-server",
+			fileName: "trailing.js",
+			existing: "'use strict'; // required\nconsole.log('hi');\n",
+			wantHead: "'use strict'; // required\n",
+		},
 	}
 
 	for _, tt := range tests {
