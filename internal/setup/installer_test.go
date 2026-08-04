@@ -395,6 +395,11 @@ func TestInstallArgs_PackageMatchesTemplateImport(t *testing.T) {
 			require.NoError(t, err)
 			assert.Contains(t, rendered, "'"+tt.wantImport+"'",
 				"template must import the package we install")
+
+			esm, err := RenderTemplateForEntry(tt.sdkID, "src/main.ts", InitConfig{})
+			require.NoError(t, err)
+			assert.Contains(t, esm, "'"+tt.wantImport+"'",
+				"ESM template must import the package we install")
 		})
 	}
 }

@@ -3,9 +3,11 @@ package setup
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"text/template"
@@ -71,6 +73,10 @@ type Initializer struct{}
 // sdkTemplateInfo maps an SDK ID to the template filename.
 type sdkTemplateInfo struct {
 	TemplateFile string
+	// ESMTemplateFile renders the same initialization with ESM import syntax, for
+	// entry points where a CommonJS require would not run. Empty for SDKs whose
+	// language has no module-system split.
+	ESMTemplateFile string
 }
 
 var sdkTemplates = map[string]sdkTemplateInfo{
@@ -85,7 +91,7 @@ var sdkTemplates = map[string]sdkTemplateInfo{
 	"go-server-sdk":      {TemplateFile: "go-server-sdk.tmpl"},
 	"python-server-sdk":  {TemplateFile: "python-server-sdk.tmpl"},
 	"dotnet-server-sdk":  {TemplateFile: "dotnet-server-sdk.tmpl"},
-	"node-server":        {TemplateFile: "node-server.tmpl"},
+	"node-server":        {TemplateFile: "node-server.tmpl", ESMTemplateFile: "node-server-esm.tmpl"},
 }
 
 // sdkDocsPaths maps SDK IDs to their documentation path on launchdarkly.com/docs.
@@ -158,14 +164,31 @@ func InjectsInPlace(sdkID string) bool {
 	return HasTemplate(sdkID) && appendSafeSDKs[sdkID]
 }
 
-// RenderTemplate renders the initialization code for the given SDK.
+// RenderTemplate renders the initialization code for the given SDK, using the
+// CommonJS form where an SDK has both. Prefer RenderTemplateForEntry when the
+// target file is known, so the module syntax matches it.
 func RenderTemplate(sdkID string, cfg InitConfig) (string, error) {
+	return renderTemplate(sdkID, cfg, false)
+}
+
+// RenderTemplateForEntry renders the initialization code for the given SDK in the
+// module syntax that runs in entryPath.
+func RenderTemplateForEntry(sdkID, entryPath string, cfg InitConfig) (string, error) {
+	return renderTemplate(sdkID, cfg, entryNeedsESM(entryPath))
+}
+
+func renderTemplate(sdkID string, cfg InitConfig, esm bool) (string, error) {
 	info, ok := sdkTemplates[sdkID]
 	if !ok {
 		return "", fmt.Errorf("no initialization template for SDK %q; see docs: %s", sdkID, GetDocsURL(sdkID))
 	}
 
-	content, err := initTemplateFiles.ReadFile("sdk_init_templates/" + info.TemplateFile)
+	templateFile := info.TemplateFile
+	if esm && info.ESMTemplateFile != "" {
+		templateFile = info.ESMTemplateFile
+	}
+
+	content, err := initTemplateFiles.ReadFile("sdk_init_templates/" + templateFile)
 	if err != nil {
 		return "", fmt.Errorf("reading template for %s: %w", sdkID, err)
 	}
@@ -207,7 +230,7 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 		}, nil
 	}
 
-	rendered, err := RenderTemplate(sdkID, cfg)
+	rendered, err := RenderTemplateForEntry(sdkID, filePath, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -253,6 +276,45 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 	}
 
 	return &InitResult{SDKID: sdkID, FilePath: filePath, Success: true}, nil
+}
+
+// entryNeedsESM reports whether code written into entryPath has to use ESM import
+// syntax. The extension decides it outright for the explicit cases; a plain .js
+// entry depends on the enclosing package's "type" field. Detection points Node
+// projects at TypeScript and ESM entry points such as Next.js instrumentation.ts
+// and NestJS src/main.ts, where a CommonJS require does not run.
+func entryNeedsESM(entryPath string) bool {
+	switch strings.ToLower(filepath.Ext(entryPath)) {
+	case ".mjs", ".mts", ".ts", ".tsx":
+		return true
+	case ".cjs", ".cts":
+		return false
+	}
+	return packageIsESM(entryPath)
+}
+
+// packageIsESM reports whether the nearest package.json above entryPath declares
+// "type": "module", which makes every plain .js file in the package ESM.
+func packageIsESM(entryPath string) bool {
+	dir := filepath.Dir(entryPath)
+	for {
+		content, err := os.ReadFile(filepath.Join(dir, "package.json"))
+		if err == nil {
+			var pkg struct {
+				Type string `json:"type"`
+			}
+			if json.Unmarshal(content, &pkg) == nil {
+				return pkg.Type == "module"
+			}
+			return false
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return false
+		}
+		dir = parent
+	}
 }
 
 // encodingCookie matches the encoding declaration Python (PEP 263) and Ruby only

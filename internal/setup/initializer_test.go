@@ -182,6 +182,89 @@ func TestInjectIntoFile_KeepsPrologueFirst(t *testing.T) {
 	}
 }
 
+// A CommonJS require does not run in an ESM or TypeScript entry point, and those are
+// exactly what detection picks for Next.js and NestJS. Injecting the wrong module
+// syntax reports success on code that fails at startup.
+func TestInjectIntoFile_MatchesEntryModuleSyntax(t *testing.T) {
+	tests := []struct {
+		name        string
+		entry       string
+		packageJSON string
+		wantImport  string
+		notImport   string
+	}{
+		{
+			name:       "typescript entry uses import",
+			entry:      "src/main.ts",
+			wantImport: "import * as LaunchDarkly from '@launchdarkly/node-server-sdk'",
+			notImport:  "require(",
+		},
+		{
+			name:       "next instrumentation uses import",
+			entry:      "instrumentation.ts",
+			wantImport: "import * as LaunchDarkly",
+			notImport:  "require(",
+		},
+		{
+			name:       "mjs entry uses import",
+			entry:      "index.mjs",
+			wantImport: "import * as LaunchDarkly",
+			notImport:  "require(",
+		},
+		{
+			name:        "plain js in a module package uses import",
+			entry:       "index.js",
+			packageJSON: `{"name":"app","type":"module"}`,
+			wantImport:  "import * as LaunchDarkly",
+			notImport:   "require(",
+		},
+		{
+			name:        "plain js in a commonjs package uses require",
+			entry:       "index.js",
+			packageJSON: `{"name":"app"}`,
+			wantImport:  "require('@launchdarkly/node-server-sdk')",
+			notImport:   "import * as",
+		},
+		{
+			name:        "cjs entry uses require even in a module package",
+			entry:       "index.cjs",
+			packageJSON: `{"name":"app","type":"module"}`,
+			wantImport:  "require('@launchdarkly/node-server-sdk')",
+			notImport:   "import * as",
+		},
+		{
+			name:       "js entry with no package.json uses require",
+			entry:      "index.js",
+			wantImport: "require('@launchdarkly/node-server-sdk')",
+			notImport:  "import * as",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if tt.packageJSON != "" {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(tt.packageJSON), 0644))
+			}
+			filePath := filepath.Join(dir, tt.entry)
+			require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0755))
+
+			initializer := Initializer{}
+			result, err := initializer.InjectIntoFile("node-server", filePath, InitConfig{
+				SDKKey:  "test-key",
+				FlagKey: "test-flag",
+			})
+			require.NoError(t, err)
+			require.True(t, result.Success)
+
+			content, err := os.ReadFile(filePath)
+			require.NoError(t, err)
+			assert.Contains(t, string(content), tt.wantImport)
+			assert.NotContains(t, string(content), tt.notImport)
+		})
+	}
+}
+
 func TestInjectIntoFile_NewFile_OmitsSeparator(t *testing.T) {
 	sdks := []struct {
 		sdkID    string
