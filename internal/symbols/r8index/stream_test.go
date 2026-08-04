@@ -27,6 +27,7 @@ func TestEncodeFromMatchesEncode(t *testing.T) {
 # {"id":"sourceFile","fileName":"Cart.kt"}
     1:1:void a():1:1 -> a
 `, "\n"),
+		"repeated obfuscated name": duplicateClassMapping,
 	} {
 		t.Run(name, func(t *testing.T) {
 			want, err := Encode(Parse([]byte(mapping)))
@@ -38,6 +39,48 @@ func TestEncodeFromMatchesEncode(t *testing.T) {
 			assert.Equal(t, want, got)
 		})
 	}
+}
+
+// Concatenated mapping files hand the same obfuscated name over twice, with different
+// members behind it. Streaming cannot revisit a class it has compressed, so the first
+// block is what an index can hold — and the whole-mapping encoder has to agree, or one
+// mapping would have two indexes that answer differently and hash differently.
+const duplicateClassMapping = `com.example.First -> a.b.c:
+# {"id":"sourceFile","fileName":"First.kt"}
+    1:1:void first():10:10 -> a
+com.example.Second -> a.b.c:
+# {"id":"sourceFile","fileName":"Second.kt"}
+    2:2:void second():20:20 -> b
+`
+
+func TestDuplicateObfuscatedNameKeepsFirstBlock(t *testing.T) {
+	m := Parse([]byte(duplicateClassMapping))
+	require.Equal(t, 1, m.Classes(), "one name, one class")
+
+	raw, err := EncodeFrom(strings.NewReader(duplicateClassMapping))
+	require.NoError(t, err)
+	ix, err := Open(raw)
+	require.NoError(t, err)
+
+	// Both the index and the mapping the opt-in check treats as the oracle have to
+	// name the first block's class, or that check reports a format bug that is really
+	// the two of them disagreeing about the input.
+	for name, frames := range map[string][]Frame{
+		"index":   ix.Retrace("a.b.c", "a", 1),
+		"mapping": m.Retrace("a.b.c", "a", 1),
+	} {
+		require.Len(t, frames, 1, name)
+		assert.Equal(t, "com.example.First", frames[0].Class, name)
+		assert.Equal(t, 10, frames[0].Line, name)
+	}
+
+	// The dropped block's members go with it rather than merging into the survivor.
+	assert.Equal(t, ix.Retrace("a.b.c", "b", 2), m.Retrace("a.b.c", "b", 2))
+
+	// Both original names stay in the source table: it is keyed by original name, so
+	// the two never collided, and a name with no block is simply never asked for.
+	assert.Equal(t, "First.kt", ix.SourceFile("com.example.First"))
+	assert.Equal(t, "Second.kt", ix.SourceFile("com.example.Second"))
 }
 
 // A file that is not a mapping has to be refused rather than turned into an index of
