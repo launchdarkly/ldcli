@@ -3,6 +3,7 @@ package setup
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -115,6 +116,70 @@ func TestInjectIntoFile_ExistingFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "existing code")
 	assert.Contains(t, string(content), "test-key")
+}
+
+// A shebang only works as the very first bytes of a file, and Python and Ruby only
+// read an encoding cookie on the first two lines. Injecting imports above either one
+// leaves the entry point unrunnable, which is how Django's manage.py arrives.
+func TestInjectIntoFile_KeepsPrologueFirst(t *testing.T) {
+	tests := []struct {
+		name     string
+		sdkID    string
+		fileName string
+		existing string
+		wantHead string
+	}{
+		{
+			name:     "shebang stays on the first line",
+			sdkID:    "python-server-sdk",
+			fileName: "manage.py",
+			existing: "#!/usr/bin/env python\nimport os\n",
+			wantHead: "#!/usr/bin/env python\n",
+		},
+		{
+			name:     "encoding cookie stays within the first two lines",
+			sdkID:    "python-server-sdk",
+			fileName: "main.py",
+			existing: "#!/usr/bin/env python\n# -*- coding: utf-8 -*-\nimport os\n",
+			wantHead: "#!/usr/bin/env python\n# -*- coding: utf-8 -*-\n",
+		},
+		{
+			name:     "cookie without a shebang stays first",
+			sdkID:    "ruby-server-sdk",
+			fileName: "main.rb",
+			existing: "# coding: utf-8\nputs 'hi'\n",
+			wantHead: "# coding: utf-8\n",
+		},
+		{
+			name:     "shebang with no trailing newline still gets one",
+			sdkID:    "node-server",
+			fileName: "cli.js",
+			existing: "#!/usr/bin/env node",
+			wantHead: "#!/usr/bin/env node\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			filePath := filepath.Join(dir, tt.fileName)
+			require.NoError(t, os.WriteFile(filePath, []byte(tt.existing), 0644))
+
+			initializer := Initializer{}
+			result, err := initializer.InjectIntoFile(tt.sdkID, filePath, InitConfig{
+				SDKKey:  "test-key",
+				FlagKey: "test-flag",
+			})
+			require.NoError(t, err)
+			require.True(t, result.Success)
+
+			content, err := os.ReadFile(filePath)
+			require.NoError(t, err)
+			assert.True(t, strings.HasPrefix(string(content), tt.wantHead),
+				"file must still start with %q, got:\n%s", tt.wantHead, content)
+			assert.Contains(t, string(content), "test-key", "init code must still be injected")
+		})
+	}
 }
 
 func TestInjectIntoFile_NewFile_OmitsSeparator(t *testing.T) {

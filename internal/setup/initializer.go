@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"text/template"
 )
@@ -242,7 +243,8 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 
 	content := string(existing)
 	if importSection != "" {
-		content = importSection + "\n" + content
+		prologue, body := splitPrologue(content)
+		content = prologue + importSection + "\n" + body
 	}
 	content = content + "\n\n" + initSection + "\n"
 
@@ -251,6 +253,41 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 	}
 
 	return &InitResult{SDKID: sdkID, FilePath: filePath, Success: true}, nil
+}
+
+// encodingCookie matches the encoding declaration Python (PEP 263) and Ruby only
+// honor on the first or second line of a file.
+var encodingCookie = regexp.MustCompile(`^[ \t\f]*#.*coding[:=][ \t]*[-_.a-zA-Z0-9]+`)
+
+// splitPrologue peels off the leading lines that have to stay at the top of a file:
+// a shebang, which stops the file being executable if anything precedes it, and an
+// encoding cookie, which is ignored once pushed past the second line. Imports go
+// after the prologue rather than at byte 0, so injecting into an entry point like
+// Django's manage.py leaves it runnable.
+func splitPrologue(content string) (prologue, rest string) {
+	rest = content
+	if strings.HasPrefix(rest, "#!") {
+		var line string
+		line, rest = takeLine(rest)
+		prologue += line
+	}
+	if encodingCookie.MatchString(rest) {
+		var line string
+		line, rest = takeLine(rest)
+		prologue += line
+	}
+	if prologue != "" && !strings.HasSuffix(prologue, "\n") {
+		prologue += "\n"
+	}
+	return prologue, rest
+}
+
+// takeLine splits off the first line of s, keeping the newline with the line.
+func takeLine(s string) (line, remainder string) {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i+1], s[i+1:]
+	}
+	return s, ""
 }
 
 // joinSnippet recombines the import and init sections into a single human-readable
