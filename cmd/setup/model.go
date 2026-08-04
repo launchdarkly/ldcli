@@ -1,6 +1,9 @@
 package setup
 
 import (
+	"io"
+	"os"
+
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -69,6 +72,12 @@ type wizardModel struct {
 	flagKey        string
 	initResult     *setup.InitResult
 	verifyResult   *setup.VerifyResult
+
+	// clipboard receives the OSC 52 sequence that copies a snippet. It is the
+	// terminal the TUI is drawing to, kept as a field so tests can read back the
+	// sequence instead of writing to the real terminal.
+	clipboard io.Writer
+	copied    bool // whether the visible snippet has been copied, to confirm in the view
 
 	quitting bool
 }
@@ -143,8 +152,9 @@ func runSetupWizard(
 				AccessToken: viper.GetString(cliflags.AccessTokenFlag),
 				BaseURI:     viper.GetString(cliflags.BaseURIFlag),
 			},
-			step:    stepSelectProject,
-			spinner: s,
+			step:      stepSelectProject,
+			spinner:   s,
+			clipboard: os.Stdout,
 		}
 
 		p := tea.NewProgram(m, tea.WithAltScreen())

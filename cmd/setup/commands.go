@@ -1,10 +1,12 @@
 package setup
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/launchdarkly/ldcli/internal/setup"
 )
@@ -120,5 +122,34 @@ func (m wizardModel) runVerify() tea.Cmd {
 			return wizardErrMsg{err: err}
 		}
 		return verifyDoneMsg{result: result}
+	}
+}
+
+// copyableContent returns the code the current screen is asking the user to copy,
+// along with the word the hint uses for it. A screen can show both an install command
+// and a snippet; the snippet is the one that has to be pasted verbatim, so it wins.
+// Returns false when the screen has nothing to copy.
+func (m wizardModel) copyableContent() (content, label string, ok bool) {
+	if m.step != stepDone {
+		return "", "", false
+	}
+	if m.initResult != nil && !m.initResult.Success && m.initResult.Snippet != "" {
+		return m.initResult.Snippet, "snippet", true
+	}
+	if m.installResult != nil && m.installResult.Failed && m.installResult.Command != "" {
+		return m.installResult.Command, "command", true
+	}
+	return "", "", false
+}
+
+// copyToClipboard writes an OSC 52 sequence, which asks the terminal to put the
+// content on the system clipboard. The wizard renders code inside a bordered block
+// and runs in the alternate screen, so selecting it with the mouse picks up the
+// gutter characters and the snippet is gone from scrollback once the wizard exits.
+// Terminals that do not implement OSC 52 ignore the sequence.
+func (m wizardModel) copyToClipboard(content string) tea.Cmd {
+	return func() tea.Msg {
+		fmt.Fprint(m.clipboard, ansi.SetSystemClipboard(content))
+		return nil
 	}
 }
