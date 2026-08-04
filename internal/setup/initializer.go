@@ -266,7 +266,7 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 
 	content := string(existing)
 	if importSection != "" {
-		prologue, body := splitPrologue(content)
+		prologue, body := splitPrologue(sdkID, content)
 		content = prologue + importSection + "\n" + body
 	}
 	content = content + "\n\n" + initSection + "\n"
@@ -317,39 +317,126 @@ func packageIsESM(entryPath string) bool {
 	}
 }
 
-// encodingCookie matches the encoding declaration Python (PEP 263) and Ruby only
-// honor on the first or second line of a file.
-var encodingCookie = regexp.MustCompile(`^[ \t\f]*#.*coding[:=][ \t]*[-_.a-zA-Z0-9]+`)
+// splitPrologue peels off the leading lines that have to stay above injected
+// imports. Every language keeps its shebang, since anything above it stops the file
+// being executable, and its leading comment block, which is the only place Python
+// encoding cookies (PEP 263) and Ruby magic comments like frozen_string_literal are
+// read. Python additionally keeps its module docstring, which is demoted to a plain
+// expression if anything precedes it, and its __future__ imports, which are a
+// SyntaxError below other code. CommonJS keeps a 'use strict' directive, which is
+// ignored unless it is the first statement.
+func splitPrologue(sdkID, content string) (prologue, rest string) {
+	lines := splitLines(content)
 
-// splitPrologue peels off the leading lines that have to stay at the top of a file:
-// a shebang, which stops the file being executable if anything precedes it, and an
-// encoding cookie, which is ignored once pushed past the second line. Imports go
-// after the prologue rather than at byte 0, so injecting into an entry point like
-// Django's manage.py leaves it runnable.
-func splitPrologue(content string) (prologue, rest string) {
-	rest = content
-	if strings.HasPrefix(rest, "#!") {
-		var line string
-		line, rest = takeLine(rest)
-		prologue += line
+	end := 0
+	if len(lines) > 0 && strings.HasPrefix(lines[0], "#!") {
+		end = 1
 	}
-	if encodingCookie.MatchString(rest) {
-		var line string
-		line, rest = takeLine(rest)
-		prologue += line
+	end = skipCommentHeader(lines, end)
+
+	switch sdkID {
+	case "python-server-sdk":
+		end = skipPythonHeader(lines, end)
+	case "node-server":
+		end = skipUseStrict(lines, end)
 	}
+
+	prologue = strings.Join(lines[:end], "")
+	rest = strings.Join(lines[end:], "")
 	if prologue != "" && !strings.HasSuffix(prologue, "\n") {
 		prologue += "\n"
 	}
 	return prologue, rest
 }
 
-// takeLine splits off the first line of s, keeping the newline with the line.
-func takeLine(s string) (line, remainder string) {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i+1], s[i+1:]
+// skipCommentHeader advances past blank lines and whole-line comments.
+func skipCommentHeader(lines []string, i int) int {
+	for i < len(lines) {
+		t := strings.TrimSpace(lines[i])
+		if t != "" && !strings.HasPrefix(t, "#") && !strings.HasPrefix(t, "//") {
+			return i
+		}
+		i++
 	}
-	return s, ""
+	return i
+}
+
+// pythonStringStart matches the opening quote of a module docstring, allowing the
+// string prefixes Python permits before it.
+var pythonStringStart = regexp.MustCompile(`^[rRuUbBfF]{0,2}("""|'''|"|')`)
+
+// skipPythonHeader advances past a module docstring and any __future__ imports,
+// along with the comments and blank lines between them.
+func skipPythonHeader(lines []string, i int) int {
+	docstringSeen := false
+	for i < len(lines) {
+		t := strings.TrimSpace(lines[i])
+		switch {
+		case t == "" || strings.HasPrefix(t, "#"):
+			i++
+		case strings.HasPrefix(t, "from __future__ import"):
+			i = skipStatement(lines, i)
+		case !docstringSeen && pythonStringStart.MatchString(t):
+			docstringSeen = true
+			quote := pythonStringStart.FindStringSubmatch(t)[1]
+			body := t[strings.Index(t, quote)+len(quote):]
+			i++
+			if strings.Contains(body, quote) {
+				continue // the docstring opened and closed on one line
+			}
+			for i < len(lines) && !strings.Contains(lines[i], quote) {
+				i++
+			}
+			if i < len(lines) {
+				i++
+			}
+		default:
+			return i
+		}
+	}
+	return i
+}
+
+// skipStatement advances past a statement that may continue over several lines with
+// parentheses or a trailing backslash.
+func skipStatement(lines []string, i int) int {
+	depth := 0
+	for i < len(lines) {
+		line := strings.TrimRight(lines[i], "\n")
+		depth += strings.Count(line, "(") - strings.Count(line, ")")
+		continued := strings.HasSuffix(line, `\`)
+		i++
+		if depth <= 0 && !continued {
+			break
+		}
+	}
+	return i
+}
+
+// skipUseStrict advances past a 'use strict' directive.
+func skipUseStrict(lines []string, i int) int {
+	if i >= len(lines) {
+		return i
+	}
+	switch strings.TrimSuffix(strings.TrimSpace(lines[i]), ";") {
+	case `'use strict'`, `"use strict"`:
+		return i + 1
+	}
+	return i
+}
+
+// splitLines splits s into lines, keeping each newline with the line it ends.
+func splitLines(s string) []string {
+	var lines []string
+	for s != "" {
+		i := strings.IndexByte(s, '\n')
+		if i < 0 {
+			return append(lines, s)
+		}
+		lines = append(lines, s[:i+1])
+		s = s[i+1:]
+	}
+	return lines
 }
 
 // joinSnippet recombines the import and init sections into a single human-readable

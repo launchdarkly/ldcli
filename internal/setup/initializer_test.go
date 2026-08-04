@@ -157,6 +157,48 @@ func TestInjectIntoFile_KeepsPrologueFirst(t *testing.T) {
 			existing: "#!/usr/bin/env node",
 			wantHead: "#!/usr/bin/env node\n",
 		},
+		{
+			name:     "future imports stay above other imports",
+			sdkID:    "python-server-sdk",
+			fileName: "app.py",
+			existing: "from __future__ import annotations\n\nimport os\n",
+			wantHead: "from __future__ import annotations\n",
+		},
+		{
+			name:     "docstring stays first and future imports follow it",
+			sdkID:    "python-server-sdk",
+			fileName: "svc.py",
+			existing: "#!/usr/bin/env python3\n\"\"\"Service entry point.\"\"\"\n\nfrom __future__ import annotations\n\nimport os\n",
+			wantHead: "#!/usr/bin/env python3\n\"\"\"Service entry point.\"\"\"\n\nfrom __future__ import annotations\n",
+		},
+		{
+			name:     "multi-line docstring stays first",
+			sdkID:    "python-server-sdk",
+			fileName: "multi.py",
+			existing: "'''\nService entry point.\n'''\nimport os\n",
+			wantHead: "'''\nService entry point.\n'''\n",
+		},
+		{
+			name:     "parenthesized future import is kept whole",
+			sdkID:    "python-server-sdk",
+			fileName: "paren.py",
+			existing: "from __future__ import (\n    annotations,\n    generator_stop,\n)\nimport os\n",
+			wantHead: "from __future__ import (\n    annotations,\n    generator_stop,\n)\n",
+		},
+		{
+			name:     "ruby magic comment stays above code",
+			sdkID:    "ruby-server-sdk",
+			fileName: "main.rb",
+			existing: "#!/usr/bin/env ruby\n# frozen_string_literal: true\n\nputs 'hi'\n",
+			wantHead: "#!/usr/bin/env ruby\n# frozen_string_literal: true\n",
+		},
+		{
+			name:     "use strict stays the first statement",
+			sdkID:    "node-server",
+			fileName: "index.js",
+			existing: "'use strict';\nconsole.log('hi');\n",
+			wantHead: "'use strict';\n",
+		},
 	}
 
 	for _, tt := range tests {
