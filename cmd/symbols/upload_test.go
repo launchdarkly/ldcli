@@ -34,6 +34,28 @@ func TestNewUploadCmd(t *testing.T) {
 	assert.Equal(t, []string{"true"}, cmd.Flags().Lookup("project").Annotations["required"])
 }
 
+// Naming the instance once, with --base-uri, is what should aim an upload at it: the
+// observability API of every LaunchDarkly instance is named for that instance, so
+// asking for both is asking for two flags that can disagree.
+func TestDefaultBackendURLFor(t *testing.T) {
+	for name, tc := range map[string]struct{ baseURI, want string }{
+		"production":             {"https://app.launchdarkly.com", defaultBackendUrl},
+		"staging":                {"https://ld-stg.launchdarkly.com", "https://pri.observability.ld-stg.launchdarkly.com"},
+		"trailing slash":         {"https://ld-stg.launchdarkly.com/", "https://pri.observability.ld-stg.launchdarkly.com"},
+		"surrounding whitespace": {" https://ld-stg.launchdarkly.com ", "https://pri.observability.ld-stg.launchdarkly.com"},
+		"regional instance":      {"https://app.eu.launchdarkly.com", "https://pri.observability.app.eu.launchdarkly.com"},
+
+		// Nothing about one of these says where an observability API listens, so the
+		// production default stands and --backend-url remains how to say otherwise.
+		"local stack": {"http://localhost:3000", defaultBackendUrl},
+		"host that merely ends in the domain name": {"https://notlaunchdarkly.com", defaultBackendUrl},
+		"unset":   {"", defaultBackendUrl},
+		"garbage": {"://", defaultBackendUrl},
+	} {
+		assert.Equal(t, tc.want, defaultBackendURLFor(tc.baseURI), name)
+	}
+}
+
 func TestIsReactNativeUploadFile(t *testing.T) {
 	// React Native iOS bundle + map.
 	assert.True(t, isReactNativeUploadFile("main.jsbundle"))
