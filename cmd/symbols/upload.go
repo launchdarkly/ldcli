@@ -528,15 +528,6 @@ func readSymbolsIDFile(filePath string) string {
 	return strings.TrimSpace(string(content))
 }
 
-// getSymbolUploadUrls returns one upload URL per requested key, in order.
-//
-// With skipExisting, a key whose bytes the backend already stores comes back empty
-// and callers must skip it. digests is parallel to paths and may be nil or hold ""
-// for a key the caller has no digest for; it is what lets the backend settle a key
-// that isn't derived from its own contents, since there existence proves nothing.
-//
-// A backend that predates these arguments rejects the query, so this retries once
-// without them, keeping an updated CLI working against an older deployment.
 // defaultBackendURLFor derives the observability API endpoint from the LaunchDarkly
 // base URI, so aiming the CLI at another instance takes the one flag that names the
 // instance rather than two flags that have to agree.
@@ -557,6 +548,15 @@ func defaultBackendURLFor(baseURI string) string {
 	return "https://" + observabilityAPIPrefix + host
 }
 
+// getSymbolUploadUrls returns one upload URL per requested key, in order.
+//
+// With skipExisting, a key whose bytes the backend already stores comes back empty
+// and callers must skip it. digests is parallel to paths and may be nil or hold ""
+// for a key the caller has no digest for; it is what lets the backend settle a key
+// that isn't derived from its own contents, since there existence proves nothing.
+//
+// A backend that predates these arguments rejects the query, so this retries once
+// without them, keeping an updated CLI working against an older deployment.
 func getSymbolUploadUrls(apiKey, projectID string, paths, digests []string, backendUrl string, skipExisting bool) ([]string, error) {
 	urls, err := requestSymbolUploadUrls(apiKey, projectID, paths, digests, backendUrl, skipExisting)
 	if err != nil && skipExisting && mentionsDedupArgument(err) {
