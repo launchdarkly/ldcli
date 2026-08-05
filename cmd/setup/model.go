@@ -1,6 +1,10 @@
 package setup
 
 import (
+	"io"
+	"os"
+
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,6 +15,16 @@ import (
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/setup"
+)
+
+// copyState records how the visible snippet was copied, so the view can confirm a
+// clipboard write outright but only claim to have asked when the terminal did it.
+type copyState int
+
+const (
+	copyNone      copyState = iota
+	copyDone                // written to the OS clipboard
+	copyRequested           // handed to the terminal over OSC 52, which cannot confirm
 )
 
 type wizardStep int
@@ -70,6 +84,16 @@ type wizardModel struct {
 	initResult     *setup.InitResult
 	verifyResult   *setup.VerifyResult
 
+	// nativeCopy puts content on the operating system's clipboard, and clipboard
+	// receives the OSC 52 sequence used when that is not available. Both are fields
+	// so tests can drive either path without a real clipboard or terminal.
+	nativeCopy func(string) error
+	clipboard  io.Writer
+	copyState  copyState
+	// remoteSession suppresses the OS clipboard, because over SSH it is not the one
+	// the user pastes into even when writing to it succeeds.
+	remoteSession bool
+
 	quitting bool
 }
 
@@ -119,6 +143,7 @@ type detectFailedMsg struct{}
 type installDoneMsg struct{ result *setup.InstallResult }
 type flagCreatedMsg struct{ key string }
 type initDoneMsg struct{ result *setup.InitResult }
+type copiedMsg struct{ viaTerminal bool }
 type verifyDoneMsg struct{ result *setup.VerifyResult }
 type wizardErrMsg struct{ err error }
 
@@ -143,8 +168,11 @@ func runSetupWizard(
 				AccessToken: viper.GetString(cliflags.AccessTokenFlag),
 				BaseURI:     viper.GetString(cliflags.BaseURIFlag),
 			},
-			step:    stepSelectProject,
-			spinner: s,
+			step:          stepSelectProject,
+			spinner:       s,
+			clipboard:     os.Stdout,
+			nativeCopy:    clipboard.WriteAll,
+			remoteSession: isRemoteSession(),
 		}
 
 		p := tea.NewProgram(m, tea.WithAltScreen())

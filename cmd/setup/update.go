@@ -34,9 +34,25 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break // let the list receive the key as filter input
 			}
 			return m.handleBack()
+		case "c":
+			if m.isFiltering() {
+				break // let the list receive the key as filter input
+			}
+			content, _, ok := m.copyableContent()
+			if !ok {
+				break
+			}
+			return m, m.copyToClipboard(content)
 		case "enter":
 			return m.handleEnter()
 		}
+
+	case copiedMsg:
+		m.copyState = copyDone
+		if msg.viaTerminal {
+			m.copyState = copyRequested
+		}
+		return m, nil
 
 	case projectsFetchedMsg:
 		m.projects = msg.projects

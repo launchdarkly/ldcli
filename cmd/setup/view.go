@@ -11,6 +11,23 @@ import (
 
 var quitHint = "\n" + mutedStyle.Render("Press q to quit.") + "\n"
 
+// copyHint labels the copy action next to a code block, or confirms the copy once
+// it has happened. The block is drawn with a left gutter bar and the wizard owns the
+// alternate screen, so selecting the code by hand picks up the gutter characters.
+func (m wizardModel) copyHint() string {
+	_, label, ok := m.copyableContent()
+	if !ok {
+		return ""
+	}
+	switch m.copyState {
+	case copyDone:
+		return mutedStyle.Render(fmt.Sprintf("Copied the %s to your clipboard.", label)) + "\n"
+	case copyRequested:
+		return mutedStyle.Render(fmt.Sprintf("Asked your terminal to copy the %s.", label)) + "\n"
+	}
+	return mutedStyle.Render(fmt.Sprintf("Press c to copy the %s.", label)) + "\n"
+}
+
 func (m wizardModel) View() string {
 	if m.quitting {
 		return ""
@@ -75,7 +92,7 @@ func (m wizardModel) View() string {
 					"\n\n" + code(m.initResult.Snippet) + "\n"
 			}
 			body += "\n" + m.wrap(fmt.Sprintf("Flag %q was created in project %q.", m.flagKey, m.selectedProject)) + "\n"
-			return body + quitHint
+			return body + "\n" + m.copyHint() + quitHint
 		}
 		if m.initResult != nil && !m.initResult.Success {
 			body := titleStyle.Render("Manual SDK setup required") + "\n\n"
@@ -88,7 +105,8 @@ func (m wizardModel) View() string {
 			return body +
 				fmt.Sprintf("Follow the setup guide at: %s\n\n", m.initResult.DocsURL) +
 				fmt.Sprintf("Flag %q has been created in project %q.\n", m.flagKey, m.selectedProject) +
-				"Once you've initialized the SDK manually, your flag will be ready to use.\n" +
+				"Once you've initialized the SDK manually, your flag will be ready to use.\n\n" +
+				m.copyHint() +
 				quitHint
 		}
 		if m.verifyResult != nil && m.verifyResult.Active && m.detectResult != nil {

@@ -1,10 +1,12 @@
 package setup
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/launchdarkly/ldcli/internal/setup"
 )
@@ -121,4 +123,54 @@ func (m wizardModel) runVerify() tea.Cmd {
 		}
 		return verifyDoneMsg{result: result}
 	}
+}
+
+// copyableContent returns the code the current screen is asking the user to copy,
+// along with the word the hint uses for it. A screen can show both an install command
+// and a snippet; the snippet is the one that has to be pasted verbatim, so it wins.
+// Returns false when the screen has nothing to copy.
+func (m wizardModel) copyableContent() (content, label string, ok bool) {
+	if m.step != stepDone {
+		return "", "", false
+	}
+	if m.initResult != nil && !m.initResult.Success && m.initResult.Snippet != "" {
+		return m.initResult.Snippet, "snippet", true
+	}
+	if m.installResult != nil && m.installResult.Failed && m.installResult.Command != "" {
+		return m.installResult.Command, "command", true
+	}
+	return "", "", false
+}
+
+// copyToClipboard puts the content on the clipboard, preferring the operating
+// system's own clipboard because it works in every terminal and reports whether it
+// succeeded. OSC 52 is the fallback: it asks the terminal to do the copying, which is
+// what works over SSH, where the OS clipboard belongs to the wrong machine. Not every
+// terminal implements OSC 52 and support cannot be queried, so a copy that goes that
+// route is reported as a request rather than a result.
+func (m wizardModel) copyToClipboard(content string) tea.Cmd {
+	return func() tea.Msg {
+		// Over SSH the OS clipboard is the one on the machine running the code, not
+		// the one the user pastes into, and it can succeed there — so a remote
+		// session has to go to the terminal even though the local path would work.
+		if !m.remoteSession {
+			if err := m.nativeCopy(content); err == nil {
+				return copiedMsg{viaTerminal: false}
+			}
+		}
+		fmt.Fprint(m.clipboard, ansi.SetSystemClipboard(content))
+		return copiedMsg{viaTerminal: true}
+	}
+}
+
+// isRemoteSession reports whether the CLI is running over SSH. sshd sets these for
+// the session it owns, so they distinguish "the clipboard here is the user's" from
+// "the user's clipboard is on the other end of the connection".
+func isRemoteSession() bool {
+	for _, name := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+		if os.Getenv(name) != "" {
+			return true
+		}
+	}
+	return false
 }
