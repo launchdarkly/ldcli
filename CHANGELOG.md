@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.0](https://github.com/launchdarkly/ldcli/compare/v3.8.0...v3.9.0) (2026-08-05)
+
+
+### Features
+
+* **symbols:** key Android uploads by R8's map id, and upload dSYMs from an Xcode build ([#769](https://github.com/launchdarkly/ldcli/issues/769)) ([e361fa6](https://github.com/launchdarkly/ldcli/commit/e361fa6a2f651bbff90dcc9f8b5995470693d463))
+
 ## [3.8.0](https://github.com/launchdarkly/ldcli/compare/v3.7.0...v3.8.0) (2026-08-01)
 
 
