@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,6 +15,16 @@ import (
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/setup"
+)
+
+// copyState records how the visible snippet was copied, so the view can confirm a
+// clipboard write outright but only claim to have asked when the terminal did it.
+type copyState int
+
+const (
+	copyNone      copyState = iota
+	copyDone                // written to the OS clipboard
+	copyRequested           // handed to the terminal over OSC 52, which cannot confirm
 )
 
 type wizardStep int
@@ -73,11 +84,12 @@ type wizardModel struct {
 	initResult     *setup.InitResult
 	verifyResult   *setup.VerifyResult
 
-	// clipboard receives the OSC 52 sequence that copies a snippet. It is the
-	// terminal the TUI is drawing to, kept as a field so tests can read back the
-	// sequence instead of writing to the real terminal.
-	clipboard io.Writer
-	copied    bool // whether the visible snippet has been copied, to confirm in the view
+	// nativeCopy puts content on the operating system's clipboard, and clipboard
+	// receives the OSC 52 sequence used when that is not available. Both are fields
+	// so tests can drive either path without a real clipboard or terminal.
+	nativeCopy func(string) error
+	clipboard  io.Writer
+	copyState  copyState
 
 	quitting bool
 }
@@ -128,6 +140,7 @@ type detectFailedMsg struct{}
 type installDoneMsg struct{ result *setup.InstallResult }
 type flagCreatedMsg struct{ key string }
 type initDoneMsg struct{ result *setup.InitResult }
+type copiedMsg struct{ viaTerminal bool }
 type verifyDoneMsg struct{ result *setup.VerifyResult }
 type wizardErrMsg struct{ err error }
 
@@ -152,9 +165,10 @@ func runSetupWizard(
 				AccessToken: viper.GetString(cliflags.AccessTokenFlag),
 				BaseURI:     viper.GetString(cliflags.BaseURIFlag),
 			},
-			step:      stepSelectProject,
-			spinner:   s,
-			clipboard: os.Stdout,
+			step:       stepSelectProject,
+			spinner:    s,
+			clipboard:  os.Stdout,
+			nativeCopy: clipboard.WriteAll,
 		}
 
 		p := tea.NewProgram(m, tea.WithAltScreen())

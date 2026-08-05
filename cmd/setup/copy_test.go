@@ -3,6 +3,7 @@ package setup
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,18 +15,35 @@ import (
 
 const snippet = "const LaunchDarkly = require('@launchdarkly/node-server-sdk');\nconst ldClient = LaunchDarkly.init('sdk-key');"
 
-// copyKey sends "c" and runs whatever command Update returns, returning the updated
-// model and everything written to the clipboard writer.
+// copyKey sends "c" with a working OS clipboard, and returns the updated model
+// alongside what each path received.
 func copyKey(t *testing.T, m wizardModel) (wizardModel, string) {
+	t.Helper()
+	var native string
+	updated, terminal := copyKeyWith(t, m, func(s string) error {
+		native = s
+		return nil
+	})
+	return updated, native + terminal
+}
+
+// copyKeyWith sends "c" with the given OS clipboard behaviour, and returns the
+// updated model and whatever was written to the terminal as an OSC 52 sequence.
+func copyKeyWith(t *testing.T, m wizardModel, native func(string) error) (wizardModel, string) {
 	t.Helper()
 	var out bytes.Buffer
 	m.clipboard = &out
+	m.nativeCopy = native
 
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m = next.(wizardModel)
 	if cmd != nil {
-		cmd()
+		if msg := cmd(); msg != nil {
+			next, _ = m.Update(msg)
+			m = next.(wizardModel)
+		}
 	}
-	return next.(wizardModel), out.String()
+	return m, out.String()
 }
 
 // The snippet has to arrive on the clipboard exactly as the user needs to paste it:
@@ -46,16 +64,16 @@ func TestWizard_CopySnippet_CopiesRawContent(t *testing.T) {
 	// The rendered block carries the decoration the raw copy must not.
 	require.Contains(t, m.View(), "│", "the code block is drawn with a gutter bar")
 
-	updated, written := copyKey(t, m)
+	var native string
+	updated, _ := copyKeyWith(t, m, func(s string) error {
+		native = s
+		return nil
+	})
 
-	require.NotEmpty(t, written, "pressing c must write an OSC 52 sequence")
-	assert.Equal(t, "\x1b]52;c;"+base64.StdEncoding.EncodeToString([]byte(snippet))+"\x07", written)
-	assert.True(t, updated.copied)
-
-	decoded := decodeOSC52(t, written)
-	assert.Equal(t, snippet, decoded)
-	assert.NotContains(t, decoded, "│", "the gutter bar must not be copied")
-	assert.NotContains(t, decoded, "  \n", "trailing padding must not be copied")
+	assert.Equal(t, snippet, native)
+	assert.Equal(t, copyDone, updated.copyState)
+	assert.NotContains(t, native, "│", "the gutter bar must not be copied")
+	assert.NotContains(t, native, "  \n", "trailing padding must not be copied")
 }
 
 // A screen can show both an install command and a snippet. The snippet is the one
@@ -76,8 +94,8 @@ func TestWizard_CopySnippet_PrefersSnippetOverInstallCommand(t *testing.T) {
 		},
 	}
 
-	_, written := copyKey(t, m)
-	assert.Equal(t, snippet, decodeOSC52(t, written))
+	_, copied := copyKey(t, m)
+	assert.Equal(t, snippet, copied)
 	assert.Contains(t, m.View(), "Press c to copy the snippet.")
 }
 
@@ -94,8 +112,8 @@ func TestWizard_CopySnippet_FallsBackToInstallCommand(t *testing.T) {
 		initResult: &setup.InitResult{SDKID: "node-server", FilePath: "/proj/index.js", Success: true},
 	}
 
-	_, written := copyKey(t, m)
-	assert.Equal(t, "npm install @launchdarkly/node-server-sdk", decodeOSC52(t, written))
+	_, copied := copyKey(t, m)
+	assert.Equal(t, "npm install @launchdarkly/node-server-sdk", copied)
 	assert.Contains(t, m.View(), "Press c to copy the command.")
 }
 
@@ -126,8 +144,8 @@ func TestWizard_CopySnippet_NothingToCopy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			updated, written := copyKey(t, tt.m)
 
-			assert.Empty(t, written, "must not write to the terminal with nothing to copy")
-			assert.False(t, updated.copied)
+			assert.Empty(t, written, "must not copy anything with nothing to copy")
+			assert.Equal(t, copyNone, updated.copyState)
 			assert.NotContains(t, tt.m.View(), "Press c to copy")
 		})
 	}
@@ -172,7 +190,37 @@ func TestWizard_CopySnippet_DoesNotStealCFromFiltering(t *testing.T) {
 
 	typed, written := copyKey(t, m3)
 	assert.Empty(t, written, "c must reach the filter, not the clipboard")
-	assert.False(t, typed.copied)
+	assert.Equal(t, copyNone, typed.copyState)
+}
+
+// Over SSH the OS clipboard belongs to the wrong machine, so a failure there falls
+// back to asking the terminal. That path cannot be confirmed, so the hint must not
+// claim the content is on the clipboard.
+func TestWizard_CopySnippet_FallsBackToTerminalWhenOSClipboardFails(t *testing.T) {
+	m := wizardModel{
+		step:  stepDone,
+		width: 80,
+		initResult: &setup.InitResult{
+			SDKID:    "go-server-sdk",
+			FilePath: "/proj/main.go",
+			Snippet:  snippet,
+			Success:  false,
+		},
+	}
+
+	updated, written := copyKeyWith(t, m, func(string) error {
+		return errors.New("no clipboard on this machine")
+	})
+
+	require.NotEmpty(t, written, "a failed OS copy must fall back to OSC 52")
+	assert.Equal(t, "\x1b]52;c;"+base64.StdEncoding.EncodeToString([]byte(snippet))+"\x07", written)
+	assert.Equal(t, snippet, decodeOSC52(t, written))
+	assert.Equal(t, copyRequested, updated.copyState)
+
+	view := updated.View()
+	assert.Contains(t, view, "Asked your terminal to copy the snippet.")
+	assert.NotContains(t, view, "Copied the snippet to your clipboard.",
+		"OSC 52 support cannot be detected, so the copy must not be claimed as done")
 }
 
 func decodeOSC52(t *testing.T, seq string) string {

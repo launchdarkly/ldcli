@@ -142,14 +142,18 @@ func (m wizardModel) copyableContent() (content, label string, ok bool) {
 	return "", "", false
 }
 
-// copyToClipboard writes an OSC 52 sequence, which asks the terminal to put the
-// content on the system clipboard. The wizard renders code inside a bordered block
-// and runs in the alternate screen, so selecting it with the mouse picks up the
-// gutter characters and the snippet is gone from scrollback once the wizard exits.
-// Terminals that do not implement OSC 52 ignore the sequence.
+// copyToClipboard puts the content on the clipboard, preferring the operating
+// system's own clipboard because it works in every terminal and reports whether it
+// succeeded. OSC 52 is the fallback: it asks the terminal to do the copying, which is
+// what works over SSH, where the OS clipboard belongs to the wrong machine. Not every
+// terminal implements OSC 52 and support cannot be queried, so a copy that goes that
+// route is reported as a request rather than a result.
 func (m wizardModel) copyToClipboard(content string) tea.Cmd {
 	return func() tea.Msg {
+		if err := m.nativeCopy(content); err == nil {
+			return copiedMsg{viaTerminal: false}
+		}
 		fmt.Fprint(m.clipboard, ansi.SetSystemClipboard(content))
-		return nil
+		return copiedMsg{viaTerminal: true}
 	}
 }

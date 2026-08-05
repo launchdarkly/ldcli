@@ -42,11 +42,17 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !ok {
 				break
 			}
-			m.copied = true
 			return m, m.copyToClipboard(content)
 		case "enter":
 			return m.handleEnter()
 		}
+
+	case copiedMsg:
+		m.copyState = copyDone
+		if msg.viaTerminal {
+			m.copyState = copyRequested
+		}
+		return m, nil
 
 	case projectsFetchedMsg:
 		m.projects = msg.projects

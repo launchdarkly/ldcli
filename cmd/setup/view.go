@@ -19,8 +19,11 @@ func (m wizardModel) copyHint() string {
 	if !ok {
 		return ""
 	}
-	if m.copied {
+	switch m.copyState {
+	case copyDone:
 		return mutedStyle.Render(fmt.Sprintf("Copied the %s to your clipboard.", label)) + "\n"
+	case copyRequested:
+		return mutedStyle.Render(fmt.Sprintf("Asked your terminal to copy the %s.", label)) + "\n"
 	}
 	return mutedStyle.Render(fmt.Sprintf("Press c to copy the %s.", label)) + "\n"
 }
