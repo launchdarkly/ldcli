@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -508,4 +509,51 @@ func TestWizard_Done_FailedInstall_ShowsCommand(t *testing.T) {
 	assert.Contains(t, v, "Install it yourself with")
 	assert.Contains(t, v, "gem install launchdarkly-server-sdk")
 	assert.Contains(t, v, "permission denied")
+}
+
+func TestWizard_NoProjects_ShowsEmptyStateNotSpinner(t *testing.T) {
+	m := wizardModel{step: stepSelectProject, width: 78, height: 24, spinner: spinner.New()}
+
+	// Before the fetch lands, the spinner is right.
+	assert.Contains(t, m.View(), "Loading projects")
+
+	updated, _ := m.Update(projectsFetchedMsg{projects: nil})
+	v := updated.(wizardModel).View()
+
+	assert.NotContains(t, v, "Loading projects")
+	assert.Contains(t, v, "No projects available")
+}
+
+func TestWizard_NoEnvironments_ShowsEmptyStateNotSpinner(t *testing.T) {
+	m := wizardModel{step: stepSelectEnvironment, width: 78, height: 24, spinner: spinner.New(), selectedProject: "my-proj"}
+
+	assert.Contains(t, m.View(), "Loading environments")
+
+	updated, _ := m.Update(envsFetchedMsg{environments: nil})
+	v := updated.(wizardModel).View()
+
+	assert.NotContains(t, v, "Loading environments")
+	assert.Contains(t, v, "No environments available")
+	assert.Contains(t, v, "my-proj")
+}
+
+func TestWizard_WindowSize_ResizesExistingLists(t *testing.T) {
+	m := wizardModel{step: stepSelectProject, width: 40, height: 10, spinner: spinner.New()}
+	withList, _ := m.Update(projectsFetchedMsg{projects: []projectItem{{key: "p1", name: "One"}}})
+
+	resized, _ := withList.(wizardModel).Update(tea.WindowSizeMsg{Width: 120, Height: 50})
+	got := resized.(wizardModel)
+
+	assert.Equal(t, 120, got.projectList.Width())
+	assert.Equal(t, got.listHeight(), got.projectList.Height())
+}
+
+func TestWizard_ListHeight_NeverNegativeBeforeWindowSize(t *testing.T) {
+	// No WindowSizeMsg yet, so height is still zero and height-4 would be negative.
+	m := wizardModel{step: stepSelectProject, spinner: spinner.New()}
+
+	assert.GreaterOrEqual(t, m.listHeight(), 3)
+
+	withList, _ := m.Update(projectsFetchedMsg{projects: []projectItem{{key: "p1", name: "One"}}})
+	assert.GreaterOrEqual(t, withList.(wizardModel).projectList.Height(), 3)
 }

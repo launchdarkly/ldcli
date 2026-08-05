@@ -56,52 +56,65 @@ type EnvKeys struct {
 	MobileKey    string
 }
 
-// ListProjects returns the account's projects.
-func (s Service) ListProjects(a Auth) ([]ProjectSummary, error) {
-	res, err := s.Clients.Projects.List(context.Background(), a.AccessToken, a.BaseURI)
-	if err != nil {
-		return nil, err
-	}
+// listPageSize is how many items each list request asks for. The wizard needs
+// every project and environment, so the requests page through until a short page
+// says there are no more.
+const listPageSize = 100
 
-	var resp struct {
-		Items []struct {
-			Key  string `json:"key"`
-			Name string `json:"name"`
-		} `json:"items"`
-	}
-	if err := json.Unmarshal(res, &resp); err != nil {
-		return nil, fmt.Errorf("parsing projects: %w", err)
-	}
-
-	projects := make([]ProjectSummary, len(resp.Items))
-	for i, item := range resp.Items {
-		projects[i] = ProjectSummary{Key: item.Key, Name: item.Name}
-	}
-	return projects, nil
+// keyedItems is the shape both list endpoints return.
+type keyedItems struct {
+	Items []struct {
+		Key  string `json:"key"`
+		Name string `json:"name"`
+	} `json:"items"`
 }
 
-// ListEnvironments returns the environments in a project.
+// ListProjects returns the account's projects, following pagination so accounts
+// with more projects than a single page are listed in full.
+func (s Service) ListProjects(a Auth) ([]ProjectSummary, error) {
+	var projects []ProjectSummary
+	for offset := int64(0); ; offset += listPageSize {
+		res, err := s.Clients.Projects.List(context.Background(), a.AccessToken, a.BaseURI, listPageSize, offset)
+		if err != nil {
+			return nil, err
+		}
+
+		var resp keyedItems
+		if err := json.Unmarshal(res, &resp); err != nil {
+			return nil, fmt.Errorf("parsing projects: %w", err)
+		}
+
+		for _, item := range resp.Items {
+			projects = append(projects, ProjectSummary{Key: item.Key, Name: item.Name})
+		}
+		if len(resp.Items) < listPageSize {
+			return projects, nil
+		}
+	}
+}
+
+// ListEnvironments returns the environments in a project, following pagination so
+// projects with more environments than a single page are listed in full.
 func (s Service) ListEnvironments(a Auth, projectKey string) ([]EnvSummary, error) {
-	res, err := s.Clients.Environments.List(context.Background(), a.AccessToken, a.BaseURI, projectKey)
-	if err != nil {
-		return nil, err
-	}
+	var envs []EnvSummary
+	for offset := int64(0); ; offset += listPageSize {
+		res, err := s.Clients.Environments.List(context.Background(), a.AccessToken, a.BaseURI, projectKey, listPageSize, offset)
+		if err != nil {
+			return nil, err
+		}
 
-	var resp struct {
-		Items []struct {
-			Key  string `json:"key"`
-			Name string `json:"name"`
-		} `json:"items"`
-	}
-	if err := json.Unmarshal(res, &resp); err != nil {
-		return nil, fmt.Errorf("parsing environments: %w", err)
-	}
+		var resp keyedItems
+		if err := json.Unmarshal(res, &resp); err != nil {
+			return nil, fmt.Errorf("parsing environments: %w", err)
+		}
 
-	envs := make([]EnvSummary, len(resp.Items))
-	for i, item := range resp.Items {
-		envs[i] = EnvSummary{Key: item.Key, Name: item.Name}
+		for _, item := range resp.Items {
+			envs = append(envs, EnvSummary{Key: item.Key, Name: item.Name})
+		}
+		if len(resp.Items) < listPageSize {
+			return envs, nil
+		}
 	}
-	return envs, nil
 }
 
 // EnvKeys returns the SDK credentials for an environment.

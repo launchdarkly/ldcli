@@ -1,7 +1,9 @@
 package setup
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,7 +38,7 @@ func (f fakeInstaller) Install(string, *DetectResult) (*InstallResult, error) {
 
 func TestService_ListProjects(t *testing.T) {
 	mockProjects := &projects.MockClient{}
-	mockProjects.On("List", testAuth.AccessToken, testAuth.BaseURI).
+	mockProjects.On("List", testAuth.AccessToken, testAuth.BaseURI, int64(listPageSize), int64(0)).
 		Return([]byte(`{"items":[{"key":"p1","name":"Project One"},{"key":"p2","name":"Project Two"}]}`), nil)
 	svc := Service{Clients: Clients{Projects: mockProjects}}
 
@@ -48,7 +50,7 @@ func TestService_ListProjects(t *testing.T) {
 
 func TestService_ListEnvironments(t *testing.T) {
 	mockEnvs := &environments.MockClient{}
-	mockEnvs.On("List", testAuth.AccessToken, testAuth.BaseURI, "p1").
+	mockEnvs.On("List", testAuth.AccessToken, testAuth.BaseURI, "p1", int64(listPageSize), int64(0)).
 		Return([]byte(`{"items":[{"key":"production","name":"Production"}]}`), nil)
 	svc := Service{Clients: Clients{Environments: mockEnvs}}
 
@@ -154,4 +156,43 @@ func TestService_Verify_Active(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Active)
 	assert.Equal(t, 1, result.Attempts)
+}
+
+func TestService_ListProjects_FollowsPagination(t *testing.T) {
+	first := make([]string, listPageSize)
+	for i := range first {
+		first[i] = fmt.Sprintf(`{"key":"p%d","name":"Project %d"}`, i, i)
+	}
+	mockProjects := &projects.MockClient{}
+	mockProjects.On("List", testAuth.AccessToken, testAuth.BaseURI, int64(listPageSize), int64(0)).
+		Return([]byte(`{"items":[`+strings.Join(first, ",")+`]}`), nil)
+	mockProjects.On("List", testAuth.AccessToken, testAuth.BaseURI, int64(listPageSize), int64(listPageSize)).
+		Return([]byte(`{"items":[{"key":"last","name":"Last"}]}`), nil)
+	svc := Service{Clients: Clients{Projects: mockProjects}}
+
+	got, err := svc.ListProjects(testAuth)
+
+	require.NoError(t, err)
+	assert.Len(t, got, listPageSize+1)
+	assert.Equal(t, ProjectSummary{Key: "last", Name: "Last"}, got[len(got)-1])
+	mockProjects.AssertExpectations(t)
+}
+
+func TestService_ListEnvironments_FollowsPagination(t *testing.T) {
+	first := make([]string, listPageSize)
+	for i := range first {
+		first[i] = fmt.Sprintf(`{"key":"e%d","name":"Env %d"}`, i, i)
+	}
+	mockEnvs := &environments.MockClient{}
+	mockEnvs.On("List", testAuth.AccessToken, testAuth.BaseURI, "p1", int64(listPageSize), int64(0)).
+		Return([]byte(`{"items":[`+strings.Join(first, ",")+`]}`), nil)
+	mockEnvs.On("List", testAuth.AccessToken, testAuth.BaseURI, "p1", int64(listPageSize), int64(listPageSize)).
+		Return([]byte(`{"items":[{"key":"last","name":"Last"}]}`), nil)
+	svc := Service{Clients: Clients{Environments: mockEnvs}}
+
+	got, err := svc.ListEnvironments(testAuth, "p1")
+
+	require.NoError(t, err)
+	assert.Len(t, got, listPageSize+1)
+	mockEnvs.AssertExpectations(t)
 }

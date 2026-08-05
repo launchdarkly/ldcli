@@ -2,11 +2,13 @@ package setup
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	"golang.org/x/term"
 
 	"github.com/launchdarkly/ldcli/internal/setup"
 )
@@ -161,6 +163,23 @@ func (m wizardModel) copyToClipboard(content string) tea.Cmd {
 		fmt.Fprint(m.clipboard, ansi.SetSystemClipboard(content))
 		return copiedMsg{viaTerminal: true}
 	}
+}
+
+// terminalWriter returns the writer to send OSC 52 to. It must not be stdout:
+// Bubble Tea owns stdout for frame rendering while the wizard runs, so a
+// sequence written there from a command goroutine can land in the middle of a
+// frame. Stderr is preferred because it reaches the same terminal without that
+// contention, but it may be redirected to a file or pipe, in which case the
+// sequence would be swallowed instead of reaching the terminal — so fall back to
+// the controlling terminal itself.
+func terminalWriter() io.Writer {
+	if term.IsTerminal(int(os.Stderr.Fd())) {
+		return os.Stderr
+	}
+	if tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0); err == nil {
+		return tty
+	}
+	return os.Stderr
 }
 
 // isRemoteSession reports whether the CLI is running over SSH. sshd sets these for

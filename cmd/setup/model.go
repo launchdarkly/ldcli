@@ -2,7 +2,6 @@ package setup
 
 import (
 	"io"
-	"os"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
@@ -57,8 +56,15 @@ type wizardModel struct {
 	// data gathered through the flow
 	projects     []projectItem
 	environments []envItem
-	projectList  list.Model
-	envList      list.Model
+	// projectsLoaded and envsLoaded record that a fetch came back, so a list that
+	// is legitimately empty is not mistaken for one that is still loading.
+	projectsLoaded bool
+	envsLoaded     bool
+	projectList    list.Model
+	envList        list.Model
+	// sdkListBuilt records that sdkList was constructed, since SetSize panics on a
+	// zero-value list.Model.
+	sdkListBuilt bool
 	sdkList      list.Model
 
 	selectedProject string
@@ -170,7 +176,7 @@ func runSetupWizard(
 			},
 			step:          stepSelectProject,
 			spinner:       s,
-			clipboard:     os.Stdout,
+			clipboard:     terminalWriter(),
 			nativeCopy:    clipboard.WriteAll,
 			remoteSession: isRemoteSession(),
 		}

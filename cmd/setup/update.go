@@ -17,6 +17,18 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		// The lists are built when their data arrives, which can be before or
+		// after this message, so push the new size into whichever already exist.
+		// SetSize panics on a zero-value list.Model, hence the built guards.
+		if m.projectsLoaded {
+			m.projectList.SetSize(m.width, m.listHeight())
+		}
+		if m.envsLoaded {
+			m.envList.SetSize(m.width, m.listHeight())
+		}
+		if m.sdkListBuilt {
+			m.sdkList.SetSize(m.sdkBoxWidth()-2, m.sdkList.Height())
+		}
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -56,24 +68,26 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case projectsFetchedMsg:
 		m.projects = msg.projects
+		m.projectsLoaded = true
 		items := make([]list.Item, len(msg.projects))
 		for i, p := range msg.projects {
 			items[i] = p
 		}
 		delegate := list.NewDefaultDelegate()
-		m.projectList = list.New(items, delegate, m.width, m.height-4)
+		m.projectList = list.New(items, delegate, m.width, m.listHeight())
 		m.projectList.Title = "Select a project:"
 		m.projectList.SetShowStatusBar(false)
 		return m, nil
 
 	case envsFetchedMsg:
 		m.environments = msg.environments
+		m.envsLoaded = true
 		items := make([]list.Item, len(msg.environments))
 		for i, e := range msg.environments {
 			items[i] = e
 		}
 		delegate := list.NewDefaultDelegate()
-		m.envList = list.New(items, delegate, m.width, m.height-4)
+		m.envList = list.New(items, delegate, m.width, m.listHeight())
 		m.envList.Title = "Select an environment:"
 		m.envList.SetShowStatusBar(false)
 		return m, nil
@@ -208,6 +222,7 @@ func (m *wizardModel) enterSDKStep() {
 			m.detectedSDK = &det
 			m.sdkFocus = 0
 			m.sdkList = m.newSDKList(sdkItemsExcept(det.id), "Other SDKs:", false)
+			m.sdkListBuilt = true
 			m.step = stepSelectSDK
 			return
 		}
@@ -215,6 +230,7 @@ func (m *wizardModel) enterSDKStep() {
 	m.detectedSDK = nil
 	m.sdkFocus = 1
 	m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:", true)
+	m.sdkListBuilt = true
 	m.step = stepSelectSDK
 }
 

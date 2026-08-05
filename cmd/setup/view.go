@@ -39,14 +39,24 @@ func (m wizardModel) View() string {
 
 	switch m.step {
 	case stepSelectProject:
-		if len(m.projects) == 0 {
+		if !m.projectsLoaded {
 			return m.spinner.View() + " Loading projects..."
+		}
+		if len(m.projects) == 0 {
+			return titleStyle.Render("No projects available") + "\n\n" +
+				m.wrap("This access token can't see any projects. Create a project in LaunchDarkly, or use a token with access to one, then run this command again.") + "\n" +
+				quitHint
 		}
 		return m.projectList.View() + "\n" + mutedStyle.Render("esc quit")
 
 	case stepSelectEnvironment:
-		if len(m.environments) == 0 {
+		if !m.envsLoaded {
 			return m.spinner.View() + " Loading environments..."
+		}
+		if len(m.environments) == 0 {
+			return titleStyle.Render("No environments available") + "\n\n" +
+				m.wrap(fmt.Sprintf("Project %q has no environments this access token can see. Press ← to pick another project.", m.selectedProject)) + "\n" +
+				mutedStyle.Render("← back · q quit") + "\n"
 		}
 		return m.envList.View() + "\n" + mutedStyle.Render("← back · esc quit")
 
@@ -165,6 +175,17 @@ func (m wizardModel) sdkBoxWidth() int {
 		w = 20
 	}
 	return w
+}
+
+// listHeight is the height available to a full-screen list. It never returns a
+// value below a usable minimum, because a WindowSizeMsg may not have arrived yet
+// and m.height-4 would then be negative.
+func (m wizardModel) listHeight() int {
+	h := m.height - 4
+	if h < 3 {
+		h = 3
+	}
+	return h
 }
 
 // wrap reflows prose to the terminal width so it doesn't overflow narrow

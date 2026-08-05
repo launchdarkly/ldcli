@@ -29,8 +29,10 @@ func (c *MockClient) List(
 	accessToken,
 	baseURI,
 	projKey string,
+	limit,
+	offset int64,
 ) ([]byte, error) {
-	args := c.Called(accessToken, baseURI, projKey)
+	args := c.Called(accessToken, baseURI, projKey, limit, offset)
 
 	return args.Get(0).([]byte), args.Error(1)
 }

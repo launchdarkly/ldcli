@@ -10,7 +10,7 @@ import (
 
 type Client interface {
 	Get(ctx context.Context, accessToken, baseURI, key, projKey string) ([]byte, error)
-	List(ctx context.Context, accessToken, baseURI, projKey string) ([]byte, error)
+	List(ctx context.Context, accessToken, baseURI, projKey string, limit, offset int64) ([]byte, error)
 }
 
 type EnvironmentsClient struct {
@@ -53,9 +53,18 @@ func (c EnvironmentsClient) List(
 	accessToken,
 	baseURI,
 	projectKey string,
+	limit,
+	offset int64,
 ) ([]byte, error) {
 	client := client.New(accessToken, baseURI, c.cliVersion)
-	environments, _, err := client.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey).Execute()
+	req := client.EnvironmentsApi.GetEnvironmentsByProject(ctx, projectKey)
+	if limit > 0 {
+		req = req.Limit(limit)
+	}
+	if offset > 0 {
+		req = req.Offset(offset)
+	}
+	environments, _, err := req.Execute()
 	if err != nil {
 		return nil, errors.NewLDAPIError(err)
 
