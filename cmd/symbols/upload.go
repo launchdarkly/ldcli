@@ -52,8 +52,18 @@ const (
 	// no sources.
 	sourcePathFlag = "source-path"
 
-	defaultPath       = "."
+	defaultPath = "."
+
+	// defaultBackendUrl is the observability API for LaunchDarkly production, which
+	// is what defaultBackendURLFor derives for the default base URI.
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
+
+	// Every LaunchDarkly instance publishes the observability API under its own
+	// host, named for the instance the app is served from: staging's app at
+	// ld-stg.launchdarkly.com has its API at pri.observability.ld-stg.launchdarkly.com.
+	// "pri" is the authenticated graph, which is the one that hands out upload URLs.
+	launchDarklyDomain     = "launchdarkly.com"
+	observabilityAPIPrefix = "pri.observability."
 
 	// reactNativeSymbolsIDPrefix is the storage "version" segment for symbols-id
 	// addressed JS maps (Symbols Id Lane). Keys become _sym/js/id/<symbolsID>/<file>,
@@ -218,7 +228,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		skipExisting := !viper.GetBool(noSkipExistingFlag)
 
 		if backendUrl == "" {
-			backendUrl = defaultBackendUrl
+			backendUrl = defaultBackendURLFor(viper.GetString(cliflags.BaseURIFlag))
 		}
 
 		// Apple dSYMs take a dedicated path: they are compiled to per-arch .dsymmap
@@ -527,6 +537,26 @@ func readSymbolsIDFile(filePath string) string {
 //
 // A backend that predates these arguments rejects the query, so this retries once
 // without them, keeping an updated CLI working against an older deployment.
+// defaultBackendURLFor derives the observability API endpoint from the LaunchDarkly
+// base URI, so aiming the CLI at another instance takes the one flag that names the
+// instance rather than two flags that have to agree.
+//
+// Only LaunchDarkly's own hosts are derived from. A base URI pointing at a local or
+// proxied stack says nothing about where its observability API listens, so those keep
+// the production default and --backend-url stays the way to say otherwise.
+func defaultBackendURLFor(baseURI string) string {
+	parsed, err := url.Parse(strings.TrimSpace(baseURI))
+	if err != nil {
+		return defaultBackendUrl
+	}
+
+	host := parsed.Hostname()
+	if host != launchDarklyDomain && !strings.HasSuffix(host, "."+launchDarklyDomain) {
+		return defaultBackendUrl
+	}
+	return "https://" + observabilityAPIPrefix + host
+}
+
 func getSymbolUploadUrls(apiKey, projectID string, paths, digests []string, backendUrl string, skipExisting bool) ([]string, error) {
 	urls, err := requestSymbolUploadUrls(apiKey, projectID, paths, digests, backendUrl, skipExisting)
 	if err != nil && skipExisting && mentionsDedupArgument(err) {
@@ -712,7 +742,7 @@ func initFlags(cmd *cobra.Command) {
 	cmd.Flags().String(basePathFlag, "", "An optional base path for the uploaded symbol files")
 	_ = viper.BindPFlag(basePathFlag, cmd.Flags().Lookup(basePathFlag))
 
-	cmd.Flags().String(backendUrlFlag, defaultBackendUrl, "An optional backend url for self-hosted deployments")
+	cmd.Flags().String(backendUrlFlag, "", fmt.Sprintf("An optional backend url for self-hosted deployments. Defaults to the observability API of whichever instance --%s names (%s for the default)", cliflags.BaseURIFlag, defaultBackendUrl))
 	_ = viper.BindPFlag(backendUrlFlag, cmd.Flags().Lookup(backendUrlFlag))
 
 	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also upload your source files so the errors page can show source context around native frames (%s and %s). Your source is stored in LaunchDarkly", typeAppleDSYM, typeAndroid))
