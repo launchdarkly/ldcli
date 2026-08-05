@@ -80,10 +80,16 @@ func (m wizardModel) View() string {
 	case stepDone:
 		if m.installResult != nil && m.installResult.Failed {
 			body := titleStyle.Render("Manual install needed") + "\n\n" +
-				m.wrap("The SDK couldn't be installed automatically. Install it yourself with:") + "\n\n" +
-				code(m.installResult.Command) + "\n\n"
+				m.wrap("The SDK couldn't be installed automatically.") + "\n\n"
 			if m.installResult.FailureReason != "" {
 				body += m.wrap("Reason: "+m.installResult.FailureReason) + "\n\n"
+			}
+			// The installer only supplies a command when one exists and failed to
+			// run. When it declines up front, its reason above carries the command
+			// to use instead, so don't contradict it with a broken one.
+			if m.installResult.Command != "" {
+				body += m.wrap("Install it yourself with:") + "\n\n" +
+					code(m.installResult.Command) + "\n\n"
 			}
 			if m.initResult != nil && m.initResult.Success {
 				body += m.wrap(fmt.Sprintf("Initialization code was added to %s.", m.initResult.FilePath)) + "\n"

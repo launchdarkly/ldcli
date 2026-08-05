@@ -87,11 +87,19 @@ func runInstall(svc setup.Service) func(*cobra.Command, []string) error {
 			fmt.Fprintln(cmd.OutOrStdout(), "Already installed — skipping install.")
 			return nil
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Command: %s\n", result.Command)
+		if result.Command != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "Command: %s\n", result.Command)
+		}
 		if result.DryRun {
 			fmt.Fprintln(cmd.OutOrStdout(), "Dry run: command not executed")
-		} else {
-			fmt.Fprintf(cmd.OutOrStdout(), "Success: %t\n", result.Success)
+			return nil
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Success: %t\n", result.Success)
+		switch {
+		case result.FailureReason != "":
+			fmt.Fprintf(cmd.OutOrStdout(), "Reason: %s\n", result.FailureReason)
+		case !result.Success && setup.RequiresManualInstall(result.SDKID):
+			fmt.Fprintf(cmd.OutOrStdout(), "Reason: %s has no automated install command; add %s to your build configuration by hand.\n", result.SDKID, result.Package)
 		}
 
 		return nil

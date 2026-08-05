@@ -467,3 +467,45 @@ func TestWizard_OverrideSDK_DefaultEntryPointMissing(t *testing.T) {
 	assert.False(t, m.detectResult.EntryPointExists)
 	assert.Contains(t, m.View(), "no entry file found")
 }
+
+func TestWizard_Done_DeclinedInstall_ShowsReasonWithoutCommand(t *testing.T) {
+	m := wizardModel{
+		step:            stepDone,
+		width:           78,
+		selectedProject: "default",
+		flagKey:         "my-new-flag",
+		installResult: &setup.InstallResult{
+			SDKID:         "dotnet-server-sdk",
+			Package:       "LaunchDarkly.ServerSdk",
+			Failed:        true,
+			FailureReason: "found 2 projects in this solution",
+		},
+	}
+
+	v := m.View()
+	assert.Contains(t, v, "Manual install needed")
+	assert.Contains(t, v, "found 2 projects in this solution")
+	// No command to offer, so the screen must not render an empty code block or
+	// promise one.
+	assert.NotContains(t, v, "Install it yourself with")
+}
+
+func TestWizard_Done_FailedInstall_ShowsCommand(t *testing.T) {
+	m := wizardModel{
+		step:            stepDone,
+		width:           78,
+		selectedProject: "default",
+		flagKey:         "my-new-flag",
+		installResult: &setup.InstallResult{
+			SDKID:         "ruby-server-sdk",
+			Command:       "gem install launchdarkly-server-sdk",
+			Failed:        true,
+			FailureReason: "permission denied",
+		},
+	}
+
+	v := m.View()
+	assert.Contains(t, v, "Install it yourself with")
+	assert.Contains(t, v, "gem install launchdarkly-server-sdk")
+	assert.Contains(t, v, "permission denied")
+}

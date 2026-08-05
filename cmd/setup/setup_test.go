@@ -262,6 +262,58 @@ func TestInstall_Plaintext_WithVersion(t *testing.T) {
 	assert.Contains(t, string(output), "@launchdarkly/node-server-sdk@9.7.0")
 }
 
+func TestInstall_Plaintext_PrintsFailureReason(t *testing.T) {
+	args := []string{
+		"setup", "install",
+		"--access-token", "test-token",
+		"--sdk-id", "dotnet-server-sdk",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+			Installer: mockInstaller{result: &setup.InstallResult{
+				SDKID:         "dotnet-server-sdk",
+				Package:       "LaunchDarkly.ServerSdk",
+				Failed:        true,
+				FailureReason: "no .csproj found; rerun with --project",
+			}},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), "Success: false")
+	assert.Contains(t, string(output), "no .csproj found; rerun with --project")
+	assert.NotContains(t, string(output), "Command: \n")
+}
+
+func TestInstall_Plaintext_ExplainsManualInstall(t *testing.T) {
+	args := []string{
+		"setup", "install",
+		"--access-token", "test-token",
+		"--sdk-id", "java-server-sdk",
+	}
+	output, err := cmd.CallCmd(
+		t,
+		cmd.APIClients{
+			ResourcesClient: &resources.MockClient{},
+			Installer: mockInstaller{result: &setup.InstallResult{
+				SDKID:   "java-server-sdk",
+				Package: "com.launchdarkly:launchdarkly-java-server-sdk",
+				Success: false,
+			}},
+		},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(output), "Success: false")
+	assert.Contains(t, string(output), "no automated install command")
+}
+
 func TestInstall_DryRun(t *testing.T) {
 	args := []string{
 		"setup", "install",
