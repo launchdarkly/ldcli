@@ -372,3 +372,34 @@ func TestCsprojFiles_SkipsBuildOutput(t *testing.T) {
 
 	assert.Equal(t, []string{filepath.Join(dir, "src/MyApp/MyApp.csproj")}, csprojFiles(dir))
 }
+
+// The templates import the package InstallArgs installs; a mismatch means the user
+// installs one package and the snippet requires another. These are the pairs where
+// LaunchDarkly ships both a scoped and an unscoped package for the same SDK.
+func TestInstallArgs_PackageMatchesTemplateImport(t *testing.T) {
+	tests := []struct {
+		sdkID      string
+		wantImport string
+	}{
+		{"node-server", "@launchdarkly/node-server-sdk"},
+		{"react-client-sdk", "launchdarkly-react-client-sdk"},
+		{"react-native", "@launchdarkly/react-native-client-sdk"},
+		{"js-client-sdk", "launchdarkly-js-client-sdk"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.sdkID, func(t *testing.T) {
+			_, pkg := InstallArgs(tt.sdkID, "npm")
+			assert.Equal(t, tt.wantImport, pkg)
+
+			rendered, err := RenderTemplate(tt.sdkID, InitConfig{})
+			require.NoError(t, err)
+			assert.Contains(t, rendered, "'"+tt.wantImport+"'",
+				"template must import the package we install")
+
+			esm, err := RenderTemplateForEntry(tt.sdkID, "src/main.ts", InitConfig{})
+			require.NoError(t, err)
+			assert.Contains(t, esm, "'"+tt.wantImport+"'",
+				"ESM template must import the package we install")
+		})
+	}
+}
