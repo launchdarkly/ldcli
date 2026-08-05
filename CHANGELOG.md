@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.10.0](https://github.com/launchdarkly/ldcli/compare/v3.9.0...v3.10.0) (2026-08-05)
+
+
+### Features
+
+* **symbols:** derive the upload endpoint from --base-uri ([#773](https://github.com/launchdarkly/ldcli/issues/773)) ([f8ee593](https://github.com/launchdarkly/ldcli/commit/f8ee593562104296ba673166df53a689685d49c4))
+
 ## [3.9.0](https://github.com/launchdarkly/ldcli/compare/v3.8.0...v3.9.0) (2026-08-05)
 
 
