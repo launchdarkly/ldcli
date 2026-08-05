@@ -90,6 +90,9 @@ type wizardModel struct {
 	nativeCopy func(string) error
 	clipboard  io.Writer
 	copyState  copyState
+	// remoteSession suppresses the OS clipboard, because over SSH it is not the one
+	// the user pastes into even when writing to it succeeds.
+	remoteSession bool
 
 	quitting bool
 }
@@ -165,10 +168,11 @@ func runSetupWizard(
 				AccessToken: viper.GetString(cliflags.AccessTokenFlag),
 				BaseURI:     viper.GetString(cliflags.BaseURIFlag),
 			},
-			step:       stepSelectProject,
-			spinner:    s,
-			clipboard:  os.Stdout,
-			nativeCopy: clipboard.WriteAll,
+			step:          stepSelectProject,
+			spinner:       s,
+			clipboard:     os.Stdout,
+			nativeCopy:    clipboard.WriteAll,
+			remoteSession: isRemoteSession(),
 		}
 
 		p := tea.NewProgram(m, tea.WithAltScreen())

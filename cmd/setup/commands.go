@@ -150,10 +150,27 @@ func (m wizardModel) copyableContent() (content, label string, ok bool) {
 // route is reported as a request rather than a result.
 func (m wizardModel) copyToClipboard(content string) tea.Cmd {
 	return func() tea.Msg {
-		if err := m.nativeCopy(content); err == nil {
-			return copiedMsg{viaTerminal: false}
+		// Over SSH the OS clipboard is the one on the machine running the code, not
+		// the one the user pastes into, and it can succeed there — so a remote
+		// session has to go to the terminal even though the local path would work.
+		if !m.remoteSession {
+			if err := m.nativeCopy(content); err == nil {
+				return copiedMsg{viaTerminal: false}
+			}
 		}
 		fmt.Fprint(m.clipboard, ansi.SetSystemClipboard(content))
 		return copiedMsg{viaTerminal: true}
 	}
+}
+
+// isRemoteSession reports whether the CLI is running over SSH. sshd sets these for
+// the session it owns, so they distinguish "the clipboard here is the user's" from
+// "the user's clipboard is on the other end of the connection".
+func isRemoteSession() bool {
+	for _, name := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+		if os.Getenv(name) != "" {
+			return true
+		}
+	}
+	return false
 }

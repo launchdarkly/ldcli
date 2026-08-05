@@ -223,6 +223,52 @@ func TestWizard_CopySnippet_FallsBackToTerminalWhenOSClipboardFails(t *testing.T
 		"OSC 52 support cannot be detected, so the copy must not be claimed as done")
 }
 
+// A remote host can have a perfectly working clipboard — a Mac with pbcopy, a Linux
+// box with a display — and writing to it still puts the snippet on the wrong machine.
+// Success there is not evidence the user can paste, so it must not be preferred or
+// reported as done.
+func TestWizard_CopySnippet_RemoteSessionSkipsTheOSClipboard(t *testing.T) {
+	m := wizardModel{
+		step:          stepDone,
+		width:         80,
+		remoteSession: true,
+		initResult: &setup.InitResult{
+			SDKID:    "go-server-sdk",
+			FilePath: "/proj/main.go",
+			Snippet:  snippet,
+			Success:  false,
+		},
+	}
+
+	nativeCalled := false
+	updated, written := copyKeyWith(t, m, func(string) error {
+		nativeCalled = true
+		return nil // the remote clipboard would accept it
+	})
+
+	assert.False(t, nativeCalled, "must not write to the clipboard of the remote machine")
+	assert.Equal(t, snippet, decodeOSC52(t, written))
+	assert.Equal(t, copyRequested, updated.copyState)
+	assert.Contains(t, updated.View(), "Asked your terminal to copy the snippet.")
+}
+
+// The environment sshd sets for its session is what separates the two cases.
+func TestIsRemoteSession(t *testing.T) {
+	for _, name := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(name, "10.0.0.1 51234 10.0.0.2 22")
+			assert.True(t, isRemoteSession())
+		})
+	}
+
+	t.Run("no ssh variables", func(t *testing.T) {
+		t.Setenv("SSH_CONNECTION", "")
+		t.Setenv("SSH_CLIENT", "")
+		t.Setenv("SSH_TTY", "")
+		assert.False(t, isRemoteSession())
+	})
+}
+
 func decodeOSC52(t *testing.T, seq string) string {
 	t.Helper()
 	require.True(t, len(seq) > len("\x1b]52;c;")+1, "not an OSC 52 sequence: %q", seq)
