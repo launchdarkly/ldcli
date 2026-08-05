@@ -224,8 +224,11 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// Apple dSYMs take a dedicated path: they are compiled to per-arch .dsymmap
 		// symbol maps keyed by build UUID, ignoring the version/symbols-id lanes.
 		if symbolType == typeAppleDSYM {
-			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
-			return uploadAppleDSYMs(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, backendUrl, viper.GetBool(includeSourcesFlag), skipExisting)
+			// A dSYM is best uploaded by the build that produced it, so where to
+			// read one from can come from the build itself. See apple_xcode.go.
+			upload := resolveAppleUpload(path)
+			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, upload.Path)
+			return uploadAppleDSYMs(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, upload, backendUrl, viper.GetBool(includeSourcesFlag), skipExisting)
 		}
 
 		// Flutter/Dart symbols take a dedicated path too: each app.<platform>.symbols
@@ -700,10 +703,10 @@ func initFlags(cmd *cobra.Command) {
 	cmd.Flags().String(appVersionFlag, "", fmt.Sprintf("The current version of your deploy. With --type %s this is read from the packaged build when omitted", typeAndroid))
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
 
-	cmd.Flags().String(symbolsIdFlag, "", fmt.Sprintf("The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present, and with --type %s the id the packaged app reports", typeAndroid))
+	cmd.Flags().String(symbolsIdFlag, "", fmt.Sprintf("The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present, and with --type %s the id the packaged app reports, or failing that the one R8 recorded in the mapping", typeAndroid))
 	_ = viper.BindPFlag(symbolsIdFlag, cmd.Flags().Lookup(symbolsIdFlag))
 
-	cmd.Flags().String(pathFlag, defaultPath, fmt.Sprintf("Sets the directory of where the symbol files are. With --type %s, run from your project root and the R8 mapping is found for you", typeAndroid))
+	cmd.Flags().String(pathFlag, defaultPath, fmt.Sprintf("Sets the directory of where the symbol files are. With --type %s, run from your project root and the R8 mapping is found for you; with --type %s, an Xcode build phase uploads what it just built", typeAndroid, typeAppleDSYM))
 	_ = viper.BindPFlag(pathFlag, cmd.Flags().Lookup(pathFlag))
 
 	cmd.Flags().String(basePathFlag, "", "An optional base path for the uploaded symbol files")

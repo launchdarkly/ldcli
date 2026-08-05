@@ -126,15 +126,25 @@ func buildAndroidObjects(path, appVersion, symbolsID string, includeSources bool
 		return nil, err
 	}
 
-	lanes := androidLanes(build)
-	if len(lanes) == 0 {
-		return nil, fmt.Errorf("this build reports no symbols id and no app version, so there is no key a crash could be symbolicated under. Apply the LaunchDarkly Gradle plugin so the shipped app records its symbols id, or re-run with --%s <version>", appVersionFlag)
-	}
-
 	mapping, err := findAndroidMapping(build.Path)
 	if err != nil {
 		return nil, err
 	}
+	if build.SymbolsID == "" {
+		// R8's own id for this mapping, which the shipped app reports on every frame
+		// (see android_mapid.go). Below an id the app stamped, which is a build
+		// saying what it will report and so the more specific answer of the two.
+		if id := androidMapID(mapping); id != "" {
+			build.SymbolsID = id
+			fmt.Printf("Using symbols id %s, as recorded by R8 in the mapping\n", id)
+		}
+	}
+
+	lanes := androidLanes(build)
+	if len(lanes) == 0 {
+		return nil, fmt.Errorf("this mapping records no id of its own and the build reports no app version, so there is no key a crash could be symbolicated under. Re-run with --%s <version>", appVersionFlag)
+	}
+
 	index, err := buildAndroidIndex(mapping)
 	if err != nil {
 		return nil, err

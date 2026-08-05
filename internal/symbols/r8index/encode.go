@@ -55,6 +55,9 @@ func EncodeFrom(r io.Reader) ([]byte, error) {
 	var b srcbundle.Builder
 	classes := 0
 	sc := newScanner(func(obf string, c *class) {
+		// Add ignores a key it already holds, so a repeated obfuscated name keeps its
+		// first block. Parse keeps the first too (see there), because both encoders
+		// have to produce one index for one mapping.
 		b.Add(classPrefix+obf, encodeClass(c))
 		classes++
 	})

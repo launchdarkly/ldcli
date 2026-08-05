@@ -54,13 +54,21 @@ func (m appleSymbolMap) label() string {
 // nothing. Source bundles borrow that UUID rather than being keyed by their own
 // contents — sources unreadable on the machine that uploaded first must still be able
 // to overwrite — so those are skipped only when their digest matches what is stored.
-func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources, skipExisting bool) error {
-	images, err := findDSYMImages(path)
+func uploadAppleDSYMs(apiKey, projectID string, upload appleUpload, backendURL string, includeSources, skipExisting bool) error {
+	images, err := findDSYMImages(upload.Path)
 	if err != nil {
 		return fmt.Errorf("failed to find dSYM files: %w", err)
 	}
 	if len(images) == 0 {
-		return fmt.Errorf("no .dSYM bundles found in %s, is this the correct path?", path)
+		if upload.FromXcode {
+			// Running from a build that produced no dSYM is ordinary — a Debug
+			// build's debug information stays in the binary — and a build phase
+			// that fails the build over it would be a phase every project has to
+			// guard. There is nothing to upload, which is not the same as an error.
+			fmt.Printf("This build produced no dSYM, so there is nothing to upload. Set Debug Information Format to \"DWARF with dSYM File\" for the configurations you ship.\n")
+			return nil
+		}
+		return fmt.Errorf("no .dSYM bundles found in %s, is this the correct path?", upload.Path)
 	}
 
 	maps, err := buildAppleMaps(images, includeSources)

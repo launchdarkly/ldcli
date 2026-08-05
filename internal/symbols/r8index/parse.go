@@ -72,7 +72,20 @@ func (m *Mapping) Classes() int {
 // check.
 func Parse(data []byte) *Mapping {
 	m := &Mapping{classes: map[string]*class{}}
-	sc := newScanner(func(obf string, c *class) { m.classes[obf] = c })
+	// The first block wins a repeated obfuscated name, which is the one thing
+	// EncodeFrom can do: srcbundle.Builder.Add ignores a key it already holds, and a
+	// class it has already compressed into the bundle cannot be revisited. Plain
+	// assignment here would keep the last instead, so one mapping would encode to two
+	// different indexes depending on which encoder read it — and an index is
+	// addressed by the id of the mapping it was built from.
+	//
+	// A name repeats when mapping files are concatenated: a build with feature splits,
+	// or one that appends a module's mapping to another's.
+	sc := newScanner(func(obf string, c *class) {
+		if _, seen := m.classes[obf]; !seen {
+			m.classes[obf] = c
+		}
+	})
 	sc.scan(data)
 	m.sourceFiles = sc.sourceFiles
 	return m
