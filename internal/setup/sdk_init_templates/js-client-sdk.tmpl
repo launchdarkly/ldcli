@@ -1,0 +1,12 @@
+import * as LDClient from 'launchdarkly-js-client-sdk';
+// --- init ---
+const ldClient = LDClient.initialize('{{.ClientSideID}}', {
+  kind: 'user',
+  key: 'example-user-key',
+  name: 'Example User',
+});
+
+ldClient.on('ready', () => {
+  const flagValue = ldClient.variation('{{.FlagKey}}', false);
+  console.log(`Flag '{{.FlagKey}}' is ${flagValue}`);
+});
