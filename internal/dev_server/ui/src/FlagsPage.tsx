@@ -87,6 +87,74 @@ function App() {
     );
   }, [fetchDevFlags]);
 
+  // In streaming-startup mode the server resolves variations from REST in the
+  // background, so availableVariations can be empty right after startup. Poll
+  // until they arrive so the override dropdowns populate without a manual
+  // refresh. In the default mode they're already present, so the first poll
+  // sees them and stops. The server retries transient fetch failures itself;
+  // this reschedules on failure too so one dropped request doesn't strand the
+  // UI, with backoff and a bounded number of attempts.
+  useEffect(() => {
+    if (!selectedProject) {
+      return;
+    }
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const maxAttempts = 40;
+
+    const scheduleNext = () => {
+      if (cancelled || attempts >= maxAttempts) {
+        return;
+      }
+      const delay = Math.min(1000 * Math.pow(1.5, attempts - 1), 10000);
+      timer = setTimeout(poll, delay);
+    };
+
+    const poll = async () => {
+      if (cancelled) {
+        return;
+      }
+      attempts += 1;
+      try {
+        const res = await fetch(
+          apiRoute(
+            `/dev/projects/${selectedProject}?expand=availableVariations`,
+          ),
+        );
+        if (cancelled) {
+          return;
+        }
+        if (!res.ok) {
+          scheduleNext();
+          return;
+        }
+        const json: { availableVariations?: Record<string, FlagVariation[]> } =
+          await res.json();
+        // The project may have switched while awaiting the body; don't apply a
+        // stale response to the newly-selected project.
+        if (cancelled) {
+          return;
+        }
+        const variations = json.availableVariations ?? {};
+        if (Object.keys(variations).length > 0) {
+          setAvailableVariations(variations);
+        } else {
+          scheduleNext();
+        }
+      } catch (err) {
+        console.error('error polling variations', err);
+        scheduleNext();
+      }
+    };
+
+    timer = setTimeout(poll, 1000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [selectedProject]);
+
   const updateProjectSettings = useCallback(
     async (newEnvironment: Environment | null, newContext: string) => {
       if (!selectedProject) {

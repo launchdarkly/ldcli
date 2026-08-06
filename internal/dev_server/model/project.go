@@ -2,10 +2,12 @@ package model
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
 
+	ldapi "github.com/launchdarkly/api-client-go/v14"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
@@ -54,12 +56,33 @@ func (project *Project) refreshExternalState(ctx context.Context) error {
 	project.AllFlagsState = flagsState
 	project.LastSyncTime = time.Now()
 
+	if StreamStartupFromContext(ctx) {
+		// Defer the REST fetch to a background fill; keep the stored variations so this write doesn't blank the dropdown, and report healthy now.
+		existing, err := StoreFromContext(ctx).GetAvailableVariationsForProject(ctx, project.Key)
+		if err != nil {
+			return err
+		}
+		project.AvailableVariations = flattenVariations(existing)
+		return nil
+	}
+
 	availableVariations, err := project.fetchAvailableVariations(ctx)
 	if err != nil {
 		return err
 	}
 	project.AvailableVariations = availableVariations
 	return nil
+}
+
+// flattenVariations turns the store's per-flag variation map into a flat slice.
+func flattenVariations(byFlagKey map[string][]Variation) []FlagVariation {
+	var all []FlagVariation
+	for flagKey, variations := range byFlagKey {
+		for _, variation := range variations {
+			all = append(all, FlagVariation{FlagKey: flagKey, Variation: variation})
+		}
+	}
+	return all
 }
 
 func UpdateProject(ctx context.Context, projectKey string, context *ldcontext.Context, sourceEnvironmentKey *string) (Project, error) {
@@ -125,19 +148,27 @@ func (project Project) GetFlagStateWithOverridesForProject(ctx context.Context) 
 }
 
 func (project Project) fetchAvailableVariations(ctx context.Context) ([]FlagVariation, error) {
-	apiAdapter := adapters.GetApi(ctx)
-	flags, err := apiAdapter.GetAllFlags(ctx, project.Key)
+	flags, err := adapters.GetApi(ctx).GetAllFlags(ctx, project.Key)
 	if err != nil {
 		return nil, err
 	}
+	return variationsFromFlags(flags), nil
+}
+
+// variationsFromFlags flattens REST flags into stored variations.
+func variationsFromFlags(flags []ldapi.FeatureFlag) []FlagVariation {
 	var allVariations []FlagVariation
 	for _, flag := range flags {
-		flagKey := flag.Key
-		for _, variation := range flag.Variations {
+		for i, variation := range flag.Variations {
+			// Guard the nil id: fall back to a unique per-index id, never deref nil or leave an empty id (which would collide).
+			id := fmt.Sprintf("variation-%d", i)
+			if variation.Id != nil {
+				id = *variation.Id
+			}
 			allVariations = append(allVariations, FlagVariation{
-				FlagKey: flagKey,
+				FlagKey: flag.Key,
 				Variation: Variation{
-					Id:          *variation.Id,
+					Id:          id,
 					Description: variation.Description,
 					Name:        variation.Name,
 					Value:       ldvalue.CopyArbitraryValue(variation.Value),
@@ -145,7 +176,7 @@ func (project Project) fetchAvailableVariations(ctx context.Context) ([]FlagVari
 			})
 		}
 	}
-	return allVariations, nil
+	return allVariations
 }
 
 func (project Project) fetchFlagState(ctx context.Context) (FlagsState, error) {
