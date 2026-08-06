@@ -495,3 +495,62 @@ func TestRenderTemplate_MobileConfigCarriesRequiredArguments(t *testing.T) {
 		})
 	}
 }
+
+// Running setup twice must not append a second copy. In Node the injected code
+// declares const bindings, so a duplicate is a SyntaxError that stops the app.
+func TestInjectIntoFile_SecondRunLeavesFileUnchanged(t *testing.T) {
+	tests := []struct {
+		sdkID   string
+		name    string
+		initial string
+	}{
+		{"node-server", "index.js", "'use strict'\nconst express = require('express')\n\nexpress()\n"},
+		{"node-server", "src/main.ts", "import express from 'express'\n\nexpress()\n"},
+		{"python-server-sdk", "app.py", "\"\"\"docstring.\"\"\"\nimport os\n\nprint(os.getcwd())\n"},
+		{"ruby-server-sdk", "config.ru", "# frozen_string_literal: true\nrequire 'rack'\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.sdkID+"/"+tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			entry := filepath.Join(dir, tt.name)
+			require.NoError(t, os.MkdirAll(filepath.Dir(entry), 0755))
+			require.NoError(t, os.WriteFile(entry, []byte(tt.initial), 0644))
+
+			cfg := InitConfig{SDKKey: "sdk-KEY", FlagKey: "my-flag"}
+			first, err := Initializer{}.InjectIntoFile(tt.sdkID, entry, cfg)
+			require.NoError(t, err)
+			require.True(t, first.Success)
+			require.False(t, first.AlreadyInitialized)
+			afterFirst, err := os.ReadFile(entry)
+			require.NoError(t, err)
+
+			second, err := Initializer{}.InjectIntoFile(tt.sdkID, entry, cfg)
+			require.NoError(t, err)
+			assert.True(t, second.AlreadyInitialized, "second run must report the file was already set up")
+			assert.True(t, second.Success)
+
+			afterSecond, err := os.ReadFile(entry)
+			require.NoError(t, err)
+			assert.Equal(t, string(afterFirst), string(afterSecond), "second run must not modify the file")
+		})
+	}
+}
+
+// A file that only mentions a similarly-named package must still get injected;
+// skipping it would leave the user with no initialization at all.
+func TestInjectIntoFile_SimilarPackageNameStillInjects(t *testing.T) {
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "index.js")
+	initial := "// TODO: evaluate @launchdarkly/node-server-sdk-metrics\n" +
+		"const other = require('@launchdarkly/node-server-sdk-metrics');\n"
+	require.NoError(t, os.WriteFile(entry, []byte(initial), 0644))
+
+	result, err := Initializer{}.InjectIntoFile("node-server", entry, InitConfig{SDKKey: "sdk-KEY"})
+	require.NoError(t, err)
+	assert.True(t, result.Success)
+	assert.False(t, result.AlreadyInitialized)
+
+	out, err := os.ReadFile(entry)
+	require.NoError(t, err)
+	assert.Contains(t, string(out), "const LaunchDarkly = require('@launchdarkly/node-server-sdk');")
+}
