@@ -13,6 +13,7 @@ Supported settings:
 - `port`: Port for the dev server to run on
 - `project`: Default project key
 - `sync-once`: Only sync new projects. Existing projects will neither be resynced nor have overrides specified by CLI flags applied.
+- `update-check-opt-out`: Opt out of update check
 
 Usage:
   ldcli config [flags]
