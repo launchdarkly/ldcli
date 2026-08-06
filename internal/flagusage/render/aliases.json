@@ -1,0 +1,5 @@
+{
+  "managed-federal-stg": "federal staging",
+  "managed-federal-prod": "federal prod",
+  "managed-eu-production": "EU production"
+}
