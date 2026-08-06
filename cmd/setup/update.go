@@ -80,6 +80,9 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case envsFetchedMsg:
+		if !m.acceptsEnvs(msg) {
+			return m, nil
+		}
 		m.environments = msg.environments
 		m.envsLoaded = true
 		items := make([]list.Item, len(msg.environments))
@@ -93,6 +96,9 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case envDetailsFetchedMsg:
+		if !m.acceptsEnvDetails(msg) {
+			return m, nil
+		}
 		m.sdkKey = msg.sdkKey
 		m.clientSideID = msg.clientSideID
 		m.mobileKey = msg.mobileKey
@@ -232,6 +238,31 @@ func (m *wizardModel) enterSDKStep() {
 	m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:", true)
 	m.sdkListBuilt = true
 	m.step = stepSelectSDK
+}
+
+// acceptsEnvs reports whether an environment list still describes the project the
+// user has selected, and whether the wizard is still choosing one. A list fetched
+// for a project the user has since left would otherwise be shown under the new
+// project, letting Enter commit an environment key the new project doesn't have.
+func (m wizardModel) acceptsEnvs(msg envsFetchedMsg) bool {
+	if msg.project != m.selectedProject {
+		return false
+	}
+	// Past the environment step the list is only a leftover of a choice already
+	// made, so rebuilding it would drop the user's place for nothing.
+	return m.step == stepSelectProject || m.step == stepSelectEnvironment
+}
+
+// acceptsEnvDetails reports whether SDK keys belong to the project and
+// environment currently selected, and whether the wizard is still waiting for
+// them. Without both checks a response the user has navigated away from — or a
+// duplicate arriving after the flow finished — would write another environment's
+// keys and yank the flow back to SDK selection.
+func (m wizardModel) acceptsEnvDetails(msg envDetailsFetchedMsg) bool {
+	if msg.project != m.selectedProject || msg.env != m.selectedEnv {
+		return false
+	}
+	return m.step == stepSelectEnvironment || m.step == stepDetect
 }
 
 // resetEnvSelection drops the environments belonging to the previously selected

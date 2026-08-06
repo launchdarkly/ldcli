@@ -138,8 +138,18 @@ func (e envItem) FilterValue() string { return e.name }
 
 // messages
 type projectsFetchedMsg struct{ projects []projectItem }
-type envsFetchedMsg struct{ environments []envItem }
+
+// envsFetchedMsg and envDetailsFetchedMsg name the selection their fetch was
+// issued for. Nothing cancels a fetch the user has navigated away from, so the
+// response has to say what it answers for the model to tell a current reply from
+// a superseded one it must drop.
+type envsFetchedMsg struct {
+	project      string
+	environments []envItem
+}
 type envDetailsFetchedMsg struct {
+	project      string
+	env          string
 	sdkKey       string
 	clientSideID string
 	mobileKey    string

@@ -529,7 +529,7 @@ func TestWizard_NoEnvironments_ShowsEmptyStateNotSpinner(t *testing.T) {
 
 	assert.Contains(t, m.View(), "Loading environments")
 
-	updated, _ := m.Update(envsFetchedMsg{environments: nil})
+	updated, _ := m.Update(envsFetchedMsg{project: "my-proj", environments: nil})
 	v := updated.(wizardModel).View()
 
 	assert.NotContains(t, v, "Loading environments")
@@ -558,7 +558,7 @@ func wizardWithTwoProjectsAndEnvsFor(t *testing.T, envs []envItem) wizardModel {
 	first := selectProjectAtIndex(t, loaded.(wizardModel), 0)
 	require.Equal(t, "proj-a", first.selectedProject)
 
-	withEnvs, _ := first.Update(envsFetchedMsg{environments: envs})
+	withEnvs, _ := first.Update(envsFetchedMsg{project: "proj-a", environments: envs})
 	return withEnvs.(wizardModel)
 }
 
@@ -602,7 +602,7 @@ func TestWizard_ReselectProject_AfterEmptyList_ShowsSpinnerNotEmptyState(t *test
 	assert.Contains(t, second.View(), "Loading environments")
 
 	// The new project's environments still land normally.
-	withEnvs, _ := second.Update(envsFetchedMsg{environments: []envItem{{key: "b-production", name: "B Production"}}})
+	withEnvs, _ := second.Update(envsFetchedMsg{project: "proj-b", environments: []envItem{{key: "b-production", name: "B Production"}}})
 	assert.Contains(t, withEnvs.(wizardModel).View(), "B Production")
 }
 
@@ -613,7 +613,7 @@ func TestWizard_ReselectProject_WindowSizeDoesNotPanic(t *testing.T) {
 
 	// Resizing with the env list cleared, then again once the fetch lands.
 	resized, _ := second.Update(tea.WindowSizeMsg{Width: 120, Height: 50})
-	withEnvs, _ := resized.(wizardModel).Update(envsFetchedMsg{environments: []envItem{{key: "b-production", name: "B Production"}}})
+	withEnvs, _ := resized.(wizardModel).Update(envsFetchedMsg{project: "proj-b", environments: []envItem{{key: "b-production", name: "B Production"}}})
 	got := withEnvs.(wizardModel)
 	assert.Equal(t, 120, got.envList.Width())
 
@@ -653,4 +653,99 @@ func TestWizard_ListHeight_NeverNegativeBeforeWindowSize(t *testing.T) {
 
 	withList, _ := m.Update(projectsFetchedMsg{projects: []projectItem{{key: "p1", name: "One"}}})
 	assert.GreaterOrEqual(t, withList.(wizardModel).projectList.Height(), 3)
+}
+
+// envDetailsInFlight returns a model that has selected proj-a/production and is
+// waiting on the SDK keys for it.
+func envDetailsInFlight(t *testing.T) wizardModel {
+	t.Helper()
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "production", name: "Prod"}})
+	next, _ := m.handleEnter()
+	got := next.(wizardModel)
+	require.Equal(t, "production", got.selectedEnv)
+	require.Equal(t, stepSelectEnvironment, got.step)
+	return got
+}
+
+func TestWizard_EnvDetails_LandingAfterBack_IsIgnored(t *testing.T) {
+	m := envDetailsInFlight(t)
+
+	// User presses ← before the keys arrive.
+	back, _ := m.handleBack()
+	m = back.(wizardModel)
+	require.Equal(t, stepSelectProject, m.step)
+
+	late, _ := m.Update(envDetailsFetchedMsg{
+		project: "proj-a", env: "production",
+		sdkKey: "sdk-A", clientSideID: "cs-A", mobileKey: "mob-A",
+	})
+	got := late.(wizardModel)
+
+	// Must not yank the user into SDK selection with no environment selected.
+	assert.Equal(t, stepSelectProject, got.step)
+	assert.Empty(t, got.sdkKey)
+	assert.Empty(t, got.selectedEnv)
+}
+
+func TestWizard_EnvDetails_OutOfOrder_KeepsSelectedEnvsKeys(t *testing.T) {
+	m := envDetailsInFlight(t) // production selected, its fetch in flight
+	m.detectComplete = true
+
+	// User goes back and selects a different environment before the first lands.
+	back, _ := m.handleBack()
+	m = back.(wizardModel)
+	m = selectProjectAtIndex(t, m, 0)
+	withEnvs, _ := m.Update(envsFetchedMsg{project: "proj-a", environments: []envItem{
+		{key: "production", name: "Prod"}, {key: "test", name: "Test"},
+	}})
+	m = withEnvs.(wizardModel)
+	m.envList.Select(1) // test
+	next, _ := m.handleEnter()
+	m = next.(wizardModel)
+	require.Equal(t, "test", m.selectedEnv)
+
+	// The superseded production response lands last and must be dropped.
+	stale, _ := m.Update(envDetailsFetchedMsg{
+		project: "proj-a", env: "production", sdkKey: "sdk-PROD",
+	})
+	m = stale.(wizardModel)
+	assert.Empty(t, m.sdkKey, "production's key must not be adopted while test is selected")
+
+	// test's own response is still accepted.
+	fresh, _ := m.Update(envDetailsFetchedMsg{
+		project: "proj-a", env: "test", sdkKey: "sdk-TEST",
+	})
+	assert.Equal(t, "sdk-TEST", fresh.(wizardModel).sdkKey)
+}
+
+func TestWizard_EnvDetails_DuplicateOnDoneScreen_IsIgnored(t *testing.T) {
+	m := wizardModel{
+		step: stepDone, width: 78, spinner: spinner.New(),
+		selectedProject: "proj-a", selectedEnv: "production",
+		verifyResult: &setup.VerifyResult{Active: true},
+		detectResult: &setup.DetectResult{SDKID: "node-server"},
+	}
+
+	dup, _ := m.Update(envDetailsFetchedMsg{project: "proj-a", env: "production", sdkKey: "sdk-A"})
+
+	assert.Equal(t, stepDone, dup.(wizardModel).step, "a duplicate must not reopen SDK selection")
+}
+
+func TestWizard_EnvsFetched_ForSupersededProject_IsIgnored(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "only-in-a", name: "Only In A"}})
+
+	back, _ := m.handleBack()
+	m = selectProjectAtIndex(t, back.(wizardModel), 1)
+	require.Equal(t, "proj-b", m.selectedProject)
+
+	// proj-a's in-flight list lands after proj-b was chosen.
+	stale, _ := m.Update(envsFetchedMsg{project: "proj-a", environments: []envItem{{key: "only-in-a", name: "Only In A"}}})
+	m = stale.(wizardModel)
+	assert.Empty(t, m.environments)
+	assert.False(t, m.envsLoaded)
+	assert.Contains(t, m.View(), "Loading environments")
+
+	// proj-b's own list is accepted.
+	fresh, _ := m.Update(envsFetchedMsg{project: "proj-b", environments: []envItem{{key: "b-prod", name: "B Prod"}}})
+	assert.Contains(t, fresh.(wizardModel).View(), "B Prod")
 }

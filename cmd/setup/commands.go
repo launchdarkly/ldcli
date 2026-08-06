@@ -28,8 +28,11 @@ func (m wizardModel) fetchProjects() tea.Cmd {
 }
 
 func (m wizardModel) fetchEnvironments() tea.Cmd {
+	// Read the selection here rather than in the goroutine, so the message reports
+	// what was asked for even after the model has moved on.
+	project := m.selectedProject
 	return func() tea.Msg {
-		es, err := m.svc.ListEnvironments(m.auth, m.selectedProject)
+		es, err := m.svc.ListEnvironments(m.auth, project)
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
@@ -37,17 +40,20 @@ func (m wizardModel) fetchEnvironments() tea.Cmd {
 		for i, e := range es {
 			envs[i] = envItem{key: e.Key, name: e.Name}
 		}
-		return envsFetchedMsg{environments: envs}
+		return envsFetchedMsg{project: project, environments: envs}
 	}
 }
 
 func (m wizardModel) fetchEnvDetails() tea.Cmd {
+	project, env := m.selectedProject, m.selectedEnv
 	return func() tea.Msg {
-		keys, err := m.svc.EnvKeys(m.auth, m.selectedProject, m.selectedEnv)
+		keys, err := m.svc.EnvKeys(m.auth, project, env)
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
 		return envDetailsFetchedMsg{
+			project:      project,
+			env:          env,
 			sdkKey:       keys.SDKKey,
 			clientSideID: keys.ClientSideID,
 			mobileKey:    keys.MobileKey,
