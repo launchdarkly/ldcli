@@ -234,12 +234,27 @@ func (m *wizardModel) enterSDKStep() {
 	m.step = stepSelectSDK
 }
 
+// resetEnvSelection drops the environments belonging to the previously selected
+// project, so the pending fetch shows the loading spinner rather than a list
+// Enter would pick a key from that the new project doesn't have (or an empty
+// state that makes a non-empty project look empty). envList is zeroed instead of
+// left in place because envsLoaded already guards the SetSize call that would
+// panic on a zero-value list, and envsFetchedMsg rebuilds it at the width a
+// WindowSizeMsg has meanwhile recorded.
+func (m *wizardModel) resetEnvSelection() {
+	m.environments = nil
+	m.envsLoaded = false
+	m.envList = list.Model{}
+	m.selectedEnv = ""
+}
+
 // handleBack returns to the previous selection so the user can change the
 // project, environment, or SDK.
 func (m wizardModel) handleBack() (tea.Model, tea.Cmd) {
 	switch m.step {
 	case stepSelectEnvironment:
 		m.step = stepSelectProject
+		m.resetEnvSelection()
 	case stepSelectSDK:
 		m.step = stepSelectEnvironment
 	case stepPlan:
@@ -259,6 +274,7 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.selectedProject = selected.key
+		m.resetEnvSelection()
 		m.step = stepSelectEnvironment
 		return m, m.fetchEnvironments()
 

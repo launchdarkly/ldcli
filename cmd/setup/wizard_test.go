@@ -537,6 +537,103 @@ func TestWizard_NoEnvironments_ShowsEmptyStateNotSpinner(t *testing.T) {
 	assert.Contains(t, v, "my-proj")
 }
 
+// selectProjectAtIndex drives the project list to the given row and presses
+// Enter, returning the model with the environment fetch in flight.
+func selectProjectAtIndex(t *testing.T, m wizardModel, i int) wizardModel {
+	t.Helper()
+	m.projectList.Select(i)
+	next, _ := m.handleEnter()
+	return next.(wizardModel)
+}
+
+// wizardWithTwoProjectsAndEnvsFor returns a model that has already selected the
+// first project and received its environments.
+func wizardWithTwoProjectsAndEnvsFor(t *testing.T, envs []envItem) wizardModel {
+	t.Helper()
+	m := wizardModel{step: stepSelectProject, width: 78, height: 24, spinner: spinner.New()}
+	loaded, _ := m.Update(projectsFetchedMsg{projects: []projectItem{
+		{key: "proj-a", name: "A"},
+		{key: "proj-b", name: "B"},
+	}})
+	first := selectProjectAtIndex(t, loaded.(wizardModel), 0)
+	require.Equal(t, "proj-a", first.selectedProject)
+
+	withEnvs, _ := first.Update(envsFetchedMsg{environments: envs})
+	return withEnvs.(wizardModel)
+}
+
+func TestWizard_ReselectProject_CannotSelectPreviousProjectsEnvironment(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "a-production", name: "A Production"}})
+
+	back, _ := m.handleBack()
+	second := selectProjectAtIndex(t, back.(wizardModel), 1)
+	require.Equal(t, "proj-b", second.selectedProject)
+
+	assert.Empty(t, second.environments)
+	assert.Empty(t, second.selectedEnv)
+
+	// Enter while the new fetch is in flight must not commit a key from proj-a.
+	pressed, _ := second.handleEnter()
+	got := pressed.(wizardModel)
+	assert.Empty(t, got.selectedEnv)
+	assert.Equal(t, stepSelectEnvironment, got.step)
+}
+
+func TestWizard_ReselectProject_ShowsSpinnerNotStaleList(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "a-production", name: "A Production"}})
+	require.Contains(t, m.View(), "A Production")
+
+	back, _ := m.handleBack()
+	second := selectProjectAtIndex(t, back.(wizardModel), 1)
+
+	v := second.View()
+	assert.Contains(t, v, "Loading environments")
+	assert.NotContains(t, v, "A Production")
+	assert.NotContains(t, v, "No environments available")
+}
+
+func TestWizard_ReselectProject_AfterEmptyList_ShowsSpinnerNotEmptyState(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, nil)
+	require.Contains(t, m.View(), "No environments available")
+
+	back, _ := m.handleBack()
+	second := selectProjectAtIndex(t, back.(wizardModel), 1)
+
+	assert.Contains(t, second.View(), "Loading environments")
+
+	// The new project's environments still land normally.
+	withEnvs, _ := second.Update(envsFetchedMsg{environments: []envItem{{key: "b-production", name: "B Production"}}})
+	assert.Contains(t, withEnvs.(wizardModel).View(), "B Production")
+}
+
+func TestWizard_ReselectProject_WindowSizeDoesNotPanic(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "a-production", name: "A Production"}})
+	back, _ := m.handleBack()
+	second := selectProjectAtIndex(t, back.(wizardModel), 1)
+
+	// Resizing with the env list cleared, then again once the fetch lands.
+	resized, _ := second.Update(tea.WindowSizeMsg{Width: 120, Height: 50})
+	withEnvs, _ := resized.(wizardModel).Update(envsFetchedMsg{environments: []envItem{{key: "b-production", name: "B Production"}}})
+	got := withEnvs.(wizardModel)
+	assert.Equal(t, 120, got.envList.Width())
+
+	again, _ := got.Update(tea.WindowSizeMsg{Width: 60, Height: 30})
+	assert.Equal(t, 60, again.(wizardModel).envList.Width())
+}
+
+func TestWizard_BackFromSDK_KeepsEnvironmentList(t *testing.T) {
+	// Back from the SDK step does not re-fetch, so the env list must survive it.
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "a-production", name: "A Production"}})
+	m.step = stepSelectSDK
+
+	back, _ := m.handleBack()
+	got := back.(wizardModel)
+
+	assert.Equal(t, stepSelectEnvironment, got.step)
+	assert.True(t, got.envsLoaded)
+	assert.Contains(t, got.View(), "A Production")
+}
+
 func TestWizard_WindowSize_ResizesExistingLists(t *testing.T) {
 	m := wizardModel{step: stepSelectProject, width: 40, height: 10, spinner: spinner.New()}
 	withList, _ := m.Update(projectsFetchedMsg{projects: []projectItem{{key: "p1", name: "One"}}})
