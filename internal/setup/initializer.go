@@ -168,6 +168,19 @@ func InjectsInPlace(sdkID string) bool {
 	return HasTemplate(sdkID) && appendSafeSDKs[sdkID]
 }
 
+// UsesClientSideID reports whether an SDK authenticates with the environment's
+// client-side ID rather than a server SDK key or a mobile key. It is derived from
+// the SDK's own init template, which is the one place that already knows which
+// credential the SDK takes, so a new template cannot disagree with a list here.
+func UsesClientSideID(sdkID string) bool {
+	const sentinel = "__ld_client_side_id_probe__"
+	rendered, err := RenderTemplate(sdkID, InitConfig{ClientSideID: sentinel})
+	if err != nil {
+		return false
+	}
+	return strings.Contains(rendered, sentinel)
+}
+
 // RenderTemplate renders the initialization code for the given SDK, using the
 // CommonJS form where an SDK has both. Prefer RenderTemplateForEntry when the
 // target file is known, so the module syntax matches it.

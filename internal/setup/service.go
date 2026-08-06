@@ -154,8 +154,19 @@ func (s Service) Install(dir string, detection *DetectResult) (*InstallResult, e
 
 // CreateFlag creates a feature flag, treating an existing flag (conflict) as
 // success and returning its key.
-func (s Service) CreateFlag(a Auth, projectKey, key, name string) (string, error) {
-	_, err := s.Clients.Flags.Create(context.Background(), a.AccessToken, a.BaseURI, name, key, projectKey)
+// CreateFlag creates the flag the wizard hands to the SDK. sdkID decides whether
+// the flag has to be available to client-side SDKs: the API leaves
+// usingEnvironmentId false by default, which would leave a browser SDK evaluating
+// the fallback forever even though setup reported success.
+func (s Service) CreateFlag(a Auth, projectKey, key, name, sdkID string) (string, error) {
+	var opts []flags.CreateOption
+	if UsesClientSideID(sdkID) {
+		opts = append(opts, flags.WithClientSideAvailability(flags.ClientSideAvailability{
+			UsingEnvironmentID: true,
+			UsingMobileKey:     true,
+		}))
+	}
+	_, err := s.Clients.Flags.Create(context.Background(), a.AccessToken, a.BaseURI, name, key, projectKey, opts...)
 	if err != nil {
 		if je, parseErr := parseJSONError(err); parseErr == nil && je.Code == "conflict" {
 			return key, nil

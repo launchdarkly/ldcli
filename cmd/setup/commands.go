@@ -99,7 +99,7 @@ func (m wizardModel) runInstall() tea.Cmd {
 
 func (m wizardModel) runCreateFlag() tea.Cmd {
 	return func() tea.Msg {
-		key, err := m.svc.CreateFlag(m.auth, m.selectedProject, "my-new-flag", "My New Flag")
+		key, err := m.svc.CreateFlag(m.auth, m.selectedProject, "my-new-flag", "My New Flag", m.detectResult.SDKID)
 		if err != nil {
 			return wizardErrMsg{err: err}
 		}
