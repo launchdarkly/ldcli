@@ -34,6 +34,28 @@ func TestNewUploadCmd(t *testing.T) {
 	assert.Equal(t, []string{"true"}, cmd.Flags().Lookup("project").Annotations["required"])
 }
 
+// Naming the instance once, with --base-uri, is what should aim an upload at it: the
+// observability API of every LaunchDarkly instance is named for that instance, so
+// asking for both is asking for two flags that can disagree.
+func TestDefaultBackendURLFor(t *testing.T) {
+	for name, tc := range map[string]struct{ baseURI, want string }{
+		"production":             {"https://app.launchdarkly.com", defaultBackendUrl},
+		"staging":                {"https://ld-stg.launchdarkly.com", "https://pri.observability.ld-stg.launchdarkly.com"},
+		"trailing slash":         {"https://ld-stg.launchdarkly.com/", "https://pri.observability.ld-stg.launchdarkly.com"},
+		"surrounding whitespace": {" https://ld-stg.launchdarkly.com ", "https://pri.observability.ld-stg.launchdarkly.com"},
+		"regional instance":      {"https://app.eu.launchdarkly.com", "https://pri.observability.app.eu.launchdarkly.com"},
+
+		// Nothing about one of these says where an observability API listens, so the
+		// production default stands and --backend-url remains how to say otherwise.
+		"local stack": {"http://localhost:3000", defaultBackendUrl},
+		"host that merely ends in the domain name": {"https://notlaunchdarkly.com", defaultBackendUrl},
+		"unset":   {"", defaultBackendUrl},
+		"garbage": {"://", defaultBackendUrl},
+	} {
+		assert.Equal(t, tc.want, defaultBackendURLFor(tc.baseURI), name)
+	}
+}
+
 func TestIsReactNativeUploadFile(t *testing.T) {
 	// React Native iOS bundle + map.
 	assert.True(t, isReactNativeUploadFile("main.jsbundle"))
@@ -181,11 +203,6 @@ func TestGetS3KeySymbolsID(t *testing.T) {
 		getS3Key(androidSymbolsIDPrefix, symbolsID, "1.0.0", "", "mapping.txt"))
 }
 
-func TestSymbolsIDPrefixForType(t *testing.T) {
-	assert.Equal(t, "_sym/js/id", symbolsIDPrefixForType(typeReactNative))
-	assert.Equal(t, "_sym/android/id", symbolsIDPrefixForType(typeAndroid))
-}
-
 func TestReadSymbolsIDFile(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "symbols-id")
 	assert.NoError(t, err)
@@ -248,11 +265,65 @@ func TestSymbolsIDForArtifact(t *testing.T) {
 }
 
 func TestUnsupportedType(t *testing.T) {
-	viper.Set(typeFlag, "apple-dsym")
+	viper.Set(typeFlag, "totally-unknown")
 	defer viper.Set(typeFlag, "")
 
 	client := resources.NewClient("")
 	err := runE(client)(&cobra.Command{}, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported --type")
+}
+
+func TestIsSupportedType(t *testing.T) {
+	assert.True(t, isSupportedType(typeReactNative))
+	assert.True(t, isSupportedType(typeAndroid))
+	assert.True(t, isSupportedType(typeAppleDSYM))
+	assert.True(t, isSupportedType(typeFlutter))
+	assert.False(t, isSupportedType("totally-unknown"))
+	assert.False(t, isSupportedType(""))
+}
+
+func TestCanonicalizeSymbolType(t *testing.T) {
+	// Apple platform synonyms all resolve to apple-dsym.
+	for _, alias := range []string{"apple-dsym", "apple", "dsym", "ios", "ipados", "tvos", "watchos", "visionos", "macos", "osx"} {
+		assert.Equal(t, typeAppleDSYM, canonicalizeSymbolType(alias), alias)
+	}
+
+	// Flutter synonyms resolve to the flutter type.
+	assert.Equal(t, typeFlutter, canonicalizeSymbolType("flutter"))
+	assert.Equal(t, typeFlutter, canonicalizeSymbolType("dart"))
+	assert.Equal(t, typeFlutter, canonicalizeSymbolType("Flutter"))
+
+	// Case-insensitive and whitespace-tolerant.
+	assert.Equal(t, typeAppleDSYM, canonicalizeSymbolType("iOS"))
+	assert.Equal(t, typeAppleDSYM, canonicalizeSymbolType("  Apple-DSYM  "))
+	assert.Equal(t, typeReactNative, canonicalizeSymbolType("React-Native"))
+
+	// Canonical values pass through; unknown values are lower-cased for rejection.
+	assert.Equal(t, typeReactNative, canonicalizeSymbolType(typeReactNative))
+	assert.Equal(t, typeAndroid, canonicalizeSymbolType(typeAndroid))
+	assert.Equal(t, "totally-unknown", canonicalizeSymbolType("Totally-Unknown"))
+	assert.False(t, isSupportedType(canonicalizeSymbolType("totally-unknown")))
+
+	// Every alias must map to a supported canonical type.
+	for alias, canonical := range symbolTypeAliases {
+		assert.True(t, isSupportedType(canonical), alias)
+	}
+}
+
+func TestFlutterKeys(t *testing.T) {
+	symbolsID := "0f8a1b2c3d4e5f60718293a4b5c6d7e8"
+	// Id lane: keyed by symbols_id (arch-unique), constant object name.
+	assert.Equal(t, "_sym/flutter/id/"+symbolsID+"/app.dartmap", flutterIDKey(symbolsID))
+	// Version lane: keyed by version, with the platform token disambiguating arches.
+	assert.Equal(t, "1.2.3/app.android-arm64.dartmap", flutterVersionKey("1.2.3", "android-arm64"))
+	assert.Equal(t, "1.2.3/app.ios-arm64.dartmap", flutterVersionKey("1.2.3", "ios-arm64"))
+}
+
+func TestIsFlutterSymbolFile(t *testing.T) {
+	assert.True(t, isFlutterSymbolFile("app.android-arm64.symbols"))
+	assert.True(t, isFlutterSymbolFile("build/symbols/app.ios-arm64.symbols"))
+	assert.False(t, isFlutterSymbolFile("app.android-arm64.dartmap"))
+	assert.False(t, isFlutterSymbolFile("mapping.txt"))
+	assert.False(t, isFlutterSymbolFile("other.symbols"))
 }

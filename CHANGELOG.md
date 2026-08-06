@@ -1,5 +1,62 @@
 # Changelog
 
+## [3.10.0](https://github.com/launchdarkly/ldcli/compare/v3.9.0...v3.10.0) (2026-08-05)
+
+
+### Features
+
+* **symbols:** derive the upload endpoint from --base-uri ([#773](https://github.com/launchdarkly/ldcli/issues/773)) ([f8ee593](https://github.com/launchdarkly/ldcli/commit/f8ee593562104296ba673166df53a689685d49c4))
+
+## [3.9.0](https://github.com/launchdarkly/ldcli/compare/v3.8.0...v3.9.0) (2026-08-05)
+
+
+### Features
+
+* **symbols:** key Android uploads by R8's map id, and upload dSYMs from an Xcode build ([#769](https://github.com/launchdarkly/ldcli/issues/769)) ([e361fa6](https://github.com/launchdarkly/ldcli/commit/e361fa6a2f651bbff90dcc9f8b5995470693d463))
+
+## [3.8.0](https://github.com/launchdarkly/ldcli/compare/v3.7.0...v3.8.0) (2026-08-01)
+
+
+### Features
+
+* **symbols:** build the R8 mapping index in the CLI ([#768](https://github.com/launchdarkly/ldcli/issues/768)) ([8693730](https://github.com/launchdarkly/ldcli/commit/8693730eb9930ad5a55626ad82dfc7a6316d934a))
+* **symbols:** zero-config Android uploads, and gzip what an upload sends ([#767](https://github.com/launchdarkly/ldcli/issues/767)) ([edcf301](https://github.com/launchdarkly/ldcli/commit/edcf3018f84e6b3c48e0e749eda5f5a5c18898a8))
+
+## [3.7.0](https://github.com/launchdarkly/ldcli/compare/v3.6.0...v3.7.0) (2026-07-31)
+
+
+### Features
+
+* **symbols:** skip uploading symbols LaunchDarkly already has ([#765](https://github.com/launchdarkly/ldcli/issues/765)) ([5dfc7a7](https://github.com/launchdarkly/ldcli/commit/5dfc7a717f43cf21ed03c8d4ff2be5e6631668cf))
+
+## [3.6.0](https://github.com/launchdarkly/ldcli/compare/v3.5.0...v3.6.0) (2026-07-28)
+
+
+### Features
+
+* **symbols:** upload Java/Kotlin sources with R8 mappings (--include-sources) ([#758](https://github.com/launchdarkly/ldcli/issues/758)) ([a303f6c](https://github.com/launchdarkly/ldcli/commit/a303f6c7baaa4fdd7a798822bc9730401a5bc412))
+
+## [3.5.0](https://github.com/launchdarkly/ldcli/compare/v3.4.0...v3.5.0) (2026-07-28)
+
+
+### Features
+
+* **symbols:** upload Swift/ObjC sources with dSYMs (--include-sources) ([#757](https://github.com/launchdarkly/ldcli/issues/757)) ([67a0092](https://github.com/launchdarkly/ldcli/commit/67a00921787522059a05a57bc0ab691920e5411a))
+
+## [3.4.0](https://github.com/launchdarkly/ldcli/compare/v3.3.0...v3.4.0) (2026-07-27)
+
+
+### Features
+
+* **symbols:** add Flutter (Dart AOT) symbol upload (--type flutter) ([#756](https://github.com/launchdarkly/ldcli/issues/756)) ([b372e2b](https://github.com/launchdarkly/ldcli/commit/b372e2ba9cc66db4630ed48a16ecc9ac01f18fb5))
+
+## [3.3.0](https://github.com/launchdarkly/ldcli/compare/v3.2.0...v3.3.0) (2026-07-23)
+
+
+### Features
+
+* **symbols:** Apple dSYM upload (dsymmap) ([#747](https://github.com/launchdarkly/ldcli/issues/747)) ([1d5553f](https://github.com/launchdarkly/ldcli/commit/1d5553f2d172da1717dc39bf8727d7450fb2da45))
+
 ## [3.2.0](https://github.com/launchdarkly/ldcli/compare/v3.1.0...v3.2.0) (2026-07-20)
 
 

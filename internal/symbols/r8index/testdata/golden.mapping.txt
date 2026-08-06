@@ -1,0 +1,22 @@
+# compiler: R8
+# compiler_version: 8.2.47
+# min_api: 24
+com.example.app.UserService -> a.b.c:
+# {"id":"sourceFile","fileName":"UserService.java"}
+    1:3:com.example.app.User loadUser(java.lang.String):40:42 -> a
+    5:5:void validate():60:60 -> b
+    void helper() -> d
+com.example.app.MainActivity -> a.b.d:
+# {"id":"sourceFile","fileName":"SymbolicationDemo.kt"}
+    10:10:void onCreate(android.os.Bundle):100:100 -> a
+    20:20:void handleClick():5:5 -> b
+    20:20:void com.example.app.Analytics.track():15:15 -> b
+com.example.app.PaymentFailedException -> g5.a:
+com.example.app.MainActivityKt$$ExternalSyntheticLambda10 -> g5.g:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    1:1:void g5.MainActivityKt$$ExternalSyntheticLambda10.<init>(g5.MainActivityViewModel,int):0:0 -> <init>
+      # {"id":"com.android.tools.r8.synthesized"}
+    52:64:int com.example.app.CartPricing.computeTotal(java.lang.String):19:19 -> invoke
+    52:64:int com.example.app.CartPricing.priceOrder(java.lang.String):16 -> invoke
+    52:64:int com.example.app.CheckoutDemo.startCheckout(java.lang.String):12 -> invoke

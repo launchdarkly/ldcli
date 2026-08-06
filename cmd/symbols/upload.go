@@ -2,6 +2,7 @@ package symbols
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -32,8 +34,36 @@ const (
 	basePathFlag   = "base-path"
 	backendUrlFlag = "backend-url"
 
-	defaultPath       = "."
+	// includeSourcesFlag opts into uploading source files (as a .srcbundle beside
+	// the symbol map) so the errors page can show source context around native
+	// frames. Off by default: it ships your source to LaunchDarkly. Supported for
+	// apple-dsym (sources come from the dSYM's DWARF) and android (sources are
+	// scanned from --source-path, since an R8 mapping records no paths).
+	includeSourcesFlag = "include-sources"
+
+	// noSkipExistingFlag forces a re-upload of symbols LaunchDarkly already has.
+	// Dedup is on by default and only applies to symbols-id (content addressed)
+	// keys, so this is for repairing a corrupt stored object, not normal use.
+	noSkipExistingFlag = "no-skip-existing"
+
+	// sourcePathFlag is the directory scanned for .java/.kt sources when
+	// --include-sources is used with --type android. It defaults to the current
+	// directory because --path points at the mapping.txt output dir, which holds
+	// no sources.
+	sourcePathFlag = "source-path"
+
+	defaultPath = "."
+
+	// defaultBackendUrl is the observability API for LaunchDarkly production, which
+	// is what defaultBackendURLFor derives for the default base URI.
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
+
+	// Every LaunchDarkly instance publishes the observability API under its own
+	// host, named for the instance the app is served from: staging's app at
+	// ld-stg.launchdarkly.com has its API at pri.observability.ld-stg.launchdarkly.com.
+	// "pri" is the authenticated graph, which is the one that hands out upload URLs.
+	launchDarklyDomain     = "launchdarkly.com"
+	observabilityAPIPrefix = "pri.observability."
 
 	// reactNativeSymbolsIDPrefix is the storage "version" segment for symbols-id
 	// addressed JS maps (Symbols Id Lane). Keys become _sym/js/id/<symbolsID>/<file>,
@@ -41,7 +71,7 @@ const (
 	reactNativeSymbolsIDPrefix = "_sym/js/id"
 
 	// androidSymbolsIDPrefix is the equivalent Symbols Id Lane segment for Android
-	// R8 / ProGuard mappings. Keys become _sym/android/id/<symbolsID>/mapping.txt.
+	// builds. Keys become _sym/android/id/<symbolsID>/mapping.v1.index.
 	androidSymbolsIDPrefix = "_sym/android/id"
 
 	// symbolsIDSidecarSuffix names the file written next to an artifact to record
@@ -50,17 +80,28 @@ const (
 	// manual --symbols-id.
 	symbolsIDSidecarSuffix = ".symbolsid"
 
-	// androidMappingFileName is the R8/ProGuard mapping file `ldcli` discovers
-	// for --type android.
+	// androidMappingFileName is the R8/ProGuard mapping `ldcli` discovers for
+	// --type android and indexes. The mapping itself is not uploaded; see
+	// android_upload.go.
 	androidMappingFileName = "mapping.txt"
 
 	// typeReactNative uploads React Native Hermes/Metro sourcemaps (ordinary
 	// JavaScript sourcemaps).
 	typeReactNative = "react-native"
 
-	// typeAndroid uploads an Android R8/ProGuard `mapping.txt` for Java/Kotlin
-	// stack-trace retrace.
+	// typeAndroid indexes an Android R8/ProGuard `mapping.txt` and uploads the
+	// index, for Java/Kotlin stack-trace retrace.
 	typeAndroid = "android"
+
+	// typeAppleDSYM compiles Apple dSYM debug info into per-architecture .dsymmap
+	// symbol maps (keyed by build UUID) for iOS/macOS crash symbolication. It is
+	// the canonical value; see symbolTypeAliases for accepted synonyms.
+	typeAppleDSYM = "apple-dsym"
+
+	// typeFlutter compiles Flutter/Dart AOT debug symbols (app.<platform>.symbols)
+	// into per-build .dartmap symbol maps (keyed by the Dart snapshot build id,
+	// surfaced as symbols_id) for obfuscated Dart crash symbolication.
+	typeFlutter = "flutter"
 
 	// getSymbolUrlsQuery uses the dedicated `get_symbol_upload_urls_ld` query
 	// (separate from `sourcemaps upload`) so symbol uploads travel over the
@@ -71,6 +112,21 @@ const (
 			api_key: $api_key
 			project_id: $project_id
 			paths: $paths
+		)
+	  }
+	`
+
+	// getSymbolUrlsDedupQuery asks the backend to answer keys it already stores with
+	// an empty string. A separate document because a backend that predates these
+	// arguments rejects the whole query, which getSymbolUploadUrls falls back from.
+	getSymbolUrlsDedupQuery = `
+	  query GetSymbolUploadUrls($api_key: String!, $project_id: String!, $paths: [String!]!, $skip_existing: Boolean, $digests: [String!]) {
+	    get_symbol_upload_urls_ld(
+			api_key: $api_key
+			project_id: $project_id
+			paths: $paths
+			skip_existing: $skip_existing
+			digests: $digests
 		)
 	  }
 	`
@@ -104,7 +160,7 @@ func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerF
 		Args:  validators.Validate(),
 		Use:   "upload",
 		Short: "Upload symbol files",
-		Long:  "Upload symbol files (React Native sourcemaps or Android R8/ProGuard mappings) to LaunchDarkly for error monitoring",
+		Long:  "Upload symbol files (React Native sourcemaps, Android R8/ProGuard mappings, or Apple dSYMs) to LaunchDarkly for error monitoring",
 		RunE:  runE(client),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			tracker := analyticsTrackerFn(
@@ -129,9 +185,9 @@ func NewUploadCmd(client resources.Client, analyticsTrackerFn analytics.TrackerF
 
 func runE(client resources.Client) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		symbolType := viper.GetString(typeFlag)
+		symbolType := canonicalizeSymbolType(viper.GetString(typeFlag))
 		if !isSupportedType(symbolType) {
-			return fmt.Errorf("unsupported --type %q; supported types: %s, %s", symbolType, typeReactNative, typeAndroid)
+			return fmt.Errorf("unsupported --type %q; supported types: %s, %s, %s, %s", viper.GetString(typeFlag), typeReactNative, typeAndroid, typeAppleDSYM, typeFlutter)
 		}
 
 		projectKey := viper.GetString(cliflags.ProjectFlag)
@@ -168,16 +224,40 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		path := viper.GetString(pathFlag)
 		basePath := viper.GetString(basePathFlag)
 		backendUrl := viper.GetString(backendUrlFlag)
+		// Dedup is the default; --no-skip-existing forces every byte to be resent.
+		skipExisting := !viper.GetBool(noSkipExistingFlag)
 
 		if backendUrl == "" {
-			backendUrl = defaultBackendUrl
+			backendUrl = defaultBackendURLFor(viper.GetString(cliflags.BaseURIFlag))
 		}
 
-		symbolsIDPrefix := symbolsIDPrefixForType(symbolType)
+		// Apple dSYMs take a dedicated path: they are compiled to per-arch .dsymmap
+		// symbol maps keyed by build UUID, ignoring the version/symbols-id lanes.
+		if symbolType == typeAppleDSYM {
+			// A dSYM is best uploaded by the build that produced it, so where to
+			// read one from can come from the build itself. See apple_xcode.go.
+			upload := resolveAppleUpload(path)
+			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, upload.Path)
+			return uploadAppleDSYMs(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, upload, backendUrl, viper.GetBool(includeSourcesFlag), skipExisting)
+		}
+
+		// Flutter/Dart symbols take a dedicated path too: each app.<platform>.symbols
+		// is compiled to a .dartmap keyed by its build id (Id Lane), plus a
+		// Version-lane copy when --app-version is set.
+		if symbolType == typeFlutter {
+			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
+			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl, skipExisting)
+		}
+
+		// Android takes a dedicated path as well: the R8 mapping is compiled into the
+		// index symbolication reads, and stored under the lanes a crash can arrive on.
+		if symbolType == typeAndroid {
+			return uploadAndroidSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, symbolsID, backendUrl, viper.GetBool(includeSourcesFlag), viper.GetString(sourcePathFlag), skipExisting)
+		}
 
 		fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
 		if symbolsID != "" {
-			fmt.Printf("Using symbols id %s for all files (Symbols Id Lane: %s/%s)\n", symbolsID, symbolsIDPrefix, symbolsID)
+			fmt.Printf("Using symbols id %s for all files (Symbols Id Lane: %s/%s)\n", symbolsID, reactNativeSymbolsIDPrefix, symbolsID)
 		}
 
 		files, err := getAllSymbolFiles(path, symbolType)
@@ -189,57 +269,112 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("no symbol files found in %s, is this the correct path?", path)
 		}
 
-		// Symbols Id Lane: resolve the id per file so a single upload of multiple
-		// platforms (e.g. iOS + Android maps in one dir) keys each artifact by the
-		// id its app reports. An explicit --symbols-id overrides all files;
-		// otherwise each artifact's *.symbolsid sidecar (or its sibling's — see
-		// symbolsIDForArtifact) is used, falling back to the Version Lane
-		// (version+basePath) when there is none.
+		// Symbols Id Lane: resolve the id per file so one upload of a build's bundle
+		// and its map keys both by the id the app reports. An explicit --symbols-id
+		// overrides all files; otherwise each artifact's *.symbolsid sidecar (or its
+		// sibling's — see symbolsIDForArtifact) is used, falling back to the Version
+		// Lane (version+basePath) when there is none.
 		s3Keys := make([]string, 0, len(files))
 		for _, file := range files {
 			fileSymbolsID := symbolsID
 			if fileSymbolsID == "" {
 				fileSymbolsID = symbolsIDForArtifact(file.Path)
 				if fileSymbolsID != "" {
-					fmt.Printf("Using symbols id %s for %s (Symbols Id Lane: %s/%s)\n", fileSymbolsID, file.Name, symbolsIDPrefix, fileSymbolsID)
+					fmt.Printf("Using symbols id %s for %s (Symbols Id Lane: %s/%s)\n", fileSymbolsID, file.Name, reactNativeSymbolsIDPrefix, fileSymbolsID)
 				}
 			}
-			s3Keys = append(s3Keys, getS3Key(symbolsIDPrefix, fileSymbolsID, appVersion, basePath, file.Name))
+			s3Keys = append(s3Keys, getS3Key(reactNativeSymbolsIDPrefix, fileSymbolsID, appVersion, basePath, file.Name))
 		}
 
-		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, backendUrl)
+		// No digests: a JavaScript map is keyed either by its own content id or by a
+		// Version Lane key the backend re-presigns so it can overwrite, so nothing
+		// here needs a hash to settle whether it is already stored.
+		uploadUrls, err := getSymbolUploadUrls(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, s3Keys, nil, backendUrl, skipExisting)
 		if err != nil {
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
 
-		// The loop below pairs each file with uploadUrls[i], so a short list
-		// (fewer URLs than files) would panic. Require one URL per requested key.
-		if len(uploadUrls) != len(files) {
-			return fmt.Errorf("expected %d upload URLs but received %d", len(files), len(uploadUrls))
+		// The loop below pairs each requested key with uploadUrls[i], so a short
+		// list would panic. Require one URL per requested key.
+		if len(uploadUrls) != len(s3Keys) {
+			return fmt.Errorf("expected %d upload URLs but received %d", len(s3Keys), len(uploadUrls))
 		}
 
+		skipped := 0
 		for i, file := range files {
+			if alreadyUploaded(uploadUrls[i]) {
+				fmt.Printf("Skipping %s, already uploaded\n", file.Name)
+				skipped++
+				continue
+			}
 			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
 				return fmt.Errorf("failed to upload file %s: %w", file.Path, err)
 			}
 		}
 
-		fmt.Println("Successfully uploaded all symbols")
+		reportUploadSummary(skipped)
 		return nil
 	}
 }
 
-func isSupportedType(symbolType string) bool {
-	return symbolType == typeReactNative || symbolType == typeAndroid
+// alreadyUploaded reports whether the backend answered a key with "skip" rather
+// than a URL. The empty string is the signal, which is why asking for it is opt-in.
+func alreadyUploaded(uploadURL string) bool {
+	return uploadURL == ""
 }
 
-// symbolsIDPrefixForType picks the Symbols Id Lane storage segment for the symbol
-// type so JS and Android maps never collide in the same symbols-id namespace.
-func symbolsIDPrefixForType(symbolType string) string {
-	if symbolType == typeAndroid {
-		return androidSymbolsIDPrefix
+// reportUploadSummary closes out an upload, and when anything was skipped says so on
+// stderr as well.
+//
+// Skipping is new behavior, and someone re-uploading to repair a stored object would
+// otherwise read "Successfully uploaded" from a run that sent nothing. The notice is
+// transitional and can come out once a release or two has gone by; the counts stay on
+// stdout so scripts parsing them are unaffected.
+func reportUploadSummary(skipped int) {
+	if skipped == 0 {
+		fmt.Println("Successfully uploaded all symbols")
+		return
 	}
-	return reactNativeSymbolsIDPrefix
+
+	fmt.Printf("Successfully uploaded all symbols (%d already present)\n", skipped)
+	fmt.Fprintf(os.Stderr,
+		"Note: %d file(s) were skipped because LaunchDarkly already stores them under the same content-derived id. This is new in this release; re-run with --%s to upload them anyway.\n",
+		skipped, noSkipExistingFlag,
+	)
+}
+
+// symbolTypeAliases maps user-friendly synonyms to a canonical --type value.
+// All Apple platforms share the single dSYM-based pipeline, so any Apple
+// platform acronym resolves to apple-dsym.
+var symbolTypeAliases = map[string]string{
+	"apple":      typeAppleDSYM,
+	"apple-dsym": typeAppleDSYM,
+	"dsym":       typeAppleDSYM,
+	"ios":        typeAppleDSYM,
+	"ipados":     typeAppleDSYM,
+	"tvos":       typeAppleDSYM,
+	"watchos":    typeAppleDSYM,
+	"visionos":   typeAppleDSYM,
+	"macos":      typeAppleDSYM,
+	"osx":        typeAppleDSYM,
+	"flutter":    typeFlutter,
+	"dart":       typeFlutter,
+}
+
+// canonicalizeSymbolType resolves a user-supplied --type to its canonical value.
+// Matching is case-insensitive and understands platform synonyms (e.g. "ios",
+// "macos" -> apple-dsym). Unknown values are returned lower-cased/trimmed so
+// isSupportedType can reject them with a clear error.
+func canonicalizeSymbolType(symbolType string) string {
+	s := strings.ToLower(strings.TrimSpace(symbolType))
+	if canonical, ok := symbolTypeAliases[s]; ok {
+		return canonical
+	}
+	return s
+}
+
+func isSupportedType(symbolType string) bool {
+	return symbolType == typeReactNative || symbolType == typeAndroid || symbolType == typeAppleDSYM || symbolType == typeFlutter
 }
 
 func isReactNativeUploadFile(name string) bool {
@@ -251,13 +386,22 @@ func isReactNativeUploadFile(name string) bool {
 	return false
 }
 
-// isSymbolUploadFile reports whether a discovered file should be uploaded for
-// the given symbol type: React Native bundles/maps, or an Android mapping.txt.
+// isSymbolUploadFile reports whether a discovered file is an input for the given
+// symbol type: React Native bundles and maps, or an Android mapping.txt.
 func isSymbolUploadFile(symbolType, name string) bool {
 	if symbolType == typeAndroid {
 		return filepath.Base(name) == androidMappingFileName
 	}
 	return isReactNativeUploadFile(name)
+}
+
+// uploadName is the name an artifact is stored under, given its path relative to
+// the directory searched.
+func uploadName(symbolType, relPath string) string {
+	if symbolType == typeAndroid {
+		return filepath.Base(relPath)
+	}
+	return relPath
 }
 
 func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
@@ -298,7 +442,11 @@ func getAllSymbolFiles(path, symbolType string) ([]SymbolFile, error) {
 
 			files = append(files, SymbolFile{
 				Path: filePath,
-				Name: relPath,
+				// An Android mapping is named for the file alone however deep it was
+				// found, since what it is stored as is decided by the indexer. A
+				// React Native bundle keeps its path, which is part of how a map is
+				// matched to the bundle that references it.
+				Name: uploadName(symbolType, relPath),
 			})
 		}
 
@@ -380,15 +528,84 @@ func readSymbolsIDFile(filePath string) string {
 	return strings.TrimSpace(string(content))
 }
 
-func getSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl string) ([]string, error) {
+// defaultBackendURLFor derives the observability API endpoint from the LaunchDarkly
+// base URI, so aiming the CLI at another instance takes the one flag that names the
+// instance rather than two flags that have to agree.
+//
+// Only LaunchDarkly's own hosts are derived from. A base URI pointing at a local or
+// proxied stack says nothing about where its observability API listens, so those keep
+// the production default and --backend-url stays the way to say otherwise.
+func defaultBackendURLFor(baseURI string) string {
+	parsed, err := url.Parse(strings.TrimSpace(baseURI))
+	if err != nil {
+		return defaultBackendUrl
+	}
+
+	host := parsed.Hostname()
+	if host != launchDarklyDomain && !strings.HasSuffix(host, "."+launchDarklyDomain) {
+		return defaultBackendUrl
+	}
+	return "https://" + observabilityAPIPrefix + host
+}
+
+// getSymbolUploadUrls returns one upload URL per requested key, in order.
+//
+// With skipExisting, a key whose bytes the backend already stores comes back empty
+// and callers must skip it. digests is parallel to paths and may be nil or hold ""
+// for a key the caller has no digest for; it is what lets the backend settle a key
+// that isn't derived from its own contents, since there existence proves nothing.
+//
+// A backend that predates these arguments rejects the query, so this retries once
+// without them, keeping an updated CLI working against an older deployment.
+func getSymbolUploadUrls(apiKey, projectID string, paths, digests []string, backendUrl string, skipExisting bool) ([]string, error) {
+	urls, err := requestSymbolUploadUrls(apiKey, projectID, paths, digests, backendUrl, skipExisting)
+	if err != nil && skipExisting && mentionsDedupArgument(err) {
+		return requestSymbolUploadUrls(apiKey, projectID, paths, nil, backendUrl, false)
+	}
+	return urls, err
+}
+
+// The dedup arguments, named in both the request and the validation error a backend
+// without them returns.
+const (
+	skipExistingArgument = "skip_existing"
+	digestsArgument      = "digests"
+)
+
+// mentionsDedupArgument reports whether err is a backend rejecting an argument it
+// doesn't know. Either name means the deployment predates dedup, since both arrived
+// together; validation names whichever it reached.
+func mentionsDedupArgument(err error) bool {
+	return strings.Contains(err.Error(), skipExistingArgument) ||
+		strings.Contains(err.Error(), digestsArgument)
+}
+
+// contentDigest is the hex MD5 of bytes about to be uploaded, which is what S3
+// reports as the ETag of an object stored in one part. Sending it lets the backend
+// prove that what it already stores under a key is exactly these bytes.
+func contentDigest(data []byte) string {
+	return fmt.Sprintf("%x", md5.Sum(data))
+}
+
+func requestSymbolUploadUrls(apiKey, projectID string, paths, digests []string, backendUrl string, skipExisting bool) ([]string, error) {
 	variables := map[string]interface{}{
 		"api_key":    apiKey,
 		"project_id": projectID,
 		"paths":      paths,
 	}
+	query := getSymbolUrlsQuery
+	if skipExisting {
+		query = getSymbolUrlsDedupQuery
+		variables[skipExistingArgument] = true
+		// The backend wants one digest per path or none, so an all-empty slice is
+		// left off entirely rather than sent as padding.
+		if slices.ContainsFunc(digests, func(d string) bool { return d != "" }) {
+			variables[digestsArgument] = digests
+		}
+	}
 
 	reqBody, err := json.Marshal(map[string]interface{}{
-		"query":     getSymbolUrlsQuery,
+		"query":     query,
 		"variables": variables,
 	})
 	if err != nil {
@@ -434,15 +651,59 @@ func getSymbolUploadUrls(apiKey, projectID string, paths []string, backendUrl st
 	return urlsResp.Data.GetSymbolUploadUrls, nil
 }
 
+// uploadFile sends a file on disk, gzipped. Nothing keyed to a file carries a
+// digest — those keys are derived from the artifact's own contents — so unlike an
+// artifact held in memory this can be compressed here, as it is read.
 func uploadFile(filePath, uploadUrl, name string) error {
-	fileContent, err := os.ReadFile(filePath)
+	info, err := os.Stat(filePath)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("PUT", uploadUrl, bytes.NewBuffer(fileContent))
+	compressed, err := gzipFile(filePath)
 	if err != nil {
 		return err
+	}
+
+	// Compressing an artifact that is already compressed can make it bigger; send
+	// the file as it is rather than pay to store the difference.
+	if int64(len(compressed)) >= info.Size() {
+		file, err := os.Open(filePath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		if err := putObject(uploadUrl, file, info.Size(), ""); err != nil {
+			return err
+		}
+		fmt.Printf("[LaunchDarkly] Uploaded %s to %s (%s)\n", filePath, name, byteSize(info.Size()))
+		return nil
+	}
+
+	if err := putObject(uploadUrl, bytes.NewReader(compressed), int64(len(compressed)), gzipEncoding); err != nil {
+		return err
+	}
+	fmt.Printf("[LaunchDarkly] Uploaded %s to %s (%s gzipped to %s)\n",
+		filePath, name, byteSize(info.Size()), byteSize(int64(len(compressed))))
+	return nil
+}
+
+// putObject PUTs a body to a presigned URL.
+//
+// The length is passed explicitly because S3 will not take a chunked upload, and
+// net/http only measures a body it recognises — a file streamed from disk would
+// otherwise be sent with no Content-Length at all.
+func putObject(uploadURL string, body io.Reader, length int64, encoding string) error {
+	req, err := http.NewRequest("PUT", uploadURL, body)
+	if err != nil {
+		return err
+	}
+	req.ContentLength = length
+	if encoding != "" {
+		// Stored as object metadata and handed back on read, so the object says how
+		// to read it instead of the reader having to guess.
+		req.Header.Set("Content-Encoding", encoding)
 	}
 
 	client := &http.Client{}
@@ -455,13 +716,11 @@ func uploadFile(filePath, uploadUrl, name string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("upload failed with status code: %d", resp.StatusCode)
 	}
-
-	fmt.Printf("[LaunchDarkly] Uploaded %s to %s\n", filePath, name)
 	return nil
 }
 
 func initFlags(cmd *cobra.Command) {
-	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s, %s)", typeReactNative, typeAndroid))
+	cmd.Flags().String(typeFlag, "", fmt.Sprintf("The symbol type to upload (supported: %s, %s, %s, %s; %s also accepts ios/ipados/tvos/watchos/visionos/macos/apple/dsym; %s also accepts dart)", typeReactNative, typeAndroid, typeAppleDSYM, typeFlutter, typeAppleDSYM, typeFlutter))
 	_ = cmd.MarkFlagRequired(typeFlag)
 	_ = cmd.Flags().SetAnnotation(typeFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(typeFlag, cmd.Flags().Lookup(typeFlag))
@@ -471,18 +730,27 @@ func initFlags(cmd *cobra.Command) {
 	_ = cmd.Flags().SetAnnotation(cliflags.ProjectFlag, "required", []string{"true"})
 	_ = viper.BindPFlag(cliflags.ProjectFlag, cmd.Flags().Lookup(cliflags.ProjectFlag))
 
-	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
+	cmd.Flags().String(appVersionFlag, "", fmt.Sprintf("The current version of your deploy. With --type %s this is read from the packaged build when omitted", typeAndroid))
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
 
-	cmd.Flags().String(symbolsIdFlag, "", "The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present")
+	cmd.Flags().String(symbolsIdFlag, "", fmt.Sprintf("The symbols id (launchdarkly.symbols_id.htlhash) to key uploads by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present, and with --type %s the id the packaged app reports, or failing that the one R8 recorded in the mapping", typeAndroid))
 	_ = viper.BindPFlag(symbolsIdFlag, cmd.Flags().Lookup(symbolsIdFlag))
 
-	cmd.Flags().String(pathFlag, defaultPath, "Sets the directory of where the symbol files are")
+	cmd.Flags().String(pathFlag, defaultPath, fmt.Sprintf("Sets the directory of where the symbol files are. With --type %s, run from your project root and the R8 mapping is found for you; with --type %s, an Xcode build phase uploads what it just built", typeAndroid, typeAppleDSYM))
 	_ = viper.BindPFlag(pathFlag, cmd.Flags().Lookup(pathFlag))
 
 	cmd.Flags().String(basePathFlag, "", "An optional base path for the uploaded symbol files")
 	_ = viper.BindPFlag(basePathFlag, cmd.Flags().Lookup(basePathFlag))
 
-	cmd.Flags().String(backendUrlFlag, defaultBackendUrl, "An optional backend url for self-hosted deployments")
+	cmd.Flags().String(backendUrlFlag, "", fmt.Sprintf("An optional backend url for self-hosted deployments. Defaults to the observability API of whichever instance --%s names (%s for the default)", cliflags.BaseURIFlag, defaultBackendUrl))
 	_ = viper.BindPFlag(backendUrlFlag, cmd.Flags().Lookup(backendUrlFlag))
+
+	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also upload your source files so the errors page can show source context around native frames (%s and %s). Your source is stored in LaunchDarkly", typeAppleDSYM, typeAndroid))
+	_ = viper.BindPFlag(includeSourcesFlag, cmd.Flags().Lookup(includeSourcesFlag))
+
+	cmd.Flags().Bool(noSkipExistingFlag, false, "Re-upload symbols even when LaunchDarkly already has them. By default a symbols-id file that is already stored is skipped, since its id is derived from its contents")
+	_ = viper.BindPFlag(noSkipExistingFlag, cmd.Flags().Lookup(noSkipExistingFlag))
+
+	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to scan for .java/.kt sources when using --%s with --type %s", includeSourcesFlag, typeAndroid))
+	_ = viper.BindPFlag(sourcePathFlag, cmd.Flags().Lookup(sourcePathFlag))
 }

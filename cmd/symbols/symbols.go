@@ -17,6 +17,7 @@ func NewSymbolsCmd(client resources.Client, analyticsTrackerFn analytics.Tracker
 	}
 
 	cmd.AddCommand(NewUploadCmd(client, analyticsTrackerFn))
+	cmd.AddCommand(NewGenerateCmd(analyticsTrackerFn))
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
 	return cmd
