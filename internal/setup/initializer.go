@@ -35,7 +35,11 @@ type InitResult struct {
 	FilePath string `json:"file_path,omitempty"`
 	DocsURL  string `json:"docs_url,omitempty"`
 	Snippet  string `json:"snippet,omitempty"`
-	Success  bool   `json:"success"`
+	// AlreadyInitialized reports that the entry file initialized the SDK before
+	// this run, so nothing was written. Setup is complete either way, which is why
+	// it accompanies Success.
+	AlreadyInitialized bool `json:"already_initialized,omitempty"`
+	Success            bool `json:"success"`
 }
 
 // appendSafeSDKs lists SDKs whose entry file is an interpreted script executed
@@ -265,6 +269,15 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 	}
 
 	content := string(existing)
+	if alreadyInitialized(content, importSection, initSection) {
+		return &InitResult{
+			SDKID:              sdkID,
+			FilePath:           filePath,
+			AlreadyInitialized: true,
+			Success:            true,
+		}, nil
+	}
+
 	if importSection != "" {
 		prologue, body := splitPrologue(sdkID, content)
 		content = prologue + importSection + "\n" + body
@@ -276,6 +289,30 @@ func (i Initializer) InjectIntoFile(sdkID, filePath string, cfg InitConfig) (*In
 	}
 
 	return &InitResult{SDKID: sdkID, FilePath: filePath, Success: true}, nil
+}
+
+// alreadyInitialized reports whether the file already contains the initialization
+// this template would add. Injection appends at file scope, so a second copy
+// redeclares the same names: in Node that is a SyntaxError that stops the app from
+// starting, and in Python and Ruby it silently rebinds the client. Matching the
+// template's own import lines keeps the test in whatever language the file is
+// written in, and matching any one of them errs toward leaving a half-configured
+// file alone rather than appending into it.
+func alreadyInitialized(content, importSection, initSection string) bool {
+	section := importSection
+	if strings.TrimSpace(section) == "" {
+		section = initSection
+	}
+	for _, line := range strings.Split(section, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "//") || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.Contains(content, line) {
+			return true
+		}
+	}
+	return false
 }
 
 // entryNeedsESM reports whether code written into entryPath has to use ESM import

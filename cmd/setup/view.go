@@ -79,8 +79,12 @@ func (m wizardModel) View() string {
 		return m.spinner.View() + " Injecting initialization code..."
 
 	case stepWaitForApp:
+		lead := "SDK initialization code has been injected into:\n"
+		if m.initResult.AlreadyInitialized {
+			lead = "This file already initializes the LaunchDarkly SDK, so it was left as it is:\n"
+		}
 		return titleStyle.Render("Start your application") + "\n\n" +
-			"SDK initialization code has been injected into:\n" +
+			lead +
 			"  " + m.initResult.FilePath + "\n\n" +
 			"Please start your application now, then press Enter to verify the connection.\n"
 
@@ -101,7 +105,9 @@ func (m wizardModel) View() string {
 				body += m.wrap("Install it yourself with:") + "\n\n" +
 					code(m.installResult.Command) + "\n\n"
 			}
-			if m.initResult != nil && m.initResult.Success {
+			if m.initResult != nil && m.initResult.AlreadyInitialized {
+				body += m.wrap(fmt.Sprintf("%s already initializes the SDK, so it was left unchanged.", m.initResult.FilePath)) + "\n"
+			} else if m.initResult != nil && m.initResult.Success {
 				body += m.wrap(fmt.Sprintf("Initialization code was added to %s.", m.initResult.FilePath)) + "\n"
 			} else if m.initResult != nil && m.initResult.Snippet != "" {
 				body += m.wrap(fmt.Sprintf("Then add this initialization code to %s:", m.initResult.FilePath)) +
