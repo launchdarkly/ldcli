@@ -22,8 +22,9 @@ import (
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
-	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
+	setupcmd "github.com/launchdarkly/ldcli/cmd/setup"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
 	symbolscmd "github.com/launchdarkly/ldcli/cmd/symbols"
@@ -37,6 +38,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/members"
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
 type APIClients struct {
@@ -46,6 +48,8 @@ type APIClients struct {
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
 	ResourcesClient    resources.Client
+	Detector           setup.Detector
+	Installer          setup.Installer
 }
 
 type Command interface {
@@ -100,6 +104,33 @@ func forceTTYDefaultOutput(getenv func(string) string) bool {
 	return lookup("FORCE_TTY") != "" || lookup("LD_FORCE_TTY") != ""
 }
 
+// authExemptCommands are commands (and their subcommands) that don't call the
+// LaunchDarkly API and so don't require --access-token.
+var authExemptCommands = map[string]bool{
+	"completion": true,
+	"config":     true,
+	"help":       true,
+	"login":      true,
+	"setup":      true,
+	"signup":     true,
+	"whoami":     true,
+}
+
+// clearAccessTokenRequirement drops the "required" annotation on --access-token
+// for auth-exempt commands, so cobra's required-flag check doesn't reject them.
+// We clear the annotation rather than setting DisableFlagParsing, which would
+// also suppress validation of the subcommand's own required flags.
+func clearAccessTokenRequirement(cmd *cobra.Command) {
+	for c := cmd; c != nil; c = c.Parent() {
+		if authExemptCommands[c.Name()] {
+			if f := cmd.Flags().Lookup(cliflags.AccessTokenFlag); f != nil {
+				delete(f.Annotations, cobra.BashCompOneRequiredFlag)
+			}
+			return
+		}
+	}
+}
+
 // NewRootCommand constructs the ldcli root command tree.
 //
 // isTerminal must be non-nil; it should reflect whether stdout is a TTY (see Execute). When it
@@ -126,23 +157,7 @@ func NewRootCommand(
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// disable required flags when running certain commands
-			for _, name := range []string{
-				"completion",
-				"config",
-				"help",
-				"login",
-				"signup",
-				"whoami",
-			} {
-				if cmd.HasParent() && cmd.Parent().Name() == name {
-					cmd.DisableFlagParsing = true
-				}
-				if cmd.Name() == name {
-					cmd.DisableFlagParsing = true
-				}
-			}
-
+			clearAccessTokenRequirement(cmd)
 		},
 		Annotations: make(map[string]string),
 		// Handle errors differently based on type.
@@ -254,7 +269,30 @@ func NewRootCommand(
 
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
-	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
+	detector := clients.Detector
+	if detector == nil {
+		detector = setup.FileDetector{}
+	}
+	installer := clients.Installer
+	if installer == nil {
+		installer = setup.PackageInstaller{}
+	}
+	cmd.AddCommand(setupcmd.NewSetupCmd(
+		analyticsTrackerFn,
+		setup.Clients{
+			Projects:     clients.ProjectsClient,
+			Environments: clients.EnvironmentsClient,
+			Flags:        clients.FlagsClient,
+			Resources:    clients.ResourcesClient,
+		},
+		detector,
+		installer,
+	))
+	quickStartCmd := NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient)
+	quickStartCmd.Use = "quickstart"
+	quickStartCmd.Hidden = true
+	quickStartCmd.Deprecated = "use 'ldcli setup' for the new guided setup experience"
+	cmd.AddCommand(quickStartCmd)
 	cmd.AddCommand(logincmd.NewLoginCmd(clients.ResourcesClient))
 	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
