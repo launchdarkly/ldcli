@@ -238,7 +238,7 @@ func initGenerateFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also generate a source bundle, for source context around native frames (%s, %s, and %s)", typeAppleDSYM, typeAndroid, typeFlutter))
 	_ = viper.BindPFlag(includeSourcesFlag, cmd.Flags().Lookup(includeSourcesFlag))
 
-	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to resolve project sources from when using --%s (.java/.kt for --type %s; .dart for --type %s)", includeSourcesFlag, typeAndroid, typeFlutter))
+	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to resolve your sources from when using --%s: the tree to scan for .java/.kt with --type %s, or your Flutter project root (the directory holding pubspec.yaml) with --type %s", includeSourcesFlag, typeAndroid, typeFlutter))
 	_ = viper.BindPFlag(sourcePathFlag, cmd.Flags().Lookup(sourcePathFlag))
 
 	cmd.Flags().String(symbolsIdFlag, "", "The symbols id (launchdarkly.symbols_id.htlhash) to key files by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present")

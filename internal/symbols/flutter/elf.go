@@ -20,6 +20,7 @@ import (
 	"debug/elf"
 	"encoding/binary"
 	"encoding/hex"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -251,8 +252,15 @@ func populate(d *dwarf.Data, b *dsymmap.Builder, sources map[string]string) erro
 }
 
 // recordSource notes that file (as spelled in the map) is referenced by this
-// image, resolving where to read it from on this machine. DWARF paths are
-// usually absolute; relative ones are resolved against the CU's DW_AT_comp_dir.
+// image, resolving where to read it from on this machine.
+//
+// Dart names a compilation unit by its script URI, not by a filesystem path, so
+// what lands here is one of "package:my_app/main.dart", "dart:async",
+// "org-dartlang-sdk:///...", "file:///abs/path.dart", or a plain path. Only the
+// last two name something openable, and a file URI has to have its scheme
+// stripped first. The rest keep the URI as their value: it is not a path, and
+// the caller — which knows the project root and the app's package name — is the
+// only one that can resolve or reject them.
 func recordSource(sources map[string]string, file, compDir string) {
 	if sources == nil || file == "" {
 		return
@@ -260,11 +268,49 @@ func recordSource(sources map[string]string, file, compDir string) {
 	if _, ok := sources[file]; ok {
 		return
 	}
-	abs := file
-	if !filepath.IsAbs(abs) && compDir != "" {
-		abs = filepath.Join(compDir, abs)
+	sources[file] = resolveSourcePath(file, compDir)
+}
+
+// resolveSourcePath returns where to read a DWARF file name from, or the name
+// unchanged when it is a URI this cannot resolve.
+func resolveSourcePath(file, compDir string) string {
+	if rest, ok := strings.CutPrefix(file, "file://"); ok {
+		// "file:///abs/path" leaves a leading slash, which is the path. A
+		// host-qualified file URI ("file://host/path") is not something a Dart
+		// build produces, so it is left to the caller to reject.
+		if decoded, err := url.PathUnescape(rest); err == nil {
+			rest = decoded
+		}
+		if strings.HasPrefix(rest, "/") {
+			return rest
+		}
+		return file
 	}
-	sources[file] = abs
+	// Any other scheme ("dart:", "package:", "org-dartlang-sdk:") is not a path.
+	if hasURIScheme(file) {
+		return file
+	}
+	if !filepath.IsAbs(file) && compDir != "" {
+		return filepath.Join(compDir, file)
+	}
+	return file
+}
+
+// hasURIScheme reports whether name opens with a URI scheme rather than being a
+// filesystem path. A Windows drive letter ("C:\src\main.dart") is not a scheme,
+// so a single-character prefix does not count.
+func hasURIScheme(name string) bool {
+	i := strings.Index(name, ":")
+	if i <= 1 {
+		return false
+	}
+	for j := 0; j < i; j++ {
+		c := name[j]
+		if !(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') && !(c >= '0' && c <= '9') && c != '-' && c != '+' && c != '.' {
+			return false
+		}
+	}
+	return true
 }
 
 func makeFunction(d *dwarf.Data, ent *dwarf.Entry) *dsymmap.Function {

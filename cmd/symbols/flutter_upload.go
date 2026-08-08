@@ -81,7 +81,7 @@ func uploadFlutterSymbols(apiKey, projectID, path, appVersion, backendURL string
 		// Nothing here carries a digest, so unlike the Apple uploader this can wait
 		// until a map is known to be going, and skip the work for one that isn't.
 		if err := uploadBytes(compressBody(u.Data), uploadURLs[i], u.Label); err != nil {
-			return fmt.Errorf("failed to upload symbol map %s: %w", u.Label, err)
+			return fmt.Errorf("failed to upload %s: %w", u.Label, err)
 		}
 	}
 
@@ -93,8 +93,9 @@ func uploadFlutterSymbols(apiKey, projectID, path, appVersion, backendURL string
 // returns the objects to store, deduplicating by symbols_id (the same build can
 // be discovered more than once). Each map yields an Id-lane upload, plus a
 // Version-lane upload when appVersion and a platform token are both available.
-// With includeSources a single sources.srcbundle is attached beside each unique
-// storage prefix the maps occupy.
+// With includeSources one sources.srcbundle is attached beside every distinct
+// storage prefix the maps occupy, since symbolication reads it from the lane the
+// map came from.
 func buildFlutterMaps(path, appVersion string, includeSources bool, sourceRoot string) ([]flutterUpload, error) {
 	files, err := findFlutterSymbolFiles(path)
 	if err != nil {
@@ -197,23 +198,31 @@ func buildFlutterMaps(path, appVersion string, includeSources bool, sourceRoot s
 			return nil, err
 		}
 		if sources == nil {
-			fmt.Printf("No .dart sources found to upload (DWARF paths unreadable and --source-path %q empty); continuing with symbol maps only\n", sourceRoot)
-		} else {
-			seenSrc := make(map[string]bool)
-			for _, u := range uploads {
-				srcKey := flutterSourceKeyBeside(u.Key)
-				if seenSrc[srcKey] {
-					continue
-				}
-				seenSrc[srcKey] = true
-				uploads = append(uploads, flutterUpload{
-					Data:  sources,
-					Key:   srcKey,
-					Label: fmt.Sprintf("%s (%d files)", flutterSourceBundleName, n),
-				})
-			}
-			fmt.Printf("Built source bundle (%d files, %d bytes)\n", n, len(sources))
+			fmt.Printf("No project .dart sources could be read for --%s (--%s %q is not a Flutter project root, or its sources are not the ones this build was compiled from); continuing with symbol maps only\n", includeSourcesFlag, sourcePathFlag, sourceRoot)
+			return uploads, nil
 		}
+
+		// Every lane gets its own copy. Symbolication reads the bundle from
+		// whichever lane resolved the map, and each arch has a lane of its own, so
+		// a single copy would leave crashes from the other arches without source.
+		srcKeys := make([]string, 0, len(uploads))
+		seenSrc := make(map[string]bool)
+		for _, u := range uploads {
+			srcKey := flutterSourceKeyBeside(u.Key)
+			if seenSrc[srcKey] {
+				continue
+			}
+			seenSrc[srcKey] = true
+			srcKeys = append(srcKeys, srcKey)
+		}
+		for _, srcKey := range srcKeys {
+			uploads = append(uploads, flutterUpload{
+				Data:  sources,
+				Key:   srcKey,
+				Label: fmt.Sprintf("%s (%d files)", flutterSourceBundleName, n),
+			})
+		}
+		fmt.Printf("Built source bundle (%d files, %d bytes) for %d lane(s)\n", n, len(sources), len(srcKeys))
 	}
 
 	return uploads, nil

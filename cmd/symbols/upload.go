@@ -751,6 +751,6 @@ func initFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool(noSkipExistingFlag, false, "Re-upload symbols even when LaunchDarkly already has them. By default a symbols-id file that is already stored is skipped, since its id is derived from its contents")
 	_ = viper.BindPFlag(noSkipExistingFlag, cmd.Flags().Lookup(noSkipExistingFlag))
 
-	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to resolve project sources from when using --%s (.%s/.%s for --type %s; .dart for --type %s, also used when DWARF paths from the build machine are unreadable here)", includeSourcesFlag, "java", "kt", typeAndroid, typeFlutter))
+	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to resolve your sources from when using --%s: the tree to scan for .java/.kt with --type %s, or your Flutter project root (the directory holding pubspec.yaml, which names the package your .dart files are compiled under) with --type %s", includeSourcesFlag, typeAndroid, typeFlutter))
 	_ = viper.BindPFlag(sourcePathFlag, cmd.Flags().Lookup(sourcePathFlag))
 }
