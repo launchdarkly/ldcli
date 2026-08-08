@@ -42,6 +42,13 @@ type Image struct {
 	// app.<platform>.symbols filename — used for the Version-lane object name.
 	Platform string
 	Builder  *dsymmap.Builder
+	// Sources maps each source path referenced by this image's DWARF — keyed by
+	// the exact string stored in the .dartmap, so a resolved frame's FileName is
+	// the lookup key — to its absolute path on this machine. It is only used to
+	// build the optional .srcbundle (`--include-sources`). Every path the DWARF
+	// mentions is included, SDK and pub-cache among them; selecting which of
+	// those may be uploaded is the bundler's job.
+	Sources map[string]string
 }
 
 // BuildFromELF opens a Flutter app.<platform>.symbols ELF at path and returns
@@ -67,7 +74,8 @@ func BuildFromELF(path string) (Image, error) {
 	// Dart AOT addresses in the crash `virt` column are already snapshot-relative
 	// and match the DWARF vaddr, so no rebasing is needed (TextVMAddr = 0).
 	b := &dsymmap.Builder{}
-	if err := populate(d, b); err != nil {
+	sources := make(map[string]string)
+	if err := populate(d, b, sources); err != nil {
 		return Image{}, err
 	}
 
@@ -75,6 +83,7 @@ func BuildFromELF(path string) (Image, error) {
 		SymbolsID: symbolsID,
 		Platform:  platformFromFilename(path),
 		Builder:   b,
+		Sources:   sources,
 	}, nil
 }
 
@@ -170,12 +179,15 @@ type scope struct {
 
 // populate walks the DWARF DIE tree into b: physical functions, their line
 // tables, and inlined-call chains. Mirrors apple.populate but on the standard
-// library's debug/dwarf types.
-func populate(d *dwarf.Data, b *dsymmap.Builder) error {
+// library's debug/dwarf types. It also records every source path it encounters
+// into sources (keyed exactly as stored in the map) so the caller can optionally
+// bundle those files; pass nil to skip that.
+func populate(d *dwarf.Data, b *dsymmap.Builder, sources map[string]string) error {
 	r := d.Reader()
 	var stack []scope
 	var funcs []*dsymmap.Function
 	var curFiles []*dwarf.LineFile
+	var curCompDir string
 
 	top := func() scope {
 		if len(stack) == 0 {
@@ -205,7 +217,8 @@ func populate(d *dwarf.Data, b *dsymmap.Builder) error {
 		switch ent.Tag {
 		case dwarf.TagCompileUnit:
 			curFiles = filesForCU(d, ent)
-			addLines(d, ent, b)
+			curCompDir, _ = ent.Val(dwarf.AttrCompDir).(string)
+			addLines(d, ent, b, sources, curCompDir)
 
 		case dwarf.TagSubprogram:
 			if fn := makeFunction(d, ent); fn != nil {
@@ -217,7 +230,11 @@ func populate(d *dwarf.Data, b *dsymmap.Builder) error {
 		case dwarf.TagInlinedSubroutine:
 			depth := top().inlineDepth + 1
 			if fn := top().fn; fn != nil {
-				fn.Inlines = append(fn.Inlines, makeInlines(d, ent, depth, curFiles)...)
+				inlines := makeInlines(d, ent, depth, curFiles)
+				for i := range inlines {
+					recordSource(sources, inlines[i].CallFile, curCompDir)
+				}
+				fn.Inlines = append(fn.Inlines, inlines...)
 			}
 			push.inlineDepth = depth
 		}
@@ -231,6 +248,23 @@ func populate(d *dwarf.Data, b *dsymmap.Builder) error {
 		b.Funcs = append(b.Funcs, *fp)
 	}
 	return nil
+}
+
+// recordSource notes that file (as spelled in the map) is referenced by this
+// image, resolving where to read it from on this machine. DWARF paths are
+// usually absolute; relative ones are resolved against the CU's DW_AT_comp_dir.
+func recordSource(sources map[string]string, file, compDir string) {
+	if sources == nil || file == "" {
+		return
+	}
+	if _, ok := sources[file]; ok {
+		return
+	}
+	abs := file
+	if !filepath.IsAbs(abs) && compDir != "" {
+		abs = filepath.Join(compDir, abs)
+	}
+	sources[file] = abs
 }
 
 func makeFunction(d *dwarf.Data, ent *dwarf.Entry) *dsymmap.Function {
@@ -301,7 +335,7 @@ func callSite(ent *dwarf.Entry, files []*dwarf.LineFile) (string, uint32) {
 	return file, line
 }
 
-func addLines(d *dwarf.Data, cu *dwarf.Entry, b *dsymmap.Builder) {
+func addLines(d *dwarf.Data, cu *dwarf.Entry, b *dsymmap.Builder, sources map[string]string, compDir string) {
 	lr, err := d.LineReader(cu)
 	if err != nil || lr == nil {
 		return
@@ -321,6 +355,7 @@ func addLines(d *dwarf.Data, cu *dwarf.Entry, b *dsymmap.Builder) {
 		if le.File != nil {
 			file = le.File.Name
 		}
+		recordSource(sources, file, compDir)
 		b.Lines = append(b.Lines, dsymmap.LineRow{Addr: le.Address, File: file, Line: uint32(le.Line)})
 	}
 }

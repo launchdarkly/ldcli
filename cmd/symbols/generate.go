@@ -82,7 +82,7 @@ func generateRunE() func(cmd *cobra.Command, args []string) error {
 		// Flutter symbols compile to .dartmap maps keyed by build id (Id Lane),
 		// plus a Version-lane copy when --app-version is set.
 		if symbolType == typeFlutter {
-			return generateFlutterSymbols(path, viper.GetString(appVersionFlag), outputDir)
+			return generateFlutterSymbols(path, viper.GetString(appVersionFlag), outputDir, viper.GetBool(includeSourcesFlag), viper.GetString(sourcePathFlag))
 		}
 
 		// An Android mapping compiles to the index symbolication reads, on the Id and
@@ -128,8 +128,8 @@ func generateAppleDSYMs(path, outputDir string, includeSources bool) error {
 // generateFlutterSymbols compiles the discovered app.*.symbols to .dartmap
 // symbol maps and writes them under outputDir using the same storage keys
 // `symbols upload` would use (Id lane, plus Version lane when appVersion is set).
-func generateFlutterSymbols(path, appVersion, outputDir string) error {
-	uploads, err := buildFlutterMaps(path, appVersion)
+func generateFlutterSymbols(path, appVersion, outputDir string, includeSources bool, sourceRoot string) error {
+	uploads, err := buildFlutterMaps(path, appVersion, includeSources, sourceRoot)
 	if err != nil {
 		return err
 	}
@@ -235,10 +235,10 @@ func initGenerateFlags(cmd *cobra.Command) {
 	cmd.Flags().String(appVersionFlag, "", "The current version of your deploy")
 	_ = viper.BindPFlag(appVersionFlag, cmd.Flags().Lookup(appVersionFlag))
 
-	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also generate a source bundle, for source context around native frames (%s and %s)", typeAppleDSYM, typeAndroid))
+	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also generate a source bundle, for source context around native frames (%s, %s, and %s)", typeAppleDSYM, typeAndroid, typeFlutter))
 	_ = viper.BindPFlag(includeSourcesFlag, cmd.Flags().Lookup(includeSourcesFlag))
 
-	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to scan for .java/.kt sources when using --%s with --type %s", includeSourcesFlag, typeAndroid))
+	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to resolve project sources from when using --%s (.java/.kt for --type %s; .dart for --type %s)", includeSourcesFlag, typeAndroid, typeFlutter))
 	_ = viper.BindPFlag(sourcePathFlag, cmd.Flags().Lookup(sourcePathFlag))
 
 	cmd.Flags().String(symbolsIdFlag, "", "The symbols id (launchdarkly.symbols_id.htlhash) to key files by (Symbols Id Lane). If omitted, a *.symbolsid sidecar next to the bundle is used when present")
