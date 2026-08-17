@@ -66,6 +66,9 @@ func (m wizardModel) View() string {
 	case stepSelectSDK:
 		return m.sdkSelectView()
 
+	case stepSelectPackageManager:
+		return m.packageManagerView()
+
 	case stepPlan:
 		return m.planView()
 
@@ -186,6 +189,21 @@ func (m wizardModel) sdkBoxWidth() int {
 		w = 20
 	}
 	return w
+}
+
+// packageManagerView asks which package manager to use. It says why it is asking:
+// a wizard that stops to ask without explaining itself reads as one that failed to
+// look, and the reason is also what tells the user whether our reading of their
+// project is wrong.
+func (m wizardModel) packageManagerView() string {
+	reason := ""
+	if m.pmChoice != nil && m.pmChoice.Reason != "" {
+		reason = m.wrap(strings.ToUpper(m.pmChoice.Reason[:1])+m.pmChoice.Reason[1:]+".") + "\n\n"
+	}
+	return titleStyle.Render("Which package manager should install the SDK?") + "\n\n" +
+		reason +
+		m.pmList.View() + "\n" +
+		mutedStyle.Render("↑/↓ move · enter select · ← back · q quit")
 }
 
 // addCodeTo phrases an "add this code" instruction. SDKs that only show a snippet

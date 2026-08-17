@@ -371,6 +371,8 @@ func TestWizard_Plan_MissingEntryPoint_SaysCreate(t *testing.T) {
 // The SDK screen rebuilds detectResult, and the plan and install steps read it, so
 // every detected value has to survive that step — not just the SDK.
 func TestWizard_SelectSDK_CarriesDetectionThrough(t *testing.T) {
+	// A Gemfile makes Bundler the project's stated manager, so the picker is skipped.
+	gemfileProject(t)
 	m := wizardModel{step: stepDetect, width: 80, height: 30}
 
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
@@ -395,6 +397,7 @@ func TestWizard_SelectSDK_CarriesDetectionThrough(t *testing.T) {
 }
 
 func TestWizard_SelectSDK_PlanUsesDetectedPackageManager(t *testing.T) {
+	gemfileProject(t)
 	m := wizardModel{step: stepDetect, width: 80, height: 30}
 
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
@@ -425,6 +428,8 @@ func selectOtherSDK(t *testing.T, m wizardModel, id string) wizardModel {
 // The detected entry point belongs to the detected language. ruby-server-sdk is
 // append-safe, so reusing it would append Ruby to a Node project's index.js.
 func TestWizard_OverrideSDK_DoesNotReuseDetectedEntryPoint(t *testing.T) {
+	// A Gemfile states the manager, so the override lands on the plan without asking.
+	gemfileProject(t)
 	m := wizardModel{step: stepDetect, width: 80, height: 30}
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
 		SDKID:            "node-server",
@@ -448,7 +453,7 @@ func TestWizard_OverrideSDK_DoesNotReuseDetectedEntryPoint(t *testing.T) {
 	assert.Contains(t, m3.detectResult.EntryPoint, "main.rb")
 	assert.Empty(t, m3.detectResult.Framework, "Next.js does not describe a Ruby project")
 	// pnpm cannot install a gem, so the manager is re-derived for the chosen SDK.
-	assert.Equal(t, "gem", m3.detectResult.PackageManager)
+	assert.Equal(t, "bundle", m3.detectResult.PackageManager)
 }
 
 // An override must find the file the project already has, rather than falling back
@@ -457,6 +462,8 @@ func TestWizard_OverrideSDK_FindsExistingEntryPoint(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "src/index.js"), []byte("console.log(1)\n"), 0600))
+	// A lockfile states the manager, so the override lands on the plan without asking.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0600))
 	// macOS resolves /var to /private/var, and the override path reads os.Getwd,
 	// so compare against the resolved directory rather than the one we created.
 	dir = chdir(t, dir)
@@ -475,6 +482,15 @@ func TestWizard_OverrideSDK_FindsExistingEntryPoint(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "src/index.js"), m3.detectResult.EntryPoint,
 		"setup would create a second index.js beside the real entry point")
 	assert.True(t, m3.detectResult.EntryPointExists)
+}
+
+// gemfileProject moves into a project whose package manager is unambiguous, so the
+// package-manager picker does not intervene.
+func gemfileProject(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Gemfile"), []byte("source 'https://rubygems.org'\n"), 0600))
+	return chdir(t, dir)
 }
 
 // chdir moves into dir for the duration of the test and returns the working
@@ -538,6 +554,12 @@ func overrideToSDK(t *testing.T, detected *setup.DetectResult, id string) wizard
 	m2 := selectOtherSDK(t, next.(wizardModel), id)
 	next2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m3 := next2.(wizardModel)
+	// An override into a project that doesn't state its package manager asks first.
+	// These callers are about entry points, so accept the highlighted manager.
+	if m3.step == stepSelectPackageManager {
+		next3, _ := m3.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m3 = next3.(wizardModel)
+	}
 	require.Equal(t, stepPlan, m3.step)
 	return m3
 }
@@ -853,4 +875,113 @@ func TestWizard_EnvsFetched_ForSupersededProject_IsIgnored(t *testing.T) {
 	// proj-b's own list is accepted.
 	fresh, _ := m.Update(envsFetchedMsg{project: "proj-b", environments: []envItem{{key: "b-prod", name: "B Prod"}}})
 	assert.Contains(t, fresh.(wizardModel).View(), "B Prod")
+}
+
+// A project that states its manager must not be interrupted; the happy path gains
+// no keystrokes from the picker existing.
+func TestWizard_DefinitePackageManager_SkipsPicker(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"packageManager":"pnpm@9.1.0"}`), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript", PackageManager: "pnpm",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+
+	require.Equal(t, stepPlan, m3.step)
+	assert.Nil(t, m3.pmChoice, "nothing was ambiguous, so nothing was asked")
+	assert.Equal(t, "pnpm add @launchdarkly/node-server-sdk", m3.planInstallCmd)
+}
+
+// Two lockfiles from different managers is the case no guess can get right.
+func TestWizard_ConflictingLockfiles_AsksAndUsesTheAnswer(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "yarn.lock"), []byte(""), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript", PackageManager: "yarn",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	picker := next2.(wizardModel)
+
+	require.Equal(t, stepSelectPackageManager, picker.step)
+	require.NotNil(t, picker.pmChoice)
+	assert.Contains(t, picker.pmChoice.Reason, "more than one manager")
+
+	// The view has to say why it is asking, or it reads as a tool that failed to look.
+	view := picker.View()
+	assert.Contains(t, view, "Which package manager")
+	assert.Contains(t, view, "more than one manager")
+
+	// Pick whatever is highlighted and confirm the plan follows the answer.
+	next3, _ := picker.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	planned := next3.(wizardModel)
+	require.Equal(t, stepPlan, planned.step)
+	selected := planned.detectResult.PackageManager
+	assert.Contains(t, planned.planInstallCmd, selected,
+		"the plan must run the manager the user chose")
+}
+
+// Installed managers come first and the cursor starts on one, but an uninstalled
+// manager stays selectable — setup never installs tooling for the user.
+func TestWizard_Picker_ListsInstalledFirstAndKeepsMissingSelectable(t *testing.T) {
+	m := wizardModel{step: stepSelectSDK, width: 80, height: 30}
+	m.detectResult = &setup.DetectResult{SDKID: "node-server"}
+	m.pmChoice = &setup.PMChoice{
+		Name:       "npm",
+		Confidence: setup.PMAmbiguous,
+		Reason:     "this project doesn't say which package manager it uses",
+		Candidates: []setup.PMCandidate{
+			{Name: "npm", Installed: false, Command: "npm install x"},
+			{Name: "yarn", Installed: true, Command: "yarn add x"},
+			{Name: "pnpm", Installed: true, Command: "pnpm add x"},
+		},
+	}
+	m.enterPackageManagerStep()
+
+	items := m.pmList.Items()
+	require.Len(t, items, 3)
+	assert.Equal(t, "yarn", items[0].(pmItem).name, "installed managers come first")
+	assert.Equal(t, "pnpm", items[1].(pmItem).name)
+	assert.Equal(t, "npm", items[2].(pmItem).name)
+	assert.Contains(t, items[2].(pmItem).Title(), "not installed")
+
+	// Selecting the uninstalled one is allowed; the install step warns later.
+	m.pmList.Select(2)
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	chosen := next.(wizardModel)
+	require.Equal(t, stepPlan, chosen.step)
+	assert.Equal(t, "npm", chosen.detectResult.PackageManager)
+}
+
+// Back must return to the picker, not skip over it to the SDK list.
+func TestWizard_Picker_BackReturnsToPickerFromPlan(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	picker := next2.(wizardModel)
+	require.Equal(t, stepSelectPackageManager, picker.step)
+
+	next3, _ := picker.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	planned := next3.(wizardModel)
+	require.Equal(t, stepPlan, planned.step)
+
+	back, _ := planned.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	assert.Equal(t, stepSelectPackageManager, back.(wizardModel).step)
+
+	backAgain, _ := back.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyLeft})
+	assert.Equal(t, stepSelectSDK, backAgain.(wizardModel).step)
 }

@@ -29,6 +29,9 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.sdkListBuilt {
 			m.sdkList.SetSize(m.sdkBoxWidth()-2, m.sdkList.Height())
 		}
+		if m.pmListBuilt {
+			m.pmList.SetSize(m.sdkBoxWidth(), m.listHeight())
+		}
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -178,6 +181,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.environments) > 0 {
 			m.envList, cmd = m.envList.Update(msg)
 		}
+	case stepSelectPackageManager:
+		if m.pmListBuilt {
+			m.pmList, cmd = m.pmList.Update(msg)
+		}
 	case stepSelectSDK:
 		// Two panels when a detected SDK is shown: the detected panel (focus 0)
 		// and the list of other SDKs (focus 1). Arrows move focus between them.
@@ -225,6 +232,8 @@ func (m wizardModel) isFiltering() bool {
 		return m.projectList.FilterState() == list.Filtering
 	case stepSelectEnvironment:
 		return m.envList.FilterState() == list.Filtering
+	case stepSelectPackageManager:
+		return m.pmList.FilterState() == list.Filtering
 	case stepSelectSDK:
 		return m.sdkList.FilterState() == list.Filtering
 	}
@@ -250,6 +259,43 @@ func (m *wizardModel) enterSDKStep() {
 	m.sdkList = m.newSDKList(sdkItemsExcept(""), "Select your SDK:", true)
 	m.sdkListBuilt = true
 	m.step = stepSelectSDK
+}
+
+// enterPackageManagerStep builds the picker from the ambiguous verdict. Installed
+// managers are listed first and the cursor starts on one, but an uninstalled
+// manager stays selectable: the choice is the user's, and setup warns at install
+// time rather than installing the tool itself.
+func (m *wizardModel) enterPackageManagerStep() {
+	installed := make([]list.Item, 0, len(m.pmChoice.Candidates))
+	missing := make([]list.Item, 0, len(m.pmChoice.Candidates))
+	for _, c := range m.pmChoice.Candidates {
+		item := pmItem{name: c.Name, command: c.Command, installed: c.Installed}
+		if c.Installed {
+			installed = append(installed, item)
+			continue
+		}
+		missing = append(missing, item)
+	}
+	items := append(installed, missing...)
+
+	m.pmList = list.New(items, list.NewDefaultDelegate(), m.sdkBoxWidth(), m.listHeight())
+	m.pmList.Title = "Select a package manager:"
+	m.pmList.SetShowStatusBar(false)
+	m.pmListBuilt = true
+	m.step = stepSelectPackageManager
+}
+
+// enterPlanStep computes the preview shown before anything is written or run.
+func (m *wizardModel) enterPlanStep() {
+	// Resolved against the project directory so the previewed command is the one
+	// that runs, virtualenv pip included.
+	dir, _ := os.Getwd()
+	args, _ := setup.InstallArgs(dir, m.detectResult.SDKID, m.detectResult.PackageManager)
+	m.planInstallCmd = strings.Join(args, " ")
+	if dir != "" {
+		m.planAlready = setup.IsInstalled(dir, m.detectResult.SDKID)
+	}
+	m.step = stepPlan
 }
 
 // acceptsEnvs reports whether an environment list still describes the project the
@@ -300,7 +346,15 @@ func (m wizardModel) handleBack() (tea.Model, tea.Cmd) {
 		m.resetEnvSelection()
 	case stepSelectSDK:
 		m.step = stepSelectEnvironment
+	case stepSelectPackageManager:
+		m.step = stepSelectSDK
 	case stepPlan:
+		// The picker only exists for an ambiguous project, so going back must return
+		// to whichever screen the user actually came from.
+		if m.pmChoice != nil {
+			m.step = stepSelectPackageManager
+			break
+		}
 		m.step = stepSelectSDK
 	}
 	return m, nil
@@ -365,15 +419,32 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 			}
 		}
 		m.detectResult = &result
-		// Compute the plan preview shown before any action is taken. It is resolved
-		// against the project directory so the previewed command is the one that runs.
-		planDir, _ := os.Getwd()
-		args, _ := setup.InstallArgs(planDir, chosen.id, result.PackageManager)
-		m.planInstallCmd = strings.Join(args, " ")
-		if planDir != "" {
-			m.planAlready = setup.IsInstalled(planDir, chosen.id)
+
+		// Ask which manager to use when the project doesn't say. Picking one for the
+		// user here is how a yarn project ends up installed with npm.
+		m.pmChoice = nil
+		if dir, err := os.Getwd(); err == nil {
+			if choice := setup.PackageManagerChoiceFor(dir, chosen.id); choice.Confidence == setup.PMAmbiguous {
+				m.pmChoice = &choice
+				m.enterPackageManagerStep()
+				return m, nil
+			} else if choice.Name != "" {
+				result.PackageManager = choice.Name
+				m.detectResult = &result
+			}
 		}
-		m.step = stepPlan
+		m.enterPlanStep()
+		return m, nil
+
+	case stepSelectPackageManager:
+		selected, ok := m.pmList.SelectedItem().(pmItem)
+		if !ok {
+			return m, nil
+		}
+		result := *m.detectResult
+		result.PackageManager = selected.name
+		m.detectResult = &result
+		m.enterPlanStep()
 		return m, nil
 
 	case stepPlan:
