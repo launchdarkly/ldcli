@@ -447,8 +447,48 @@ func TestWizard_OverrideSDK_DoesNotReuseDetectedEntryPoint(t *testing.T) {
 		"a file we have not found must not be reported as found")
 	assert.Contains(t, m3.detectResult.EntryPoint, "main.rb")
 	assert.Empty(t, m3.detectResult.Framework, "Next.js does not describe a Ruby project")
-	// The package manager describes the project, not the SDK, so it survives.
-	assert.Equal(t, "pnpm", m3.detectResult.PackageManager)
+	// pnpm cannot install a gem, so the manager is re-derived for the chosen SDK.
+	assert.Equal(t, "gem", m3.detectResult.PackageManager)
+}
+
+// An override must find the file the project already has, rather than falling back
+// to the SDK's bare default and creating a second entry point beside it.
+func TestWizard_OverrideSDK_FindsExistingEntryPoint(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "src/index.js"), []byte("console.log(1)\n"), 0600))
+	// macOS resolves /var to /private/var, and the override path reads os.Getwd,
+	// so compare against the resolved directory rather than the one we created.
+	dir = chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID:    "js-client-sdk",
+		Language: "JavaScript",
+	}})
+
+	m2 := selectOtherSDK(t, next.(wizardModel), "node-server")
+	next2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+
+	require.Equal(t, stepPlan, m3.step)
+	assert.Equal(t, filepath.Join(dir, "src/index.js"), m3.detectResult.EntryPoint,
+		"setup would create a second index.js beside the real entry point")
+	assert.True(t, m3.detectResult.EntryPointExists)
+}
+
+// chdir moves into dir for the duration of the test and returns the working
+// directory as the process sees it. The override path reads os.Getwd to re-derive
+// the entry point.
+func chdir(t *testing.T, dir string) string {
+	t.Helper()
+	original, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(dir))
+	t.Cleanup(func() { _ = os.Chdir(original) })
+	resolved, err := os.Getwd()
+	require.NoError(t, err)
+	return resolved
 }
 
 // SDKs that only ever return a snippet have no file to name.

@@ -173,15 +173,7 @@ func detectNode(dir string) *DetectResult {
 		}
 	}
 
-	// Entry point: https://docs.npmjs.com/cli/v11/configuring-npm/package-json#main
-	// NestJS bootstraps from src/main.ts: https://docs.nestjs.com/first-steps
-	ep, exists := entryPoint(dir, "index.js",
-		"src/index.ts", "src/index.js",
-		"src/main.ts", "src/main.js",
-		"index.ts", "index.js",
-		"server.ts", "server.js",
-		"app.ts", "app.js",
-	)
+	ep, exists := EntryPointFor(dir, "node-server")
 	return &DetectResult{
 		Language:         "JavaScript",
 		PackageManager:   pm,
@@ -225,11 +217,7 @@ func detectGo(dir string) *DetectResult {
 func detectPython(dir string) *DetectResult {
 	for _, indicator := range []string{"requirements.txt", "pyproject.toml", "setup.py", "Pipfile"} {
 		if _, err := os.Stat(filepath.Join(dir, indicator)); err == nil {
-			// Django entry: https://docs.djangoproject.com/en/stable/ref/django-admin/
-			// Flask entry: https://flask.palletsprojects.com/en/stable/quickstart/
-			ep, exists := entryPoint(dir, "main.py",
-				"src/main.py", "manage.py", "app.py", "main.py",
-			)
+			ep, exists := EntryPointFor(dir, "python-server-sdk")
 			return &DetectResult{
 				Language:         "Python",
 				PackageManager:   detectPythonPM(dir),
@@ -280,20 +268,24 @@ func detectRuby(dir string) *DetectResult {
 			return nil
 		}
 	}
-	// Gemfile: https://bundler.io/guides/gemfile.html
-	pm := "gem"
-	if _, err := os.Stat(filepath.Join(dir, "Gemfile")); err == nil {
-		pm = "bundle"
-	}
-	// config.ru: https://github.com/rack/rack/blob/main/SPEC.rdoc
-	ep, exists := entryPoint(dir, "main.rb", "config.ru", "app.rb", "main.rb")
+	ep, exists := EntryPointFor(dir, "ruby-server-sdk")
 	return &DetectResult{
 		Language:         "Ruby",
-		PackageManager:   pm,
+		PackageManager:   detectRubyPM(dir),
 		SDKID:            "ruby-server-sdk",
 		EntryPoint:       ep,
 		EntryPointExists: exists,
 	}
+}
+
+// detectRubyPM reports whether the project is Bundler-managed, since a bare `gem
+// install` would succeed without recording the SDK for the app.
+// Gemfile: https://bundler.io/guides/gemfile.html
+func detectRubyPM(dir string) string {
+	if _, err := os.Stat(filepath.Join(dir, "Gemfile")); err == nil {
+		return "bundle"
+	}
+	return "gem"
 }
 
 func detectJava(dir string) *DetectResult {
@@ -476,6 +468,68 @@ var KnownSDKs = []SDKOption{
 	{ID: "dotnet-server-sdk", Language: "C#", Name: ".NET"},
 	{ID: "swift-client-sdk", Language: "Swift", Name: "iOS/Swift"},
 	{ID: "ruby-server-sdk", Language: "Ruby", Name: "Ruby"},
+}
+
+// sdkEntryPoints maps each SDK that writes to a file to its entry-point fallback
+// and the candidates to look for. Detection and SDK-override both read this table
+// so the two can't disagree about where code goes. Framework-specific layouts
+// (Next.js, React) stay inline in detectNode: picking an SDK by hand clears the
+// detected framework, so only the framework-neutral list can apply afterwards.
+var sdkEntryPoints = map[string]struct {
+	fallback   string
+	candidates []string
+}{
+	// Entry point: https://docs.npmjs.com/cli/v11/configuring-npm/package-json#main
+	// NestJS bootstraps from src/main.ts: https://docs.nestjs.com/first-steps
+	"node-server": {"index.js", []string{
+		"src/index.ts", "src/index.js",
+		"src/main.ts", "src/main.js",
+		"index.ts", "index.js",
+		"server.ts", "server.js",
+		"app.ts", "app.js",
+	}},
+	// Django entry: https://docs.djangoproject.com/en/stable/ref/django-admin/
+	// Flask entry: https://flask.palletsprojects.com/en/stable/quickstart/
+	"python-server-sdk": {"main.py", []string{
+		"src/main.py", "manage.py", "app.py", "main.py",
+	}},
+	// config.ru: https://github.com/rack/rack/blob/main/SPEC.rdoc
+	"ruby-server-sdk": {"main.rb", []string{
+		"config.ru", "app.rb", "main.rb",
+	}},
+}
+
+// EntryPointFor returns the file sdkID should write to in dir, joined to dir, and
+// whether that file already exists. SDKs that only ever show a snippet have no
+// entry point and return an empty path.
+func EntryPointFor(dir, sdkID string) (string, bool) {
+	spec, ok := sdkEntryPoints[sdkID]
+	if !ok {
+		return "", false
+	}
+	return entryPoint(dir, spec.fallback, spec.candidates...)
+}
+
+// PackageManagerFor returns the package manager that should install sdkID in dir.
+// It derives the value from the project the way detection does, so choosing an SDK
+// by hand doesn't leave the manager describing the language we guessed first.
+func PackageManagerFor(dir, sdkID string) string {
+	switch sdkID {
+	case "node-server", "js-client-sdk", "react-client-sdk", "react-native":
+		return detectNodePM(dir)
+	case "python-server-sdk":
+		return detectPythonPM(dir)
+	case "ruby-server-sdk":
+		return detectRubyPM(dir)
+	case "go-server-sdk":
+		return "go"
+	case "dotnet-server-sdk":
+		return "dotnet"
+	default:
+		// Java, Android and Swift are installed by hand, so there is no command
+		// whose choice of manager could be wrong.
+		return ""
+	}
 }
 
 // entryPoint returns the first candidate that exists as a file under dir, joined
