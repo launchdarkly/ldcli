@@ -94,9 +94,9 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 		}, nil
 	}
 
-	// Confirm the tool exists before shelling out, so a missing package manager
+	// Confirm the command can run before shelling out, so a missing package manager
 	// reports what to install instead of surfacing an exec "not found" error.
-	if reason := missingToolReason(args[0]); reason != "" {
+	if reason := preflightReason(args); reason != "" {
 		return &InstallResult{
 			SDKID:         detection.SDKID,
 			Package:       pkg,
@@ -190,6 +190,29 @@ func missingToolReason(tool string) string {
 		return fmt.Sprintf("%s is not installed or not on your PATH — %s", tool, hint)
 	}
 	return fmt.Sprintf("%s is not installed or not on your PATH", tool)
+}
+
+// pipModuleAvailable reports whether interpreter can run pip as a module. It is
+// indirected so tests need not execute a real interpreter.
+var pipModuleAvailable = func(interpreter string) bool {
+	return exec.Command(interpreter, "-m", "pip", "--version").Run() == nil //nolint:gosec
+}
+
+// preflightReason returns why args cannot run, or an empty string when they can.
+// It checks the executable and, for the `<interpreter> -m pip` form, that pip is
+// actually importable: Debian and Ubuntu package pip separately from the
+// interpreter, so a present python3 does not imply a usable pip.
+func preflightReason(args []string) string {
+	if reason := missingToolReason(args[0]); reason != "" {
+		return reason
+	}
+	if len(args) > 2 && args[1] == "-m" && args[2] == "pip" && !pipModuleAvailable(args[0]) {
+		return fmt.Sprintf(
+			"%s has no pip module — install it with `%s -m ensurepip --upgrade`, or your distribution's python3-pip package",
+			args[0], args[0],
+		)
+	}
+	return ""
 }
 
 func execRun(dir string, args []string) ([]byte, error) {

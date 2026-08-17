@@ -63,6 +63,14 @@ func stubPath(t *testing.T, available ...string) {
 	t.Cleanup(func() { lookPath = original })
 }
 
+// stubPipModule controls whether an interpreter appears able to import pip.
+func stubPipModule(t *testing.T, available bool) {
+	t.Helper()
+	original := pipModuleAvailable
+	pipModuleAvailable = func(string) bool { return available }
+	t.Cleanup(func() { pipModuleAvailable = original })
+}
+
 func TestInstallArgs_Python(t *testing.T) {
 	tests := []struct {
 		packageManager string
@@ -132,6 +140,44 @@ func TestInstall_MissingToolReportsFailureNotExecError(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.Contains(t, result.FailureReason, "pip is not installed or not on your PATH")
 	assert.Contains(t, result.FailureReason, "python.org")
+}
+
+// Debian and Ubuntu package pip separately from the interpreter, so python3 being
+// present does not mean `python3 -m pip` can run.
+func TestInstall_InterpreterWithoutPipModuleReportsFailure(t *testing.T) {
+	stubPath(t, "python3")
+	stubPipModule(t, false)
+	installer := PackageInstaller{
+		run: func(string, []string) ([]byte, error) {
+			t.Fatal("must not run an interpreter that cannot import pip")
+			return nil, nil
+		},
+	}
+
+	result, err := installer.Install(t.TempDir(), &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Failed)
+	assert.Contains(t, result.FailureReason, "python3 has no pip module")
+	assert.Contains(t, result.FailureReason, "ensurepip")
+}
+
+func TestInstall_InterpreterWithPipModuleRuns(t *testing.T) {
+	stubPath(t, "python3")
+	stubPipModule(t, true)
+	var ran []string
+	installer := PackageInstaller{
+		run: func(_ string, args []string) ([]byte, error) {
+			ran = args
+			return nil, nil
+		},
+	}
+
+	result, err := installer.Install(t.TempDir(), &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Success)
+	assert.Equal(t, []string{"python3", "-m", "pip", "install", "launchdarkly-server-sdk"}, ran)
 }
 
 func TestInstall_MissingNodeToolReportsFailure(t *testing.T) {
@@ -229,6 +275,7 @@ func TestInstallArgs_ManualSDKs(t *testing.T) {
 }
 
 func TestPackageInstaller_Install_Success(t *testing.T) {
+	stubPath(t, "npm")
 	var capturedDir string
 	var capturedArgs []string
 
@@ -255,6 +302,7 @@ func TestPackageInstaller_Install_Success(t *testing.T) {
 }
 
 func TestPackageInstaller_Install_CommandFailure(t *testing.T) {
+	stubPath(t, "npm")
 	installer := PackageInstaller{
 		run: func(dir string, args []string) ([]byte, error) {
 			return []byte("npm ERR! not found"), errors.New("exit status 1")
