@@ -94,9 +94,10 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 		}, nil
 	}
 
-	// Confirm the command can run before shelling out, so a missing package manager
-	// reports what to install instead of surfacing an exec "not found" error.
-	if reason := preflightReason(args); reason != "" {
+	// Confirm the tool exists before shelling out, so a missing package manager
+	// warns with what to install instead of surfacing an exec "not found" error.
+	// We never install the tool ourselves.
+	if reason := missingToolReason(args[0]); reason != "" {
 		return &InstallResult{
 			SDKID:         detection.SDKID,
 			Package:       pkg,
@@ -166,7 +167,6 @@ func dotnetProjectArg(dir string) (args []string, reason string) {
 var installHints = map[string]string{
 	"pip":    "install Python from https://www.python.org/downloads or your package manager",
 	"pip3":   "install Python from https://www.python.org/downloads or your package manager",
-	"python": "install Python from https://www.python.org/downloads or your package manager",
 	"poetry": "see https://python-poetry.org/docs/#installation",
 	"uv":     "see https://docs.astral.sh/uv/getting-started/installation",
 	"pipenv": "see https://pipenv.pypa.io/en/latest/installation.html",
@@ -192,28 +192,6 @@ func missingToolReason(tool string) string {
 	return fmt.Sprintf("%s is not installed or not on your PATH", tool)
 }
 
-// pipModuleAvailable reports whether interpreter can run pip as a module. It is
-// indirected so tests need not execute a real interpreter.
-var pipModuleAvailable = func(interpreter string) bool {
-	return exec.Command(interpreter, "-m", "pip", "--version").Run() == nil //nolint:gosec
-}
-
-// preflightReason returns why args cannot run, or an empty string when they can.
-// It checks the executable and, for the `<interpreter> -m pip` form, that pip is
-// actually importable: Debian and Ubuntu package pip separately from the
-// interpreter, so a present python3 does not imply a usable pip.
-func preflightReason(args []string) string {
-	if reason := missingToolReason(args[0]); reason != "" {
-		return reason
-	}
-	if len(args) > 2 && args[1] == "-m" && args[2] == "pip" && !pipModuleAvailable(args[0]) {
-		return fmt.Sprintf(
-			"%s has no pip module — install it with `%s -m ensurepip --upgrade`, or your distribution's python3-pip package",
-			args[0], args[0],
-		)
-	}
-	return ""
-}
 
 func execRun(dir string, args []string) ([]byte, error) {
 	cmd := exec.Command(args[0], args[1:]...) //nolint:gosec
@@ -296,21 +274,19 @@ func pythonInstallCmd(pm, pkg string) []string {
 	}
 }
 
-// pipInstallCmd returns the pip install command, choosing the first tool that is
-// actually on PATH. Recent macOS and Homebrew installs ship python3/pip3 with no
-// bare python/pip, so a hardcoded `pip` fails outright on a common developer box.
-// Falling back to `-m pip` covers interpreters installed without a pip shim.
-// With nothing on PATH the bare `pip` form is returned so the plan screen still
-// shows a sensible command; Install's pre-flight check reports what is missing.
+// pipInstallCmd returns the pip install command, choosing whichever of pip3 and
+// pip is on PATH. Recent macOS and Homebrew installs ship pip3 with no bare pip,
+// so a hardcoded `pip` fails outright on a common developer box.
+//
+// Only an existing pip is used. Reaching past it — to `python3 -m pip`, or to
+// bootstrapping pip with ensurepip — would install tooling onto the user's
+// machine, which is not ours to do. When no pip is found the bare form is
+// returned so the plan screen has something to show, and Install's pre-flight
+// check warns instead of running anything.
 func pipInstallCmd(pkg string) []string {
 	for _, bin := range []string{"pip3", "pip"} {
 		if onPath(bin) {
 			return []string{bin, "install", pkg}
-		}
-	}
-	for _, bin := range []string{"python3", "python"} {
-		if onPath(bin) {
-			return []string{bin, "-m", "pip", "install", pkg}
 		}
 	}
 	return []string{"pip", "install", pkg}

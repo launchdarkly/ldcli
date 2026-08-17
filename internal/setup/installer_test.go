@@ -63,14 +63,6 @@ func stubPath(t *testing.T, available ...string) {
 	t.Cleanup(func() { lookPath = original })
 }
 
-// stubPipModule controls whether an interpreter appears able to import pip.
-func stubPipModule(t *testing.T, available bool) {
-	t.Helper()
-	original := pipModuleAvailable
-	pipModuleAvailable = func(string) bool { return available }
-	t.Cleanup(func() { pipModuleAvailable = original })
-}
-
 func TestInstallArgs_Python(t *testing.T) {
 	tests := []struct {
 		packageManager string
@@ -107,11 +99,9 @@ func TestInstallArgs_Python_ResolvesAvailableTool(t *testing.T) {
 		{"only pip", []string{"pip", "python"}, []string{"pip", "install", pkg}},
 		// pip3 wins so a stale python2 pip is never chosen.
 		{"both pip and pip3", []string{"pip", "pip3"}, []string{"pip3", "install", pkg}},
-		// An interpreter with no pip shim still has the module.
-		{"python3 only", []string{"python3"}, []string{"python3", "-m", "pip", "install", pkg}},
-		{"python only", []string{"python"}, []string{"python", "-m", "pip", "install", pkg}},
-		{"python3 preferred", []string{"python", "python3"}, []string{"python3", "-m", "pip", "install", pkg}},
-		// Nothing available: keep a displayable command; Install reports the problem.
+		// An interpreter is not a stand-in for pip: setup will not bootstrap tooling,
+		// so the bare form is kept and Install warns rather than running it.
+		{"interpreters but no pip", []string{"python3", "python"}, []string{"pip", "install", pkg}},
 		{"nothing available", nil, []string{"pip", "install", pkg}},
 	}
 	for _, tt := range tests {
@@ -142,14 +132,13 @@ func TestInstall_MissingToolReportsFailureNotExecError(t *testing.T) {
 	assert.Contains(t, result.FailureReason, "python.org")
 }
 
-// Debian and Ubuntu package pip separately from the interpreter, so python3 being
-// present does not mean `python3 -m pip` can run.
-func TestInstall_InterpreterWithoutPipModuleReportsFailure(t *testing.T) {
-	stubPath(t, "python3")
-	stubPipModule(t, false)
+// A Python interpreter is not a substitute for pip: using it would mean installing
+// tooling onto the user's machine, so setup warns instead.
+func TestInstall_InterpreterWithoutPipWarnsAndRunsNothing(t *testing.T) {
+	stubPath(t, "python3", "python")
 	installer := PackageInstaller{
 		run: func(string, []string) ([]byte, error) {
-			t.Fatal("must not run an interpreter that cannot import pip")
+			t.Fatal("must not install anything when pip is absent")
 			return nil, nil
 		},
 	}
@@ -158,26 +147,8 @@ func TestInstall_InterpreterWithoutPipModuleReportsFailure(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, result.Failed)
-	assert.Contains(t, result.FailureReason, "python3 has no pip module")
-	assert.Contains(t, result.FailureReason, "ensurepip")
-}
-
-func TestInstall_InterpreterWithPipModuleRuns(t *testing.T) {
-	stubPath(t, "python3")
-	stubPipModule(t, true)
-	var ran []string
-	installer := PackageInstaller{
-		run: func(_ string, args []string) ([]byte, error) {
-			ran = args
-			return nil, nil
-		},
-	}
-
-	result, err := installer.Install(t.TempDir(), &DetectResult{SDKID: "python-server-sdk"})
-
-	require.NoError(t, err)
-	assert.True(t, result.Success)
-	assert.Equal(t, []string{"python3", "-m", "pip", "install", "launchdarkly-server-sdk"}, ran)
+	assert.Contains(t, result.FailureReason, "pip is not installed or not on your PATH")
+	assert.NotContains(t, result.FailureReason, "ensurepip")
 }
 
 func TestInstall_MissingNodeToolReportsFailure(t *testing.T) {
