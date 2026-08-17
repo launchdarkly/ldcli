@@ -2,7 +2,6 @@ package setup
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -351,20 +350,18 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 		result.SDKID = chosen.id
 		result.Language = chosen.language
 		if chosen.id != m.detectedSDKID {
-			// The detected entry point belongs to the language we detected, not the
-			// one the user picked. An append-safe SDK would otherwise write Ruby into
-			// a Node project's index.js, so start over from that SDK's own default.
+			// The detected entry point and package manager describe the language we
+			// detected, not the one the user picked, so re-derive both for the chosen
+			// SDK rather than carrying the wrong ones forward. Searching again also
+			// finds an existing file the SDK's bare default would have missed, so we
+			// append to the user's entry point instead of adding a second one.
 			result.Framework = ""
-			result.EntryPoint = setup.DefaultEntryPoint(chosen.id)
-			result.EntryPointExists = false
-			if dir, err := os.Getwd(); err == nil && result.EntryPoint != "" {
-				result.EntryPoint = filepath.Join(dir, result.EntryPoint)
-				// Injection appends to a file that is already there, so report the
-				// default as found when it exists. Claiming otherwise would promise
-				// to create a file and then quietly append to the user's.
-				if info, err := os.Stat(result.EntryPoint); err == nil && !info.IsDir() {
-					result.EntryPointExists = true
-				}
+			if dir, err := os.Getwd(); err == nil {
+				result.EntryPoint, result.EntryPointExists = setup.EntryPointFor(dir, chosen.id)
+				result.PackageManager = setup.PackageManagerFor(dir, chosen.id)
+			} else {
+				result.EntryPoint = setup.DefaultEntryPoint(chosen.id)
+				result.EntryPointExists = false
 			}
 		}
 		m.detectResult = &result

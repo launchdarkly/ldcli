@@ -110,7 +110,7 @@ func (m wizardModel) View() string {
 			} else if m.initResult != nil && m.initResult.Success {
 				body += m.wrap(fmt.Sprintf("Initialization code was added to %s.", m.initResult.FilePath)) + "\n"
 			} else if m.initResult != nil && m.initResult.Snippet != "" {
-				body += m.wrap(fmt.Sprintf("Then add this initialization code to %s:", m.initResult.FilePath)) +
+				body += m.wrap(addCodeTo("Then add this initialization code", m.initResult.FilePath)) +
 					"\n\n" + code(m.initResult.Snippet) + "\n"
 			}
 			body += "\n" + m.wrap(fmt.Sprintf("Flag %q was created in project %q.", m.flagKey, m.selectedProject)) + "\n"
@@ -119,7 +119,7 @@ func (m wizardModel) View() string {
 		if m.initResult != nil && !m.initResult.Success {
 			body := titleStyle.Render("Manual SDK setup required") + "\n\n"
 			if m.initResult.Snippet != "" {
-				body += m.wrap(fmt.Sprintf("Add the following %s initialization code to %s:", m.initResult.SDKID, m.initResult.FilePath)) +
+				body += m.wrap(addCodeTo(fmt.Sprintf("Add the following %s initialization code", m.initResult.SDKID), m.initResult.FilePath)) +
 					"\n\n" + code(m.initResult.Snippet) + "\n\n"
 			} else {
 				body += fmt.Sprintf("No initialization template is available for %s.\n", m.initResult.SDKID)
@@ -186,6 +186,15 @@ func (m wizardModel) sdkBoxWidth() int {
 		w = 20
 	}
 	return w
+}
+
+// addCodeTo phrases an "add this code" instruction. SDKs that only show a snippet
+// have no entry point, so naming a destination would print an empty path.
+func addCodeTo(instruction, path string) string {
+	if path == "" {
+		return instruction + ":"
+	}
+	return fmt.Sprintf("%s to %s:", instruction, path)
 }
 
 // listHeight is the height available to a full-screen list. It never returns a

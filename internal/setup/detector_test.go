@@ -792,3 +792,61 @@ func TestFileDetector_Swift_SingleTarget_PrefersMainSwift(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "Sources/MyTool/main.swift"), result.EntryPoint)
 	assert.True(t, result.EntryPointExists)
 }
+
+func TestEntryPointFor_FindsExistingFileNotBareDefault(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "src/index.js"), []byte(""), 0600))
+
+	ep, exists := EntryPointFor(dir, "node-server")
+
+	assert.Equal(t, filepath.Join(dir, "src/index.js"), ep)
+	assert.True(t, exists)
+}
+
+func TestEntryPointFor_SuggestsFallbackWhenNothingExists(t *testing.T) {
+	dir := t.TempDir()
+
+	ep, exists := EntryPointFor(dir, "node-server")
+
+	assert.Equal(t, filepath.Join(dir, "index.js"), ep)
+	assert.False(t, exists)
+}
+
+func TestEntryPointFor_SnippetOnlySDKsHaveNoEntryPoint(t *testing.T) {
+	for _, sdkID := range []string{"react-client-sdk", "js-client-sdk", "go-server-sdk", "java-server-sdk"} {
+		t.Run(sdkID, func(t *testing.T) {
+			ep, exists := EntryPointFor(t.TempDir(), sdkID)
+			assert.Empty(t, ep)
+			assert.False(t, exists)
+		})
+	}
+}
+
+func TestPackageManagerFor_DerivesFromProjectNotDetectedLanguage(t *testing.T) {
+	t.Run("bundler project uses bundle so the gem is recorded", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Gemfile"), []byte("source 'https://rubygems.org'\n"), 0600))
+		assert.Equal(t, "bundle", PackageManagerFor(dir, "ruby-server-sdk"))
+	})
+
+	t.Run("ruby without a Gemfile falls back to gem", func(t *testing.T) {
+		assert.Equal(t, "gem", PackageManagerFor(t.TempDir(), "ruby-server-sdk"))
+	})
+
+	t.Run("node lockfile picks the matching manager", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "pnpm-lock.yaml"), []byte(""), 0600))
+		assert.Equal(t, "pnpm", PackageManagerFor(dir, "node-server"))
+	})
+
+	t.Run("python uv lockfile", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "uv.lock"), []byte(""), 0600))
+		assert.Equal(t, "uv", PackageManagerFor(dir, "python-server-sdk"))
+	})
+
+	t.Run("manual-install SDKs have no manager", func(t *testing.T) {
+		assert.Empty(t, PackageManagerFor(t.TempDir(), "java-server-sdk"))
+	})
+}
