@@ -34,6 +34,20 @@ func newInstallCmd(svc setup.Service) *cobra.Command {
 	return cmd
 }
 
+// candidateList renders the choices for an error message, marking the ones that
+// are not installed so the user isn't sent to a tool they'd have to install first.
+func candidateList(candidates []setup.PMCandidate) string {
+	names := make([]string, 0, len(candidates))
+	for _, c := range candidates {
+		if c.Installed {
+			names = append(names, c.Name)
+			continue
+		}
+		names = append(names, c.Name+" (not installed)")
+	}
+	return strings.Join(names, ", ")
+}
+
 func runInstall(svc setup.Service) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		dir, _ := cmd.Flags().GetString(pathFlag)
@@ -48,6 +62,22 @@ func runInstall(svc setup.Service) func(*cobra.Command, []string) error {
 		sdkID, _ := cmd.Flags().GetString(sdkIDFlag)
 		pkgMgr, _ := cmd.Flags().GetString("package-manager")
 		dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
+
+		// Without an explicit choice, read the project rather than falling back to
+		// pip or npm regardless of what the project uses. An ambiguous project is an
+		// error: guessing here would install with the wrong manager, and this command
+		// cannot ask.
+		if pkgMgr == "" {
+			choice := setup.PackageManagerChoiceFor(dir, sdkID)
+			if choice.Confidence == setup.PMAmbiguous {
+				return fmt.Errorf(
+					"cannot tell which package manager to use: %s\npass --package-manager with one of: %s",
+					choice.Reason, candidateList(choice.Candidates),
+				)
+			}
+			pkgMgr = choice.Name
+		}
+
 		detection := &setup.DetectResult{
 			SDKID:          sdkID,
 			PackageManager: pkgMgr,

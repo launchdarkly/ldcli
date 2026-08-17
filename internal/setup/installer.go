@@ -269,6 +269,7 @@ var installHints = map[string]string{
 	"poetry": "see https://python-poetry.org/docs/#installation",
 	"uv":     "see https://docs.astral.sh/uv/getting-started/installation",
 	"pipenv": "see https://pipenv.pypa.io/en/latest/installation.html",
+	"pdm":    "see https://pdm-project.org/en/latest/#installation",
 	"npm":    "install Node.js from https://nodejs.org",
 	"yarn":   "see https://yarnpkg.com/getting-started/install",
 	"pnpm":   "see https://pnpm.io/installation",
@@ -369,6 +370,8 @@ func pythonInstallCmd(dir, pm, pkg string) []string {
 		return []string{"uv", "add", pkg}
 	case "pipenv":
 		return []string{"pipenv", "install", pkg}
+	case "pdm":
+		return []string{"pdm", "add", pkg}
 	default:
 		return pipInstallCmd(dir, pkg)
 	}

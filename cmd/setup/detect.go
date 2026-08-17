@@ -44,7 +44,17 @@ func runDetect(svc setup.Service) func(*cobra.Command, []string) error {
 
 		outputKind := cliflags.GetOutputKind(cmd)
 		if outputKind == "json" {
-			data, _ := json.Marshal(result)
+			// Candidates are added here rather than in the detection result: they
+			// report which tools are on this machine, which is not a fact about the
+			// project. Callers reading this need both.
+			payload := struct {
+				*setup.DetectResult
+				PackageManagerCandidates []setup.PMCandidate `json:"package_manager_candidates,omitempty"`
+			}{DetectResult: result}
+			if result.PackageManagerConfidence == setup.PMAmbiguous {
+				payload.PackageManagerCandidates = setup.PackageManagerChoiceFor(dir, result.SDKID).Candidates
+			}
+			data, _ := json.Marshal(payload)
 			fmt.Fprintln(cmd.OutOrStdout(), string(data))
 			return nil
 		}
@@ -53,7 +63,12 @@ func runDetect(svc setup.Service) func(*cobra.Command, []string) error {
 		if result.Framework != "" {
 			fmt.Fprintf(cmd.OutOrStdout(), "Framework: %s\n", result.Framework)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Package Manager: %s\n", result.PackageManager)
+		if result.PackageManagerConfidence == setup.PMAmbiguous {
+			fmt.Fprintf(cmd.OutOrStdout(), "Package Manager: %s (uncertain — %s)\n",
+				result.PackageManager, result.PackageManagerReason)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "Package Manager: %s\n", result.PackageManager)
+		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Recommended SDK: %s\n", result.SDKID)
 		if result.EntryPointExists {
 			fmt.Fprintf(cmd.OutOrStdout(), "Entry Point: %s\n", result.EntryPoint)

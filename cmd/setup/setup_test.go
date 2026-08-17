@@ -220,6 +220,7 @@ func TestInstall_Plaintext(t *testing.T) {
 		"setup", "install",
 		"--access-token", "test-token",
 		"--sdk-id", "node-server",
+		"--package-manager", "npm",
 	}
 	output, err := cmd.CallCmd(
 		t,
@@ -241,6 +242,7 @@ func TestInstall_Plaintext_WithVersion(t *testing.T) {
 		"setup", "install",
 		"--access-token", "test-token",
 		"--sdk-id", "node-server",
+		"--package-manager", "npm",
 	}
 	output, err := cmd.CallCmd(
 		t,
@@ -319,6 +321,7 @@ func TestInstall_DryRun(t *testing.T) {
 		"setup", "install",
 		"--access-token", "test-token",
 		"--sdk-id", "node-server",
+		"--package-manager", "npm",
 		"--dry-run",
 	}
 	// No Installer provided: dry-run must not invoke it or shell out.
@@ -341,6 +344,7 @@ func TestInstall_JSON(t *testing.T) {
 		"setup", "install",
 		"--access-token", "test-token",
 		"--sdk-id", "node-server",
+		"--package-manager", "npm",
 		"--output", "json",
 	}
 	output, err := cmd.CallCmd(
@@ -362,6 +366,7 @@ func TestInstallStubReturnsError(t *testing.T) {
 		"setup", "install",
 		"--access-token", "test-token",
 		"--sdk-id", "node-server",
+		"--package-manager", "npm",
 	}
 	_, err := cmd.CallCmd(
 		t,

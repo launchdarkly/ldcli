@@ -850,3 +850,137 @@ func TestPackageManagerFor_DerivesFromProjectNotDetectedLanguage(t *testing.T) {
 		assert.Empty(t, PackageManagerFor(t.TempDir(), "java-server-sdk"))
 	})
 }
+
+func TestPackageManagerChoice_Definite(t *testing.T) {
+	tests := []struct {
+		name  string
+		files map[string]string
+		sdkID string
+		want  string
+	}{
+		// The most explicit statement a Node project can make outranks lockfiles.
+		{"corepack field", map[string]string{
+			"package.json": `{"packageManager":"pnpm@9.1.0"}`,
+		}, "node-server", "pnpm"},
+		{"corepack field without version", map[string]string{
+			"package.json": `{"packageManager":"yarn"}`,
+		}, "node-server", "yarn"},
+		{"corepack field beats a conflicting lockfile", map[string]string{
+			"package.json": `{"packageManager":"pnpm@9.1.0"}`,
+			"yarn.lock":    "",
+		}, "node-server", "pnpm"},
+		{"single node lockfile", map[string]string{
+			"package.json":   `{}`,
+			"pnpm-lock.yaml": "",
+		}, "node-server", "pnpm"},
+		{"package-lock only", map[string]string{
+			"package.json":      `{}`,
+			"package-lock.json": "",
+		}, "node-server", "npm"},
+		{"uv lockfile", map[string]string{"uv.lock": ""}, "python-server-sdk", "uv"},
+		{"poetry lockfile", map[string]string{"poetry.lock": ""}, "python-server-sdk", "poetry"},
+		{"tool.uv section", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.uv]\n",
+		}, "python-server-sdk", "uv"},
+		{"tool.pdm section", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.pdm]\n",
+		}, "python-server-sdk", "pdm"},
+		{"Gemfile", map[string]string{"Gemfile": "source 'x'"}, "ruby-server-sdk", "bundle"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, body := range tt.files {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0600))
+			}
+
+			choice := PackageManagerChoiceFor(dir, tt.sdkID)
+
+			assert.Equal(t, PMDefinite, choice.Confidence)
+			assert.Equal(t, tt.want, choice.Name)
+			assert.Empty(t, choice.Candidates, "a definite verdict needs no choice")
+		})
+	}
+}
+
+func TestPackageManagerChoice_Ambiguous(t *testing.T) {
+	tests := []struct {
+		name        string
+		files       map[string]string
+		sdkID       string
+		wantReason  string
+		wantOptions []string
+	}{
+		// No detection tuning can fix this: the project contradicts itself.
+		{"conflicting node lockfiles", map[string]string{
+			"package.json":      `{}`,
+			"yarn.lock":         "",
+			"package-lock.json": "",
+		}, "node-server", "more than one manager", []string{"npm", "yarn", "pnpm", "bun"}},
+		{"bare package.json", map[string]string{
+			"package.json": `{}`,
+		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
+		// uv does not require committing the lock, and PEP 621 has no uv marker.
+		{"PEP 621 pyproject only", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n",
+		}, "python-server-sdk", "doesn't say", []string{"pip", "uv", "poetry", "pipenv", "pdm"}},
+		{"requirements.txt only", map[string]string{
+			"requirements.txt": "flask\n",
+		}, "python-server-sdk", "doesn't say", []string{"pip", "uv", "poetry", "pipenv", "pdm"}},
+		// hatch cannot add dependencies for us, so we must not pick it or silently pip.
+		{"hatch project", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.hatch]\n",
+		}, "python-server-sdk", "cannot add dependencies", []string{"pip", "uv", "poetry", "pipenv", "pdm"}},
+		{"gemspec without Gemfile", map[string]string{
+			"a.gemspec": "Gem::Specification.new",
+		}, "ruby-server-sdk", "doesn't say", []string{"bundle", "gem"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, body := range tt.files {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0600))
+			}
+
+			choice := PackageManagerChoiceFor(dir, tt.sdkID)
+
+			assert.Equal(t, PMAmbiguous, choice.Confidence)
+			assert.Contains(t, choice.Reason, tt.wantReason)
+			names := make([]string, 0, len(choice.Candidates))
+			for _, c := range choice.Candidates {
+				names = append(names, c.Name)
+				assert.NotEmpty(t, c.Command, "every candidate needs the command it would run")
+			}
+			assert.Equal(t, tt.wantOptions, names)
+		})
+	}
+}
+
+// Installed state describes the machine, so it must never change the verdict.
+func TestPackageManagerChoice_InstalledStateDoesNotDecide(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+
+	stubPath(t, "pnpm") // the only manager on this machine
+	choice := PackageManagerChoiceFor(dir, "node-server")
+
+	assert.Equal(t, PMAmbiguous, choice.Confidence, "one installed tool is not evidence about the project")
+	assert.Equal(t, "npm", choice.Name, "the conventional default stands until the user picks")
+	for _, c := range choice.Candidates {
+		assert.Equal(t, c.Name == "pnpm", c.Installed)
+	}
+}
+
+func TestPackageManagerChoice_SingleToolchainsAreAlwaysDefinite(t *testing.T) {
+	for sdkID, want := range map[string]string{
+		"go-server-sdk":     "go",
+		"dotnet-server-sdk": "dotnet",
+		"java-server-sdk":   "",
+	} {
+		t.Run(sdkID, func(t *testing.T) {
+			choice := PackageManagerChoiceFor(t.TempDir(), sdkID)
+			assert.Equal(t, PMDefinite, choice.Confidence)
+			assert.Equal(t, want, choice.Name)
+		})
+	}
+}
