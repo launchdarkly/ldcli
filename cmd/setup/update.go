@@ -35,9 +35,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
-		case "q", "esc":
+		// esc is not used due to arrow keys becoming the escape sequence.
+		case "q":
 			if m.isFiltering() {
-				break // let the list receive 'q' / clear its filter
+				break // let the list receive 'q' as filter input
 			}
 			m.quitting = true
 			return m, tea.Quit
@@ -206,7 +207,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // isFiltering reports whether the current step's list is in filter-typing mode,
-// so keys like esc/q are left for the list instead of triggering back/quit.
+// so keys like q are left for the list instead of triggering back/quit.
 func (m wizardModel) isFiltering() bool {
 	switch m.step {
 	case stepSelectProject:

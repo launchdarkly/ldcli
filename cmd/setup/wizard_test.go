@@ -198,9 +198,15 @@ func TestWizard_Back_ReturnsToPreviousStep(t *testing.T) {
 	}
 }
 
-func TestWizard_Esc_Quits(t *testing.T) {
+func TestWizard_Esc_DoesNotQuit(t *testing.T) {
 	m := wizardModel{step: stepSelectSDK}
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	assert.False(t, next.(wizardModel).quitting)
+}
+
+func TestWizard_Q_Quits(t *testing.T) {
+	m := wizardModel{step: stepSelectSDK}
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	assert.True(t, next.(wizardModel).quitting)
 	assert.NotNil(t, cmd)
 }

@@ -47,7 +47,7 @@ func (m wizardModel) View() string {
 				m.wrap("This access token can't see any projects. Create a project in LaunchDarkly, or use a token with access to one, then run this command again.") + "\n" +
 				quitHint
 		}
-		return m.projectList.View() + "\n" + mutedStyle.Render("esc quit")
+		return m.projectList.View() + "\n" + mutedStyle.Render("q quit")
 
 	case stepSelectEnvironment:
 		if !m.envsLoaded {
@@ -58,7 +58,7 @@ func (m wizardModel) View() string {
 				m.wrap(fmt.Sprintf("Project %q has no environments this access token can see. Press ← to pick another project.", m.selectedProject)) + "\n" +
 				mutedStyle.Render("← back · q quit") + "\n"
 		}
-		return m.envList.View() + "\n" + mutedStyle.Render("← back · esc quit")
+		return m.envList.View() + "\n" + mutedStyle.Render("← back · q quit")
 
 	case stepDetect:
 		return m.spinner.View() + " Detecting project type..."
@@ -231,7 +231,7 @@ func (m wizardModel) newSDKList(items []list.Item, title string, focused bool) l
 // below; the focused area is highlighted. When detection failed, only the list
 // is shown.
 func (m wizardModel) sdkSelectView() string {
-	hint := mutedStyle.Render("↑/↓ move · enter select · ← back · esc quit")
+	hint := mutedStyle.Render("↑/↓ move · enter select · ← back · q quit")
 	catalog := mutedStyle.Render("Don't see your language? All LaunchDarkly SDKs: https://launchdarkly.com/docs/sdk")
 
 	if m.detectedSDK == nil {
@@ -305,7 +305,7 @@ func (m wizardModel) planView() string {
 
 	return headerStyle.Render("Here's what setup will do:") + "\n\n" +
 		strings.Join(steps, "\n") + "\n\n" +
-		mutedStyle.Render("Enter continue · ← back · esc quit")
+		mutedStyle.Render("Enter continue · ← back · q quit")
 }
 
 // Commands that perform async work. Each is a thin tea.Cmd adapter over the
