@@ -94,6 +94,17 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 		}, nil
 	}
 
+	// Confirm the tool exists before shelling out, so a missing package manager
+	// reports what to install instead of surfacing an exec "not found" error.
+	if reason := missingToolReason(args[0]); reason != "" {
+		return &InstallResult{
+			SDKID:         detection.SDKID,
+			Package:       pkg,
+			Failed:        true,
+			FailureReason: reason,
+		}, nil
+	}
+
 	if detection.SDKID == "dotnet-server-sdk" {
 		target, reason := dotnetProjectArg(dir)
 		if reason != "" {
@@ -149,6 +160,36 @@ func dotnetProjectArg(dir string) (args []string, reason string) {
 		// assembly, so let the user say which.
 		return nil, fmt.Sprintf("found %d projects in this solution; run `dotnet add package LaunchDarkly.ServerSdk --project <path>` for the one that needs the SDK", len(projects))
 	}
+}
+
+// installHints maps a package-manager executable to how the user can get it.
+var installHints = map[string]string{
+	"pip":    "install Python from https://www.python.org/downloads or your package manager",
+	"pip3":   "install Python from https://www.python.org/downloads or your package manager",
+	"python": "install Python from https://www.python.org/downloads or your package manager",
+	"poetry": "see https://python-poetry.org/docs/#installation",
+	"uv":     "see https://docs.astral.sh/uv/getting-started/installation",
+	"pipenv": "see https://pipenv.pypa.io/en/latest/installation.html",
+	"npm":    "install Node.js from https://nodejs.org",
+	"yarn":   "see https://yarnpkg.com/getting-started/install",
+	"pnpm":   "see https://pnpm.io/installation",
+	"bun":    "see https://bun.sh/docs/installation",
+	"bundle": "run `gem install bundler`",
+	"gem":    "install Ruby from https://www.ruby-lang.org/en/documentation/installation",
+	"go":     "install Go from https://go.dev/dl",
+	"dotnet": "install the .NET SDK from https://dotnet.microsoft.com/download",
+}
+
+// missingToolReason returns an explanation when tool is not on PATH, or an empty
+// string when it is available.
+func missingToolReason(tool string) string {
+	if onPath(tool) {
+		return ""
+	}
+	if hint, ok := installHints[tool]; ok {
+		return fmt.Sprintf("%s is not installed or not on your PATH — %s", tool, hint)
+	}
+	return fmt.Sprintf("%s is not installed or not on your PATH", tool)
 }
 
 func execRun(dir string, args []string) ([]byte, error) {
@@ -207,6 +248,15 @@ func InstallArgs(sdkID, packageManager string) (args []string, pkg string) {
 	}
 }
 
+// lookPath is indirected so tests can control which executables appear to exist.
+var lookPath = exec.LookPath
+
+// onPath reports whether name is an executable on PATH.
+func onPath(name string) bool {
+	_, err := lookPath(name)
+	return err == nil
+}
+
 // pythonInstallCmd returns the install command arguments for a Python package
 // manager. Anything unrecognised — including the empty string, which IsInstalled
 // passes — falls back to pip.
@@ -219,8 +269,28 @@ func pythonInstallCmd(pm, pkg string) []string {
 	case "pipenv":
 		return []string{"pipenv", "install", pkg}
 	default:
-		return []string{"pip", "install", pkg}
+		return pipInstallCmd(pkg)
 	}
+}
+
+// pipInstallCmd returns the pip install command, choosing the first tool that is
+// actually on PATH. Recent macOS and Homebrew installs ship python3/pip3 with no
+// bare python/pip, so a hardcoded `pip` fails outright on a common developer box.
+// Falling back to `-m pip` covers interpreters installed without a pip shim.
+// With nothing on PATH the bare `pip` form is returned so the plan screen still
+// shows a sensible command; Install's pre-flight check reports what is missing.
+func pipInstallCmd(pkg string) []string {
+	for _, bin := range []string{"pip3", "pip"} {
+		if onPath(bin) {
+			return []string{bin, "install", pkg}
+		}
+	}
+	for _, bin := range []string{"python3", "python"} {
+		if onPath(bin) {
+			return []string{bin, "-m", "pip", "install", pkg}
+		}
+	}
+	return []string{"pip", "install", pkg}
 }
 
 // nodeInstallCmd returns the install command arguments for a Node.js package manager.

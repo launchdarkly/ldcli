@@ -3,6 +3,7 @@ package setup
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -44,6 +45,24 @@ func TestInstallArgs_NodeSDKs(t *testing.T) {
 	}
 }
 
+// stubPath makes only the named executables appear to exist on PATH for the rest
+// of the test.
+func stubPath(t *testing.T, available ...string) {
+	t.Helper()
+	set := make(map[string]bool, len(available))
+	for _, name := range available {
+		set[name] = true
+	}
+	original := lookPath
+	lookPath = func(name string) (string, error) {
+		if set[name] {
+			return "/usr/bin/" + name, nil
+		}
+		return "", exec.ErrNotFound
+	}
+	t.Cleanup(func() { lookPath = original })
+}
+
 func TestInstallArgs_Python(t *testing.T) {
 	tests := []struct {
 		packageManager string
@@ -60,11 +79,93 @@ func TestInstallArgs_Python(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.packageManager, func(t *testing.T) {
+			stubPath(t, "pip", "poetry", "uv", "pipenv")
 			args, pkg := InstallArgs("python-server-sdk", tt.packageManager)
 			assert.Equal(t, tt.want, args)
 			assert.Equal(t, "launchdarkly-server-sdk", pkg)
 		})
 	}
+}
+
+func TestInstallArgs_Python_ResolvesAvailableTool(t *testing.T) {
+	pkg := "launchdarkly-server-sdk"
+	tests := []struct {
+		name      string
+		available []string
+		want      []string
+	}{
+		// Recent macOS and Homebrew ship pip3 with no bare pip.
+		{"only pip3", []string{"pip3", "python3"}, []string{"pip3", "install", pkg}},
+		{"only pip", []string{"pip", "python"}, []string{"pip", "install", pkg}},
+		// pip3 wins so a stale python2 pip is never chosen.
+		{"both pip and pip3", []string{"pip", "pip3"}, []string{"pip3", "install", pkg}},
+		// An interpreter with no pip shim still has the module.
+		{"python3 only", []string{"python3"}, []string{"python3", "-m", "pip", "install", pkg}},
+		{"python only", []string{"python"}, []string{"python", "-m", "pip", "install", pkg}},
+		{"python3 preferred", []string{"python", "python3"}, []string{"python3", "-m", "pip", "install", pkg}},
+		// Nothing available: keep a displayable command; Install reports the problem.
+		{"nothing available", nil, []string{"pip", "install", pkg}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stubPath(t, tt.available...)
+			args, _ := InstallArgs("python-server-sdk", "")
+			assert.Equal(t, tt.want, args)
+		})
+	}
+}
+
+func TestInstall_MissingToolReportsFailureNotExecError(t *testing.T) {
+	stubPath(t) // nothing on PATH
+	dir := t.TempDir()
+	installer := PackageInstaller{
+		run: func(string, []string) ([]byte, error) {
+			t.Fatal("must not shell out to a tool that does not exist")
+			return nil, nil
+		},
+	}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Failed)
+	assert.False(t, result.Success)
+	assert.Contains(t, result.FailureReason, "pip is not installed or not on your PATH")
+	assert.Contains(t, result.FailureReason, "python.org")
+}
+
+func TestInstall_MissingNodeToolReportsFailure(t *testing.T) {
+	stubPath(t) // npm absent
+	installer := PackageInstaller{
+		run: func(string, []string) ([]byte, error) {
+			t.Fatal("must not shell out to a tool that does not exist")
+			return nil, nil
+		},
+	}
+
+	result, err := installer.Install(t.TempDir(), &DetectResult{SDKID: "node-server"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Failed)
+	assert.Contains(t, result.FailureReason, "npm is not installed")
+}
+
+func TestInstall_PresentToolRuns(t *testing.T) {
+	stubPath(t, "npm")
+	var ran []string
+	installer := PackageInstaller{
+		run: func(_ string, args []string) ([]byte, error) {
+			ran = args
+			return nil, nil
+		},
+	}
+
+	result, err := installer.Install(t.TempDir(), &DetectResult{SDKID: "node-server"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Success)
+	assert.False(t, result.Failed)
+	assert.Equal(t, []string{"npm", "install", "@launchdarkly/node-server-sdk"}, ran)
 }
 
 func TestInstallArgs_Go(t *testing.T) {
@@ -286,6 +387,7 @@ func TestIsInstalled_Dotnet_FindsNestedProject(t *testing.T) {
 }
 
 func TestInstall_Dotnet_SolutionLayout_TargetsTheProject(t *testing.T) {
+	stubPath(t, "dotnet")
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0600))
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src/MyApp"), 0755))
@@ -307,6 +409,7 @@ func TestInstall_Dotnet_SolutionLayout_TargetsTheProject(t *testing.T) {
 }
 
 func TestInstall_Dotnet_SingleRootProject_RunsBareCommand(t *testing.T) {
+	stubPath(t, "dotnet")
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.csproj"), []byte("<Project/>"), 0600))
 
@@ -324,6 +427,7 @@ func TestInstall_Dotnet_SingleRootProject_RunsBareCommand(t *testing.T) {
 
 // Adding the SDK to an arbitrary assembly is worse than saying which projects exist.
 func TestInstall_Dotnet_SeveralProjects_ReportsWhyItStopped(t *testing.T) {
+	stubPath(t, "dotnet")
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0600))
 	for _, p := range []string{"src/Api/Api.csproj", "src/Worker/Worker.csproj"} {
@@ -348,6 +452,7 @@ func TestInstall_Dotnet_SeveralProjects_ReportsWhyItStopped(t *testing.T) {
 }
 
 func TestInstall_Dotnet_NoProjectAtAll_ReportsWhyItStopped(t *testing.T) {
+	stubPath(t, "dotnet")
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0600))
 
