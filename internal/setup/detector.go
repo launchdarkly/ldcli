@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -202,6 +203,10 @@ func detectNodePM(dir string) string {
 	return nodePMSignals(dir).best("npm")
 }
 
+// exactSemver matches the exact versions corepack requires: a bare MAJOR.MINOR.PATCH
+// with optional prerelease and build metadata, and no range operator.
+var exactSemver = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
+
 // corepackPM reads the packageManager field, which names the manager and version
 // the project expects. It is the most explicit statement a Node project can make,
 // so it outranks lockfiles.
@@ -217,13 +222,14 @@ func corepackPM(dir string) string {
 	if json.Unmarshal(b, &pkg) != nil {
 		return ""
 	}
-	// The field must be "<name>@<version>". A hand-edited manifest that names the
-	// manager with no version is not a declaration we can act on: pnpm refuses to
-	// run at all against it ("No version specified for pnpm in packageManager"), so
-	// treating it as definite would route the user into a command that cannot work.
-	// Without a usable field the project's lockfiles decide, or the user is asked.
+	// The field must be "<name>@<exact version>". Corepack accepts nothing else, so
+	// a missing version ("No version specified for pnpm in packageManager") or a
+	// range ("Invalid package manager specification (pnpm@^11.13.0); expected a
+	// semver version") both stop the manager from running at all. Treating either as
+	// the project's declared manager would route the user into a command that cannot
+	// work, so the lockfiles decide instead, or the user is asked.
 	name, version, _ := strings.Cut(pkg.PackageManager, "@")
-	if version == "" {
+	if !exactSemver.MatchString(version) {
 		return ""
 	}
 	switch name {

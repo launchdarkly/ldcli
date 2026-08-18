@@ -862,6 +862,13 @@ func TestPackageManagerChoice_Definite(t *testing.T) {
 		{"corepack field", map[string]string{
 			"package.json": `{"packageManager":"pnpm@9.1.0"}`,
 		}, "node-server", "pnpm"},
+		{"corepack field with prerelease", map[string]string{
+			"package.json": `{"packageManager":"pnpm@9.1.0-beta.1"}`,
+		}, "node-server", "pnpm"},
+		// corepack writes this hash form itself when it pins a manager.
+		{"corepack field with build metadata", map[string]string{
+			"package.json": `{"packageManager":"yarn@4.1.0+sha224.abcdef"}`,
+		}, "node-server", "yarn"},
 		{"corepack field beats a conflicting lockfile", map[string]string{
 			"package.json": `{"packageManager":"pnpm@9.1.0"}`,
 			"yarn.lock":    "",
@@ -917,10 +924,19 @@ func TestPackageManagerChoice_Ambiguous(t *testing.T) {
 		{"bare package.json", map[string]string{
 			"package.json": `{}`,
 		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
-		// pnpm refuses to run at all against a versionless packageManager field, so
-		// honouring it would route the user into a command that cannot work.
+		// Corepack needs one exact version, so honouring anything else would route the
+		// user into a manager that refuses to run.
 		{"packageManager without a version", map[string]string{
 			"package.json": `{"packageManager":"pnpm"}`,
+		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
+		{"packageManager with a caret range", map[string]string{
+			"package.json": `{"packageManager":"pnpm@^11.13.0"}`,
+		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
+		{"packageManager with a comparator range", map[string]string{
+			"package.json": `{"packageManager":"pnpm@>=11"}`,
+		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
+		{"packageManager with a partial version", map[string]string{
+			"package.json": `{"packageManager":"pnpm@11"}`,
 		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
 		// uv does not require committing the lock, and PEP 621 has no uv marker.
 		{"PEP 621 pyproject only", map[string]string{

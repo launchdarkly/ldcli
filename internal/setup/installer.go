@@ -143,7 +143,7 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 	out, err := runner(dir, args)
 	command := strings.Join(args, " ")
 	if err != nil {
-		if reason := versionlessPackageManagerReason(out); reason != "" {
+		if reason := packageManagerSpecReason(out); reason != "" {
 			return &InstallResult{
 				SDKID:         detection.SDKID,
 				Package:       pkg,
@@ -199,18 +199,22 @@ func dotnetProjectArg(dir string) (args []string, reason string) {
 	}
 }
 
-// versionlessPackageManagerReason recognises a Node manager refusing to run because
-// package.json names it without a version. The manifest is malformed rather than
-// the command wrong, and repairing someone's manifest is not ours to do, so say
-// what is wrong and let them fix it.
-func versionlessPackageManagerReason(out []byte) string {
-	if !bytes.Contains(out, []byte(`"packageManager"`)) ||
-		!bytes.Contains(out, []byte("No version specified")) {
+// packageManagerSpecReason recognises a Node manager refusing to run because the
+// packageManager field in package.json is not a spec corepack accepts: it requires
+// an exact version, so both a missing one and a range are rejected. The manifest is
+// malformed rather than the command wrong, and repairing someone's manifest is not
+// ours to do, so say what is wrong and let them fix it.
+func packageManagerSpecReason(out []byte) string {
+	badSpec := bytes.Contains(out, []byte("No version specified")) ||
+		bytes.Contains(out, []byte("expected a semver version")) ||
+		bytes.Contains(out, []byte("Invalid package manager specification"))
+	if !badSpec {
 		return ""
 	}
-	return "the packageManager field in package.json names a package manager without a version, " +
-		"which it refuses to run against. Give it a version (for example \"pnpm@9.1.0\") or remove " +
-		"the field, then run setup again."
+	return "the packageManager field in package.json is not a specification your package " +
+		"manager accepts: it needs one exact version, so a missing version or a range such as " +
+		"\"pnpm@^11.13.0\" is refused. Pin it (for example \"pnpm@11.13.0\") or remove the field, " +
+		"then run setup again."
 }
 
 // externallyManagedReason recognises a PEP 668 refusal and says what to do about

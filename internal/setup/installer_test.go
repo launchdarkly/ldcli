@@ -882,26 +882,32 @@ func TestInstall_PinnedSdkVersion_NoWarning(t *testing.T) {
 	assert.Empty(t, result.Warning)
 }
 
-// A packageManager field naming a manager with no version is malformed, and pnpm
-// refuses to run against it. Repairing someone's manifest is not ours to do, so the
-// failure has to say what is wrong.
-func TestInstall_VersionlessPackageManagerField_ExplainsIt(t *testing.T) {
-	stubVirtualEnv(t, "")
-	stubPath(t, "pnpm")
-	installer := PackageInstaller{
-		run: func(string, []string) ([]byte, error) {
-			return []byte(`No version specified for pnpm in "packageManager" of package.json`),
-				errors.New("exit status 1")
-		},
+// Corepack needs one exact version, so both a missing version and a range stop the
+// manager running. Repairing someone's manifest is not ours to do, so the failure
+// has to say what is wrong.
+func TestInstall_BadPackageManagerSpec_ExplainsIt(t *testing.T) {
+	for _, out := range []string{
+		`No version specified for pnpm in "packageManager" of package.json`,
+		"Invalid package manager specification in package.json (pnpm@^11.13.0); expected a semver version",
+	} {
+		t.Run(out[:24], func(t *testing.T) {
+			stubVirtualEnv(t, "")
+			stubPath(t, "pnpm")
+			installer := PackageInstaller{
+				run: func(string, []string) ([]byte, error) {
+					return []byte(out), errors.New("exit status 1")
+				},
+			}
+
+			result, err := installer.Install(t.TempDir(), &DetectResult{
+				SDKID: "node-server", PackageManager: "pnpm",
+			})
+
+			require.NoError(t, err, "a malformed manifest must not dead-end the flow")
+			assert.True(t, result.Failed)
+			assert.Contains(t, result.FailureReason, "packageManager field")
+			assert.Contains(t, result.FailureReason, "one exact version")
+			assert.Contains(t, result.FailureReason, "pnpm@11.13.0")
+		})
 	}
-
-	result, err := installer.Install(t.TempDir(), &DetectResult{
-		SDKID: "node-server", PackageManager: "pnpm",
-	})
-
-	require.NoError(t, err, "a malformed manifest must not dead-end the flow")
-	assert.True(t, result.Failed)
-	assert.Contains(t, result.FailureReason, "packageManager field")
-	assert.Contains(t, result.FailureReason, "without a version")
-	assert.Contains(t, result.FailureReason, "pnpm@9.1.0")
 }
