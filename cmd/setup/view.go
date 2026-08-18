@@ -87,8 +87,8 @@ func (m wizardModel) View() string {
 			lead = "This file already initializes the LaunchDarkly SDK, so it was left as it is:\n"
 		}
 		return titleStyle.Render("Start your application") + "\n\n" +
-			lead +
-			"  " + m.initResult.FilePath + "\n\n" +
+			m.wrap(lead) +
+			m.wrap("  "+m.initResult.FilePath) + "\n\n" +
 			"Please start your application now, then press Enter to verify the connection.\n"
 
 	case stepVerify:
@@ -333,7 +333,14 @@ func (m wizardModel) planView() string {
 
 	var steps []string
 	add := func(s string) {
-		steps = append(steps, selectedStyle.Render(fmt.Sprintf("%d.", len(steps)+1))+" "+s)
+		marker := selectedStyle.Render(fmt.Sprintf("%d.", len(steps)+1))
+		// Wrap to leave room for the marker and indent what wraps, so a step too long
+		// for the terminal still reads as one numbered item instead of overflowing.
+		lines := strings.Split(wrapText(s, m.width-len("1. ")), "\n")
+		for i := 1; i < len(lines); i++ {
+			lines[i] = strings.Repeat(" ", len("1. ")) + lines[i]
+		}
+		steps = append(steps, marker+" "+strings.Join(lines, "\n"))
 	}
 
 	switch {

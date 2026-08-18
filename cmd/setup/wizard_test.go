@@ -344,8 +344,8 @@ func TestWizard_Plan_ExistingEntryPoint_SaysAdd(t *testing.T) {
 	}
 
 	view := m.planView()
-	assert.Contains(t, view, "Add initialization code to src/index.js")
-	assert.NotContains(t, view, "Create src/index.js")
+	assert.Contains(t, flat(view), "Add initialization code to src/index.js")
+	assert.NotContains(t, flat(view), "Create src/index.js")
 }
 
 // A guessed entry point means we would write a file the project does not load, so
@@ -365,9 +365,9 @@ func TestWizard_Plan_MissingEntryPoint_SaysCreate(t *testing.T) {
 	}
 
 	view := m.planView()
-	assert.Contains(t, view, "Create instrumentation.ts")
-	assert.Contains(t, view, "no entry file found")
-	assert.NotContains(t, view, "Add initialization code to")
+	assert.Contains(t, flat(view), "Create instrumentation.ts")
+	assert.Contains(t, flat(view), "no entry file found")
+	assert.NotContains(t, flat(view), "Add initialization code to")
 }
 
 // The SDK screen rebuilds detectResult, and the plan and install steps read it, so
@@ -582,8 +582,8 @@ func TestWizard_OverrideSDK_DefaultEntryPointAlreadyPresent(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "main.rb"), m.detectResult.EntryPoint)
 	assert.True(t, m.detectResult.EntryPointExists)
 	view := m.View()
-	assert.Contains(t, view, "Add initialization code to")
-	assert.NotContains(t, view, "no entry file found")
+	assert.Contains(t, flat(view), "Add initialization code to")
+	assert.NotContains(t, flat(view), "no entry file found")
 }
 
 func TestWizard_OverrideSDK_DefaultEntryPointMissing(t *testing.T) {
@@ -595,7 +595,7 @@ func TestWizard_OverrideSDK_DefaultEntryPointMissing(t *testing.T) {
 	}, "ruby-server-sdk")
 
 	assert.False(t, m.detectResult.EntryPointExists)
-	assert.Contains(t, m.View(), "no entry file found")
+	assert.Contains(t, flat(m.View()), "no entry file found")
 }
 
 func TestWizard_Done_DeclinedInstall_ShowsReasonWithoutCommand(t *testing.T) {
@@ -1023,6 +1023,10 @@ func TestWizard_Picker_FitsTerminalHeight(t *testing.T) {
 	}
 }
 
+// flat collapses whitespace in a rendered view, so assertions about a phrase hold
+// wherever wrapping happens to fall.
+func flat(view string) string { return strings.Join(strings.Fields(view), " ") }
+
 // terminalRows counts the rows a terminal of the given width would use, so a line
 // wider than the window counts as the several rows it actually occupies.
 func terminalRows(view string, width int) int {
@@ -1035,4 +1039,39 @@ func terminalRows(view string, width int) int {
 		rows++
 	}
 	return rows
+}
+
+// The plan names an absolute entry-point path and explains why it is creating the
+// file, which together run well past a narrow terminal. Overflowing there hides
+// the very warning the step exists to give.
+func TestWizard_Plan_WrapsStepsToTerminalWidth(t *testing.T) {
+	for _, width := range []int{100, 80, 60, 40} {
+		t.Run(fmt.Sprintf("width%d", width), func(t *testing.T) {
+			m := wizardModel{
+				step:            stepPlan,
+				selectedProject: "my-scratch-project",
+				selectedEnv:     "production",
+				detectResult: &setup.DetectResult{
+					SDKID:            "python-server-sdk",
+					EntryPoint:       "/Users/someone/code/launchdarkly/test-app/main.py",
+					EntryPointExists: false,
+				},
+				planInstallCmd: "pip3 install launchdarkly-server-sdk",
+				width:          width,
+				height:         30,
+			}
+
+			view := m.planView()
+
+			for _, line := range strings.Split(view, "\n") {
+				assert.LessOrEqual(t, len([]rune(line)), width,
+					"a plan step overflows a %d-column terminal", width)
+			}
+			// The warning must survive wrapping, not be truncated away.
+			assert.Contains(t, flat(view), "no entry file found")
+			assert.Contains(t, flat(view), "main.py")
+			// Wrapped text is indented under its number so the step still reads as one.
+			assert.Regexp(t, `(?m)^ {3}\S`, view)
+		})
+	}
 }
