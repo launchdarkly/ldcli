@@ -47,7 +47,7 @@ func (m wizardModel) View() string {
 				m.wrap("This access token can't see any projects. Create a project in LaunchDarkly, or use a token with access to one, then run this command again.") + "\n" +
 				quitHint
 		}
-		return m.projectList.View() + "\n" + mutedStyle.Render("q quit")
+		return m.projectList.View()
 
 	case stepSelectEnvironment:
 		if !m.envsLoaded {
@@ -58,7 +58,7 @@ func (m wizardModel) View() string {
 				m.wrap(fmt.Sprintf("Project %q has no environments this access token can see. Press ← to pick another project.", m.selectedProject)) + "\n" +
 				mutedStyle.Render("← back · q quit") + "\n"
 		}
-		return m.envList.View() + "\n" + mutedStyle.Render("← back · q quit")
+		return m.envList.View()
 
 	case stepDetect:
 		return m.spinner.View() + " Detecting project type..."
@@ -196,9 +196,14 @@ func (m wizardModel) sdkBoxWidth() int {
 // the list the whole window pushes the hint — including how to go back — off the
 // bottom of the terminal.
 func (m wizardModel) pmListHeight() int {
-	chrome := 5 // title, blank line, key hint, and the list's own title
+	chrome := 3 // the question, a blank line, and the list's own trailing row
 	if m.pmShowReason() {
-		chrome = 8 // the reason wraps to two lines on a narrow terminal
+		chrome += 3 // the reason, which wraps to two lines when narrow
+	}
+	// The list's help line runs to about seventy columns, so on anything narrower
+	// it wraps and costs a second row.
+	if m.width < 72 {
+		chrome++
 	}
 	h := m.height - chrome
 	if h < 3 {
@@ -221,10 +226,9 @@ func (m wizardModel) packageManagerView() string {
 	if m.pmShowReason() && m.pmChoice != nil && m.pmChoice.Reason != "" {
 		reason = m.wrap(strings.ToUpper(m.pmChoice.Reason[:1])+m.pmChoice.Reason[1:]+".") + "\n\n"
 	}
-	return titleStyle.Render("Which package manager should install the SDK?") + "\n\n" +
+	return titleStyle.Render(m.wrap("Which package manager should install the SDK?")) + "\n\n" +
 		reason +
-		m.pmList.View() + "\n" +
-		mutedStyle.Render("↑/↓ move · enter select · ← back · q quit")
+		m.pmList.View()
 }
 
 // addCodeTo phrases an "add this code" instruction. SDKs that only show a snippet

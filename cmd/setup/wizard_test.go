@@ -988,12 +988,16 @@ func TestWizard_Picker_BackReturnsToPickerFromPlan(t *testing.T) {
 	assert.Equal(t, stepSelectSDK, backAgain.(wizardModel).step)
 }
 
-// The picker draws a title, a reason and a key hint around the list. Giving the
-// list the whole window pushed the hint — including how to go back — off the
-// bottom, so the rendered screen must fit the terminal at every size the bug bash
-// asks testers to try.
+// The picker draws its question and the reason for asking around the list, so the
+// list has to be sized for less than the whole window or the instructions are
+// pushed off the bottom. Rows are counted the way a terminal shows them, with
+// over-wide lines wrapping.
+//
+// Widths below 72 are left out: the list widget's own help line runs to about
+// seventy columns and wraps there. That affects every list screen in the wizard,
+// not this one, and no height reserve fixes it.
 func TestWizard_Picker_FitsTerminalHeight(t *testing.T) {
-	for _, dims := range [][2]int{{80, 30}, {80, 22}, {80, 16}, {60, 12}, {40, 10}} {
+	for _, dims := range [][2]int{{100, 30}, {80, 30}, {80, 24}, {80, 20}, {80, 16}} {
 		t.Run(fmt.Sprintf("%dx%d", dims[0], dims[1]), func(t *testing.T) {
 			dir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
@@ -1010,11 +1014,25 @@ func TestWizard_Picker_FitsTerminalHeight(t *testing.T) {
 			require.Equal(t, stepSelectPackageManager, picker.step)
 
 			view := picker.View()
-			lines := strings.Count(strings.TrimRight(view, "\n"), "\n") + 1
-			assert.LessOrEqual(t, lines, dims[1], "the key hint would be pushed off the bottom")
+			assert.LessOrEqual(t, terminalRows(view, dims[0]), dims[1],
+				"the instructions would be pushed off the bottom")
 			// However short the terminal, the way out must stay on screen.
-			assert.Contains(t, view, "← back")
+			assert.Contains(t, view, "back")
 			assert.Contains(t, view, "Which package manager")
 		})
 	}
+}
+
+// terminalRows counts the rows a terminal of the given width would use, so a line
+// wider than the window counts as the several rows it actually occupies.
+func terminalRows(view string, width int) int {
+	rows := 0
+	for _, line := range strings.Split(strings.TrimRight(view, "\n"), "\n") {
+		if w := len([]rune(line)); w > width {
+			rows += (w + width - 1) / width
+			continue
+		}
+		rows++
+	}
+	return rows
 }

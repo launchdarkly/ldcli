@@ -82,6 +82,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectList.Title = "Select a project:"
 		m.projectList.SetShowStatusBar(false)
 		keepEscFromQuitting(&m.projectList)
+		m.projectList.AdditionalShortHelpKeys = listHints(false)
 		return m, nil
 
 	case envsFetchedMsg:
@@ -99,6 +100,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.envList.Title = "Select an environment:"
 		m.envList.SetShowStatusBar(false)
 		keepEscFromQuitting(&m.envList)
+		m.envList.AdditionalShortHelpKeys = listHints(true)
 		return m, nil
 
 	case envDetailsFetchedMsg:
@@ -261,6 +263,21 @@ func (m *wizardModel) enterSDKStep() {
 	m.step = stepSelectSDK
 }
 
+// listHints adds the wizard's own bindings to a list's help line. Screens showed
+// the list's help and a footer of ours, so every instruction appeared twice; the
+// list's help is the one place they belong.
+func listHints(back bool) func() []key.Binding {
+	return func() []key.Binding {
+		hints := []key.Binding{
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
+		}
+		if back {
+			hints = append(hints, key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "back")))
+		}
+		return hints
+	}
+}
+
 // enterPackageManagerStep builds the picker from the ambiguous verdict. Installed
 // managers are listed first and the cursor starts on one, but an uninstalled
 // manager stays selectable: the choice is the user's, and setup warns at install
@@ -281,9 +298,7 @@ func (m *wizardModel) enterPackageManagerStep() {
 	m.pmList = list.New(items, list.NewDefaultDelegate(), m.sdkBoxWidth(), m.pmListHeight())
 	m.pmList.Title = "Select a package manager:"
 	m.pmList.SetShowStatusBar(false)
-	// The screen prints its own key hint, so the list's help would repeat it while
-	// taking rows the hint needs.
-	m.pmList.SetShowHelp(false)
+	m.pmList.AdditionalShortHelpKeys = listHints(true)
 	m.pmListBuilt = true
 	m.step = stepSelectPackageManager
 }
