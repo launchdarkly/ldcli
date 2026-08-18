@@ -100,6 +100,32 @@ func forceTTYDefaultOutput(getenv func(string) string) bool {
 	return lookup("FORCE_TTY") != "" || lookup("LD_FORCE_TTY") != ""
 }
 
+// authExemptCommands are commands (and their subcommands) that don't call the
+// LaunchDarkly API and so don't require --access-token.
+var authExemptCommands = map[string]bool{
+	"completion": true,
+	"config":     true,
+	"help":       true,
+	"login":      true,
+	"signup":     true,
+	"whoami":     true,
+}
+
+// clearAccessTokenRequirement drops the "required" annotation on --access-token
+// for auth-exempt commands, so cobra's required-flag check doesn't reject them.
+// We clear the annotation rather than setting DisableFlagParsing, which would
+// also suppress validation of the subcommand's own required flags.
+func clearAccessTokenRequirement(cmd *cobra.Command) {
+	for c := cmd; c != nil; c = c.Parent() {
+		if authExemptCommands[c.Name()] {
+			if f := cmd.Flags().Lookup(cliflags.AccessTokenFlag); f != nil {
+				delete(f.Annotations, cobra.BashCompOneRequiredFlag)
+			}
+			return
+		}
+	}
+}
+
 // NewRootCommand constructs the ldcli root command tree.
 //
 // isTerminal must be non-nil; it should reflect whether stdout is a TTY (see Execute). When it
@@ -126,23 +152,7 @@ func NewRootCommand(
 		Long:    "LaunchDarkly CLI to control your feature flags",
 		Version: version,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// disable required flags when running certain commands
-			for _, name := range []string{
-				"completion",
-				"config",
-				"help",
-				"login",
-				"signup",
-				"whoami",
-			} {
-				if cmd.HasParent() && cmd.Parent().Name() == name {
-					cmd.DisableFlagParsing = true
-				}
-				if cmd.Name() == name {
-					cmd.DisableFlagParsing = true
-				}
-			}
-
+			clearAccessTokenRequirement(cmd)
 		},
 		Annotations: make(map[string]string),
 		// Handle errors differently based on type.
