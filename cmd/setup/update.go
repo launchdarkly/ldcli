@@ -30,7 +30,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sdkList.SetSize(m.sdkBoxWidth()-2, m.sdkList.Height())
 		}
 		if m.pmListBuilt {
-			m.pmList.SetSize(m.sdkBoxWidth(), m.listHeight())
+			m.pmList.SetSize(m.sdkBoxWidth(), m.pmListHeight())
 		}
 
 	case tea.KeyMsg:
@@ -278,9 +278,12 @@ func (m *wizardModel) enterPackageManagerStep() {
 	}
 	items := append(installed, missing...)
 
-	m.pmList = list.New(items, list.NewDefaultDelegate(), m.sdkBoxWidth(), m.listHeight())
+	m.pmList = list.New(items, list.NewDefaultDelegate(), m.sdkBoxWidth(), m.pmListHeight())
 	m.pmList.Title = "Select a package manager:"
 	m.pmList.SetShowStatusBar(false)
+	// The screen prints its own key hint, so the list's help would repeat it while
+	// taking rows the hint needs.
+	m.pmList.SetShowHelp(false)
 	m.pmListBuilt = true
 	m.step = stepSelectPackageManager
 }

@@ -1,8 +1,10 @@
 package setup
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -984,4 +986,35 @@ func TestWizard_Picker_BackReturnsToPickerFromPlan(t *testing.T) {
 
 	backAgain, _ := back.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyLeft})
 	assert.Equal(t, stepSelectSDK, backAgain.(wizardModel).step)
+}
+
+// The picker draws a title, a reason and a key hint around the list. Giving the
+// list the whole window pushed the hint — including how to go back — off the
+// bottom, so the rendered screen must fit the terminal at every size the bug bash
+// asks testers to try.
+func TestWizard_Picker_FitsTerminalHeight(t *testing.T) {
+	for _, dims := range [][2]int{{80, 30}, {80, 22}, {80, 16}, {60, 12}, {40, 10}} {
+		t.Run(fmt.Sprintf("%dx%d", dims[0], dims[1]), func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "yarn.lock"), []byte(""), 0600))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0600))
+			chdir(t, dir)
+
+			m := wizardModel{step: stepDetect, width: dims[0], height: dims[1]}
+			next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+				SDKID: "node-server", Language: "JavaScript",
+			}})
+			next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+			picker := next2.(wizardModel)
+			require.Equal(t, stepSelectPackageManager, picker.step)
+
+			view := picker.View()
+			lines := strings.Count(strings.TrimRight(view, "\n"), "\n") + 1
+			assert.LessOrEqual(t, lines, dims[1], "the key hint would be pushed off the bottom")
+			// However short the terminal, the way out must stay on screen.
+			assert.Contains(t, view, "← back")
+			assert.Contains(t, view, "Which package manager")
+		})
+	}
 }

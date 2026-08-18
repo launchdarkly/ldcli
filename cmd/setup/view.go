@@ -191,13 +191,34 @@ func (m wizardModel) sdkBoxWidth() int {
 	return w
 }
 
+// pmListHeight is the height available to the package-manager list. The screen
+// draws a title, the reason it is asking and a key hint around the list, so giving
+// the list the whole window pushes the hint — including how to go back — off the
+// bottom of the terminal.
+func (m wizardModel) pmListHeight() int {
+	chrome := 5 // title, blank line, key hint, and the list's own title
+	if m.pmShowReason() {
+		chrome = 8 // the reason wraps to two lines on a narrow terminal
+	}
+	h := m.height - chrome
+	if h < 3 {
+		h = 3
+	}
+	return h
+}
+
+// pmShowReason reports whether there is room to explain why we are asking. On a
+// very short terminal the question and the choices have to win: dropping the
+// explanation is better than pushing the key hint off the bottom.
+func (m wizardModel) pmShowReason() bool { return m.height >= 14 }
+
 // packageManagerView asks which package manager to use. It says why it is asking:
 // a wizard that stops to ask without explaining itself reads as one that failed to
 // look, and the reason is also what tells the user whether our reading of their
 // project is wrong.
 func (m wizardModel) packageManagerView() string {
 	reason := ""
-	if m.pmChoice != nil && m.pmChoice.Reason != "" {
+	if m.pmShowReason() && m.pmChoice != nil && m.pmChoice.Reason != "" {
 		reason = m.wrap(strings.ToUpper(m.pmChoice.Reason[:1])+m.pmChoice.Reason[1:]+".") + "\n\n"
 	}
 	return titleStyle.Render("Which package manager should install the SDK?") + "\n\n" +
