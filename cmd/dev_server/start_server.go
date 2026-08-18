@@ -46,6 +46,9 @@ func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 	cmd.Flags().Bool(cliflags.SyncOnceFlag, false, cliflags.SyncOnceFlagDescription)
 	_ = viper.BindPFlag(cliflags.SyncOnceFlag, cmd.Flags().Lookup(cliflags.SyncOnceFlag))
 
+	cmd.Flags().Bool(StreamFlagStartupFlag, false, StreamFlagStartupDescription)
+	_ = viper.BindPFlag(StreamFlagStartupFlag, cmd.Flags().Lookup(StreamFlagStartupFlag))
+
 	return cmd
 }
 
@@ -91,6 +94,7 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 			Port:                   viper.GetString(cliflags.PortFlag),
 			CorsEnabled:            viper.GetBool(cliflags.CorsEnabledFlag),
 			CorsOrigin:             viper.GetString(cliflags.CorsOriginFlag),
+			StreamFlagStartup:      viper.GetBool(StreamFlagStartupFlag),
 			InitialProjectSettings: initialSetting,
 		}
 

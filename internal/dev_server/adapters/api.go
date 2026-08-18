@@ -47,7 +47,7 @@ func (a apiClientApi) GetSdkKey(ctx context.Context, projectKey, environmentKey 
 
 func (a apiClientApi) GetAllFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error) {
 	log.Printf("Fetching all flags for project '%s'", projectKey)
-	flags, err := a.getFlags(ctx, projectKey, nil)
+	flags, err := a.getFlags(ctx, projectKey)
 	if err != nil {
 		err = errors.Wrap(err, "unable to get all flags from LD API")
 	}
@@ -63,21 +63,28 @@ func (a apiClientApi) GetProjectEnvironments(ctx context.Context, projectKey str
 	return environments, err
 }
 
-func (a apiClientApi) getFlags(ctx context.Context, projectKey string, href *string) ([]ldapi.FeatureFlag, error) {
-	return internal.GetPaginatedItems(ctx, projectKey, href, func(ctx context.Context, projectKey string, limit, offset *int64) (flags *ldapi.FeatureFlags, err error) {
-		// loop until we do not get rate limited
-		query := a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).Limit(100)
-		query = query.Filter("purpose:all+!(holdout)")
+const (
+	flagsPageSize    = 100
+	flagsConcurrency = 6
+)
 
-		if limit != nil {
-			query = query.Limit(*limit)
-		}
-
-		if offset != nil {
-			query = query.Offset(*offset)
-		}
-		return internal.Retry429s(query.Execute)
+// getFlags pages the flags list concurrently (see internal.FetchPagesConcurrently).
+func (a apiClientApi) getFlags(ctx context.Context, projectKey string) ([]ldapi.FeatureFlag, error) {
+	return internal.FetchPagesConcurrently(flagsPageSize, flagsConcurrency, func(offset int64) ([]ldapi.FeatureFlag, error) {
+		return a.getFlagsPage(ctx, projectKey, offset)
 	})
+}
+
+func (a apiClientApi) getFlagsPage(ctx context.Context, projectKey string, offset int64) ([]ldapi.FeatureFlag, error) {
+	query := a.apiClient.FeatureFlagsApi.GetFeatureFlags(ctx, projectKey).
+		Filter("purpose:all+!(holdout)").
+		Limit(flagsPageSize).
+		Offset(offset)
+	flags, err := internal.Retry429s(query.Execute)
+	if err != nil {
+		return nil, err
+	}
+	return flags.Items, nil
 }
 
 func (a apiClientApi) getEnvironments(ctx context.Context, projectKey string, href *string, query string, limit *int) ([]ldapi.Environment, error) {
