@@ -368,11 +368,13 @@ func (m wizardModel) handleEnter() (tea.Model, tea.Cmd) {
 			}
 		}
 		m.detectResult = &result
-		// Compute the plan preview shown before any action is taken.
-		args, _ := setup.InstallArgs(chosen.id, result.PackageManager)
+		// Compute the plan preview shown before any action is taken. It is resolved
+		// against the project directory so the previewed command is the one that runs.
+		planDir, _ := os.Getwd()
+		args, _ := setup.InstallArgs(planDir, chosen.id, result.PackageManager)
 		m.planInstallCmd = strings.Join(args, " ")
-		if dir, err := os.Getwd(); err == nil {
-			m.planAlready = setup.IsInstalled(dir, chosen.id)
+		if planDir != "" {
+			m.planAlready = setup.IsInstalled(planDir, chosen.id)
 		}
 		m.step = stepPlan
 		return m, nil

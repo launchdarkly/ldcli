@@ -55,7 +55,7 @@ func runInstall(svc setup.Service) func(*cobra.Command, []string) error {
 
 		var result *setup.InstallResult
 		if dryRun {
-			args, pkg := setup.InstallArgs(sdkID, pkgMgr)
+			args, pkg := setup.InstallArgs(dir, sdkID, pkgMgr)
 			result = &setup.InstallResult{
 				SDKID:   sdkID,
 				Package: pkg,

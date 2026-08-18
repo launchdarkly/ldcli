@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -72,7 +73,7 @@ var manualInstallSDKs = map[string]bool{
 // returns a result with Success=false without returning an error. An unknown SDK
 // ID returns an error.
 func (p PackageInstaller) Install(dir string, detection *DetectResult) (*InstallResult, error) {
-	args, pkg := InstallArgs(detection.SDKID, detection.PackageManager)
+	args, pkg := InstallArgs(dir, detection.SDKID, detection.PackageManager)
 	if len(args) == 0 {
 		if !manualInstallSDKs[detection.SDKID] {
 			return nil, fmt.Errorf("unknown SDK %q: no install command available; specify a supported --sdk-id", detection.SDKID)
@@ -127,6 +128,15 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 	out, err := runner(dir, args)
 	command := strings.Join(args, " ")
 	if err != nil {
+		if reason := externallyManagedReason(dir, out); reason != "" {
+			return &InstallResult{
+				SDKID:         detection.SDKID,
+				Package:       pkg,
+				Command:       command,
+				Failed:        true,
+				FailureReason: reason,
+			}, nil
+		}
 		return nil, fmt.Errorf("%s: %w\n%s", command, err, strings.TrimSpace(string(out)))
 	}
 	return &InstallResult{
@@ -163,6 +173,30 @@ func dotnetProjectArg(dir string) (args []string, reason string) {
 	}
 }
 
+// externallyManagedReason recognises a PEP 668 refusal and says what to do about
+// it. Homebrew and most current Linux distributions mark their Python as managed
+// by the OS package manager, so pip declines to write into it. A virtualenv is the
+// supported way through, and it is the user's to create: installing into their
+// system Python, or passing --break-system-packages to force it, risks breaking
+// tools that Python came with.
+func externallyManagedReason(dir string, out []byte) string {
+	if !bytes.Contains(out, []byte("externally-managed-environment")) {
+		return ""
+	}
+	target := dir
+	if target == "" {
+		target = "your project"
+	}
+	return fmt.Sprintf(
+		"this Python is managed by your operating system, so pip will not install into it. "+
+			"Create a virtual environment in %s and run setup again:\n"+
+			"  python3 -m venv .venv\n"+
+			"  source .venv/bin/activate\n"+
+			"Setup uses .venv automatically once it exists.",
+		target,
+	)
+}
+
 // installHints maps a package-manager executable to how the user can get it.
 var installHints = map[string]string{
 	"pip":    "install Python from https://www.python.org/downloads or your package manager",
@@ -192,7 +226,6 @@ func missingToolReason(tool string) string {
 	return fmt.Sprintf("%s is not installed or not on your PATH", tool)
 }
 
-
 func execRun(dir string, args []string) ([]byte, error) {
 	cmd := exec.Command(args[0], args[1:]...) //nolint:gosec
 	cmd.Dir = dir
@@ -202,7 +235,9 @@ func execRun(dir string, args []string) ([]byte, error) {
 // InstallArgs returns the command-line arguments and package name for installing the given SDK.
 // Returns nil args for SDKs that require manual installation (e.g. Java, Android, Swift).
 // packageManager is used for Node.js SDKs; for other runtimes the appropriate tool is chosen automatically.
-func InstallArgs(sdkID, packageManager string) (args []string, pkg string) {
+// dir is the project directory, which decides whether a virtualenv's pip is used;
+// pass an empty string when there is no project in mind.
+func InstallArgs(dir, sdkID, packageManager string) (args []string, pkg string) {
 	switch sdkID {
 	case "react-client-sdk":
 		pkg = "launchdarkly-react-client-sdk"
@@ -221,7 +256,7 @@ func InstallArgs(sdkID, packageManager string) (args []string, pkg string) {
 		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
 	case "python-server-sdk":
 		pkg = "launchdarkly-server-sdk"
-		return pythonInstallCmd(packageManager, pkg), pkg
+		return pythonInstallCmd(dir, packageManager, pkg), pkg
 	case "go-server-sdk":
 		pkg = "github.com/launchdarkly/go-server-sdk/v7"
 		return []string{"go", "get", pkg}, pkg
@@ -261,7 +296,7 @@ func onPath(name string) bool {
 // pythonInstallCmd returns the install command arguments for a Python package
 // manager. Anything unrecognised — including the empty string, which IsInstalled
 // passes — falls back to pip.
-func pythonInstallCmd(pm, pkg string) []string {
+func pythonInstallCmd(dir, pm, pkg string) []string {
 	switch pm {
 	case "poetry":
 		return []string{"poetry", "add", pkg}
@@ -270,20 +305,52 @@ func pythonInstallCmd(pm, pkg string) []string {
 	case "pipenv":
 		return []string{"pipenv", "install", pkg}
 	default:
-		return pipInstallCmd(pkg)
+		return pipInstallCmd(dir, pkg)
 	}
 }
 
-// pipInstallCmd returns the pip install command, choosing whichever of pip3 and
-// pip is on PATH. Recent macOS and Homebrew installs ship pip3 with no bare pip,
-// so a hardcoded `pip` fails outright on a common developer box.
+// virtualEnv reports the active virtualenv, indirected so tests are not affected
+// by the environment the suite happens to run in.
+var virtualEnv = func() string { return os.Getenv("VIRTUAL_ENV") }
+
+// venvPip returns the pip belonging to the active virtualenv, or to one sitting in
+// the project, and an empty string when there is none. A virtualenv is where a
+// project's dependencies belong, and it is the only place pip can write on a
+// PEP 668 interpreter, so it is preferred over whatever pip is on PATH.
+func venvPip(dir string) string {
+	var roots []string
+	if active := virtualEnv(); active != "" {
+		roots = append(roots, active)
+	}
+	// An empty dir means the caller has no project in mind, so relative lookups
+	// would search whatever directory the process happens to be in.
+	if dir != "" {
+		roots = append(roots, filepath.Join(dir, ".venv"), filepath.Join(dir, "venv"))
+	}
+	for _, root := range roots {
+		for _, rel := range []string{filepath.Join("bin", "pip"), filepath.Join("Scripts", "pip.exe")} {
+			candidate := filepath.Join(root, rel)
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+				return candidate
+			}
+		}
+	}
+	return ""
+}
+
+// pipInstallCmd returns the pip install command. A virtualenv's pip wins, then
+// whichever of pip3 and pip is on PATH: recent macOS and Homebrew installs ship
+// pip3 with no bare pip, so a hardcoded `pip` fails outright on a common box.
 //
 // Only an existing pip is used. Reaching past it — to `python3 -m pip`, or to
 // bootstrapping pip with ensurepip — would install tooling onto the user's
 // machine, which is not ours to do. When no pip is found the bare form is
 // returned so the plan screen has something to show, and Install's pre-flight
 // check warns instead of running anything.
-func pipInstallCmd(pkg string) []string {
+func pipInstallCmd(dir, pkg string) []string {
+	if pip := venvPip(dir); pip != "" {
+		return []string{pip, "install", pkg}
+	}
 	for _, bin := range []string{"pip3", "pip"} {
 		if onPath(bin) {
 			return []string{bin, "install", pkg}
@@ -321,7 +388,7 @@ func resolveNodePM(pm string) string {
 // covers SDKs with an automated install command; returns false for manual SDKs
 // and unknowns.
 func IsInstalled(dir, sdkID string) bool {
-	_, pkg := InstallArgs(sdkID, "")
+	_, pkg := InstallArgs(dir, sdkID, "")
 	if pkg == "" {
 		return false
 	}

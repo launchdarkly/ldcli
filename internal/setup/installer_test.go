@@ -36,7 +36,7 @@ func TestInstallArgs_NodeSDKs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.sdkID+"/"+tt.pm, func(t *testing.T) {
-			args, pkg := InstallArgs(tt.sdkID, tt.pm)
+			args, pkg := InstallArgs("", tt.sdkID, tt.pm)
 			require.NotEmpty(t, args)
 			assert.Equal(t, tt.wantCmd, args[0])
 			assert.Equal(t, tt.wantPkg, pkg)
@@ -80,7 +80,7 @@ func TestInstallArgs_Python(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.packageManager, func(t *testing.T) {
 			stubPath(t, "pip", "poetry", "uv", "pipenv")
-			args, pkg := InstallArgs("python-server-sdk", tt.packageManager)
+			args, pkg := InstallArgs("", "python-server-sdk", tt.packageManager)
 			assert.Equal(t, tt.want, args)
 			assert.Equal(t, "launchdarkly-server-sdk", pkg)
 		})
@@ -107,7 +107,7 @@ func TestInstallArgs_Python_ResolvesAvailableTool(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stubPath(t, tt.available...)
-			args, _ := InstallArgs("python-server-sdk", "")
+			args, _ := InstallArgs("", "python-server-sdk", "")
 			assert.Equal(t, tt.want, args)
 		})
 	}
@@ -186,7 +186,7 @@ func TestInstall_PresentToolRuns(t *testing.T) {
 }
 
 func TestInstallArgs_Go(t *testing.T) {
-	args, pkg := InstallArgs("go-server-sdk", "")
+	args, pkg := InstallArgs("", "go-server-sdk", "")
 	require.NotEmpty(t, args)
 	assert.Equal(t, "go", args[0])
 	assert.Equal(t, "get", args[1])
@@ -194,7 +194,7 @@ func TestInstallArgs_Go(t *testing.T) {
 }
 
 func TestInstallArgs_Ruby(t *testing.T) {
-	args, pkg := InstallArgs("ruby-server-sdk", "")
+	args, pkg := InstallArgs("", "ruby-server-sdk", "")
 	require.NotEmpty(t, args)
 	assert.Equal(t, "gem", args[0])
 	assert.Equal(t, "launchdarkly-server-sdk", pkg)
@@ -203,14 +203,14 @@ func TestInstallArgs_Ruby(t *testing.T) {
 // A Gemfile means Bundler owns the project's gems, so the SDK must be added to the
 // Gemfile; `gem install` would leave the app unable to require it under bundler.
 func TestInstallArgs_Ruby_Bundler(t *testing.T) {
-	args, pkg := InstallArgs("ruby-server-sdk", "bundle")
+	args, pkg := InstallArgs("", "ruby-server-sdk", "bundle")
 	assert.Equal(t, []string{"bundle", "add", "launchdarkly-server-sdk"}, args)
 	assert.Equal(t, "launchdarkly-server-sdk", pkg)
 }
 
 func TestInstallArgs_Android_BothSpellings(t *testing.T) {
 	for _, id := range []string{"android", "android-client-sdk"} {
-		args, pkg := InstallArgs(id, "gradle")
+		args, pkg := InstallArgs("", id, "gradle")
 		assert.Nil(t, args, "Android has no automated install command")
 		assert.Equal(t, "com.launchdarkly:launchdarkly-android-client-sdk", pkg)
 		assert.True(t, RequiresManualInstall(id))
@@ -218,7 +218,7 @@ func TestInstallArgs_Android_BothSpellings(t *testing.T) {
 }
 
 func TestInstallArgs_Dotnet(t *testing.T) {
-	args, pkg := InstallArgs("dotnet-server-sdk", "")
+	args, pkg := InstallArgs("", "dotnet-server-sdk", "")
 	require.NotEmpty(t, args)
 	assert.Equal(t, "dotnet", args[0])
 	assert.Equal(t, "LaunchDarkly.ServerSdk", pkg)
@@ -238,7 +238,7 @@ func TestInstallArgs_ManualSDKs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.sdkID, func(t *testing.T) {
-			args, pkg := InstallArgs(tt.sdkID, "")
+			args, pkg := InstallArgs("", tt.sdkID, "")
 			assert.Nil(t, args, "expected nil args for manual SDK %s", tt.sdkID)
 			assert.Equal(t, tt.wantPkg, pkg)
 		})
@@ -512,7 +512,7 @@ func TestInstallArgs_PackageMatchesTemplateImport(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.sdkID, func(t *testing.T) {
-			_, pkg := InstallArgs(tt.sdkID, "npm")
+			_, pkg := InstallArgs("", tt.sdkID, "npm")
 			assert.Equal(t, tt.wantImport, pkg)
 
 			rendered, err := RenderTemplate(tt.sdkID, InitConfig{})
@@ -526,4 +526,110 @@ func TestInstallArgs_PackageMatchesTemplateImport(t *testing.T) {
 				"ESM template must import the package we install")
 		})
 	}
+}
+
+// stubVirtualEnv controls what looks like an active virtualenv, so the suite is not
+// affected by the environment it happens to run in.
+func stubVirtualEnv(t *testing.T, dir string) {
+	t.Helper()
+	original := virtualEnv
+	virtualEnv = func() string { return dir }
+	t.Cleanup(func() { virtualEnv = original })
+}
+
+// fakeVenv creates the pip executable a virtualenv would have.
+func fakeVenv(t *testing.T, root string) string {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin"), 0755))
+	pip := filepath.Join(root, "bin", "pip")
+	require.NoError(t, os.WriteFile(pip, []byte("#!/bin/sh\n"), 0700))
+	return pip
+}
+
+// A virtualenv is where a project's dependencies belong, and on a PEP 668
+// interpreter it is the only place pip can write at all.
+func TestInstallArgs_Python_PrefersProjectVirtualenv(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3") // a system pip exists and must still lose
+	dir := t.TempDir()
+	pip := fakeVenv(t, filepath.Join(dir, ".venv"))
+
+	args, _ := InstallArgs(dir, "python-server-sdk", "")
+
+	assert.Equal(t, []string{pip, "install", "launchdarkly-server-sdk"}, args)
+}
+
+func TestInstallArgs_Python_AcceptsVenvDirectoryName(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t)
+	dir := t.TempDir()
+	pip := fakeVenv(t, filepath.Join(dir, "venv"))
+
+	args, _ := InstallArgs(dir, "python-server-sdk", "")
+
+	assert.Equal(t, []string{pip, "install", "launchdarkly-server-sdk"}, args)
+}
+
+func TestInstallArgs_Python_PrefersActiveVirtualenvOverProjectOne(t *testing.T) {
+	stubPath(t, "pip3")
+	active := t.TempDir()
+	activePip := fakeVenv(t, active)
+	stubVirtualEnv(t, active)
+	project := t.TempDir()
+	fakeVenv(t, filepath.Join(project, ".venv"))
+
+	args, _ := InstallArgs(project, "python-server-sdk", "")
+
+	assert.Equal(t, activePip, args[0], "the environment the user activated wins")
+}
+
+// Without a project directory there is nothing to search, and a relative lookup
+// would reach into whatever directory the process happens to be in.
+func TestInstallArgs_Python_NoDirDoesNotSearchRelatively(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+
+	args, _ := InstallArgs("", "python-server-sdk", "")
+
+	assert.Equal(t, []string{"pip3", "install", "launchdarkly-server-sdk"}, args)
+}
+
+// PEP 668: Homebrew and most current distros mark their Python as OS-managed, and
+// pip refuses to write into it. The raw refusal tells the user nothing actionable.
+func TestInstall_ExternallyManagedEnvironment_ExplainsVirtualenv(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	dir := t.TempDir()
+	installer := PackageInstaller{
+		run: func(string, []string) ([]byte, error) {
+			return []byte("error: externally-managed-environment\n\n× This environment is externally managed"),
+				errors.New("exit status 1")
+		},
+	}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err, "a recoverable refusal must not dead-end the flow")
+	assert.True(t, result.Failed)
+	assert.Contains(t, result.FailureReason, "managed by your operating system")
+	assert.Contains(t, result.FailureReason, "python3 -m venv .venv")
+	assert.Contains(t, result.FailureReason, dir)
+	// Forcing past the refusal would risk breaking the OS's own Python.
+	assert.NotContains(t, result.FailureReason, "break-system-packages")
+}
+
+// Any other install failure keeps its existing error path.
+func TestInstall_OtherFailuresStillError(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "npm")
+	installer := PackageInstaller{
+		run: func(string, []string) ([]byte, error) {
+			return []byte("npm ERR! network timeout"), errors.New("exit status 1")
+		},
+	}
+
+	_, err := installer.Install(t.TempDir(), &DetectResult{SDKID: "node-server", PackageManager: "npm"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "network timeout")
 }
