@@ -881,3 +881,27 @@ func TestInstall_PinnedSdkVersion_NoWarning(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result.Warning)
 }
+
+// A packageManager field naming a manager with no version is malformed, and pnpm
+// refuses to run against it. Repairing someone's manifest is not ours to do, so the
+// failure has to say what is wrong.
+func TestInstall_VersionlessPackageManagerField_ExplainsIt(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pnpm")
+	installer := PackageInstaller{
+		run: func(string, []string) ([]byte, error) {
+			return []byte(`No version specified for pnpm in "packageManager" of package.json`),
+				errors.New("exit status 1")
+		},
+	}
+
+	result, err := installer.Install(t.TempDir(), &DetectResult{
+		SDKID: "node-server", PackageManager: "pnpm",
+	})
+
+	require.NoError(t, err, "a malformed manifest must not dead-end the flow")
+	assert.True(t, result.Failed)
+	assert.Contains(t, result.FailureReason, "packageManager field")
+	assert.Contains(t, result.FailureReason, "without a version")
+	assert.Contains(t, result.FailureReason, "pnpm@9.1.0")
+}

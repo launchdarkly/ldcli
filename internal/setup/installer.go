@@ -143,6 +143,15 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 	out, err := runner(dir, args)
 	command := strings.Join(args, " ")
 	if err != nil {
+		if reason := versionlessPackageManagerReason(out); reason != "" {
+			return &InstallResult{
+				SDKID:         detection.SDKID,
+				Package:       pkg,
+				Command:       command,
+				Failed:        true,
+				FailureReason: reason,
+			}, nil
+		}
 		if reason := externallyManagedReason(dir, out); reason != "" {
 			// No Command: the reason says not to run this pip, and the done screen
 			// offers a non-empty Command as "install it yourself with".
@@ -188,6 +197,20 @@ func dotnetProjectArg(dir string) (args []string, reason string) {
 		// assembly, so let the user say which.
 		return nil, fmt.Sprintf("found %d projects in this solution; run `dotnet add package LaunchDarkly.ServerSdk --project <path>` for the one that needs the SDK", len(projects))
 	}
+}
+
+// versionlessPackageManagerReason recognises a Node manager refusing to run because
+// package.json names it without a version. The manifest is malformed rather than
+// the command wrong, and repairing someone's manifest is not ours to do, so say
+// what is wrong and let them fix it.
+func versionlessPackageManagerReason(out []byte) string {
+	if !bytes.Contains(out, []byte(`"packageManager"`)) ||
+		!bytes.Contains(out, []byte("No version specified")) {
+		return ""
+	}
+	return "the packageManager field in package.json names a package manager without a version, " +
+		"which it refuses to run against. Give it a version (for example \"pnpm@9.1.0\") or remove " +
+		"the field, then run setup again."
 }
 
 // externallyManagedReason recognises a PEP 668 refusal and says what to do about

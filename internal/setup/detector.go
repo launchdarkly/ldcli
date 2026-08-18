@@ -217,9 +217,15 @@ func corepackPM(dir string) string {
 	if json.Unmarshal(b, &pkg) != nil {
 		return ""
 	}
-	// The field is "<name>@<version>", and the version is required by corepack but
-	// often omitted by hand-edited manifests.
-	name, _, _ := strings.Cut(pkg.PackageManager, "@")
+	// The field must be "<name>@<version>". A hand-edited manifest that names the
+	// manager with no version is not a declaration we can act on: pnpm refuses to
+	// run at all against it ("No version specified for pnpm in packageManager"), so
+	// treating it as definite would route the user into a command that cannot work.
+	// Without a usable field the project's lockfiles decide, or the user is asked.
+	name, version, _ := strings.Cut(pkg.PackageManager, "@")
+	if version == "" {
+		return ""
+	}
 	switch name {
 	case "npm", "yarn", "pnpm", "bun":
 		return name
