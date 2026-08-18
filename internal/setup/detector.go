@@ -299,6 +299,7 @@ func pythonPMSignals(dir string) pmSignals {
 	for _, lock := range []struct{ file, pm string }{
 		{"uv.lock", "uv"},
 		{"poetry.lock", "poetry"},
+		{"pdm.lock", "pdm"},
 		{"Pipfile.lock", "pipenv"},
 		{"Pipfile", "pipenv"},
 	} {
@@ -307,21 +308,31 @@ func pythonPMSignals(dir string) pmSignals {
 		}
 	}
 	if b, err := os.ReadFile(filepath.Join(dir, "pyproject.toml")); err == nil {
-		for _, section := range []struct{ marker, pm string }{
-			{"[tool.poetry]", "poetry"},
-			{"[tool.uv]", "uv"},
-			{"[tool.pdm]", "pdm"},
+		for _, section := range []struct{ tool, pm string }{
+			{"poetry", "poetry"},
+			{"uv", "uv"},
+			{"pdm", "pdm"},
 			// hatch has no dependency-add command, so it is a signal we cannot act
 			// on. Recording it keeps the project ambiguous instead of silently
 			// falling through to pip.
-			{"[tool.hatch]", ""},
+			{"hatch", ""},
 		} {
-			if bytes.Contains(b, []byte(section.marker)) {
+			if hasToolSection(b, section.tool) {
 				s.addLocked(section.pm)
 			}
 		}
 	}
 	return s
+}
+
+// hasToolSection reports whether pyproject declares a [tool.<name>] table. Nested
+// tables count: real configs are usually only [tool.hatch.build] or
+// [tool.poetry.dependencies], with no bare header to match. The trailing "]" or "."
+// is required so [tool.uv] does not match [tool.uvicorn].
+func hasToolSection(pyproject []byte, name string) bool {
+	prefix := "[tool." + name
+	return bytes.Contains(pyproject, []byte(prefix+"]")) ||
+		bytes.Contains(pyproject, []byte(prefix+"."))
 }
 
 func detectRuby(dir string) *DetectResult {
@@ -750,7 +761,10 @@ func (s pmSignals) choose(options []string, fallback string, argvFor func(string
 	switch {
 	case s.declared != "":
 		return PMChoice{Name: s.declared, Confidence: PMDefinite}
-	case len(s.locked) == 1 && !s.unactionable:
+	// A manager the project committed to settles it even when an unactionable tool
+	// is also configured: hatchling is a common build backend for uv and poetry
+	// projects, and uv can add the dependency regardless of who builds the wheel.
+	case len(s.locked) == 1:
 		return PMChoice{Name: s.locked[0], Confidence: PMDefinite}
 	case len(s.locked) > 1:
 		return PMChoice{

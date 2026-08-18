@@ -984,3 +984,84 @@ func TestPackageManagerChoice_SingleToolchainsAreAlwaysDefinite(t *testing.T) {
 		})
 	}
 }
+
+// Real pyproject files rarely carry a bare [tool.x] header; the tables that matter
+// are nested. Matching only the bare header made these signals near-dead.
+func TestPackageManagerChoice_NestedToolTables(t *testing.T) {
+	tests := []struct {
+		name         string
+		pyproject    string
+		wantName     string
+		wantDefinite bool
+	}{
+		{"hatch build table only", "[project]\nname=\"a\"\n[tool.hatch.build.targets.wheel]\npackages=[\"a\"]\n", "pip", false},
+		{"hatch version table only", "[project]\nname=\"a\"\n[tool.hatch.version]\npath=\"a/__init__.py\"\n", "pip", false},
+		{"poetry dependencies table only", "[project]\nname=\"a\"\n[tool.poetry.dependencies]\npython=\"^3.12\"\n", "poetry", true},
+		{"uv sources table only", "[project]\nname=\"a\"\n[tool.uv.sources]\nx={git=\"...\"}\n", "uv", true},
+		{"pdm dev-dependencies table only", "[project]\nname=\"a\"\n[tool.pdm.dev-dependencies]\ntest=[]\n", "pdm", true},
+		// The trailing delimiter matters: [tool.uv] must not match [tool.uvicorn].
+		{"uvicorn is not uv", "[project]\nname=\"a\"\n[tool.uvicorn]\nport=8000\n", "pip", false},
+		{"hatchling ruff etc are not hatch", "[project]\nname=\"a\"\n[tool.ruff]\nline-length=100\n", "pip", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte(tt.pyproject), 0600))
+
+			choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+			assert.Equal(t, tt.wantName, choice.Name)
+			if tt.wantDefinite {
+				assert.Equal(t, PMDefinite, choice.Confidence)
+			} else {
+				assert.Equal(t, PMAmbiguous, choice.Confidence)
+			}
+		})
+	}
+}
+
+// A PDM project that commits only its lockfile is still a PDM project.
+func TestPackageManagerChoice_PdmLockfile(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "pdm.lock"), []byte(""), 0600))
+
+	choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+	assert.Equal(t, PMDefinite, choice.Confidence)
+	assert.Equal(t, "pdm", choice.Name)
+}
+
+// hatchling is a common build backend for uv and poetry projects. The manager the
+// project committed to can still add the dependency, whoever builds the wheel.
+func TestPackageManagerChoice_ActionableSignalBeatsHatch(t *testing.T) {
+	tests := []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{"uv lockfile alongside hatch build backend", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.hatch.build.targets.wheel]\npackages=[\"a\"]\n",
+			"uv.lock":        "",
+		}, "uv"},
+		{"uv table alongside hatch", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.uv]\n[tool.hatch.version]\npath=\"x\"\n",
+		}, "uv"},
+		{"poetry alongside hatch", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.poetry]\n[tool.hatch.build]\n",
+		}, "poetry"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, body := range tt.files {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0600))
+			}
+
+			choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+			assert.Equal(t, PMDefinite, choice.Confidence,
+				"setup would refuse to install though %s can add the dependency", tt.want)
+			assert.Equal(t, tt.want, choice.Name)
+		})
+	}
+}
