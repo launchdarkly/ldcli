@@ -1075,3 +1075,44 @@ func TestWizard_Plan_WrapsStepsToTerminalWidth(t *testing.T) {
 		})
 	}
 }
+
+// Wrapping pads every line to the full width, so a newline left inside a wrapped
+// string put a whole row of spaces in front of the injected file path and pushed it
+// off the terminal.
+func TestWizard_WaitForApp_WrapsWithoutLeadingPadding(t *testing.T) {
+	for _, width := range []int{80, 60, 40} {
+		for _, already := range []bool{false, true} {
+			t.Run(fmt.Sprintf("width%d_already%v", width, already), func(t *testing.T) {
+				path := "/Users/someone/code/launchdarkly/test-app/main.py"
+				m := wizardModel{
+					step:   stepWaitForApp,
+					width:  width,
+					height: 24,
+					initResult: &setup.InitResult{
+						FilePath:           path,
+						AlreadyInitialized: already,
+					},
+				}
+
+				view := m.View()
+
+				for _, line := range strings.Split(view, "\n") {
+					assert.LessOrEqual(t, len([]rune(line)), width,
+						"a line overflows a %d-column terminal", width)
+				}
+				// The path must start near the left edge, not after a row of padding.
+				for _, line := range strings.Split(view, "\n") {
+					if idx := strings.Index(line, "/Users/someone"); idx >= 0 {
+						assert.LessOrEqual(t, idx, 2, "the path is pushed right by padding")
+					}
+				}
+				// A path has no spaces to wrap on, so a narrow terminal hard-breaks it.
+				// Compare with whitespace removed to check nothing was lost.
+				assert.Contains(t, strings.Join(strings.Fields(view), ""), path)
+				if already {
+					assert.Contains(t, flat(view), "already initializes the LaunchDarkly SDK")
+				}
+			})
+		}
+	}
+}

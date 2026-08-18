@@ -82,14 +82,17 @@ func (m wizardModel) View() string {
 		return m.spinner.View() + " Injecting initialization code..."
 
 	case stepWaitForApp:
-		lead := "SDK initialization code has been injected into:\n"
+		// The newline stays outside the wrap: wrapping pads each line to the full
+		// width, so a trailing one inside would put a row of spaces in front of the
+		// path and push it past the edge of the terminal.
+		lead := "SDK initialization code has been injected into:"
 		if m.initResult.AlreadyInitialized {
-			lead = "This file already initializes the LaunchDarkly SDK, so it was left as it is:\n"
+			lead = "This file already initializes the LaunchDarkly SDK, so it was left as it is:"
 		}
 		return titleStyle.Render("Start your application") + "\n\n" +
-			m.wrap(lead) +
+			m.wrap(lead) + "\n" +
 			m.wrap("  "+m.initResult.FilePath) + "\n\n" +
-			"Please start your application now, then press Enter to verify the connection.\n"
+			m.wrap("Please start your application now, then press Enter to verify the connection.") + "\n"
 
 	case stepVerify:
 		return m.spinner.View() + " Waiting for SDK to connect..."
