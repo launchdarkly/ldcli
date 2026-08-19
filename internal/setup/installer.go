@@ -330,9 +330,19 @@ func venvPip(dir string) string {
 	for _, root := range roots {
 		for _, rel := range []string{filepath.Join("bin", "pip"), filepath.Join("Scripts", "pip.exe")} {
 			candidate := filepath.Join(root, rel)
-			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			info, err := os.Stat(candidate)
+			if err != nil || info.IsDir() {
+				continue
+			}
+			// Absolute, because the command runs with its working directory set to
+			// dir: a relative executable path is resolved after that change, so
+			// "app/.venv/bin/pip" run in "app" would be looked for at
+			// "app/app/.venv/bin/pip" and the install would fail with the venv found.
+			abs, err := filepath.Abs(candidate)
+			if err != nil {
 				return candidate
 			}
+			return abs
 		}
 	}
 	return ""

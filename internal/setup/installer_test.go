@@ -633,3 +633,42 @@ func TestInstall_OtherFailuresStillError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "network timeout")
 }
+
+// The install runs with its working directory set to the project, and a relative
+// executable path is resolved after that change — so a relative project dir would
+// have the dir applied twice and the install would fail with the venv found.
+func TestInstallArgs_Python_VenvPathIsAbsoluteForARelativeDir(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	parent := t.TempDir()
+	fakeVenv(t, filepath.Join(parent, "app", ".venv"))
+	chdirTo(t, parent)
+
+	args, _ := InstallArgs("app", "python-server-sdk", "")
+
+	require.NotEmpty(t, args)
+	assert.True(t, filepath.IsAbs(args[0]),
+		"a relative pip path is resolved against the command's working directory: %s", args[0])
+	assert.FileExists(t, args[0])
+}
+
+// An absolute project dir must be left as it is.
+func TestInstallArgs_Python_VenvPathKeepsAbsoluteDir(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	dir := t.TempDir()
+	pip := fakeVenv(t, filepath.Join(dir, ".venv"))
+
+	args, _ := InstallArgs(dir, "python-server-sdk", "")
+
+	assert.Equal(t, pip, args[0])
+}
+
+// chdirTo moves into dir for the duration of the test.
+func chdirTo(t *testing.T, dir string) {
+	t.Helper()
+	original, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(dir))
+	t.Cleanup(func() { _ = os.Chdir(original) })
+}
