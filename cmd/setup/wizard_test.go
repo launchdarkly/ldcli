@@ -963,6 +963,26 @@ func TestWizard_Picker_ListsInstalledFirstAndKeepsMissingSelectable(t *testing.T
 	assert.Equal(t, "npm", chosen.detectResult.PackageManager)
 }
 
+// The picker's list quits on esc for the same reason the others did.
+func TestWizard_Picker_EscDoesNotQuit(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 24}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	picker := next2.(wizardModel)
+	require.Equal(t, stepSelectPackageManager, picker.step)
+
+	after, cmd := picker.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	assert.False(t, after.(wizardModel).quitting)
+	assert.False(t, quitsOn(cmd), "the list quit the wizard on esc")
+	assert.Equal(t, stepSelectPackageManager, after.(wizardModel).step)
+}
+
 // Back must return to the picker, not skip over it to the SDK list.
 func TestWizard_Picker_BackReturnsToPickerFromPlan(t *testing.T) {
 	dir := t.TempDir()

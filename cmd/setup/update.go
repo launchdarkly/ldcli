@@ -298,6 +298,7 @@ func (m *wizardModel) enterPackageManagerStep() {
 	m.pmList = list.New(items, list.NewDefaultDelegate(), m.sdkBoxWidth(), m.pmListHeight())
 	m.pmList.Title = "Select a package manager:"
 	m.pmList.SetShowStatusBar(false)
+	keepEscFromQuitting(&m.pmList)
 	m.pmList.AdditionalShortHelpKeys = listHints(true)
 	m.pmListBuilt = true
 	m.step = stepSelectPackageManager
