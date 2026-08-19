@@ -1,7 +1,6 @@
 package setup
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/pelletier/go-toml/v2"
 )
 
 // DetectResult contains information about the user's project detected from the working directory.
@@ -319,32 +320,47 @@ func pythonPMSignals(dir string) pmSignals {
 			s.addLocked(lock.pm)
 		}
 	}
-	if b, err := os.ReadFile(filepath.Join(dir, "pyproject.toml")); err == nil {
-		for _, section := range []struct{ tool, pm string }{
-			{"poetry", "poetry"},
-			{"uv", "uv"},
-			{"pdm", "pdm"},
-			// hatch has no dependency-add command, so it is a signal we cannot act
-			// on. Recording it keeps the project ambiguous instead of silently
-			// falling through to pip.
-			{"hatch", ""},
-		} {
-			if hasToolSection(b, section.tool) {
-				s.addLocked(section.pm)
-			}
+	tools := configuredTools(dir)
+	for _, section := range []struct{ tool, pm string }{
+		{"poetry", "poetry"},
+		{"uv", "uv"},
+		{"pdm", "pdm"},
+		// hatch has no dependency-add command, so it is a signal we cannot act on.
+		// Recording it keeps the project ambiguous instead of silently falling
+		// through to pip.
+		{"hatch", ""},
+	} {
+		if tools[section.tool] {
+			s.addLocked(section.pm)
 		}
 	}
 	return s
 }
 
-// hasToolSection reports whether pyproject declares a [tool.<name>] table. Nested
-// tables count: real configs are usually only [tool.hatch.build] or
-// [tool.poetry.dependencies], with no bare header to match. The trailing "]" or "."
-// is required so [tool.uv] does not match [tool.uvicorn].
-func hasToolSection(pyproject []byte, name string) bool {
-	prefix := "[tool." + name
-	return bytes.Contains(pyproject, []byte(prefix+"]")) ||
-		bytes.Contains(pyproject, []byte(prefix+"."))
+// configuredTools reports which tools pyproject.toml configures, by the [tool.*]
+// tables it declares. Reading the tables rather than matching text means a comment
+// or a string that mentions another tool is not mistaken for a declaration, and
+// nested tables need no special case: TOML creates the parent table implicitly, so
+// [tool.hatch.build] on its own still declares hatch.
+//
+// A file we cannot parse declares nothing. That leaves the project ambiguous and the
+// user asked, which is the honest answer when we cannot read what manages it.
+func configuredTools(dir string) map[string]bool {
+	b, err := os.ReadFile(filepath.Join(dir, "pyproject.toml"))
+	if err != nil {
+		return nil
+	}
+	var doc struct {
+		Tool map[string]any `toml:"tool"`
+	}
+	if err := toml.Unmarshal(b, &doc); err != nil {
+		return nil
+	}
+	tools := make(map[string]bool, len(doc.Tool))
+	for name := range doc.Tool {
+		tools[name] = true
+	}
+	return tools
 }
 
 func detectRuby(dir string) *DetectResult {

@@ -1083,3 +1083,45 @@ func TestPackageManagerChoice_ActionableSignalBeatsHatch(t *testing.T) {
 		})
 	}
 }
+
+// pyproject.toml is read as TOML rather than searched as text, so only the tables it
+// actually declares count as a project committing to a tool.
+func TestPackageManagerChoice_ToolTablesAreParsedNotMatched(t *testing.T) {
+	tests := []struct {
+		name         string
+		pyproject    string
+		wantName     string
+		wantDefinite bool
+	}{
+		// A note about the tool a project migrated away from is not a declaration.
+		{"comment mentions another tool", "[project]\nname=\"a\"\n# migrated away from [tool.poetry] in March\n[tool.uv]\n", "uv", true},
+		// Nor is a table name inside a string.
+		{"multi-line string mentions another tool",
+			"[project]\nname=\"a\"\ndescription=\"\"\"\nsee [tool.poetry] for history\n\"\"\"\n[tool.uv]\n", "uv", true},
+		{"single-quoted string mentions another tool",
+			"[project]\nname=\"a\"\nsummary='see [tool.poetry]'\n[tool.uv]\n", "uv", true},
+		// A trailing comment on the header itself is still a declaration.
+		{"header with a trailing comment", "[project]\nname=\"a\"\n[tool.uv]  # the real one\n", "uv", true},
+		// Parent tables are implicit, so a nested table declares its tool.
+		{"nested table only", "[project]\nname=\"a\"\n[tool.poetry.dependencies]\npython=\"^3.12\"\n", "poetry", true},
+		// A different tool whose name merely starts the same way is not a match.
+		{"similarly named tool", "[project]\nname=\"a\"\n[tool.uvicorn]\nport=8000\n", "pip", false},
+		// Unreadable TOML declares nothing, so the user is asked rather than guessed at.
+		{"malformed toml", "[project\nname=\"a\"\n[tool.uv]\n", "pip", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte(tt.pyproject), 0600))
+
+			choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+			assert.Equal(t, tt.wantName, choice.Name)
+			if tt.wantDefinite {
+				assert.Equal(t, PMDefinite, choice.Confidence)
+			} else {
+				assert.Equal(t, PMAmbiguous, choice.Confidence)
+			}
+		})
+	}
+}
