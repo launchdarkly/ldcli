@@ -672,3 +672,71 @@ func chdirTo(t *testing.T, dir string) {
 	require.NoError(t, os.Chdir(dir))
 	t.Cleanup(func() { _ = os.Chdir(original) })
 }
+
+// `uv venv` creates a virtualenv with no pip in it. Falling through to a pip on
+// PATH would install outside the project, or be refused by PEP 668 and then advise
+// creating the virtualenv already sitting there.
+func TestInstall_VenvWithoutPip_ReportsItRatherThanUsingSystemPip(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	dir := t.TempDir()
+	root := filepath.Join(dir, ".venv")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "pyvenv.cfg"), []byte("home = /usr\n"), 0600))
+
+	installer := PackageInstaller{
+		run: func(string, []string) ([]byte, error) {
+			t.Fatal("must not install with a pip outside the project's virtualenv")
+			return nil, nil
+		},
+	}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Failed)
+	assert.Contains(t, result.FailureReason, "has no pip")
+	assert.Contains(t, result.FailureReason, root)
+	assert.Contains(t, result.FailureReason, "uv pip install launchdarkly-server-sdk")
+	// Do not offer a command that would install outside the virtualenv.
+	assert.Empty(t, result.Command)
+}
+
+// A manager that owns its own environment is unaffected by a pip-less virtualenv.
+func TestInstall_VenvWithoutPip_LeavesUvAlone(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "uv")
+	dir := t.TempDir()
+	root := filepath.Join(dir, ".venv")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "pyvenv.cfg"), []byte("home = /usr\n"), 0600))
+
+	var ran []string
+	installer := PackageInstaller{
+		run: func(_ string, args []string) ([]byte, error) { ran = args; return nil, nil },
+	}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "python-server-sdk", PackageManager: "uv"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Success)
+	assert.Equal(t, []string{"uv", "add", "launchdarkly-server-sdk"}, ran)
+}
+
+// The PEP 668 reason says not to run that pip, so the done screen must not offer it
+// back as "install it yourself with".
+func TestInstall_ExternallyManaged_OffersNoCommand(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	installer := PackageInstaller{
+		run: func(string, []string) ([]byte, error) {
+			return []byte("error: externally-managed-environment"), errors.New("exit status 1")
+		},
+	}
+
+	result, err := installer.Install(t.TempDir(), &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Failed)
+	assert.Empty(t, result.Command, "the screen would offer the pip the reason says not to run")
+}
