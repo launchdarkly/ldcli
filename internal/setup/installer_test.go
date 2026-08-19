@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -781,4 +782,70 @@ func TestInstallArgs_Python_NoVenvStillUsesPath(t *testing.T) {
 	args, _ := InstallArgs(t.TempDir(), "python-server-sdk", "")
 
 	assert.Equal(t, []string{"pip3", "install", "launchdarkly-server-sdk"}, args)
+}
+
+// A bare pip install leaves requirements.txt untouched, so a fresh checkout and CI
+// do not get the SDK. poetry, uv, pipenv and pdm record it themselves and Ruby gets
+// `bundle add`; pip has no equivalent, and editing someone's manifest unasked is not
+// something setup does — so it says what is missing.
+func TestInstall_PipLeavesManifestUnrecorded_Warns(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "requirements.txt"), []byte("flask\n"), 0600))
+	installer := PackageInstaller{run: func(string, []string) ([]byte, error) { return nil, nil }}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Success)
+	assert.Contains(t, result.Warning, "did not record it in requirements.txt")
+	assert.Contains(t, result.Warning, "launchdarkly-server-sdk")
+}
+
+func TestInstall_PipManifestAlreadyRecorded_NoWarning(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "requirements.txt"),
+		[]byte("flask\nlaunchdarkly-server-sdk\n"), 0600))
+	installer := PackageInstaller{run: func(string, []string) ([]byte, error) { return nil, nil }}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.Empty(t, result.Warning)
+}
+
+// The managers that record the dependency themselves must not be nagged about it.
+func TestInstall_ManagersThatRecordDependencies_NoWarning(t *testing.T) {
+	// pdm arrives with the confidence work; these are the managers this build drives.
+	for _, pm := range []string{"uv", "poetry", "pipenv"} {
+		t.Run(pm, func(t *testing.T) {
+			stubVirtualEnv(t, "")
+			stubPath(t, pm)
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "requirements.txt"), []byte("flask\n"), 0600))
+			installer := PackageInstaller{run: func(string, []string) ([]byte, error) { return nil, nil }}
+
+			result, err := installer.Install(dir, &DetectResult{SDKID: "python-server-sdk", PackageManager: pm})
+
+			require.NoError(t, err)
+			assert.True(t, result.Success)
+			assert.Empty(t, result.Warning)
+		})
+	}
+}
+
+// Windows keeps a virtualenv's pip in Scripts, so naming bin would point the plan at
+// a path the environment never has.
+func TestVenvPipLayouts_PlatformFirst(t *testing.T) {
+	layouts := venvPipLayouts()
+	require.Len(t, layouts, 2)
+	if runtime.GOOS == "windows" {
+		assert.Contains(t, layouts[0], "Scripts")
+	} else {
+		assert.Contains(t, layouts[0], "bin")
+	}
+	assert.NotEqual(t, layouts[0], layouts[1], "both layouts are still considered")
 }

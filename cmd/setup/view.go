@@ -133,10 +133,15 @@ func (m wizardModel) View() string {
 		}
 		if m.verifyResult != nil && m.verifyResult.Active && m.detectResult != nil {
 			appHost := strings.TrimRight(m.auth.BaseURI, "/")
+			warning := ""
+			if m.installResult != nil && m.installResult.Warning != "" {
+				warning = "\n" + m.wrap("Note: "+m.installResult.Warning) + "\n"
+			}
 			return titleStyle.Render("Setup complete!") + "\n\n" +
 				fmt.Sprintf("Your %s SDK is connected to LaunchDarkly.\n", m.detectResult.SDKID) +
 				fmt.Sprintf("Flag %q is ready to use.\n\n", m.flagKey) +
 				fmt.Sprintf("You can now toggle your flag at %s/projects/%s/flags/%s/targeting?env=%s\n", appHost, m.selectedProject, m.flagKey, m.selectedEnv) +
+				warning +
 				quitHint
 		}
 		return titleStyle.Render("Verification timed out") + "\n\n" +

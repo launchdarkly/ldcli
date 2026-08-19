@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -24,7 +25,10 @@ type InstallResult struct {
 	// FailureReason carries the underlying error when Failed is true, so callers
 	// can tell the user why the automatic install did not run.
 	FailureReason string `json:"failure_reason,omitempty"`
-	Success       bool   `json:"success"`
+	// Warning carries something the user has to act on even though the install
+	// worked, so success is not reported as though nothing were left to do.
+	Warning string `json:"warning,omitempty"`
+	Success bool   `json:"success"`
 }
 
 // RequiresManualInstall reports whether the SDK has no automated package-manager
@@ -155,6 +159,7 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 		SDKID:   detection.SDKID,
 		Package: pkg,
 		Command: command,
+		Warning: unrecordedDependencyWarning(dir, pkg, args),
 		Success: true,
 	}, nil
 }
@@ -222,6 +227,36 @@ func pipLessVenvReason(dir, pkg string, args []string) string {
 			"Install into it with `uv pip install %s`, or recreate it with "+
 			"`python3 -m venv .venv`, then run setup again.",
 		filepath.Dir(filepath.Dir(target)), pkg,
+	)
+}
+
+// unrecordedDependencyWarning reports that a bare pip install leaves the project's
+// manifest untouched. poetry, uv, pipenv and pdm record the dependency themselves,
+// and Ruby gets `bundle add` for the same reason, but pip has no equivalent command:
+// editing someone's manifest is not something setup does unasked, so it says what is
+// missing instead of writing the file.
+func unrecordedDependencyWarning(dir, pkg string, args []string) string {
+	if len(args) == 0 || filepath.Base(args[0]) != "pip" && filepath.Base(args[0]) != "pip3" &&
+		filepath.Base(args[0]) != "pip.exe" {
+		return ""
+	}
+	manifest := ""
+	for _, name := range []string{"requirements.txt", "requirements/base.txt"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			manifest = name
+			break
+		}
+	}
+	if manifest == "" {
+		return ""
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, manifest)); err == nil && bytes.Contains(b, []byte(pkg)) {
+		return "" // already recorded
+	}
+	return fmt.Sprintf(
+		"pip installed %s but did not record it in %s, so a fresh checkout and CI will not have it. "+
+			"Add a line for %s to %s.",
+		pkg, manifest, pkg, manifest,
 	)
 }
 
@@ -368,19 +403,37 @@ func venvRoots(dir string) []string {
 // change, so "app/.venv/bin/pip" run in "app" would be looked for at
 // "app/app/.venv/bin/pip" and the install would fail with the virtualenv found.
 func venvPipIn(root string) string {
-	for _, rel := range []string{filepath.Join("bin", "pip"), filepath.Join("Scripts", "pip.exe")} {
+	for _, rel := range venvPipLayouts() {
 		candidate := filepath.Join(root, rel)
 		info, err := os.Stat(candidate)
 		if err != nil || info.IsDir() {
 			continue
 		}
-		abs, err := filepath.Abs(candidate)
-		if err != nil {
-			return candidate
-		}
-		return abs
+		return absOrAsGiven(candidate)
 	}
 	return ""
+}
+
+// venvPipLayouts lists where a virtualenv keeps pip, this platform's layout first.
+// Windows uses Scripts\pip.exe; everything else uses bin/pip. Naming the wrong one
+// would point the plan and the previewed command at a path the environment on this
+// machine never has.
+func venvPipLayouts() []string {
+	unix := filepath.Join("bin", "pip")
+	windows := filepath.Join("Scripts", "pip.exe")
+	if runtime.GOOS == "windows" {
+		return []string{windows, unix}
+	}
+	return []string{unix, windows}
+}
+
+// absOrAsGiven makes a path absolute, falling back to the path itself when the
+// working directory cannot be read.
+func absOrAsGiven(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
 }
 
 // pipInstallCmd returns the pip install command. A virtualenv's pip wins, then
@@ -416,7 +469,8 @@ func venvPipTarget(dir string) (path string, exists bool) {
 			return pip, true
 		}
 		if isVirtualEnv(root) {
-			return filepath.Join(root, "bin", "pip"), false
+			// No pip to find, so name where this platform would keep one.
+			return absOrAsGiven(filepath.Join(root, venvPipLayouts()[0])), false
 		}
 	}
 	return "", false
