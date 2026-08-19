@@ -78,22 +78,26 @@ func TestService_CreateFlag_Success(t *testing.T) {
 		Return([]byte(`{"key":"my-new-flag"}`), nil)
 	svc := Service{Clients: Clients{Flags: mockFlags}}
 
-	key, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag", "node-server")
+	key, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag")
 
 	require.NoError(t, err)
 	assert.Equal(t, "my-new-flag", key)
 }
 
+// A flag that already exists belongs to the project, so setup reports success and
+// leaves it exactly as it is rather than reaching back to change its settings.
 func TestService_CreateFlag_ConflictIsSuccess(t *testing.T) {
 	mockFlags := &flags.MockClient{}
 	mockFlags.On("Create", testAuth.AccessToken, testAuth.BaseURI, "My New Flag", "my-new-flag", "p1").
 		Return([]byte(nil), errors.NewError(`{"code":"conflict","message":"already exists"}`))
 	svc := Service{Clients: Clients{Flags: mockFlags}}
 
-	key, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag", "node-server")
+	key, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag")
 
 	require.NoError(t, err)
 	assert.Equal(t, "my-new-flag", key)
+	mockFlags.AssertNumberOfCalls(t, "Create", 1)
+	mockFlags.AssertExpectations(t)
 }
 
 func TestService_CreateFlag_OtherErrorPropagates(t *testing.T) {
@@ -102,7 +106,7 @@ func TestService_CreateFlag_OtherErrorPropagates(t *testing.T) {
 		Return([]byte(nil), errors.NewError(`{"code":"internal_error"}`))
 	svc := Service{Clients: Clients{Flags: mockFlags}}
 
-	_, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag", "node-server")
+	_, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag")
 
 	assert.Error(t, err)
 }
@@ -197,42 +201,28 @@ func TestService_ListEnvironments_FollowsPagination(t *testing.T) {
 	mockEnvs.AssertExpectations(t)
 }
 
-// A flag a browser SDK is meant to read has to be created with client-side
-// availability: the API leaves usingEnvironmentId false, so without it the SDK
-// evaluates the fallback forever while setup reports success.
-func TestService_CreateFlag_ClientSideAvailability(t *testing.T) {
-	tests := []struct {
-		sdkID string
-		want  *flags.ClientSideAvailability
-	}{
-		{"js-client-sdk", &flags.ClientSideAvailability{UsingEnvironmentID: true, UsingMobileKey: true}},
-		{"react-client-sdk", &flags.ClientSideAvailability{UsingEnvironmentID: true, UsingMobileKey: true}},
-		{"node-server", nil},
-		{"go-server-sdk", nil},
-		{"react-native", nil},
-		{"android", nil},
-		{"swift-client-sdk", nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.sdkID, func(t *testing.T) {
+// Whichever SDK the project starts with, the flag is created available to
+// client-side and mobile SDKs. The API leaves both off, so without this a browser or
+// mobile SDK evaluates the fallback forever while setup reports success — and the
+// SDK a project starts with does not tell us which credential it will end up using.
+func TestService_CreateFlag_AlwaysAvailableToClientAndMobile(t *testing.T) {
+	for _, sdkID := range []string{
+		"js-client-sdk", "react-client-sdk", // client-side ID
+		"react-native", "android", "swift-client-sdk", // mobile key
+		"node-server", "go-server-sdk", "python-server-sdk", // server-side
+	} {
+		t.Run(sdkID, func(t *testing.T) {
 			mockFlags := &flags.MockClient{}
 			mockFlags.On("Create", testAuth.AccessToken, testAuth.BaseURI, "My New Flag", "my-new-flag", "p1").
 				Return([]byte(`{"key":"my-new-flag"}`), nil)
 			svc := Service{Clients: Clients{Flags: mockFlags}}
 
-			_, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag", tt.sdkID)
+			_, err := svc.CreateFlag(testAuth, "p1", "my-new-flag", "My New Flag")
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, mockFlags.CreatedAvailability)
+			assert.Equal(t,
+				&flags.ClientSideAvailability{UsingEnvironmentID: true, UsingMobileKey: true},
+				mockFlags.CreatedAvailability)
 		})
-	}
-}
-
-// The classification comes from each SDK's own init template, so this pins which
-// credential every known SDK is understood to take.
-func TestUsesClientSideID_MatchesTemplateCredentials(t *testing.T) {
-	clientSide := map[string]bool{"js-client-sdk": true, "react-client-sdk": true}
-	for _, sdk := range KnownSDKs {
-		assert.Equal(t, clientSide[sdk.ID], UsesClientSideID(sdk.ID), "sdk %s", sdk.ID)
 	}
 }

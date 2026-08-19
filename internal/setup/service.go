@@ -152,19 +152,20 @@ func (s Service) Install(dir string, detection *DetectResult) (*InstallResult, e
 	return s.Installer.Install(dir, detection)
 }
 
-// CreateFlag creates a feature flag, treating an existing flag (conflict) as
-// success and returning its key.
-// CreateFlag creates the flag the wizard hands to the SDK. sdkID decides whether
-// the flag has to be available to client-side SDKs: the API leaves
-// usingEnvironmentId false by default, which would leave a browser SDK evaluating
-// the fallback forever even though setup reported success.
-func (s Service) CreateFlag(a Auth, projectKey, key, name, sdkID string) (string, error) {
-	var opts []flags.CreateOption
-	if UsesClientSideID(sdkID) {
-		opts = append(opts, flags.WithClientSideAvailability(flags.ClientSideAvailability{
+// CreateFlag creates the flag the wizard hands to the SDK, available to client-side
+// and mobile SDKs alike. The API leaves both availability settings off by default,
+// which would leave a browser or mobile SDK evaluating the fallback forever even
+// though setup reported success — and which credential a project will reach for is
+// not ours to predict from the SDK it starts with.
+//
+// A flag that already exists is left exactly as it is: it belongs to the project
+// rather than to setup, so its settings are not ours to change.
+func (s Service) CreateFlag(a Auth, projectKey, key, name string) (string, error) {
+	opts := []flags.CreateOption{
+		flags.WithClientSideAvailability(flags.ClientSideAvailability{
 			UsingEnvironmentID: true,
 			UsingMobileKey:     true,
-		}))
+		}),
 	}
 	_, err := s.Clients.Flags.Create(context.Background(), a.AccessToken, a.BaseURI, name, key, projectKey, opts...)
 	if err != nil {
