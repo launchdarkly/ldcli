@@ -95,7 +95,7 @@ func (m wizardModel) View() string {
 			m.wrap("Please start your application now, then press Enter to verify the connection.") + "\n"
 
 	case stepVerify:
-		return m.spinner.View() + " Waiting for SDK to connect..."
+		return m.spinner.View() + " Waiting for your app to start and its SDK to connect..."
 
 	case stepDone:
 		if m.installResult != nil && m.installResult.Failed {
