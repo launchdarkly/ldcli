@@ -69,12 +69,16 @@ func (FileDetector) Detect(dir string) (*DetectResult, error) {
 		detectNode,
 	} {
 		if result := detect(dir); result != nil {
-			// Only what the project says. PackageManager itself is left as detected,
-			// since the language detectors know about managers this does not model,
-			// such as maven versus gradle. Candidates carry which tools are installed,
-			// which describes the machine rather than the project, so they are left to
+			// One read of the project decides the manager and how sure we are, rather
+			// than each detector working it out again. An empty name means a language
+			// this does not model — Java's maven versus gradle — so the detector's own
+			// answer stands. Candidates carry which tools are installed, which
+			// describes the machine rather than the project, so they are left to
 			// callers that need to present a choice.
 			choice := PackageManagerChoiceFor(dir, result.SDKID)
+			if choice.Name != "" {
+				result.PackageManager = choice.Name
+			}
 			result.PackageManagerConfidence = choice.Confidence
 			result.PackageManagerReason = choice.Reason
 			return result, nil
@@ -282,8 +286,8 @@ func detectPython(dir string) *DetectResult {
 		if _, err := os.Stat(filepath.Join(dir, indicator)); err == nil {
 			ep, exists := EntryPointFor(dir, "python-server-sdk")
 			return &DetectResult{
-				Language:         "Python",
-				PackageManager:   detectPythonPM(dir),
+				Language: "Python",
+				// PackageManager is filled in by Detect from the same read.
 				SDKID:            "python-server-sdk",
 				EntryPoint:       ep,
 				EntryPointExists: exists,
@@ -299,10 +303,6 @@ func detectPython(dir string) *DetectResult {
 //
 // https://docs.astral.sh/uv/concepts/projects/layout/
 // https://pipenv.pypa.io/en/latest/
-// https://python-poetry.org/docs/pyproject/
-func detectPythonPM(dir string) string {
-	return pythonPMSignals(dir).best("pip")
-}
 
 // pythonPMSignals reports what the project says about its Python package manager.
 // A lockfile is treated as the project having committed to a tool; a [tool.*]
@@ -634,7 +634,7 @@ func PackageManagerFor(dir, sdkID string) string {
 	case "node-server", "js-client-sdk", "react-client-sdk", "react-native":
 		return detectNodePM(dir)
 	case "python-server-sdk":
-		return detectPythonPM(dir)
+		return PackageManagerChoiceFor(dir, sdkID).Name
 	case "ruby-server-sdk":
 		return detectRubyPM(dir)
 	case "go-server-sdk":
