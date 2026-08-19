@@ -740,3 +740,45 @@ func TestInstall_ExternallyManaged_OffersNoCommand(t *testing.T) {
 	assert.True(t, result.Failed)
 	assert.Empty(t, result.Command, "the screen would offer the pip the reason says not to run")
 }
+
+// The plan screen, --dry-run and the picker all read InstallArgs, and a command shown
+// there is one a reader may run by hand. With a pip-less virtualenv present, none of
+// them may name a pip from PATH: running it installs outside the project.
+func TestInstallArgs_Python_PipLessVenvNeverPreviewsSystemPip(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3", "pip")
+	dir := t.TempDir()
+	root := filepath.Join(dir, ".venv")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "pyvenv.cfg"), []byte("home = /usr\n"), 0600))
+
+	args, _ := InstallArgs(dir, "python-server-sdk", "")
+
+	require.NotEmpty(t, args)
+	assert.Equal(t, filepath.Join(root, "bin", "pip"), args[0],
+		"the preview names a pip outside the project's virtualenv")
+	assert.NotContains(t, filepath.Base(args[0]), "pip3")
+}
+
+// A virtualenv that does have pip is still used, and the preview matches.
+func TestInstallArgs_Python_SeededVenvPreviewMatchesRun(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	dir := t.TempDir()
+	pip := fakeVenv(t, filepath.Join(dir, ".venv"))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".venv", "pyvenv.cfg"), []byte("home = /usr\n"), 0600))
+
+	args, _ := InstallArgs(dir, "python-server-sdk", "")
+
+	assert.Equal(t, []string{pip, "install", "launchdarkly-server-sdk"}, args)
+}
+
+// With no virtualenv at all, a pip from PATH is still the right answer.
+func TestInstallArgs_Python_NoVenvStillUsesPath(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+
+	args, _ := InstallArgs(t.TempDir(), "python-server-sdk", "")
+
+	assert.Equal(t, []string{"pip3", "install", "launchdarkly-server-sdk"}, args)
+}

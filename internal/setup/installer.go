@@ -209,43 +209,19 @@ func externallyManagedReason(dir string, out []byte) string {
 	)
 }
 
-// pipLessVenv returns a virtualenv in dir, or the active one, that exists but has no
-// pip. `uv venv` creates exactly this unless asked to seed one, so falling through
-// to a pip on PATH would install outside the project the user set up — or be refused
-// by PEP 668 and advise creating the very virtualenv already sitting there.
-func pipLessVenv(dir string) string {
-	for _, root := range venvRoots(dir) {
-		if venvPipIn(root) != "" {
-			continue
-		}
-		// pyvenv.cfg is what marks a directory as a virtualenv.
-		if _, err := os.Stat(filepath.Join(root, "pyvenv.cfg")); err == nil {
-			return root
-		}
-	}
-	return ""
-}
-
-// pipLessVenvReason explains that the project's virtualenv cannot be installed into,
-// but only when the command would otherwise reach for a pip outside it.
+// pipLessVenvReason explains that the project's virtualenv cannot be installed into.
+// It fires only when the command is that virtualenv's own pip and the pip is not
+// there — uv, poetry and pipenv own their environments and never reach this.
 func pipLessVenvReason(dir, pkg string, args []string) string {
-	if len(args) == 0 || filepath.IsAbs(args[0]) {
-		return "" // already pointed at a virtualenv's own pip
-	}
-	switch filepath.Base(args[0]) {
-	case "pip", "pip3":
-	default:
-		return "" // poetry, uv and pipenv manage their own environment
-	}
-	root := pipLessVenv(dir)
-	if root == "" {
+	target, exists := venvPipTarget(dir)
+	if target == "" || exists || len(args) == 0 || args[0] != target {
 		return ""
 	}
 	return fmt.Sprintf(
 		"the virtual environment at %s has no pip, which is how `uv venv` creates one. "+
 			"Install into it with `uv pip install %s`, or recreate it with "+
 			"`python3 -m venv .venv`, then run setup again.",
-		root, pkg,
+		filepath.Dir(filepath.Dir(target)), pkg,
 	)
 }
 
@@ -365,19 +341,6 @@ func pythonInstallCmd(dir, pm, pkg string) []string {
 // by the environment the suite happens to run in.
 var virtualEnv = func() string { return os.Getenv("VIRTUAL_ENV") }
 
-// venvPip returns the pip belonging to the active virtualenv, or to one sitting in
-// the project, and an empty string when there is none. A virtualenv is where a
-// project's dependencies belong, and it is the only place pip can write on a
-// PEP 668 interpreter, so it is preferred over whatever pip is on PATH.
-func venvPip(dir string) string {
-	for _, root := range venvRoots(dir) {
-		if pip := venvPipIn(root); pip != "" {
-			return pip
-		}
-	}
-	return ""
-}
-
 // venvRoots lists the virtualenvs to consider for dir, the active one first. An
 // empty dir means the caller has no project in mind, so relative lookups would
 // search whatever directory the process happens to be in.
@@ -388,6 +351,13 @@ func venvRoots(dir string) []string {
 	}
 	if dir != "" {
 		roots = append(roots, filepath.Join(dir, ".venv"), filepath.Join(dir, "venv"))
+	}
+	// Absolute, so a root can be compared against the command we build from it and
+	// so the path we show names the same place whatever the working directory is.
+	for i, root := range roots {
+		if abs, err := filepath.Abs(root); err == nil {
+			roots[i] = abs
+		}
 	}
 	return roots
 }
@@ -423,7 +393,11 @@ func venvPipIn(root string) string {
 // returned so the plan screen has something to show, and Install's pre-flight
 // check warns instead of running anything.
 func pipInstallCmd(dir, pkg string) []string {
-	if pip := venvPip(dir); pip != "" {
+	// A virtualenv without pip still names the environment the project set up, and
+	// naming it is more use than a pip from PATH that Install will refuse to run:
+	// the plan screen, --dry-run and the picker all read this, and a command shown
+	// there is one a reader may run by hand.
+	if pip, _ := venvPipTarget(dir); pip != "" {
 		return []string{pip, "install", pkg}
 	}
 	for _, bin := range []string{"pip3", "pip"} {
@@ -432,6 +406,27 @@ func pipInstallCmd(dir, pkg string) []string {
 		}
 	}
 	return []string{"pip", "install", pkg}
+}
+
+// venvPipTarget returns the pip belonging to the project's virtualenv, and whether it
+// is actually there. An empty path means there is no virtualenv to install into.
+func venvPipTarget(dir string) (path string, exists bool) {
+	for _, root := range venvRoots(dir) {
+		if pip := venvPipIn(root); pip != "" {
+			return pip, true
+		}
+		if isVirtualEnv(root) {
+			return filepath.Join(root, "bin", "pip"), false
+		}
+	}
+	return "", false
+}
+
+// isVirtualEnv reports whether root is a virtualenv. pyvenv.cfg is what marks one,
+// and it is there whether or not the environment was seeded with pip.
+func isVirtualEnv(root string) bool {
+	_, err := os.Stat(filepath.Join(root, "pyvenv.cfg"))
+	return err == nil
 }
 
 // nodeInstallCmd returns the install command arguments for a Node.js package manager.
