@@ -222,6 +222,7 @@ func (m wizardModel) newSDKList(items []list.Item, title string, focused bool) l
 	l.Title = title
 	l.Styles.Title = headerStyle // match the detected-SDK panel header, not the default title bar
 	l.SetShowStatusBar(false)
+	keepEscFromQuitting(&l)
 	l.SetShowHelp(false) // we render a single key hint inside the box instead
 	return l
 }

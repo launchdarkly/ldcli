@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -78,6 +79,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectList = list.New(items, delegate, m.width, m.listHeight())
 		m.projectList.Title = "Select a project:"
 		m.projectList.SetShowStatusBar(false)
+		keepEscFromQuitting(&m.projectList)
 		return m, nil
 
 	case envsFetchedMsg:
@@ -94,6 +96,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.envList = list.New(items, delegate, m.width, m.listHeight())
 		m.envList.Title = "Select an environment:"
 		m.envList.SetShowStatusBar(false)
+		keepEscFromQuitting(&m.envList)
 		return m, nil
 
 	case envDetailsFetchedMsg:
@@ -204,6 +207,15 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, cmd
+}
+
+// keepEscFromQuitting rebinds a list's quit key to q alone. bubbles binds it to
+// both q and esc, and returns tea.Quit when either matches, so removing our own esc
+// binding was not enough — the key fell through to whichever list was on screen and
+// ended the session there instead. esc still clears an active filter, which the list
+// matches ahead of quitting.
+func keepEscFromQuitting(l *list.Model) {
+	l.KeyMap.Quit = key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit"))
 }
 
 // isFiltering reports whether the current step's list is in filter-typing mode,

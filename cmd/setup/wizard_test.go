@@ -198,10 +198,69 @@ func TestWizard_Back_ReturnsToPreviousStep(t *testing.T) {
 	}
 }
 
+// quitsOn reports whether a returned command would end the program. Checking the
+// model's quitting flag is not enough: a list returns tea.Quit itself, without the
+// wizard ever knowing.
+func quitsOn(cmd tea.Cmd) bool {
+	if cmd == nil {
+		return false
+	}
+	_, ok := cmd().(tea.QuitMsg)
+	return ok
+}
+
+// esc arrives on its own whenever an arrow key's escape sequence is split across
+// reads, so nothing may treat it as quit. The lists must be populated: an empty one
+// never receives the key, which is what let this pass while the bug was live.
 func TestWizard_Esc_DoesNotQuit(t *testing.T) {
-	m := wizardModel{step: stepSelectSDK}
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	assert.False(t, next.(wizardModel).quitting)
+	t.Run("project list", func(t *testing.T) {
+		m := populatedProjectList(t)
+		next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		assert.False(t, next.(wizardModel).quitting)
+		assert.False(t, quitsOn(cmd), "the list quit the wizard on esc")
+	})
+
+	t.Run("environment list", func(t *testing.T) {
+		m := populatedProjectList(t)
+		m.step = stepSelectEnvironment
+		m.selectedProject = "a"
+		listed, _ := m.Update(envsFetchedMsg{project: "a", environments: []envItem{
+			{key: "production", name: "Production"}, {key: "test", name: "Test"},
+		}})
+		next, cmd := listed.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		assert.False(t, next.(wizardModel).quitting)
+		assert.False(t, quitsOn(cmd), "the list quit the wizard on esc")
+	})
+
+	t.Run("SDK list", func(t *testing.T) {
+		m := wizardModel{step: stepDetect, width: 80, height: 24}
+		listed, _ := m.Update(detectFailedMsg{})
+		sdk := listed.(wizardModel)
+		sdk.sdkFocus = 1 // focus the list, so it receives keys
+		next, cmd := sdk.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		assert.False(t, next.(wizardModel).quitting)
+		assert.False(t, quitsOn(cmd), "the list quit the wizard on esc")
+	})
+}
+
+// q must still quit, from the same populated screens.
+func TestWizard_Q_QuitsFromLists(t *testing.T) {
+	m := populatedProjectList(t)
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	assert.True(t, next.(wizardModel).quitting)
+	assert.True(t, quitsOn(cmd))
+}
+
+// populatedProjectList returns a model sitting on a project list that has items, so
+// keys actually reach the list.
+func populatedProjectList(t *testing.T) wizardModel {
+	t.Helper()
+	m := wizardModel{step: stepSelectProject, width: 80, height: 24}
+	sized, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	listed, _ := sized.(wizardModel).Update(projectsFetchedMsg{projects: []projectItem{
+		{key: "a", name: "A"}, {key: "b", name: "B"},
+	}})
+	return listed.(wizardModel)
 }
 
 func TestWizard_Q_Quits(t *testing.T) {
