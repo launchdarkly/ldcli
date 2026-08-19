@@ -1125,3 +1125,18 @@ func TestPackageManagerChoice_ToolTablesAreParsedNotMatched(t *testing.T) {
 		})
 	}
 }
+
+// A [tool.*] table and a Pipfile count as commitments too, so the reason must not
+// send the reader looking for lockfiles that are not there.
+func TestPackageManagerChoice_ConflictReasonNamesWhatWasFound(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "pyproject.toml"),
+		[]byte("[project]\nname=\"a\"\n[tool.uv]\n[tool.poetry]\n"), 0600))
+
+	choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+	require.Equal(t, PMAmbiguous, choice.Confidence)
+	assert.Contains(t, choice.Reason, "set up for more than one manager")
+	assert.NotContains(t, choice.Reason, "lockfile",
+		"neither signal here is a lockfile")
+}

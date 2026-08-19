@@ -22,6 +22,40 @@ var StubbedSuccessResponse = `{
 // CallCmd runs the root command for integration-style tests. It passes isTerminal always true so
 // the default --output matches an interactive terminal (plaintext); non-TTY JSON defaults are
 // covered in root_test.go.
+// CallCmdCapturingStderr runs a command and returns stdout and stderr separately, so
+// a test can assert on output written deliberately to stderr — a transitional note,
+// say — without it being mistaken for parseable output.
+func CallCmdCapturingStderr(
+	t *testing.T,
+	clients APIClients,
+	trackerFn analytics.TrackerFn,
+	args []string,
+) (stdout []byte, stderr []byte, err error) {
+	rootCmd, err := NewRootCommand(
+		config.NewService(&resources.MockClient{}),
+		trackerFn,
+		clients,
+		"test",
+		false,
+		func() bool { return true },
+		nil,
+	)
+	require.NoError(t, err)
+	cmd := rootCmd.Cmd()
+	out, errOut := bytes.NewBufferString(""), bytes.NewBufferString("")
+	cmd.SetOut(out)
+	cmd.SetErr(errOut)
+	cmd.SetArgs(args)
+
+	tracker := trackerFn("", "", false)
+	if err := cmd.Execute(); err != nil {
+		tracker.SendCommandCompletedEvent(analytics.ERROR)
+		return out.Bytes(), errOut.Bytes(), err
+	}
+	tracker.SendCommandCompletedEvent(analytics.SUCCESS)
+	return out.Bytes(), errOut.Bytes(), nil
+}
+
 func CallCmd(
 	t *testing.T,
 	clients APIClients,

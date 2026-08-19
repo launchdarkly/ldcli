@@ -417,3 +417,34 @@ func TestInitMissingRequiredFlags(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "required flag")
 }
+
+// Omitting --package-manager used to fall through to npm or pip. The default now
+// reads the project, so a caller relying on the old behaviour gets a note — on
+// stderr, so output being parsed is untouched.
+func TestInstall_AutoSelectedManager_WarnsOnStderr(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"),
+		[]byte(`{"packageManager":"pnpm@9.1.0"}`), 0600))
+
+	args := []string{
+		"setup", "install",
+		"--access-token", "test-token",
+		"--sdk-id", "node-server",
+		"--path", dir,
+		"--dry-run",
+	}
+	stdout, stderr, err := cmd.CallCmdCapturingStderr(
+		t,
+		cmd.APIClients{ResourcesClient: &resources.MockClient{}},
+		analytics.NoopClientFn{}.Tracker(),
+		args,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, string(stderr), "--package-manager was not given")
+	assert.Contains(t, string(stderr), "previously defaulted to npm or pip")
+	assert.Contains(t, string(stderr), "pnpm")
+	// The note must not reach output a caller parses.
+	assert.NotContains(t, string(stdout), "--package-manager was not given")
+	assert.Contains(t, string(stdout), "pnpm add @launchdarkly/node-server-sdk")
+}

@@ -76,6 +76,13 @@ func runInstall(svc setup.Service) func(*cobra.Command, []string) error {
 				)
 			}
 			pkgMgr = choice.Name
+			// This used to fall through to npm or pip whatever the project used, so a
+			// caller that relied on that default now gets a different manager. Say so
+			// once, on stderr, where it cannot disturb output being parsed.
+			fmt.Fprintf(cmd.ErrOrStderr(),
+				"note: --package-manager was not given, so setup read the project and chose %q. "+
+					"This previously defaulted to npm or pip. Pass --package-manager to pin it.\n",
+				pkgMgr)
 		}
 
 		detection := &setup.DetectResult{

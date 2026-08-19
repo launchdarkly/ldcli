@@ -795,10 +795,13 @@ func (s pmSignals) choose(options []string, fallback string, argvFor func(string
 	case len(s.locked) == 1:
 		return PMChoice{Name: s.locked[0], Confidence: PMDefinite}
 	case len(s.locked) > 1:
+		// Say what was actually found. A lockfile, a Pipfile and a [tool.*] table all
+		// count as a project committing to a manager, so naming lockfiles would send
+		// the reader looking for files that are not there.
 		return PMChoice{
 			Name:       s.locked[0],
 			Confidence: PMAmbiguous,
-			Reason: fmt.Sprintf("this project has lockfiles for more than one manager (%s)",
+			Reason: fmt.Sprintf("this project is set up for more than one manager (%s)",
 				strings.Join(s.locked, ", ")),
 			Candidates: candidates,
 		}

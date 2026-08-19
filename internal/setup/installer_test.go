@@ -911,3 +911,31 @@ func TestInstall_BadPackageManagerSpec_ExplainsIt(t *testing.T) {
 		})
 	}
 }
+
+// Only a Node failure about package.json may be answered with advice about that
+// file. Another ecosystem's error keeps its own text, whatever phrases it contains.
+func TestInstall_OtherEcosystemErrorsKeepTheirText(t *testing.T) {
+	for _, out := range []string{
+		"ERROR:  Could not find a valid gem 'x' (>= 0), here is why:\n  No version specified",
+		"ERROR: Could not find a version that satisfies the requirement x; expected a semver version",
+		"go: module x: invalid version: expected a semver version",
+	} {
+		t.Run(out[:20], func(t *testing.T) {
+			stubVirtualEnv(t, "")
+			stubPath(t, "npm")
+			installer := PackageInstaller{
+				run: func(string, []string) ([]byte, error) {
+					return []byte(out), errors.New("exit status 1")
+				},
+			}
+
+			_, err := installer.Install(t.TempDir(), &DetectResult{
+				SDKID: "node-server", PackageManager: "npm",
+			})
+
+			require.Error(t, err, "the real failure must reach the caller")
+			assert.Contains(t, err.Error(), out, "the real error text is kept")
+			assert.NotContains(t, err.Error(), "packageManager field")
+		})
+	}
+}

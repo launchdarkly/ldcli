@@ -205,6 +205,13 @@ func dotnetProjectArg(dir string) (args []string, reason string) {
 // malformed rather than the command wrong, and repairing someone's manifest is not
 // ours to do, so say what is wrong and let them fix it.
 func packageManagerSpecReason(out []byte) string {
+	// package.json has to be named in the output. Both corepack refusals mention it,
+	// and without that check any failure whose text happens to mention a missing or
+	// non-semver version — from a gem, a Python package, a Go module — would have its
+	// real error replaced by advice about a field it does not have.
+	if !bytes.Contains(out, []byte("package.json")) {
+		return ""
+	}
 	badSpec := bytes.Contains(out, []byte("No version specified")) ||
 		bytes.Contains(out, []byte("expected a semver version")) ||
 		bytes.Contains(out, []byte("Invalid package manager specification"))
