@@ -250,8 +250,10 @@ func unrecordedDependencyWarning(dir, pkg string, args []string) string {
 	if manifest == "" {
 		return ""
 	}
-	if b, err := os.ReadFile(filepath.Join(dir, manifest)); err == nil && bytes.Contains(b, []byte(pkg)) {
-		return "" // already recorded
+	// Whole-name matching, so a related pin such as launchdarkly-server-sdk-otel is
+	// not read as the SDK itself being recorded.
+	if fileMentionsPackage(filepath.Join(dir, manifest), pkg) {
+		return ""
 	}
 	return fmt.Sprintf(
 		"pip installed %s but did not record it in %s, so a fresh checkout and CI will not have it. "+

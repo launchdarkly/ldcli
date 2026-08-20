@@ -849,3 +849,35 @@ func TestVenvPipLayouts_PlatformFirst(t *testing.T) {
 	}
 	assert.NotEqual(t, layouts[0], layouts[1], "both layouts are still considered")
 }
+
+// A related package pinned in the manifest is not the SDK. Reading it as one would
+// suppress the warning while the project still lacks the dependency.
+func TestInstall_RelatedPackagePinned_StillWarns(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "requirements.txt"),
+		[]byte("flask\nlaunchdarkly-server-sdk-otel==1.2.0\n"), 0600))
+	installer := PackageInstaller{run: func(string, []string) ([]byte, error) { return nil, nil }}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.True(t, result.Success)
+	assert.Contains(t, result.Warning, "did not record it in requirements.txt")
+}
+
+// A pinned version of the SDK itself does count as recorded.
+func TestInstall_PinnedSdkVersion_NoWarning(t *testing.T) {
+	stubVirtualEnv(t, "")
+	stubPath(t, "pip3")
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "requirements.txt"),
+		[]byte("flask\nlaunchdarkly-server-sdk==9.16.1\n"), 0600))
+	installer := PackageInstaller{run: func(string, []string) ([]byte, error) { return nil, nil }}
+
+	result, err := installer.Install(dir, &DetectResult{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.Empty(t, result.Warning)
+}
