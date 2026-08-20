@@ -850,3 +850,293 @@ func TestPackageManagerFor_DerivesFromProjectNotDetectedLanguage(t *testing.T) {
 		assert.Empty(t, PackageManagerFor(t.TempDir(), "java-server-sdk"))
 	})
 }
+
+func TestPackageManagerChoice_Definite(t *testing.T) {
+	tests := []struct {
+		name  string
+		files map[string]string
+		sdkID string
+		want  string
+	}{
+		// The most explicit statement a Node project can make outranks lockfiles.
+		{"corepack field", map[string]string{
+			"package.json": `{"packageManager":"pnpm@9.1.0"}`,
+		}, "node-server", "pnpm"},
+		{"corepack field with prerelease", map[string]string{
+			"package.json": `{"packageManager":"pnpm@9.1.0-beta.1"}`,
+		}, "node-server", "pnpm"},
+		// corepack writes this hash form itself when it pins a manager.
+		{"corepack field with build metadata", map[string]string{
+			"package.json": `{"packageManager":"yarn@4.1.0+sha224.abcdef"}`,
+		}, "node-server", "yarn"},
+		{"corepack field beats a conflicting lockfile", map[string]string{
+			"package.json": `{"packageManager":"pnpm@9.1.0"}`,
+			"yarn.lock":    "",
+		}, "node-server", "pnpm"},
+		{"single node lockfile", map[string]string{
+			"package.json":   `{}`,
+			"pnpm-lock.yaml": "",
+		}, "node-server", "pnpm"},
+		{"package-lock only", map[string]string{
+			"package.json":      `{}`,
+			"package-lock.json": "",
+		}, "node-server", "npm"},
+		{"uv lockfile", map[string]string{"uv.lock": ""}, "python-server-sdk", "uv"},
+		{"poetry lockfile", map[string]string{"poetry.lock": ""}, "python-server-sdk", "poetry"},
+		{"tool.uv section", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.uv]\n",
+		}, "python-server-sdk", "uv"},
+		{"tool.pdm section", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.pdm]\n",
+		}, "python-server-sdk", "pdm"},
+		{"Gemfile", map[string]string{"Gemfile": "source 'x'"}, "ruby-server-sdk", "bundle"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, body := range tt.files {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0600))
+			}
+
+			choice := PackageManagerChoiceFor(dir, tt.sdkID)
+
+			assert.Equal(t, PMDefinite, choice.Confidence)
+			assert.Equal(t, tt.want, choice.Name)
+			assert.Empty(t, choice.Candidates, "a definite verdict needs no choice")
+		})
+	}
+}
+
+func TestPackageManagerChoice_Ambiguous(t *testing.T) {
+	tests := []struct {
+		name        string
+		files       map[string]string
+		sdkID       string
+		wantReason  string
+		wantOptions []string
+	}{
+		// No detection tuning can fix this: the project contradicts itself.
+		{"conflicting node lockfiles", map[string]string{
+			"package.json":      `{}`,
+			"yarn.lock":         "",
+			"package-lock.json": "",
+		}, "node-server", "more than one manager", []string{"npm", "yarn", "pnpm", "bun"}},
+		{"bare package.json", map[string]string{
+			"package.json": `{}`,
+		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
+		// Corepack needs one exact version, so honouring anything else would route the
+		// user into a manager that refuses to run.
+		{"packageManager without a version", map[string]string{
+			"package.json": `{"packageManager":"pnpm"}`,
+		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
+		{"packageManager with a caret range", map[string]string{
+			"package.json": `{"packageManager":"pnpm@^11.13.0"}`,
+		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
+		{"packageManager with a comparator range", map[string]string{
+			"package.json": `{"packageManager":"pnpm@>=11"}`,
+		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
+		{"packageManager with a partial version", map[string]string{
+			"package.json": `{"packageManager":"pnpm@11"}`,
+		}, "node-server", "doesn't say", []string{"npm", "yarn", "pnpm", "bun"}},
+		// uv does not require committing the lock, and PEP 621 has no uv marker.
+		{"PEP 621 pyproject only", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n",
+		}, "python-server-sdk", "doesn't say", []string{"pip", "uv", "poetry", "pipenv", "pdm"}},
+		{"requirements.txt only", map[string]string{
+			"requirements.txt": "flask\n",
+		}, "python-server-sdk", "doesn't say", []string{"pip", "uv", "poetry", "pipenv", "pdm"}},
+		// hatch cannot add dependencies for us, so we must not pick it or silently pip.
+		{"hatch project", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.hatch]\n",
+		}, "python-server-sdk", "cannot add dependencies", []string{"pip", "uv", "poetry", "pipenv", "pdm"}},
+		{"gemspec without Gemfile", map[string]string{
+			"a.gemspec": "Gem::Specification.new",
+		}, "ruby-server-sdk", "doesn't say", []string{"bundle", "gem"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, body := range tt.files {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0600))
+			}
+
+			choice := PackageManagerChoiceFor(dir, tt.sdkID)
+
+			assert.Equal(t, PMAmbiguous, choice.Confidence)
+			assert.Contains(t, choice.Reason, tt.wantReason)
+			names := make([]string, 0, len(choice.Candidates))
+			for _, c := range choice.Candidates {
+				names = append(names, c.Name)
+				assert.NotEmpty(t, c.Command, "every candidate needs the command it would run")
+			}
+			assert.Equal(t, tt.wantOptions, names)
+		})
+	}
+}
+
+// Installed state describes the machine, so it must never change the verdict.
+func TestPackageManagerChoice_InstalledStateDoesNotDecide(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+
+	stubPath(t, "pnpm") // the only manager on this machine
+	choice := PackageManagerChoiceFor(dir, "node-server")
+
+	assert.Equal(t, PMAmbiguous, choice.Confidence, "one installed tool is not evidence about the project")
+	assert.Equal(t, "npm", choice.Name, "the conventional default stands until the user picks")
+	for _, c := range choice.Candidates {
+		assert.Equal(t, c.Name == "pnpm", c.Installed)
+	}
+}
+
+func TestPackageManagerChoice_SingleToolchainsAreAlwaysDefinite(t *testing.T) {
+	for sdkID, want := range map[string]string{
+		"go-server-sdk":     "go",
+		"dotnet-server-sdk": "dotnet",
+		"java-server-sdk":   "",
+	} {
+		t.Run(sdkID, func(t *testing.T) {
+			choice := PackageManagerChoiceFor(t.TempDir(), sdkID)
+			assert.Equal(t, PMDefinite, choice.Confidence)
+			assert.Equal(t, want, choice.Name)
+		})
+	}
+}
+
+// Real pyproject files rarely carry a bare [tool.x] header; the tables that matter
+// are nested. Matching only the bare header made these signals near-dead.
+func TestPackageManagerChoice_NestedToolTables(t *testing.T) {
+	tests := []struct {
+		name         string
+		pyproject    string
+		wantName     string
+		wantDefinite bool
+	}{
+		{"hatch build table only", "[project]\nname=\"a\"\n[tool.hatch.build.targets.wheel]\npackages=[\"a\"]\n", "pip", false},
+		{"hatch version table only", "[project]\nname=\"a\"\n[tool.hatch.version]\npath=\"a/__init__.py\"\n", "pip", false},
+		{"poetry dependencies table only", "[project]\nname=\"a\"\n[tool.poetry.dependencies]\npython=\"^3.12\"\n", "poetry", true},
+		{"uv sources table only", "[project]\nname=\"a\"\n[tool.uv.sources]\nx={git=\"...\"}\n", "uv", true},
+		{"pdm dev-dependencies table only", "[project]\nname=\"a\"\n[tool.pdm.dev-dependencies]\ntest=[]\n", "pdm", true},
+		// The trailing delimiter matters: [tool.uv] must not match [tool.uvicorn].
+		{"uvicorn is not uv", "[project]\nname=\"a\"\n[tool.uvicorn]\nport=8000\n", "pip", false},
+		{"hatchling ruff etc are not hatch", "[project]\nname=\"a\"\n[tool.ruff]\nline-length=100\n", "pip", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte(tt.pyproject), 0600))
+
+			choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+			assert.Equal(t, tt.wantName, choice.Name)
+			if tt.wantDefinite {
+				assert.Equal(t, PMDefinite, choice.Confidence)
+			} else {
+				assert.Equal(t, PMAmbiguous, choice.Confidence)
+			}
+		})
+	}
+}
+
+// A PDM project that commits only its lockfile is still a PDM project.
+func TestPackageManagerChoice_PdmLockfile(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "pdm.lock"), []byte(""), 0600))
+
+	choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+	assert.Equal(t, PMDefinite, choice.Confidence)
+	assert.Equal(t, "pdm", choice.Name)
+}
+
+// hatchling is a common build backend for uv and poetry projects. The manager the
+// project committed to can still add the dependency, whoever builds the wheel.
+func TestPackageManagerChoice_ActionableSignalBeatsHatch(t *testing.T) {
+	tests := []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{"uv lockfile alongside hatch build backend", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.hatch.build.targets.wheel]\npackages=[\"a\"]\n",
+			"uv.lock":        "",
+		}, "uv"},
+		{"uv table alongside hatch", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.uv]\n[tool.hatch.version]\npath=\"x\"\n",
+		}, "uv"},
+		{"poetry alongside hatch", map[string]string{
+			"pyproject.toml": "[project]\nname=\"a\"\n[tool.poetry]\n[tool.hatch.build]\n",
+		}, "poetry"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, body := range tt.files {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0600))
+			}
+
+			choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+			assert.Equal(t, PMDefinite, choice.Confidence,
+				"setup would refuse to install though %s can add the dependency", tt.want)
+			assert.Equal(t, tt.want, choice.Name)
+		})
+	}
+}
+
+// pyproject.toml is read as TOML rather than searched as text, so only the tables it
+// actually declares count as a project committing to a tool.
+func TestPackageManagerChoice_ToolTablesAreParsedNotMatched(t *testing.T) {
+	tests := []struct {
+		name         string
+		pyproject    string
+		wantName     string
+		wantDefinite bool
+	}{
+		// A note about the tool a project migrated away from is not a declaration.
+		{"comment mentions another tool", "[project]\nname=\"a\"\n# migrated away from [tool.poetry] in March\n[tool.uv]\n", "uv", true},
+		// Nor is a table name inside a string.
+		{"multi-line string mentions another tool",
+			"[project]\nname=\"a\"\ndescription=\"\"\"\nsee [tool.poetry] for history\n\"\"\"\n[tool.uv]\n", "uv", true},
+		{"single-quoted string mentions another tool",
+			"[project]\nname=\"a\"\nsummary='see [tool.poetry]'\n[tool.uv]\n", "uv", true},
+		// A trailing comment on the header itself is still a declaration.
+		{"header with a trailing comment", "[project]\nname=\"a\"\n[tool.uv]  # the real one\n", "uv", true},
+		// Parent tables are implicit, so a nested table declares its tool.
+		{"nested table only", "[project]\nname=\"a\"\n[tool.poetry.dependencies]\npython=\"^3.12\"\n", "poetry", true},
+		// A different tool whose name merely starts the same way is not a match.
+		{"similarly named tool", "[project]\nname=\"a\"\n[tool.uvicorn]\nport=8000\n", "pip", false},
+		// Unreadable TOML declares nothing, so the user is asked rather than guessed at.
+		{"malformed toml", "[project\nname=\"a\"\n[tool.uv]\n", "pip", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte(tt.pyproject), 0600))
+
+			choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+			assert.Equal(t, tt.wantName, choice.Name)
+			if tt.wantDefinite {
+				assert.Equal(t, PMDefinite, choice.Confidence)
+			} else {
+				assert.Equal(t, PMAmbiguous, choice.Confidence)
+			}
+		})
+	}
+}
+
+// A [tool.*] table and a Pipfile count as commitments too, so the reason must not
+// send the reader looking for lockfiles that are not there.
+func TestPackageManagerChoice_ConflictReasonNamesWhatWasFound(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "pyproject.toml"),
+		[]byte("[project]\nname=\"a\"\n[tool.uv]\n[tool.poetry]\n"), 0600))
+
+	choice := PackageManagerChoiceFor(dir, "python-server-sdk")
+
+	require.Equal(t, PMAmbiguous, choice.Confidence)
+	assert.Contains(t, choice.Reason, "set up for more than one manager")
+	assert.NotContains(t, choice.Reason, "lockfile",
+		"neither signal here is a lockfile")
+}

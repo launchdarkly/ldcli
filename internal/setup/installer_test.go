@@ -881,3 +881,61 @@ func TestInstall_PinnedSdkVersion_NoWarning(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result.Warning)
 }
+
+// Corepack needs one exact version, so both a missing version and a range stop the
+// manager running. Repairing someone's manifest is not ours to do, so the failure
+// has to say what is wrong.
+func TestInstall_BadPackageManagerSpec_ExplainsIt(t *testing.T) {
+	for _, out := range []string{
+		`No version specified for pnpm in "packageManager" of package.json`,
+		"Invalid package manager specification in package.json (pnpm@^11.13.0); expected a semver version",
+	} {
+		t.Run(out[:24], func(t *testing.T) {
+			stubVirtualEnv(t, "")
+			stubPath(t, "pnpm")
+			installer := PackageInstaller{
+				run: func(string, []string) ([]byte, error) {
+					return []byte(out), errors.New("exit status 1")
+				},
+			}
+
+			result, err := installer.Install(t.TempDir(), &DetectResult{
+				SDKID: "node-server", PackageManager: "pnpm",
+			})
+
+			require.NoError(t, err, "a malformed manifest must not dead-end the flow")
+			assert.True(t, result.Failed)
+			assert.Contains(t, result.FailureReason, "packageManager field")
+			assert.Contains(t, result.FailureReason, "one exact version")
+			assert.Contains(t, result.FailureReason, "pnpm@11.13.0")
+		})
+	}
+}
+
+// Only a Node failure about package.json may be answered with advice about that
+// file. Another ecosystem's error keeps its own text, whatever phrases it contains.
+func TestInstall_OtherEcosystemErrorsKeepTheirText(t *testing.T) {
+	for _, out := range []string{
+		"ERROR:  Could not find a valid gem 'x' (>= 0), here is why:\n  No version specified",
+		"ERROR: Could not find a version that satisfies the requirement x; expected a semver version",
+		"go: module x: invalid version: expected a semver version",
+	} {
+		t.Run(out[:20], func(t *testing.T) {
+			stubVirtualEnv(t, "")
+			stubPath(t, "npm")
+			installer := PackageInstaller{
+				run: func(string, []string) ([]byte, error) {
+					return []byte(out), errors.New("exit status 1")
+				},
+			}
+
+			_, err := installer.Install(t.TempDir(), &DetectResult{
+				SDKID: "node-server", PackageManager: "npm",
+			})
+
+			require.Error(t, err, "the real failure must reach the caller")
+			assert.Contains(t, err.Error(), out, "the real error text is kept")
+			assert.NotContains(t, err.Error(), "packageManager field")
+		})
+	}
+}

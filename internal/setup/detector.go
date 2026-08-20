@@ -1,13 +1,16 @@
 package setup
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/pelletier/go-toml/v2"
 )
 
 // DetectResult contains information about the user's project detected from the working directory.
@@ -21,6 +24,12 @@ type DetectResult struct {
 	// suggest. Callers must not write initialization code into a suggested path
 	// without telling the user, since the project does not load that file.
 	EntryPointExists bool `json:"entry_point_exists"`
+	// PackageManagerConfidence says whether the project identifies its package
+	// manager or PackageManager is only a conventional default. Callers must not
+	// install against an ambiguous verdict without asking first.
+	PackageManagerConfidence PMConfidence `json:"package_manager_confidence,omitempty"`
+	// PackageManagerReason explains an ambiguous verdict, phrased for the user.
+	PackageManagerReason string `json:"package_manager_reason,omitempty"`
 }
 
 // Detector inspects a directory to determine the language, framework, package manager,
@@ -60,6 +69,18 @@ func (FileDetector) Detect(dir string) (*DetectResult, error) {
 		detectNode,
 	} {
 		if result := detect(dir); result != nil {
+			// One read of the project decides the manager and how sure we are, rather
+			// than each detector working it out again. An empty name means a language
+			// this does not model — Java's maven versus gradle — so the detector's own
+			// answer stands. Candidates carry which tools are installed, which
+			// describes the machine rather than the project, so they are left to
+			// callers that need to present a choice.
+			choice := PackageManagerChoiceFor(dir, result.SDKID)
+			if choice.Name != "" {
+				result.PackageManager = choice.Name
+			}
+			result.PackageManagerConfidence = choice.Confidence
+			result.PackageManagerReason = choice.Reason
 			return result, nil
 		}
 	}
@@ -184,19 +205,65 @@ func detectNode(dir string) *DetectResult {
 }
 
 func detectNodePM(dir string) string {
-	if _, err := os.Stat(filepath.Join(dir, "pnpm-lock.yaml")); err == nil {
-		return "pnpm"
+	return nodePMSignals(dir).best("npm")
+}
+
+// exactSemver matches the exact versions corepack requires: a bare MAJOR.MINOR.PATCH
+// with optional prerelease and build metadata, and no range operator.
+var exactSemver = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
+
+// corepackPM reads the packageManager field, which names the manager and version
+// the project expects. It is the most explicit statement a Node project can make,
+// so it outranks lockfiles.
+// https://nodejs.org/api/corepack.html
+func corepackPM(dir string) string {
+	b, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return ""
 	}
-	if _, err := os.Stat(filepath.Join(dir, "yarn.lock")); err == nil {
-		return "yarn"
+	var pkg struct {
+		PackageManager string `json:"packageManager"`
 	}
-	// Lockfiles: https://bun.com/docs/install/lockfile
-	for _, lock := range []string{"bun.lock", "bun.lockb"} {
-		if _, err := os.Stat(filepath.Join(dir, lock)); err == nil {
-			return "bun"
+	if json.Unmarshal(b, &pkg) != nil {
+		return ""
+	}
+	// The field must be "<name>@<exact version>". Corepack accepts nothing else, so
+	// a missing version ("No version specified for pnpm in packageManager") or a
+	// range ("Invalid package manager specification (pnpm@^11.13.0); expected a
+	// semver version") both stop the manager from running at all. Treating either as
+	// the project's declared manager would route the user into a command that cannot
+	// work, so the lockfiles decide instead, or the user is asked.
+	name, version, _ := strings.Cut(pkg.PackageManager, "@")
+	if !exactSemver.MatchString(version) {
+		return ""
+	}
+	switch name {
+	case "npm", "yarn", "pnpm", "bun":
+		return name
+	}
+	return ""
+}
+
+// nodePMSignals reports what the project says about its Node package manager.
+// Lockfiles: https://bun.com/docs/install/lockfile
+func nodePMSignals(dir string) pmSignals {
+	if declared := corepackPM(dir); declared != "" {
+		return pmSignals{declared: declared}
+	}
+	var s pmSignals
+	for _, lock := range []struct{ file, pm string }{
+		{"pnpm-lock.yaml", "pnpm"},
+		{"yarn.lock", "yarn"},
+		{"bun.lock", "bun"},
+		{"bun.lockb", "bun"},
+		{"package-lock.json", "npm"},
+		{"npm-shrinkwrap.json", "npm"},
+	} {
+		if _, err := os.Stat(filepath.Join(dir, lock.file)); err == nil {
+			s.addLocked(lock.pm)
 		}
 	}
-	return "npm"
+	return s
 }
 
 func detectGo(dir string) *DetectResult {
@@ -219,8 +286,8 @@ func detectPython(dir string) *DetectResult {
 		if _, err := os.Stat(filepath.Join(dir, indicator)); err == nil {
 			ep, exists := EntryPointFor(dir, "python-server-sdk")
 			return &DetectResult{
-				Language:         "Python",
-				PackageManager:   detectPythonPM(dir),
+				Language: "Python",
+				// PackageManager is filled in by Detect from the same read.
 				SDKID:            "python-server-sdk",
 				EntryPoint:       ep,
 				EntryPointExists: exists,
@@ -236,23 +303,64 @@ func detectPython(dir string) *DetectResult {
 //
 // https://docs.astral.sh/uv/concepts/projects/layout/
 // https://pipenv.pypa.io/en/latest/
-// https://python-poetry.org/docs/pyproject/
-func detectPythonPM(dir string) string {
-	if _, err := os.Stat(filepath.Join(dir, "uv.lock")); err == nil {
-		return "uv"
-	}
-	if _, err := os.Stat(filepath.Join(dir, "Pipfile")); err == nil {
-		return "pipenv"
-	}
-	if b, err := os.ReadFile(filepath.Join(dir, "pyproject.toml")); err == nil {
-		if bytes.Contains(b, []byte("[tool.poetry]")) {
-			return "poetry"
+
+// pythonPMSignals reports what the project says about its Python package manager.
+// A lockfile is treated as the project having committed to a tool; a [tool.*]
+// section counts the same way, since the tool owns that config.
+func pythonPMSignals(dir string) pmSignals {
+	var s pmSignals
+	for _, lock := range []struct{ file, pm string }{
+		{"uv.lock", "uv"},
+		{"poetry.lock", "poetry"},
+		{"pdm.lock", "pdm"},
+		{"Pipfile.lock", "pipenv"},
+		{"Pipfile", "pipenv"},
+	} {
+		if _, err := os.Stat(filepath.Join(dir, lock.file)); err == nil {
+			s.addLocked(lock.pm)
 		}
-		if bytes.Contains(b, []byte("[tool.uv]")) {
-			return "uv"
+	}
+	tools := configuredTools(dir)
+	for _, section := range []struct{ tool, pm string }{
+		{"poetry", "poetry"},
+		{"uv", "uv"},
+		{"pdm", "pdm"},
+		// hatch has no dependency-add command, so it is a signal we cannot act on.
+		// Recording it keeps the project ambiguous instead of silently falling
+		// through to pip.
+		{"hatch", ""},
+	} {
+		if tools[section.tool] {
+			s.addLocked(section.pm)
 		}
 	}
-	return "pip"
+	return s
+}
+
+// configuredTools reports which tools pyproject.toml configures, by the [tool.*]
+// tables it declares. Reading the tables rather than matching text means a comment
+// or a string that mentions another tool is not mistaken for a declaration, and
+// nested tables need no special case: TOML creates the parent table implicitly, so
+// [tool.hatch.build] on its own still declares hatch.
+//
+// A file we cannot parse declares nothing. That leaves the project ambiguous and the
+// user asked, which is the honest answer when we cannot read what manages it.
+func configuredTools(dir string) map[string]bool {
+	b, err := os.ReadFile(filepath.Join(dir, "pyproject.toml"))
+	if err != nil {
+		return nil
+	}
+	var doc struct {
+		Tool map[string]any `toml:"tool"`
+	}
+	if err := toml.Unmarshal(b, &doc); err != nil {
+		return nil
+	}
+	tools := make(map[string]bool, len(doc.Tool))
+	for name := range doc.Tool {
+		tools[name] = true
+	}
+	return tools
 }
 
 func detectRuby(dir string) *DetectResult {
@@ -282,10 +390,18 @@ func detectRuby(dir string) *DetectResult {
 // install` would succeed without recording the SDK for the app.
 // Gemfile: https://bundler.io/guides/gemfile.html
 func detectRubyPM(dir string) string {
+	return rubyPMSignals(dir).best("gem")
+}
+
+// rubyPMSignals reports what the project says about its Ruby package manager. A
+// Gemfile is Bundler's own manifest, so it settles the question; a gemspec alone
+// does not, since the gem could be developed either way.
+func rubyPMSignals(dir string) pmSignals {
+	var s pmSignals
 	if _, err := os.Stat(filepath.Join(dir, "Gemfile")); err == nil {
-		return "bundle"
+		s.addLocked("bundle")
 	}
-	return "gem"
+	return s
 }
 
 func detectJava(dir string) *DetectResult {
@@ -518,7 +634,7 @@ func PackageManagerFor(dir, sdkID string) string {
 	case "node-server", "js-client-sdk", "react-client-sdk", "react-native":
 		return detectNodePM(dir)
 	case "python-server-sdk":
-		return detectPythonPM(dir)
+		return PackageManagerChoiceFor(dir, sdkID).Name
 	case "ruby-server-sdk":
 		return detectRubyPM(dir)
 	case "go-server-sdk":
@@ -584,4 +700,150 @@ func findFileUnder(dir, root string, names ...string) string {
 		}
 	}
 	return ""
+}
+
+// PMConfidence says whether the project itself identifies its package manager.
+type PMConfidence string
+
+const (
+	// PMDefinite means the project names one manager and only one.
+	PMDefinite PMConfidence = "definite"
+	// PMAmbiguous means the project does not say, or contradicts itself. Callers
+	// must ask rather than guess.
+	PMAmbiguous PMConfidence = "ambiguous"
+)
+
+// PMCandidate is a package manager the user could pick, with the command it would
+// run. Installed reports whether the tool is on PATH; it describes the machine, not
+// the project, so it never makes a candidate more likely to be the right one.
+type PMCandidate struct {
+	Name      string `json:"name"`
+	Installed bool   `json:"installed"`
+	Command   string `json:"command"`
+}
+
+// PMChoice is the package manager for a project plus how sure we are.
+type PMChoice struct {
+	Name       string       `json:"name"`
+	Confidence PMConfidence `json:"confidence"`
+	// Reason explains an ambiguous verdict in the words the picker shows the user.
+	Reason     string        `json:"reason,omitempty"`
+	Candidates []PMCandidate `json:"candidates,omitempty"`
+}
+
+// pmSignals collects what a project says about its package manager. declared holds
+// an explicit statement, which settles the question on its own; locked holds
+// managers implied by lockfiles or tool config, where more than one means the
+// project contradicts itself. An empty entry in locked marks a tool we recognise
+// but cannot drive.
+type pmSignals struct {
+	declared     string
+	locked       []string
+	unactionable bool
+}
+
+func (s *pmSignals) addLocked(pm string) {
+	if pm == "" {
+		s.unactionable = true
+		return
+	}
+	for _, existing := range s.locked {
+		if existing == pm {
+			return
+		}
+	}
+	s.locked = append(s.locked, pm)
+}
+
+// best returns the manager to use, falling back to fallback when the project says
+// nothing. It preserves the old detection behaviour for callers that only want a
+// name, including the first-match-wins ordering when lockfiles conflict.
+func (s pmSignals) best(fallback string) string {
+	if s.declared != "" {
+		return s.declared
+	}
+	if len(s.locked) > 0 {
+		return s.locked[0]
+	}
+	return fallback
+}
+
+// choose turns signals into a verdict. options lists every manager valid for the
+// language, in the order the picker should show them, and fallback is the
+// conventional default when the project is silent.
+func (s pmSignals) choose(options []string, fallback string, argvFor func(string) []string) PMChoice {
+	candidates := make([]PMCandidate, 0, len(options))
+	for _, name := range options {
+		argv := argvFor(name)
+		// Installed tracks the executable the command actually runs, not the label.
+		// "pip" resolves to pip3 on a stock macOS box, and reporting that as missing
+		// would steer the user away from the option that works.
+		installed := len(argv) > 0 && onPath(argv[0])
+		candidates = append(candidates, PMCandidate{
+			Name:      name,
+			Installed: installed,
+			Command:   strings.Join(argv, " "),
+		})
+	}
+
+	switch {
+	case s.declared != "":
+		return PMChoice{Name: s.declared, Confidence: PMDefinite}
+	// A manager the project committed to settles it even when an unactionable tool
+	// is also configured: hatchling is a common build backend for uv and poetry
+	// projects, and uv can add the dependency regardless of who builds the wheel.
+	case len(s.locked) == 1:
+		return PMChoice{Name: s.locked[0], Confidence: PMDefinite}
+	case len(s.locked) > 1:
+		// Say what was actually found. A lockfile, a Pipfile and a [tool.*] table all
+		// count as a project committing to a manager, so naming lockfiles would send
+		// the reader looking for files that are not there.
+		return PMChoice{
+			Name:       s.locked[0],
+			Confidence: PMAmbiguous,
+			Reason: fmt.Sprintf("this project is set up for more than one manager (%s)",
+				strings.Join(s.locked, ", ")),
+			Candidates: candidates,
+		}
+	case s.unactionable:
+		return PMChoice{
+			Name:       fallback,
+			Confidence: PMAmbiguous,
+			Reason:     "this project is managed by a tool that cannot add dependencies for us",
+			Candidates: candidates,
+		}
+	default:
+		return PMChoice{
+			Name:       fallback,
+			Confidence: PMAmbiguous,
+			Reason:     "this project doesn't say which package manager it uses",
+			Candidates: candidates,
+		}
+	}
+}
+
+// PackageManagerChoiceFor reports the package manager for sdkID in dir and whether
+// the project actually identifies it. Languages with a single toolchain are always
+// definite; there is nothing to ask.
+func PackageManagerChoiceFor(dir, sdkID string) PMChoice {
+	cmdFor := func(pm string) []string {
+		args, _ := InstallArgs(dir, sdkID, pm)
+		return args
+	}
+
+	switch sdkID {
+	case "node-server", "js-client-sdk", "react-client-sdk", "react-native":
+		return nodePMSignals(dir).choose([]string{"npm", "yarn", "pnpm", "bun"}, "npm", cmdFor)
+	case "python-server-sdk":
+		return pythonPMSignals(dir).choose([]string{"pip", "uv", "poetry", "pipenv", "pdm"}, "pip", cmdFor)
+	case "ruby-server-sdk":
+		return rubyPMSignals(dir).choose([]string{"bundle", "gem"}, "gem", cmdFor)
+	case "go-server-sdk":
+		return PMChoice{Name: "go", Confidence: PMDefinite}
+	case "dotnet-server-sdk":
+		return PMChoice{Name: "dotnet", Confidence: PMDefinite}
+	default:
+		// Java, Android and Swift are installed by hand.
+		return PMChoice{Name: "", Confidence: PMDefinite}
+	}
 }

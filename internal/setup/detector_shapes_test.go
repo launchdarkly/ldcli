@@ -367,7 +367,13 @@ func TestFileDetector_ProjectShapes(t *testing.T) {
 			require.NoError(t, err)
 			want := shape.want
 			want.EntryPoint = filepath.Join(dir, want.EntryPoint)
-			assert.Equal(t, want, *result)
+			// These shapes assert language, SDK and entry point. Package-manager
+			// confidence has its own tests, so it is cleared rather than restated on
+			// every shape.
+			got := *result
+			got.PackageManagerConfidence = ""
+			got.PackageManagerReason = ""
+			assert.Equal(t, want, got)
 		})
 	}
 }
