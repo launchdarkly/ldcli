@@ -1,12 +1,14 @@
 package setup
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -23,7 +25,10 @@ type InstallResult struct {
 	// FailureReason carries the underlying error when Failed is true, so callers
 	// can tell the user why the automatic install did not run.
 	FailureReason string `json:"failure_reason,omitempty"`
-	Success       bool   `json:"success"`
+	// Warning carries something the user has to act on even though the install
+	// worked, so success is not reported as though nothing were left to do.
+	Warning string `json:"warning,omitempty"`
+	Success bool   `json:"success"`
 }
 
 // RequiresManualInstall reports whether the SDK has no automated package-manager
@@ -72,7 +77,7 @@ var manualInstallSDKs = map[string]bool{
 // returns a result with Success=false without returning an error. An unknown SDK
 // ID returns an error.
 func (p PackageInstaller) Install(dir string, detection *DetectResult) (*InstallResult, error) {
-	args, pkg := InstallArgs(detection.SDKID, detection.PackageManager)
+	args, pkg := InstallArgs(dir, detection.SDKID, detection.PackageManager)
 	if len(args) == 0 {
 		if !manualInstallSDKs[detection.SDKID] {
 			return nil, fmt.Errorf("unknown SDK %q: no install command available; specify a supported --sdk-id", detection.SDKID)
@@ -91,6 +96,29 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 			Package:          pkg,
 			AlreadyInstalled: true,
 			Success:          true,
+		}, nil
+	}
+
+	// A virtualenv we cannot install into is a clearer thing to report than whatever
+	// the pip outside it would do.
+	if reason := pipLessVenvReason(dir, pkg, args); reason != "" {
+		return &InstallResult{
+			SDKID:         detection.SDKID,
+			Package:       pkg,
+			Failed:        true,
+			FailureReason: reason,
+		}, nil
+	}
+
+	// Confirm the tool exists before shelling out, so a missing package manager
+	// warns with what to install instead of surfacing an exec "not found" error.
+	// We never install the tool ourselves.
+	if reason := missingToolReason(args[0]); reason != "" {
+		return &InstallResult{
+			SDKID:         detection.SDKID,
+			Package:       pkg,
+			Failed:        true,
+			FailureReason: reason,
 		}, nil
 	}
 
@@ -115,12 +143,23 @@ func (p PackageInstaller) Install(dir string, detection *DetectResult) (*Install
 	out, err := runner(dir, args)
 	command := strings.Join(args, " ")
 	if err != nil {
+		if reason := externallyManagedReason(dir, out); reason != "" {
+			// No Command: the reason says not to run this pip, and the done screen
+			// offers a non-empty Command as "install it yourself with".
+			return &InstallResult{
+				SDKID:         detection.SDKID,
+				Package:       pkg,
+				Failed:        true,
+				FailureReason: reason,
+			}, nil
+		}
 		return nil, fmt.Errorf("%s: %w\n%s", command, err, strings.TrimSpace(string(out)))
 	}
 	return &InstallResult{
 		SDKID:   detection.SDKID,
 		Package: pkg,
 		Command: command,
+		Warning: unrecordedDependencyWarning(dir, pkg, args),
 		Success: true,
 	}, nil
 }
@@ -151,6 +190,107 @@ func dotnetProjectArg(dir string) (args []string, reason string) {
 	}
 }
 
+// externallyManagedReason recognises a PEP 668 refusal and says what to do about
+// it. Homebrew and most current Linux distributions mark their Python as managed
+// by the OS package manager, so pip declines to write into it. A virtualenv is the
+// supported way through, and it is the user's to create: installing into their
+// system Python, or passing --break-system-packages to force it, risks breaking
+// tools that Python came with.
+func externallyManagedReason(dir string, out []byte) string {
+	if !bytes.Contains(out, []byte("externally-managed-environment")) {
+		return ""
+	}
+	target := dir
+	if target == "" {
+		target = "your project"
+	}
+	return fmt.Sprintf(
+		"this Python is managed by your operating system, so pip will not install into it. "+
+			"Create a virtual environment in %s and run setup again:\n"+
+			"  python3 -m venv .venv\n"+
+			"  source .venv/bin/activate\n"+
+			"Setup uses .venv automatically once it exists.",
+		target,
+	)
+}
+
+// pipLessVenvReason explains that the project's virtualenv cannot be installed into.
+// It fires only when the command is that virtualenv's own pip and the pip is not
+// there — uv, poetry and pipenv own their environments and never reach this.
+func pipLessVenvReason(dir, pkg string, args []string) string {
+	target, exists := venvPipTarget(dir)
+	if target == "" || exists || len(args) == 0 || args[0] != target {
+		return ""
+	}
+	return fmt.Sprintf(
+		"the virtual environment at %s has no pip, which is how `uv venv` creates one. "+
+			"Install into it with `uv pip install %s`, or recreate it with "+
+			"`python3 -m venv .venv`, then run setup again.",
+		filepath.Dir(filepath.Dir(target)), pkg,
+	)
+}
+
+// unrecordedDependencyWarning reports that a bare pip install leaves the project's
+// manifest untouched. poetry, uv, pipenv and pdm record the dependency themselves,
+// and Ruby gets `bundle add` for the same reason, but pip has no equivalent command:
+// editing someone's manifest is not something setup does unasked, so it says what is
+// missing instead of writing the file.
+func unrecordedDependencyWarning(dir, pkg string, args []string) string {
+	if len(args) == 0 || filepath.Base(args[0]) != "pip" && filepath.Base(args[0]) != "pip3" &&
+		filepath.Base(args[0]) != "pip.exe" {
+		return ""
+	}
+	manifest := ""
+	for _, name := range []string{"requirements.txt", "requirements/base.txt"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			manifest = name
+			break
+		}
+	}
+	if manifest == "" {
+		return ""
+	}
+	// Whole-name matching, so a related pin such as launchdarkly-server-sdk-otel is
+	// not read as the SDK itself being recorded.
+	if fileMentionsPackage(filepath.Join(dir, manifest), pkg) {
+		return ""
+	}
+	return fmt.Sprintf(
+		"pip installed %s but did not record it in %s, so a fresh checkout and CI will not have it. "+
+			"Add a line for %s to %s.",
+		pkg, manifest, pkg, manifest,
+	)
+}
+
+// installHints maps a package-manager executable to how the user can get it.
+var installHints = map[string]string{
+	"pip":    "install Python from https://www.python.org/downloads or your package manager",
+	"pip3":   "install Python from https://www.python.org/downloads or your package manager",
+	"poetry": "see https://python-poetry.org/docs/#installation",
+	"uv":     "see https://docs.astral.sh/uv/getting-started/installation",
+	"pipenv": "see https://pipenv.pypa.io/en/latest/installation.html",
+	"npm":    "install Node.js from https://nodejs.org",
+	"yarn":   "see https://yarnpkg.com/getting-started/install",
+	"pnpm":   "see https://pnpm.io/installation",
+	"bun":    "see https://bun.sh/docs/installation",
+	"bundle": "run `gem install bundler`",
+	"gem":    "install Ruby from https://www.ruby-lang.org/en/documentation/installation",
+	"go":     "install Go from https://go.dev/dl",
+	"dotnet": "install the .NET SDK from https://dotnet.microsoft.com/download",
+}
+
+// missingToolReason returns an explanation when tool is not on PATH, or an empty
+// string when it is available.
+func missingToolReason(tool string) string {
+	if onPath(tool) {
+		return ""
+	}
+	if hint, ok := installHints[tool]; ok {
+		return fmt.Sprintf("%s is not installed or not on your PATH — %s", tool, hint)
+	}
+	return fmt.Sprintf("%s is not installed or not on your PATH", tool)
+}
+
 func execRun(dir string, args []string) ([]byte, error) {
 	cmd := exec.Command(args[0], args[1:]...) //nolint:gosec
 	cmd.Dir = dir
@@ -160,7 +300,9 @@ func execRun(dir string, args []string) ([]byte, error) {
 // InstallArgs returns the command-line arguments and package name for installing the given SDK.
 // Returns nil args for SDKs that require manual installation (e.g. Java, Android, Swift).
 // packageManager is used for Node.js SDKs; for other runtimes the appropriate tool is chosen automatically.
-func InstallArgs(sdkID, packageManager string) (args []string, pkg string) {
+// dir is the project directory, which decides whether a virtualenv's pip is used;
+// pass an empty string when there is no project in mind.
+func InstallArgs(dir, sdkID, packageManager string) (args []string, pkg string) {
 	switch sdkID {
 	case "react-client-sdk":
 		pkg = "launchdarkly-react-client-sdk"
@@ -179,7 +321,7 @@ func InstallArgs(sdkID, packageManager string) (args []string, pkg string) {
 		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
 	case "python-server-sdk":
 		pkg = "launchdarkly-server-sdk"
-		return pythonInstallCmd(packageManager, pkg), pkg
+		return pythonInstallCmd(dir, packageManager, pkg), pkg
 	case "go-server-sdk":
 		pkg = "github.com/launchdarkly/go-server-sdk/v7"
 		return []string{"go", "get", pkg}, pkg
@@ -207,10 +349,19 @@ func InstallArgs(sdkID, packageManager string) (args []string, pkg string) {
 	}
 }
 
+// lookPath is indirected so tests can control which executables appear to exist.
+var lookPath = exec.LookPath
+
+// onPath reports whether name is an executable on PATH.
+func onPath(name string) bool {
+	_, err := lookPath(name)
+	return err == nil
+}
+
 // pythonInstallCmd returns the install command arguments for a Python package
 // manager. Anything unrecognised — including the empty string, which IsInstalled
 // passes — falls back to pip.
-func pythonInstallCmd(pm, pkg string) []string {
+func pythonInstallCmd(dir, pm, pkg string) []string {
 	switch pm {
 	case "poetry":
 		return []string{"poetry", "add", pkg}
@@ -219,8 +370,119 @@ func pythonInstallCmd(pm, pkg string) []string {
 	case "pipenv":
 		return []string{"pipenv", "install", pkg}
 	default:
-		return []string{"pip", "install", pkg}
+		return pipInstallCmd(dir, pkg)
 	}
+}
+
+// virtualEnv reports the active virtualenv, indirected so tests are not affected
+// by the environment the suite happens to run in.
+var virtualEnv = func() string { return os.Getenv("VIRTUAL_ENV") }
+
+// venvRoots lists the virtualenvs to consider for dir, the active one first. An
+// empty dir means the caller has no project in mind, so relative lookups would
+// search whatever directory the process happens to be in.
+func venvRoots(dir string) []string {
+	var roots []string
+	if active := virtualEnv(); active != "" {
+		roots = append(roots, active)
+	}
+	if dir != "" {
+		roots = append(roots, filepath.Join(dir, ".venv"), filepath.Join(dir, "venv"))
+	}
+	// Absolute, so a root can be compared against the command we build from it and
+	// so the path we show names the same place whatever the working directory is.
+	for i, root := range roots {
+		if abs, err := filepath.Abs(root); err == nil {
+			roots[i] = abs
+		}
+	}
+	return roots
+}
+
+// venvPipIn returns root's own pip as an absolute path, or an empty string when the
+// virtualenv has none. The path has to be absolute because the command runs with its
+// working directory set to the project: a relative executable is resolved after that
+// change, so "app/.venv/bin/pip" run in "app" would be looked for at
+// "app/app/.venv/bin/pip" and the install would fail with the virtualenv found.
+func venvPipIn(root string) string {
+	for _, rel := range venvPipLayouts() {
+		candidate := filepath.Join(root, rel)
+		info, err := os.Stat(candidate)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		return absOrAsGiven(candidate)
+	}
+	return ""
+}
+
+// venvPipLayouts lists where a virtualenv keeps pip, this platform's layout first.
+// Windows uses Scripts\pip.exe; everything else uses bin/pip. Naming the wrong one
+// would point the plan and the previewed command at a path the environment on this
+// machine never has.
+func venvPipLayouts() []string {
+	unix := filepath.Join("bin", "pip")
+	windows := filepath.Join("Scripts", "pip.exe")
+	if runtime.GOOS == "windows" {
+		return []string{windows, unix}
+	}
+	return []string{unix, windows}
+}
+
+// absOrAsGiven makes a path absolute, falling back to the path itself when the
+// working directory cannot be read.
+func absOrAsGiven(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
+}
+
+// pipInstallCmd returns the pip install command. A virtualenv's pip wins, then
+// whichever of pip3 and pip is on PATH: recent macOS and Homebrew installs ship
+// pip3 with no bare pip, so a hardcoded `pip` fails outright on a common box.
+//
+// Only an existing pip is used. Reaching past it — to `python3 -m pip`, or to
+// bootstrapping pip with ensurepip — would install tooling onto the user's
+// machine, which is not ours to do. When no pip is found the bare form is
+// returned so the plan screen has something to show, and Install's pre-flight
+// check warns instead of running anything.
+func pipInstallCmd(dir, pkg string) []string {
+	// A virtualenv without pip still names the environment the project set up, and
+	// naming it is more use than a pip from PATH that Install will refuse to run:
+	// the plan screen, --dry-run and the picker all read this, and a command shown
+	// there is one a reader may run by hand.
+	if pip, _ := venvPipTarget(dir); pip != "" {
+		return []string{pip, "install", pkg}
+	}
+	for _, bin := range []string{"pip3", "pip"} {
+		if onPath(bin) {
+			return []string{bin, "install", pkg}
+		}
+	}
+	return []string{"pip", "install", pkg}
+}
+
+// venvPipTarget returns the pip belonging to the project's virtualenv, and whether it
+// is actually there. An empty path means there is no virtualenv to install into.
+func venvPipTarget(dir string) (path string, exists bool) {
+	for _, root := range venvRoots(dir) {
+		if pip := venvPipIn(root); pip != "" {
+			return pip, true
+		}
+		if isVirtualEnv(root) {
+			// No pip to find, so name where this platform would keep one.
+			return absOrAsGiven(filepath.Join(root, venvPipLayouts()[0])), false
+		}
+	}
+	return "", false
+}
+
+// isVirtualEnv reports whether root is a virtualenv. pyvenv.cfg is what marks one,
+// and it is there whether or not the environment was seeded with pip.
+func isVirtualEnv(root string) bool {
+	_, err := os.Stat(filepath.Join(root, "pyvenv.cfg"))
+	return err == nil
 }
 
 // nodeInstallCmd returns the install command arguments for a Node.js package manager.
@@ -252,7 +514,7 @@ func resolveNodePM(pm string) string {
 // covers SDKs with an automated install command; returns false for manual SDKs
 // and unknowns.
 func IsInstalled(dir, sdkID string) bool {
-	_, pkg := InstallArgs(sdkID, "")
+	_, pkg := InstallArgs(dir, sdkID, "")
 	if pkg == "" {
 		return false
 	}

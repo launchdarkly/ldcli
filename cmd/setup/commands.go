@@ -85,7 +85,7 @@ func (m wizardModel) runInstall() tea.Cmd {
 		if err != nil {
 			// Don't dead-end the interactive flow on a failed auto-install (e.g.
 			// Ruby gem perms, no network): surface the command to run by hand.
-			args, _ := setup.InstallArgs(m.detectResult.SDKID, m.detectResult.PackageManager)
+			args, _ := setup.InstallArgs(dir, m.detectResult.SDKID, m.detectResult.PackageManager)
 			return installDoneMsg{result: &setup.InstallResult{
 				SDKID:         m.detectResult.SDKID,
 				Command:       strings.Join(args, " "),

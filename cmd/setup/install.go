@@ -55,7 +55,7 @@ func runInstall(svc setup.Service) func(*cobra.Command, []string) error {
 
 		var result *setup.InstallResult
 		if dryRun {
-			args, pkg := setup.InstallArgs(sdkID, pkgMgr)
+			args, pkg := setup.InstallArgs(dir, sdkID, pkgMgr)
 			result = &setup.InstallResult{
 				SDKID:   sdkID,
 				Package: pkg,
@@ -95,6 +95,9 @@ func runInstall(svc setup.Service) func(*cobra.Command, []string) error {
 			return nil
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Success: %t\n", result.Success)
+		if result.Warning != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "Warning: %s\n", result.Warning)
+		}
 		switch {
 		case result.FailureReason != "":
 			fmt.Fprintf(cmd.OutOrStdout(), "Reason: %s\n", result.FailureReason)
