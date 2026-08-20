@@ -47,7 +47,7 @@ func (m wizardModel) View() string {
 				m.wrap("This access token can't see any projects. Create a project in LaunchDarkly, or use a token with access to one, then run this command again.") + "\n" +
 				quitHint
 		}
-		return m.projectList.View() + "\n" + mutedStyle.Render("q quit")
+		return m.projectList.View()
 
 	case stepSelectEnvironment:
 		if !m.envsLoaded {
@@ -58,13 +58,16 @@ func (m wizardModel) View() string {
 				m.wrap(fmt.Sprintf("Project %q has no environments this access token can see. Press ← to pick another project.", m.selectedProject)) + "\n" +
 				mutedStyle.Render("← back · q quit") + "\n"
 		}
-		return m.envList.View() + "\n" + mutedStyle.Render("← back · q quit")
+		return m.envList.View()
 
 	case stepDetect:
 		return m.spinner.View() + " Detecting project type..."
 
 	case stepSelectSDK:
 		return m.sdkSelectView()
+
+	case stepSelectPackageManager:
+		return m.packageManagerView()
 
 	case stepPlan:
 		return m.planView()
@@ -79,17 +82,20 @@ func (m wizardModel) View() string {
 		return m.spinner.View() + " Injecting initialization code..."
 
 	case stepWaitForApp:
-		lead := "SDK initialization code has been injected into:\n"
+		// The newline stays outside the wrap: wrapping pads each line to the full
+		// width, so a trailing one inside would put a row of spaces in front of the
+		// path and push it past the edge of the terminal.
+		lead := "SDK initialization code has been injected into:"
 		if m.initResult.AlreadyInitialized {
-			lead = "This file already initializes the LaunchDarkly SDK, so it was left as it is:\n"
+			lead = "This file already initializes the LaunchDarkly SDK, so it was left as it is:"
 		}
 		return titleStyle.Render("Start your application") + "\n\n" +
-			lead +
-			"  " + m.initResult.FilePath + "\n\n" +
-			"Please start your application now, then press Enter to verify the connection.\n"
+			m.wrap(lead) + "\n" +
+			m.wrap("  "+m.initResult.FilePath) + "\n\n" +
+			m.wrap("Please start your application now, then press Enter to verify the connection.") + "\n"
 
 	case stepVerify:
-		return m.spinner.View() + " Waiting for SDK to connect..."
+		return m.spinner.View() + " Waiting for your app to start and its SDK to connect..."
 
 	case stepDone:
 		if m.installResult != nil && m.installResult.Failed {
@@ -186,6 +192,46 @@ func (m wizardModel) sdkBoxWidth() int {
 		w = 20
 	}
 	return w
+}
+
+// pmListHeight is the height available to the package-manager list. The screen
+// draws a title, the reason it is asking and a key hint around the list, so giving
+// the list the whole window pushes the hint — including how to go back — off the
+// bottom of the terminal.
+func (m wizardModel) pmListHeight() int {
+	chrome := 3 // the question, a blank line, and the list's own trailing row
+	if m.pmShowReason() {
+		chrome += 3 // the reason, which wraps to two lines when narrow
+	}
+	// The list's help line runs to about seventy columns, so on anything narrower
+	// it wraps and costs a second row.
+	if m.width < 72 {
+		chrome++
+	}
+	h := m.height - chrome
+	if h < 3 {
+		h = 3
+	}
+	return h
+}
+
+// pmShowReason reports whether there is room to explain why we are asking. On a
+// very short terminal the question and the choices have to win: dropping the
+// explanation is better than pushing the key hint off the bottom.
+func (m wizardModel) pmShowReason() bool { return m.height >= 14 }
+
+// packageManagerView asks which package manager to use. It says why it is asking:
+// a wizard that stops to ask without explaining itself reads as one that failed to
+// look, and the reason is also what tells the user whether our reading of their
+// project is wrong.
+func (m wizardModel) packageManagerView() string {
+	reason := ""
+	if m.pmShowReason() && m.pmChoice != nil && m.pmChoice.Reason != "" {
+		reason = m.wrap(strings.ToUpper(m.pmChoice.Reason[:1])+m.pmChoice.Reason[1:]+".") + "\n\n"
+	}
+	return titleStyle.Render(m.wrap("Which package manager should install the SDK?")) + "\n\n" +
+		reason +
+		m.pmList.View()
 }
 
 // addCodeTo phrases an "add this code" instruction. SDKs that only show a snippet
@@ -290,7 +336,14 @@ func (m wizardModel) planView() string {
 
 	var steps []string
 	add := func(s string) {
-		steps = append(steps, selectedStyle.Render(fmt.Sprintf("%d.", len(steps)+1))+" "+s)
+		marker := selectedStyle.Render(fmt.Sprintf("%d.", len(steps)+1))
+		// Wrap to leave room for the marker and indent what wraps, so a step too long
+		// for the terminal still reads as one numbered item instead of overflowing.
+		lines := strings.Split(wrapText(s, m.width-len("1. ")), "\n")
+		for i := 1; i < len(lines); i++ {
+			lines[i] = strings.Repeat(" ", len("1. ")) + lines[i]
+		}
+		steps = append(steps, marker+" "+strings.Join(lines, "\n"))
 	}
 
 	switch {

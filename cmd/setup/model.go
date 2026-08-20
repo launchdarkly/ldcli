@@ -33,6 +33,9 @@ const (
 	stepSelectEnvironment
 	stepDetect
 	stepSelectSDK
+	// stepSelectPackageManager is only reached when the project does not identify
+	// its package manager. A project that does skips straight to the plan.
+	stepSelectPackageManager
 	stepPlan
 	stepInstall
 	stepCreateFlag
@@ -66,6 +69,12 @@ type wizardModel struct {
 	// zero-value list.Model.
 	sdkListBuilt bool
 	sdkList      list.Model
+	// pmChoice is the package-manager verdict for the chosen SDK. It is non-nil only
+	// when the project was ambiguous and the user was asked, which also records that
+	// going back from the plan should return to the picker rather than the SDK list.
+	pmChoice    *setup.PMChoice
+	pmList      list.Model
+	pmListBuilt bool
 
 	selectedProject string
 	selectedEnv     string
@@ -117,6 +126,24 @@ func (s sdkItem) Title() string {
 }
 func (s sdkItem) Description() string { return s.language }
 func (s sdkItem) FilterValue() string { return s.name }
+
+// pmItem is a package manager the user can pick. Installed state is shown but does
+// not disable the row: the user may be about to install the tool, and setup never
+// installs tooling on their behalf.
+type pmItem struct {
+	name      string
+	command   string
+	installed bool
+}
+
+func (p pmItem) Title() string {
+	if p.installed {
+		return p.name
+	}
+	return p.name + " (not installed)"
+}
+func (p pmItem) Description() string { return p.command }
+func (p pmItem) FilterValue() string { return p.name }
 
 type projectItem struct {
 	key  string

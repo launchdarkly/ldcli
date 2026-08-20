@@ -1,8 +1,10 @@
 package setup
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -342,8 +344,8 @@ func TestWizard_Plan_ExistingEntryPoint_SaysAdd(t *testing.T) {
 	}
 
 	view := m.planView()
-	assert.Contains(t, view, "Add initialization code to src/index.js")
-	assert.NotContains(t, view, "Create src/index.js")
+	assert.Contains(t, flat(view), "Add initialization code to src/index.js")
+	assert.NotContains(t, flat(view), "Create src/index.js")
 }
 
 // A guessed entry point means we would write a file the project does not load, so
@@ -363,14 +365,16 @@ func TestWizard_Plan_MissingEntryPoint_SaysCreate(t *testing.T) {
 	}
 
 	view := m.planView()
-	assert.Contains(t, view, "Create instrumentation.ts")
-	assert.Contains(t, view, "no entry file found")
-	assert.NotContains(t, view, "Add initialization code to")
+	assert.Contains(t, flat(view), "Create instrumentation.ts")
+	assert.Contains(t, flat(view), "no entry file found")
+	assert.NotContains(t, flat(view), "Add initialization code to")
 }
 
 // The SDK screen rebuilds detectResult, and the plan and install steps read it, so
 // every detected value has to survive that step — not just the SDK.
 func TestWizard_SelectSDK_CarriesDetectionThrough(t *testing.T) {
+	// A Gemfile makes Bundler the project's stated manager, so the picker is skipped.
+	gemfileProject(t)
 	m := wizardModel{step: stepDetect, width: 80, height: 30}
 
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
@@ -395,6 +399,7 @@ func TestWizard_SelectSDK_CarriesDetectionThrough(t *testing.T) {
 }
 
 func TestWizard_SelectSDK_PlanUsesDetectedPackageManager(t *testing.T) {
+	gemfileProject(t)
 	m := wizardModel{step: stepDetect, width: 80, height: 30}
 
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
@@ -425,6 +430,8 @@ func selectOtherSDK(t *testing.T, m wizardModel, id string) wizardModel {
 // The detected entry point belongs to the detected language. ruby-server-sdk is
 // append-safe, so reusing it would append Ruby to a Node project's index.js.
 func TestWizard_OverrideSDK_DoesNotReuseDetectedEntryPoint(t *testing.T) {
+	// A Gemfile states the manager, so the override lands on the plan without asking.
+	gemfileProject(t)
 	m := wizardModel{step: stepDetect, width: 80, height: 30}
 	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
 		SDKID:            "node-server",
@@ -448,7 +455,7 @@ func TestWizard_OverrideSDK_DoesNotReuseDetectedEntryPoint(t *testing.T) {
 	assert.Contains(t, m3.detectResult.EntryPoint, "main.rb")
 	assert.Empty(t, m3.detectResult.Framework, "Next.js does not describe a Ruby project")
 	// pnpm cannot install a gem, so the manager is re-derived for the chosen SDK.
-	assert.Equal(t, "gem", m3.detectResult.PackageManager)
+	assert.Equal(t, "bundle", m3.detectResult.PackageManager)
 }
 
 // An override must find the file the project already has, rather than falling back
@@ -457,6 +464,8 @@ func TestWizard_OverrideSDK_FindsExistingEntryPoint(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "src/index.js"), []byte("console.log(1)\n"), 0600))
+	// A lockfile states the manager, so the override lands on the plan without asking.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0600))
 	// macOS resolves /var to /private/var, and the override path reads os.Getwd,
 	// so compare against the resolved directory rather than the one we created.
 	dir = chdir(t, dir)
@@ -475,6 +484,15 @@ func TestWizard_OverrideSDK_FindsExistingEntryPoint(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "src/index.js"), m3.detectResult.EntryPoint,
 		"setup would create a second index.js beside the real entry point")
 	assert.True(t, m3.detectResult.EntryPointExists)
+}
+
+// gemfileProject moves into a project whose package manager is unambiguous, so the
+// package-manager picker does not intervene.
+func gemfileProject(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Gemfile"), []byte("source 'https://rubygems.org'\n"), 0600))
+	return chdir(t, dir)
 }
 
 // chdir moves into dir for the duration of the test and returns the working
@@ -538,6 +556,12 @@ func overrideToSDK(t *testing.T, detected *setup.DetectResult, id string) wizard
 	m2 := selectOtherSDK(t, next.(wizardModel), id)
 	next2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m3 := next2.(wizardModel)
+	// An override into a project that doesn't state its package manager asks first.
+	// These callers are about entry points, so accept the highlighted manager.
+	if m3.step == stepSelectPackageManager {
+		next3, _ := m3.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m3 = next3.(wizardModel)
+	}
 	require.Equal(t, stepPlan, m3.step)
 	return m3
 }
@@ -558,8 +582,8 @@ func TestWizard_OverrideSDK_DefaultEntryPointAlreadyPresent(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "main.rb"), m.detectResult.EntryPoint)
 	assert.True(t, m.detectResult.EntryPointExists)
 	view := m.View()
-	assert.Contains(t, view, "Add initialization code to")
-	assert.NotContains(t, view, "no entry file found")
+	assert.Contains(t, flat(view), "Add initialization code to")
+	assert.NotContains(t, flat(view), "no entry file found")
 }
 
 func TestWizard_OverrideSDK_DefaultEntryPointMissing(t *testing.T) {
@@ -571,7 +595,7 @@ func TestWizard_OverrideSDK_DefaultEntryPointMissing(t *testing.T) {
 	}, "ruby-server-sdk")
 
 	assert.False(t, m.detectResult.EntryPointExists)
-	assert.Contains(t, m.View(), "no entry file found")
+	assert.Contains(t, flat(m.View()), "no entry file found")
 }
 
 func TestWizard_Done_DeclinedInstall_ShowsReasonWithoutCommand(t *testing.T) {
@@ -853,4 +877,262 @@ func TestWizard_EnvsFetched_ForSupersededProject_IsIgnored(t *testing.T) {
 	// proj-b's own list is accepted.
 	fresh, _ := m.Update(envsFetchedMsg{project: "proj-b", environments: []envItem{{key: "b-prod", name: "B Prod"}}})
 	assert.Contains(t, fresh.(wizardModel).View(), "B Prod")
+}
+
+// A project that states its manager must not be interrupted; the happy path gains
+// no keystrokes from the picker existing.
+func TestWizard_DefinitePackageManager_SkipsPicker(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"packageManager":"pnpm@9.1.0"}`), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript", PackageManager: "pnpm",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+
+	require.Equal(t, stepPlan, m3.step)
+	assert.Nil(t, m3.pmChoice, "nothing was ambiguous, so nothing was asked")
+	assert.Equal(t, "pnpm add @launchdarkly/node-server-sdk", m3.planInstallCmd)
+}
+
+// Two lockfiles from different managers is the case no guess can get right.
+func TestWizard_ConflictingLockfiles_AsksAndUsesTheAnswer(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "yarn.lock"), []byte(""), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript", PackageManager: "yarn",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	picker := next2.(wizardModel)
+
+	require.Equal(t, stepSelectPackageManager, picker.step)
+	require.NotNil(t, picker.pmChoice)
+	assert.Contains(t, picker.pmChoice.Reason, "more than one manager")
+
+	// The view has to say why it is asking, or it reads as a tool that failed to look.
+	view := picker.View()
+	assert.Contains(t, view, "Which package manager")
+	assert.Contains(t, view, "more than one manager")
+
+	// Pick whatever is highlighted and confirm the plan follows the answer.
+	next3, _ := picker.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	planned := next3.(wizardModel)
+	require.Equal(t, stepPlan, planned.step)
+	selected := planned.detectResult.PackageManager
+	assert.Contains(t, planned.planInstallCmd, selected,
+		"the plan must run the manager the user chose")
+}
+
+// Installed managers come first and the cursor starts on one, but an uninstalled
+// manager stays selectable — setup never installs tooling for the user.
+func TestWizard_Picker_ListsInstalledFirstAndKeepsMissingSelectable(t *testing.T) {
+	m := wizardModel{step: stepSelectSDK, width: 80, height: 30}
+	m.detectResult = &setup.DetectResult{SDKID: "node-server"}
+	m.pmChoice = &setup.PMChoice{
+		Name:       "npm",
+		Confidence: setup.PMAmbiguous,
+		Reason:     "this project doesn't say which package manager it uses",
+		Candidates: []setup.PMCandidate{
+			{Name: "npm", Installed: false, Command: "npm install x"},
+			{Name: "yarn", Installed: true, Command: "yarn add x"},
+			{Name: "pnpm", Installed: true, Command: "pnpm add x"},
+		},
+	}
+	m.enterPackageManagerStep()
+
+	items := m.pmList.Items()
+	require.Len(t, items, 3)
+	assert.Equal(t, "yarn", items[0].(pmItem).name, "installed managers come first")
+	assert.Equal(t, "pnpm", items[1].(pmItem).name)
+	assert.Equal(t, "npm", items[2].(pmItem).name)
+	assert.Contains(t, items[2].(pmItem).Title(), "not installed")
+
+	// Selecting the uninstalled one is allowed; the install step warns later.
+	m.pmList.Select(2)
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	chosen := next.(wizardModel)
+	require.Equal(t, stepPlan, chosen.step)
+	assert.Equal(t, "npm", chosen.detectResult.PackageManager)
+}
+
+// The picker's list quits on esc for the same reason the others did.
+func TestWizard_Picker_EscDoesNotQuit(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 24}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	picker := next2.(wizardModel)
+	require.Equal(t, stepSelectPackageManager, picker.step)
+
+	after, cmd := picker.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	assert.False(t, after.(wizardModel).quitting)
+	assert.False(t, quitsOn(cmd), "the list quit the wizard on esc")
+	assert.Equal(t, stepSelectPackageManager, after.(wizardModel).step)
+}
+
+// Back must return to the picker, not skip over it to the SDK list.
+func TestWizard_Picker_BackReturnsToPickerFromPlan(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	picker := next2.(wizardModel)
+	require.Equal(t, stepSelectPackageManager, picker.step)
+
+	next3, _ := picker.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	planned := next3.(wizardModel)
+	require.Equal(t, stepPlan, planned.step)
+
+	back, _ := planned.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	assert.Equal(t, stepSelectPackageManager, back.(wizardModel).step)
+
+	backAgain, _ := back.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyLeft})
+	assert.Equal(t, stepSelectSDK, backAgain.(wizardModel).step)
+}
+
+// The picker draws its question and the reason for asking around the list, so the
+// list has to be sized for less than the whole window or the instructions are
+// pushed off the bottom. Rows are counted the way a terminal shows them, with
+// over-wide lines wrapping.
+//
+// Widths below 72 are left out: the list widget's own help line runs to about
+// seventy columns and wraps there. That affects every list screen in the wizard,
+// not this one, and no height reserve fixes it.
+func TestWizard_Picker_FitsTerminalHeight(t *testing.T) {
+	for _, dims := range [][2]int{{100, 30}, {80, 30}, {80, 24}, {80, 20}, {80, 16}} {
+		t.Run(fmt.Sprintf("%dx%d", dims[0], dims[1]), func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "yarn.lock"), []byte(""), 0600))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0600))
+			chdir(t, dir)
+
+			m := wizardModel{step: stepDetect, width: dims[0], height: dims[1]}
+			next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+				SDKID: "node-server", Language: "JavaScript",
+			}})
+			next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+			picker := next2.(wizardModel)
+			require.Equal(t, stepSelectPackageManager, picker.step)
+
+			view := picker.View()
+			assert.LessOrEqual(t, terminalRows(view, dims[0]), dims[1],
+				"the instructions would be pushed off the bottom")
+			// However short the terminal, the way out must stay on screen.
+			assert.Contains(t, view, "back")
+			assert.Contains(t, view, "Which package manager")
+		})
+	}
+}
+
+// flat collapses whitespace in a rendered view, so assertions about a phrase hold
+// wherever wrapping happens to fall.
+func flat(view string) string { return strings.Join(strings.Fields(view), " ") }
+
+// terminalRows counts the rows a terminal of the given width would use, so a line
+// wider than the window counts as the several rows it actually occupies.
+func terminalRows(view string, width int) int {
+	rows := 0
+	for _, line := range strings.Split(strings.TrimRight(view, "\n"), "\n") {
+		if w := len([]rune(line)); w > width {
+			rows += (w + width - 1) / width
+			continue
+		}
+		rows++
+	}
+	return rows
+}
+
+// The plan names an absolute entry-point path and explains why it is creating the
+// file, which together run well past a narrow terminal. Overflowing there hides
+// the very warning the step exists to give.
+func TestWizard_Plan_WrapsStepsToTerminalWidth(t *testing.T) {
+	for _, width := range []int{100, 80, 60, 40} {
+		t.Run(fmt.Sprintf("width%d", width), func(t *testing.T) {
+			m := wizardModel{
+				step:            stepPlan,
+				selectedProject: "my-scratch-project",
+				selectedEnv:     "production",
+				detectResult: &setup.DetectResult{
+					SDKID:            "python-server-sdk",
+					EntryPoint:       "/Users/someone/code/launchdarkly/test-app/main.py",
+					EntryPointExists: false,
+				},
+				planInstallCmd: "pip3 install launchdarkly-server-sdk",
+				width:          width,
+				height:         30,
+			}
+
+			view := m.planView()
+
+			for _, line := range strings.Split(view, "\n") {
+				assert.LessOrEqual(t, len([]rune(line)), width,
+					"a plan step overflows a %d-column terminal", width)
+			}
+			// The warning must survive wrapping, not be truncated away.
+			assert.Contains(t, flat(view), "no entry file found")
+			assert.Contains(t, flat(view), "main.py")
+			// Wrapped text is indented under its number so the step still reads as one.
+			assert.Regexp(t, `(?m)^ {3}\S`, view)
+		})
+	}
+}
+
+// Wrapping pads every line to the full width, so a newline left inside a wrapped
+// string put a whole row of spaces in front of the injected file path and pushed it
+// off the terminal.
+func TestWizard_WaitForApp_WrapsWithoutLeadingPadding(t *testing.T) {
+	for _, width := range []int{80, 60, 40} {
+		for _, already := range []bool{false, true} {
+			t.Run(fmt.Sprintf("width%d_already%v", width, already), func(t *testing.T) {
+				path := "/Users/someone/code/launchdarkly/test-app/main.py"
+				m := wizardModel{
+					step:   stepWaitForApp,
+					width:  width,
+					height: 24,
+					initResult: &setup.InitResult{
+						FilePath:           path,
+						AlreadyInitialized: already,
+					},
+				}
+
+				view := m.View()
+
+				for _, line := range strings.Split(view, "\n") {
+					assert.LessOrEqual(t, len([]rune(line)), width,
+						"a line overflows a %d-column terminal", width)
+				}
+				// The path must start near the left edge, not after a row of padding.
+				for _, line := range strings.Split(view, "\n") {
+					if idx := strings.Index(line, "/Users/someone"); idx >= 0 {
+						assert.LessOrEqual(t, idx, 2, "the path is pushed right by padding")
+					}
+				}
+				// A path has no spaces to wrap on, so a narrow terminal hard-breaks it.
+				// Compare with whitespace removed to check nothing was lost.
+				assert.Contains(t, strings.Join(strings.Fields(view), ""), path)
+				if already {
+					assert.Contains(t, flat(view), "already initializes the LaunchDarkly SDK")
+				}
+			})
+		}
+	}
 }
