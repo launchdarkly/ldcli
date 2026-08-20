@@ -1136,3 +1136,44 @@ func TestWizard_WaitForApp_WrapsWithoutLeadingPadding(t *testing.T) {
 		}
 	}
 }
+
+// A successful install can leave the user something to do — the SDK not recorded in
+// requirements.txt. Every screen reachable after that install has to say so, or the
+// note is lost when init needs a manual snippet or verification times out.
+func TestWizard_Done_InstallWarningShownOnEveryReachableScreen(t *testing.T) {
+	const warning = "pip installed launchdarkly-server-sdk but did not record it in requirements.txt"
+
+	cases := []struct {
+		name  string
+		model wizardModel
+	}{
+		{"verification succeeded", wizardModel{
+			step:         stepDone,
+			detectResult: &setup.DetectResult{SDKID: "python-server-sdk"},
+			verifyResult: &setup.VerifyResult{Active: true},
+		}},
+		{"verification timed out", wizardModel{
+			step:         stepDone,
+			detectResult: &setup.DetectResult{SDKID: "python-server-sdk"},
+			verifyResult: &setup.VerifyResult{Active: false},
+		}},
+		{"init needs a manual snippet", wizardModel{
+			step:         stepDone,
+			detectResult: &setup.DetectResult{SDKID: "python-server-sdk"},
+			initResult: &setup.InitResult{
+				SDKID: "python-server-sdk", Success: false,
+				Snippet: "import ldclient", DocsURL: "https://example.com",
+			},
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := c.model
+			m.width, m.height = 80, 30
+			m.installResult = &setup.InstallResult{Success: true, Warning: warning}
+
+			assert.Contains(t, flat(m.View()), warning,
+				"a successful install left something undone and this screen does not say so")
+		})
+	}
+}

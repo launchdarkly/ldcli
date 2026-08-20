@@ -135,24 +135,22 @@ func (m wizardModel) View() string {
 				fmt.Sprintf("Flag %q has been created in project %q.\n", m.flagKey, m.selectedProject) +
 				"Once you've initialized the SDK manually, your flag will be ready to use.\n\n" +
 				m.copyHint() +
+				m.installWarning() +
 				quitHint
 		}
 		if m.verifyResult != nil && m.verifyResult.Active && m.detectResult != nil {
 			appHost := strings.TrimRight(m.auth.BaseURI, "/")
-			warning := ""
-			if m.installResult != nil && m.installResult.Warning != "" {
-				warning = "\n" + m.wrap("Note: "+m.installResult.Warning) + "\n"
-			}
 			return titleStyle.Render("Setup complete!") + "\n\n" +
 				fmt.Sprintf("Your %s SDK is connected to LaunchDarkly.\n", m.detectResult.SDKID) +
 				fmt.Sprintf("Flag %q is ready to use.\n\n", m.flagKey) +
 				fmt.Sprintf("You can now toggle your flag at %s/projects/%s/flags/%s/targeting?env=%s\n", appHost, m.selectedProject, m.flagKey, m.selectedEnv) +
-				warning +
+				m.installWarning() +
 				quitHint
 		}
 		return titleStyle.Render("Verification timed out") + "\n\n" +
 			"The SDK did not report as active within the timeout period.\n" +
 			"Make sure your application is running and try again.\n" +
+			m.installWarning() +
 			quitHint
 	}
 
@@ -232,6 +230,17 @@ func (m wizardModel) packageManagerView() string {
 	return titleStyle.Render(m.wrap("Which package manager should install the SDK?")) + "\n\n" +
 		reason +
 		m.pmList.View()
+}
+
+// installWarning renders something the install left for the user to do even though
+// it succeeded, or an empty string. Every screen that can be reached after a
+// successful install has to show it, or the note is lost on the paths where init
+// needs a manual snippet or verification times out.
+func (m wizardModel) installWarning() string {
+	if m.installResult == nil || m.installResult.Warning == "" {
+		return ""
+	}
+	return "\n" + m.wrap("Note: "+m.installResult.Warning) + "\n"
 }
 
 // addCodeTo phrases an "add this code" instruction. SDKs that only show a snippet
