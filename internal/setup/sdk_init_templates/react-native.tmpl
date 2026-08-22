@@ -1,0 +1,4 @@
+import { AutoEnvAttributes, ReactNativeLDClient } from '@launchdarkly/react-native-client-sdk';
+// --- init ---
+const featureClient = new ReactNativeLDClient('{{.MobileKey}}', AutoEnvAttributes.Enabled);
+await featureClient.identify({ kind: 'user', key: 'example-user-key', name: 'Example User' });

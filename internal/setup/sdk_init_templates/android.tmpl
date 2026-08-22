@@ -1,0 +1,11 @@
+import com.launchdarkly.sdk.android.*;
+import com.launchdarkly.sdk.android.LDConfig.Builder.AutoEnvAttributes;
+import com.launchdarkly.sdk.*;
+// --- init ---
+LDConfig ldConfig = new LDConfig.Builder(AutoEnvAttributes.Enabled)
+    .mobileKey("{{.MobileKey}}")
+    .build();
+LDContext ldContext = LDContext.builder(ContextKind.DEFAULT, "example-user-key")
+    .name("Example User")
+    .build();
+LDClient ldClient = LDClient.init(this.getApplication(), ldConfig, ldContext, 5);

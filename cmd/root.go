@@ -22,8 +22,9 @@ import (
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
-	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
+	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
+	setupcmd "github.com/launchdarkly/ldcli/cmd/setup"
 	signupcmd "github.com/launchdarkly/ldcli/cmd/signup"
 	sourcemapscmd "github.com/launchdarkly/ldcli/cmd/sourcemaps"
 	symbolscmd "github.com/launchdarkly/ldcli/cmd/symbols"
@@ -37,6 +38,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/members"
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
+	"github.com/launchdarkly/ldcli/internal/setup"
 )
 
 type APIClients struct {
@@ -46,6 +48,8 @@ type APIClients struct {
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
 	ResourcesClient    resources.Client
+	Detector           setup.Detector
+	Installer          setup.Installer
 }
 
 type Command interface {
@@ -107,6 +111,7 @@ var authExemptCommands = map[string]bool{
 	"config":     true,
 	"help":       true,
 	"login":      true,
+	"setup":      true,
 	"signup":     true,
 	"whoami":     true,
 }
@@ -264,7 +269,30 @@ func NewRootCommand(
 
 	configCmd := configcmd.NewConfigCmd(configService, analyticsTrackerFn)
 	cmd.AddCommand(configCmd.Cmd())
-	cmd.AddCommand(NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient))
+	detector := clients.Detector
+	if detector == nil {
+		detector = setup.FileDetector{}
+	}
+	installer := clients.Installer
+	if installer == nil {
+		installer = setup.PackageInstaller{}
+	}
+	cmd.AddCommand(setupcmd.NewSetupCmd(
+		analyticsTrackerFn,
+		setup.Clients{
+			Projects:     clients.ProjectsClient,
+			Environments: clients.EnvironmentsClient,
+			Flags:        clients.FlagsClient,
+			Resources:    clients.ResourcesClient,
+		},
+		detector,
+		installer,
+	))
+	quickStartCmd := NewQuickStartCmd(analyticsTrackerFn, clients.EnvironmentsClient, clients.FlagsClient)
+	quickStartCmd.Use = "quickstart"
+	quickStartCmd.Hidden = true
+	quickStartCmd.Deprecated = "use 'ldcli setup' for the new guided setup experience"
+	cmd.AddCommand(quickStartCmd)
 	cmd.AddCommand(logincmd.NewLoginCmd(clients.ResourcesClient))
 	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
