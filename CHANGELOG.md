@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.11.0](https://github.com/launchdarkly/ldcli/compare/v3.10.0...v3.11.0) (2026-08-22)
+
+
+### Features
+
+* **setup:** Add new wizard `setup` command to the CLI ([#776](https://github.com/launchdarkly/ldcli/issues/776)) ([af9301d](https://github.com/launchdarkly/ldcli/commit/af9301daf34951f32e491cb4f6778446058f0c9a))
+
+
+### Bug Fixes
+
+* **deps:** resolve HIGH & CRITICAL Dependabot alerts ([#777](https://github.com/launchdarkly/ldcli/issues/777)) ([72f321c](https://github.com/launchdarkly/ldcli/commit/72f321c1bc743db868b86d8252815cf64a10d792))
+
+
+### Performance Improvements
+
+* Speed up dev server startup (two flavors: parallelism and streaming) ([#739](https://github.com/launchdarkly/ldcli/issues/739)) ([285d0db](https://github.com/launchdarkly/ldcli/commit/285d0dbf384ee574ca43334c43c986dfcde831e2))
+
 ## [3.10.0](https://github.com/launchdarkly/ldcli/compare/v3.9.0...v3.10.0) (2026-08-05)
 
 
