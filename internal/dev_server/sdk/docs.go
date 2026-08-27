@@ -31,4 +31,17 @@
 //	✅	/sdk/evalx/{envId}/users/{contextBase64}	GET	clientsdk.	Alternate name for /sdk/evalx/{envId}/contexts/{contextBase64} used by older SDKs
 //	✅	/sdk/evalx/{envId}/users	REPORT	clientsdk.	Alternate name for /sdk/evalx/{envId}/contexts used by older SDKs
 //	✅	/sdk/goals/{envId}	GET	clientsdk.	Provides goals data used by JS SDK
+//
+// The routes above are the FDv1 protocol. FDv2 replaces them with the routes below, which
+// carry the same flag data as a stream of protocol events. FDv2 also unifies the browser and
+// mobile client-side endpoints, so a single pair of routes replaces the four FDv1 client-side
+// route families (/eval/{envId}, /meval, /sdk/evalx/{envId} and /msdk/evalx). Delta transfers
+// are not supported: a client whose ?basis is stale receives a full payload.
+//
+//	✅	/sdk/poll	GET	sdk.	Polling endpoint for server-side SDKs
+//	✅	/sdk/stream	GET	stream.	SSE stream for server-side SDKs
+//	✅	/sdk/poll/eval/{contextBase64}	GET	clientsdk.	Polling endpoint returning evaluation results for a context
+//	✅	/sdk/poll/eval	POST, REPORT	clientsdk.	Same as above, but the request body is the evaluation context JSON object (not in base64)
+//	✅	/sdk/stream/eval/{contextBase64}	GET	clientstream.	SSE stream of evaluation results for a context
+//	✅	/sdk/stream/eval	POST, REPORT	clientstream.	Same as above, but the request body is the evaluation context JSON object (not in base64)
 package sdk
