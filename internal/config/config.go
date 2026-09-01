@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 
 	"github.com/mitchellh/go-homedir"
@@ -62,6 +63,26 @@ func (c Config) Redacted() Config {
 	return c
 }
 
+// configKeyPattern describes the shape of every supported configuration key: lowercase words
+// joined by single hyphens.
+var configKeyPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// maxConfigKeyLength bounds what is treated as key-shaped. The longest supported key is well
+// under this, while an access token is well over it.
+const maxConfigKeyLength = 32
+
+// safeKeyForError returns key when it has the shape of a configuration key, and RedactedValue
+// otherwise. An unrecognized key is echoed back to help the user spot a typo, but the argument in
+// that position is not always a key: transposing `--set <key> <value>` puts the value there, and
+// for access-token that value is a secret. Anything that is not key-shaped is therefore elided.
+func safeKeyForError(key string) string {
+	if len(key) <= maxConfigKeyLength && configKeyPattern.MatchString(key) {
+		return key
+	}
+
+	return RedactedValue
+}
+
 // Update validates the updating fields and sets them on the Config. It returns the updated fields
 // in addition to the Config.
 func (c Config) Update(kvs []string) (Config, []string, error) {
@@ -74,7 +95,7 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 		// TODO: move this list to this package?
 		_, ok := cliflags.AllFlagsHelp()[kvs[i]]
 		if !ok {
-			return Config{}, updatedFields, errors.NewError(fmt.Sprintf("%s is not a valid configuration option", kvs[i]))
+			return Config{}, updatedFields, errors.NewError(fmt.Sprintf("%s is not a valid configuration option", safeKeyForError(kvs[i])))
 		}
 	}
 
@@ -122,7 +143,7 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 func (c Config) Remove(key string) (Config, error) {
 	_, ok := cliflags.AllFlagsHelp()[key]
 	if !ok {
-		return Config{}, errors.NewError(fmt.Sprintf("%s is not a valid configuration option", key))
+		return Config{}, errors.NewError(fmt.Sprintf("%s is not a valid configuration option", safeKeyForError(key)))
 	}
 
 	return c, nil

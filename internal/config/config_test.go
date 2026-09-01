@@ -224,3 +224,30 @@ func TestRedactedOutput(t *testing.T) {
 		})
 	}
 }
+
+// TestErrorDoesNotEchoNonKeyArguments covers the `--set`/`--unset` validation errors, which echo
+// back the argument they rejected. A transposed `--set <token> access-token` puts a secret in the
+// position a key was expected in, so only key-shaped arguments are echoed.
+func TestErrorDoesNotEchoNonKeyArguments(t *testing.T) {
+	const token = "api-2c2f9f1e-0b1a-4a3a-9d3f-000000000000"
+
+	t.Run("a key-shaped typo is still echoed", func(t *testing.T) {
+		_, _, err := config.Config{}.Update([]string{"projct", "test-project"})
+
+		assert.EqualError(t, err, "projct is not a valid configuration option")
+	})
+
+	t.Run("a transposed --set does not echo the value", func(t *testing.T) {
+		_, _, err := config.Config{}.Update([]string{token, "access-token"})
+
+		assert.EqualError(t, err, config.RedactedValue+" is not a valid configuration option")
+		assert.NotContains(t, err.Error(), token)
+	})
+
+	t.Run("--unset does not echo a non-key argument", func(t *testing.T) {
+		_, err := config.Config{}.Remove(token)
+
+		assert.EqualError(t, err, config.RedactedValue+" is not a valid configuration option")
+		assert.NotContains(t, err.Error(), token)
+	})
+}
