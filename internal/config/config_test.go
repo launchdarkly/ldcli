@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/launchdarkly/ldcli/internal/config"
+	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
@@ -148,4 +150,77 @@ func TestRemove(t *testing.T) {
 
 		assert.EqualError(t, err, "invalid is not a valid configuration option")
 	})
+}
+
+func TestRedacted(t *testing.T) {
+	t.Run("replaces a set access token", func(t *testing.T) {
+		c := config.Config{AccessToken: "test-access-token"}
+
+		redacted := c.Redacted()
+
+		assert.Equal(t, config.RedactedValue, redacted.AccessToken)
+	})
+
+	t.Run("leaves an unset access token empty so omitempty still elides it", func(t *testing.T) {
+		c := config.Config{Project: "test-project"}
+
+		redacted := c.Redacted()
+
+		assert.Equal(t, "", redacted.AccessToken)
+
+		configJSON, err := json.Marshal(redacted)
+		require.NoError(t, err)
+		assert.NotContains(t, string(configJSON), "access-token")
+	})
+
+	t.Run("leaves non-sensitive values alone", func(t *testing.T) {
+		optOut := true
+		c := config.Config{
+			AccessToken:     "test-access-token",
+			AnalyticsOptOut: &optOut,
+			BaseURI:         "http://test.com",
+			DevStreamURI:    "http://stream.test.com",
+			Environment:     "test-environment",
+			Flag:            "test-flag",
+			Output:          "json",
+			Project:         "test-project",
+		}
+
+		redacted := c.Redacted()
+
+		expected := c
+		expected.AccessToken = config.RedactedValue
+		assert.Equal(t, expected, redacted)
+	})
+
+	t.Run("does not mutate the receiver", func(t *testing.T) {
+		c := config.Config{AccessToken: "test-access-token"}
+
+		_ = c.Redacted()
+
+		assert.Equal(t, "test-access-token", c.AccessToken)
+	})
+}
+
+// TestRedactedOutput covers the rendering paths that `config --list` feeds the redacted Config
+// into, so that neither the plaintext nor the JSON representation can reveal the token.
+func TestRedactedOutput(t *testing.T) {
+	c := config.Config{
+		AccessToken: "test-access-token",
+		Project:     "test-project",
+	}
+
+	configJSON, err := json.Marshal(c.Redacted())
+	require.NoError(t, err)
+
+	for _, outputKind := range []string{"json", "plaintext"} {
+		t.Run(outputKind, func(t *testing.T) {
+			out, err := output.CmdOutputSingular(outputKind, configJSON, output.ConfigPlaintextOutputFn)
+
+			require.NoError(t, err)
+			assert.NotContains(t, out, "test-access-token")
+			assert.Contains(t, out, config.RedactedValue)
+			assert.Contains(t, out, "test-project")
+		})
+	}
 }

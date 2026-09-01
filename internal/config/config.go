@@ -16,6 +16,10 @@ import (
 
 const Filename = ".ldcli-config.yml"
 
+// RedactedValue is rendered in place of a sensitive configuration value. It is only ever
+// substituted into command output; the value stored in the config file is left untouched.
+const RedactedValue = "[REDACTED]"
+
 type ReadFile func(name string) ([]byte, error)
 
 // Config represents the data stored in the config file.
@@ -45,6 +49,17 @@ func New(filename string, readFile ReadFile) (Config, error) {
 	}
 
 	return c, nil
+}
+
+// Redacted returns a copy of the Config with sensitive values replaced by RedactedValue, for use
+// anywhere a Config is rendered to output. An unset sensitive value is left empty so that it stays
+// elided by omitempty rather than being reported as a value that is present but hidden.
+func (c Config) Redacted() Config {
+	if c.AccessToken != "" {
+		c.AccessToken = RedactedValue
+	}
+
+	return c
 }
 
 // Update validates the updating fields and sets them on the Config. It returns the updated fields
