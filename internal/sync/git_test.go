@@ -12,38 +12,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalizeRemoteURL(t *testing.T) {
-	tests := []struct {
-		in   string
-		want string
-	}{
-		{in: "git@github.com:Acme/Widgets.git", want: "github.com/acme/widgets"},
-		{in: "https://github.com/Acme/Widgets.git", want: "github.com/acme/widgets"},
-		{in: "https://github.com/Acme/Widgets", want: "github.com/acme/widgets"},
-		{in: "https://github.com/Acme/Widgets/", want: "github.com/acme/widgets"},
-		{in: "ssh://git@github.com/Acme/Widgets.git", want: "github.com/acme/widgets"},
-		{in: "https://user:token@github.com/Acme/Widgets.git", want: "github.com/acme/widgets"},
-		{in: "https://github.com:443/Acme/Widgets.git", want: "github.com/acme/widgets"},
-		{in: "ssh://git@github.com:22/Acme/Widgets.git", want: "github.com/acme/widgets"},
-		{in: "https://ghe.example.com:8443/Acme/Widgets.git", want: "ghe.example.com:8443/acme/widgets"},
-		{in: "https://gitlab.com/group/sub/repo.git", want: "gitlab.com/group/sub/repo"},
-		{in: "org-123@github.com:Acme/Widgets.git", want: "github.com/acme/widgets"},
+func TestRepoIdentifier(t *testing.T) {
+	tests := map[string]string{
+		"git@github.com:launchdarkly/ldcli.git":       "launchdarkly/ldcli",
+		"https://github.com/launchdarkly/ldcli.git":   "launchdarkly/ldcli",
+		"ssh://git@github.com/launchdarkly/ldcli.git": "launchdarkly/ldcli",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.in, func(t *testing.T) {
-			got, err := normalizeRemoteURL(tt.in)
+	for remote, expected := range tests {
+		t.Run(remote, func(t *testing.T) {
+			actual, err := repoIdentifier(remote)
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, expected, actual)
 		})
 	}
 }
 
-func TestNormalizeRemoteURL_RejectsInvalid(t *testing.T) {
-	for _, in := range []string{"", "   ", "not a remote", "://github.com/acme/widgets"} {
-		_, err := normalizeRemoteURL(in)
-		require.Error(t, err, in)
-	}
+func TestRepoIdentifier_InvalidOrigin(t *testing.T) {
+	_, err := repoIdentifier("ldcli")
+	require.Error(t, err)
 }
 
 func TestIdentifyRepo(t *testing.T) {
@@ -54,25 +41,20 @@ func TestIdentifyRepo(t *testing.T) {
 
 	repo, err := IdentifyRepo(dir)
 	require.NoError(t, err)
-	assert.Equal(t, "github.com/acme/widgets", repo.Identifier)
+	assert.Equal(t, "Acme/Widgets", repo.Identifier)
 	assert.Equal(t, absPath(t, dir), absPath(t, repo.Root))
 }
 
-func TestIdentifyRepo_HTTPSMatchesSSH(t *testing.T) {
+func TestIdentifyRepo_DoesNotExpandInsteadOf(t *testing.T) {
 	requireGit(t)
 
-	sshDir := initGitRepo(t)
-	runGit(t, sshDir, "remote", "add", "origin", "git@github.com:Acme/Widgets.git")
+	dir := initGitRepo(t)
+	runGit(t, dir, "remote", "add", "origin", "git@github.com:Acme/Widgets.git")
+	runGit(t, dir, "config", "--local", "url.ssh://git@github.com:443/.insteadOf", "git@github.com:")
 
-	httpsDir := initGitRepo(t)
-	runGit(t, httpsDir, "remote", "add", "origin", "https://github.com/Acme/Widgets.git")
-
-	sshRepo, err := IdentifyRepo(sshDir)
+	repo, err := IdentifyRepo(dir)
 	require.NoError(t, err)
-	httpsRepo, err := IdentifyRepo(httpsDir)
-	require.NoError(t, err)
-
-	assert.Equal(t, sshRepo.Identifier, httpsRepo.Identifier)
+	assert.Equal(t, "Acme/Widgets", repo.Identifier)
 }
 
 func TestIdentifyRepo_FromSubdirectory(t *testing.T) {
@@ -86,7 +68,7 @@ func TestIdentifyRepo_FromSubdirectory(t *testing.T) {
 
 	repo, err := IdentifyRepo(nested)
 	require.NoError(t, err)
-	assert.Equal(t, "github.com/acme/widgets", repo.Identifier)
+	assert.Equal(t, "Acme/Widgets", repo.Identifier)
 	assert.Equal(t, absPath(t, dir), absPath(t, repo.Root))
 }
 
@@ -138,7 +120,7 @@ func TestIdentifyRepo_StubNotARepo(t *testing.T) {
 func TestIdentifyRepo_StubNoOrigin(t *testing.T) {
 	_, err := identifyRepo(stubGit{
 		cmds: map[string]string{"rev-parse --show-toplevel": "/repo"},
-		errs: map[string]error{"remote get-url origin": errors.New("no such remote")},
+		errs: map[string]error{"config --local --get remote.origin.url": errors.New("no such remote")},
 	}, "/repo")
 	require.ErrorIs(t, err, ErrNoOrigin)
 }
@@ -146,13 +128,13 @@ func TestIdentifyRepo_StubNoOrigin(t *testing.T) {
 func TestIdentifyRepo_StubOrigin(t *testing.T) {
 	repo, err := identifyRepo(stubGit{
 		cmds: map[string]string{
-			"rev-parse --show-toplevel": "/repo",
-			"remote get-url origin":     "https://github.com/Acme/Widgets.git",
+			"rev-parse --show-toplevel":              "/repo",
+			"config --local --get remote.origin.url": "https://github.com/Acme/Widgets.git",
 		},
 	}, "/repo")
 	require.NoError(t, err)
 	assert.Equal(t, "/repo", repo.Root)
-	assert.Equal(t, "github.com/acme/widgets", repo.Identifier)
+	assert.Equal(t, "Acme/Widgets", repo.Identifier)
 }
 
 type stubGit struct {

@@ -3,7 +3,6 @@ package sync
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"os/exec"
 	"strings"
@@ -56,78 +55,31 @@ func identifyRepo(git gitRunner, dir string) (Repo, error) {
 		return Repo{}, ErrNotGitRepo
 	}
 
-	origin, err := git.output(root, "remote", "get-url", "origin")
+	origin, err := git.output(root, "config", "--local", "--get", "remote.origin.url")
 	if err != nil || origin == "" {
 		return Repo{}, ErrNoOrigin
 	}
 
-	id, err := normalizeRemoteURL(origin)
+	identifier, err := repoIdentifier(origin)
 	if err != nil {
 		return Repo{}, err
 	}
 
-	return Repo{Root: root, Identifier: id}, nil
+	return Repo{Root: root, Identifier: identifier}, nil
 }
 
-func normalizeRemoteURL(raw string) (string, error) {
-	s := strings.TrimSpace(raw)
-	if s == "" {
-		return "", errors.New("origin remote URL is empty")
+func repoIdentifier(remote string) (string, error) {
+	repoPath := remote
+	if parsed, err := url.Parse(remote); err == nil && parsed.Host != "" {
+		repoPath = parsed.Path
+	} else if _, path, ok := strings.Cut(remote, ":"); ok {
+		repoPath = path
 	}
 
-	if !strings.Contains(s, "://") {
-		host, path, ok := scpRemote(s)
-		if !ok {
-			return "", fmt.Errorf("invalid origin remote %q", raw)
-		}
-
-		return identifierFromHostPath(host, path)
+	parts := strings.Split(strings.TrimSuffix(strings.Trim(repoPath, "/"), ".git"), "/")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("cannot derive repository identifier from origin %q", remote)
 	}
 
-	u, err := url.Parse(s)
-	if err != nil {
-		return "", fmt.Errorf("invalid origin remote %q", raw)
-	}
-
-	return identifierFromHostPath(u.Hostname()+portSuffix(u.Port()), u.Path)
-}
-
-func portSuffix(port string) string {
-	switch port {
-	case "", "22", "443":
-		return ""
-	default:
-		return ":" + port
-	}
-}
-
-func scpRemote(s string) (host, path string, ok bool) {
-	userHost, path, found := strings.Cut(s, ":")
-	if !found || path == "" || strings.Contains(userHost, "/") {
-		return "", "", false
-	}
-
-	_, host, found = strings.Cut(userHost, "@")
-	if !found {
-		host = userHost
-	}
-
-	return host, path, host != ""
-}
-
-func identifierFromHostPath(host, repoPath string) (string, error) {
-	host = strings.ToLower(strings.TrimSpace(host))
-	if h, p, err := net.SplitHostPort(host); err == nil {
-		host = h + portSuffix(p)
-	}
-
-	repoPath = strings.Trim(strings.ToLower(repoPath), "/")
-	repoPath = strings.TrimSuffix(repoPath, ".git")
-	repoPath = strings.Trim(repoPath, "/")
-
-	if host == "" || repoPath == "" {
-		return "", fmt.Errorf("invalid origin remote %q", host+"/"+repoPath)
-	}
-
-	return host + "/" + repoPath, nil
+	return strings.Join(parts[len(parts)-2:], "/"), nil
 }
