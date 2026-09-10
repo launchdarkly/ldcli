@@ -1,4 +1,4 @@
-package sync
+package local
 
 import (
 	"bytes"
@@ -7,19 +7,23 @@ import (
 	"path"
 	"strings"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	"gopkg.in/yaml.v3"
 )
 
-const configsDir = "configs"
+const (
+	configsDir          = "configs"
+	variationFileSuffix = ".prompt.md"
+)
 
 type variationParser struct{}
 
-func (variationParser) Dir() string {
+func (variationParser) dir() string {
 	return configsDir
 }
 
-func (variationParser) Accept(relPath string) bool {
-	if path.Ext(relPath) != ".prompt" {
+func (variationParser) accept(relPath string) bool {
+	if !strings.HasSuffix(relPath, variationFileSuffix) {
 		return false
 	}
 
@@ -30,80 +34,54 @@ func (variationParser) Accept(relPath string) bool {
 }
 
 type variationFrontMatter struct {
-	FormatVersion  int            `yaml:"formatVersion"`
-	Upsert         bool           `yaml:"upsert"`
-	Key            string         `yaml:"key"`
-	Name           string         `yaml:"name"`
-	ModelConfigKey string         `yaml:"modelConfigKey"`
-	Model          map[string]any `yaml:"model"`
-	OutputFormat   map[string]any `yaml:"outputFormat"`
-	Tools          []toolRef      `yaml:"tools"`
+	FormatVersion        int  `yaml:"formatVersion"`
+	Upsert               bool `yaml:"upsert"`
+	syncdomain.Variation `yaml:",inline"`
 }
 
-type toolRef struct {
-	Key     string `json:"key" yaml:"key"`
-	Version int    `json:"version" yaml:"version"`
-}
-
-type message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type variationPayload struct {
-	Key            string         `json:"key"`
-	Name           string         `json:"name"`
-	ModelConfigKey string         `json:"modelConfigKey,omitempty"`
-	Model          map[string]any `json:"model,omitempty"`
-	OutputFormat   map[string]any `json:"outputFormat,omitempty"`
-	Tools          []toolRef      `json:"tools,omitempty"`
-	Messages       []message      `json:"messages,omitempty"`
-}
-
-func (variationParser) Parse(file File) (SyncedResource, error) {
+func (variationParser) parse(file file) (syncdomain.SyncedResource, error) {
 	front, body, err := splitFrontMatter(file.Data)
 	if err != nil {
-		return SyncedResource{}, err
+		return syncdomain.SyncedResource{}, err
 	}
 
 	var meta variationFrontMatter
-	dec := yaml.NewDecoder(bytes.NewReader(front))
-	dec.KnownFields(true)
+	decoder := yaml.NewDecoder(bytes.NewReader(front))
+	decoder.KnownFields(true)
 
-	if err := dec.Decode(&meta); err != nil {
-		return SyncedResource{}, fmt.Errorf("invalid front matter: %w", err)
+	if err := decoder.Decode(&meta); err != nil {
+		return syncdomain.SyncedResource{}, fmt.Errorf("invalid front matter: %w", err)
 	}
 
 	if err := validateVariation(file.RelPath, meta); err != nil {
-		return SyncedResource{}, err
+		return syncdomain.SyncedResource{}, err
 	}
 
-	messages, err := parseMessages(string(body))
-	if err != nil {
-		return SyncedResource{}, err
+	variation := meta.Variation
+	switch variation.Mode {
+	case syncdomain.VariationModeAgent:
+		variation.Instructions = strings.TrimSpace(string(body))
+	case syncdomain.VariationModeCompletion:
+		messages, err := parseCompletionMessages(string(body))
+		if err != nil {
+			return syncdomain.SyncedResource{}, err
+		}
+		variation.Messages = messages
 	}
 
-	payload, err := marshalPayload(variationPayload{
-		Key:            meta.Key,
-		Name:           meta.Name,
-		ModelConfigKey: meta.ModelConfigKey,
-		Model:          meta.Model,
-		OutputFormat:   meta.OutputFormat,
-		Tools:          meta.Tools,
-		Messages:       messages,
-	})
+	payload, err := marshalPayload(variation)
 	if err != nil {
-		return SyncedResource{}, err
+		return syncdomain.SyncedResource{}, err
 	}
 
 	configKey := path.Dir(file.RelPath)
 
-	return SyncedResource{
-		Kind:        KindVariation,
+	return syncdomain.SyncedResource{
+		Kind:        syncdomain.KindVariation,
 		ProjectKey:  file.ProjectKey,
 		LookupKey:   configKey + "/" + meta.Key,
 		Payload:     payload,
-		Fingerprint: Hash(payload),
+		Fingerprint: syncdomain.Hash(payload),
 		Upsert:      meta.Upsert,
 	}, nil
 }
@@ -114,13 +92,17 @@ func validateVariation(relPath string, meta variationFrontMatter) error {
 		return errors.New("formatVersion is required")
 	case meta.FormatVersion != 1:
 		return fmt.Errorf("unsupported formatVersion %d", meta.FormatVersion)
+	case meta.Mode == "":
+		return errors.New("mode is required")
+	case !meta.Mode.Valid():
+		return fmt.Errorf("unsupported mode %q", meta.Mode)
 	case meta.Key == "":
 		return errors.New("key is required")
 	case meta.Name == "":
 		return errors.New("name is required")
 	}
 
-	stem := strings.TrimSuffix(path.Base(relPath), ".prompt")
+	stem := strings.TrimSuffix(path.Base(relPath), variationFileSuffix)
 	if stem != meta.Key {
 		return fmt.Errorf("key %q does not match filename %q", meta.Key, stem)
 	}
@@ -130,28 +112,28 @@ func validateVariation(relPath string, meta variationFrontMatter) error {
 
 func splitFrontMatter(data []byte) (front, body []byte, err error) {
 	// Drop a leading BOM and blank lines so --- is the first real token.
-	s := bytes.TrimPrefix(data, []byte("\ufeff"))
-	s = bytes.TrimLeft(s, "\r\n")
+	source := bytes.TrimPrefix(data, []byte("\ufeff"))
+	source = bytes.TrimLeft(source, "\r\n")
 
 	// Opening fence must be --- on its own line, not ---key: value.
-	if !bytes.HasPrefix(s, []byte("---")) {
+	if !bytes.HasPrefix(source, []byte("---")) {
 		return nil, nil, errors.New("missing YAML front matter")
 	}
 
-	rest, ok := consumeLineEnding(s[3:])
+	rest, ok := consumeLineEnding(source[3:])
 	if !ok {
 		return nil, nil, errors.New("missing YAML front matter")
 	}
 
 	// Closing fence is the first \n--- after the YAML block.
-	idx := bytes.Index(rest, []byte("\n---"))
-	if idx < 0 {
+	index := bytes.Index(rest, []byte("\n---"))
+	if index < 0 {
 		return nil, nil, errors.New("unclosed YAML front matter")
 	}
 
-	front = bytes.TrimSpace(rest[:idx])
+	front = bytes.TrimSpace(rest[:index])
 	// Skip the line ending after the closing ---; leftover bytes are the prompt body.
-	after, ok := consumeLineEnding(rest[idx+4:])
+	after, ok := consumeLineEnding(rest[index+4:])
 	if !ok {
 		after = nil
 	}
@@ -159,40 +141,50 @@ func splitFrontMatter(data []byte) (front, body []byte, err error) {
 	return front, bytes.TrimSpace(after), nil
 }
 
-func consumeLineEnding(s []byte) ([]byte, bool) {
+func consumeLineEnding(source []byte) ([]byte, bool) {
 	// EOF after --- is a valid end of line (file ends on the fence).
-	if len(s) == 0 {
-		return s, true
+	if len(source) == 0 {
+		return source, true
 	}
-	if s[0] == '\n' {
-		return s[1:], true
+	if source[0] == '\n' {
+		return source[1:], true
 	}
 	// Accept \r and \r\n so Windows and old Mac files parse the same way.
-	if s[0] == '\r' {
-		s = s[1:]
-		if len(s) > 0 && s[0] == '\n' {
-			s = s[1:]
+	if source[0] == '\r' {
+		source = source[1:]
+		if len(source) > 0 && source[0] == '\n' {
+			source = source[1:]
 		}
 
-		return s, true
+		return source, true
 	}
 
 	// Next byte is content, so --- was not a fence on its own line.
-	return s, false
+	return source, false
 }
 
 var messageRoles = []string{"system", "user", "assistant"}
 
-func parseMessages(body string) ([]message, error) {
+func validMessageRole(role string) bool {
+	for _, allowed := range messageRoles {
+		if role == allowed {
+			return true
+		}
+	}
+
+	return false
+}
+
+func parseCompletionMessages(body string) ([]syncdomain.Message, error) {
 	if strings.TrimSpace(body) == "" {
 		return nil, nil
 	}
 
 	if _, _, _, ok := nextOpenTag(body, 0); !ok {
-		return []message{{Role: "system", Content: strings.TrimSpace(body)}}, nil
+		return []syncdomain.Message{{Role: "system", Content: strings.TrimSpace(body)}}, nil
 	}
 
-	var messages []message
+	var messages []syncdomain.Message
 	cursor := 0
 
 	for cursor < len(body) {
@@ -212,7 +204,7 @@ func parseMessages(body string) ([]message, error) {
 			return nil, fmt.Errorf("unclosed <%s> tag", role)
 		}
 
-		messages = append(messages, message{
+		messages = append(messages, syncdomain.Message{
 			Role:    role,
 			Content: strings.TrimSpace(body[contentStart:contentEnd]),
 		})
@@ -227,16 +219,16 @@ func nextOpenTag(body string, from int) (start int, role string, contentStart in
 
 	for _, candidate := range messageRoles {
 		tag := "<" + candidate + ">"
-		i := strings.Index(body[from:], tag)
-		if i < 0 {
+		index := strings.Index(body[from:], tag)
+		if index < 0 {
 			continue
 		}
 
-		abs := from + i
-		if start < 0 || abs < start {
-			start = abs
+		absolute := from + index
+		if start < 0 || absolute < start {
+			start = absolute
 			role = candidate
-			contentStart = abs + len(tag)
+			contentStart = absolute + len(tag)
 			ok = true
 		}
 	}
@@ -248,28 +240,28 @@ func matchingClose(body string, from int, role string) (contentEnd, closeEnd int
 	open := "<" + role + ">"
 	close := "</" + role + ">"
 	depth := 1
-	i := from
+	index := from
 
-	for i < len(body) {
-		relOpen := strings.Index(body[i:], open)
-		relClose := strings.Index(body[i:], close)
-		if relClose < 0 {
+	for index < len(body) {
+		relativeOpen := strings.Index(body[index:], open)
+		relativeClose := strings.Index(body[index:], close)
+		if relativeClose < 0 {
 			return 0, 0, false
 		}
 
-		if relOpen >= 0 && relOpen < relClose {
+		if relativeOpen >= 0 && relativeOpen < relativeClose {
 			depth++
-			i += relOpen + len(open)
+			index += relativeOpen + len(open)
 			continue
 		}
 
 		depth--
-		closeAt := i + relClose
+		closeAt := index + relativeClose
 		if depth == 0 {
 			return closeAt, closeAt + len(close), true
 		}
 
-		i = closeAt + len(close)
+		index = closeAt + len(close)
 	}
 
 	return 0, 0, false

@@ -1,4 +1,4 @@
-package sync
+package local
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"path"
 	"regexp"
 	"strconv"
+
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
 const toolsDir = "tools"
@@ -16,11 +18,11 @@ var toolFileName = regexp.MustCompile(`^([^/]+)\.v(\d+)\.json$`)
 
 type toolParser struct{}
 
-func (toolParser) Dir() string {
+func (toolParser) dir() string {
 	return toolsDir
 }
 
-func (toolParser) Accept(relPath string) bool {
+func (toolParser) accept(relPath string) bool {
 	return toolFileName.MatchString(relPath)
 }
 
@@ -30,31 +32,35 @@ type toolFile struct {
 	Schema  any    `json:"schema"`
 }
 
-func (toolParser) Parse(file File) (SyncedResource, error) {
+func (toolParser) parse(file file) (syncdomain.SyncedResource, error) {
 	var parsed toolFile
-	dec := json.NewDecoder(bytes.NewReader(file.Data))
-	dec.DisallowUnknownFields()
+	decoder := json.NewDecoder(bytes.NewReader(file.Data))
+	decoder.DisallowUnknownFields()
 
-	if err := dec.Decode(&parsed); err != nil {
-		return SyncedResource{}, fmt.Errorf("invalid tool file: %w", err)
+	if err := decoder.Decode(&parsed); err != nil {
+		return syncdomain.SyncedResource{}, fmt.Errorf("invalid tool file: %w", err)
 	}
 
 	stemKey, stemVersion, err := parseToolFileName(path.Base(file.RelPath))
 	if err != nil {
-		return SyncedResource{}, err
+		return syncdomain.SyncedResource{}, err
 	}
 
 	switch {
 	case parsed.Key == "":
-		return SyncedResource{}, errors.New("key is required")
+		return syncdomain.SyncedResource{}, errors.New("key is required")
 	case parsed.Version == 0:
-		return SyncedResource{}, errors.New("version is required")
+		return syncdomain.SyncedResource{}, errors.New("version is required")
 	case parsed.Key != stemKey:
-		return SyncedResource{}, fmt.Errorf("key %q does not match filename %q", parsed.Key, stemKey)
+		return syncdomain.SyncedResource{}, fmt.Errorf("key %q does not match filename %q", parsed.Key, stemKey)
 	case parsed.Version != stemVersion:
-		return SyncedResource{}, fmt.Errorf("version %d does not match filename v%d", parsed.Version, stemVersion)
+		return syncdomain.SyncedResource{}, fmt.Errorf(
+			"version %d does not match filename v%d",
+			parsed.Version,
+			stemVersion,
+		)
 	case parsed.Schema == nil:
-		return SyncedResource{}, errors.New("schema is required")
+		return syncdomain.SyncedResource{}, errors.New("schema is required")
 	}
 
 	payload, err := marshalPayload(toolFile{
@@ -63,15 +69,15 @@ func (toolParser) Parse(file File) (SyncedResource, error) {
 		Schema:  parsed.Schema,
 	})
 	if err != nil {
-		return SyncedResource{}, err
+		return syncdomain.SyncedResource{}, err
 	}
 
-	return SyncedResource{
-		Kind:        KindTool,
+	return syncdomain.SyncedResource{
+		Kind:        syncdomain.KindTool,
 		ProjectKey:  file.ProjectKey,
 		LookupKey:   fmt.Sprintf("%s/%d", parsed.Key, parsed.Version),
 		Payload:     payload,
-		Fingerprint: Hash(payload),
+		Fingerprint: syncdomain.Hash(payload),
 	}, nil
 }
 

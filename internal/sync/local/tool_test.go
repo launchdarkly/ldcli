@@ -1,4 +1,4 @@
-package sync
+package local
 
 import (
 	"testing"
@@ -8,16 +8,16 @@ import (
 )
 
 func TestToolParser_Accept(t *testing.T) {
-	p := toolParser{}
+	parser := toolParser{}
 
-	assert.True(t, p.Accept("test-tool.v13.json"))
-	assert.False(t, p.Accept("nested/test-tool.v13.json"))
-	assert.False(t, p.Accept("test-tool.json"))
-	assert.False(t, p.Accept("test-tool.v13.yaml"))
+	assert.True(t, parser.accept("test-tool.v13.json"))
+	assert.False(t, parser.accept("nested/test-tool.v13.json"))
+	assert.False(t, parser.accept("test-tool.json"))
+	assert.False(t, parser.accept("test-tool.v13.yaml"))
 }
 
 func TestToolParser_CanonicalizesSchema(t *testing.T) {
-	file := File{
+	input := file{
 		ProjectKey: "proj",
 		RelPath:    "search.v2.json",
 		Data: []byte(`{
@@ -27,10 +27,10 @@ func TestToolParser_CanonicalizesSchema(t *testing.T) {
 }`),
 	}
 
-	first, err := toolParser{}.Parse(file)
+	first, err := toolParser{}.parse(input)
 	require.NoError(t, err)
 
-	second, err := toolParser{}.Parse(File{
+	second, err := toolParser{}.parse(file{
 		ProjectKey: "proj",
 		RelPath:    "search.v2.json",
 		Data:       []byte(`{"schema":{"a":2,"b":1},"version":2,"key":"search"}`),
@@ -42,7 +42,7 @@ func TestToolParser_CanonicalizesSchema(t *testing.T) {
 }
 
 func TestToolParser_KeyMismatch(t *testing.T) {
-	_, err := toolParser{}.Parse(File{
+	_, err := toolParser{}.parse(file{
 		ProjectKey: "proj",
 		RelPath:    "search.v2.json",
 		Data:       []byte(`{"key":"other","version":2,"schema":{}}`),
@@ -51,7 +51,7 @@ func TestToolParser_KeyMismatch(t *testing.T) {
 }
 
 func TestToolParser_VersionMismatch(t *testing.T) {
-	_, err := toolParser{}.Parse(File{
+	_, err := toolParser{}.parse(file{
 		ProjectKey: "proj",
 		RelPath:    "search.v2.json",
 		Data:       []byte(`{"key":"search","version":3,"schema":{}}`),
@@ -60,7 +60,7 @@ func TestToolParser_VersionMismatch(t *testing.T) {
 }
 
 func TestToolParser_RejectsUnknownFields(t *testing.T) {
-	_, err := toolParser{}.Parse(File{
+	_, err := toolParser{}.parse(file{
 		ProjectKey: "proj",
 		RelPath:    "search.v2.json",
 		Data:       []byte(`{"key":"search","version":2,"schema":{},"extra":true}`),
@@ -69,7 +69,7 @@ func TestToolParser_RejectsUnknownFields(t *testing.T) {
 }
 
 func TestToolParser_RequiresSchema(t *testing.T) {
-	_, err := toolParser{}.Parse(File{
+	_, err := toolParser{}.parse(file{
 		ProjectKey: "proj",
 		RelPath:    "search.v2.json",
 		Data:       []byte(`{"key":"search","version":2}`),

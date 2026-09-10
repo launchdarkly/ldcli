@@ -1,4 +1,4 @@
-package sync
+package local
 
 import (
 	"cmp"
@@ -7,6 +7,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
 var ErrNoDirectory = errors.New(".launchdarkly directory not found")
@@ -24,12 +26,12 @@ func (e ParseError) Unwrap() error {
 	return e.Err
 }
 
-func Compile(fsys fs.FS) ([]SyncedResource, error) {
-	return compile(fsys, DefaultParsers())
+func Compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
+	return compile(fsys, defaultParsers())
 }
 
-func compile(fsys fs.FS, parsers []Parser) ([]SyncedResource, error) {
-	entries, err := fs.ReadDir(fsys, RootDir)
+func compile(fsys fs.FS, parsers []parser) ([]syncdomain.SyncedResource, error) {
+	entries, err := fs.ReadDir(fsys, syncdomain.RootDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, ErrNoDirectory
 	}
@@ -37,7 +39,7 @@ func compile(fsys fs.FS, parsers []Parser) ([]SyncedResource, error) {
 		return nil, err
 	}
 
-	var resources []SyncedResource
+	var resources []syncdomain.SyncedResource
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -57,8 +59,12 @@ func compile(fsys fs.FS, parsers []Parser) ([]SyncedResource, error) {
 	return resources, nil
 }
 
-func compileProject(fsys fs.FS, projectKey string, parsers []Parser) ([]SyncedResource, error) {
-	var resources []SyncedResource
+func compileProject(
+	fsys fs.FS,
+	projectKey string,
+	parsers []parser,
+) ([]syncdomain.SyncedResource, error) {
+	var resources []syncdomain.SyncedResource
 
 	for _, parser := range parsers {
 		parsed, err := compileKind(fsys, projectKey, parser)
@@ -72,21 +78,25 @@ func compileProject(fsys fs.FS, projectKey string, parsers []Parser) ([]SyncedRe
 	return resources, nil
 }
 
-func compileKind(fsys fs.FS, projectKey string, parser Parser) ([]SyncedResource, error) {
-	dir := path.Join(RootDir, projectKey, parser.Dir())
+func compileKind(
+	fsys fs.FS,
+	projectKey string,
+	parser parser,
+) ([]syncdomain.SyncedResource, error) {
+	dir := path.Join(syncdomain.RootDir, projectKey, parser.dir())
 
-	var resources []SyncedResource
+	var resources []syncdomain.SyncedResource
 
-	err := fs.WalkDir(fsys, dir, func(name string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, dir, func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
+		if entry.IsDir() {
 			return nil
 		}
 
 		rel := strings.TrimPrefix(name, dir+"/")
-		if rel == name || !parser.Accept(rel) {
+		if rel == name || !parser.accept(rel) {
 			return nil
 		}
 
@@ -95,7 +105,7 @@ func compileKind(fsys fs.FS, projectKey string, parser Parser) ([]SyncedResource
 			return err
 		}
 
-		resource, err := parser.Parse(File{
+		resource, err := parser.parse(file{
 			ProjectKey: projectKey,
 			RelPath:    rel,
 			Data:       data,
@@ -118,7 +128,7 @@ func compileKind(fsys fs.FS, projectKey string, parser Parser) ([]SyncedResource
 	return resources, nil
 }
 
-func compareResources(a, b SyncedResource) int {
+func compareResources(a, b syncdomain.SyncedResource) int {
 	return cmp.Or(
 		cmp.Compare(a.ProjectKey, b.ProjectKey),
 		cmp.Compare(a.Kind, b.Kind),

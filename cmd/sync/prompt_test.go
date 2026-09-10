@@ -220,12 +220,13 @@ func writePrompt(t *testing.T, root, project, config, key string, upsert bool) {
 	contents := []byte(`---
 formatVersion: 1
 upsert: ` + strconv.FormatBool(upsert) + `
+mode: completion
 key: ` + key + `
 name: Test prompt
 ---
 Say hello.
 `)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, key+".prompt"), contents, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, key+".prompt.md"), contents, 0o644))
 }
 
 func runGit(t *testing.T, dir string, args ...string) {

@@ -1,4 +1,4 @@
-package sync
+package repository
 
 import (
 	"errors"
