@@ -27,13 +27,6 @@ func TestStore_BootstrapRoundTripsSupportedModes(t *testing.T) {
 				ModelConfigVersion: 3,
 				Model:              map[string]any{"modelName": "claude"},
 				OutputFormat:       map[string]any{"type": "json_schema"},
-				Tools: []syncdomain.ToolRef{{
-					Key:     "lookup",
-					Version: 2,
-					CustomParameters: map[string]any{
-						"timeout": 5,
-					},
-				}},
 				Messages: []syncdomain.Message{
 					{Role: "system", Content: "Be helpful."},
 					{Role: "user", Content: "Answer the question."},
@@ -50,7 +43,6 @@ func TestStore_BootstrapRoundTripsSupportedModes(t *testing.T) {
 				Name:         "Researcher",
 				Description:  "Researches a topic.",
 				Instructions: "Check the available sources.",
-				Skills:       []syncdomain.SkillRef{{Key: "research", Version: 4}},
 			},
 		},
 	}
@@ -78,10 +70,9 @@ func TestStore_BootstrapRoundTripsSupportedModes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, compiled, len(resources))
 	for _, local := range resources {
-		resource := mustResource(
+		resource := requireVariationResource(
 			t,
 			compiled,
-			syncdomain.KindVariation,
 			local.ConfigKey+"/"+local.Variation.Key,
 		)
 		expected, err := marshalPayload(local.Variation)
@@ -155,10 +146,10 @@ func TestStore_BootstrapFailureLeavesNoDirectory(t *testing.T) {
 func TestStore_RejectsUnsupportedMessageRole(t *testing.T) {
 	root := t.TempDir()
 	resource := localVariation("unsupported-role")
-	resource.Variation.Messages = []syncdomain.Message{{Role: "tool", Content: "result"}}
+	resource.Variation.Messages = []syncdomain.Message{{Role: "developer", Content: "result"}}
 
 	_, err := NewStore(root).Bootstrap([]VariationFile{resource})
-	require.ErrorContains(t, err, `unsupported message role "tool"`)
+	require.ErrorContains(t, err, `unsupported message role "developer"`)
 	_, statErr := os.Stat(filepath.Join(root, syncdomain.RootDir))
 	require.ErrorIs(t, statErr, os.ErrNotExist)
 }
@@ -183,4 +174,22 @@ func localVariation(key string) VariationFile {
 			Name: key,
 		},
 	}
+}
+
+func requireVariationResource(
+	t *testing.T,
+	resources []syncdomain.SyncedResource,
+	lookupKey string,
+) syncdomain.SyncedResource {
+	t.Helper()
+
+	for _, resource := range resources {
+		if resource.Kind == syncdomain.KindVariation && resource.LookupKey == lookupKey {
+			return resource
+		}
+	}
+
+	require.FailNow(t, "variation resource not found", lookupKey)
+
+	return syncdomain.SyncedResource{}
 }

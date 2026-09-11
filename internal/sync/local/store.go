@@ -72,7 +72,9 @@ func (s Store) Bootstrap(resources []VariationFile) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create bootstrap staging directory: %w", err)
 	}
-	defer os.RemoveAll(stage)
+	defer func() {
+		_ = os.RemoveAll(stage)
+	}()
 
 	stagedStore := Store{root: stage}
 	paths, err := stagedStore.createVariations(resources)
@@ -238,6 +240,10 @@ func marshalVariationFile(resource VariationFile) ([]byte, error) {
 	return file.Bytes(), nil
 }
 
+func validMessageRole(role string) bool {
+	return role == "system" || role == "user" || role == "assistant"
+}
+
 func createFile(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create variation directory: %w", err)
@@ -248,7 +254,9 @@ func createFile(path string, data []byte) error {
 		return fmt.Errorf("stage variation %s: %w", filepath.Base(path), err)
 	}
 	tempPath := temp.Name()
-	defer os.Remove(tempPath)
+	defer func() {
+		_ = os.Remove(tempPath)
+	}()
 
 	if err := temp.Chmod(0o644); err != nil {
 		_ = temp.Close()
