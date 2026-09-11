@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.11.1](https://github.com/launchdarkly/ldcli/compare/v3.11.0...v3.11.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* redact access token in config command output ([#787](https://github.com/launchdarkly/ldcli/issues/787)) ([41caa77](https://github.com/launchdarkly/ldcli/commit/41caa77e0a3224f5b91a471b60b16c226a666f21))
+
 ## [3.11.0](https://github.com/launchdarkly/ldcli/compare/v3.10.0...v3.11.0) (2026-08-22)
 
 
