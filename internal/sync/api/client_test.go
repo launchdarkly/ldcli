@@ -160,12 +160,12 @@ func TestClientPlanRejectsUnsupportedResource(t *testing.T) {
 		true,
 		[]syncdomain.SyncedResource{{
 			ProjectKey: "project",
-			Kind:       "tool",
-			LookupKey:  "tool",
+			Kind:       "unknown",
+			LookupKey:  "unknown",
 		}},
 	)
 
-	require.ErrorContains(t, err, `unsupported sync resource kind "tool"`)
+	require.ErrorContains(t, err, `unsupported sync resource kind "unknown"`)
 	assert.Empty(t, transport.Requests)
 }
 
