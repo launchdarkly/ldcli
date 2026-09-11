@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/launchdarkly/ldcli/internal/config"
+	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
@@ -147,5 +149,105 @@ func TestRemove(t *testing.T) {
 		c, err = c.Remove("invalid")
 
 		assert.EqualError(t, err, "invalid is not a valid configuration option")
+	})
+}
+
+func TestRedacted(t *testing.T) {
+	t.Run("replaces a set access token", func(t *testing.T) {
+		c := config.Config{AccessToken: "test-access-token"}
+
+		redacted := c.Redacted()
+
+		assert.Equal(t, config.RedactedValue, redacted.AccessToken)
+	})
+
+	t.Run("leaves an unset access token empty so omitempty still elides it", func(t *testing.T) {
+		c := config.Config{Project: "test-project"}
+
+		redacted := c.Redacted()
+
+		assert.Equal(t, "", redacted.AccessToken)
+
+		configJSON, err := json.Marshal(redacted)
+		require.NoError(t, err)
+		assert.NotContains(t, string(configJSON), "access-token")
+	})
+
+	t.Run("leaves non-sensitive values alone", func(t *testing.T) {
+		optOut := true
+		c := config.Config{
+			AccessToken:     "test-access-token",
+			AnalyticsOptOut: &optOut,
+			BaseURI:         "http://test.com",
+			DevStreamURI:    "http://stream.test.com",
+			Environment:     "test-environment",
+			Flag:            "test-flag",
+			Output:          "json",
+			Project:         "test-project",
+		}
+
+		redacted := c.Redacted()
+
+		expected := c
+		expected.AccessToken = config.RedactedValue
+		assert.Equal(t, expected, redacted)
+	})
+
+	t.Run("does not mutate the receiver", func(t *testing.T) {
+		c := config.Config{AccessToken: "test-access-token"}
+
+		_ = c.Redacted()
+
+		assert.Equal(t, "test-access-token", c.AccessToken)
+	})
+}
+
+// TestRedactedOutput covers the rendering paths that `config --list` feeds the redacted Config
+// into, so that neither the plaintext nor the JSON representation can reveal the token.
+func TestRedactedOutput(t *testing.T) {
+	c := config.Config{
+		AccessToken: "test-access-token",
+		Project:     "test-project",
+	}
+
+	configJSON, err := json.Marshal(c.Redacted())
+	require.NoError(t, err)
+
+	for _, outputKind := range []string{"json", "plaintext"} {
+		t.Run(outputKind, func(t *testing.T) {
+			out, err := output.CmdOutputSingular(outputKind, configJSON, output.ConfigPlaintextOutputFn)
+
+			require.NoError(t, err)
+			assert.NotContains(t, out, "test-access-token")
+			assert.Contains(t, out, config.RedactedValue)
+			assert.Contains(t, out, "test-project")
+		})
+	}
+}
+
+// TestErrorDoesNotEchoNonKeyArguments covers the `--set`/`--unset` validation errors, which echo
+// back the argument they rejected. A transposed `--set <token> access-token` puts a secret in the
+// position a key was expected in, so only key-shaped arguments are echoed.
+func TestErrorDoesNotEchoNonKeyArguments(t *testing.T) {
+	const token = "api-2c2f9f1e-0b1a-4a3a-9d3f-000000000000"
+
+	t.Run("a key-shaped typo is still echoed", func(t *testing.T) {
+		_, _, err := config.Config{}.Update([]string{"projct", "test-project"})
+
+		assert.EqualError(t, err, "projct is not a valid configuration option")
+	})
+
+	t.Run("a transposed --set does not echo the value", func(t *testing.T) {
+		_, _, err := config.Config{}.Update([]string{token, "access-token"})
+
+		assert.EqualError(t, err, config.RedactedValue+" is not a valid configuration option")
+		assert.NotContains(t, err.Error(), token)
+	})
+
+	t.Run("--unset does not echo a non-key argument", func(t *testing.T) {
+		_, err := config.Config{}.Remove(token)
+
+		assert.EqualError(t, err, config.RedactedValue+" is not a valid configuration option")
+		assert.NotContains(t, err.Error(), token)
 	})
 }
