@@ -2,6 +2,7 @@ package local
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -16,13 +17,19 @@ const (
 	variationFileSuffix = ".prompt.md"
 )
 
-type variationParser struct{}
-
-func (variationParser) dir() string {
-	return configsDir
+type localFile struct {
+	ProjectKey string
+	RelPath    string
+	Data       []byte
 }
 
-func (variationParser) accept(relPath string) bool {
+type variationFrontMatter struct {
+	FormatVersion        int  `yaml:"formatVersion"`
+	Upsert               bool `yaml:"upsert"`
+	syncdomain.Variation `yaml:",inline"`
+}
+
+func isVariationFile(relPath string) bool {
 	if !strings.HasSuffix(relPath, variationFileSuffix) {
 		return false
 	}
@@ -33,13 +40,7 @@ func (variationParser) accept(relPath string) bool {
 	return dir != "" && !strings.Contains(dir, "/") && file != ""
 }
 
-type variationFrontMatter struct {
-	FormatVersion        int  `yaml:"formatVersion"`
-	Upsert               bool `yaml:"upsert"`
-	syncdomain.Variation `yaml:",inline"`
-}
-
-func (variationParser) parse(file file) (syncdomain.SyncedResource, error) {
+func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
 	front, body, err := splitFrontMatter(file.Data)
 	if err != nil {
 		return syncdomain.SyncedResource{}, err
@@ -77,12 +78,11 @@ func (variationParser) parse(file file) (syncdomain.SyncedResource, error) {
 	configKey := path.Dir(file.RelPath)
 
 	return syncdomain.SyncedResource{
-		Kind:        syncdomain.KindVariation,
-		ProjectKey:  file.ProjectKey,
-		LookupKey:   configKey + "/" + meta.Key,
-		Payload:     payload,
-		Fingerprint: syncdomain.Hash(payload),
-		Upsert:      meta.Upsert,
+		Kind:       syncdomain.KindVariation,
+		ProjectKey: file.ProjectKey,
+		LookupKey:  configKey + "/" + meta.Key,
+		Payload:    payload,
+		Upsert:     meta.Upsert,
 	}, nil
 }
 
@@ -110,12 +110,22 @@ func validateVariation(relPath string, meta variationFrontMatter) error {
 	return nil
 }
 
+func marshalPayload(value any) (json.RawMessage, error) {
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+
+	if err := encoder.Encode(value); err != nil {
+		return nil, fmt.Errorf("marshal payload: %w", err)
+	}
+
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
+}
+
 func splitFrontMatter(data []byte) (front, body []byte, err error) {
-	// Drop a leading BOM and blank lines so --- is the first real token.
 	source := bytes.TrimPrefix(data, []byte("\ufeff"))
 	source = bytes.TrimLeft(source, "\r\n")
 
-	// Opening fence must be --- on its own line, not ---key: value.
 	if !bytes.HasPrefix(source, []byte("---")) {
 		return nil, nil, errors.New("missing YAML front matter")
 	}
@@ -125,14 +135,12 @@ func splitFrontMatter(data []byte) (front, body []byte, err error) {
 		return nil, nil, errors.New("missing YAML front matter")
 	}
 
-	// Closing fence is the first \n--- after the YAML block.
 	index := bytes.Index(rest, []byte("\n---"))
 	if index < 0 {
 		return nil, nil, errors.New("unclosed YAML front matter")
 	}
 
 	front = bytes.TrimSpace(rest[:index])
-	// Skip the line ending after the closing ---; leftover bytes are the prompt body.
 	after, ok := consumeLineEnding(rest[index+4:])
 	if !ok {
 		after = nil
@@ -142,14 +150,12 @@ func splitFrontMatter(data []byte) (front, body []byte, err error) {
 }
 
 func consumeLineEnding(source []byte) ([]byte, bool) {
-	// EOF after --- is a valid end of line (file ends on the fence).
 	if len(source) == 0 {
 		return source, true
 	}
 	if source[0] == '\n' {
 		return source[1:], true
 	}
-	// Accept \r and \r\n so Windows and old Mac files parse the same way.
 	if source[0] == '\r' {
 		source = source[1:]
 		if len(source) > 0 && source[0] == '\n' {
@@ -159,21 +165,10 @@ func consumeLineEnding(source []byte) ([]byte, bool) {
 		return source, true
 	}
 
-	// Next byte is content, so --- was not a fence on its own line.
 	return source, false
 }
 
 var messageRoles = []string{"system", "user", "assistant"}
-
-func validMessageRole(role string) bool {
-	for _, allowed := range messageRoles {
-		if role == allowed {
-			return true
-		}
-	}
-
-	return false
-}
 
 func parseCompletionMessages(body string) ([]syncdomain.Message, error) {
 	if strings.TrimSpace(body) == "" {
@@ -181,7 +176,10 @@ func parseCompletionMessages(body string) ([]syncdomain.Message, error) {
 	}
 
 	if _, _, _, ok := nextOpenTag(body, 0); !ok {
-		return []syncdomain.Message{{Role: "system", Content: strings.TrimSpace(body)}}, nil
+		return []syncdomain.Message{{
+			Role:    "system",
+			Content: strings.TrimSpace(body),
+		}}, nil
 	}
 
 	var messages []syncdomain.Message
@@ -193,6 +191,7 @@ func parseCompletionMessages(body string) ([]syncdomain.Message, error) {
 			if strings.TrimSpace(body[cursor:]) != "" {
 				return nil, errors.New("unexpected text outside message tags")
 			}
+
 			break
 		}
 		if strings.TrimSpace(body[cursor:start]) != "" {
@@ -252,6 +251,7 @@ func matchingClose(body string, from int, role string) (contentEnd, closeEnd int
 		if relativeOpen >= 0 && relativeOpen < relativeClose {
 			depth++
 			index += relativeOpen + len(open)
+
 			continue
 		}
 

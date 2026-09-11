@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"net/http"
 	"net/url"
 
@@ -11,46 +10,72 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-const listPageLimit = 25
+type ResourceStatus string
 
-type APIClient struct {
-	client      resources.Client
-	accessToken string
-	baseURI     string
+const (
+	ResourceStatusInSync        ResourceStatus = "in_sync"
+	ResourceStatusLocalChanged  ResourceStatus = "local_changed"
+	ResourceStatusServerChanged ResourceStatus = "server_changed"
+	ResourceStatusConflict      ResourceStatus = "conflict"
+)
+
+type SyncDirection string
+
+const (
+	SyncDirectionCodeCanonical   SyncDirection = "code_canonical"
+	SyncDirectionServerCanonical SyncDirection = "server_canonical"
+	SyncDirectionBoth            SyncDirection = "both"
+)
+
+type ResourceAction string
+
+const (
+	ResourceActionNoChange        ResourceAction = "no_change"
+	ResourceActionCreate          ResourceAction = "create"
+	ResourceActionUpdate          ResourceAction = "update"
+	ResourceActionPull            ResourceAction = "pull"
+	ResourceActionBlocked         ResourceAction = "blocked"
+	ResourceActionResolveConflict ResourceAction = "resolve_conflict"
+)
+
+type ResourceError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
-type Project struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
+type PlannedResource struct {
+	ResourceKind  syncdomain.Kind `json:"resourceKind"`
+	LookupKey     string          `json:"lookupKey"`
+	Status        ResourceStatus  `json:"status"`
+	SyncDirection SyncDirection   `json:"syncDirection"`
+	Action        ResourceAction  `json:"action"`
+	Diff          json.RawMessage `json:"diff,omitempty"`
+	Error         *ResourceError  `json:"error,omitempty"`
 }
 
-type Config struct {
-	Key        string                   `json:"key"`
-	Name       string                   `json:"name"`
-	Mode       syncdomain.VariationMode `json:"mode"`
-	Variations []syncdomain.Variation   `json:"variations"`
+type ProjectPlan struct {
+	ProjectKey string            `json:"-"`
+	PlanID     string            `json:"planId,omitempty"`
+	ExpiresAt  string            `json:"expiresAt,omitempty"`
+	Resources  []PlannedResource `json:"resources"`
 }
 
-type ResourceStatus struct {
-	ProjectKey        string                 `json:"projectKey"`
-	ResourceKind      syncdomain.Kind        `json:"resourceKind"`
-	LookupKey         string                 `json:"lookupKey"`
-	Status            string                 `json:"status"`
-	SyncDirection     string                 `json:"syncDirection"`
-	ServerFingerprint syncdomain.Fingerprint `json:"serverFingerprint,omitempty"`
-	Error             any                    `json:"error,omitempty"`
+type planRequest struct {
+	Source    sourceRequest   `json:"source"`
+	DryRun    bool            `json:"dryRun"`
+	Resources []resourceInput `json:"resources"`
 }
 
-type statusRequest struct {
-	RepoIdentifier string                  `json:"repoIdentifier"`
-	Resources      []statusRequestResource `json:"resources"`
+type sourceRequest struct {
+	Type       syncdomain.SourceType `json:"type"`
+	Identifier string                `json:"identifier"`
 }
 
-type statusRequestResource struct {
-	Fingerprint  syncdomain.Fingerprint `json:"fingerprint"`
-	ResourceKind syncdomain.Kind        `json:"resourceKind"`
-	LookupKey    string                 `json:"lookupKey"`
-	Upsert       bool                   `json:"upsert"`
+type resourceInput struct {
+	ResourceKind syncdomain.Kind `json:"resourceKind"`
+	LookupKey    string          `json:"lookupKey"`
+	Upsert       bool            `json:"upsert"`
+	Payload      json.RawMessage `json:"payload"`
 }
 
 type projectResources struct {
@@ -58,203 +83,81 @@ type projectResources struct {
 	Resources  []syncdomain.SyncedResource
 }
 
-type listResponse[T any] struct {
-	Items      []T `json:"items"`
-	TotalCount int `json:"totalCount"`
+type Client struct {
+	transport resources.Client
 }
 
-func NewAPIClient(client resources.Client, accessToken, baseURI string) APIClient {
-	return APIClient{
-		client:      client,
-		accessToken: accessToken,
-		baseURI:     baseURI,
-	}
+func NewClient(transport resources.Client) Client {
+	return Client{transport: transport}
 }
 
-func (c APIClient) Projects(search string) ([]Project, error) {
-	endpoint, err := url.JoinPath(c.baseURI, "api/v2/projects")
-	if err != nil {
-		return nil, fmt.Errorf("build projects endpoint: %w", err)
-	}
-
-	query := url.Values{"sort": {"name"}}
-	if search != "" {
-		query.Set("filter", "query:"+search)
-	}
-	return listAll[Project](c, endpoint, "projects", false, query)
-}
-
-func (c APIClient) Configs(projectKey, search string) ([]Config, error) {
-	endpoint, err := url.JoinPath(c.baseURI, "api/v2/projects", projectKey, "ai-configs")
-	if err != nil {
-		return nil, fmt.Errorf("build configs endpoint: %w", err)
-	}
-
-	query := url.Values{
-		"sort":   {"name"},
-		"filter": {configFilter(search)},
-	}
-	configs, err := listAll[Config](c, endpoint, "configs", true, query)
-	if err != nil {
-		return nil, err
-	}
-	for i := range configs {
-		if err := configs[i].applyMode(); err != nil {
-			return nil, err
-		}
-	}
-
-	return configs, nil
-}
-
-func configFilter(search string) string {
-	const modes = `mode anyOf ["agent","completion"]`
-	if search == "" {
-		return modes
-	}
-
-	encoded, _ := json.Marshal(search)
-	return "query equals " + string(encoded) + "," + modes
-}
-
-func (c APIClient) Config(
-	projectKey,
-	configKey string,
-) (Config, error) {
-	endpoint, err := url.JoinPath(c.baseURI, "api/v2/projects", projectKey, "ai-configs", configKey)
-	if err != nil {
-		return Config{}, fmt.Errorf("build config endpoint: %w", err)
-	}
-
-	response, err := c.client.MakeRequest(
-		c.accessToken,
-		http.MethodGet,
-		endpoint,
-		"",
-		nil,
-		nil,
-		true,
-	)
-	if err != nil {
-		return Config{}, fmt.Errorf("get config %q: %w", configKey, err)
-	}
-
-	var config Config
-	if err := json.Unmarshal(response, &config); err != nil {
-		return Config{}, fmt.Errorf("decode config response: %w", err)
-	}
-	if err := config.applyMode(); err != nil {
-		return Config{}, err
-	}
-
-	return config, nil
-}
-
-func (c *Config) applyMode() error {
-	if c.Mode == "" {
-		c.Mode = syncdomain.VariationModeCompletion
-	}
-	if !c.Mode.Valid() {
-		return fmt.Errorf("config %q has unsupported mode %q", c.Key, c.Mode)
-	}
-	for i := range c.Variations {
-		c.Variations[i].Mode = c.Mode
-	}
-
-	return nil
-}
-
-func (c APIClient) Status(
-	repoIdentifier string,
+func (client Client) Plan(
+	accessToken string,
+	baseURI string,
+	source syncdomain.Source,
+	dryRun bool,
 	synced []syncdomain.SyncedResource,
-) ([]ResourceStatus, error) {
-	statuses := make([]ResourceStatus, 0, len(synced))
+) ([]ProjectPlan, error) {
+	plans := make([]ProjectPlan, 0)
 
 	for _, project := range groupResourcesByProject(synced) {
-		projectStatuses, err := c.projectStatus(repoIdentifier, project)
+		plan, err := client.planProject(accessToken, baseURI, source, dryRun, project)
 		if err != nil {
 			return nil, err
 		}
-		statuses = append(statuses, projectStatuses...)
+
+		plans = append(plans, plan)
 	}
 
-	return statuses, nil
+	return plans, nil
 }
 
-func listAll[T any](
-	c APIClient,
-	endpoint,
-	resourceName string,
-	isBeta bool,
-	baseQuery url.Values,
-) ([]T, error) {
-	var items []T
-
-	for offset := 0; ; offset += listPageLimit {
-		query := maps.Clone(baseQuery)
-		query.Set("limit", fmt.Sprintf("%d", listPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
-
-		response, err := c.client.MakeRequest(
-			c.accessToken,
-			http.MethodGet,
-			endpoint,
-			"",
-			query,
-			nil,
-			isBeta,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list %s: %w", resourceName, err)
-		}
-
-		var page listResponse[T]
-		if err := json.Unmarshal(response, &page); err != nil {
-			return nil, fmt.Errorf("decode %s response: %w", resourceName, err)
-		}
-
-		items = append(items, page.Items...)
-		if len(page.Items) < listPageLimit ||
-			(page.TotalCount > 0 && len(items) >= page.TotalCount) {
-			return items, nil
-		}
-	}
-}
-
-func (c APIClient) projectStatus(
-	repoIdentifier string,
+func (client Client) planProject(
+	accessToken string,
+	baseURI string,
+	source syncdomain.Source,
+	dryRun bool,
 	project projectResources,
-) ([]ResourceStatus, error) {
-	request := statusRequest{
-		RepoIdentifier: repoIdentifier,
-		Resources:      make([]statusRequestResource, 0, len(project.Resources)),
+) (ProjectPlan, error) {
+	request := planRequest{
+		Source: sourceRequest{
+			Type:       source.Type(),
+			Identifier: source.Identifier(),
+		},
+		DryRun:    dryRun,
+		Resources: make([]resourceInput, 0, len(project.Resources)),
 	}
+
 	for _, resource := range project.Resources {
-		request.Resources = append(request.Resources, statusRequestResource{
-			Fingerprint:  resource.Fingerprint,
+		if resource.Kind != syncdomain.KindVariation {
+			return ProjectPlan{}, fmt.Errorf("unsupported sync resource kind %q", resource.Kind)
+		}
+
+		request.Resources = append(request.Resources, resourceInput{
 			ResourceKind: resource.Kind,
 			LookupKey:    resource.LookupKey,
 			Upsert:       resource.Upsert,
+			Payload:      resource.Payload,
 		})
 	}
 
 	body, err := json.MarshalIndent(request, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal status request: %w", err)
+		return ProjectPlan{}, fmt.Errorf("marshal plan request: %w", err)
 	}
 
 	endpoint, err := url.JoinPath(
-		c.baseURI,
+		baseURI,
 		"api/v2/projects",
 		project.ProjectKey,
-		"ai-configs/sync/status",
+		"ai-configs/sync/plan",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("build status endpoint: %w", err)
+		return ProjectPlan{}, fmt.Errorf("build plan endpoint: %w", err)
 	}
 
-	response, err := c.client.MakeRequest(
-		c.accessToken,
+	response, err := client.transport.MakeRequest(
+		accessToken,
 		http.MethodPost,
 		endpoint,
 		"application/json",
@@ -263,19 +166,17 @@ func (c APIClient) projectStatus(
 		false,
 	)
 	if err != nil {
-		return nil, err
+		return ProjectPlan{}, err
 	}
 
-	var statuses []ResourceStatus
-	if err := json.Unmarshal(response, &statuses); err != nil {
-		return nil, fmt.Errorf("decode status response: %w", err)
+	var plan ProjectPlan
+	if err := json.Unmarshal(response, &plan); err != nil {
+		return ProjectPlan{}, fmt.Errorf("decode plan response: %w", err)
 	}
 
-	for i := range statuses {
-		statuses[i].ProjectKey = project.ProjectKey
-	}
+	plan.ProjectKey = project.ProjectKey
 
-	return statuses, nil
+	return plan, nil
 }
 
 func groupResourcesByProject(synced []syncdomain.SyncedResource) []projectResources {
@@ -289,6 +190,7 @@ func groupResourcesByProject(synced []syncdomain.SyncedResource) []projectResour
 			byProject[resource.ProjectKey] = index
 			projects = append(projects, projectResources{ProjectKey: resource.ProjectKey})
 		}
+
 		projects[index].Resources = append(projects[index].Resources, resource)
 	}
 

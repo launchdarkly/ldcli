@@ -1,10 +1,6 @@
 package sync
 
-import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-)
+import "encoding/json"
 
 const RootDir = ".launchdarkly"
 
@@ -12,24 +8,14 @@ type Kind string
 
 const (
 	KindVariation Kind = "variation"
-	KindTool      Kind = "tool"
 )
 
-type Fingerprint string
-
-func Hash(payload []byte) Fingerprint {
-	sum := sha256.Sum256(payload)
-
-	return Fingerprint("sha256." + hex.EncodeToString(sum[:]))
-}
-
 type SyncedResource struct {
-	Kind        Kind
-	ProjectKey  string
-	LookupKey   string
-	Payload     json.RawMessage
-	Fingerprint Fingerprint
-	Upsert      bool
+	Kind       Kind
+	ProjectKey string
+	LookupKey  string
+	Payload    json.RawMessage
+	Upsert     bool
 }
 
 type VariationMode string
@@ -48,17 +34,6 @@ func (m VariationMode) Valid() bool {
 	}
 }
 
-type ToolRef struct {
-	Key              string         `json:"key" yaml:"key"`
-	Version          int            `json:"version" yaml:"version"`
-	CustomParameters map[string]any `json:"customParameters,omitempty" yaml:"customParameters,omitempty"`
-}
-
-type SkillRef struct {
-	Key     string `json:"key" yaml:"key"`
-	Version int    `json:"version" yaml:"version"`
-}
-
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -74,7 +49,5 @@ type Variation struct {
 	ModelConfigVersion int            `json:"modelConfigVersion,omitempty" yaml:"modelConfigVersion,omitempty"`
 	Model              map[string]any `json:"model,omitempty" yaml:"model,omitempty"`
 	OutputFormat       map[string]any `json:"outputFormat,omitempty" yaml:"outputFormat,omitempty"`
-	Tools              []ToolRef      `json:"tools,omitempty" yaml:"tools,omitempty"`
-	Skills             []SkillRef     `json:"skills,omitempty" yaml:"skills,omitempty"`
 	Messages           []Message      `json:"messages,omitempty" yaml:"-"`
 }

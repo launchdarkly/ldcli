@@ -11,7 +11,10 @@ import (
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
-func NewSyncCmd(client resources.Client, analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
+func NewSyncCmd(
+	client resources.Client,
+	analyticsTrackerFn analytics.TrackerFn,
+) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Synchronize local resources with LaunchDarkly",

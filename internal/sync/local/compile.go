@@ -27,10 +27,6 @@ func (e ParseError) Unwrap() error {
 }
 
 func Compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
-	return compile(fsys, defaultParsers())
-}
-
-func compile(fsys fs.FS, parsers []parser) ([]syncdomain.SyncedResource, error) {
 	entries, err := fs.ReadDir(fsys, syncdomain.RootDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, ErrNoDirectory
@@ -46,12 +42,12 @@ func compile(fsys fs.FS, parsers []parser) ([]syncdomain.SyncedResource, error) 
 			continue
 		}
 
-		parsed, err := compileProject(fsys, entry.Name(), parsers)
+		variations, err := compileProjectVariations(fsys, entry.Name())
 		if err != nil {
 			return nil, err
 		}
 
-		resources = append(resources, parsed...)
+		resources = append(resources, variations...)
 	}
 
 	slices.SortFunc(resources, compareResources)
@@ -59,31 +55,11 @@ func compile(fsys fs.FS, parsers []parser) ([]syncdomain.SyncedResource, error) 
 	return resources, nil
 }
 
-func compileProject(
+func compileProjectVariations(
 	fsys fs.FS,
 	projectKey string,
-	parsers []parser,
 ) ([]syncdomain.SyncedResource, error) {
-	var resources []syncdomain.SyncedResource
-
-	for _, parser := range parsers {
-		parsed, err := compileKind(fsys, projectKey, parser)
-		if err != nil {
-			return nil, err
-		}
-
-		resources = append(resources, parsed...)
-	}
-
-	return resources, nil
-}
-
-func compileKind(
-	fsys fs.FS,
-	projectKey string,
-	parser parser,
-) ([]syncdomain.SyncedResource, error) {
-	dir := path.Join(syncdomain.RootDir, projectKey, parser.dir())
+	dir := path.Join(syncdomain.RootDir, projectKey, configsDir)
 
 	var resources []syncdomain.SyncedResource
 
@@ -95,8 +71,8 @@ func compileKind(
 			return nil
 		}
 
-		rel := strings.TrimPrefix(name, dir+"/")
-		if rel == name || !parser.accept(rel) {
+		relPath := strings.TrimPrefix(name, dir+"/")
+		if relPath == name || !isVariationFile(relPath) {
 			return nil
 		}
 
@@ -105,9 +81,9 @@ func compileKind(
 			return err
 		}
 
-		resource, err := parser.parse(file{
+		resource, err := parseVariation(localFile{
 			ProjectKey: projectKey,
-			RelPath:    rel,
+			RelPath:    relPath,
 			Data:       data,
 		})
 		if err != nil {
@@ -131,7 +107,6 @@ func compileKind(
 func compareResources(a, b syncdomain.SyncedResource) int {
 	return cmp.Or(
 		cmp.Compare(a.ProjectKey, b.ProjectKey),
-		cmp.Compare(a.Kind, b.Kind),
 		cmp.Compare(a.LookupKey, b.LookupKey),
 	)
 }

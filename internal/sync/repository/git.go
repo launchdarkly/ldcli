@@ -1,22 +1,18 @@
 package repository
 
 import (
-	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os/exec"
 	"strings"
+
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-var (
-	ErrGitNotInstalled = errors.New("git is not installed; install git and initialize a repository before continuing")
-	ErrNotGitRepo      = errors.New("not a git repository; run git init before continuing")
-	ErrNoOrigin        = errors.New("repository has no origin remote; add a remote named origin before continuing")
-)
-
-type Repo struct {
-	Root       string
-	Identifier string
+type GitRepository struct {
+	Root   string
+	Source syncdomain.Source
 }
 
 type gitRunner interface {
@@ -41,45 +37,113 @@ func (execGit) output(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func IdentifyRepo(dir string) (Repo, error) {
-	return identifyRepo(execGit{}, dir)
+func FindGitSource(dir string) (GitRepository, bool, error) {
+	return findGitSource(execGit{}, dir)
 }
 
-func identifyRepo(git gitRunner, dir string) (Repo, error) {
+func findGitSource(git gitRunner, dir string) (GitRepository, bool, error) {
 	if _, err := git.lookPath("git"); err != nil {
-		return Repo{}, ErrGitNotInstalled
+		return GitRepository{}, false, nil
 	}
 
 	root, err := git.output(dir, "rev-parse", "--show-toplevel")
 	if err != nil {
-		return Repo{}, ErrNotGitRepo
+		return GitRepository{}, false, nil
 	}
 
 	origin, err := git.output(root, "config", "--local", "--get", "remote.origin.url")
 	if err != nil || origin == "" {
-		return Repo{}, ErrNoOrigin
+		return GitRepository{}, false, nil
 	}
 
-	identifier, err := repoIdentifier(origin)
+	identifier, err := gitSourceIdentifier(origin)
 	if err != nil {
-		return Repo{}, err
+		return GitRepository{}, false, err
 	}
 
-	return Repo{Root: root, Identifier: identifier}, nil
+	source, err := syncdomain.NewSource(syncdomain.SourceTypeGit, identifier)
+	if err != nil {
+		return GitRepository{}, false, err
+	}
+
+	return GitRepository{Root: root, Source: source}, true, nil
 }
 
-func repoIdentifier(remote string) (string, error) {
-	repoPath := remote
-	if parsed, err := url.Parse(remote); err == nil && parsed.Host != "" {
+func gitSourceIdentifier(remote string) (string, error) {
+	remote = strings.TrimSpace(remote)
+
+	var host, repoPath string
+
+	if strings.Contains(remote, "://") {
+		parsed, err := url.Parse(remote)
+		if err != nil || parsed.Host == "" {
+			return "", invalidGitRemote(remote)
+		}
+
+		host = normalizedURLHost(parsed)
 		repoPath = parsed.Path
-	} else if _, path, ok := strings.Cut(remote, ":"); ok {
-		repoPath = path
+	} else {
+		remoteHost, remotePath, ok := strings.Cut(remote, ":")
+		if !ok {
+			return "", invalidGitRemote(remote)
+		}
+
+		if _, value, ok := strings.Cut(remoteHost, "@"); ok {
+			remoteHost = value
+		}
+
+		host = strings.ToLower(strings.TrimSpace(remoteHost))
+		repoPath = remotePath
 	}
 
-	parts := strings.Split(strings.TrimSuffix(strings.Trim(repoPath, "/"), ".git"), "/")
+	repoPath = strings.TrimSuffix(strings.Trim(repoPath, "/"), ".git")
+	if host == "" || !validRepositoryPath(repoPath) {
+		return "", invalidGitRemote(remote)
+	}
+
+	return host + "/" + repoPath, nil
+}
+
+func normalizedURLHost(remote *url.URL) string {
+	host := strings.ToLower(remote.Hostname())
+	port := remote.Port()
+	if port == "" || isDefaultPort(remote.Scheme, port) {
+		return host
+	}
+
+	return net.JoinHostPort(host, port)
+}
+
+func isDefaultPort(scheme, port string) bool {
+	switch strings.ToLower(scheme) {
+	case "http":
+		return port == "80"
+	case "https":
+		return port == "443"
+	case "ssh":
+		return port == "22"
+	case "git":
+		return port == "9418"
+	default:
+		return false
+	}
+}
+
+func validRepositoryPath(repoPath string) bool {
+	parts := strings.Split(repoPath, "/")
 	if len(parts) < 2 {
-		return "", fmt.Errorf("cannot derive repository identifier from origin %q", remote)
+		return false
 	}
 
-	return strings.Join(parts[len(parts)-2:], "/"), nil
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+
+	return true
+}
+
+func invalidGitRemote(remote string) error {
+	return fmt.Errorf("cannot derive source identifier from Git origin %q", remote)
 }

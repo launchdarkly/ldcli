@@ -10,18 +10,16 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-func TestVariationParser_Accept(t *testing.T) {
-	parser := variationParser{}
-
-	assert.True(t, parser.accept("my-config/my-variation.prompt.md"))
-	assert.False(t, parser.accept("my-variation.prompt.md"))
-	assert.False(t, parser.accept("my-config/nested/my-variation.prompt.md"))
-	assert.False(t, parser.accept("my-config/my-variation.prompt"))
-	assert.False(t, parser.accept("my-config/my-variation.md"))
+func TestIsVariationFile(t *testing.T) {
+	assert.True(t, isVariationFile("my-config/my-variation.prompt.md"))
+	assert.False(t, isVariationFile("my-variation.prompt.md"))
+	assert.False(t, isVariationFile("my-config/nested/my-variation.prompt.md"))
+	assert.False(t, isVariationFile("my-config/my-variation.prompt"))
+	assert.False(t, isVariationFile("my-config/my-variation.md"))
 }
 
-func TestVariationParser_UntaggedBodyIsSystemMessage(t *testing.T) {
-	file := file{
+func TestParseVariation_UntaggedBodyIsSystemMessage(t *testing.T) {
+	file := localFile{
 		ProjectKey: "proj",
 		RelPath:    "cfg/plain.prompt.md",
 		Data: []byte(`---
@@ -35,7 +33,7 @@ Just say hello.
 `),
 	}
 
-	resource, err := variationParser{}.parse(file)
+	resource, err := parseVariation(file)
 	require.NoError(t, err)
 
 	var payload syncdomain.Variation
@@ -47,8 +45,8 @@ Just say hello.
 	)
 }
 
-func TestVariationParser_AgentBodyIsInstructions(t *testing.T) {
-	file := file{
+func TestParseVariation_AgentBodyIsInstructions(t *testing.T) {
+	file := localFile{
 		ProjectKey: "proj",
 		RelPath:    "cfg/agent.prompt.md",
 		Data: []byte(`---
@@ -58,45 +56,52 @@ key: agent
 name: Agent
 ---
 
-Use the available tools.
+Use the available capabilities.
 
 <system>This tag is part of the instructions.</system>
 `),
 	}
 
-	resource, err := variationParser{}.parse(file)
+	resource, err := parseVariation(file)
 	require.NoError(t, err)
 
 	var payload syncdomain.Variation
 	require.NoError(t, unmarshalPayload(resource, &payload))
 	assert.Equal(
 		t,
-		"Use the available tools.\n\n<system>This tag is part of the instructions.</system>",
+		"Use the available capabilities.\n\n<system>This tag is part of the instructions.</system>",
 		payload.Instructions,
 	)
 	assert.Empty(t, payload.Messages)
 }
 
-func TestVariationParser_RejectsInstructionsInFrontMatter(t *testing.T) {
-	file := file{
-		ProjectKey: "proj",
-		RelPath:    "cfg/agent.prompt.md",
-		Data: []byte(`---
+func TestParseVariation_RejectsBodyFieldsInFrontMatter(t *testing.T) {
+	for _, field := range []string{
+		"instructions: Use the available capabilities.",
+		"messages: []",
+	} {
+		t.Run(field, func(t *testing.T) {
+			file := localFile{
+				ProjectKey: "proj",
+				RelPath:    "cfg/agent.prompt.md",
+				Data: []byte(`---
 formatVersion: 1
 mode: agent
 key: agent
 name: Agent
-instructions: Use the available tools.
+` + field + `
 ---
 `),
-	}
+			}
 
-	_, err := variationParser{}.parse(file)
-	require.ErrorContains(t, err, "field instructions not found")
+			_, err := parseVariation(file)
+			require.ErrorContains(t, err, "invalid front matter")
+		})
+	}
 }
 
-func TestVariationParser_MismatchedTags(t *testing.T) {
-	file := file{
+func TestParseVariation_MismatchedTags(t *testing.T) {
+	file := localFile{
 		ProjectKey: "proj",
 		RelPath:    "cfg/bad.prompt.md",
 		Data: []byte(`---
@@ -112,12 +117,12 @@ oops
 `),
 	}
 
-	_, err := variationParser{}.parse(file)
+	_, err := parseVariation(file)
 	require.ErrorContains(t, err, "unclosed <system> tag")
 }
 
-func TestVariationParser_TextOutsideTags(t *testing.T) {
-	file := file{
+func TestParseVariation_TextOutsideTags(t *testing.T) {
+	file := localFile{
 		ProjectKey: "proj",
 		RelPath:    "cfg/bad.prompt.md",
 		Data: []byte(`---
@@ -134,27 +139,28 @@ hi
 `),
 	}
 
-	_, err := variationParser{}.parse(file)
+	_, err := parseVariation(file)
 	require.ErrorContains(t, err, "unexpected text outside message tags")
 }
 
-func TestVariationParser_RequiresFormatVersion(t *testing.T) {
-	file := file{
+func TestParseVariation_RequiresFormatVersion(t *testing.T) {
+	file := localFile{
 		ProjectKey: "proj",
 		RelPath:    "cfg/v.prompt.md",
 		Data: []byte(`---
+mode: completion
 key: v
 name: V
 ---
 `),
 	}
 
-	_, err := variationParser{}.parse(file)
+	_, err := parseVariation(file)
 	require.ErrorContains(t, err, "formatVersion is required")
 }
 
-func TestVariationParser_RequiresMode(t *testing.T) {
-	file := file{
+func TestParseVariation_RequiresMode(t *testing.T) {
+	file := localFile{
 		ProjectKey: "proj",
 		RelPath:    "cfg/v.prompt.md",
 		Data: []byte(`---
@@ -165,12 +171,12 @@ name: V
 `),
 	}
 
-	_, err := variationParser{}.parse(file)
+	_, err := parseVariation(file)
 	require.ErrorContains(t, err, "mode is required")
 }
 
-func TestVariationParser_RejectsUnsupportedMode(t *testing.T) {
-	file := file{
+func TestParseVariation_RejectsUnsupportedMode(t *testing.T) {
+	file := localFile{
 		ProjectKey: "proj",
 		RelPath:    "cfg/v.prompt.md",
 		Data: []byte(`---
@@ -182,12 +188,12 @@ name: V
 `),
 	}
 
-	_, err := variationParser{}.parse(file)
+	_, err := parseVariation(file)
 	require.ErrorContains(t, err, `unsupported mode "other"`)
 }
 
-func TestVariationParser_RejectsUnknownFrontMatter(t *testing.T) {
-	file := file{
+func TestParseVariation_RejectsUnknownFrontMatter(t *testing.T) {
+	file := localFile{
 		ProjectKey: "proj",
 		RelPath:    "cfg/v.prompt.md",
 		Data: []byte(`---
@@ -200,7 +206,7 @@ mystery: true
 `),
 	}
 
-	_, err := variationParser{}.parse(file)
+	_, err := parseVariation(file)
 	require.ErrorContains(t, err, "invalid front matter")
 }
 

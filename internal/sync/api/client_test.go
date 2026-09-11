@@ -13,303 +13,222 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-type apiRequest struct {
+type recordedRequest struct {
 	AccessToken string
 	Method      string
 	Path        string
-	Query       url.Values
+	ContentType string
 	Body        []byte
 	IsBeta      bool
 }
 
-type apiClientStub struct {
-	Requests  []apiRequest
+type recordingClient struct {
+	Requests  []recordedRequest
 	Responses [][]byte
 	Err       error
 }
 
-var _ resources.Client = &apiClientStub{}
+var _ resources.Client = &recordingClient{}
 
-func (c *apiClientStub) MakeRequest(
+func (client *recordingClient) MakeRequest(
 	accessToken string,
 	method string,
 	path string,
-	_ string,
-	query url.Values,
+	contentType string,
+	_ url.Values,
 	body []byte,
 	isBeta bool,
 ) ([]byte, error) {
-	c.Requests = append(c.Requests, apiRequest{
+	client.Requests = append(client.Requests, recordedRequest{
 		AccessToken: accessToken,
 		Method:      method,
 		Path:        path,
-		Query:       query,
+		ContentType: contentType,
 		Body:        append([]byte(nil), body...),
 		IsBeta:      isBeta,
 	})
-	if c.Err != nil {
-		return nil, c.Err
+	if client.Err != nil {
+		return nil, client.Err
 	}
 
-	return c.Responses[len(c.Requests)-1], nil
+	return client.Responses[len(client.Requests)-1], nil
 }
 
-func (*apiClientStub) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+func (*recordingClient) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
 	return nil, nil
 }
 
-func TestAPIClient_ProjectsPaginatesInNameOrder(t *testing.T) {
-	firstPage := make([]Project, listPageLimit)
-	for index := range firstPage {
-		firstPage[index] = Project{
-			Key:  string(rune('a' + index)),
-			Name: string(rune('A' + index)),
-		}
-	}
-
-	transport := &apiClientStub{Responses: [][]byte{
-		mustJSON(t, listResponse[Project]{Items: firstPage, TotalCount: 26}),
-		mustJSON(t, listResponse[Project]{
-			Items:      []Project{{Key: "z", Name: "Z"}},
-			TotalCount: 26,
-		}),
-	}}
-
-	projects, err := NewAPIClient(
-		transport,
-		"token",
-		"https://example.com",
-	).Projects("my-project")
-	require.NoError(t, err)
-	require.Len(t, projects, 26)
-	require.Len(t, transport.Requests, 2)
-
-	assert.Equal(t, "GET", transport.Requests[0].Method)
-	assert.Equal(t, "https://example.com/api/v2/projects", transport.Requests[0].Path)
-	assert.Equal(t, "name", transport.Requests[0].Query.Get("sort"))
-	assert.Equal(t, "query:my-project", transport.Requests[0].Query.Get("filter"))
-	assert.Equal(t, "25", transport.Requests[0].Query.Get("limit"))
-	assert.Equal(t, "0", transport.Requests[0].Query.Get("offset"))
-	assert.Equal(t, "25", transport.Requests[1].Query.Get("offset"))
-	assert.Equal(t, "query:my-project", transport.Requests[1].Query.Get("filter"))
-	assert.Equal(t, "Z", projects[25].Name)
-}
-
-func TestAPIClient_ConfigsPaginatesAndAppliesMode(t *testing.T) {
-	transport := &apiClientStub{Responses: [][]byte{mustJSON(t, listResponse[Config]{
-		Items: []Config{{
-			Key:  "support",
-			Name: "Support agent",
-			Mode: syncdomain.VariationModeAgent,
-			Variations: []syncdomain.Variation{{
-				Key:  "helpful",
-				Name: "Helpful",
-			}},
-		}},
-		TotalCount: 1,
-	})}}
-
-	configs, err := NewAPIClient(
-		transport,
-		"token",
-		"https://example.com",
-	).Configs(
-		"project",
-		"customer support",
-	)
-	require.NoError(t, err)
-	require.Len(t, configs, 1)
-	require.Len(t, configs[0].Variations, 1)
-
-	request := transport.Requests[0]
-	assert.Equal(t, "https://example.com/api/v2/projects/project/ai-configs", request.Path)
-	assert.Equal(t, "token", request.AccessToken)
-	assert.Equal(t, "name", request.Query.Get("sort"))
-	assert.Equal(t, "25", request.Query.Get("limit"))
-	assert.Equal(
-		t,
-		`query equals "customer support",mode anyOf ["agent","completion"]`,
-		request.Query.Get("filter"),
-	)
-	assert.True(t, request.IsBeta)
-	assert.Equal(t, syncdomain.VariationModeAgent, configs[0].Variations[0].Mode)
-}
-
-func TestAPIClient_ConfigsFetchesEveryPage(t *testing.T) {
-	firstPage := make([]Config, listPageLimit)
-	for index := range firstPage {
-		firstPage[index] = Config{
-			Key:  string(rune('a' + index)),
-			Name: string(rune('A' + index)),
-			Mode: syncdomain.VariationModeCompletion,
-		}
-	}
-	transport := &apiClientStub{Responses: [][]byte{
-		mustJSON(t, listResponse[Config]{Items: firstPage, TotalCount: 26}),
-		mustJSON(t, listResponse[Config]{
-			Items: []Config{{
-				Key:  "z",
-				Name: "Z",
-				Mode: syncdomain.VariationModeAgent,
-			}},
-			TotalCount: 26,
-		}),
-	}}
-
-	configs, err := NewAPIClient(
-		transport,
-		"token",
-		"https://example.com",
-	).Configs(
-		"project",
-		"",
-	)
-	require.NoError(t, err)
-	require.Len(t, configs, 26)
-	require.Len(t, transport.Requests, 2)
-	assert.Equal(t, "0", transport.Requests[0].Query.Get("offset"))
-	assert.Equal(t, "25", transport.Requests[1].Query.Get("offset"))
-	assert.Equal(t, syncdomain.VariationModeAgent, configs[25].Mode)
-	assert.Equal(
-		t,
-		`mode anyOf ["agent","completion"]`,
-		transport.Requests[1].Query.Get("filter"),
-	)
-	assert.True(t, transport.Requests[1].IsBeta)
-}
-
-func TestAPIClient_ConfigGetsCurrentVariations(t *testing.T) {
-	transport := &apiClientStub{Responses: [][]byte{[]byte(`{
-		"key": "completion",
-		"name": "Completion",
-		"mode": "completion",
-		"variations": [{"key": "strict", "name": "Strict"}]
-	}`)}}
-
-	config, err := NewAPIClient(
-		transport,
-		"token",
-		"https://example.com",
-	).Config(
-		"project",
-		"completion",
-	)
-	require.NoError(t, err)
-	assert.Equal(t, syncdomain.VariationModeCompletion, config.Variations[0].Mode)
-	assert.Equal(
-		t,
-		"https://example.com/api/v2/projects/project/ai-configs/completion",
-		transport.Requests[0].Path,
-	)
-	assert.True(t, transport.Requests[0].IsBeta)
-}
-
-func TestAPIClient_ConfigRejectsUnsupportedMode(t *testing.T) {
-	transport := &apiClientStub{Responses: [][]byte{[]byte(
-		`{"key":"config","name":"Config","mode":"unknown","variations":[]}`,
-	)}}
-
-	_, err := NewAPIClient(
-		transport,
-		"token",
-		"https://example.com",
-	).Config(
-		"project",
-		"config",
-	)
-	require.ErrorContains(t, err, `unsupported mode "unknown"`)
-}
-
-func TestAPIClient_ProjectsInvalidResponse(t *testing.T) {
-	client := NewAPIClient(
-		&apiClientStub{Responses: [][]byte{[]byte(`not json`)}},
-		"token",
-		"https://example.com",
-	)
-
-	_, err := client.Projects("")
-	require.ErrorContains(t, err, "decode projects response")
-}
-
-func TestAPIClient_Status(t *testing.T) {
-	transport := &apiClientStub{
+func TestClientPlan(t *testing.T) {
+	transport := &recordingClient{
 		Responses: [][]byte{
-			[]byte(`[{"resourceKind":"variation","lookupKey":"config/first","status":"local_changed","syncDirection":"code_canonical"}]`),
-			[]byte(`[{"resourceKind":"tool","lookupKey":"search/2","status":"in_sync","syncDirection":"both"}]`),
+			[]byte(`{
+				"resources": [{
+					"resourceKind": "variation",
+					"lookupKey": "config/first",
+					"status": "local_changed",
+					"syncDirection": "code_canonical",
+					"action": "update",
+					"diff": {"name": {"before": "Old", "after": "First"}}
+				}]
+			}`),
+			[]byte(`{
+				"resources": [{
+					"resourceKind": "variation",
+					"lookupKey": "config/second",
+					"status": "server_changed",
+					"syncDirection": "server_canonical",
+					"action": "pull"
+				}]
+			}`),
 		},
 	}
-	client := NewAPIClient(transport, "token", "https://example.com")
+	client := NewClient(transport)
+	source := requireSource(t, syncdomain.SourceTypeGit, "github.com/launchdarkly/example")
 
-	statuses, err := client.Status(
-		"launchdarkly/ldcli",
+	plans, err := client.Plan(
+		"token",
+		"https://example.com",
+		source,
+		true,
 		[]syncdomain.SyncedResource{
-			{
-				ProjectKey:  "alpha",
-				Kind:        syncdomain.KindVariation,
-				LookupKey:   "config/first",
-				Fingerprint: "sha256.first",
-				Upsert:      true,
-			},
-			{
-				ProjectKey:  "zeta",
-				Kind:        syncdomain.KindTool,
-				LookupKey:   "search/2",
-				Fingerprint: "sha256.second",
-			},
+			variationResource("alpha", "config/first", "First", true),
+			variationResource("zeta", "config/second", "Second", false),
 		},
 	)
+
 	require.NoError(t, err)
 	require.Len(t, transport.Requests, 2)
-	require.Len(t, statuses, 2)
+	require.Len(t, plans, 2)
 
-	assert.Equal(t, "POST", transport.Requests[0].Method)
-	assert.Equal(t, "token", transport.Requests[0].AccessToken)
-	assert.Equal(t, "https://example.com/api/v2/projects/alpha/ai-configs/sync/status", transport.Requests[0].Path)
-	assert.Equal(t, "alpha", statuses[0].ProjectKey)
-	assert.Equal(t, "zeta", statuses[1].ProjectKey)
+	firstRequest := transport.Requests[0]
+	assert.Equal(t, "POST", firstRequest.Method)
+	assert.Equal(t, "token", firstRequest.AccessToken)
+	assert.Equal(t, "application/json", firstRequest.ContentType)
+	assert.False(t, firstRequest.IsBeta)
+	assert.Equal(
+		t,
+		"https://example.com/api/v2/projects/alpha/ai-configs/sync/plan",
+		firstRequest.Path,
+	)
 
-	var request statusRequest
-	require.NoError(t, json.Unmarshal(transport.Requests[0].Body, &request))
-	assert.Equal(t, "launchdarkly/ldcli", request.RepoIdentifier)
+	var request planRequest
+	require.NoError(t, json.Unmarshal(firstRequest.Body, &request))
+	assert.Equal(t, syncdomain.SourceTypeGit, request.Source.Type)
+	assert.Equal(t, "github.com/launchdarkly/example", request.Source.Identifier)
+	assert.True(t, request.DryRun)
 	require.Len(t, request.Resources, 1)
 	assert.Equal(t, syncdomain.KindVariation, request.Resources[0].ResourceKind)
 	assert.Equal(t, "config/first", request.Resources[0].LookupKey)
-	assert.Equal(t, syncdomain.Fingerprint("sha256.first"), request.Resources[0].Fingerprint)
 	assert.True(t, request.Resources[0].Upsert)
+	assert.JSONEq(t, `{"key":"first","name":"First"}`, string(request.Resources[0].Payload))
+	assert.NotContains(t, string(firstRequest.Body), "fingerprint")
+	assert.NotContains(t, string(firstRequest.Body), "repoIdentifier")
+
+	assert.Equal(t, "alpha", plans[0].ProjectKey)
+	require.Len(t, plans[0].Resources, 1)
+	assert.Equal(t, ResourceStatusLocalChanged, plans[0].Resources[0].Status)
+	assert.Equal(t, ResourceActionUpdate, plans[0].Resources[0].Action)
+	assert.Equal(t, "zeta", plans[1].ProjectKey)
+	assert.Equal(t, ResourceStatusServerChanged, plans[1].Resources[0].Status)
 }
 
-func TestAPIClient_StatusTransportError(t *testing.T) {
-	client := NewAPIClient(
-		&apiClientStub{Err: errors.New("unavailable")},
+func TestClientPlanReturnsEmptyResultWithoutResources(t *testing.T) {
+	transport := &recordingClient{}
+	client := NewClient(transport)
+
+	plans, err := client.Plan(
 		"token",
 		"https://example.com",
+		requireSource(t, syncdomain.SourceTypeLocal, "sha256.local"),
+		true,
+		nil,
 	)
 
-	_, err := client.Status(
-		"launchdarkly/ldcli",
-		[]syncdomain.SyncedResource{{ProjectKey: "proj"}},
+	require.NoError(t, err)
+	assert.Empty(t, plans)
+	assert.Empty(t, transport.Requests)
+}
+
+func TestClientPlanRejectsUnsupportedResource(t *testing.T) {
+	transport := &recordingClient{}
+	client := NewClient(transport)
+
+	_, err := client.Plan(
+		"token",
+		"https://example.com",
+		requireSource(t, syncdomain.SourceTypeGit, "github.com/acme/repo"),
+		true,
+		[]syncdomain.SyncedResource{{
+			ProjectKey: "project",
+			Kind:       "tool",
+			LookupKey:  "tool",
+		}},
 	)
+
+	require.ErrorContains(t, err, `unsupported sync resource kind "tool"`)
+	assert.Empty(t, transport.Requests)
+}
+
+func TestClientPlanReturnsTransportError(t *testing.T) {
+	client := NewClient(&recordingClient{Err: errors.New("unavailable")})
+
+	_, err := client.Plan(
+		"token",
+		"https://example.com",
+		requireSource(t, syncdomain.SourceTypeGit, "github.com/acme/repo"),
+		true,
+		[]syncdomain.SyncedResource{variationResource("project", "config/key", "Name", false)},
+	)
+
 	require.ErrorContains(t, err, "unavailable")
 }
 
-func TestAPIClient_StatusInvalidResponse(t *testing.T) {
-	client := NewAPIClient(
-		&apiClientStub{Responses: [][]byte{[]byte(`not json`)}},
+func TestClientPlanRejectsInvalidResponse(t *testing.T) {
+	client := NewClient(&recordingClient{Responses: [][]byte{[]byte(`not json`)}})
+
+	_, err := client.Plan(
 		"token",
 		"https://example.com",
+		requireSource(t, syncdomain.SourceTypeGit, "github.com/acme/repo"),
+		true,
+		[]syncdomain.SyncedResource{variationResource("project", "config/key", "Name", false)},
 	)
 
-	_, err := client.Status(
-		"launchdarkly/ldcli",
-		[]syncdomain.SyncedResource{{ProjectKey: "proj"}},
-	)
-	require.ErrorContains(t, err, "decode status response")
+	require.ErrorContains(t, err, "decode plan response")
 }
 
-func mustJSON(t *testing.T, value any) []byte {
+func variationResource(
+	projectKey string,
+	lookupKey string,
+	name string,
+	upsert bool,
+) syncdomain.SyncedResource {
+	payload, err := json.Marshal(map[string]string{
+		"key":  lookupKey[len("config/"):],
+		"name": name,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	return syncdomain.SyncedResource{
+		ProjectKey: projectKey,
+		Kind:       syncdomain.KindVariation,
+		LookupKey:  lookupKey,
+		Upsert:     upsert,
+		Payload:    payload,
+	}
+}
+
+func requireSource(
+	t *testing.T,
+	sourceType syncdomain.SourceType,
+	identifier string,
+) syncdomain.Source {
 	t.Helper()
 
-	data, err := json.Marshal(value)
+	source, err := syncdomain.NewSource(sourceType, identifier)
 	require.NoError(t, err)
-	return data
+
+	return source
 }
