@@ -14,15 +14,27 @@ import (
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
+const addFlag = "add"
+
+type bootstrapRunner func(syncbootstrap.Options) error
+
 func NewPromptCmd(client resources.Client) *cobra.Command {
+	return newPromptCmd(client, syncbootstrap.Run)
+}
+
+func newPromptCmd(
+	client resources.Client,
+	bootstrap bootstrapRunner,
+) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prompt",
-		Short: "Preview synchronization changes for local prompts",
-		Long:  "Read local prompt variations and preview the changes LaunchDarkly would make without creating or applying a plan.",
+		Short: "Synchronize local prompt variations with LaunchDarkly",
+		Long:  "Bootstrap local prompt variations from LaunchDarkly, add more variations, or preview synchronization changes.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if err := cobra.NoArgs(cmd, args); err != nil {
 				return err
@@ -30,15 +42,23 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 
 			return validators.Validate()(cmd, args)
 		},
-		RunE: runPrompt(client),
+		RunE: runPrompt(client, bootstrap),
 	}
 
+	cmd.Flags().Bool(
+		addFlag,
+		false,
+		"Select additional prompt variations from LaunchDarkly",
+	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
 	return cmd
 }
 
-func runPrompt(client resources.Client) func(*cobra.Command, []string) error {
+func runPrompt(
+	client resources.Client,
+	bootstrap bootstrapRunner,
+) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -50,14 +70,45 @@ func runPrompt(client resources.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
+		accessToken := viper.GetString(cliflags.AccessTokenFlag)
+		baseURI := viper.GetString(cliflags.BaseURIFlag)
+		store := synclocal.NewStore(workspace.Root)
+
+		storeExists, err := store.Exists()
+		if err != nil {
+			return err
+		}
+		add, _ := cmd.Flags().GetBool(addFlag)
+		if !storeExists || add {
+			err := bootstrap(syncbootstrap.Options{
+				Catalog: syncapi.NewCatalogClient(
+					client,
+					accessToken,
+					baseURI,
+				),
+				Store:   store,
+				Input:   cmd.InOrStdin(),
+				Output:  cmd.OutOrStdout(),
+				Initial: !storeExists,
+			})
+			if err != nil {
+				return output.NewCmdOutputError(
+					err,
+					cliflags.GetOutputKind(cmd),
+				)
+			}
+
+			return nil
+		}
+
 		localResources, err := synclocal.Compile(os.DirFS(workspace.Root))
 		if err != nil {
 			return err
 		}
 
 		plans, err := syncapi.NewClient(client).Plan(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
+			accessToken,
+			baseURI,
 			workspace.Source,
 			true,
 			localResources,
