@@ -51,7 +51,7 @@ func TestModelSelectsAndWritesVariations(t *testing.T) {
 	assert.Equal(t, selectVariations, result.step)
 	assert.NotNil(t, command)
 
-	result = updateModel(t, result, configFetchedMsg{
+	result = updateModel(t, result, variationsLoadedMsg{
 		projectKey: "project",
 		config: syncapi.Config{
 			Key:  "assistant",
@@ -205,20 +205,20 @@ func TestFetchConfigSortsVariationsAndChecksExistingFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	result := newModel(Options{
-		Catalog: &fakeCatalog{config: syncapi.Config{
-			Key:  "config",
-			Mode: syncdomain.VariationModeCompletion,
-			Variations: []syncdomain.Variation{
-				{Key: "z", Name: "Zulu"},
-				{Key: "existing", Name: "Alpha"},
-			},
-		}},
-		Store: store,
+		Catalog: &fakeCatalog{},
+		Store:   store,
 	})
 	result.projectKey = "project"
-	result.config.Key = "config"
+	result.config = syncapi.Config{
+		Key:  "config",
+		Mode: syncdomain.VariationModeCompletion,
+		Variations: []syncdomain.Variation{
+			{Key: "z", Name: "Zulu"},
+			{Key: "existing", Name: "Alpha"},
+		},
+	}
 
-	message, ok := result.fetchConfig()().(configFetchedMsg)
+	message, ok := result.loadVariations()().(variationsLoadedMsg)
 	require.True(t, ok)
 	assert.Equal(t, "existing", message.config.Variations[0].Key)
 	assert.True(t, message.existing["existing"])
@@ -320,9 +320,7 @@ func updateModel(t *testing.T, current model, message tea.Msg) model {
 	return result
 }
 
-type fakeCatalog struct {
-	config syncapi.Config
-}
+type fakeCatalog struct{}
 
 var _ Catalog = &fakeCatalog{}
 
@@ -332,8 +330,4 @@ func (*fakeCatalog) Projects() ([]syncapi.Project, error) {
 
 func (*fakeCatalog) Configs(string) ([]syncapi.Config, error) {
 	return nil, nil
-}
-
-func (catalog *fakeCatalog) Config(string, string) (syncapi.Config, error) {
-	return catalog.config, nil
 }

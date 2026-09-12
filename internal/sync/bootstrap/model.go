@@ -69,7 +69,7 @@ func (model model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.configsReady = true
 		return model, nil
 
-	case configFetchedMsg:
+	case variationsLoadedMsg:
 		if message.projectKey != model.projectKey ||
 			message.config.Key != model.config.Key ||
 			model.step != selectVariations {
@@ -288,7 +288,7 @@ func (model model) handleEnter() (tea.Model, tea.Cmd) {
 		model.variations = list.Model{}
 		model.step = selectVariations
 
-		return model, model.fetchConfig()
+		return model, model.loadVariations()
 
 	case selectVariations:
 		if !model.variationsReady {

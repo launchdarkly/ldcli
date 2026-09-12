@@ -20,7 +20,6 @@ import (
 type Catalog interface {
 	Projects() ([]syncapi.Project, error)
 	Configs(projectKey string) ([]syncapi.Config, error)
-	Config(projectKey string, configKey string) (syncapi.Config, error)
 }
 
 type Options struct {
@@ -125,7 +124,7 @@ type configsFetchedMsg struct {
 	configs    []syncapi.Config
 }
 
-type configFetchedMsg struct {
+type variationsLoadedMsg struct {
 	projectKey string
 	config     syncapi.Config
 	existing   map[string]bool
@@ -181,21 +180,11 @@ func (model model) fetchConfigs() tea.Cmd {
 	}
 }
 
-func (model model) fetchConfig() tea.Cmd {
+func (model model) loadVariations() tea.Cmd {
 	projectKey := model.projectKey
-	configKey := model.config.Key
+	config := model.config
 
 	return func() tea.Msg {
-		config, err := model.catalog.Config(projectKey, configKey)
-		if err != nil {
-			return errMsg{
-				step:       selectVariations,
-				projectKey: projectKey,
-				configKey:  configKey,
-				err:        err,
-			}
-		}
-
 		slices.SortFunc(config.Variations, func(left, right syncdomain.Variation) int {
 			return cmp.Or(
 				cmp.Compare(strings.ToLower(left.Name), strings.ToLower(right.Name)),
@@ -207,21 +196,21 @@ func (model model) fetchConfig() tea.Cmd {
 		for _, variation := range config.Variations {
 			found, err := model.store.VariationExists(
 				projectKey,
-				configKey,
+				config.Key,
 				variation.Key,
 			)
 			if err != nil {
 				return errMsg{
 					step:       selectVariations,
 					projectKey: projectKey,
-					configKey:  configKey,
+					configKey:  config.Key,
 					err:        err,
 				}
 			}
 			existing[variation.Key] = found
 		}
 
-		return configFetchedMsg{
+		return variationsLoadedMsg{
 			projectKey: projectKey,
 			config:     config,
 			existing:   existing,

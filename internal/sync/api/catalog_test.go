@@ -95,47 +95,54 @@ func TestCatalogClientConfigsPaginatesAndAppliesMode(t *testing.T) {
 		`mode anyOf ["agent","completion"]`,
 		request.Query.Get("filter"),
 	)
-	assert.True(t, request.IsBeta)
+	assert.False(t, request.IsBeta)
 }
 
-func TestCatalogClientConfigGetsCurrentVariations(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{
-		"key": "completion",
-		"name": "Completion",
-		"variations": [{"key": "strict", "name": "Strict"}]
-	}`)}}
+func TestCatalogClientConfigsDefaultsCompletionMode(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{
+		mustCatalogJSON(t, catalogPage[Config]{
+			Items: []Config{{
+				Key:        "completion",
+				Name:       "Completion",
+				Variations: []syncdomain.Variation{{Key: "strict", Name: "Strict"}},
+			}},
+			TotalCount: 1,
+		}),
+	}}
 
-	config, err := NewCatalogClient(
+	configs, err := NewCatalogClient(
 		transport,
 		"token",
 		"https://example.com",
-	).Config("project", "completion")
+	).Configs("project")
 
 	require.NoError(t, err)
-	require.Len(t, config.Variations, 1)
+	require.Len(t, configs, 1)
+	require.Len(t, configs[0].Variations, 1)
 	assert.Equal(
 		t,
 		syncdomain.VariationModeCompletion,
-		config.Variations[0].Mode,
+		configs[0].Variations[0].Mode,
 	)
-	assert.Equal(
-		t,
-		"https://example.com/api/v2/projects/project/ai-configs/completion",
-		transport.Requests[0].Path,
-	)
-	assert.True(t, transport.Requests[0].IsBeta)
 }
 
-func TestCatalogClientConfigRejectsUnsupportedMode(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(
-		`{"key":"config","name":"Config","mode":"unknown","variations":[]}`,
-	)}}
+func TestCatalogClientConfigsRejectsUnsupportedMode(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{
+		mustCatalogJSON(t, catalogPage[Config]{
+			Items: []Config{{
+				Key:  "config",
+				Name: "Config",
+				Mode: "unknown",
+			}},
+			TotalCount: 1,
+		}),
+	}}
 
 	_, err := NewCatalogClient(
 		transport,
 		"token",
 		"https://example.com",
-	).Config("project", "config")
+	).Configs("project")
 
 	require.ErrorContains(t, err, `unsupported mode "unknown"`)
 }

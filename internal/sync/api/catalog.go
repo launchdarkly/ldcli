@@ -73,7 +73,7 @@ func (client CatalogClient) Configs(projectKey string) ([]Config, error) {
 		client,
 		endpoint,
 		"AI Configs",
-		true,
+		false,
 		url.Values{
 			"sort":   {"name"},
 			"filter": {`mode anyOf ["agent","completion"]`},
@@ -90,45 +90,6 @@ func (client CatalogClient) Configs(projectKey string) ([]Config, error) {
 	}
 
 	return configs, nil
-}
-
-func (client CatalogClient) Config(
-	projectKey string,
-	configKey string,
-) (Config, error) {
-	endpoint, err := url.JoinPath(
-		client.baseURI,
-		"api/v2/projects",
-		projectKey,
-		"ai-configs",
-		configKey,
-	)
-	if err != nil {
-		return Config{}, fmt.Errorf("build AI Config endpoint: %w", err)
-	}
-
-	response, err := client.transport.MakeRequest(
-		client.accessToken,
-		http.MethodGet,
-		endpoint,
-		"",
-		nil,
-		nil,
-		true,
-	)
-	if err != nil {
-		return Config{}, fmt.Errorf("get AI Config %q: %w", configKey, err)
-	}
-
-	var config Config
-	if err := json.Unmarshal(response, &config); err != nil {
-		return Config{}, fmt.Errorf("decode AI Config response: %w", err)
-	}
-	if err := config.applyMode(); err != nil {
-		return Config{}, err
-	}
-
-	return config, nil
 }
 
 func (config *Config) applyMode() error {
