@@ -67,7 +67,6 @@ func TestPromptPreview(t *testing.T) {
 				"lookupKey": "support/default",
 				"status": "local_changed",
 				"syncDirection": "code_canonical",
-				"action": "update",
 				"diff": {"name": {"before": "Old", "after": "Default"}}
 			}]
 		}`)},
@@ -131,7 +130,7 @@ func TestPromptPreview(t *testing.T) {
 	require.Len(t, output, 1)
 	assert.Equal(t, "project", output[0]["projectKey"])
 	assert.Equal(t, "local_changed", output[0]["status"])
-	assert.Equal(t, "update", output[0]["action"])
+	assert.NotContains(t, output[0], "action")
 	assert.NotNil(t, output[0]["diff"])
 }
 
@@ -147,8 +146,7 @@ func TestPromptPreviewUsesLocalSourceOutsideGit(t *testing.T) {
 				"resourceKind": "variation",
 				"lookupKey": "support/default",
 				"status": "in_sync",
-				"syncDirection": "code_canonical",
-				"action": "no_change"
+				"syncDirection": "code_canonical"
 			}]
 		}`)},
 	}
@@ -189,8 +187,8 @@ func TestPromptPreviewGroupsRequestsByProject(t *testing.T) {
 
 	client := &recordingClient{
 		Responses: [][]byte{
-			[]byte(`{"resources":[{"resourceKind":"variation","lookupKey":"support/first","status":"local_changed","syncDirection":"code_canonical","action":"update","diff":{"name":{"before":"Old","after":"Default"}}}]}`),
-			[]byte(`{"resources":[{"resourceKind":"variation","lookupKey":"support/second","status":"server_changed","syncDirection":"server_canonical","action":"pull"}]}`),
+			[]byte(`{"resources":[{"resourceKind":"variation","lookupKey":"support/first","status":"local_changed","syncDirection":"code_canonical","diff":{"name":{"before":"Old","after":"Default"}}}]}`),
+			[]byte(`{"resources":[{"resourceKind":"variation","lookupKey":"support/second","status":"server_changed","syncDirection":"server_canonical"}]}`),
 		},
 	}
 
@@ -211,7 +209,7 @@ func TestPromptPreviewGroupsRequestsByProject(t *testing.T) {
 	assert.Contains(t, client.Requests[0].Path, "/projects/alpha/")
 	assert.Contains(t, client.Requests[1].Path, "/projects/zeta/")
 	assert.Contains(t, string(stdout), "server_changed")
-	assert.Contains(t, string(stdout), "pull")
+	assert.NotContains(t, string(stdout), "action=")
 	assert.Contains(t, string(stdout), "diff=")
 }
 

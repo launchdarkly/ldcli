@@ -27,17 +27,6 @@ const (
 	SyncDirectionBoth            SyncDirection = "both"
 )
 
-type ResourceAction string
-
-const (
-	ResourceActionNoChange        ResourceAction = "no_change"
-	ResourceActionCreate          ResourceAction = "create"
-	ResourceActionUpdate          ResourceAction = "update"
-	ResourceActionPull            ResourceAction = "pull"
-	ResourceActionBlocked         ResourceAction = "blocked"
-	ResourceActionResolveConflict ResourceAction = "resolve_conflict"
-)
-
 type ResourceError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -48,7 +37,6 @@ type PlannedResource struct {
 	LookupKey     string          `json:"lookupKey"`
 	Status        ResourceStatus  `json:"status"`
 	SyncDirection SyncDirection   `json:"syncDirection"`
-	Action        ResourceAction  `json:"action"`
 	Diff          json.RawMessage `json:"diff,omitempty"`
 	Error         *ResourceError  `json:"error,omitempty"`
 }
