@@ -31,26 +31,19 @@ func NewResolver(configFile string) Resolver {
 	}
 }
 
+func (resolver Resolver) ResolveRoot(dir string) (string, error) {
+	root, _, _, err := resolver.resolveRoot(dir)
+
+	return root, err
+}
+
 func (resolver Resolver) Resolve(dir string) (Workspace, error) {
-	gitRepository, found, err := resolver.findGitSource(dir)
+	root, gitSource, found, err := resolver.resolveRoot(dir)
 	if err != nil {
 		return Workspace{}, err
 	}
 	if found {
-		root, err := canonicalPath(gitRepository.Root)
-		if err != nil {
-			return Workspace{}, err
-		}
-
-		return Workspace{
-			Root:   root,
-			Source: gitRepository.Source,
-		}, nil
-	}
-
-	root, err := localWorkspaceRoot(dir)
-	if err != nil {
-		return Workspace{}, err
+		return Workspace{Root: root, Source: gitSource}, nil
 	}
 
 	installationID, err := resolver.ensureInstallationID(resolver.configFile)
@@ -67,6 +60,30 @@ func (resolver Resolver) Resolve(dir string) (Workspace, error) {
 	}
 
 	return Workspace{Root: root, Source: source}, nil
+}
+
+func (resolver Resolver) resolveRoot(
+	dir string,
+) (string, syncdomain.Source, bool, error) {
+	gitRepository, found, err := resolver.findGitSource(dir)
+	if err != nil {
+		return "", syncdomain.Source{}, false, err
+	}
+	if found {
+		root, err := canonicalPath(gitRepository.Root)
+		if err != nil {
+			return "", syncdomain.Source{}, false, err
+		}
+
+		return root, gitRepository.Source, true, nil
+	}
+
+	root, err := localWorkspaceRoot(dir)
+	if err != nil {
+		return "", syncdomain.Source{}, false, err
+	}
+
+	return root, syncdomain.Source{}, false, nil
 }
 
 func localWorkspaceRoot(dir string) (string, error) {

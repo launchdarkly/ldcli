@@ -225,6 +225,35 @@ func TestFetchConfigSortsVariationsAndChecksExistingFiles(t *testing.T) {
 	assert.False(t, message.existing["z"])
 }
 
+func TestLoadVariationsReturnsLocalInspectionError(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(
+		filepath.Join(root, syncdomain.RootDir),
+		0o755,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, syncdomain.RootDir, "project"),
+		[]byte("not a directory"),
+		0o644,
+	))
+
+	result := newModel(Options{
+		Catalog: &fakeCatalog{},
+		Store:   synclocal.NewStore(root),
+	})
+	result.projectKey = "project"
+	result.config = syncapi.Config{
+		Key: "config",
+		Variations: []syncdomain.Variation{{
+			Key: "variation",
+		}},
+	}
+
+	message, ok := result.loadVariations()().(errMsg)
+	require.True(t, ok)
+	require.ErrorContains(t, message.err, "inspect variation variation")
+}
+
 func TestModelAPIErrorQuitsWithError(t *testing.T) {
 	result := newModel(Options{
 		Catalog: &fakeCatalog{},

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
+	"github.com/launchdarkly/ldcli/internal/config"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
@@ -67,8 +68,37 @@ func TestRunPromptBootstrapsAndAddsVariations(t *testing.T) {
 			))
 			require.NoError(t, command.RunE(command, nil))
 			assert.True(t, called)
+			if test.wantInitial {
+				_, err := os.Stat(config.GetConfigFile())
+				assert.ErrorIs(t, err, os.ErrNotExist)
+			}
 		})
 	}
+}
+
+func TestRunPromptUsesExistingWorkspaceWithoutBootstrap(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(
+		filepath.Join(root, syncdomain.RootDir),
+		0o755,
+	))
+	t.Chdir(root)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	called := false
+	runner := func(syncbootstrap.Options) error {
+		called = true
+
+		return nil
+	}
+
+	viper.Set(cliflags.AccessTokenFlag, "token")
+	viper.Set(cliflags.BaseURIFlag, "https://example.com")
+	t.Cleanup(viper.Reset)
+
+	command := newPromptCmd(noopResourceClient{}, runner)
+	require.NoError(t, command.RunE(command, nil))
+	assert.False(t, called)
 }
 
 type noopResourceClient struct{}

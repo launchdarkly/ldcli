@@ -65,14 +65,15 @@ func runPrompt(
 			return fmt.Errorf("get working directory: %w", err)
 		}
 
-		workspace, err := syncsource.NewResolver(config.GetConfigFile()).Resolve(cwd)
+		resolver := syncsource.NewResolver(config.GetConfigFile())
+		root, err := resolver.ResolveRoot(cwd)
 		if err != nil {
 			return err
 		}
 
 		accessToken := viper.GetString(cliflags.AccessTokenFlag)
 		baseURI := viper.GetString(cliflags.BaseURIFlag)
-		store := synclocal.NewStore(workspace.Root)
+		store := synclocal.NewStore(root)
 
 		storeExists, err := store.Exists()
 		if err != nil {
@@ -99,6 +100,11 @@ func runPrompt(
 			}
 
 			return nil
+		}
+
+		workspace, err := resolver.Resolve(cwd)
+		if err != nil {
+			return err
 		}
 
 		localResources, err := synclocal.Compile(os.DirFS(workspace.Root))

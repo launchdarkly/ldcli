@@ -126,13 +126,13 @@ func TestCatalogClientConfigsDefaultsCompletionMode(t *testing.T) {
 	)
 }
 
-func TestCatalogClientConfigsRejectsUnsupportedMode(t *testing.T) {
+func TestCatalogClientConfigsRejectsJudgeMode(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{
 		mustCatalogJSON(t, catalogPage[Config]{
 			Items: []Config{{
 				Key:  "config",
 				Name: "Config",
-				Mode: "unknown",
+				Mode: "judge",
 			}},
 			TotalCount: 1,
 		}),
@@ -144,7 +144,7 @@ func TestCatalogClientConfigsRejectsUnsupportedMode(t *testing.T) {
 		"https://example.com",
 	).Configs("project")
 
-	require.ErrorContains(t, err, `unsupported mode "unknown"`)
+	require.ErrorContains(t, err, `unsupported mode "judge"`)
 }
 
 func TestCatalogClientProjectsRejectsInvalidResponse(t *testing.T) {
