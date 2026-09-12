@@ -67,7 +67,6 @@ func TestClientPlan(t *testing.T) {
 					"lookupKey": "config/first",
 					"status": "local_changed",
 					"syncDirection": "code_canonical",
-					"action": "update",
 					"diff": {"name": {"before": "Old", "after": "First"}}
 				}]
 			}`),
@@ -76,8 +75,7 @@ func TestClientPlan(t *testing.T) {
 					"resourceKind": "variation",
 					"lookupKey": "config/second",
 					"status": "server_changed",
-					"syncDirection": "server_canonical",
-					"action": "pull"
+					"syncDirection": "server_canonical"
 				}]
 			}`),
 		},
@@ -127,7 +125,6 @@ func TestClientPlan(t *testing.T) {
 	assert.Equal(t, "alpha", plans[0].ProjectKey)
 	require.Len(t, plans[0].Resources, 1)
 	assert.Equal(t, ResourceStatusLocalChanged, plans[0].Resources[0].Status)
-	assert.Equal(t, ResourceActionUpdate, plans[0].Resources[0].Action)
 	assert.Equal(t, "zeta", plans[1].ProjectKey)
 	assert.Equal(t, ResourceStatusServerChanged, plans[1].Resources[0].Status)
 }

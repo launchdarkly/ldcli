@@ -15,7 +15,6 @@ type planOutputResource struct {
 	LookupKey     string                 `json:"lookupKey"`
 	Status        syncapi.ResourceStatus `json:"status"`
 	SyncDirection syncapi.SyncDirection  `json:"syncDirection"`
-	Action        syncapi.ResourceAction `json:"action"`
 	Diff          json.RawMessage        `json:"diff,omitempty"`
 	Error         *syncapi.ResourceError `json:"error,omitempty"`
 }
@@ -72,7 +71,6 @@ func flattenPlanResources(plans []syncapi.ProjectPlan) []planOutputResource {
 				LookupKey:     resource.LookupKey,
 				Status:        resource.Status,
 				SyncDirection: resource.SyncDirection,
-				Action:        resource.Action,
 				Diff:          resource.Diff,
 				Error:         resource.Error,
 			})
@@ -87,10 +85,9 @@ func planOutputItems(resources []planOutputResource) []planOutputItem {
 
 	for _, resource := range resources {
 		details := fmt.Sprintf(
-			"status=%s direction=%s action=%s",
+			"status=%s direction=%s",
 			resource.Status,
 			resource.SyncDirection,
-			resource.Action,
 		)
 		if len(resource.Diff) > 0 {
 			details += " diff=" + string(resource.Diff)
