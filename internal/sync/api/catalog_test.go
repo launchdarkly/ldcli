@@ -126,6 +126,39 @@ func TestCatalogClientConfigsDefaultsCompletionMode(t *testing.T) {
 	)
 }
 
+func TestCatalogClientConfigsMapsVariationCommentToDescription(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"items": [{
+			"key": "support",
+			"name": "Support agent",
+			"mode": "agent",
+			"variations": [{
+				"key": "helpful",
+				"name": "Helpful",
+				"comment": "Answers support questions",
+				"description": "Agent-specific description",
+				"instructions": "Be helpful"
+			}]
+		}],
+		"totalCount": 1
+	}`)}}
+
+	configs, err := NewCatalogClient(
+		transport,
+		"token",
+		"https://example.com",
+	).Configs("project")
+
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.Len(t, configs[0].Variations, 1)
+	assert.Equal(
+		t,
+		"Answers support questions",
+		configs[0].Variations[0].Description,
+	)
+}
+
 func TestCatalogClientConfigsRejectsJudgeMode(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{
 		mustCatalogJSON(t, catalogPage[Config]{
