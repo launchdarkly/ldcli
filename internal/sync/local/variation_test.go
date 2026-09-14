@@ -192,7 +192,7 @@ name: V
 	require.ErrorContains(t, err, `unsupported mode "other"`)
 }
 
-func TestParseVariation_RejectsUnknownFrontMatter(t *testing.T) {
+func TestParseVariation_RejectsVariationDescription(t *testing.T) {
 	file := localFile{
 		ProjectKey: "proj",
 		RelPath:    "cfg/v.prompt.md",
@@ -201,7 +201,7 @@ formatVersion: 1
 mode: completion
 key: v
 name: V
-mystery: true
+description: Variation description
 ---
 `),
 	}
