@@ -18,11 +18,13 @@ import (
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
+const dryRunFlag = "dry-run"
+
 func NewPromptCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prompt",
-		Short: "Preview synchronization changes for local prompts",
-		Long:  "Read local prompt variations and preview the changes LaunchDarkly would make without creating or applying a plan.",
+		Short: "Synchronize local prompt variations with LaunchDarkly",
+		Long:  "Plan synchronization changes for local prompt variations. Use --dry-run to preview changes without creating a plan.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if err := cobra.NoArgs(cmd, args); err != nil {
 				return err
@@ -33,6 +35,11 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 		RunE: runPrompt(client),
 	}
 
+	cmd.Flags().Bool(
+		dryRunFlag,
+		false,
+		"Preview synchronization changes without creating a plan",
+	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
 	return cmd
@@ -55,11 +62,12 @@ func runPrompt(client resources.Client) func(*cobra.Command, []string) error {
 			return err
 		}
 
+		dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
 		plans, err := syncapi.NewClient(client).Plan(
 			viper.GetString(cliflags.AccessTokenFlag),
 			viper.GetString(cliflags.BaseURIFlag),
 			workspace.Source,
-			true,
+			dryRun,
 			localResources,
 		)
 		if err != nil {

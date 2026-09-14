@@ -78,6 +78,7 @@ func TestPromptPreview(t *testing.T) {
 		analytics.NoopClientFn{}.Tracker(),
 		[]string{
 			"sync", "prompt",
+			"--dry-run",
 			"--access-token", "token",
 			"--base-uri", "https://example.com",
 			"--output", "json",
@@ -134,6 +135,37 @@ func TestPromptPreview(t *testing.T) {
 	assert.NotNil(t, output[0]["diff"])
 }
 
+func TestPromptPlansWithoutDryRunByDefault(t *testing.T) {
+	repository := initRepository(t)
+	writePrompt(t, repository, "project", "support", "default", true)
+	t.Chdir(repository)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	client := &recordingClient{
+		Responses: [][]byte{[]byte(`{"resources":[]}`)},
+	}
+
+	_, _, err := cmd.CallCmdCapturingStderr(
+		t,
+		cmd.APIClients{ResourcesClient: client},
+		analytics.NoopClientFn{}.Tracker(),
+		[]string{
+			"sync", "prompt",
+			"--access-token", "token",
+			"--base-uri", "https://example.com",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, client.Requests, 1)
+
+	var body struct {
+		DryRun bool `json:"dryRun"`
+	}
+	require.NoError(t, json.Unmarshal(client.Requests[0].Body, &body))
+	assert.False(t, body.DryRun)
+}
+
 func TestPromptPreviewUsesLocalSourceOutsideGit(t *testing.T) {
 	workspace := t.TempDir()
 	writePrompt(t, workspace, "project", "support", "default", false)
@@ -157,6 +189,7 @@ func TestPromptPreviewUsesLocalSourceOutsideGit(t *testing.T) {
 		analytics.NoopClientFn{}.Tracker(),
 		[]string{
 			"sync", "prompt",
+			"--dry-run",
 			"--access-token", "token",
 			"--base-uri", "https://example.com",
 			"--output", "json",
@@ -198,6 +231,7 @@ func TestPromptPreviewGroupsRequestsByProject(t *testing.T) {
 		analytics.NoopClientFn{}.Tracker(),
 		[]string{
 			"sync", "prompt",
+			"--dry-run",
 			"--access-token", "token",
 			"--base-uri", "https://example.com",
 			"--output", "plaintext",
@@ -229,6 +263,7 @@ func TestPromptPreviewWithoutResourcesMakesNoRequest(t *testing.T) {
 		analytics.NoopClientFn{}.Tracker(),
 		[]string{
 			"sync", "prompt",
+			"--dry-run",
 			"--access-token", "token",
 			"--output", "json",
 		},
