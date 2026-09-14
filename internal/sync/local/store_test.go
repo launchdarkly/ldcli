@@ -41,7 +41,6 @@ func TestStore_BootstrapRoundTripsSupportedModes(t *testing.T) {
 				Mode:         syncdomain.VariationModeAgent,
 				Key:          "researcher",
 				Name:         "Researcher",
-				Description:  "Researches a topic.",
 				Instructions: "Check the available sources.",
 			},
 		},
