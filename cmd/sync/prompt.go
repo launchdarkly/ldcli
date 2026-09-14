@@ -19,7 +19,10 @@ import (
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
-const addFlag = "add"
+const (
+	addFlag    = "add"
+	dryRunFlag = "dry-run"
+)
 
 type bootstrapRunner func(syncbootstrap.Options) error
 
@@ -49,6 +52,11 @@ func newPromptCmd(
 		addFlag,
 		false,
 		"Select additional prompt variations from LaunchDarkly",
+	)
+	cmd.Flags().Bool(
+		dryRunFlag,
+		false,
+		"Preview synchronization changes without creating a plan",
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -112,11 +120,12 @@ func runPrompt(
 			return err
 		}
 
+		dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
 		plans, err := syncapi.NewClient(client).Plan(
 			accessToken,
 			baseURI,
 			workspace.Source,
-			true,
+			dryRun,
 			localResources,
 		)
 		if err != nil {
