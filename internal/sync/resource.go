@@ -43,7 +43,6 @@ type Variation struct {
 	Mode               VariationMode  `json:"mode" yaml:"mode"`
 	Key                string         `json:"key" yaml:"key"`
 	Name               string         `json:"name" yaml:"name"`
-	Description        string         `json:"description,omitempty" yaml:"description,omitempty"`
 	Instructions       string         `json:"instructions,omitempty" yaml:"-"`
 	ModelConfigKey     string         `json:"modelConfigKey,omitempty" yaml:"modelConfigKey,omitempty"`
 	ModelConfigVersion int            `json:"modelConfigVersion,omitempty" yaml:"modelConfigVersion,omitempty"`
