@@ -20,7 +20,6 @@ mode: completion
 
 key: my-first-variation
 name: This is the prompt name
-description: This variation answers a question.
 
 modelConfigKey: anthropic-default
 modelConfigVersion: 2
@@ -95,7 +94,6 @@ func TestCompile(t *testing.T) {
 	assert.Equal(t, syncdomain.VariationModeCompletion, payload.Mode)
 	assert.Equal(t, "my-first-variation", payload.Key)
 	assert.Equal(t, "This is the prompt name", payload.Name)
-	assert.Equal(t, "This variation answers a question.", payload.Description)
 	assert.Equal(t, "anthropic-default", payload.ModelConfigKey)
 	assert.Equal(t, 2, payload.ModelConfigVersion)
 	require.Len(t, payload.Messages, 3)
