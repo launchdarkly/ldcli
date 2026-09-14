@@ -25,36 +25,6 @@ type Config struct {
 	Variations []syncdomain.Variation   `json:"variations"`
 }
 
-func (config *Config) UnmarshalJSON(data []byte) error {
-	type catalogVariation struct {
-		syncdomain.Variation
-		Comment string `json:"comment,omitempty"`
-	}
-	type catalogConfig struct {
-		Key        string                   `json:"key"`
-		Name       string                   `json:"name"`
-		Mode       syncdomain.VariationMode `json:"mode"`
-		Variations []catalogVariation       `json:"variations"`
-	}
-
-	var wire catalogConfig
-	if err := json.Unmarshal(data, &wire); err != nil {
-		return err
-	}
-
-	config.Key = wire.Key
-	config.Name = wire.Name
-	config.Mode = wire.Mode
-	config.Variations = make([]syncdomain.Variation, 0, len(wire.Variations))
-	for _, item := range wire.Variations {
-		variation := item.Variation
-		variation.Description = item.Comment
-		config.Variations = append(config.Variations, variation)
-	}
-
-	return nil
-}
-
 type CatalogClient struct {
 	transport   resources.Client
 	accessToken string
