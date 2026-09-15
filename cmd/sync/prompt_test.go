@@ -130,9 +130,16 @@ func TestPromptPreview(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout), &output))
 	require.Len(t, output, 1)
 	assert.Equal(t, "project", output[0]["projectKey"])
-	assert.Equal(t, "local_changed", output[0]["status"])
-	assert.NotContains(t, output[0], "action")
-	assert.NotNil(t, output[0]["diff"])
+	assert.NotContains(t, output[0], "planId")
+	assert.NotContains(t, output[0], "expiresAt")
+	resources, ok := output[0]["resources"].([]any)
+	require.True(t, ok)
+	require.Len(t, resources, 1)
+	resource, ok := resources[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "local_changed", resource["status"])
+	assert.NotContains(t, resource, "action")
+	assert.NotNil(t, resource["diff"])
 }
 
 func TestPromptPlansWithoutDryRunByDefault(t *testing.T) {
@@ -142,10 +149,14 @@ func TestPromptPlansWithoutDryRunByDefault(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	client := &recordingClient{
-		Responses: [][]byte{[]byte(`{"resources":[]}`)},
+		Responses: [][]byte{[]byte(`{
+			"planId": "617c83f1-cd9a-4865-8f37-bb11f88e2147",
+			"expiresAt": "2026-12-14T12:00:00Z",
+			"resources": []
+		}`)},
 	}
 
-	_, _, err := cmd.CallCmdCapturingStderr(
+	stdout, _, err := cmd.CallCmdCapturingStderr(
 		t,
 		cmd.APIClients{ResourcesClient: client},
 		analytics.NoopClientFn{}.Tracker(),
@@ -164,6 +175,8 @@ func TestPromptPlansWithoutDryRunByDefault(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(client.Requests[0].Body, &body))
 	assert.False(t, body.DryRun)
+	assert.Contains(t, string(stdout), "planId=617c83f1-cd9a-4865-8f37-bb11f88e2147")
+	assert.Contains(t, string(stdout), "expiresAt=2026-12-14T12:00:00Z")
 }
 
 func TestPromptPreviewUsesLocalSourceOutsideGit(t *testing.T) {

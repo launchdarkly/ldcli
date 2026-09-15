@@ -131,6 +131,37 @@ func TestClientPlan(t *testing.T) {
 	assert.Equal(t, ResourceStatusServerChanged, plans[1].Resources[0].Status)
 }
 
+func TestClientPlanDecodesDurablePlanIdentity(t *testing.T) {
+	transport := &recordingClient{
+		Responses: [][]byte{[]byte(`{
+			"planId": "617c83f1-cd9a-4865-8f37-bb11f88e2147",
+			"expiresAt": "2026-12-14T12:00:00Z",
+			"resources": []
+		}`)},
+	}
+	client := NewClient(transport)
+
+	plans, err := client.Plan(
+		"token",
+		"https://example.com",
+		requireSource(t, syncdomain.SourceTypeGit, "github.com/launchdarkly/example"),
+		false,
+		[]syncdomain.SyncedResource{
+			variationResource("project", "config/first", "First", true),
+		},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+	assert.Equal(t, "project", plans[0].ProjectKey)
+	assert.Equal(t, "617c83f1-cd9a-4865-8f37-bb11f88e2147", plans[0].PlanID)
+	assert.Equal(t, "2026-12-14T12:00:00Z", plans[0].ExpiresAt)
+
+	var request planRequest
+	require.NoError(t, json.Unmarshal(transport.Requests[0].Body, &request))
+	assert.False(t, request.DryRun)
+}
+
 func TestClientPlanReturnsEmptyResultWithoutResources(t *testing.T) {
 	transport := &recordingClient{}
 	client := NewClient(transport)
@@ -146,6 +177,24 @@ func TestClientPlanReturnsEmptyResultWithoutResources(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, plans)
 	assert.Empty(t, transport.Requests)
+}
+
+func TestClientPlanRejectsDurableResponseWithoutIdentity(t *testing.T) {
+	client := NewClient(&recordingClient{
+		Responses: [][]byte{[]byte(`{"resources":[]}`)},
+	})
+
+	_, err := client.Plan(
+		"token",
+		"https://example.com",
+		requireSource(t, syncdomain.SourceTypeGit, "github.com/acme/repo"),
+		false,
+		[]syncdomain.SyncedResource{
+			variationResource("project", "config/key", "Name", false),
+		},
+	)
+
+	require.ErrorContains(t, err, "durable plan requires planId and expiresAt")
 }
 
 func TestClientPlanRejectsUnsupportedResource(t *testing.T) {

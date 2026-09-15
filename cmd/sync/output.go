@@ -10,13 +10,19 @@ import (
 )
 
 type planOutputResource struct {
-	ProjectKey    string                 `json:"projectKey"`
 	ResourceKind  string                 `json:"resourceKind"`
 	LookupKey     string                 `json:"lookupKey"`
 	Status        syncapi.ResourceStatus `json:"status"`
 	SyncDirection syncapi.SyncDirection  `json:"syncDirection"`
 	Diff          json.RawMessage        `json:"diff,omitempty"`
 	Error         *syncapi.ResourceError `json:"error,omitempty"`
+}
+
+type projectPlanOutput struct {
+	ProjectKey string               `json:"projectKey"`
+	PlanID     string               `json:"planId,omitempty"`
+	ExpiresAt  string               `json:"expiresAt,omitempty"`
+	Resources  []planOutputResource `json:"resources"`
 }
 
 type planOutputEnvelope struct {
@@ -33,11 +39,11 @@ func writePlanOutput(
 	outputKind string,
 	plans []syncapi.ProjectPlan,
 ) error {
-	resources := flattenPlanResources(plans)
+	outputPlans := newProjectPlanOutputs(plans)
 
-	var outputValue any = planOutputEnvelope{Items: planOutputItems(resources)}
+	var outputValue any = planOutputEnvelope{Items: planOutputItems(outputPlans)}
 	if outputKind == "json" {
-		outputValue = resources
+		outputValue = outputPlans
 	}
 
 	data, err := json.Marshal(outputValue)
@@ -60,13 +66,17 @@ func writePlanOutput(
 	return nil
 }
 
-func flattenPlanResources(plans []syncapi.ProjectPlan) []planOutputResource {
-	resources := make([]planOutputResource, 0)
-
+func newProjectPlanOutputs(plans []syncapi.ProjectPlan) []projectPlanOutput {
+	outputPlans := make([]projectPlanOutput, 0, len(plans))
 	for _, plan := range plans {
+		outputPlan := projectPlanOutput{
+			ProjectKey: plan.ProjectKey,
+			PlanID:     plan.PlanID,
+			ExpiresAt:  plan.ExpiresAt,
+			Resources:  make([]planOutputResource, 0, len(plan.Resources)),
+		}
 		for _, resource := range plan.Resources {
-			resources = append(resources, planOutputResource{
-				ProjectKey:    plan.ProjectKey,
+			outputPlan.Resources = append(outputPlan.Resources, planOutputResource{
 				ResourceKind:  string(resource.ResourceKind),
 				LookupKey:     resource.LookupKey,
 				Status:        resource.Status,
@@ -75,35 +85,49 @@ func flattenPlanResources(plans []syncapi.ProjectPlan) []planOutputResource {
 				Error:         resource.Error,
 			})
 		}
+		outputPlans = append(outputPlans, outputPlan)
 	}
 
-	return resources
+	return outputPlans
 }
 
-func planOutputItems(resources []planOutputResource) []planOutputItem {
-	items := make([]planOutputItem, 0, len(resources))
+func planOutputItems(plans []projectPlanOutput) []planOutputItem {
+	var items []planOutputItem
 
-	for _, resource := range resources {
-		details := fmt.Sprintf(
-			"status=%s direction=%s",
-			resource.Status,
-			resource.SyncDirection,
-		)
-		if len(resource.Diff) > 0 {
-			details += " diff=" + string(resource.Diff)
+	for _, plan := range plans {
+		if plan.PlanID != "" {
+			items = append(items, planOutputItem{
+				Key: plan.ProjectKey,
+				Name: fmt.Sprintf(
+					"planId=%s expiresAt=%s",
+					plan.PlanID,
+					plan.ExpiresAt,
+				),
+			})
 		}
-		if resource.Error != nil {
-			details += fmt.Sprintf(
-				" error=%s: %s",
-				resource.Error.Code,
-				resource.Error.Message,
+
+		for _, resource := range plan.Resources {
+			details := fmt.Sprintf(
+				"status=%s direction=%s",
+				resource.Status,
+				resource.SyncDirection,
 			)
-		}
+			if len(resource.Diff) > 0 {
+				details += " diff=" + string(resource.Diff)
+			}
+			if resource.Error != nil {
+				details += fmt.Sprintf(
+					" error=%s: %s",
+					resource.Error.Code,
+					resource.Error.Message,
+				)
+			}
 
-		items = append(items, planOutputItem{
-			Key:  resource.ProjectKey + "/" + resource.LookupKey,
-			Name: details,
-		})
+			items = append(items, planOutputItem{
+				Key:  plan.ProjectKey + "/" + resource.LookupKey,
+				Name: details,
+			})
+		}
 	}
 
 	return items
