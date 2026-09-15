@@ -161,6 +161,9 @@ func (client Client) planProject(
 	if err := json.Unmarshal(response, &plan); err != nil {
 		return ProjectPlan{}, fmt.Errorf("decode plan response: %w", err)
 	}
+	if !dryRun && (plan.PlanID == "" || plan.ExpiresAt == "") {
+		return ProjectPlan{}, fmt.Errorf("decode plan response: durable plan requires planId and expiresAt")
+	}
 
 	plan.ProjectKey = project.ProjectKey
 
