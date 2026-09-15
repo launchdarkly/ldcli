@@ -14,17 +14,30 @@ import (
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
-const dryRunFlag = "dry-run"
+const (
+	addFlag    = "add"
+	dryRunFlag = "dry-run"
+)
+
+type bootstrapRunner func(syncbootstrap.Options) error
 
 func NewPromptCmd(client resources.Client) *cobra.Command {
+	return newPromptCmd(client, syncbootstrap.Run)
+}
+
+func newPromptCmd(
+	client resources.Client,
+	bootstrap bootstrapRunner,
+) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prompt",
 		Short: "Synchronize local prompt variations with LaunchDarkly",
-		Long:  "Plan synchronization changes for local prompt variations. Use --dry-run to preview changes without creating a plan.",
+		Long:  "Bootstrap local prompt variations from LaunchDarkly, add more variations, or preview synchronization changes.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if err := cobra.NoArgs(cmd, args); err != nil {
 				return err
@@ -32,9 +45,14 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 
 			return validators.Validate()(cmd, args)
 		},
-		RunE: runPrompt(client),
+		RunE: runPrompt(client, bootstrap),
 	}
 
+	cmd.Flags().Bool(
+		addFlag,
+		false,
+		"Select additional prompt variations from LaunchDarkly",
+	)
 	cmd.Flags().Bool(
 		dryRunFlag,
 		false,
@@ -45,14 +63,54 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 	return cmd
 }
 
-func runPrompt(client resources.Client) func(*cobra.Command, []string) error {
+func runPrompt(
+	client resources.Client,
+	bootstrap bootstrapRunner,
+) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("get working directory: %w", err)
 		}
 
-		workspace, err := syncsource.NewResolver(config.GetConfigFile()).Resolve(cwd)
+		resolver := syncsource.NewResolver(config.GetConfigFile())
+		root, err := resolver.ResolveRoot(cwd)
+		if err != nil {
+			return err
+		}
+
+		accessToken := viper.GetString(cliflags.AccessTokenFlag)
+		baseURI := viper.GetString(cliflags.BaseURIFlag)
+		store := synclocal.NewStore(root)
+
+		storeExists, err := store.Exists()
+		if err != nil {
+			return err
+		}
+		add, _ := cmd.Flags().GetBool(addFlag)
+		if !storeExists || add {
+			err := bootstrap(syncbootstrap.Options{
+				Catalog: syncapi.NewCatalogClient(
+					client,
+					accessToken,
+					baseURI,
+				),
+				Store:   store,
+				Input:   cmd.InOrStdin(),
+				Output:  cmd.OutOrStdout(),
+				Initial: !storeExists,
+			})
+			if err != nil {
+				return output.NewCmdOutputError(
+					err,
+					cliflags.GetOutputKind(cmd),
+				)
+			}
+
+			return nil
+		}
+
+		workspace, err := resolver.Resolve(cwd)
 		if err != nil {
 			return err
 		}
@@ -64,8 +122,8 @@ func runPrompt(client resources.Client) func(*cobra.Command, []string) error {
 
 		dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
 		plans, err := syncapi.NewClient(client).Plan(
-			viper.GetString(cliflags.AccessTokenFlag),
-			viper.GetString(cliflags.BaseURIFlag),
+			accessToken,
+			baseURI,
 			workspace.Source,
 			dryRun,
 			localResources,
