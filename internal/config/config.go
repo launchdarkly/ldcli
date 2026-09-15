@@ -31,6 +31,7 @@ type Config struct {
 	DevStreamURI    string `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
 	Environment     string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Flag            string `json:"flag,omitempty" yaml:"flag,omitempty"`
+	InstallationID  string `json:"-" yaml:"installation-id,omitempty"`
 	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
 	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
 }
