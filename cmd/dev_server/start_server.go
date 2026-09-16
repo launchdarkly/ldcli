@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"os/exec"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
+	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
@@ -49,12 +51,20 @@ func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 	cmd.Flags().Bool(StreamFlagStartupFlag, false, StreamFlagStartupDescription)
 	_ = viper.BindPFlag(StreamFlagStartupFlag, cmd.Flags().Lookup(StreamFlagStartupFlag))
 
+	cmd.Flags().Duration(SdkInitTimeoutFlag, adapters.DefaultSdkInitTimeout, SdkInitTimeoutDescription)
+	_ = viper.BindPFlag(SdkInitTimeoutFlag, cmd.Flags().Lookup(SdkInitTimeoutFlag))
+
 	return cmd
 }
 
 func startServer(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
+
+		sdkInitTimeout := viper.GetDuration(SdkInitTimeoutFlag)
+		if sdkInitTimeout <= 0 {
+			return fmt.Errorf("--%s must be greater than zero, got %s", SdkInitTimeoutFlag, sdkInitTimeout)
+		}
 
 		var initialSetting model.InitialProjectSettings
 
@@ -95,6 +105,7 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 			CorsEnabled:            viper.GetBool(cliflags.CorsEnabledFlag),
 			CorsOrigin:             viper.GetString(cliflags.CorsOriginFlag),
 			StreamFlagStartup:      viper.GetBool(StreamFlagStartupFlag),
+			SdkInitTimeout:         sdkInitTimeout,
 			InitialProjectSettings: initialSetting,
 		}
 
