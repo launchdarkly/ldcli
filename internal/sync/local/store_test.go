@@ -81,6 +81,31 @@ func TestStore_BootstrapRoundTripsSupportedModes(t *testing.T) {
 	}
 }
 
+func TestStore_RenderVariationsMatchesWrittenFile(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(root)
+	resource := localVariation("preview")
+
+	rendered, err := store.RenderVariations([]VariationFile{resource})
+
+	require.NoError(t, err)
+	require.Len(t, rendered, 1)
+	assert.Equal(t, "project/configs/config/preview.prompt.md", rendered[0].Path)
+	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+
+	paths, err := store.Bootstrap([]VariationFile{resource})
+	require.NoError(t, err)
+	assert.Equal(t, []string{rendered[0].Path}, paths)
+	content, err := os.ReadFile(filepath.Join(
+		root,
+		syncdomain.RootDir,
+		filepath.FromSlash(rendered[0].Path),
+	))
+	require.NoError(t, err)
+	assert.Equal(t, rendered[0].Content, content)
+}
+
 func TestStore_AddNeverOverwritesExistingVariation(t *testing.T) {
 	root := t.TempDir()
 	store := NewStore(root)

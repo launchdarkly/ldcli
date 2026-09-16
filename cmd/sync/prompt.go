@@ -88,6 +88,7 @@ func runPrompt(
 			return err
 		}
 		add, _ := cmd.Flags().GetBool(addFlag)
+		dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
 		if !storeExists || add {
 			err := bootstrap(syncbootstrap.Options{
 				Catalog: syncapi.NewCatalogClient(
@@ -99,6 +100,7 @@ func runPrompt(
 				Input:   cmd.InOrStdin(),
 				Output:  cmd.OutOrStdout(),
 				Initial: !storeExists,
+				DryRun:  dryRun,
 			})
 			if err != nil {
 				return output.NewCmdOutputError(
@@ -120,7 +122,6 @@ func runPrompt(
 			return err
 		}
 
-		dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
 		plans, err := syncapi.NewClient(client).Plan(
 			accessToken,
 			baseURI,

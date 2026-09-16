@@ -81,6 +81,7 @@ func (model model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			variationItems(message.config.Variations, message.existing),
 			model.width,
 			model.listHeight(),
+			model.dryRun,
 		)
 		model.variationsReady = true
 		return model, nil
@@ -127,11 +128,12 @@ func newVariationList(
 	items []list.Item,
 	width int,
 	height int,
+	dryRun bool,
 ) list.Model {
 	result := list.New(items, variationDelegate{}, width, height)
 	result.Title = "Select prompt variations"
 	configureList(&result)
-	result.AdditionalShortHelpKeys = variationListHints()
+	result.AdditionalShortHelpKeys = variationListHints(dryRun)
 
 	return result
 }

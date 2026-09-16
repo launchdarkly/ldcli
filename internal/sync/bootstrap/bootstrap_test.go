@@ -300,14 +300,58 @@ func TestRunRequiresTerminal(t *testing.T) {
 	)
 }
 
+func TestFinishSelectionDryRunDoesNotCreateFiles(t *testing.T) {
+	root := t.TempDir()
+	var output bytes.Buffer
+
+	err := finishSelection(Options{
+		Store:   synclocal.NewStore(root),
+		Output:  &output,
+		Initial: true,
+		DryRun:  true,
+	}, []synclocal.VariationFile{{
+		ProjectKey: "project",
+		ConfigKey:  "config",
+		Upsert:     true,
+		Variation: syncdomain.Variation{
+			Key:          "variation",
+			Name:         "Variation",
+			Mode:         syncdomain.VariationModeAgent,
+			Instructions: "Be helpful.",
+		},
+	}})
+
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		`============================================================
+File 1 of 1
+Would create: .launchdarkly/project/configs/config/variation.prompt.md
+------------------------------------------------------------
+---
+formatVersion: 1
+upsert: true
+mode: agent
+key: variation
+name: Variation
+---
+
+Be helpful.
+============================================================
+`,
+		output.String(),
+	)
+	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func TestWriteSummary(t *testing.T) {
 	var output bytes.Buffer
 
 	writeSummary(
 		&output,
 		true,
-		false,
-		[]string{"a.prompt.md", "b.prompt.md"},
+		2,
 	)
 	assert.Equal(
 		t,
@@ -316,8 +360,36 @@ func TestWriteSummary(t *testing.T) {
 	)
 
 	output.Reset()
-	writeSummary(&output, false, true, nil)
+	writeNoChangeSummary(&output, false)
 	assert.Contains(t, output.String(), "No variations added")
+}
+
+func TestWritePreviewsPrintsEveryFile(t *testing.T) {
+	var output bytes.Buffer
+
+	writePreviews(&output, []synclocal.RenderedVariationFile{
+		{Path: "project/configs/config/first.prompt.md", Content: []byte("first\n")},
+		{Path: "project/configs/config/second.prompt.md", Content: []byte("second\n")},
+	})
+
+	assert.Equal(
+		t,
+		`============================================================
+File 1 of 2
+Would create: .launchdarkly/project/configs/config/first.prompt.md
+------------------------------------------------------------
+first
+============================================================
+
+============================================================
+File 2 of 2
+Would create: .launchdarkly/project/configs/config/second.prompt.md
+------------------------------------------------------------
+second
+============================================================
+`,
+		output.String(),
+	)
 }
 
 func newVariationModel(t *testing.T, items ...variationItem) model {
@@ -334,7 +406,7 @@ func newVariationModel(t *testing.T, items ...variationItem) model {
 	})
 	result.step = selectVariations
 	result.variationsReady = true
-	result.variations = newVariationList(raw, 80, 20)
+	result.variations = newVariationList(raw, 80, 20, false)
 
 	return result
 }

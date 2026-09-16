@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"slices"
 	"strings"
 
@@ -28,6 +29,7 @@ type Options struct {
 	Input   io.Reader
 	Output  io.Writer
 	Initial bool
+	DryRun  bool
 }
 
 type step int
@@ -41,6 +43,7 @@ const (
 type model struct {
 	catalog Catalog
 	store   synclocal.Store
+	dryRun  bool
 
 	step   step
 	width  int
@@ -141,6 +144,7 @@ func newModel(options Options) model {
 	return model{
 		catalog: options.Catalog,
 		store:   options.Store,
+		dryRun:  options.DryRun,
 		step:    selectProject,
 	}
 }
@@ -265,12 +269,25 @@ func Run(options Options) error {
 	}
 
 	files := result.selectedVariationFiles()
+	return finishSelection(options, files)
+}
+
+func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if len(files) == 0 {
-		writeSummary(options.Output, options.Initial, true, nil)
+		writeNoChangeSummary(options.Output, options.DryRun)
+		return nil
+	}
+	if options.DryRun {
+		previews, err := options.Store.RenderVariations(files)
+		if err != nil {
+			return err
+		}
+		writePreviews(options.Output, previews)
 		return nil
 	}
 
 	var paths []string
+	var err error
 	if options.Initial {
 		paths, err = options.Store.Bootstrap(files)
 	} else {
@@ -280,7 +297,7 @@ func Run(options Options) error {
 		return err
 	}
 
-	writeSummary(options.Output, options.Initial, false, paths)
+	writeSummary(options.Output, options.Initial, len(paths))
 
 	return nil
 }
@@ -295,27 +312,22 @@ func terminalStreams(input io.Reader, output io.Writer) bool {
 		term.IsTerminal(int(out.Fd()))
 }
 
-func writeSummary(
-	output io.Writer,
-	initial bool,
-	noChange bool,
-	paths []string,
-) {
-	if noChange {
-		_, _ = fmt.Fprintln(
-			output,
-			"No variations added; every variation in that AI Config is already synced.",
-		)
-		return
+func writeNoChangeSummary(output io.Writer, dryRun bool) {
+	message := "No variations added; every variation in that AI Config is already synced."
+	if dryRun {
+		message = "No variations would be added; every variation in that AI Config is already synced."
 	}
+	_, _ = fmt.Fprintln(output, message)
+}
 
+func writeSummary(output io.Writer, initial bool, count int) {
 	verb := "Added"
 	if initial {
 		verb = "Bootstrapped"
 	}
 
 	resource := "variation file"
-	if len(paths) != 1 {
+	if count != 1 {
 		resource += "s"
 	}
 
@@ -323,8 +335,30 @@ func writeSummary(
 		output,
 		"%s %d %s in %s.\n",
 		verb,
-		len(paths),
+		count,
 		resource,
 		syncdomain.RootDir,
 	)
+}
+
+func writePreviews(output io.Writer, previews []synclocal.RenderedVariationFile) {
+	for index, preview := range previews {
+		if index != 0 {
+			_, _ = fmt.Fprintln(output)
+		}
+		_, _ = fmt.Fprintln(output, "============================================================")
+		_, _ = fmt.Fprintf(
+			output,
+			"File %d of %d\nWould create: %s\n",
+			index+1,
+			len(previews),
+			path.Join(syncdomain.RootDir, preview.Path),
+		)
+		_, _ = fmt.Fprintln(output, "------------------------------------------------------------")
+		_, _ = output.Write(preview.Content)
+		if len(preview.Content) == 0 || preview.Content[len(preview.Content)-1] != '\n' {
+			_, _ = fmt.Fprintln(output)
+		}
+		_, _ = fmt.Fprintln(output, "============================================================")
+	}
 }

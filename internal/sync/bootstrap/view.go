@@ -98,7 +98,12 @@ func applyListTheme(model *list.Model) {
 	model.Paginator.ActiveDot = model.Styles.ActivePaginationDot.String()
 }
 
-func variationListHints() func() []key.Binding {
+func variationListHints(dryRun bool) func() []key.Binding {
+	action := "write"
+	if dryRun {
+		action = "preview"
+	}
+
 	return func() []key.Binding {
 		return []key.Binding{
 			key.NewBinding(
@@ -111,7 +116,7 @@ func variationListHints() func() []key.Binding {
 			),
 			key.NewBinding(
 				key.WithKeys("enter"),
-				key.WithHelp("enter", "write"),
+				key.WithHelp("enter", action),
 			),
 			key.NewBinding(
 				key.WithKeys("b"),

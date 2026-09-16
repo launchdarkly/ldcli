@@ -22,9 +22,14 @@ func TestRunPromptBootstrapsAndAddsVariations(t *testing.T) {
 	tests := map[string]struct {
 		createDirectory bool
 		add             bool
+		dryRun          bool
 		wantInitial     bool
 	}{
 		"missing workspace bootstraps without Git": {
+			wantInitial: true,
+		},
+		"missing workspace dry run previews without Git": {
+			dryRun:      true,
 			wantInitial: true,
 		},
 		"add uses the existing workspace": {
@@ -50,6 +55,7 @@ func TestRunPromptBootstrapsAndAddsVariations(t *testing.T) {
 			runner := func(options syncbootstrap.Options) error {
 				called = true
 				assert.Equal(t, test.wantInitial, options.Initial)
+				assert.Equal(t, test.dryRun, options.DryRun)
 				assert.NotNil(t, options.Catalog)
 				assert.NotNil(t, options.Input)
 				assert.NotNil(t, options.Output)
@@ -65,6 +71,10 @@ func TestRunPromptBootstrapsAndAddsVariations(t *testing.T) {
 			require.NoError(t, command.Flags().Set(
 				addFlag,
 				strconv.FormatBool(test.add),
+			))
+			require.NoError(t, command.Flags().Set(
+				dryRunFlag,
+				strconv.FormatBool(test.dryRun),
 			))
 			require.NoError(t, command.RunE(command, nil))
 			assert.True(t, called)
