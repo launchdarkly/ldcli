@@ -73,6 +73,21 @@ npm run build   # Production build (checked into repo)
 - Mock generation via `mockgen`
 - Test data in `cmd/resources/test_data/` and `cmd/config/testdata/`
 
+## Validating CLI changes
+
+Any change that affects CLI behavior must be validated by actually running the
+built binary against a LaunchDarkly **staging** account (never production) — unit
+tests alone are not sufficient. Every PR that changes CLI behavior must include a
+screen recording of the CLI being driven like a human would (typing commands in a
+terminal and showing real output), with no secrets on screen.
+
+When you change CLI behavior, follow the `validate-ldcli-changes` skill at
+`.cursor/skills/validate-ldcli-changes/SKILL.md`. It covers building locally
+(`make build` → `./ldcli`), pointing at staging via `LD_BASE_URI` /
+`LD_ACCESS_TOKEN` (provided through Cursor Secrets), choosing the validation that
+fits the change, testing safely against shared staging, and recording the
+required PR video.
+
 ## Pre-commit Hooks
 
 Installed via `make install-hooks`. Checks:
