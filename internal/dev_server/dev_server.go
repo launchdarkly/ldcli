@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/gorilla/handlers"
@@ -34,6 +35,7 @@ type ServerParams struct {
 	CorsEnabled            bool
 	CorsOrigin             string
 	StreamFlagStartup      bool
+	SdkInitTimeout         time.Duration
 	InitialProjectSettings model.InitialProjectSettings
 }
 
@@ -69,7 +71,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	})
 	r := mux.NewRouter()
 	r.Use(handlers.RecoveryHandler(handlers.PrintRecoveryStack(true)))
-	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI))
+	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI, serverParams.SdkInitTimeout))
 	r.Use(model.EventStoreMiddleware(sqlEventStore))
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(observers))
@@ -102,7 +104,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	}
 	api.HandlerFromMux(apiServer, apiRouter) // this method actually mutates the passed router.
 
-	ctx = adapters.WithApiAndSdk(ctx, *ldClient, serverParams.DevStreamURI)
+	ctx = adapters.WithApiAndSdk(ctx, *ldClient, serverParams.DevStreamURI, serverParams.SdkInitTimeout)
 	ctx = model.SetObserversOnContext(ctx, observers)
 	ctx = model.ContextWithStore(ctx, sqlStore)
 	ctx = model.WithStreamStartup(ctx, serverParams.StreamFlagStartup)
