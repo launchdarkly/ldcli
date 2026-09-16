@@ -338,3 +338,37 @@ func TestConfigOutputPrecedenceNonTTY(t *testing.T) {
 	assert.Contains(t, string(out), "Key:")
 	assert.Contains(t, string(out), "test-key")
 }
+
+// A rebase silently dropped the symbols registration once, so every top-level
+// command the CLI ships is asserted here.
+func TestNewRootCommand_RegistersTopLevelCommands(t *testing.T) {
+	rootCmd := newRootCmdWithTerminal(t, func() bool { return false }, nil)
+	c := rootCmd.Cmd()
+	// Execute wires this up; NewRootCommand does not.
+	c.InitDefaultCompletionCmd()
+
+	registered := make(map[string]bool, len(c.Commands()))
+	for _, sub := range c.Commands() {
+		registered[sub.Name()] = true
+	}
+
+	for _, name := range []string{
+		"completion",
+		"config",
+		"dev-server",
+		"flags",
+		"login",
+		"members",
+		"projects",
+		"quickstart",
+		"resources",
+		"segments",
+		"setup",
+		"signup",
+		"sourcemaps",
+		"symbols",
+		"whoami",
+	} {
+		assert.True(t, registered[name], "%s is not registered on the root command", name)
+	}
+}

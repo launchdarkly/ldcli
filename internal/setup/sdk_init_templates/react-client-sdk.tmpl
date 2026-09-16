@@ -1,0 +1,10 @@
+import { asyncWithLDProvider } from 'launchdarkly-react-client-sdk';
+// --- init ---
+const LDProvider = await asyncWithLDProvider({
+  clientSideID: '{{.ClientSideID}}',
+  context: {
+    kind: 'user',
+    key: 'example-user-key',
+    name: 'Example User',
+  },
+});

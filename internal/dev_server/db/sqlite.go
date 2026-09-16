@@ -114,12 +114,11 @@ func (s *Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool
 		return false, err
 	}
 
-	// Delete all overrides that are linked to a flag that is no longer in the project
-	// https://github.com/launchdarkly/ldcli/issues/541#issuecomment-2920512092
+	// Prune overrides for flags no longer in the project. Key off flag_state (always fully populated from the SDK), not available_variations, which lags the background fill in streaming mode and would wrongly wipe overrides.
 	_, err = tx.ExecContext(ctx, `
 		DELETE FROM overrides
-		WHERE project_key = ? AND flag_key NOT IN (SELECT flag_key FROM available_variations WHERE project_key = ?)
-	`, project.Key, project.Key)
+		WHERE project_key = ? AND flag_key NOT IN (SELECT key FROM json_each(?))
+	`, project.Key, string(flagsStateJson))
 	if err != nil {
 		return false, err
 	}
@@ -172,6 +171,40 @@ func InsertAvailableVariations(ctx context.Context, tx *sql.Tx, project model.Pr
 		}
 	}
 	return nil
+}
+
+// SetAvailableVariationsForProject replaces the project's stored variations only (not flag state or overrides), so the background fill can refresh names in isolation.
+func (s *Sqlite) SetAvailableVariationsForProject(ctx context.Context, projectKey string, variations []model.FlagVariation) (err error) {
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	_, err = tx.ExecContext(ctx, `DELETE FROM available_variations WHERE project_key = ?`, projectKey)
+	if err != nil {
+		return err
+	}
+	for _, variation := range variations {
+		var jsonValue []byte
+		jsonValue, err = variation.Value.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO available_variations
+				(project_key, flag_key, id, value, description, name)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, projectKey, variation.FlagKey, variation.Id, string(jsonValue), variation.Description, variation.Name)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Sqlite) InsertProject(ctx context.Context, project model.Project) (err error) {

@@ -57,7 +57,7 @@ func TestFindDSYMImages_Missing(t *testing.T) {
 // the real fixture and confirms the produced bytes are valid, keyed .dsymmap maps.
 func TestBuildAppleMaps(t *testing.T) {
 	image := filepath.Join(fixtureDSYM, "Contents", "Resources", "DWARF", "symbolsdemo")
-	maps, err := buildAppleMaps([]string{image})
+	maps, err := buildAppleMaps([]string{image}, false)
 	require.NoError(t, err)
 	require.Len(t, maps, 2, "universal fixture yields arm64 + x86_64 maps")
 
@@ -81,7 +81,7 @@ func TestBuildAppleMaps(t *testing.T) {
 // produce duplicate uploads.
 func TestBuildAppleMaps_DedupesUUID(t *testing.T) {
 	image := filepath.Join(fixtureDSYM, "Contents", "Resources", "DWARF", "symbolsdemo")
-	maps, err := buildAppleMaps([]string{image, image})
+	maps, err := buildAppleMaps([]string{image, image}, false)
 	require.NoError(t, err)
 	assert.Len(t, maps, 2, "duplicate images must be deduplicated by UUID")
 }

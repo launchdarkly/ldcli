@@ -1,0 +1,1179 @@
+package setup
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/launchdarkly/ldcli/internal/setup"
+)
+
+// detectDoneMsg goes to stepSelectSDK: detected SDK in its own panel, the rest
+// in a separate list, focus defaulting to the detected panel.
+
+func TestWizard_DetectDone_TransitionsToSDKSelection(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk", Language: "Go"}})
+	updated := next.(wizardModel)
+
+	assert.Equal(t, stepSelectSDK, updated.step)
+	// detected SDK lives in the panel, not the list, so the list has the rest.
+	assert.Equal(t, len(setup.KnownSDKs)-1, len(updated.sdkList.Items()))
+}
+
+func TestWizard_DetectDone_DetectedSDKInOwnPanel_FocusedFirst(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk", Language: "Go"}})
+	updated := next.(wizardModel)
+
+	require.NotNil(t, updated.detectedSDK)
+	assert.Equal(t, "go-server-sdk", updated.detectedSDK.id)
+	assert.Equal(t, 0, updated.sdkFocus) // detected panel focused by default
+}
+
+func TestWizard_DetectDone_ListExcludesDetectedSDK(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk"}})
+	updated := next.(wizardModel)
+
+	for _, item := range updated.sdkList.Items() {
+		assert.NotEqual(t, "go-server-sdk", item.(sdkItem).id)
+	}
+}
+
+func TestWizard_DetectDone_DetectResultNotSetUntilUserConfirms(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk"}})
+	updated := next.(wizardModel)
+
+	assert.Nil(t, updated.detectResult)
+}
+
+func TestWizard_DetectDone_ShowsIdentifiedPanel(t *testing.T) {
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk", Language: "Go"}})
+	updated := next.(wizardModel)
+
+	view := updated.View()
+	assert.Contains(t, view, "We identified this as your SDK")
+	assert.Contains(t, view, "❯") // detected choice is pointed to while its panel is focused
+}
+
+// detectFailedMsg goes to stepSelectSDK in default KnownSDKs order.
+
+func TestWizard_DetectFailed_UsesGenericSDKTitle(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectFailedMsg{})
+	updated := next.(wizardModel)
+
+	assert.Equal(t, "Select your SDK:", updated.sdkList.Title)
+}
+
+func TestWizard_DetectFailed_TransitionsToSDKSelection(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectFailedMsg{})
+	updated := next.(wizardModel)
+
+	assert.Equal(t, stepSelectSDK, updated.step)
+	assert.Equal(t, len(setup.KnownSDKs), len(updated.sdkList.Items()))
+}
+
+func TestWizard_DetectFailed_ListInDefaultOrder(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectFailedMsg{})
+	updated := next.(wizardModel)
+
+	for i, item := range updated.sdkList.Items() {
+		sdk := item.(sdkItem)
+		assert.Equal(t, setup.KnownSDKs[i].ID, sdk.id)
+	}
+}
+
+// Selecting an SDK always sets detectResult and proceeds to install.
+
+func TestWizard_SelectSDK_ProceedsToPlanThenInstall(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk", Language: "Go"}})
+	updated := next.(wizardModel)
+	require.Equal(t, stepSelectSDK, updated.step)
+
+	// Enter accepts the detected SDK and shows the plan (no action taken yet).
+	next, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	planned := next.(wizardModel)
+	assert.Equal(t, stepPlan, planned.step)
+	require.NotNil(t, planned.detectResult)
+	assert.Equal(t, "go-server-sdk", planned.detectResult.SDKID)
+
+	// Enter on the plan proceeds to install.
+	next, cmd := planned.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	installing := next.(wizardModel)
+	assert.Equal(t, stepInstall, installing.step)
+	assert.NotNil(t, cmd)
+}
+
+func TestWizard_Plan_ListsSteps(t *testing.T) {
+	m := wizardModel{
+		step:            stepPlan,
+		selectedProject: "default",
+		selectedEnv:     "test",
+		detectResult:    &setup.DetectResult{SDKID: "node-server", EntryPoint: "src/index.js"},
+		planInstallCmd:  "npm install @launchdarkly/node-server-sdk",
+		width:           80,
+		height:          30,
+	}
+
+	view := m.planView()
+	assert.Contains(t, view, "Here's what setup will do:")
+	assert.Contains(t, view, "npm install @launchdarkly/node-server-sdk")
+	assert.Contains(t, view, "Create a feature flag")
+	assert.Contains(t, view, "Verify") // node-server injects in place -> verify step listed
+}
+
+func TestWizard_SelectSDK_UserCanOverrideDetection(t *testing.T) {
+	// Detection said go-server-sdk, but we'll navigate down and pick something else.
+	// Here we just verify that whatever is selected (not necessarily the detected SDK)
+	// becomes the detectResult.
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{SDKID: "go-server-sdk"}})
+	updated := next.(wizardModel)
+
+	// Move down to the second item
+	next, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+	updated = next.(wizardModel)
+
+	next, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	selected := next.(wizardModel)
+
+	require.NotNil(t, selected.detectResult)
+	// Second item should not be go-server-sdk
+	assert.NotEqual(t, "go-server-sdk", selected.detectResult.SDKID)
+}
+
+func TestWizard_DetectDone_EntryPointStoredForLaterUse(t *testing.T) {
+	m := wizardModel{step: stepDetect}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID:      "go-server-sdk",
+		Language:   "Go",
+		EntryPoint: "/my/project/main.go",
+	}})
+	updated := next.(wizardModel)
+
+	// Entry point is not exposed on detectResult yet (user hasn't confirmed)
+	assert.Nil(t, updated.detectResult)
+
+	// Confirm SDK selection — entry point should now be on detectResult
+	next, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	selected := next.(wizardModel)
+
+	require.NotNil(t, selected.detectResult)
+	assert.Equal(t, "/my/project/main.go", selected.detectResult.EntryPoint)
+}
+
+func TestWizard_Back_ReturnsToPreviousStep(t *testing.T) {
+	cases := []struct{ from, want wizardStep }{
+		{stepPlan, stepSelectSDK},
+		{stepSelectSDK, stepSelectEnvironment},
+		{stepSelectEnvironment, stepSelectProject},
+	}
+	for _, c := range cases {
+		m := wizardModel{step: c.from}
+		next, _ := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+		assert.Equal(t, c.want, next.(wizardModel).step)
+	}
+}
+
+// quitsOn reports whether a returned command would end the program. Checking the
+// model's quitting flag is not enough: a list returns tea.Quit itself, without the
+// wizard ever knowing.
+func quitsOn(cmd tea.Cmd) bool {
+	if cmd == nil {
+		return false
+	}
+	_, ok := cmd().(tea.QuitMsg)
+	return ok
+}
+
+// esc arrives on its own whenever an arrow key's escape sequence is split across
+// reads, so nothing may treat it as quit. The lists must be populated: an empty one
+// never receives the key, which is what let this pass while the bug was live.
+func TestWizard_Esc_DoesNotQuit(t *testing.T) {
+	t.Run("project list", func(t *testing.T) {
+		m := populatedProjectList(t)
+		next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		assert.False(t, next.(wizardModel).quitting)
+		assert.False(t, quitsOn(cmd), "the list quit the wizard on esc")
+	})
+
+	t.Run("environment list", func(t *testing.T) {
+		m := populatedProjectList(t)
+		m.step = stepSelectEnvironment
+		m.selectedProject = "a"
+		listed, _ := m.Update(envsFetchedMsg{project: "a", environments: []envItem{
+			{key: "production", name: "Production"}, {key: "test", name: "Test"},
+		}})
+		next, cmd := listed.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		assert.False(t, next.(wizardModel).quitting)
+		assert.False(t, quitsOn(cmd), "the list quit the wizard on esc")
+	})
+
+	t.Run("SDK list", func(t *testing.T) {
+		m := wizardModel{step: stepDetect, width: 80, height: 24}
+		listed, _ := m.Update(detectFailedMsg{})
+		sdk := listed.(wizardModel)
+		sdk.sdkFocus = 1 // focus the list, so it receives keys
+		next, cmd := sdk.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		assert.False(t, next.(wizardModel).quitting)
+		assert.False(t, quitsOn(cmd), "the list quit the wizard on esc")
+	})
+}
+
+// q must still quit, from the same populated screens.
+func TestWizard_Q_QuitsFromLists(t *testing.T) {
+	m := populatedProjectList(t)
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	assert.True(t, next.(wizardModel).quitting)
+	assert.True(t, quitsOn(cmd))
+}
+
+// populatedProjectList returns a model sitting on a project list that has items, so
+// keys actually reach the list.
+func populatedProjectList(t *testing.T) wizardModel {
+	t.Helper()
+	m := wizardModel{step: stepSelectProject, width: 80, height: 24}
+	sized, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	listed, _ := sized.(wizardModel).Update(projectsFetchedMsg{projects: []projectItem{
+		{key: "a", name: "A"}, {key: "b", name: "B"},
+	}})
+	return listed.(wizardModel)
+}
+
+func TestWizard_Q_Quits(t *testing.T) {
+	m := wizardModel{step: stepSelectSDK}
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	assert.True(t, next.(wizardModel).quitting)
+	assert.NotNil(t, cmd)
+}
+
+func TestSDKItem_Title_MarksManualInstall(t *testing.T) {
+	assert.Contains(t, sdkItem{id: "java-server-sdk", name: "Java"}.Title(), "manual install")
+	assert.Equal(t, "Node.js", sdkItem{id: "node-server", name: "Node.js"}.Title())
+}
+
+func TestWizard_Done_InstallFailed_ShowsManualCommand(t *testing.T) {
+	m := wizardModel{
+		step:            stepDone,
+		width:           80,
+		height:          30,
+		flagKey:         "my-new-flag",
+		selectedProject: "default",
+		installResult:   &setup.InstallResult{SDKID: "ruby-server-sdk", Command: "gem install launchdarkly-server-sdk", Failed: true},
+		initResult:      &setup.InitResult{SDKID: "ruby-server-sdk", FilePath: "app.rb", Success: true},
+	}
+
+	v := m.View()
+	assert.Contains(t, v, "Manual install needed")
+	assert.Contains(t, v, "gem install launchdarkly-server-sdk")
+}
+
+func TestWizard_Done_Success_ShowsQuitHint(t *testing.T) {
+	m := wizardModel{
+		step:         stepDone,
+		detectResult: &setup.DetectResult{SDKID: "node-server"},
+		verifyResult: &setup.VerifyResult{Active: true},
+		flagKey:      "my-new-flag",
+		width:        80,
+		height:       30,
+	}
+
+	assert.Contains(t, m.View(), "Press q to quit")
+}
+
+func TestWizard_WaitForApp_EnterTriggersVerify(t *testing.T) {
+	m := wizardModel{
+		step:       stepWaitForApp,
+		initResult: &setup.InitResult{SDKID: "go-server-sdk", FilePath: "/tmp/main.go", Success: true},
+	}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := next.(wizardModel)
+
+	assert.Equal(t, stepVerify, updated.step)
+	assert.NotNil(t, cmd)
+}
+
+func TestWizard_SelectSDK_EmptyList_DoesNotPanic(t *testing.T) {
+	m := wizardModel{step: stepSelectSDK}
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := next.(wizardModel)
+
+	assert.Equal(t, stepSelectSDK, updated.step)
+	assert.Nil(t, updated.detectResult)
+}
+
+func TestWizard_Plan_ExistingEntryPoint_SaysAdd(t *testing.T) {
+	m := wizardModel{
+		step:            stepPlan,
+		selectedProject: "default",
+		selectedEnv:     "test",
+		detectResult: &setup.DetectResult{
+			SDKID:            "node-server",
+			EntryPoint:       "src/index.js",
+			EntryPointExists: true,
+		},
+		width:  80,
+		height: 30,
+	}
+
+	view := m.planView()
+	assert.Contains(t, flat(view), "Add initialization code to src/index.js")
+	assert.NotContains(t, flat(view), "Create src/index.js")
+}
+
+// A guessed entry point means we would write a file the project does not load, so
+// the plan has to say so while the user can still back out.
+func TestWizard_Plan_MissingEntryPoint_SaysCreate(t *testing.T) {
+	m := wizardModel{
+		step:            stepPlan,
+		selectedProject: "default",
+		selectedEnv:     "test",
+		detectResult: &setup.DetectResult{
+			SDKID:            "node-server",
+			EntryPoint:       "instrumentation.ts",
+			EntryPointExists: false,
+		},
+		width:  80,
+		height: 30,
+	}
+
+	view := m.planView()
+	assert.Contains(t, flat(view), "Create instrumentation.ts")
+	assert.Contains(t, flat(view), "no entry file found")
+	assert.NotContains(t, flat(view), "Add initialization code to")
+}
+
+// The SDK screen rebuilds detectResult, and the plan and install steps read it, so
+// every detected value has to survive that step — not just the SDK.
+func TestWizard_SelectSDK_CarriesDetectionThrough(t *testing.T) {
+	// A Gemfile makes Bundler the project's stated manager, so the picker is skipped.
+	gemfileProject(t)
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID:            "ruby-server-sdk",
+		Language:         "Ruby",
+		Framework:        "Rails",
+		PackageManager:   "bundle",
+		EntryPoint:       "config.ru",
+		EntryPointExists: true,
+	}})
+	m2 := next.(wizardModel)
+	require.Equal(t, stepSelectSDK, m2.step)
+
+	next2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+	require.Equal(t, stepPlan, m3.step)
+
+	assert.Equal(t, "bundle", m3.detectResult.PackageManager, "install would fall back to gem install")
+	assert.True(t, m3.detectResult.EntryPointExists, "plan would claim it will create an existing file")
+	assert.Equal(t, "Rails", m3.detectResult.Framework)
+	assert.Equal(t, "config.ru", m3.detectResult.EntryPoint)
+}
+
+func TestWizard_SelectSDK_PlanUsesDetectedPackageManager(t *testing.T) {
+	gemfileProject(t)
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "ruby-server-sdk", Language: "Ruby", PackageManager: "bundle",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+
+	assert.Equal(t, "bundle add launchdarkly-server-sdk", m3.planInstallCmd)
+}
+
+// selectOtherSDK moves focus to the list of non-detected SDKs and highlights id.
+func selectOtherSDK(t *testing.T, m wizardModel, id string) wizardModel {
+	t.Helper()
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m = next.(wizardModel)
+	require.Equal(t, 1, m.sdkFocus)
+	for i, item := range m.sdkList.Items() {
+		if sdk, ok := item.(sdkItem); ok && sdk.id == id {
+			m.sdkList.Select(i)
+			return m
+		}
+	}
+	t.Fatalf("%s is not in the list of other SDKs", id)
+	return m
+}
+
+// The detected entry point belongs to the detected language. ruby-server-sdk is
+// append-safe, so reusing it would append Ruby to a Node project's index.js.
+func TestWizard_OverrideSDK_DoesNotReuseDetectedEntryPoint(t *testing.T) {
+	// A Gemfile states the manager, so the override lands on the plan without asking.
+	gemfileProject(t)
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID:            "node-server",
+		Language:         "JavaScript",
+		Framework:        "Next.js",
+		PackageManager:   "pnpm",
+		EntryPoint:       "/proj/index.js",
+		EntryPointExists: true,
+	}})
+
+	m2 := selectOtherSDK(t, next.(wizardModel), "ruby-server-sdk")
+	next2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+
+	require.Equal(t, stepPlan, m3.step)
+	assert.Equal(t, "ruby-server-sdk", m3.detectResult.SDKID)
+	assert.NotEqual(t, "/proj/index.js", m3.detectResult.EntryPoint,
+		"setup would append Ruby to the Node entry file")
+	assert.False(t, m3.detectResult.EntryPointExists,
+		"a file we have not found must not be reported as found")
+	assert.Contains(t, m3.detectResult.EntryPoint, "main.rb")
+	assert.Empty(t, m3.detectResult.Framework, "Next.js does not describe a Ruby project")
+	// pnpm cannot install a gem, so the manager is re-derived for the chosen SDK.
+	assert.Equal(t, "bundle", m3.detectResult.PackageManager)
+}
+
+// An override must find the file the project already has, rather than falling back
+// to the SDK's bare default and creating a second entry point beside it.
+func TestWizard_OverrideSDK_FindsExistingEntryPoint(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "src/index.js"), []byte("console.log(1)\n"), 0600))
+	// A lockfile states the manager, so the override lands on the plan without asking.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0600))
+	// macOS resolves /var to /private/var, and the override path reads os.Getwd,
+	// so compare against the resolved directory rather than the one we created.
+	dir = chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID:    "js-client-sdk",
+		Language: "JavaScript",
+	}})
+
+	m2 := selectOtherSDK(t, next.(wizardModel), "node-server")
+	next2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+
+	require.Equal(t, stepPlan, m3.step)
+	assert.Equal(t, filepath.Join(dir, "src/index.js"), m3.detectResult.EntryPoint,
+		"setup would create a second index.js beside the real entry point")
+	assert.True(t, m3.detectResult.EntryPointExists)
+}
+
+// gemfileProject moves into a project whose package manager is unambiguous, so the
+// package-manager picker does not intervene.
+func gemfileProject(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Gemfile"), []byte("source 'https://rubygems.org'\n"), 0600))
+	return chdir(t, dir)
+}
+
+// chdir moves into dir for the duration of the test and returns the working
+// directory as the process sees it. The override path reads os.Getwd to re-derive
+// the entry point.
+func chdir(t *testing.T, dir string) string {
+	t.Helper()
+	original, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(dir))
+	t.Cleanup(func() { _ = os.Chdir(original) })
+	resolved, err := os.Getwd()
+	require.NoError(t, err)
+	return resolved
+}
+
+// SDKs that only ever return a snippet have no file to name.
+func TestWizard_OverrideSDK_SnippetOnlySDKHasNoEntryPoint(t *testing.T) {
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID:            "node-server",
+		Language:         "JavaScript",
+		EntryPoint:       "/proj/index.js",
+		EntryPointExists: true,
+	}})
+
+	m2 := selectOtherSDK(t, next.(wizardModel), "go-server-sdk")
+	next2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+
+	assert.Empty(t, m3.detectResult.EntryPoint)
+	assert.False(t, setup.InjectsInPlace(m3.detectResult.SDKID))
+	assert.Contains(t, m3.View(), "Show initialization code for you to add")
+}
+
+// Confirming the detected SDK is not an override, so its entry point stands.
+func TestWizard_KeepDetectedSDK_KeepsEntryPoint(t *testing.T) {
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID:            "node-server",
+		Language:         "JavaScript",
+		Framework:        "Next.js",
+		EntryPoint:       "/proj/instrumentation.ts",
+		EntryPointExists: true,
+	}})
+
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+
+	assert.Equal(t, "/proj/instrumentation.ts", m3.detectResult.EntryPoint)
+	assert.True(t, m3.detectResult.EntryPointExists)
+	assert.Equal(t, "Next.js", m3.detectResult.Framework)
+}
+
+// overrideToSDK runs detection, switches to id, and returns the model on the plan
+// screen.
+func overrideToSDK(t *testing.T, detected *setup.DetectResult, id string) wizardModel {
+	t.Helper()
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: detected})
+	m2 := selectOtherSDK(t, next.(wizardModel), id)
+	next2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+	// An override into a project that doesn't state its package manager asks first.
+	// These callers are about entry points, so accept the highlighted manager.
+	if m3.step == stepSelectPackageManager {
+		next3, _ := m3.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m3 = next3.(wizardModel)
+	}
+	require.Equal(t, stepPlan, m3.step)
+	return m3
+}
+
+// Injection appends to a file that already exists, so the plan must not offer to
+// create one. Promising to create and then appending edits a file the user did not
+// agree to have touched.
+func TestWizard_OverrideSDK_DefaultEntryPointAlreadyPresent(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.rb"), []byte("puts 1\n"), 0600))
+	t.Chdir(dir)
+
+	m := overrideToSDK(t, &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript",
+		EntryPoint: filepath.Join(dir, "index.js"), EntryPointExists: true,
+	}, "ruby-server-sdk")
+
+	assert.Equal(t, filepath.Join(dir, "main.rb"), m.detectResult.EntryPoint)
+	assert.True(t, m.detectResult.EntryPointExists)
+	view := m.View()
+	assert.Contains(t, flat(view), "Add initialization code to")
+	assert.NotContains(t, flat(view), "no entry file found")
+}
+
+func TestWizard_OverrideSDK_DefaultEntryPointMissing(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	m := overrideToSDK(t, &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript",
+		EntryPoint: "index.js", EntryPointExists: true,
+	}, "ruby-server-sdk")
+
+	assert.False(t, m.detectResult.EntryPointExists)
+	assert.Contains(t, flat(m.View()), "no entry file found")
+}
+
+func TestWizard_Done_DeclinedInstall_ShowsReasonWithoutCommand(t *testing.T) {
+	m := wizardModel{
+		step:            stepDone,
+		width:           78,
+		selectedProject: "default",
+		flagKey:         "my-new-flag",
+		installResult: &setup.InstallResult{
+			SDKID:         "dotnet-server-sdk",
+			Package:       "LaunchDarkly.ServerSdk",
+			Failed:        true,
+			FailureReason: "found 2 projects in this solution",
+		},
+	}
+
+	v := m.View()
+	assert.Contains(t, v, "Manual install needed")
+	assert.Contains(t, v, "found 2 projects in this solution")
+	// No command to offer, so the screen must not render an empty code block or
+	// promise one.
+	assert.NotContains(t, v, "Install it yourself with")
+}
+
+func TestWizard_Done_FailedInstall_ShowsCommand(t *testing.T) {
+	m := wizardModel{
+		step:            stepDone,
+		width:           78,
+		selectedProject: "default",
+		flagKey:         "my-new-flag",
+		installResult: &setup.InstallResult{
+			SDKID:         "ruby-server-sdk",
+			Command:       "gem install launchdarkly-server-sdk",
+			Failed:        true,
+			FailureReason: "permission denied",
+		},
+	}
+
+	v := m.View()
+	assert.Contains(t, v, "Install it yourself with")
+	assert.Contains(t, v, "gem install launchdarkly-server-sdk")
+	assert.Contains(t, v, "permission denied")
+}
+
+func TestWizard_NoProjects_ShowsEmptyStateNotSpinner(t *testing.T) {
+	m := wizardModel{step: stepSelectProject, width: 78, height: 24, spinner: spinner.New()}
+
+	// Before the fetch lands, the spinner is right.
+	assert.Contains(t, m.View(), "Loading projects")
+
+	updated, _ := m.Update(projectsFetchedMsg{projects: nil})
+	v := updated.(wizardModel).View()
+
+	assert.NotContains(t, v, "Loading projects")
+	assert.Contains(t, v, "No projects available")
+}
+
+func TestWizard_NoEnvironments_ShowsEmptyStateNotSpinner(t *testing.T) {
+	m := wizardModel{step: stepSelectEnvironment, width: 78, height: 24, spinner: spinner.New(), selectedProject: "my-proj"}
+
+	assert.Contains(t, m.View(), "Loading environments")
+
+	updated, _ := m.Update(envsFetchedMsg{project: "my-proj", environments: nil})
+	v := updated.(wizardModel).View()
+
+	assert.NotContains(t, v, "Loading environments")
+	assert.Contains(t, v, "No environments available")
+	assert.Contains(t, v, "my-proj")
+}
+
+// selectProjectAtIndex drives the project list to the given row and presses
+// Enter, returning the model with the environment fetch in flight.
+func selectProjectAtIndex(t *testing.T, m wizardModel, i int) wizardModel {
+	t.Helper()
+	m.projectList.Select(i)
+	next, _ := m.handleEnter()
+	return next.(wizardModel)
+}
+
+// wizardWithTwoProjectsAndEnvsFor returns a model that has already selected the
+// first project and received its environments.
+func wizardWithTwoProjectsAndEnvsFor(t *testing.T, envs []envItem) wizardModel {
+	t.Helper()
+	m := wizardModel{step: stepSelectProject, width: 78, height: 24, spinner: spinner.New()}
+	loaded, _ := m.Update(projectsFetchedMsg{projects: []projectItem{
+		{key: "proj-a", name: "A"},
+		{key: "proj-b", name: "B"},
+	}})
+	first := selectProjectAtIndex(t, loaded.(wizardModel), 0)
+	require.Equal(t, "proj-a", first.selectedProject)
+
+	withEnvs, _ := first.Update(envsFetchedMsg{project: "proj-a", environments: envs})
+	return withEnvs.(wizardModel)
+}
+
+func TestWizard_ReselectProject_CannotSelectPreviousProjectsEnvironment(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "a-production", name: "A Production"}})
+
+	back, _ := m.handleBack()
+	second := selectProjectAtIndex(t, back.(wizardModel), 1)
+	require.Equal(t, "proj-b", second.selectedProject)
+
+	assert.Empty(t, second.environments)
+	assert.Empty(t, second.selectedEnv)
+
+	// Enter while the new fetch is in flight must not commit a key from proj-a.
+	pressed, _ := second.handleEnter()
+	got := pressed.(wizardModel)
+	assert.Empty(t, got.selectedEnv)
+	assert.Equal(t, stepSelectEnvironment, got.step)
+}
+
+func TestWizard_ReselectProject_ShowsSpinnerNotStaleList(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "a-production", name: "A Production"}})
+	require.Contains(t, m.View(), "A Production")
+
+	back, _ := m.handleBack()
+	second := selectProjectAtIndex(t, back.(wizardModel), 1)
+
+	v := second.View()
+	assert.Contains(t, v, "Loading environments")
+	assert.NotContains(t, v, "A Production")
+	assert.NotContains(t, v, "No environments available")
+}
+
+func TestWizard_ReselectProject_AfterEmptyList_ShowsSpinnerNotEmptyState(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, nil)
+	require.Contains(t, m.View(), "No environments available")
+
+	back, _ := m.handleBack()
+	second := selectProjectAtIndex(t, back.(wizardModel), 1)
+
+	assert.Contains(t, second.View(), "Loading environments")
+
+	// The new project's environments still land normally.
+	withEnvs, _ := second.Update(envsFetchedMsg{project: "proj-b", environments: []envItem{{key: "b-production", name: "B Production"}}})
+	assert.Contains(t, withEnvs.(wizardModel).View(), "B Production")
+}
+
+func TestWizard_ReselectProject_WindowSizeDoesNotPanic(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "a-production", name: "A Production"}})
+	back, _ := m.handleBack()
+	second := selectProjectAtIndex(t, back.(wizardModel), 1)
+
+	// Resizing with the env list cleared, then again once the fetch lands.
+	resized, _ := second.Update(tea.WindowSizeMsg{Width: 120, Height: 50})
+	withEnvs, _ := resized.(wizardModel).Update(envsFetchedMsg{project: "proj-b", environments: []envItem{{key: "b-production", name: "B Production"}}})
+	got := withEnvs.(wizardModel)
+	assert.Equal(t, 120, got.envList.Width())
+
+	again, _ := got.Update(tea.WindowSizeMsg{Width: 60, Height: 30})
+	assert.Equal(t, 60, again.(wizardModel).envList.Width())
+}
+
+func TestWizard_BackFromSDK_KeepsEnvironmentList(t *testing.T) {
+	// Back from the SDK step does not re-fetch, so the env list must survive it.
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "a-production", name: "A Production"}})
+	m.step = stepSelectSDK
+
+	back, _ := m.handleBack()
+	got := back.(wizardModel)
+
+	assert.Equal(t, stepSelectEnvironment, got.step)
+	assert.True(t, got.envsLoaded)
+	assert.Contains(t, got.View(), "A Production")
+}
+
+func TestWizard_WindowSize_ResizesExistingLists(t *testing.T) {
+	m := wizardModel{step: stepSelectProject, width: 40, height: 10, spinner: spinner.New()}
+	withList, _ := m.Update(projectsFetchedMsg{projects: []projectItem{{key: "p1", name: "One"}}})
+
+	resized, _ := withList.(wizardModel).Update(tea.WindowSizeMsg{Width: 120, Height: 50})
+	got := resized.(wizardModel)
+
+	assert.Equal(t, 120, got.projectList.Width())
+	assert.Equal(t, got.listHeight(), got.projectList.Height())
+}
+
+func TestWizard_ListHeight_NeverNegativeBeforeWindowSize(t *testing.T) {
+	// No WindowSizeMsg yet, so height is still zero and height-4 would be negative.
+	m := wizardModel{step: stepSelectProject, spinner: spinner.New()}
+
+	assert.GreaterOrEqual(t, m.listHeight(), 3)
+
+	withList, _ := m.Update(projectsFetchedMsg{projects: []projectItem{{key: "p1", name: "One"}}})
+	assert.GreaterOrEqual(t, withList.(wizardModel).projectList.Height(), 3)
+}
+
+// envDetailsInFlight returns a model that has selected proj-a/production and is
+// waiting on the SDK keys for it.
+func envDetailsInFlight(t *testing.T) wizardModel {
+	t.Helper()
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "production", name: "Prod"}})
+	next, _ := m.handleEnter()
+	got := next.(wizardModel)
+	require.Equal(t, "production", got.selectedEnv)
+	require.Equal(t, stepSelectEnvironment, got.step)
+	return got
+}
+
+func TestWizard_EnvDetails_LandingAfterBack_IsIgnored(t *testing.T) {
+	m := envDetailsInFlight(t)
+
+	// User presses ← before the keys arrive.
+	back, _ := m.handleBack()
+	m = back.(wizardModel)
+	require.Equal(t, stepSelectProject, m.step)
+
+	late, _ := m.Update(envDetailsFetchedMsg{
+		project: "proj-a", env: "production",
+		sdkKey: "sdk-A", clientSideID: "cs-A", mobileKey: "mob-A",
+	})
+	got := late.(wizardModel)
+
+	// Must not yank the user into SDK selection with no environment selected.
+	assert.Equal(t, stepSelectProject, got.step)
+	assert.Empty(t, got.sdkKey)
+	assert.Empty(t, got.selectedEnv)
+}
+
+func TestWizard_EnvDetails_OutOfOrder_KeepsSelectedEnvsKeys(t *testing.T) {
+	m := envDetailsInFlight(t) // production selected, its fetch in flight
+	m.detectComplete = true
+
+	// User goes back and selects a different environment before the first lands.
+	back, _ := m.handleBack()
+	m = back.(wizardModel)
+	m = selectProjectAtIndex(t, m, 0)
+	withEnvs, _ := m.Update(envsFetchedMsg{project: "proj-a", environments: []envItem{
+		{key: "production", name: "Prod"}, {key: "test", name: "Test"},
+	}})
+	m = withEnvs.(wizardModel)
+	m.envList.Select(1) // test
+	next, _ := m.handleEnter()
+	m = next.(wizardModel)
+	require.Equal(t, "test", m.selectedEnv)
+
+	// The superseded production response lands last and must be dropped.
+	stale, _ := m.Update(envDetailsFetchedMsg{
+		project: "proj-a", env: "production", sdkKey: "sdk-PROD",
+	})
+	m = stale.(wizardModel)
+	assert.Empty(t, m.sdkKey, "production's key must not be adopted while test is selected")
+
+	// test's own response is still accepted.
+	fresh, _ := m.Update(envDetailsFetchedMsg{
+		project: "proj-a", env: "test", sdkKey: "sdk-TEST",
+	})
+	assert.Equal(t, "sdk-TEST", fresh.(wizardModel).sdkKey)
+}
+
+func TestWizard_EnvDetails_DuplicateOnDoneScreen_IsIgnored(t *testing.T) {
+	m := wizardModel{
+		step: stepDone, width: 78, spinner: spinner.New(),
+		selectedProject: "proj-a", selectedEnv: "production",
+		verifyResult: &setup.VerifyResult{Active: true},
+		detectResult: &setup.DetectResult{SDKID: "node-server"},
+	}
+
+	dup, _ := m.Update(envDetailsFetchedMsg{project: "proj-a", env: "production", sdkKey: "sdk-A"})
+
+	assert.Equal(t, stepDone, dup.(wizardModel).step, "a duplicate must not reopen SDK selection")
+}
+
+func TestWizard_EnvsFetched_ForSupersededProject_IsIgnored(t *testing.T) {
+	m := wizardWithTwoProjectsAndEnvsFor(t, []envItem{{key: "only-in-a", name: "Only In A"}})
+
+	back, _ := m.handleBack()
+	m = selectProjectAtIndex(t, back.(wizardModel), 1)
+	require.Equal(t, "proj-b", m.selectedProject)
+
+	// proj-a's in-flight list lands after proj-b was chosen.
+	stale, _ := m.Update(envsFetchedMsg{project: "proj-a", environments: []envItem{{key: "only-in-a", name: "Only In A"}}})
+	m = stale.(wizardModel)
+	assert.Empty(t, m.environments)
+	assert.False(t, m.envsLoaded)
+	assert.Contains(t, m.View(), "Loading environments")
+
+	// proj-b's own list is accepted.
+	fresh, _ := m.Update(envsFetchedMsg{project: "proj-b", environments: []envItem{{key: "b-prod", name: "B Prod"}}})
+	assert.Contains(t, fresh.(wizardModel).View(), "B Prod")
+}
+
+// A project that states its manager must not be interrupted; the happy path gains
+// no keystrokes from the picker existing.
+func TestWizard_DefinitePackageManager_SkipsPicker(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"packageManager":"pnpm@9.1.0"}`), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript", PackageManager: "pnpm",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m3 := next2.(wizardModel)
+
+	require.Equal(t, stepPlan, m3.step)
+	assert.Nil(t, m3.pmChoice, "nothing was ambiguous, so nothing was asked")
+	assert.Equal(t, "pnpm add @launchdarkly/node-server-sdk", m3.planInstallCmd)
+}
+
+// Two lockfiles from different managers is the case no guess can get right.
+func TestWizard_ConflictingLockfiles_AsksAndUsesTheAnswer(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "yarn.lock"), []byte(""), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript", PackageManager: "yarn",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	picker := next2.(wizardModel)
+
+	require.Equal(t, stepSelectPackageManager, picker.step)
+	require.NotNil(t, picker.pmChoice)
+	assert.Contains(t, picker.pmChoice.Reason, "more than one manager")
+
+	// The view has to say why it is asking, or it reads as a tool that failed to look.
+	view := picker.View()
+	assert.Contains(t, view, "Which package manager")
+	assert.Contains(t, view, "more than one manager")
+
+	// Pick whatever is highlighted and confirm the plan follows the answer.
+	next3, _ := picker.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	planned := next3.(wizardModel)
+	require.Equal(t, stepPlan, planned.step)
+	selected := planned.detectResult.PackageManager
+	assert.Contains(t, planned.planInstallCmd, selected,
+		"the plan must run the manager the user chose")
+}
+
+// Installed managers come first and the cursor starts on one, but an uninstalled
+// manager stays selectable — setup never installs tooling for the user.
+func TestWizard_Picker_ListsInstalledFirstAndKeepsMissingSelectable(t *testing.T) {
+	m := wizardModel{step: stepSelectSDK, width: 80, height: 30}
+	m.detectResult = &setup.DetectResult{SDKID: "node-server"}
+	m.pmChoice = &setup.PMChoice{
+		Name:       "npm",
+		Confidence: setup.PMAmbiguous,
+		Reason:     "this project doesn't say which package manager it uses",
+		Candidates: []setup.PMCandidate{
+			{Name: "npm", Installed: false, Command: "npm install x"},
+			{Name: "yarn", Installed: true, Command: "yarn add x"},
+			{Name: "pnpm", Installed: true, Command: "pnpm add x"},
+		},
+	}
+	m.enterPackageManagerStep()
+
+	items := m.pmList.Items()
+	require.Len(t, items, 3)
+	assert.Equal(t, "yarn", items[0].(pmItem).name, "installed managers come first")
+	assert.Equal(t, "pnpm", items[1].(pmItem).name)
+	assert.Equal(t, "npm", items[2].(pmItem).name)
+	assert.Contains(t, items[2].(pmItem).Title(), "not installed")
+
+	// Selecting the uninstalled one is allowed; the install step warns later.
+	m.pmList.Select(2)
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	chosen := next.(wizardModel)
+	require.Equal(t, stepPlan, chosen.step)
+	assert.Equal(t, "npm", chosen.detectResult.PackageManager)
+}
+
+// The picker's list quits on esc for the same reason the others did.
+func TestWizard_Picker_EscDoesNotQuit(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 24}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	picker := next2.(wizardModel)
+	require.Equal(t, stepSelectPackageManager, picker.step)
+
+	after, cmd := picker.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	assert.False(t, after.(wizardModel).quitting)
+	assert.False(t, quitsOn(cmd), "the list quit the wizard on esc")
+	assert.Equal(t, stepSelectPackageManager, after.(wizardModel).step)
+}
+
+// Back must return to the picker, not skip over it to the SDK list.
+func TestWizard_Picker_BackReturnsToPickerFromPlan(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+	chdir(t, dir)
+
+	m := wizardModel{step: stepDetect, width: 80, height: 30}
+	next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+		SDKID: "node-server", Language: "JavaScript",
+	}})
+	next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	picker := next2.(wizardModel)
+	require.Equal(t, stepSelectPackageManager, picker.step)
+
+	next3, _ := picker.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	planned := next3.(wizardModel)
+	require.Equal(t, stepPlan, planned.step)
+
+	back, _ := planned.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	assert.Equal(t, stepSelectPackageManager, back.(wizardModel).step)
+
+	backAgain, _ := back.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyLeft})
+	assert.Equal(t, stepSelectSDK, backAgain.(wizardModel).step)
+}
+
+// The picker draws its question and the reason for asking around the list, so the
+// list has to be sized for less than the whole window or the instructions are
+// pushed off the bottom. Rows are counted the way a terminal shows them, with
+// over-wide lines wrapping.
+//
+// Widths below 72 are left out: the list widget's own help line runs to about
+// seventy columns and wraps there. That affects every list screen in the wizard,
+// not this one, and no height reserve fixes it.
+func TestWizard_Picker_FitsTerminalHeight(t *testing.T) {
+	for _, dims := range [][2]int{{100, 30}, {80, 30}, {80, 24}, {80, 20}, {80, 16}} {
+		t.Run(fmt.Sprintf("%dx%d", dims[0], dims[1]), func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{}`), 0600))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "yarn.lock"), []byte(""), 0600))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{}"), 0600))
+			chdir(t, dir)
+
+			m := wizardModel{step: stepDetect, width: dims[0], height: dims[1]}
+			next, _ := m.Update(detectDoneMsg{result: &setup.DetectResult{
+				SDKID: "node-server", Language: "JavaScript",
+			}})
+			next2, _ := next.(wizardModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+			picker := next2.(wizardModel)
+			require.Equal(t, stepSelectPackageManager, picker.step)
+
+			view := picker.View()
+			assert.LessOrEqual(t, terminalRows(view, dims[0]), dims[1],
+				"the instructions would be pushed off the bottom")
+			// However short the terminal, the way out must stay on screen.
+			assert.Contains(t, view, "back")
+			assert.Contains(t, view, "Which package manager")
+		})
+	}
+}
+
+// flat collapses whitespace in a rendered view, so assertions about a phrase hold
+// wherever wrapping happens to fall.
+func flat(view string) string { return strings.Join(strings.Fields(view), " ") }
+
+// terminalRows counts the rows a terminal of the given width would use, so a line
+// wider than the window counts as the several rows it actually occupies.
+func terminalRows(view string, width int) int {
+	rows := 0
+	for _, line := range strings.Split(strings.TrimRight(view, "\n"), "\n") {
+		if w := len([]rune(line)); w > width {
+			rows += (w + width - 1) / width
+			continue
+		}
+		rows++
+	}
+	return rows
+}
+
+// The plan names an absolute entry-point path and explains why it is creating the
+// file, which together run well past a narrow terminal. Overflowing there hides
+// the very warning the step exists to give.
+func TestWizard_Plan_WrapsStepsToTerminalWidth(t *testing.T) {
+	for _, width := range []int{100, 80, 60, 40} {
+		t.Run(fmt.Sprintf("width%d", width), func(t *testing.T) {
+			m := wizardModel{
+				step:            stepPlan,
+				selectedProject: "my-scratch-project",
+				selectedEnv:     "production",
+				detectResult: &setup.DetectResult{
+					SDKID:            "python-server-sdk",
+					EntryPoint:       "/Users/someone/code/launchdarkly/test-app/main.py",
+					EntryPointExists: false,
+				},
+				planInstallCmd: "pip3 install launchdarkly-server-sdk",
+				width:          width,
+				height:         30,
+			}
+
+			view := m.planView()
+
+			for _, line := range strings.Split(view, "\n") {
+				assert.LessOrEqual(t, len([]rune(line)), width,
+					"a plan step overflows a %d-column terminal", width)
+			}
+			// The warning must survive wrapping, not be truncated away.
+			assert.Contains(t, flat(view), "no entry file found")
+			assert.Contains(t, flat(view), "main.py")
+			// Wrapped text is indented under its number so the step still reads as one.
+			assert.Regexp(t, `(?m)^ {3}\S`, view)
+		})
+	}
+}
+
+// Wrapping pads every line to the full width, so a newline left inside a wrapped
+// string put a whole row of spaces in front of the injected file path and pushed it
+// off the terminal.
+func TestWizard_WaitForApp_WrapsWithoutLeadingPadding(t *testing.T) {
+	for _, width := range []int{80, 60, 40} {
+		for _, already := range []bool{false, true} {
+			t.Run(fmt.Sprintf("width%d_already%v", width, already), func(t *testing.T) {
+				path := "/Users/someone/code/launchdarkly/test-app/main.py"
+				m := wizardModel{
+					step:   stepWaitForApp,
+					width:  width,
+					height: 24,
+					initResult: &setup.InitResult{
+						FilePath:           path,
+						AlreadyInitialized: already,
+					},
+				}
+
+				view := m.View()
+
+				for _, line := range strings.Split(view, "\n") {
+					assert.LessOrEqual(t, len([]rune(line)), width,
+						"a line overflows a %d-column terminal", width)
+				}
+				// The path must start near the left edge, not after a row of padding.
+				for _, line := range strings.Split(view, "\n") {
+					if idx := strings.Index(line, "/Users/someone"); idx >= 0 {
+						assert.LessOrEqual(t, idx, 2, "the path is pushed right by padding")
+					}
+				}
+				// A path has no spaces to wrap on, so a narrow terminal hard-breaks it.
+				// Compare with whitespace removed to check nothing was lost.
+				assert.Contains(t, strings.Join(strings.Fields(view), ""), path)
+				if already {
+					assert.Contains(t, flat(view), "already initializes the LaunchDarkly SDK")
+				}
+			})
+		}
+	}
+}
+
+// A successful install can leave the user something to do — the SDK not recorded in
+// requirements.txt. Every screen reachable after that install has to say so, or the
+// note is lost when init needs a manual snippet or verification times out.
+func TestWizard_Done_InstallWarningShownOnEveryReachableScreen(t *testing.T) {
+	const warning = "pip installed launchdarkly-server-sdk but did not record it in requirements.txt"
+
+	cases := []struct {
+		name  string
+		model wizardModel
+	}{
+		{"verification succeeded", wizardModel{
+			step:         stepDone,
+			detectResult: &setup.DetectResult{SDKID: "python-server-sdk"},
+			verifyResult: &setup.VerifyResult{Active: true},
+		}},
+		{"verification timed out", wizardModel{
+			step:         stepDone,
+			detectResult: &setup.DetectResult{SDKID: "python-server-sdk"},
+			verifyResult: &setup.VerifyResult{Active: false},
+		}},
+		{"init needs a manual snippet", wizardModel{
+			step:         stepDone,
+			detectResult: &setup.DetectResult{SDKID: "python-server-sdk"},
+			initResult: &setup.InitResult{
+				SDKID: "python-server-sdk", Success: false,
+				Snippet: "import ldclient", DocsURL: "https://example.com",
+			},
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := c.model
+			m.width, m.height = 80, 30
+			m.installResult = &setup.InstallResult{Success: true, Warning: warning}
+
+			assert.Contains(t, flat(m.View()), warning,
+				"a successful install left something undone and this screen does not say so")
+		})
+	}
+}
