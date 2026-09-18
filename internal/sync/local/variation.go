@@ -8,6 +8,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/adrg/frontmatter"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	"gopkg.in/yaml.v3"
 )
@@ -29,6 +30,13 @@ type variationFrontMatter struct {
 	syncdomain.Variation `yaml:",inline"`
 }
 
+var yamlFrontMatter = frontmatter.NewFormat("---", "---", func(data []byte, destination any) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+
+	return decoder.Decode(destination)
+})
+
 func isVariationFile(relPath string) bool {
 	if !strings.HasSuffix(relPath, variationFileSuffix) {
 		return false
@@ -41,17 +49,10 @@ func isVariationFile(relPath string) bool {
 }
 
 func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
-	front, body, err := splitFrontMatter(file.Data)
+	var meta variationFrontMatter
+	body, err := parseYAMLFrontMatter(file.Data, &meta)
 	if err != nil {
 		return syncdomain.SyncedResource{}, err
-	}
-
-	var meta variationFrontMatter
-	decoder := yaml.NewDecoder(bytes.NewReader(front))
-	decoder.KnownFields(true)
-
-	if err := decoder.Decode(&meta); err != nil {
-		return syncdomain.SyncedResource{}, fmt.Errorf("invalid front matter: %w", err)
 	}
 
 	if err := validateVariation(file.RelPath, meta); err != nil {
@@ -122,50 +123,24 @@ func marshalPayload(value any) (json.RawMessage, error) {
 	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }
 
-func splitFrontMatter(data []byte) (front, body []byte, err error) {
-	source := bytes.TrimPrefix(data, []byte("\ufeff"))
-	source = bytes.TrimLeft(source, "\r\n")
-
-	if !bytes.HasPrefix(source, []byte("---")) {
-		return nil, nil, errors.New("missing YAML front matter")
+func parseYAMLFrontMatter(data []byte, destination any) ([]byte, error) {
+	source := bytes.TrimLeft(bytes.TrimPrefix(data, []byte("\ufeff")), "\r\n")
+	hasStart := bytes.Equal(source, []byte("---")) ||
+		bytes.HasPrefix(source, []byte("---\n")) ||
+		bytes.HasPrefix(source, []byte("---\r\n"))
+	if !hasStart {
+		return nil, errors.New("missing YAML front matter")
 	}
 
-	rest, ok := consumeLineEnding(source[3:])
-	if !ok {
-		return nil, nil, errors.New("missing YAML front matter")
+	body, err := frontmatter.MustParse(bytes.NewReader(source), destination, yamlFrontMatter)
+	if errors.Is(err, frontmatter.ErrNotFound) {
+		return nil, errors.New("unclosed YAML front matter")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("invalid front matter: %w", err)
 	}
 
-	index := bytes.Index(rest, []byte("\n---"))
-	if index < 0 {
-		return nil, nil, errors.New("unclosed YAML front matter")
-	}
-
-	front = bytes.TrimSpace(rest[:index])
-	after, ok := consumeLineEnding(rest[index+4:])
-	if !ok {
-		after = nil
-	}
-
-	return front, bytes.TrimSpace(after), nil
-}
-
-func consumeLineEnding(source []byte) ([]byte, bool) {
-	if len(source) == 0 {
-		return source, true
-	}
-	if source[0] == '\n' {
-		return source[1:], true
-	}
-	if source[0] == '\r' {
-		source = source[1:]
-		if len(source) > 0 && source[0] == '\n' {
-			source = source[1:]
-		}
-
-		return source, true
-	}
-
-	return source, false
+	return body, nil
 }
 
 var messageRoles = []string{"system", "user", "assistant"}
