@@ -65,6 +65,9 @@ func compileProjectVariations(
 
 	err := fs.WalkDir(fsys, dir, func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
+			if name == dir && errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			return err
 		}
 		if entry.IsDir() {
@@ -94,9 +97,6 @@ func compileProjectVariations(
 
 		return nil
 	})
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, err
 	}
