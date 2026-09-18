@@ -150,6 +150,28 @@ func TestCompile_SortsByProjectAndLookupKey(t *testing.T) {
 	assert.Equal(t, []string{"cfg/a", "cfg/b", "cfg/z"}, lookupKeys(resources))
 }
 
+func TestCompile_ReturnsFileMissingDuringWalk(t *testing.T) {
+	const missingPath = ".launchdarkly/proj-key/configs/cfg/z.prompt.md"
+	fsys := missingReadFileFS{
+		FS: fstest.MapFS{
+			".launchdarkly/proj-key/configs/cfg/a.prompt.md": &fstest.MapFile{
+				Data: []byte(minimalPrompt("a", "A")),
+			},
+			missingPath: &fstest.MapFile{
+				Data: []byte(minimalPrompt("z", "Z")),
+			},
+		},
+		path: missingPath,
+	}
+
+	_, err := Compile(fsys)
+
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	var pathErr *fs.PathError
+	require.ErrorAs(t, err, &pathErr)
+	assert.Equal(t, missingPath, pathErr.Path)
+}
+
 func TestCompile_ParseErrorIncludesPath(t *testing.T) {
 	fsys := fstest.MapFS{
 		".launchdarkly/proj-key/configs/my-config-key/wrong-name.prompt.md": &fstest.MapFile{
@@ -188,6 +210,18 @@ func TestErrNoDirectory_Is(t *testing.T) {
 
 func minimalPrompt(key, name string) string {
 	return "---\nformatVersion: 1\nmode: completion\nkey: " + key + "\nname: " + name + "\n---\n"
+}
+
+type missingReadFileFS struct {
+	fs.FS
+	path string
+}
+
+func (f missingReadFileFS) ReadFile(name string) ([]byte, error) {
+	if name == f.path {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+	}
+	return fs.ReadFile(f.FS, name)
 }
 
 func projectKeys(resources []syncdomain.SyncedResource) []string {
