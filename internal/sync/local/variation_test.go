@@ -75,6 +75,31 @@ Use the available capabilities.
 	assert.Empty(t, payload.Messages)
 }
 
+func TestParseVariation_ParsesBOMAndCRLF(t *testing.T) {
+	file := localFile{
+		ProjectKey: "proj",
+		RelPath:    "cfg/plain.prompt.md",
+		Data: []byte("\ufeff\r\n---\r\n" +
+			"formatVersion: 1\r\n" +
+			"mode: completion\r\n" +
+			"key: plain\r\n" +
+			"name: Plain\r\n" +
+			"---\r\n\r\n" +
+			"Just say hello.\r\n"),
+	}
+
+	resource, err := parseVariation(file)
+	require.NoError(t, err)
+
+	var payload syncdomain.Variation
+	require.NoError(t, unmarshalPayload(resource, &payload))
+	require.Equal(
+		t,
+		[]syncdomain.Message{{Role: "system", Content: "Just say hello."}},
+		payload.Messages,
+	)
+}
+
 func TestParseVariation_RejectsBodyFieldsInFrontMatter(t *testing.T) {
 	for _, field := range []string{
 		"instructions: Use the available capabilities.",
@@ -98,6 +123,22 @@ name: Agent
 			require.ErrorContains(t, err, "invalid front matter")
 		})
 	}
+}
+
+func TestParseVariation_RejectsUnclosedFrontMatter(t *testing.T) {
+	file := localFile{
+		ProjectKey: "proj",
+		RelPath:    "cfg/v.prompt.md",
+		Data: []byte(`---
+formatVersion: 1
+mode: completion
+key: v
+name: V
+`),
+	}
+
+	_, err := parseVariation(file)
+	require.ErrorContains(t, err, "unclosed YAML front matter")
 }
 
 func TestParseVariation_MismatchedTags(t *testing.T) {
