@@ -379,6 +379,20 @@ See each command's help for details on how to use the generated script.`, rootCm
 
 	err = rootCmd.Execute()
 
+	const updateCheckTimeout = 500 * time.Millisecond
+	waitForUpdateNotice := func() {
+		if skipUpdateCheck {
+			return
+		}
+		select {
+		case result := <-updateCh:
+			if result.info != nil && result.info.IsNewer {
+				fmt.Fprint(os.Stderr, update.NotificationMessage(result.info))
+			}
+		case <-time.After(updateCheckTimeout):
+		}
+	}
+
 	var outcome string
 	switch {
 	case rootCmd.HelpCalled():
@@ -386,6 +400,9 @@ See each command's help for details on how to use the generated script.`, rootCm
 	case err != nil:
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
+		// Give the background check time to persist its backoff cache before
+		// the process dies. os.Exit would otherwise discard that write.
+		waitForUpdateNotice()
 		os.Exit(1)
 	default:
 		outcome = analytics.SUCCESS
@@ -408,16 +425,7 @@ See each command's help for details on how to use the generated script.`, rootCm
 
 	analyticsClient.Wait()
 
-	const updateCheckTimeout = 500 * time.Millisecond
-	if !skipUpdateCheck {
-		select {
-		case result := <-updateCh:
-			if result.info != nil && result.info.IsNewer {
-				fmt.Fprint(os.Stderr, update.NotificationMessage(result.info))
-			}
-		case <-time.After(updateCheckTimeout):
-		}
-	}
+	waitForUpdateNotice()
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.

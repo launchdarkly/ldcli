@@ -132,6 +132,33 @@ func compareVersions(current, latest string) bool {
 	return false
 }
 
+func updateInfoIfNewer(currentVersion, latestVersion string) *UpdateInfo {
+	if !compareVersions(currentVersion, latestVersion) {
+		return nil
+	}
+	return &UpdateInfo{
+		CurrentVersion: currentVersion,
+		LatestVersion:  latestVersion,
+		IsNewer:        true,
+	}
+}
+
+func lastKnownLatest(cached *cacheEntry, currentVersion string) string {
+	if cached != nil && cached.LatestVersion != "" {
+		return cached.LatestVersion
+	}
+	return currentVersion
+}
+
+// persistCheckAttempt records a short-lived cache entry before a network fetch
+// so a process exit cannot drop the backoff TTL that prevents hammering GitHub.
+func persistCheckAttempt(currentVersion string, cached *cacheEntry) {
+	writeCache(&cacheEntry{
+		LatestVersion: lastKnownLatest(cached, currentVersion),
+		CheckedAt:     time.Now().Add(errorCacheTTL - cacheTTL),
+	})
+}
+
 // CheckForUpdate checks GitHub for the latest release and compares it to the
 // current version. It caches the result to avoid hitting the network on every
 // invocation. Returns nil when no update is available or on any error.
@@ -143,24 +170,18 @@ func CheckForUpdate(currentVersion string) *UpdateInfo {
 
 	cached, err := readCache()
 	if err == nil && time.Since(cached.CheckedAt) < cacheTTL {
-		if !compareVersions(currentVersion, cached.LatestVersion) {
-			return nil
-		}
-		return &UpdateInfo{
-			CurrentVersion: currentVersion,
-			LatestVersion:  cached.LatestVersion,
-			IsNewer:        true,
-		}
+		return updateInfoIfNewer(currentVersion, cached.LatestVersion)
 	}
+
+	// Write the backoff entry before the HTTP call. Fast commands and os.Exit
+	// often kill this goroutine before fetchLatestVersion returns, and without
+	// this write the next invocation would hit GitHub again immediately.
+	persistCheckAttempt(currentVersion, cached)
 
 	client := &http.Client{Timeout: httpTimeout}
 	latest, err := fetchLatestVersion(client)
 	if err != nil {
-		writeCache(&cacheEntry{
-			LatestVersion: currentVersion,
-			CheckedAt:     time.Now().Add(errorCacheTTL - cacheTTL),
-		})
-		return nil
+		return updateInfoIfNewer(currentVersion, lastKnownLatest(cached, currentVersion))
 	}
 
 	writeCache(&cacheEntry{
@@ -168,15 +189,7 @@ func CheckForUpdate(currentVersion string) *UpdateInfo {
 		CheckedAt:     time.Now(),
 	})
 
-	if !compareVersions(currentVersion, latest) {
-		return nil
-	}
-
-	return &UpdateInfo{
-		CurrentVersion: currentVersion,
-		LatestVersion:  latest,
-		IsNewer:        true,
-	}
+	return updateInfoIfNewer(currentVersion, latest)
 }
 
 // NotificationMessage returns a user-facing string about the available update.
