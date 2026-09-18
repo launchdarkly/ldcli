@@ -16,14 +16,16 @@ CI does **not** start `ldcli`, does **not** open the embedded UI, and does **not
 
 ```bash
 make build
-./ldcli dev-server start --port 8765
+./ldcli dev-server start --port 8765 --access-token dummy-for-local-smoke
 ```
 
+- `--access-token` is required on `dev-server start` (not in `authExemptCommands` in `cmd/root.go`). A dummy value is fine if you omit `--project` and `--source`.
 - Default port: `8765` (`cmd/cliflags.PortDefault`).
-- SQLite paths: XDG state `ldcli/dev_server.db` and `ldcli/dev_server_events.db` (`internal/dev_server/dev_server.go`).
-- UI: `http://127.0.0.1:8765/ui` (redirects to `/ui/flags`).
+- SQLite paths: XDG state `ldcli/dev_server.db` and `ldcli/dev_server_events.db` (`internal/dev_server/dev_server.go`). On Linux that is typically `~/.local/state/ldcli/`.
+- UI: `http://127.0.0.1:8765/ui` (redirects to `/ui/flags`). A successful empty boot returns HTTP 200 and a large single-file HTML bundle.
 - The binary serves `internal/dev_server/ui/dist` via `//go:embed` (`internal/dev_server/ui/asset_handler.go`). An npm bump is not in the shipped UI until you `npm run build` **and** `make build`.
-- Project sync only happens if both `--project` and the source-environment flag are set. Without credentials, start with no project flags and exercise the empty UI / local store.
+- Project sync only happens if both `--project` and the source-environment flag are set. Without a real token, start with no project flags and exercise the empty UI / local store.
+- Stale Dependabot branches are common (rebases get disabled after 30 days). Count commits behind `main` before treating a smoke as evidence about current `cmd/`.
 
 UI routes (`internal/dev_server/ui/src/App.tsx`):
 
@@ -94,7 +96,8 @@ These are the classification answers a verification agent should reach. They are
 - **Surface:** command tree, help, completion, usage templates.
 - **CI already:** command-construction unit tests.
 - **Gap:** CI does not execute the shipped binary's help/completion entrypoints. Cobra 1.10.0 pulled a pflag rename (`ParseErrorsWhitelist` → `ParseErrorsAllowlist`, restored as deprecated in pflag 1.0.9 / cobra 1.10.1).
-- **Extra check:** `make build` + help for root, `completion`, `dev-server`, `flags`, `setup`; `go test ./cmd/...`. Grep for `ParseErrorsWhitelist` / `ParseErrorsAllowlist`.
+- **Extra check:** `make build` + help for commands this branch actually has; `go test ./cmd/...`. Grep for `ParseErrorsWhitelist` / `ParseErrorsAllowlist`.
+- **Stale-branch note:** this PR has sat long enough that automatic rebases were disabled. A smoke on the Dependabot commit is not a smoke of cobra 1.10.2 against current `cmd/setup`.
 - **Video:** optional. A 20-second TTY help walk is enough; a browser is not.
 
 ### [#626](https://github.com/launchdarkly/ldcli/pull/626) — `golang.org/x/term` 0.33.0 → 0.36.0 (minor)

@@ -72,6 +72,19 @@ If you cannot name a gap, the mode is `NO_EXTRA`. Do not invent work.
 
 Check out the PR branch (worktree or `gh pr checkout`) so you are testing the upgraded versions, not `main`.
 
+Before building, measure staleness:
+
+```bash
+git fetch origin main
+git rev-list --left-right --count origin/main...HEAD
+```
+
+If the branch is more than a handful of commits behind `main`, say so in residual risk. Extra checks on a stale tree do not prove the upgrade against today's command tree. Do not treat missing commands (for example `setup` on an old branch) as an upgrade regression.
+
+Use a Go toolchain that satisfies `go.mod`. On images with an older system Go, `GOTOOLCHAIN=local` will fail with `go.mod requires go >= …`. Install or select that version; do not lower the module's Go line.
+
+Build help probes from **this branch's** command tree (`./ldcli --help`), not from a memorized main-era list.
+
 ### `CLI_SMOKE`
 
 ```bash
@@ -80,10 +93,9 @@ make build
 ./ldcli completion --help
 ./ldcli dev-server --help
 ./ldcli flags --help
-./ldcli setup --help
 ```
 
-Also run the Go tests that construct Cobra commands (`go test ./cmd/...`). Compare help text to the command tree: the root usage listing is hand-maintained in `cmd/templates.go`.
+Add other top-level commands that this branch actually lists. Also run `go test ./cmd/...`. The root usage listing is hand-maintained in `cmd/templates.go` — compare rendered help to that file on the same commit.
 
 For `x/term`: run the same help command once piped (`./ldcli --help | cat`) and once in a real TTY if computer use can open a terminal. `GetSize` falls back to width 80 when it fails — a piped run only proves the fallback.
 
@@ -94,15 +106,15 @@ For `x/term`: run the same help command once piped (`./ldcli --help | cat`) and 
 ```bash
 go test ./internal/dev_server/db/... ./internal/dev_server/events_db/... ./internal/dev_server/sdk/...
 make build
-./ldcli dev-server start --port 8765
+./ldcli dev-server start --port 8765 --access-token dummy-for-local-smoke
 ```
 
-Do **not** pass `--project` / `--source` unless you have a real token. The server boots an empty SQLite file without them.
+`--access-token` is a required persistent flag. `dev-server start` is not auth-exempt. A dummy token is enough when you omit `--project` and `--source` — the server still opens SQLite and serves `/ui`. Do not pass `--project` / `--source` unless you have a real token and intend to sync.
 
 Then:
 
-1. `curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8765/ui/`
-2. Confirm the process created `dev_server.db` under the XDG state dir.
+1. `curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8765/ui/` (expect 200 and a non-empty HTML document)
+2. Confirm the process created `dev_server.db` under the XDG state dir (`~/.local/state/ldcli/` on Linux).
 3. If computer use is available, open `http://127.0.0.1:8765/ui` and record the empty-project UI loading without a crash.
 4. Restart the process and confirm the same UI still serves (driver survived reopen).
 
