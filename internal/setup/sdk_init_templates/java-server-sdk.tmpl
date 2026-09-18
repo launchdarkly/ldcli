@@ -1,0 +1,11 @@
+import com.launchdarkly.sdk.*;
+import com.launchdarkly.sdk.server.*;
+// --- init ---
+LDClient ldClient = new LDClient("{{.SDKKey}}");
+
+LDContext context = LDContext.builder("example-user-key")
+    .name("Example User")
+    .build();
+
+boolean flagValue = ldClient.boolVariation("{{.FlagKey}}", context, false);
+System.out.println("Flag '{{.FlagKey}}' is " + flagValue);

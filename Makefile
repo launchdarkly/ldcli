@@ -7,7 +7,7 @@ generate:
 	go generate ./...
 
 install-hooks:
-	cp -r git/hooks/* .git/hooks/
+	pre-commit install
 
 log:
 	tail -f *.log

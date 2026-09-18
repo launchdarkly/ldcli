@@ -55,6 +55,11 @@ func CreateOrSyncProject(ctx context.Context, settings InitialProjectSettings) e
 		}
 	}
 
+	// Overrides are applied above; only the cosmetic variation names are deferred, and only in streaming mode.
+	if StreamStartupFromContext(ctx) {
+		FillVariationsAsync(ctx, settings.ProjectKey)
+	}
+
 	log.Printf("Successfully synced Initial project [%s]", project.Key)
 	return nil
 }

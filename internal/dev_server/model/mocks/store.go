@@ -192,6 +192,20 @@ func (mr *MockStoreMockRecorder) RestoreBackup(ctx, stream any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreBackup", reflect.TypeOf((*MockStore)(nil).RestoreBackup), ctx, stream)
 }
 
+// SetAvailableVariationsForProject mocks base method.
+func (m *MockStore) SetAvailableVariationsForProject(ctx context.Context, projectKey string, variations []model.FlagVariation) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAvailableVariationsForProject", ctx, projectKey, variations)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetAvailableVariationsForProject indicates an expected call of SetAvailableVariationsForProject.
+func (mr *MockStoreMockRecorder) SetAvailableVariationsForProject(ctx, projectKey, variations any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAvailableVariationsForProject", reflect.TypeOf((*MockStore)(nil).SetAvailableVariationsForProject), ctx, projectKey, variations)
+}
+
 // UpdateProject mocks base method.
 func (m *MockStore) UpdateProject(ctx context.Context, project model.Project) (bool, error) {
 	m.ctrl.T.Helper()

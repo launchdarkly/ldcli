@@ -1,5 +1,103 @@
 # Changelog
 
+## [3.11.0](https://github.com/launchdarkly/ldcli/compare/v3.10.0...v3.11.0) (2026-08-22)
+
+
+### Features
+
+* **setup:** Add new wizard `setup` command to the CLI ([#776](https://github.com/launchdarkly/ldcli/issues/776)) ([af9301d](https://github.com/launchdarkly/ldcli/commit/af9301daf34951f32e491cb4f6778446058f0c9a))
+
+
+### Bug Fixes
+
+* **deps:** resolve HIGH & CRITICAL Dependabot alerts ([#777](https://github.com/launchdarkly/ldcli/issues/777)) ([72f321c](https://github.com/launchdarkly/ldcli/commit/72f321c1bc743db868b86d8252815cf64a10d792))
+
+
+### Performance Improvements
+
+* Speed up dev server startup (two flavors: parallelism and streaming) ([#739](https://github.com/launchdarkly/ldcli/issues/739)) ([285d0db](https://github.com/launchdarkly/ldcli/commit/285d0dbf384ee574ca43334c43c986dfcde831e2))
+
+## [3.10.0](https://github.com/launchdarkly/ldcli/compare/v3.9.0...v3.10.0) (2026-08-05)
+
+
+### Features
+
+* **symbols:** derive the upload endpoint from --base-uri ([#773](https://github.com/launchdarkly/ldcli/issues/773)) ([f8ee593](https://github.com/launchdarkly/ldcli/commit/f8ee593562104296ba673166df53a689685d49c4))
+
+## [3.9.0](https://github.com/launchdarkly/ldcli/compare/v3.8.0...v3.9.0) (2026-08-05)
+
+
+### Features
+
+* **symbols:** key Android uploads by R8's map id, and upload dSYMs from an Xcode build ([#769](https://github.com/launchdarkly/ldcli/issues/769)) ([e361fa6](https://github.com/launchdarkly/ldcli/commit/e361fa6a2f651bbff90dcc9f8b5995470693d463))
+
+## [3.8.0](https://github.com/launchdarkly/ldcli/compare/v3.7.0...v3.8.0) (2026-08-01)
+
+
+### Features
+
+* **symbols:** build the R8 mapping index in the CLI ([#768](https://github.com/launchdarkly/ldcli/issues/768)) ([8693730](https://github.com/launchdarkly/ldcli/commit/8693730eb9930ad5a55626ad82dfc7a6316d934a))
+* **symbols:** zero-config Android uploads, and gzip what an upload sends ([#767](https://github.com/launchdarkly/ldcli/issues/767)) ([edcf301](https://github.com/launchdarkly/ldcli/commit/edcf3018f84e6b3c48e0e749eda5f5a5c18898a8))
+
+## [3.7.0](https://github.com/launchdarkly/ldcli/compare/v3.6.0...v3.7.0) (2026-07-31)
+
+
+### Features
+
+* **symbols:** skip uploading symbols LaunchDarkly already has ([#765](https://github.com/launchdarkly/ldcli/issues/765)) ([5dfc7a7](https://github.com/launchdarkly/ldcli/commit/5dfc7a717f43cf21ed03c8d4ff2be5e6631668cf))
+
+## [3.6.0](https://github.com/launchdarkly/ldcli/compare/v3.5.0...v3.6.0) (2026-07-28)
+
+
+### Features
+
+* **symbols:** upload Java/Kotlin sources with R8 mappings (--include-sources) ([#758](https://github.com/launchdarkly/ldcli/issues/758)) ([a303f6c](https://github.com/launchdarkly/ldcli/commit/a303f6c7baaa4fdd7a798822bc9730401a5bc412))
+
+## [3.5.0](https://github.com/launchdarkly/ldcli/compare/v3.4.0...v3.5.0) (2026-07-28)
+
+
+### Features
+
+* **symbols:** upload Swift/ObjC sources with dSYMs (--include-sources) ([#757](https://github.com/launchdarkly/ldcli/issues/757)) ([67a0092](https://github.com/launchdarkly/ldcli/commit/67a00921787522059a05a57bc0ab691920e5411a))
+
+## [3.4.0](https://github.com/launchdarkly/ldcli/compare/v3.3.0...v3.4.0) (2026-07-27)
+
+
+### Features
+
+* **symbols:** add Flutter (Dart AOT) symbol upload (--type flutter) ([#756](https://github.com/launchdarkly/ldcli/issues/756)) ([b372e2b](https://github.com/launchdarkly/ldcli/commit/b372e2ba9cc66db4630ed48a16ecc9ac01f18fb5))
+
+## [3.3.0](https://github.com/launchdarkly/ldcli/compare/v3.2.0...v3.3.0) (2026-07-23)
+
+
+### Features
+
+* **symbols:** Apple dSYM upload (dsymmap) ([#747](https://github.com/launchdarkly/ldcli/issues/747)) ([1d5553f](https://github.com/launchdarkly/ldcli/commit/1d5553f2d172da1717dc39bf8727d7450fb2da45))
+
+## [3.2.0](https://github.com/launchdarkly/ldcli/compare/v3.1.0...v3.2.0) (2026-07-20)
+
+
+### Features
+
+* **symbols:** add `symbols upload` command for React Native + Android symbols ([#745](https://github.com/launchdarkly/ldcli/issues/745)) ([8dae666](https://github.com/launchdarkly/ldcli/commit/8dae666d28c22068ba0b068adbc3f87804ef92e7))
+
+## [3.1.0](https://github.com/launchdarkly/ldcli/compare/v3.0.4...v3.1.0) (2026-07-10)
+
+
+### Features
+
+* [FD-5561] implement FDv2 polling endpoint GET /sdk/poll ([#701](https://github.com/launchdarkly/ldcli/issues/701)) ([8a1cda1](https://github.com/launchdarkly/ldcli/commit/8a1cda1be133629b820005ad62f507c17ad17a00))
+* [FD-5562] Adding FDv2 Stream endpoint support in the dev server ([#703](https://github.com/launchdarkly/ldcli/issues/703)) ([ff8c116](https://github.com/launchdarkly/ldcli/commit/ff8c1167de8c80163afaf9b05f07af58c575fa82))
+* add whoami command ([#657](https://github.com/launchdarkly/ldcli/issues/657)) ([d2cca65](https://github.com/launchdarkly/ldcli/commit/d2cca6573edae7d174831cb20eb1a707da04069e))
+* support React Native sourcemaps in sourcemaps upload ([#735](https://github.com/launchdarkly/ldcli/issues/735)) ([e41a87f](https://github.com/launchdarkly/ldcli/commit/e41a87fb47c6bbb00fa7eb33eda5eb630a5661e2))
+
+
+### Bug Fixes
+
+* prevent subcommands from showing root-level commands in help output ([#730](https://github.com/launchdarkly/ldcli/issues/730)) ([ca49101](https://github.com/launchdarkly/ldcli/commit/ca49101740c24be673c002a1752001ea48528a95))
+* **REL-13522:** convert kebab-case query params to camelCase ([#705](https://github.com/launchdarkly/ldcli/issues/705)) ([98700e4](https://github.com/launchdarkly/ldcli/commit/98700e4f94f8c2fa90c227e8831e967a6360260d))
+* update install-hooks target to use pre-commit install ([#731](https://github.com/launchdarkly/ldcli/issues/731)) ([424147f](https://github.com/launchdarkly/ldcli/commit/424147fea6bd6818e4c2ba5bbc99afb35dd4744c))
+
 ## [3.0.4](https://github.com/launchdarkly/ldcli/compare/v3.0.3...v3.0.4) (2026-04-21)
 
 
