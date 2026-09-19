@@ -25,8 +25,8 @@ func TestResolverUsesGitSourceWhenAvailable(t *testing.T) {
 	resolver.findGitSource = func(string) (repository.GitRepository, bool, error) {
 		return repository.GitRepository{Root: root, Source: gitSource}, true, nil
 	}
-	resolver.ensureInstallationID = func(string) (string, error) {
-		t.Fatal("Git source must not create an installation ID")
+	resolver.ensureLocalSyncID = func(string) (string, error) {
+		t.Fatal("Git source must not create a local sync ID")
 
 		return "", nil
 	}
@@ -44,7 +44,7 @@ func TestResolverUsesStableLocalSourceFromWorkspaceRoot(t *testing.T) {
 	nested := filepath.Join(root, "services", "api")
 	require.NoError(t, os.MkdirAll(nested, 0o755))
 
-	resolver := localResolver("installation-id")
+	resolver := localResolver("local-sync-id")
 
 	first, err := resolver.Resolve(nested)
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestResolverUsesStableLocalSourceFromWorkspaceRoot(t *testing.T) {
 	assert.Equal(t, syncdomain.SourceTypeLocal, first.Source.Type())
 	assert.Equal(
 		t,
-		localSourceIdentifier("installation-id", expectedRoot),
+		localSourceIdentifier("local-sync-id", expectedRoot),
 		first.Source.Identifier(),
 	)
 	assert.NotContains(t, first.Source.Identifier(), expectedRoot)
@@ -68,7 +68,7 @@ func TestResolverUsesStableLocalSourceFromWorkspaceRoot(t *testing.T) {
 
 func TestResolverUsesCurrentDirectoryBeforeBootstrap(t *testing.T) {
 	root := t.TempDir()
-	resolver := localResolver("installation-id")
+	resolver := localResolver("local-sync-id")
 
 	workspace, err := resolver.Resolve(root)
 
@@ -77,7 +77,7 @@ func TestResolverUsesCurrentDirectoryBeforeBootstrap(t *testing.T) {
 	assert.Equal(t, expectedRoot, workspace.Root)
 	assert.Equal(
 		t,
-		localSourceIdentifier("installation-id", expectedRoot),
+		localSourceIdentifier("local-sync-id", expectedRoot),
 		workspace.Source.Identifier(),
 	)
 }
@@ -104,22 +104,22 @@ func TestResolverCanonicalizesSymlinkedWorkspace(t *testing.T) {
 	link := filepath.Join(t.TempDir(), "workspace")
 	require.NoError(t, os.Symlink(root, link))
 
-	workspace, err := localResolver("installation-id").Resolve(link)
+	workspace, err := localResolver("local-sync-id").Resolve(link)
 
 	require.NoError(t, err)
 	expectedRoot := requireCanonicalPath(t, root)
 	assert.Equal(t, expectedRoot, workspace.Root)
 	assert.Equal(
 		t,
-		localSourceIdentifier("installation-id", expectedRoot),
+		localSourceIdentifier("local-sync-id", expectedRoot),
 		workspace.Source.Identifier(),
 	)
 }
 
 func TestResolverChangesLocalIdentityWhenWorkspaceMoves(t *testing.T) {
-	first, err := localResolver("installation-id").Resolve(t.TempDir())
+	first, err := localResolver("local-sync-id").Resolve(t.TempDir())
 	require.NoError(t, err)
-	second, err := localResolver("installation-id").Resolve(t.TempDir())
+	second, err := localResolver("local-sync-id").Resolve(t.TempDir())
 	require.NoError(t, err)
 
 	assert.NotEqual(t, first.Source.Identifier(), second.Source.Identifier())
@@ -127,7 +127,7 @@ func TestResolverChangesLocalIdentityWhenWorkspaceMoves(t *testing.T) {
 
 func TestResolverReturnsGitAndConfigErrors(t *testing.T) {
 	t.Run("invalid Git source", func(t *testing.T) {
-		resolver := localResolver("installation-id")
+		resolver := localResolver("local-sync-id")
 		resolver.findGitSource = func(string) (repository.GitRepository, bool, error) {
 			return repository.GitRepository{}, false, errors.New("invalid origin")
 		}
@@ -136,9 +136,9 @@ func TestResolverReturnsGitAndConfigErrors(t *testing.T) {
 		require.ErrorContains(t, err, "invalid origin")
 	})
 
-	t.Run("installation ID", func(t *testing.T) {
-		resolver := localResolver("installation-id")
-		resolver.ensureInstallationID = func(string) (string, error) {
+	t.Run("local sync ID", func(t *testing.T) {
+		resolver := localResolver("local-sync-id")
+		resolver.ensureLocalSyncID = func(string) (string, error) {
 			return "", errors.New("config unavailable")
 		}
 
@@ -147,13 +147,13 @@ func TestResolverReturnsGitAndConfigErrors(t *testing.T) {
 	})
 }
 
-func localResolver(installationID string) Resolver {
+func localResolver(localSyncID string) Resolver {
 	resolver := NewResolver("config.yml")
 	resolver.findGitSource = func(string) (repository.GitRepository, bool, error) {
 		return repository.GitRepository{}, false, nil
 	}
-	resolver.ensureInstallationID = func(string) (string, error) {
-		return installationID, nil
+	resolver.ensureLocalSyncID = func(string) (string, error) {
+		return localSyncID, nil
 	}
 
 	return resolver

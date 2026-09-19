@@ -11,9 +11,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const installationIDKey = "installation-id"
+const localSyncIDKey = "local-sync-id"
 
-func EnsureInstallationID(filename string) (string, error) {
+func EnsureLocalSyncID(filename string) (string, error) {
 	if strings.TrimSpace(filename) == "" {
 		return "", errors.New("config filename is required")
 	}
@@ -23,23 +23,23 @@ func EnsureInstallationID(filename string) (string, error) {
 		return "", err
 	}
 
-	if value, ok := values[installationIDKey]; ok {
-		installationID, ok := value.(string)
-		if !ok || uuid.Validate(installationID) != nil {
-			return "", errors.New("ldcli installation ID in config is invalid")
+	if value, ok := values[localSyncIDKey]; ok {
+		localSyncID, ok := value.(string)
+		if !ok || uuid.Validate(localSyncID) != nil {
+			return "", errors.New("local sync ID in ldcli config is invalid")
 		}
 
-		return installationID, nil
+		return localSyncID, nil
 	}
 
-	installationID := uuid.NewString()
-	values[installationIDKey] = installationID
+	localSyncID := uuid.NewString()
+	values[localSyncIDKey] = localSyncID
 
 	if err := writeConfigValues(filename, values, mode); err != nil {
 		return "", err
 	}
 
-	return installationID, nil
+	return localSyncID, nil
 }
 
 func readConfigValues(filename string) (map[string]any, os.FileMode, error) {
