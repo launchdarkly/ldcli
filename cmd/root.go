@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -39,6 +40,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/launchdarkly/ldcli/internal/setup"
+	"github.com/launchdarkly/ldcli/internal/update"
 )
 
 type APIClients struct {
@@ -362,7 +364,41 @@ See each command's help for details on how to use the generated script.`, rootCm
 
 	rootCmd.cmd.SetUsageTemplate(getUsageTemplate())
 
+	// Start update check in the background so it runs in parallel with command execution.
+	type updateResult struct {
+		info *update.UpdateInfo
+	}
+	updateCh := make(chan updateResult, 1)
+	skipUpdateCheck := viper.GetBool(cliflags.UpdateCheckOptOut) ||
+		!term.IsTerminal(int(os.Stderr.Fd()))
+	if !skipUpdateCheck {
+		go func() {
+			updateCh <- updateResult{info: update.CheckForUpdate(version)}
+		}()
+	}
+
 	err = rootCmd.Execute()
+
+	const updateCheckTimeout = time.Second
+	waitForUpdateNotice := func() {
+		if skipUpdateCheck {
+			return
+		}
+		// Already know there's a newer version? Just say so.
+		if info := update.CachedUpdate(version); info != nil {
+			fmt.Fprint(os.Stderr, update.NotificationMessage(info))
+			return
+		}
+		// Otherwise give this check a second. The cache is already on
+		// disk, so the next command can still show it if we time out.
+		select {
+		case result := <-updateCh:
+			if result.info != nil && result.info.IsNewer {
+				fmt.Fprint(os.Stderr, update.NotificationMessage(result.info))
+			}
+		case <-time.After(updateCheckTimeout):
+		}
+	}
 
 	var outcome string
 	switch {
@@ -371,6 +407,9 @@ See each command's help for details on how to use the generated script.`, rootCm
 	case err != nil:
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
+		// Give the background check a moment to write the cache. os.Exit
+		// would otherwise kill it immediately.
+		waitForUpdateNotice()
 		os.Exit(1)
 	default:
 		outcome = analytics.SUCCESS
@@ -392,6 +431,8 @@ See each command's help for details on how to use the generated script.`, rootCm
 	}
 
 	analyticsClient.Wait()
+
+	waitForUpdateNotice()
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
