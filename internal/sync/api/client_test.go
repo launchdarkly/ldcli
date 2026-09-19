@@ -245,6 +245,88 @@ func TestClientPlanRejectsInvalidResponse(t *testing.T) {
 	require.ErrorContains(t, err, "decode plan response")
 }
 
+func TestClientApply(t *testing.T) {
+	transport := &recordingClient{
+		Responses: [][]byte{[]byte(`{
+			"planId": "617c83f1-cd9a-4865-8f37-bb11f88e2147",
+			"status": "applied",
+			"appliedAt": "2026-09-19T12:00:00Z",
+			"resources": [{
+				"resourceKind": "variation",
+				"lookupKey": "config/first",
+				"status": "conflict",
+				"syncDirection": "both",
+				"applyStatus": "applied"
+			}]
+		}`)},
+	}
+	client := NewClient(transport)
+	resolutions := []ConflictResolution{{
+		ResourceKind: syncdomain.KindVariation,
+		LookupKey:    "config/first",
+		Resolution:   "use_local",
+	}}
+
+	result, err := client.Apply(
+		"token",
+		"https://example.com",
+		"project",
+		"617c83f1-cd9a-4865-8f37-bb11f88e2147",
+		resolutions,
+	)
+
+	require.NoError(t, err)
+	require.Len(t, transport.Requests, 1)
+	request := transport.Requests[0]
+	assert.Equal(t, "POST", request.Method)
+	assert.Equal(
+		t,
+		"https://example.com/api/v2/projects/project/ai-configs/sync/apply",
+		request.Path,
+	)
+	assert.Equal(t, "application/json", request.ContentType)
+	var body applyRequest
+	require.NoError(t, json.Unmarshal(request.Body, &body))
+	assert.Equal(t, "617c83f1-cd9a-4865-8f37-bb11f88e2147", body.PlanID)
+	assert.Equal(t, resolutions, body.Resolutions)
+	assert.Equal(t, "project", result.ProjectKey)
+	assert.Equal(t, PlanStatusApplied, result.Status)
+	require.Len(t, result.Resources, 1)
+	assert.Equal(t, ResourceApplyStatusApplied, result.Resources[0].ApplyStatus)
+}
+
+func TestClientApplyRejectsInvalidResponse(t *testing.T) {
+	client := NewClient(&recordingClient{
+		Responses: [][]byte{[]byte(`{"resources":[]}`)},
+	})
+
+	_, err := client.Apply(
+		"token",
+		"https://example.com",
+		"project",
+		"617c83f1-cd9a-4865-8f37-bb11f88e2147",
+		nil,
+	)
+
+	require.ErrorContains(t, err, "planId and status are required")
+}
+
+func TestClientApplyReturnsTransportError(t *testing.T) {
+	client := NewClient(&recordingClient{
+		Err: errors.New("sync plan has expired"),
+	})
+
+	_, err := client.Apply(
+		"token",
+		"https://example.com",
+		"project",
+		"617c83f1-cd9a-4865-8f37-bb11f88e2147",
+		nil,
+	)
+
+	require.ErrorContains(t, err, "sync plan has expired")
+}
+
 func variationResource(
 	projectKey string,
 	lookupKey string,

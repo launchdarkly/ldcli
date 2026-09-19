@@ -12,6 +12,29 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
+func TestStore_ProjectKeys(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(root)
+	require.NoError(t, os.MkdirAll(
+		filepath.Join(root, syncdomain.RootDir, "zeta"),
+		0o755,
+	))
+	require.NoError(t, os.MkdirAll(
+		filepath.Join(root, syncdomain.RootDir, "alpha"),
+		0o755,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, syncdomain.RootDir, "README"),
+		nil,
+		0o644,
+	))
+
+	keys, err := store.ProjectKeys()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"alpha", "zeta"}, keys)
+}
+
 func TestStore_BootstrapRoundTripsSupportedModes(t *testing.T) {
 	root := t.TempDir()
 	resources := []VariationFile{

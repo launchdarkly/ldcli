@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
@@ -47,6 +48,22 @@ func (s Store) Exists() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (s Store) ProjectKeys() ([]string, error) {
+	entries, err := os.ReadDir(s.root)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", s.root, err)
+	}
+
+	var keys []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			keys = append(keys, entry.Name())
+		}
+	}
+	slices.Sort(keys)
+	return keys, nil
 }
 
 func (s Store) VariationExists(projectKey, configKey, variationKey string) (bool, error) {

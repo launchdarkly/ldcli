@@ -48,6 +48,54 @@ type ProjectPlan struct {
 	Resources  []PlannedResource `json:"resources"`
 }
 
+type PlanStatus string
+
+const (
+	PlanStatusApplied PlanStatus = "applied"
+	PlanStatusFailed  PlanStatus = "failed"
+)
+
+type ResourceApplyStatus string
+
+const (
+	ResourceApplyStatusPending                ResourceApplyStatus = "pending"
+	ResourceApplyStatusApplied                ResourceApplyStatus = "applied"
+	ResourceApplyStatusFailed                 ResourceApplyStatus = "failed"
+	ResourceApplyStatusNotAttempted           ResourceApplyStatus = "not_attempted"
+	ResourceApplyStatusReconciliationRequired ResourceApplyStatus = "reconciliation_required"
+)
+
+type AppliedResource struct {
+	ResourceKind  syncdomain.Kind     `json:"resourceKind"`
+	LookupKey     string              `json:"lookupKey"`
+	Status        ResourceStatus      `json:"status"`
+	SyncDirection SyncDirection       `json:"syncDirection"`
+	ApplyStatus   ResourceApplyStatus `json:"applyStatus"`
+	Diff          json.RawMessage     `json:"diff,omitempty"`
+	Error         *ResourceError      `json:"error,omitempty"`
+	ApplyError    *ResourceError      `json:"applyError,omitempty"`
+}
+
+type ProjectApply struct {
+	ProjectKey string            `json:"-"`
+	PlanID     string            `json:"planId"`
+	Status     PlanStatus        `json:"status"`
+	AppliedAt  string            `json:"appliedAt,omitempty"`
+	Error      *ResourceError    `json:"error,omitempty"`
+	Resources  []AppliedResource `json:"resources"`
+}
+
+type ConflictResolution struct {
+	ResourceKind syncdomain.Kind `json:"resourceKind"`
+	LookupKey    string          `json:"lookupKey"`
+	Resolution   string          `json:"resolution"`
+}
+
+type applyRequest struct {
+	PlanID      string               `json:"planId"`
+	Resolutions []ConflictResolution `json:"resolutions,omitempty"`
+}
+
 type planRequest struct {
 	Source    sourceRequest   `json:"source"`
 	DryRun    bool            `json:"dryRun"`
@@ -98,6 +146,57 @@ func (client Client) Plan(
 	}
 
 	return plans, nil
+}
+
+func (client Client) Apply(
+	accessToken string,
+	baseURI string,
+	projectKey string,
+	planID string,
+	resolutions []ConflictResolution,
+) (ProjectApply, error) {
+	body, err := json.MarshalIndent(applyRequest{
+		PlanID:      planID,
+		Resolutions: resolutions,
+	}, "", "  ")
+	if err != nil {
+		return ProjectApply{}, fmt.Errorf("marshal apply request: %w", err)
+	}
+
+	endpoint, err := url.JoinPath(
+		baseURI,
+		"api/v2/projects",
+		projectKey,
+		"ai-configs/sync/apply",
+	)
+	if err != nil {
+		return ProjectApply{}, fmt.Errorf("build apply endpoint: %w", err)
+	}
+
+	response, err := client.transport.MakeRequest(
+		accessToken,
+		http.MethodPost,
+		endpoint,
+		"application/json",
+		nil,
+		body,
+		false,
+	)
+	if err != nil {
+		return ProjectApply{}, err
+	}
+
+	var result ProjectApply
+	if err := json.Unmarshal(response, &result); err != nil {
+		return ProjectApply{}, fmt.Errorf("decode apply response: %w", err)
+	}
+	if result.PlanID == "" || result.Status == "" {
+		return ProjectApply{}, fmt.Errorf(
+			"decode apply response: planId and status are required",
+		)
+	}
+	result.ProjectKey = projectKey
+	return result, nil
 }
 
 func (client Client) planProject(

@@ -149,9 +149,71 @@ func TestPromptPlansWithoutDryRunByDefault(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	client := &recordingClient{
+		Responses: [][]byte{
+			[]byte(`{
+				"planId": "617c83f1-cd9a-4865-8f37-bb11f88e2147",
+				"expiresAt": "2026-12-14T12:00:00Z",
+				"resources": []
+			}`),
+			[]byte(`{
+				"planId": "617c83f1-cd9a-4865-8f37-bb11f88e2147",
+				"status": "applied",
+				"appliedAt": "2026-09-19T12:00:00Z",
+				"resources": []
+			}`),
+		},
+	}
+
+	stdout, _, err := cmd.CallCmdCapturingStderr(
+		t,
+		cmd.APIClients{ResourcesClient: client},
+		analytics.NoopClientFn{}.Tracker(),
+		[]string{
+			"sync", "prompt",
+			"--yes",
+			"--access-token", "token",
+			"--base-uri", "https://example.com",
+			"--output", "json",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, client.Requests, 2)
+
+	var body struct {
+		DryRun bool `json:"dryRun"`
+	}
+	require.NoError(t, json.Unmarshal(client.Requests[0].Body, &body))
+	assert.False(t, body.DryRun)
+	assert.Equal(
+		t,
+		"https://example.com/api/v2/projects/project/ai-configs/sync/apply",
+		client.Requests[1].Path,
+	)
+	var output struct {
+		Plans   []map[string]any `json:"plans"`
+		Applies []map[string]any `json:"applies"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &output))
+	require.Len(t, output.Plans, 1)
+	require.Len(t, output.Applies, 1)
+	assert.Equal(
+		t,
+		"617c83f1-cd9a-4865-8f37-bb11f88e2147",
+		output.Applies[0]["planId"],
+	)
+}
+
+func TestPromptAppliesExistingPlanWithInferredProject(t *testing.T) {
+	repository := initRepository(t)
+	writePrompt(t, repository, "project", "support", "default", true)
+	t.Chdir(repository)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	planID := "617c83f1-cd9a-4865-8f37-bb11f88e2147"
+	client := &recordingClient{
 		Responses: [][]byte{[]byte(`{
-			"planId": "617c83f1-cd9a-4865-8f37-bb11f88e2147",
-			"expiresAt": "2026-12-14T12:00:00Z",
+			"planId": "` + planID + `",
+			"status": "applied",
 			"resources": []
 		}`)},
 	}
@@ -162,6 +224,77 @@ func TestPromptPlansWithoutDryRunByDefault(t *testing.T) {
 		analytics.NoopClientFn{}.Tracker(),
 		[]string{
 			"sync", "prompt",
+			"--apply", planID,
+			"--access-token", "token",
+			"--base-uri", "https://example.com",
+			"--output", "json",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, client.Requests, 1)
+	assert.Equal(
+		t,
+		"https://example.com/api/v2/projects/project/ai-configs/sync/apply",
+		client.Requests[0].Path,
+	)
+	assert.NotContains(t, client.Requests[0].Path, "/sync/plan")
+	var body struct {
+		PlanID string `json:"planId"`
+	}
+	require.NoError(t, json.Unmarshal(client.Requests[0].Body, &body))
+	assert.Equal(t, planID, body.PlanID)
+	var output struct {
+		Applies []map[string]any `json:"applies"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &output))
+	require.Len(t, output.Applies, 1)
+}
+
+func TestPromptApplyRequiresProjectForMultipleWorkspaceProjects(t *testing.T) {
+	repository := initRepository(t)
+	writePrompt(t, repository, "alpha", "support", "first", true)
+	writePrompt(t, repository, "zeta", "support", "second", true)
+	t.Chdir(repository)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	client := &recordingClient{}
+
+	_, _, err := cmd.CallCmdCapturingStderr(
+		t,
+		cmd.APIClients{ResourcesClient: client},
+		analytics.NoopClientFn{}.Tracker(),
+		[]string{
+			"sync", "prompt",
+			"--apply", "617c83f1-cd9a-4865-8f37-bb11f88e2147",
+			"--access-token", "token",
+		},
+	)
+
+	require.ErrorContains(t, err, "--project is required")
+	assert.Empty(t, client.Requests)
+}
+
+func TestPromptApplyUsesExplicitProjectWithoutWorkspace(t *testing.T) {
+	workspace := t.TempDir()
+	t.Chdir(workspace)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	planID := "617c83f1-cd9a-4865-8f37-bb11f88e2147"
+	client := &recordingClient{
+		Responses: [][]byte{[]byte(`{
+			"planId": "` + planID + `",
+			"status": "applied",
+			"resources": []
+		}`)},
+	}
+
+	_, _, err := cmd.CallCmdCapturingStderr(
+		t,
+		cmd.APIClients{ResourcesClient: client},
+		analytics.NoopClientFn{}.Tracker(),
+		[]string{
+			"sync", "prompt",
+			"--apply", planID,
+			"--project", "explicit-project",
 			"--access-token", "token",
 			"--base-uri", "https://example.com",
 		},
@@ -169,14 +302,133 @@ func TestPromptPlansWithoutDryRunByDefault(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, client.Requests, 1)
+	assert.Contains(t, client.Requests[0].Path, "/projects/explicit-project/")
+}
 
-	var body struct {
-		DryRun bool `json:"dryRun"`
+func TestPromptApplyRejectsIncompatibleFlags(t *testing.T) {
+	repository := initRepository(t)
+	writePrompt(t, repository, "project", "support", "default", true)
+	t.Chdir(repository)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	client := &recordingClient{}
+
+	_, _, err := cmd.CallCmdCapturingStderr(
+		t,
+		cmd.APIClients{ResourcesClient: client},
+		analytics.NoopClientFn{}.Tracker(),
+		[]string{
+			"sync", "prompt",
+			"--apply", "617c83f1-cd9a-4865-8f37-bb11f88e2147",
+			"--dry-run",
+			"--access-token", "token",
+		},
+	)
+
+	require.ErrorContains(t, err, "--apply cannot be used")
+	assert.Empty(t, client.Requests)
+}
+
+func TestPromptRequiresYesForNonInteractiveApply(t *testing.T) {
+	repository := initRepository(t)
+	writePrompt(t, repository, "project", "support", "default", true)
+	t.Chdir(repository)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	client := &recordingClient{
+		Responses: [][]byte{[]byte(`{
+			"planId": "617c83f1-cd9a-4865-8f37-bb11f88e2147",
+			"expiresAt": "2026-12-14T12:00:00Z",
+			"resources": []
+		}`)},
 	}
-	require.NoError(t, json.Unmarshal(client.Requests[0].Body, &body))
-	assert.False(t, body.DryRun)
-	assert.Contains(t, string(stdout), "planId=617c83f1-cd9a-4865-8f37-bb11f88e2147")
-	assert.Contains(t, string(stdout), "expiresAt=2026-12-14T12:00:00Z")
+
+	_, _, err := cmd.CallCmdCapturingStderr(
+		t,
+		cmd.APIClients{ResourcesClient: client},
+		analytics.NoopClientFn{}.Tracker(),
+		[]string{
+			"sync", "prompt",
+			"--access-token", "token",
+			"--base-uri", "https://example.com",
+		},
+	)
+
+	require.ErrorContains(t, err, "rerun with --yes")
+	require.Len(t, client.Requests, 1)
+	assert.Contains(t, client.Requests[0].Path, "/sync/plan")
+}
+
+func TestPromptDoesNotApplyUnresolvedConflict(t *testing.T) {
+	repository := initRepository(t)
+	writePrompt(t, repository, "project", "support", "default", true)
+	t.Chdir(repository)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	client := &recordingClient{
+		Responses: [][]byte{[]byte(`{
+			"planId": "617c83f1-cd9a-4865-8f37-bb11f88e2147",
+			"expiresAt": "2026-12-14T12:00:00Z",
+			"resources": [{
+				"resourceKind": "variation",
+				"lookupKey": "support/default",
+				"status": "conflict",
+				"syncDirection": "both"
+			}]
+		}`)},
+	}
+
+	_, _, err := cmd.CallCmdCapturingStderr(
+		t,
+		cmd.APIClients{ResourcesClient: client},
+		analytics.NoopClientFn{}.Tracker(),
+		[]string{
+			"sync", "prompt",
+			"--yes",
+			"--access-token", "token",
+			"--base-uri", "https://example.com",
+		},
+	)
+
+	require.ErrorContains(t, err, "conflict selection is not supported yet")
+	require.Len(t, client.Requests, 1)
+}
+
+func TestPromptAppliesEachProjectPlan(t *testing.T) {
+	repository := initRepository(t)
+	writePrompt(t, repository, "alpha", "support", "first", true)
+	writePrompt(t, repository, "zeta", "support", "second", true)
+	t.Chdir(repository)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	alphaPlanID := "617c83f1-cd9a-4865-8f37-bb11f88e2147"
+	zetaPlanID := "91929a37-79de-4eba-bc73-07c10fa87f2f"
+	client := &recordingClient{
+		Responses: [][]byte{
+			[]byte(`{"planId":"` + alphaPlanID + `","expiresAt":"2026-12-14T12:00:00Z","resources":[]}`),
+			[]byte(`{"planId":"` + zetaPlanID + `","expiresAt":"2026-12-14T12:00:00Z","resources":[]}`),
+			[]byte(`{"planId":"` + alphaPlanID + `","status":"applied","resources":[]}`),
+			[]byte(`{"planId":"` + zetaPlanID + `","status":"applied","resources":[]}`),
+		},
+	}
+
+	_, _, err := cmd.CallCmdCapturingStderr(
+		t,
+		cmd.APIClients{ResourcesClient: client},
+		analytics.NoopClientFn{}.Tracker(),
+		[]string{
+			"sync", "prompt",
+			"--yes",
+			"--access-token", "token",
+			"--base-uri", "https://example.com",
+			"--output", "json",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, client.Requests, 4)
+	assert.Contains(t, client.Requests[0].Path, "/projects/alpha/")
+	assert.Contains(t, client.Requests[1].Path, "/projects/zeta/")
+	assert.Contains(t, client.Requests[2].Path, "/projects/alpha/")
+	assert.Contains(t, client.Requests[3].Path, "/projects/zeta/")
+	assert.Contains(t, string(client.Requests[2].Body), alphaPlanID)
+	assert.Contains(t, string(client.Requests[3].Body), zetaPlanID)
 }
 
 func TestPromptPreviewUsesLocalSourceOutsideGit(t *testing.T) {
@@ -257,7 +509,8 @@ func TestPromptPreviewGroupsRequestsByProject(t *testing.T) {
 	assert.Contains(t, client.Requests[1].Path, "/projects/zeta/")
 	assert.Contains(t, string(stdout), "server_changed")
 	assert.NotContains(t, string(stdout), "action=")
-	assert.Contains(t, string(stdout), "diff=")
+	assert.Contains(t, string(stdout), "Before:")
+	assert.Contains(t, string(stdout), "After:")
 }
 
 func TestPromptPreviewWithoutResourcesMakesNoRequest(t *testing.T) {
