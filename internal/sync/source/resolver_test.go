@@ -84,9 +84,9 @@ func TestResolverUsesCurrentDirectoryBeforeBootstrap(t *testing.T) {
 
 func TestResolverRootDoesNotCreateLocalIdentity(t *testing.T) {
 	root := t.TempDir()
-	resolver := localResolver("installation-id")
-	resolver.ensureInstallationID = func(string) (string, error) {
-		t.Fatal("resolving a root must not create an installation ID")
+	resolver := localResolver("local-sync-id")
+	resolver.ensureLocalSyncID = func(string) (string, error) {
+		t.Fatal("resolving a root must not create a local sync ID")
 
 		return "", nil
 	}
