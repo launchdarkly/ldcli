@@ -59,7 +59,7 @@ ldcli Dependabot covers `gomod` (repo root), `npm` (`/` and `/internal/dev_serve
 
 | Package | Mode | Extra check |
 | --- | --- | --- |
-| `react`, `react-dom`, `react-router` | `UI_COMPUTER_USE` | Rebuild embed, boot server, click all three nav routes. Router majors (7 → 8) are `ESCALATE` until the app still renders |
+| `react`, `react-dom`, `react-router` | `UI_COMPUTER_USE` | Rebuild embed, boot server, click all three nav routes. A router major is `ESCALATE` until the app still renders |
 | `@launchpad-ui/core`, `components`, `icons`, `tokens` | `UI_COMPUTER_USE` | Same; look for unstyled / missing primitives |
 | `launchdarkly-js-client-sdk` | `UI_COMPUTER_USE` | UI must still boot; client-side evaluate may be empty without a client-side ID |
 | `lodash`, `fuzzysort`, `react-window` | `UI_COMPUTER_USE` | Flags list / search / virtualized rows |
@@ -75,58 +75,3 @@ ldcli Dependabot covers `gomod` (repo root), `npm` (`/` and `/internal/dev_serve
 | `actions/checkout`, `actions/setup-go`, `actions/setup-node`, `actions/setup-python` | `CI_ONLY` | Read the workflow. Majors that change default Node/Go setup are `ESCALATE` |
 | `googleapis/release-please-action` | `CI_ONLY` | Do not run a release |
 | `alpine` in `Dockerfile.goreleaser` | `CI_ONLY` | Optional: `docker build` if Docker is available; otherwise changelog + escalate native deps |
-
-## Worked examples (ldcli Dependabot PRs)
-
-These are the classification answers a verification agent should reach. They are not merge approvals.
-
-### [#726](https://github.com/launchdarkly/ldcli/pull/726) — `go-sqlite3` 1.14.28 → 1.14.47 (patch)
-
-- **Mode:** `STORE_SMOKE`
-- **Surface:** CGO SQLite driver for local dev-server + events DB + backup/restore.
-- **CI already:** `go test ./...` includes `internal/dev_server/db/backup` and SDK tests that open a real sqlite store.
-- **Gap:** CI never starts the HTTP server, never opens a second connection after process restart, never hits `/ui`.
-- **Extra check:** targeted store tests, `make build`, `ldcli dev-server start`, curl `/ui/`, confirm `dev_server.db` exists, optional computer-use load of the empty UI, restart once.
-- **Video:** yes if the UI process is up — prove `/ui/flags` renders after the driver bump. Skip if CGO cannot build.
-- **Watch:** CString leak / callback ordering fixes are driver-internal; a boot + read/write is the available extra signal, not a proof of those C bugs.
-
-### [#725](https://github.com/launchdarkly/ldcli/pull/725) — `cobra` 1.9.1 → 1.10.2 (minor)
-
-- **Mode:** `CLI_SMOKE`
-- **Surface:** command tree, help, completion, usage templates.
-- **CI already:** command-construction unit tests.
-- **Gap:** CI does not execute the shipped binary's help/completion entrypoints. Cobra 1.10.0 pulled a pflag rename (`ParseErrorsWhitelist` → `ParseErrorsAllowlist`, restored as deprecated in pflag 1.0.9 / cobra 1.10.1).
-- **Extra check:** `make build` + help for commands this branch actually has; `go test ./cmd/...`. Grep for `ParseErrorsWhitelist` / `ParseErrorsAllowlist`.
-- **Stale-branch note:** this PR has sat long enough that automatic rebases were disabled. A smoke on the Dependabot commit is not a smoke of cobra 1.10.2 against current `cmd/setup`.
-- **Video:** optional. A 20-second TTY help walk is enough; a browser is not.
-
-### [#626](https://github.com/launchdarkly/ldcli/pull/626) — `golang.org/x/term` 0.33.0 → 0.36.0 (minor)
-
-- **Mode:** `CLI_SMOKE`
-- **Surface:** `term.GetSize` for wrapped flag help; `term.IsTerminal` for output format and setup prompts.
-- **CI already:** `TestNewRootCommandNilIsTerminalRejects`, non-TTY output tests. Those inject a fake `IsTerminal`.
-- **Gap:** CI is not a real TTY, so `GetSize` always takes the width-80 fallback.
-- **Extra check:** piped `./ldcli --help` (fallback path) plus, if computer use can open a terminal, run help in that TTY. Do not claim you tested wrapping unless you saw a TTY width.
-- **Video:** only for the TTY case. A piped command in the agent log is not a video.
-
-### [#621](https://github.com/launchdarkly/ldcli/pull/621) — `go.uber.org/mock` 0.5.2 → 0.6.0 (minor)
-
-- **Mode:** `TEST_ONLY`
-- **Surface:** `mockgen` in `tools.go` and generated mocks. No production import.
-- **CI already:** `go test ./...` is the entire product impact.
-- **Gap:** none that a GUI can close. v0.6.0 adds archive-mode mockgen and a go1.25 tools bump.
-- **Extra check:** `go test ./...`. Optional `go generate` on one mock directive; expect an empty diff.
-- **Video:** none — computer use would not add signal.
-
-## Nearby PRs that change the mode
-
-Use these when the automation is pointed at the current Dependabot backlog, not only the four above.
-
-| PR | Package | Mode |
-| --- | --- | --- |
-| #729 | `react-router` 7.12.0 → 8.0.1 | `ESCALATE` + `UI_COMPUTER_USE` (major, nav will break if incompatible) |
-| #723 | `@launchpad-ui/core` 0.49.22 → 0.59.17 | `UI_COMPUTER_USE` |
-| #724 | `prettier` 3.3.2 → 3.8.4 | `BUILD_ONLY` |
-| #728 | `rollup` lockfile | `BUILD_ONLY` |
-| #721 / #717 / #719 | GitHub Actions majors | `CI_ONLY` or `ESCALATE` |
-| #716 | `alpine` 3.19 → 3.24 | `CI_ONLY` |

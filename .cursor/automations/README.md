@@ -13,7 +13,3 @@ Suggested automation setup:
 - **Trigger:** Dependabot PR opened or updated on `launchdarkly/ldcli`, or a manual mention with a PR URL.
 - **Goal:** Produce a dependency upgrade report. Include video only when a user-visible surface was actually exercised.
 - **Do not:** auto-approve or auto-merge.
-
-The four seed PRs used to shape the modes: #726 (`go-sqlite3`), #725 (`cobra`), #626 (`x/term`), #621 (`uber/mock`).
-
-A dry-run of the cobra playbook against #725 is checked in as [`examples/pr-725-cobra-report.md`](examples/pr-725-cobra-report.md).

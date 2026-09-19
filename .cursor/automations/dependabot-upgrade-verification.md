@@ -79,7 +79,7 @@ git fetch origin main
 git rev-list --left-right --count origin/main...HEAD
 ```
 
-If the branch is more than a handful of commits behind `main`, say so in residual risk. Extra checks on a stale tree do not prove the upgrade against today's command tree. Do not treat missing commands (for example `setup` on an old branch) as an upgrade regression.
+If the branch is more than a handful of commits behind `main`, say so in residual risk. Extra checks on a stale tree do not prove the upgrade against today's command tree. Do not treat commands that exist on `main` but not on this branch as an upgrade regression.
 
 Use a Go toolchain that satisfies `go.mod`. On images with an older system Go, `GOTOOLCHAIN=local` will fail with `go.mod requires go >= …`. Install or select that version; do not lower the module's Go line.
 
