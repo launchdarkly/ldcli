@@ -18,16 +18,16 @@ type Workspace struct {
 }
 
 type Resolver struct {
-	configFile           string
-	findGitSource        func(string) (repository.GitRepository, bool, error)
-	ensureInstallationID func(string) (string, error)
+	configFile        string
+	findGitSource     func(string) (repository.GitRepository, bool, error)
+	ensureLocalSyncID func(string) (string, error)
 }
 
 func NewResolver(configFile string) Resolver {
 	return Resolver{
-		configFile:           configFile,
-		findGitSource:        repository.FindGitSource,
-		ensureInstallationID: config.EnsureInstallationID,
+		configFile:        configFile,
+		findGitSource:     repository.FindGitSource,
+		ensureLocalSyncID: config.EnsureLocalSyncID,
 	}
 }
 
@@ -53,14 +53,14 @@ func (resolver Resolver) Resolve(dir string) (Workspace, error) {
 		return Workspace{}, err
 	}
 
-	installationID, err := resolver.ensureInstallationID(resolver.configFile)
+	localSyncID, err := resolver.ensureLocalSyncID(resolver.configFile)
 	if err != nil {
 		return Workspace{}, err
 	}
 
 	source, err := syncdomain.NewSource(
 		syncdomain.SourceTypeLocal,
-		localSourceIdentifier(installationID, root),
+		localSourceIdentifier(localSyncID, root),
 	)
 	if err != nil {
 		return Workspace{}, err
@@ -105,8 +105,8 @@ func canonicalPath(path string) (string, error) {
 	return filepath.Clean(resolved), nil
 }
 
-func localSourceIdentifier(installationID, root string) string {
-	sum := sha256.Sum256([]byte(installationID + "\x00" + root))
+func localSourceIdentifier(localSyncID, root string) string {
+	sum := sha256.Sum256([]byte(localSyncID + "\x00" + root))
 
 	return "sha256." + hex.EncodeToString(sum[:])
 }
