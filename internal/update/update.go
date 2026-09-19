@@ -150,8 +150,9 @@ func lastKnownLatest(cached *cacheEntry, currentVersion string) string {
 	return currentVersion
 }
 
-// persistCheckAttempt records a short-lived cache entry before a network fetch
-// so a process exit cannot drop the backoff TTL that prevents hammering GitHub.
+// persistCheckAttempt notes that we tried, before we talk to GitHub. If the
+// CLI exits while the request is still running, the next command waits an
+// hour instead of immediately hitting the API again.
 func persistCheckAttempt(currentVersion string, cached *cacheEntry) {
 	writeCache(&cacheEntry{
 		LatestVersion: lastKnownLatest(cached, currentVersion),
@@ -173,9 +174,8 @@ func CheckForUpdate(currentVersion string) *UpdateInfo {
 		return updateInfoIfNewer(currentVersion, cached.LatestVersion)
 	}
 
-	// Write the backoff entry before the HTTP call. Fast commands and os.Exit
-	// often kill this goroutine before fetchLatestVersion returns, and without
-	// this write the next invocation would hit GitHub again immediately.
+	// Write the cache first. Fast commands often exit before GitHub answers,
+	// and we don't want those to retry on every run.
 	persistCheckAttempt(currentVersion, cached)
 
 	client := &http.Client{Timeout: httpTimeout}
@@ -192,10 +192,8 @@ func CheckForUpdate(currentVersion string) *UpdateInfo {
 	return updateInfoIfNewer(currentVersion, latest)
 }
 
-// CachedUpdate returns a notice from a still-valid local cache without
-// touching the network. A previous run (or this run's pre-fetch write)
-// may already know a newer version; the next command can print that even
-// if this run exited before GitHub answered.
+// CachedUpdate looks at the local cache only. If we already know there's a
+// newer version, we can tell the user without waiting on GitHub.
 func CachedUpdate(currentVersion string) *UpdateInfo {
 	currentVersion = normalizeVersion(currentVersion)
 	if currentVersion == "dev" || currentVersion == "test" || currentVersion == "" {

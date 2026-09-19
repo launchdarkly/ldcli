@@ -384,15 +384,13 @@ See each command's help for details on how to use the generated script.`, rootCm
 		if skipUpdateCheck {
 			return
 		}
-		// B: print immediately from cache when a previous run (or this
-		// run's pre-fetch write) already recorded a newer version.
+		// Already know there's a newer version? Just say so.
 		if info := update.CachedUpdate(version); info != nil {
 			fmt.Fprint(os.Stderr, update.NotificationMessage(info))
 			return
 		}
-		// A: otherwise wait up to 1s for this run's fetch. The backoff
-		// cache is written before the HTTP call, so exiting here still
-		// leaves a result for the next command.
+		// Otherwise give this check a second. The cache is already on
+		// disk, so the next command can still show it if we time out.
 		select {
 		case result := <-updateCh:
 			if result.info != nil && result.info.IsNewer {
@@ -409,8 +407,8 @@ See each command's help for details on how to use the generated script.`, rootCm
 	case err != nil:
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
-		// Give the background check time to persist its backoff cache before
-		// the process dies. os.Exit would otherwise discard that write.
+		// Give the background check a moment to write the cache. os.Exit
+		// would otherwise kill it immediately.
 		waitForUpdateNotice()
 		os.Exit(1)
 	default:
