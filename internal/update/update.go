@@ -192,6 +192,24 @@ func CheckForUpdate(currentVersion string) *UpdateInfo {
 	return updateInfoIfNewer(currentVersion, latest)
 }
 
+// CachedUpdate returns a notice from a still-valid local cache without
+// touching the network. A previous run (or this run's pre-fetch write)
+// may already know a newer version; the next command can print that even
+// if this run exited before GitHub answered.
+func CachedUpdate(currentVersion string) *UpdateInfo {
+	currentVersion = normalizeVersion(currentVersion)
+	if currentVersion == "dev" || currentVersion == "test" || currentVersion == "" {
+		return nil
+	}
+
+	cached, err := readCache()
+	if err != nil || time.Since(cached.CheckedAt) >= cacheTTL {
+		return nil
+	}
+
+	return updateInfoIfNewer(currentVersion, cached.LatestVersion)
+}
+
 // NotificationMessage returns a user-facing string about the available update.
 func NotificationMessage(info *UpdateInfo) string {
 	return fmt.Sprintf(

@@ -379,11 +379,20 @@ See each command's help for details on how to use the generated script.`, rootCm
 
 	err = rootCmd.Execute()
 
-	const updateCheckTimeout = 500 * time.Millisecond
+	const updateCheckTimeout = time.Second
 	waitForUpdateNotice := func() {
 		if skipUpdateCheck {
 			return
 		}
+		// B: print immediately from cache when a previous run (or this
+		// run's pre-fetch write) already recorded a newer version.
+		if info := update.CachedUpdate(version); info != nil {
+			fmt.Fprint(os.Stderr, update.NotificationMessage(info))
+			return
+		}
+		// A: otherwise wait up to 1s for this run's fetch. The backoff
+		// cache is written before the HTTP call, so exiting here still
+		// leaves a result for the next command.
 		select {
 		case result := <-updateCh:
 			if result.info != nil && result.info.IsNewer {

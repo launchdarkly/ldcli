@@ -298,3 +298,59 @@ func TestCheckForUpdate_FetchesAndCachesNewerVersion(t *testing.T) {
 	assert.Equal(t, "5.0.0", cached.LatestVersion)
 	assert.Less(t, time.Since(cached.CheckedAt), time.Second)
 }
+
+func TestCachedUpdate(t *testing.T) {
+	t.Run("no cache", func(t *testing.T) {
+		withCacheDir(t)
+		assert.Nil(t, CachedUpdate("2.1.0"))
+	})
+
+	t.Run("newer version in cache", func(t *testing.T) {
+		withCacheDir(t)
+		writeCache(&cacheEntry{
+			LatestVersion: "5.0.0",
+			CheckedAt:     time.Now(),
+		})
+
+		info := CachedUpdate("2.1.0")
+		require.NotNil(t, info)
+		assert.Equal(t, "2.1.0", info.CurrentVersion)
+		assert.Equal(t, "5.0.0", info.LatestVersion)
+	})
+
+	t.Run("same version in cache", func(t *testing.T) {
+		withCacheDir(t)
+		writeCache(&cacheEntry{
+			LatestVersion: "2.1.0",
+			CheckedAt:     time.Now(),
+		})
+		assert.Nil(t, CachedUpdate("2.1.0"))
+	})
+
+	t.Run("expired cache", func(t *testing.T) {
+		withCacheDir(t)
+		writeCache(&cacheEntry{
+			LatestVersion: "5.0.0",
+			CheckedAt:     time.Now().Add(-cacheTTL - time.Minute),
+		})
+		assert.Nil(t, CachedUpdate("2.1.0"))
+	})
+
+	t.Run("pre-fetch backoff still yields a notice", func(t *testing.T) {
+		withCacheDir(t)
+		persistCheckAttempt("2.1.0", &cacheEntry{LatestVersion: "5.0.0"})
+
+		info := CachedUpdate("2.1.0")
+		require.NotNil(t, info)
+		assert.Equal(t, "5.0.0", info.LatestVersion)
+	})
+
+	t.Run("skips dev versions", func(t *testing.T) {
+		withCacheDir(t)
+		writeCache(&cacheEntry{
+			LatestVersion: "5.0.0",
+			CheckedAt:     time.Now(),
+		})
+		assert.Nil(t, CachedUpdate("dev"))
+	})
+}
