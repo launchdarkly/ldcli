@@ -12,24 +12,24 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestEnsureInstallationIDCreatesConfig(t *testing.T) {
+func TestEnsureLocalSyncIDCreatesConfig(t *testing.T) {
 	filename := filepath.Join(t.TempDir(), "ldcli", "config.yml")
 
-	installationID, err := EnsureInstallationID(filename)
+	localSyncID, err := EnsureLocalSyncID(filename)
 
 	require.NoError(t, err)
-	require.NoError(t, uuid.Validate(installationID))
+	require.NoError(t, uuid.Validate(localSyncID))
 
 	loaded, err := New(filename, os.ReadFile)
 	require.NoError(t, err)
-	assert.Equal(t, installationID, loaded.InstallationID)
+	assert.Equal(t, localSyncID, loaded.LocalSyncID)
 
 	info, err := os.Stat(filename)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
-func TestEnsureInstallationIDIsStableAndPreservesConfig(t *testing.T) {
+func TestEnsureLocalSyncIDIsStableAndPreservesConfig(t *testing.T) {
 	filename := filepath.Join(t.TempDir(), "config.yml")
 	require.NoError(t, os.WriteFile(
 		filename,
@@ -37,9 +37,9 @@ func TestEnsureInstallationIDIsStableAndPreservesConfig(t *testing.T) {
 		0o640,
 	))
 
-	first, err := EnsureInstallationID(filename)
+	first, err := EnsureLocalSyncID(filename)
 	require.NoError(t, err)
-	second, err := EnsureInstallationID(filename)
+	second, err := EnsureLocalSyncID(filename)
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
 
@@ -50,39 +50,39 @@ func TestEnsureInstallationIDIsStableAndPreservesConfig(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(data, &values))
 	assert.Equal(t, "token", values["access-token"])
 	assert.Equal(t, "value", values["future-setting"])
-	assert.Equal(t, first, values[installationIDKey])
+	assert.Equal(t, first, values[localSyncIDKey])
 
 	info, err := os.Stat(filename)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o640), info.Mode().Perm())
 }
 
-func TestEnsureInstallationIDUsesExistingValueWithoutRewriting(t *testing.T) {
+func TestEnsureLocalSyncIDUsesExistingValueWithoutRewriting(t *testing.T) {
 	filename := filepath.Join(t.TempDir(), "config.yml")
-	const existing = "installation-id: 45cb6eca-6c83-4db6-b171-174fd2fed588\n"
+	const existing = "local-sync-id: 45cb6eca-6c83-4db6-b171-174fd2fed588\n"
 	require.NoError(t, os.WriteFile(filename, []byte(existing), 0o600))
 
-	installationID, err := EnsureInstallationID(filename)
+	localSyncID, err := EnsureLocalSyncID(filename)
 
 	require.NoError(t, err)
-	assert.Equal(t, "45cb6eca-6c83-4db6-b171-174fd2fed588", installationID)
+	assert.Equal(t, "45cb6eca-6c83-4db6-b171-174fd2fed588", localSyncID)
 
 	data, err := os.ReadFile(filename)
 	require.NoError(t, err)
 	assert.Equal(t, existing, string(data))
 }
 
-func TestEnsureInstallationIDRejectsInvalidValue(t *testing.T) {
+func TestEnsureLocalSyncIDRejectsInvalidValue(t *testing.T) {
 	filename := filepath.Join(t.TempDir(), "config.yml")
-	require.NoError(t, os.WriteFile(filename, []byte("installation-id: invalid\n"), 0o600))
+	require.NoError(t, os.WriteFile(filename, []byte("local-sync-id: invalid\n"), 0o600))
 
-	_, err := EnsureInstallationID(filename)
+	_, err := EnsureLocalSyncID(filename)
 
-	require.ErrorContains(t, err, "installation ID")
+	require.ErrorContains(t, err, "local sync ID")
 }
 
-func TestConfigJSONDoesNotExposeInstallationID(t *testing.T) {
-	data, err := json.Marshal(Config{InstallationID: uuid.NewString()})
+func TestConfigJSONDoesNotExposeLocalSyncID(t *testing.T) {
+	data, err := json.Marshal(Config{LocalSyncID: uuid.NewString()})
 
 	require.NoError(t, err)
 	assert.JSONEq(t, `{}`, string(data))
