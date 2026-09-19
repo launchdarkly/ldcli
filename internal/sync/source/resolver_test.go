@@ -82,6 +82,21 @@ func TestResolverUsesCurrentDirectoryBeforeBootstrap(t *testing.T) {
 	)
 }
 
+func TestResolverRootDoesNotCreateLocalIdentity(t *testing.T) {
+	root := t.TempDir()
+	resolver := localResolver("local-sync-id")
+	resolver.ensureLocalSyncID = func(string) (string, error) {
+		t.Fatal("resolving a root must not create a local sync ID")
+
+		return "", nil
+	}
+
+	resolved, err := resolver.ResolveRoot(root)
+
+	require.NoError(t, err)
+	assert.Equal(t, requireCanonicalPath(t, root), resolved)
+}
+
 func TestResolverCanonicalizesSymlinkedWorkspace(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, syncdomain.RootDir), 0o755))

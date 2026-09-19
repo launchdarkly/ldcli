@@ -21,6 +21,11 @@ type VariationFile struct {
 	Variation  syncdomain.Variation
 }
 
+type RenderedVariationFile struct {
+	Path    string
+	Content []byte
+}
+
 type Store struct {
 	root string
 }
@@ -96,17 +101,11 @@ func (s Store) Add(resources []VariationFile) ([]string, error) {
 	return s.createVariations(resources)
 }
 
-func (s Store) createVariations(resources []VariationFile) ([]string, error) {
-	type pendingFile struct {
-		absolute string
-		relative string
-		data     []byte
-	}
-
-	pending := make([]pendingFile, 0, len(resources))
+func (s Store) RenderVariations(resources []VariationFile) ([]RenderedVariationFile, error) {
+	rendered := make([]RenderedVariationFile, 0, len(resources))
 	seen := make(map[string]struct{}, len(resources))
 	for _, resource := range resources {
-		path, err := s.variationPath(
+		absolute, err := s.variationPath(
 			resource.ProjectKey,
 			resource.ConfigKey,
 			resource.Variation.Key,
@@ -114,31 +113,40 @@ func (s Store) createVariations(resources []VariationFile) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, ok := seen[path]; ok {
+		if _, ok := seen[absolute]; ok {
 			return nil, fmt.Errorf("variation %q was selected more than once", resource.Variation.Key)
 		}
-		seen[path] = struct{}{}
+		seen[absolute] = struct{}{}
 
-		data, err := marshalVariationFile(resource)
+		content, err := marshalVariationFile(resource)
 		if err != nil {
 			return nil, err
 		}
-		pending = append(pending, pendingFile{
-			absolute: path,
-			relative: filepath.ToSlash(strings.TrimPrefix(path, s.root+string(filepath.Separator))),
-			data:     data,
+		rendered = append(rendered, RenderedVariationFile{
+			Path:    filepath.ToSlash(strings.TrimPrefix(absolute, s.root+string(filepath.Separator))),
+			Content: content,
 		})
 	}
 
+	return rendered, nil
+}
+
+func (s Store) createVariations(resources []VariationFile) ([]string, error) {
+	rendered, err := s.RenderVariations(resources)
+	if err != nil {
+		return nil, err
+	}
+
 	var created []string
-	for _, file := range pending {
-		if err := createFile(file.absolute, file.data); err != nil {
+	for _, file := range rendered {
+		absolute := filepath.Join(s.root, filepath.FromSlash(file.Path))
+		if err := createFile(absolute, file.Content); err != nil {
 			for index := len(created) - 1; index >= 0; index-- {
 				_ = os.Remove(filepath.Join(s.root, filepath.FromSlash(created[index])))
 			}
 			return nil, err
 		}
-		created = append(created, file.relative)
+		created = append(created, file.Path)
 	}
 
 	return created, nil

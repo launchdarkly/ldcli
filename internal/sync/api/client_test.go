@@ -18,6 +18,7 @@ type recordedRequest struct {
 	Method      string
 	Path        string
 	ContentType string
+	Query       url.Values
 	Body        []byte
 	IsBeta      bool
 }
@@ -35,7 +36,7 @@ func (client *recordingClient) MakeRequest(
 	method string,
 	path string,
 	contentType string,
-	_ url.Values,
+	query url.Values,
 	body []byte,
 	isBeta bool,
 ) ([]byte, error) {
@@ -44,6 +45,7 @@ func (client *recordingClient) MakeRequest(
 		Method:      method,
 		Path:        path,
 		ContentType: contentType,
+		Query:       query,
 		Body:        append([]byte(nil), body...),
 		IsBeta:      isBeta,
 	})
