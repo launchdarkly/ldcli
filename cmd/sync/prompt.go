@@ -17,14 +17,16 @@ import (
 
 const (
 	addFlag    = "add"
+	applyFlag  = "apply"
 	dryRunFlag = "dry-run"
+	yesFlag    = "yes"
 )
 
 func NewPromptCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prompt",
 		Short: "Synchronize local prompt variations with LaunchDarkly",
-		Long:  "Bootstrap local prompt variations from LaunchDarkly, add more variations, or preview synchronization changes.",
+		Long:  "Bootstrap local prompt variations from LaunchDarkly, add more variations, preview synchronization changes, or apply a durable sync plan.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if err := cobra.NoArgs(cmd, args); err != nil {
 				return err
@@ -33,9 +35,14 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 		},
 		RunE: runPrompt(client),
 	}
+
 	cmd.Flags().Bool(addFlag, false, "Select additional prompt variations from LaunchDarkly")
 	cmd.Flags().Bool(dryRunFlag, false, "Preview synchronization changes without creating a plan")
+	cmd.Flags().String(applyFlag, "", "Apply an existing durable plan ID without planning again")
+	cmd.Flags().Bool(yesFlag, false, "Apply planned changes without interactive confirmation")
+	cmd.Flags().String(cliflags.ProjectFlag, "", "Project key for --apply when it cannot be inferred from the workspace")
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
+
 	return cmd
 }
 
@@ -45,18 +52,28 @@ func runPrompt(client resources.Client) func(*cobra.Command, []string) error {
 		if err != nil {
 			return fmt.Errorf("get working directory: %w", err)
 		}
+
 		add, _ := cmd.Flags().GetBool(addFlag)
 		dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
+		planID, _ := cmd.Flags().GetString(applyFlag)
+		yes, _ := cmd.Flags().GetBool(yesFlag)
+		projectKey, _ := cmd.Flags().GetString(cliflags.ProjectFlag)
 		outputKind := cliflags.GetOutputKind(cmd)
+
 		err = syncprompt.NewRunner(client).Run(syncprompt.Options{
 			WorkingDirectory: workingDirectory,
 			AccessToken:      viper.GetString(cliflags.AccessTokenFlag),
 			BaseURI:          viper.GetString(cliflags.BaseURIFlag),
 			OutputKind:       outputKind,
+			ProjectKey:       projectKey,
+			ProjectSpecified: cmd.Flags().Changed(cliflags.ProjectFlag),
+			PlanID:           planID,
 			Add:              add,
 			DryRun:           dryRun,
+			Yes:              yes,
 			Input:            cmd.InOrStdin(),
 			Output:           cmd.OutOrStdout(),
+			ErrorOutput:      cmd.ErrOrStderr(),
 		})
 		if err != nil {
 			return output.NewCmdOutputError(err, outputKind)

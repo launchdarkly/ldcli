@@ -33,12 +33,15 @@ type ResourceError struct {
 }
 
 type PlannedResource struct {
-	ResourceKind  syncdomain.Kind `json:"resourceKind"`
-	LookupKey     string          `json:"lookupKey"`
-	Status        ResourceStatus  `json:"status"`
-	SyncDirection SyncDirection   `json:"syncDirection"`
-	Diff          json.RawMessage `json:"diff,omitempty"`
-	Error         *ResourceError  `json:"error,omitempty"`
+	ResourceKind           syncdomain.Kind `json:"resourceKind"`
+	LookupKey              string          `json:"lookupKey"`
+	Status                 ResourceStatus  `json:"status"`
+	SyncDirection          SyncDirection   `json:"syncDirection"`
+	ManifestUpdateRequired bool            `json:"manifestUpdateRequired"`
+	LocalDeleted           bool            `json:"localDeleted"`
+	ServerDeleted          bool            `json:"serverDeleted"`
+	Diff                   json.RawMessage `json:"diff,omitempty"`
+	Error                  *ResourceError  `json:"error,omitempty"`
 }
 
 type ProjectPlan struct {
@@ -48,10 +51,45 @@ type ProjectPlan struct {
 	Resources  []PlannedResource `json:"resources"`
 }
 
+type PlanStatus string
+
+const (
+	PlanStatusApplied PlanStatus = "applied"
+	PlanStatusFailed  PlanStatus = "failed"
+)
+
+type ResourceApplyOutcome string
+
+const (
+	ResourceApplyOutcomeApplied      ResourceApplyOutcome = "applied"
+	ResourceApplyOutcomeFailed       ResourceApplyOutcome = "failed"
+	ResourceApplyOutcomeNotAttempted ResourceApplyOutcome = "not_attempted"
+)
+
+type AppliedResource struct {
+	ResourceKind syncdomain.Kind      `json:"resourceKind"`
+	LookupKey    string               `json:"lookupKey"`
+	Outcome      ResourceApplyOutcome `json:"outcome"`
+	Error        *ResourceError       `json:"error,omitempty"`
+}
+
+type ProjectApply struct {
+	ProjectKey string            `json:"-"`
+	PlanID     string            `json:"planId"`
+	Status     PlanStatus        `json:"status"`
+	Error      *ResourceError    `json:"error,omitempty"`
+	Resources  []AppliedResource `json:"resources"`
+}
+
+type applyRequest struct {
+	PlanID string `json:"planId"`
+}
+
 type planRequest struct {
-	Source    sourceRequest   `json:"source"`
-	DryRun    bool            `json:"dryRun"`
-	Resources []resourceInput `json:"resources"`
+	Source        sourceRequest   `json:"source"`
+	DryRun        bool            `json:"dryRun"`
+	FullInventory bool            `json:"fullInventory"`
+	Resources     []resourceInput `json:"resources"`
 }
 
 type sourceRequest struct {
@@ -84,11 +122,14 @@ func (client Client) Plan(
 	baseURI string,
 	source syncdomain.Source,
 	dryRun bool,
+	inventoryProjectKeys []string,
 	synced []syncdomain.SyncedResource,
 ) ([]ProjectPlan, error) {
 	plans := make([]ProjectPlan, 0)
 
-	for _, project := range groupResourcesByProject(synced) {
+	// Inventory projects must be planned even when they contain no local
+	// resources, because an empty inventory can represent local deletions.
+	for _, project := range groupResourcesByProject(synced, inventoryProjectKeys) {
 		plan, err := client.planProject(accessToken, baseURI, source, dryRun, project)
 		if err != nil {
 			return nil, err
@@ -98,6 +139,55 @@ func (client Client) Plan(
 	}
 
 	return plans, nil
+}
+
+func (client Client) Apply(
+	accessToken string,
+	baseURI string,
+	projectKey string,
+	planID string,
+) (ProjectApply, error) {
+	body, err := json.MarshalIndent(applyRequest{
+		PlanID: planID,
+	}, "", "  ")
+	if err != nil {
+		return ProjectApply{}, fmt.Errorf("marshal apply request: %w", err)
+	}
+
+	endpoint, err := url.JoinPath(
+		baseURI,
+		"api/v2/projects",
+		projectKey,
+		"ai-configs/sync/apply",
+	)
+	if err != nil {
+		return ProjectApply{}, fmt.Errorf("build apply endpoint: %w", err)
+	}
+
+	response, err := client.transport.MakeRequest(
+		accessToken,
+		http.MethodPost,
+		endpoint,
+		"application/json",
+		nil,
+		body,
+		false,
+	)
+	if err != nil {
+		return ProjectApply{}, err
+	}
+
+	var result ProjectApply
+	if err := json.Unmarshal(response, &result); err != nil {
+		return ProjectApply{}, fmt.Errorf("decode apply response: %w", err)
+	}
+	if result.PlanID == "" || result.Status == "" {
+		return ProjectApply{}, fmt.Errorf(
+			"decode apply response: planId and status are required",
+		)
+	}
+	result.ProjectKey = projectKey
+	return result, nil
 }
 
 func (client Client) planProject(
@@ -112,8 +202,9 @@ func (client Client) planProject(
 			Type:       source.Type(),
 			Identifier: source.Identifier(),
 		},
-		DryRun:    dryRun,
-		Resources: make([]resourceInput, 0, len(project.Resources)),
+		DryRun:        dryRun,
+		FullInventory: true,
+		Resources:     make([]resourceInput, 0, len(project.Resources)),
 	}
 
 	for _, resource := range project.Resources {
@@ -161,8 +252,14 @@ func (client Client) planProject(
 	if err := json.Unmarshal(response, &plan); err != nil {
 		return ProjectPlan{}, fmt.Errorf("decode plan response: %w", err)
 	}
-	if !dryRun && (plan.PlanID == "" || plan.ExpiresAt == "") {
-		return ProjectPlan{}, fmt.Errorf("decode plan response: durable plan requires planId and expiresAt")
+	if !dryRun {
+		hasPlanID := plan.PlanID != ""
+		hasExpiration := plan.ExpiresAt != ""
+		if hasPlanID != hasExpiration || (!hasPlanID && !hasConflict(plan)) {
+			return ProjectPlan{}, fmt.Errorf(
+				"decode plan response: durable plan requires planId and expiresAt",
+			)
+		}
 	}
 
 	plan.ProjectKey = project.ProjectKey
@@ -170,9 +267,29 @@ func (client Client) planProject(
 	return plan, nil
 }
 
-func groupResourcesByProject(synced []syncdomain.SyncedResource) []projectResources {
+func hasConflict(plan ProjectPlan) bool {
+	for _, resource := range plan.Resources {
+		if resource.Status == ResourceStatusConflict {
+			return true
+		}
+	}
+	return false
+}
+
+func groupResourcesByProject(
+	synced []syncdomain.SyncedResource,
+	inventoryProjectKeys []string,
+) []projectResources {
 	var projects []projectResources
 	byProject := make(map[string]int)
+
+	for _, projectKey := range inventoryProjectKeys {
+		if _, exists := byProject[projectKey]; exists {
+			continue
+		}
+		byProject[projectKey] = len(projects)
+		projects = append(projects, projectResources{ProjectKey: projectKey})
+	}
 
 	for _, resource := range synced {
 		index, ok := byProject[resource.ProjectKey]

@@ -64,6 +64,7 @@ func TestRunnerBootstrapsMissingWorkspaceAndAddsToExistingWorkspace(t *testing.T
 				DryRun:           test.dryRun,
 				Input:            os.Stdin,
 				Output:           io.Discard,
+				ErrorOutput:      io.Discard,
 			})
 
 			require.NoError(t, err)
@@ -84,6 +85,7 @@ func TestRunnerRequiresGit(t *testing.T) {
 		WorkingDirectory: t.TempDir(),
 		Input:            os.Stdin,
 		Output:           io.Discard,
+		ErrorOutput:      io.Discard,
 	})
 
 	require.ErrorIs(t, err, syncsource.ErrGitRequired)
