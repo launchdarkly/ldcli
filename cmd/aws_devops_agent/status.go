@@ -53,6 +53,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 		_, _ = fmt.Fprintf(out, "  role %s: missing\n", role.Name)
 	}
+	for _, service := range status.Services {
+		_, _ = fmt.Fprintf(out, "  service %s: %s %s\n", service.ServiceID, service.ServiceType, service.Name)
+	}
 	for _, space := range status.AgentSpaces {
 		_, _ = fmt.Fprintf(out, "  agent space %s (%s)\n", space.Name, space.AgentSpaceID)
 		_, _ = fmt.Fprintf(out, "    operator app: %s\n", space.OperatorAppURL)

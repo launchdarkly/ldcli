@@ -52,7 +52,7 @@ func FindMCPServer(ctx context.Context, clients Clients) (string, error) {
 			return "", fmt.Errorf("unable to list registered services: %w", err)
 		}
 		for _, service := range services.Services {
-			if strings.EqualFold(aws.ToString(service.Name), MCPServerName) {
+			if isLaunchDarklyMCPServer(service) {
 				return aws.ToString(service.ServiceId), nil
 			}
 		}
@@ -61,6 +61,23 @@ func FindMCPServer(ctx context.Context, clients Clients) (string, error) {
 		}
 		nextToken = services.NextToken
 	}
+}
+
+// isLaunchDarklyMCPServer matches on the name AWS reports at either level, and
+// on the endpoint, since MCP servers carry their name in the type-specific
+// details rather than the top-level field.
+func isLaunchDarklyMCPServer(service agenttypes.RegisteredService) bool {
+	if strings.EqualFold(aws.ToString(service.Name), MCPServerName) {
+		return true
+	}
+
+	details, ok := service.AdditionalServiceDetails.(*agenttypes.AdditionalServiceDetailsMemberMcpserver)
+	if !ok {
+		return false
+	}
+
+	return strings.EqualFold(aws.ToString(details.Value.Name), MCPServerName) ||
+		aws.ToString(details.Value.Endpoint) == MCPServerEndpoint
 }
 
 func findGitHubService(ctx context.Context, clients Clients) (string, error) {

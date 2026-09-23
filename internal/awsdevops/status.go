@@ -14,6 +14,7 @@ type Status struct {
 	AccountID    string             `json:"accountId"`
 	Region       string             `json:"region"`
 	Roles        []RoleStatus       `json:"roles"`
+	Services     []ServiceStatus    `json:"services,omitempty"`
 	AgentSpaces  []AgentSpaceStatus `json:"agentSpaces"`
 	MissingSetup []string           `json:"missingSetup,omitempty"`
 }
@@ -22,6 +23,12 @@ type RoleStatus struct {
 	Name   string `json:"name"`
 	ARN    string `json:"arn,omitempty"`
 	Exists bool   `json:"exists"`
+}
+
+type ServiceStatus struct {
+	ServiceID   string `json:"serviceId"`
+	ServiceType string `json:"serviceType"`
+	Name        string `json:"name,omitempty"`
 }
 
 type AgentSpaceStatus struct {
@@ -64,6 +71,18 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 			Name:   name,
 			ARN:    aws.ToString(role.Role.Arn),
 			Exists: true,
+		})
+	}
+
+	services, err := clients.Agent.ListServices(ctx, &devopsagent.ListServicesInput{})
+	if err != nil {
+		return status, fmt.Errorf("unable to list registered services: %w", err)
+	}
+	for _, service := range services.Services {
+		status.Services = append(status.Services, ServiceStatus{
+			ServiceID:   aws.ToString(service.ServiceId),
+			ServiceType: string(service.ServiceType),
+			Name:        aws.ToString(service.Name),
 		})
 	}
 

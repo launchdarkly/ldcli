@@ -49,6 +49,27 @@ func TestSetupReusesAnAlreadyRegisteredMCPServer(t *testing.T) {
 	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
 }
 
+func TestFindMCPServerMatchesOnTheEndpointInTheServiceDetails(t *testing.T) {
+	agent := &fakeAgent{
+		services: []agenttypes.RegisteredService{
+			{
+				ServiceId:   aws.String("mcp-2"),
+				ServiceType: agenttypes.ServiceMcpServer,
+				AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
+					Value: agenttypes.RegisteredMCPServerDetails{
+						Endpoint: aws.String(awsdevops.MCPServerEndpoint),
+					},
+				},
+			},
+		},
+	}
+
+	serviceID, err := awsdevops.FindMCPServer(context.Background(), newTestClients(agent, newFakeIAM()))
+	require.NoError(t, err)
+
+	assert.Equal(t, "mcp-2", serviceID)
+}
+
 func TestWaitForGitHubServicePollsUntilCancelled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
