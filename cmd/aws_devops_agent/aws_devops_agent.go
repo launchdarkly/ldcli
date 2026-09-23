@@ -41,8 +41,6 @@ are available.`,
 	return cmd
 }
 
-// trackRun reports the run from PreRun rather than PersistentPreRun, which
-// would shadow the root command's own PersistentPreRun.
 func trackRun(analyticsTrackerFn analytics.TrackerFn) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, args []string) {
 		analyticsTrackerFn(
