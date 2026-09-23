@@ -177,7 +177,7 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		logf("Operator app available at %s", result.OperatorAppURL)
 	}
 
-	if !opts.SkipMCPServer {
+	if !opts.SkipMCPServer && opts.LDAccessToken != "" {
 		if err := registerMCPServer(ctx, clients, opts, &result); err != nil {
 			return result, err
 		}
@@ -271,10 +271,6 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 }
 
 func registerMCPServer(ctx context.Context, clients Clients, opts SetupOptions, result *SetupResult) error {
-	if opts.LDAccessToken == "" {
-		return errors.New("a LaunchDarkly access token is required to register the MCP server. Pass --access-token, or --skip-mcp-server to register it later")
-	}
-
 	registration, err := clients.Agent.RegisterService(ctx, &devopsagent.RegisterServiceInput{
 		Service: agenttypes.PostRegisterServiceSupportedServiceMcpServer,
 		ServiceDetails: &agenttypes.ServiceDetailsMemberMcpserver{
@@ -489,6 +485,16 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 				result.AgentSpaceID,
 			),
 			URL: result.MCPAuthorizationURL,
+		})
+	}
+	if !opts.SkipMCPServer && opts.LDAccessToken == "" {
+		steps = append(steps, ManualStep{
+			Description: fmt.Sprintf(
+				"Register the LaunchDarkly MCP server (%s) in the console, or re-run with --access-token --agent-space-id %s",
+				MCPServerEndpoint,
+				result.AgentSpaceID,
+			),
+			URL: ConsoleURL(region),
 		})
 	}
 	if opts.GitHubServiceID == "" {

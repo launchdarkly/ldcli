@@ -118,12 +118,12 @@ The commands use your existing AWS session rather than any cross-account LaunchD
 aws sso login --profile my-profile
 export AWS_PROFILE=my-profile AWS_REGION=us-east-1
 
-ldcli aws-devops-agent setup --access-token <access-token>
+ldcli aws-devops-agent setup
 ```
 
 The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1` and `eu-west-1`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
 
-The `--access-token` value is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a token whose permissions match what you want the agent to do. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that. Pass `--skip-mcp-server` to provision the AWS side only.
+`--access-token` is optional. When you pass one it is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a token whose permissions match what you want the agent to do. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that. Without a token, `setup` finishes the AWS side and prints the console URL where you can add the MCP server yourself; `--skip-mcp-server` leaves it out entirely.
 
 Two steps cannot be automated because they are browser consent flows: registering and installing the GitHub App, and creating a Kiro API key. `setup` prints each one with the URL to open (the AWS DevOps Agent console for your region, and the Kiro portal), along with the agent space ID to re-run with:
 

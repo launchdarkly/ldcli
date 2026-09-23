@@ -48,7 +48,10 @@ LaunchDarkly MCP server connection the AWS DevOps Agent needs.
 
 Re-run with --agent-space-id to add to an existing agent space. Steps that AWS
 only exposes through the console, such as the GitHub App installation, are
-listed at the end of the run.`,
+listed at the end of the run.
+
+Without --access-token the MCP server is left for you to add in the console,
+which is also listed at the end of the run.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -64,7 +67,7 @@ listed at the end of the run.`,
 	cmd.Flags().String(idpClientIDFlag, "", "OIDC client ID, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
 	cmd.Flags().Bool(skipOperatorAppFlag, false, "Skip the operator app role and web app")
-	cmd.Flags().Bool(skipMCPServerFlag, false, "Skip registering the LaunchDarkly MCP server")
+	cmd.Flags().Bool(skipMCPServerFlag, false, "Skip registering the LaunchDarkly MCP server, without listing it as a manual step")
 	cmd.Flags().StringSlice(mcpReadOnlyToolsFlag, awsdevops.DefaultMCPReadOnlyTools, "LaunchDarkly MCP tools the agent may call without approval")
 	cmd.Flags().StringSlice(mcpMutativeToolsFlag, awsdevops.DefaultMCPMutativeTools, "LaunchDarkly MCP tools that change flag state and need approval")
 	cmd.Flags().String(skillNameFlag, "launchdarkly", "Name of the skill asset to create from --skill-file")

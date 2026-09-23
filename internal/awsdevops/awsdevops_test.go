@@ -269,13 +269,19 @@ func TestSetupReusesExistingRolesAndAgentSpace(t *testing.T) {
 	assert.Equal(t, "arn:aws:iam::"+testAccountID+":role/"+awsdevops.AgentSpaceRoleName, result.AgentSpaceRoleARN)
 }
 
-func TestSetupRequiresAccessTokenForMCPServer(t *testing.T) {
-	_, err := awsdevops.Setup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), awsdevops.SetupOptions{
+func TestSetupWithoutAccessTokenReportsMCPServerAsManualStep(t *testing.T) {
+	agent := &fakeAgent{}
+
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",
 		AuthFlow:       "iam",
 	})
+	require.NoError(t, err)
 
-	assert.ErrorContains(t, err, "LaunchDarkly access token is required")
+	assert.NotContains(t, agent.calls, "RegisterService")
+	assert.Empty(t, result.MCPServiceID)
+	assert.Contains(t, result.RemainingManualSteps[0].Description, awsdevops.MCPServerEndpoint)
+	assert.Equal(t, awsdevops.ConsoleURL("us-east-1"), result.RemainingManualSteps[0].URL)
 }
 
 func TestSetupClassifiesMCPTools(t *testing.T) {
