@@ -40,6 +40,25 @@ func WaitForGitHubService(ctx context.Context, clients Clients, interval time.Du
 	}
 }
 
+// FindMCPServer returns the ID of the LaunchDarkly MCP server if one is
+// already registered on the account. AWS keeps MCP servers at the account
+// level, so a second agent space reuses the existing registration.
+func FindMCPServer(ctx context.Context, clients Clients) (string, error) {
+	services, err := clients.Agent.ListServices(ctx, &devopsagent.ListServicesInput{
+		FilterServiceType: agenttypes.ServiceMcpServer,
+	})
+	if err != nil {
+		return "", fmt.Errorf("unable to list registered services: %w", err)
+	}
+	for _, service := range services.Services {
+		if aws.ToString(service.Name) == MCPServerName {
+			return aws.ToString(service.ServiceId), nil
+		}
+	}
+
+	return "", nil
+}
+
 func findGitHubService(ctx context.Context, clients Clients) (string, error) {
 	services, err := clients.Agent.ListServices(ctx, &devopsagent.ListServicesInput{
 		FilterServiceType: agenttypes.ServiceGithub,

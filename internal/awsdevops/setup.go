@@ -188,7 +188,7 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	}
 
 	if !opts.SkipMCPServer && opts.LDAccessToken != "" {
-		if err := registerMCPServer(ctx, clients, opts, &result); err != nil {
+		if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
 			return result, err
 		}
 	}
@@ -279,7 +279,24 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	return result, nil
 }
 
-func registerMCPServer(ctx context.Context, clients Clients, opts SetupOptions, result *SetupResult) error {
+func registerMCPServer(
+	ctx context.Context,
+	clients Clients,
+	opts SetupOptions,
+	result *SetupResult,
+	logf func(string, ...any),
+) error {
+	existing, err := FindMCPServer(ctx, clients)
+	if err != nil {
+		return err
+	}
+	if existing != "" {
+		result.MCPServiceID = existing
+		logf("Reusing the %s MCP server already registered on this account (%s)", MCPServerName, existing)
+
+		return associateMCPServer(ctx, clients, opts, result)
+	}
+
 	registration, err := clients.Agent.RegisterService(ctx, &devopsagent.RegisterServiceInput{
 		Service: agenttypes.PostRegisterServiceSupportedServiceMcpServer,
 		ServiceDetails: &agenttypes.ServiceDetailsMemberMcpserver{
@@ -307,6 +324,10 @@ func registerMCPServer(ctx context.Context, clients Clients, opts SetupOptions, 
 	}
 	result.MCPServiceID = aws.ToString(registration.ServiceId)
 
+	return associateMCPServer(ctx, clients, opts, result)
+}
+
+func associateMCPServer(ctx context.Context, clients Clients, opts SetupOptions, result *SetupResult) error {
 	association, err := clients.Agent.AssociateService(ctx, &devopsagent.AssociateServiceInput{
 		AgentSpaceId: aws.String(result.AgentSpaceID),
 		ServiceId:    aws.String(result.MCPServiceID),

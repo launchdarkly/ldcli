@@ -26,6 +26,29 @@ func TestWaitForGitHubServiceReturnsTheRegisteredService(t *testing.T) {
 	assert.Equal(t, "gh-1", serviceID)
 }
 
+func TestSetupReusesAnAlreadyRegisteredMCPServer(t *testing.T) {
+	agent := &fakeAgent{
+		services: []agenttypes.RegisteredService{
+			{
+				ServiceId:   aws.String("mcp-1"),
+				ServiceType: agenttypes.ServiceMcpServer,
+				Name:        aws.String(awsdevops.MCPServerName),
+			},
+		},
+	}
+
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+		LDAccessToken:  "api-token",
+	})
+	require.NoError(t, err)
+
+	assert.NotContains(t, agent.calls, "RegisterService")
+	assert.Equal(t, "mcp-1", result.MCPServiceID)
+	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
+}
+
 func TestWaitForGitHubServicePollsUntilCancelled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
