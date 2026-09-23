@@ -96,6 +96,9 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	}
 
 	plaintext := cliflags.GetOutputKind(cmd) != "json"
+	if warning := awsdevops.CheckAWSCLIVersion(cmd.Context()); warning != "" {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", warning)
+	}
 	if plaintext {
 		opts.Logf = func(format string, args ...any) {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)

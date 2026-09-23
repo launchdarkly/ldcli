@@ -121,7 +121,7 @@ export AWS_PROFILE=my-profile AWS_REGION=us-east-1
 ldcli aws-devops-agent setup --access-token <access-token>
 ```
 
-The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1` and `eu-west-1`, and requires AWS CLI 2.36 or later if you also use the console or CLI directly.
+The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1` and `eu-west-1`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
 
 The `--access-token` value is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a token whose permissions match what you want the agent to do. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that. Pass `--skip-mcp-server` to provision the AWS side only.
 
