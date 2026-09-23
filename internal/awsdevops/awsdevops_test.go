@@ -20,6 +20,7 @@ const testAccountID = "123456789012"
 
 type fakeAgent struct {
 	calls              []string
+	services           []agenttypes.RegisteredService
 	associationInputs  []*devopsagent.AssociateServiceInput
 	createdAssetTypes  []string
 	registerOutput     *devopsagent.RegisterServiceOutput
@@ -114,6 +115,12 @@ func (f *fakeAgent) ListAgentSpaces(_ context.Context, _ *devopsagent.ListAgentS
 	return &devopsagent.ListAgentSpacesOutput{
 		AgentSpaces: []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}},
 	}, nil
+}
+
+func (f *fakeAgent) ListServices(_ context.Context, _ *devopsagent.ListServicesInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListServicesOutput, error) {
+	f.calls = append(f.calls, "ListServices")
+
+	return &devopsagent.ListServicesOutput{Services: f.services}, nil
 }
 
 func (f *fakeAgent) ListAssets(_ context.Context, _ *devopsagent.ListAssetsInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAssetsOutput, error) {

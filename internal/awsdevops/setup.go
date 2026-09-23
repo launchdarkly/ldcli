@@ -105,9 +105,19 @@ type SetupResult struct {
 
 // ManualStep pairs a step AWS only exposes in a browser with the page to open.
 type ManualStep struct {
-	Description string `json:"description"`
-	URL         string `json:"url"`
+	Kind        ManualStepKind `json:"kind"`
+	Description string         `json:"description"`
+	URL         string         `json:"url"`
 }
+
+type ManualStepKind string
+
+const (
+	ManualStepOAuthConsent ManualStepKind = "oauthConsent"
+	ManualStepMCPServer    ManualStepKind = "mcpServer"
+	ManualStepGitHubApp    ManualStepKind = "githubApp"
+	ManualStepKiroAPIKey   ManualStepKind = "kiroApiKey"
+)
 
 // Setup provisions the IAM roles, agent space, service associations and assets
 // the AWS DevOps Agent needs to manage LaunchDarkly flags.
@@ -184,11 +194,10 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	}
 
 	if opts.GitHubServiceID != "" {
-		association, err := clients.Agent.AssociateService(ctx, githubAssociationInput(result.AgentSpaceID, opts))
+		result.GitHubAssociationID, err = AssociateGitHub(ctx, clients, result.AgentSpaceID, opts)
 		if err != nil {
-			return result, fmt.Errorf("unable to associate the GitHub repository: %w", err)
+			return result, err
 		}
-		result.GitHubAssociationID = aws.ToString(association.Association.AssociationId)
 		logf("Associated %s/%s with release readiness review enabled", opts.GitHubOwner, opts.GitHubRepo)
 	}
 
@@ -366,6 +375,17 @@ func operatorAppInput(agentSpaceID, roleARN string, opts SetupOptions) *devopsag
 	return input
 }
 
+// AssociateGitHub connects a repository to an agent space once GitHub itself
+// has been registered in the console.
+func AssociateGitHub(ctx context.Context, clients Clients, agentSpaceID string, opts SetupOptions) (string, error) {
+	association, err := clients.Agent.AssociateService(ctx, githubAssociationInput(agentSpaceID, opts))
+	if err != nil {
+		return "", fmt.Errorf("unable to associate the GitHub repository: %w", err)
+	}
+
+	return aws.ToString(association.Association.AssociationId), nil
+}
+
 func githubAssociationInput(agentSpaceID string, opts SetupOptions) *devopsagent.AssociateServiceInput {
 	input := &devopsagent.AssociateServiceInput{
 		AgentSpaceId: aws.String(agentSpaceID),
@@ -480,6 +500,7 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 	var steps []ManualStep
 	if result.MCPAuthorizationURL != "" {
 		steps = append(steps, ManualStep{
+			Kind: ManualStepOAuthConsent,
 			Description: fmt.Sprintf(
 				"Approve the LaunchDarkly MCP server OAuth consent screen, then re-run with --agent-space-id %s",
 				result.AgentSpaceID,
@@ -489,6 +510,7 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 	}
 	if !opts.SkipMCPServer && opts.LDAccessToken == "" {
 		steps = append(steps, ManualStep{
+			Kind: ManualStepMCPServer,
 			Description: fmt.Sprintf(
 				"Register the LaunchDarkly MCP server (%s) in the console, or re-run with --access-token --agent-space-id %s",
 				MCPServerEndpoint,
@@ -499,6 +521,7 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 	}
 	if opts.GitHubServiceID == "" {
 		steps = append(steps, ManualStep{
+			Kind: ManualStepGitHubApp,
 			Description: fmt.Sprintf(
 				"Register GitHub and install the GitHub App (a browser consent screen), then re-run with --agent-space-id %s --github-service-id <id>",
 				result.AgentSpaceID,
@@ -507,6 +530,7 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 		})
 	}
 	steps = append(steps, ManualStep{
+		Kind:        ManualStepKiroAPIKey,
 		Description: "Create a Kiro API key if you want the agent to use Kiro — keys can only be created in the browser",
 		URL:         KiroPortalURL,
 	})

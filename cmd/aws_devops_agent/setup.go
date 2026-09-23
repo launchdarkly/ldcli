@@ -37,6 +37,7 @@ const (
 	githubRepoFlag            = "github-repo"
 	githubRepoIDFlag          = "github-repo-id"
 	githubTargetBranchesFlag  = "github-target-branches"
+	noWaitFlag                = "no-wait"
 )
 
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
@@ -51,7 +52,10 @@ only exposes through the console, such as the GitHub App installation, are
 listed at the end of the run.
 
 Without --access-token the MCP server is left for you to add in the console,
-which is also listed at the end of the run.`,
+which is also listed at the end of the run.
+
+In a terminal, setup pauses on each browser step with the page to open and
+resumes once you are done. Pass --no-wait to only list them.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -81,6 +85,7 @@ which is also listed at the end of the run.`,
 	cmd.Flags().String(githubRepoFlag, "", "GitHub repository name to associate")
 	cmd.Flags().String(githubRepoIDFlag, "", "GitHub repository ID to associate")
 	cmd.Flags().StringSlice(githubTargetBranchesFlag, []string{"main"}, "Branches release readiness review runs against")
+	cmd.Flags().Bool(noWaitFlag, false, "List the browser-only steps instead of pausing on each one")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -121,9 +126,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	if result.OperatorAppURL != "" {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Operator app: %s\n", result.OperatorAppURL)
 	}
-	if len(result.RemainingManualSteps) > 0 {
+	remaining := result.RemainingManualSteps
+	if !mustBool(cmd, noWaitFlag) && canPrompt() {
+		remaining = walkManualSteps(cmd, clients, opts, &result)
+	}
+	if len(remaining) > 0 {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nSteps AWS cannot automate:")
-		for _, step := range result.RemainingManualSteps {
+		for _, step := range remaining {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n    %s\n", step.Description, step.URL)
 		}
 	}
