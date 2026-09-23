@@ -318,8 +318,10 @@ func TestSetupReportsOAuthConsentAsManualStep(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, result.MCPServiceID)
-	assert.Contains(t, result.RemainingManualSteps[0], "https://example.com/consent")
-	assert.Contains(t, result.RemainingManualSteps[1], "GitHub")
+	assert.Equal(t, "https://example.com/consent", result.RemainingManualSteps[0].URL)
+	assert.Contains(t, result.RemainingManualSteps[1].Description, "GitHub")
+	assert.Equal(t, awsdevops.ConsoleURL("us-east-1"), result.RemainingManualSteps[1].URL)
+	assert.Equal(t, awsdevops.KiroPortalURL, result.RemainingManualSteps[2].URL)
 }
 
 func TestSetupCreatesSkillAndScheduledCustomAgent(t *testing.T) {

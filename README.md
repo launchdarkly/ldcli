@@ -125,7 +125,7 @@ The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`,
 
 The `--access-token` value is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a token whose permissions match what you want the agent to do. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that. Pass `--skip-mcp-server` to provision the AWS side only.
 
-Two steps cannot be automated because they are browser consent flows: registering and installing the GitHub App, and creating a Kiro API key. `setup` prints them, along with the agent space ID to re-run with:
+Two steps cannot be automated because they are browser consent flows: registering and installing the GitHub App, and creating a Kiro API key. `setup` prints each one with the URL to open (the AWS DevOps Agent console for your region, and the Kiro portal), along with the agent space ID to re-run with:
 
 ```sh-session
 ldcli aws-devops-agent setup --agent-space-id <agent-space-id> \

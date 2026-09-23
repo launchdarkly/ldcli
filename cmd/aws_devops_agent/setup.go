@@ -118,7 +118,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	if len(result.RemainingManualSteps) > 0 {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nSteps AWS cannot automate:")
 		for _, step := range result.RemainingManualSteps {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", step)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n    %s\n", step.Description, step.URL)
 		}
 	}
 

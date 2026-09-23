@@ -27,6 +27,8 @@ const (
 	// AWS account association.
 	awsServiceID = "aws"
 
+	KiroPortalURL = "https://kiro.dev"
+
 	MCPServerName     = "LaunchDarkly"
 	MCPServerEndpoint = "https://mcp.launchdarkly.com/mcp/launchdarkly"
 
@@ -84,21 +86,27 @@ type SetupOptions struct {
 // SetupResult holds the identifiers of everything the setup touched. Callers
 // need these to tear the environment back down.
 type SetupResult struct {
-	AccountID            string   `json:"accountId"`
-	Region               string   `json:"region"`
-	AgentSpaceID         string   `json:"agentSpaceId,omitempty"`
-	AgentSpaceRoleARN    string   `json:"agentSpaceRoleArn,omitempty"`
-	OperatorAppRoleARN   string   `json:"operatorAppRoleArn,omitempty"`
-	AWSAssociationID     string   `json:"awsAssociationId,omitempty"`
-	OperatorAppURL       string   `json:"operatorAppUrl,omitempty"`
-	MCPServiceID         string   `json:"mcpServiceId,omitempty"`
-	MCPAssociationID     string   `json:"mcpAssociationId,omitempty"`
-	MCPAuthorizationURL  string   `json:"mcpAuthorizationUrl,omitempty"`
-	GitHubAssociationID  string   `json:"githubAssociationId,omitempty"`
-	SkillAssetID         string   `json:"skillAssetId,omitempty"`
-	CustomAgentAssetID   string   `json:"customAgentAssetId,omitempty"`
-	TriggerID            string   `json:"triggerId,omitempty"`
-	RemainingManualSteps []string `json:"remainingManualSteps,omitempty"`
+	AccountID            string       `json:"accountId"`
+	Region               string       `json:"region"`
+	AgentSpaceID         string       `json:"agentSpaceId,omitempty"`
+	AgentSpaceRoleARN    string       `json:"agentSpaceRoleArn,omitempty"`
+	OperatorAppRoleARN   string       `json:"operatorAppRoleArn,omitempty"`
+	AWSAssociationID     string       `json:"awsAssociationId,omitempty"`
+	OperatorAppURL       string       `json:"operatorAppUrl,omitempty"`
+	MCPServiceID         string       `json:"mcpServiceId,omitempty"`
+	MCPAssociationID     string       `json:"mcpAssociationId,omitempty"`
+	MCPAuthorizationURL  string       `json:"mcpAuthorizationUrl,omitempty"`
+	GitHubAssociationID  string       `json:"githubAssociationId,omitempty"`
+	SkillAssetID         string       `json:"skillAssetId,omitempty"`
+	CustomAgentAssetID   string       `json:"customAgentAssetId,omitempty"`
+	TriggerID            string       `json:"triggerId,omitempty"`
+	RemainingManualSteps []ManualStep `json:"remainingManualSteps,omitempty"`
+}
+
+// ManualStep pairs a step AWS only exposes in a browser with the page to open.
+type ManualStep struct {
+	Description string `json:"description"`
+	URL         string `json:"url"`
 }
 
 // Setup provisions the IAM roles, agent space, service associations and assets
@@ -472,23 +480,40 @@ func isNoSuchEntity(err error) bool {
 	return errors.As(err, &noSuchEntity)
 }
 
-func remainingManualSteps(region string, opts SetupOptions, result SetupResult) []string {
-	var steps []string
+func remainingManualSteps(region string, opts SetupOptions, result SetupResult) []ManualStep {
+	var steps []ManualStep
 	if result.MCPAuthorizationURL != "" {
-		steps = append(steps, fmt.Sprintf(
-			"Approve the LaunchDarkly MCP server OAuth consent screen at %s, then re-run with --agent-space-id %s",
-			result.MCPAuthorizationURL,
-			result.AgentSpaceID,
-		))
+		steps = append(steps, ManualStep{
+			Description: fmt.Sprintf(
+				"Approve the LaunchDarkly MCP server OAuth consent screen, then re-run with --agent-space-id %s",
+				result.AgentSpaceID,
+			),
+			URL: result.MCPAuthorizationURL,
+		})
 	}
 	if opts.GitHubServiceID == "" {
-		steps = append(steps, fmt.Sprintf(
-			"Register GitHub in the AWS DevOps Agent console (https://%s.console.aws.amazon.com/devops-agent/home?region=%[1]s) — the GitHub App install is a browser consent screen — then re-run with --agent-space-id %s --github-service-id <id>",
-			region,
-			result.AgentSpaceID,
-		))
+		steps = append(steps, ManualStep{
+			Description: fmt.Sprintf(
+				"Register GitHub and install the GitHub App (a browser consent screen), then re-run with --agent-space-id %s --github-service-id <id>",
+				result.AgentSpaceID,
+			),
+			URL: ConsoleURL(region),
+		})
 	}
-	steps = append(steps, "Create a Kiro API key in the Kiro portal (https://kiro.dev) if you want the agent to use Kiro — keys can only be created in the browser")
+	steps = append(steps, ManualStep{
+		Description: "Create a Kiro API key if you want the agent to use Kiro — keys can only be created in the browser",
+		URL:         KiroPortalURL,
+	})
 
 	return steps
+}
+
+// ConsoleURL is the AWS DevOps Agent console for a region.
+func ConsoleURL(region string) string {
+	return fmt.Sprintf("https://%s.console.aws.amazon.com/devops-agent/home?region=%[1]s", region)
+}
+
+// OperatorAppURL is the browser entry point for an agent space's operator app.
+func OperatorAppURL(agentSpaceID string) string {
+	return fmt.Sprintf("https://%s.aidevops.global.app.aws", agentSpaceID)
 }

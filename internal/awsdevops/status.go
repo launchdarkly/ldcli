@@ -25,10 +25,11 @@ type RoleStatus struct {
 }
 
 type AgentSpaceStatus struct {
-	AgentSpaceID string              `json:"agentSpaceId"`
-	Name         string              `json:"name"`
-	Associations []AssociationStatus `json:"associations,omitempty"`
-	Assets       []AssetStatus       `json:"assets,omitempty"`
+	AgentSpaceID   string              `json:"agentSpaceId"`
+	Name           string              `json:"name"`
+	OperatorAppURL string              `json:"operatorAppUrl"`
+	Associations   []AssociationStatus `json:"associations,omitempty"`
+	Assets         []AssetStatus       `json:"assets,omitempty"`
 }
 
 type AssociationStatus struct {
@@ -84,8 +85,9 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 			return status, fmt.Errorf("unable to read agent space %s: %w", id, err)
 		}
 		spaceStatus := AgentSpaceStatus{
-			AgentSpaceID: id,
-			Name:         aws.ToString(space.AgentSpace.Name),
+			AgentSpaceID:   id,
+			Name:           aws.ToString(space.AgentSpace.Name),
+			OperatorAppURL: OperatorAppURL(id),
 		}
 
 		associations, err := clients.Agent.ListAssociations(ctx, &devopsagent.ListAssociationsInput{

@@ -55,6 +55,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 	for _, space := range status.AgentSpaces {
 		_, _ = fmt.Fprintf(out, "  agent space %s (%s)\n", space.Name, space.AgentSpaceID)
+		_, _ = fmt.Fprintf(out, "    operator app: %s\n", space.OperatorAppURL)
 		for _, association := range space.Associations {
 			_, _ = fmt.Fprintf(out, "    association %s: %s %s\n", association.AssociationID, association.ServiceID, association.Status)
 		}
@@ -62,6 +63,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			_, _ = fmt.Fprintf(out, "    asset %s: %s\n", asset.AssetID, asset.AssetType)
 		}
 	}
+	_, _ = fmt.Fprintf(out, "\nAWS DevOps Agent console: %s\n", awsdevops.ConsoleURL(status.Region))
 
 	return nil
 }
