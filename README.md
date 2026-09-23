@@ -106,6 +106,33 @@ LaunchDarkly CLI commands:
 
 - `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
 - `dev-server` lets you start a local server and retrieve flag values from a LaunchDarkly source environment so you can test your code locally. For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
+- `aws-devops-agent` provisions the AWS DevOps Agent integration in your own AWS account
+
+### AWS DevOps Agent
+
+`ldcli aws-devops-agent` creates the AWS resources the [AWS DevOps Agent](https://aws.amazon.com/devops-agent/) needs to manage your LaunchDarkly flags: the IAM roles it assumes, an agent space, the association with your AWS account, the operator web app, and the LaunchDarkly MCP server connection.
+
+The commands use your existing AWS session rather than any cross-account LaunchDarkly role, so authenticate first. They fail before creating anything if no credentials are available:
+
+```sh-session
+aws sso login --profile my-profile
+export AWS_PROFILE=my-profile AWS_REGION=us-east-1
+
+ldcli aws-devops-agent setup --access-token <access-token>
+```
+
+The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1` and `eu-west-1`, and requires AWS CLI 2.36 or later if you also use the console or CLI directly.
+
+The `--access-token` value is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a token whose permissions match what you want the agent to do. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that. Pass `--skip-mcp-server` to provision the AWS side only.
+
+Two steps cannot be automated because they are browser consent flows: registering and installing the GitHub App, and creating a Kiro API key. `setup` prints them, along with the agent space ID to re-run with:
+
+```sh-session
+ldcli aws-devops-agent setup --agent-space-id <agent-space-id> \
+  --github-service-id <service-id> --github-owner <owner> --github-repo <repo> --github-repo-id <repo-id>
+```
+
+`ldcli aws-devops-agent status` shows what exists, and `ldcli aws-devops-agent teardown --agent-space-id <agent-space-id> --delete-roles` removes it.
 
 ### Resource Commands
 
