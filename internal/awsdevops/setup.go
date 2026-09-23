@@ -63,6 +63,7 @@ type SetupOptions struct {
 
 	LDAccessToken    string
 	SkipMCPServer    bool
+	MCPServiceID     string
 	MCPReadOnlyTools []string
 	MCPMutativeTools []string
 
@@ -187,7 +188,7 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		logf("Operator app available at %s", result.OperatorAppURL)
 	}
 
-	if !opts.SkipMCPServer && opts.LDAccessToken != "" {
+	if !opts.SkipMCPServer && (opts.LDAccessToken != "" || opts.MCPServiceID != "") {
 		if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
 			return result, err
 		}
@@ -286,9 +287,13 @@ func registerMCPServer(
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
-	existing, err := FindMCPServer(ctx, clients)
-	if err != nil {
-		return err
+	existing := opts.MCPServiceID
+	if existing == "" {
+		var err error
+		existing, err = FindMCPServer(ctx, clients)
+		if err != nil {
+			return err
+		}
 	}
 	if existing != "" {
 		result.MCPServiceID = existing
@@ -314,7 +319,17 @@ func registerMCPServer(
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("unable to register the LaunchDarkly MCP server: %w", err)
+		if !strings.Contains(err.Error(), "already exists") {
+			return fmt.Errorf("unable to register the LaunchDarkly MCP server: %w", err)
+		}
+
+		return fmt.Errorf(
+			"an MCP server named %s already exists on this account but is not visible to ListServices, "+
+				"so it cannot be associated automatically: associate it with agent space %s in the console, "+
+				"or re-run with --skip-mcp-server",
+			MCPServerName,
+			result.AgentSpaceID,
+		)
 	}
 
 	// RegisterService returns a service ID or an additional step, never both.
@@ -529,7 +544,7 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 			URL: result.MCPAuthorizationURL,
 		})
 	}
-	if !opts.SkipMCPServer && opts.LDAccessToken == "" {
+	if !opts.SkipMCPServer && opts.LDAccessToken == "" && result.MCPServiceID == "" {
 		steps = append(steps, ManualStep{
 			Kind: ManualStepMCPServer,
 			Description: fmt.Sprintf(

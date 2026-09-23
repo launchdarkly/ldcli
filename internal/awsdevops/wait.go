@@ -3,6 +3,7 @@ package awsdevops
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -44,19 +45,22 @@ func WaitForGitHubService(ctx context.Context, clients Clients, interval time.Du
 // already registered on the account. AWS keeps MCP servers at the account
 // level, so a second agent space reuses the existing registration.
 func FindMCPServer(ctx context.Context, clients Clients) (string, error) {
-	services, err := clients.Agent.ListServices(ctx, &devopsagent.ListServicesInput{
-		FilterServiceType: agenttypes.ServiceMcpServer,
-	})
-	if err != nil {
-		return "", fmt.Errorf("unable to list registered services: %w", err)
-	}
-	for _, service := range services.Services {
-		if aws.ToString(service.Name) == MCPServerName {
-			return aws.ToString(service.ServiceId), nil
+	var nextToken *string
+	for {
+		services, err := clients.Agent.ListServices(ctx, &devopsagent.ListServicesInput{NextToken: nextToken})
+		if err != nil {
+			return "", fmt.Errorf("unable to list registered services: %w", err)
 		}
+		for _, service := range services.Services {
+			if strings.EqualFold(aws.ToString(service.Name), MCPServerName) {
+				return aws.ToString(service.ServiceId), nil
+			}
+		}
+		if services.NextToken == nil {
+			return "", nil
+		}
+		nextToken = services.NextToken
 	}
-
-	return "", nil
 }
 
 func findGitHubService(ctx context.Context, clients Clients) (string, error) {

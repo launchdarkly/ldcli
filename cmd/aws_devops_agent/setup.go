@@ -24,6 +24,7 @@ const (
 	idpClientSecretFlag       = "idp-client-secret"
 	skipOperatorAppFlag       = "skip-operator-app"
 	skipMCPServerFlag         = "skip-mcp-server"
+	mcpServiceIDFlag          = "mcp-service-id"
 	mcpReadOnlyToolsFlag      = "mcp-read-only-tools"
 	mcpMutativeToolsFlag      = "mcp-mutative-tools"
 	skillNameFlag             = "skill-name"
@@ -72,6 +73,7 @@ resumes once you are done. Pass --no-wait to only list them.`,
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
 	cmd.Flags().Bool(skipOperatorAppFlag, false, "Skip the operator app role and web app")
 	cmd.Flags().Bool(skipMCPServerFlag, false, "Skip registering the LaunchDarkly MCP server, without listing it as a manual step")
+	cmd.Flags().String(mcpServiceIDFlag, "", "Service ID of an MCP server already registered on the account to associate instead of registering one")
 	cmd.Flags().StringSlice(mcpReadOnlyToolsFlag, awsdevops.DefaultMCPReadOnlyTools, "LaunchDarkly MCP tools the agent may call without approval")
 	cmd.Flags().StringSlice(mcpMutativeToolsFlag, awsdevops.DefaultMCPMutativeTools, "LaunchDarkly MCP tools that change flag state and need approval")
 	cmd.Flags().String(skillNameFlag, "launchdarkly", "Name of the skill asset to create from --skill-file")
@@ -153,6 +155,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		SkipOperatorApp:       mustBool(cmd, skipOperatorAppFlag),
 		LDAccessToken:         viper.GetString(cliflags.AccessTokenFlag),
 		SkipMCPServer:         mustBool(cmd, skipMCPServerFlag),
+		MCPServiceID:          mustString(cmd, mcpServiceIDFlag),
 		MCPReadOnlyTools:      mustStringSlice(cmd, mcpReadOnlyToolsFlag),
 		MCPMutativeTools:      mustStringSlice(cmd, mcpMutativeToolsFlag),
 		SkillName:             mustString(cmd, skillNameFlag),
