@@ -67,6 +67,7 @@ func TestWritePlanDescribesMissingLaunchDarklyVariation(t *testing.T) {
 	require.NoError(t, writePlanOutput(&output, "plaintext", plan))
 
 	assert.Contains(t, output.String(), "(does not exist in LaunchDarkly)")
+	assert.NotContains(t, output.String(), `"variation": {`)
 	assert.NotContains(t, output.String(), "-null")
 }
 

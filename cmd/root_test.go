@@ -367,6 +367,7 @@ func TestNewRootCommand_RegistersTopLevelCommands(t *testing.T) {
 		"signup",
 		"sourcemaps",
 		"symbols",
+		"sync",
 		"whoami",
 	} {
 		assert.True(t, registered[name], "%s is not registered on the root command", name)
