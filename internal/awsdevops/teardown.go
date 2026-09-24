@@ -14,9 +14,10 @@ import (
 // TeardownOptions describes what to remove. The agent space has to be emptied
 // before it can be deleted, so assets and associations always go first.
 type TeardownOptions struct {
-	AgentSpaceID string
-	ServiceIDs   []string
-	DeleteRoles  bool
+	AgentSpaceID     string
+	ServiceIDs       []string
+	DeregisterGitHub bool
+	DeleteRoles      bool
 
 	Logf func(format string, args ...any)
 }
@@ -29,8 +30,10 @@ func Teardown(ctx context.Context, clients Clients, opts TeardownOptions) error 
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
-	if opts.AgentSpaceID == "" && !opts.DeleteRoles && len(opts.ServiceIDs) == 0 {
-		return errors.New("nothing to tear down: pass --agent-space-id, --service-id or --delete-roles")
+	if opts.AgentSpaceID == "" && !opts.DeleteRoles && !opts.DeregisterGitHub && len(opts.ServiceIDs) == 0 {
+		return errors.New(
+			"nothing to tear down: pass --agent-space-id, --service-id, --deregister-github or --delete-roles",
+		)
 	}
 
 	if opts.AgentSpaceID != "" {
@@ -74,7 +77,20 @@ func Teardown(ctx context.Context, clients Clients, opts TeardownOptions) error 
 		logf("Deleted agent space %s", opts.AgentSpaceID)
 	}
 
-	for _, serviceID := range opts.ServiceIDs {
+	serviceIDs := opts.ServiceIDs
+	if opts.DeregisterGitHub {
+		githubServiceID, err := FindGitHubService(ctx, clients)
+		if err != nil {
+			return err
+		}
+		if githubServiceID == "" {
+			logf("No GitHub registration to deregister")
+		} else {
+			serviceIDs = append(serviceIDs, githubServiceID)
+		}
+	}
+
+	for _, serviceID := range serviceIDs {
 		if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
 			ServiceId: aws.String(serviceID),
 		}); err != nil {

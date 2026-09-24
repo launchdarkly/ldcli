@@ -140,17 +140,20 @@ func serviceName(service agenttypes.RegisteredService) string {
 // FindGitHubService returns the ID of the GitHub registration on the account,
 // which only a browser consent flow can create.
 func FindGitHubService(ctx context.Context, clients Clients) (string, error) {
-	services, err := clients.Agent.ListServices(ctx, &devopsagent.ListServicesInput{
-		FilterServiceType: agenttypes.ServiceGithub,
-	})
-	if err != nil {
-		return "", fmt.Errorf("unable to list registered services: %w", err)
-	}
-	for _, service := range services.Services {
-		if service.ServiceType == agenttypes.ServiceGithub {
-			return aws.ToString(service.ServiceId), nil
+	var nextToken *string
+	for {
+		services, err := clients.Agent.ListServices(ctx, &devopsagent.ListServicesInput{NextToken: nextToken})
+		if err != nil {
+			return "", fmt.Errorf("unable to list registered services: %w", err)
 		}
+		for _, service := range services.Services {
+			if service.ServiceType == agenttypes.ServiceGithub {
+				return aws.ToString(service.ServiceId), nil
+			}
+		}
+		if services.NextToken == nil {
+			return "", nil
+		}
+		nextToken = services.NextToken
 	}
-
-	return "", nil
 }

@@ -49,6 +49,40 @@ func TestSetupReusesAnAlreadyRegisteredMCPServer(t *testing.T) {
 	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
 }
 
+func TestSetupSkipsTheGitHubStepWhenItIsAlreadyRegistered(t *testing.T) {
+	agent := &fakeAgent{
+		services: []agenttypes.RegisteredService{
+			{ServiceId: aws.String("gh-1"), ServiceType: agenttypes.ServiceGithub},
+		},
+	}
+
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName: "launchdarkly",
+		AuthFlow:       "iam",
+		SkipMCPServer:  true,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "gh-1", result.GitHubServiceID)
+	for _, step := range result.RemainingManualSteps {
+		assert.NotEqual(t, awsdevops.ManualStepGitHubApp, step.Kind)
+	}
+}
+
+func TestTeardownDeregistersGitHub(t *testing.T) {
+	agent := &fakeAgent{
+		services: []agenttypes.RegisteredService{
+			{ServiceId: aws.String("gh-1"), ServiceType: agenttypes.ServiceGithub},
+		},
+	}
+
+	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.TeardownOptions{
+		DeregisterGitHub: true,
+	}))
+
+	assert.Equal(t, []string{"gh-1"}, agent.deregisteredIDs)
+}
+
 func TestFindMCPServerMatchesOnTheEndpointInTheServiceDetails(t *testing.T) {
 	agent := &fakeAgent{
 		services: []agenttypes.RegisteredService{

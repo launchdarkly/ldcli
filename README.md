@@ -127,14 +127,14 @@ The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`,
 
 `--access-token` is optional. When you pass one it is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a token whose permissions match what you want the agent to do. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that. Without a token, `setup` finishes the AWS side and prints the console URL where you can add the MCP server yourself; `--skip-mcp-server` leaves it out entirely.
 
-Two steps cannot be automated because they are browser consent flows: registering and installing the GitHub App, and creating a Kiro API key. In a terminal, `setup` pauses on each one, showing a single URL to open. It resumes when you press Enter, except for GitHub, where it polls AWS and continues on its own once the registration appears — and connects the repository immediately if you passed `--github-owner`, `--github-repo` and `--github-repo-id`. Press `s` to skip a step, or pass `--no-wait` to list them all instead, for example in CI:
+Two steps cannot be automated because they are browser consent flows: registering and installing the GitHub App, and creating a Kiro API key. In a terminal, `setup` pauses on each one, showing a single URL to open. It resumes when you press Enter, except for GitHub, where it polls AWS and continues on its own once the registration appears — and connects the repository immediately if you passed `--github-owner`, `--github-repo` and `--github-repo-id`. GitHub is skipped entirely when the account already has a registration. Press `s` to skip a step, or pass `--no-wait` to list them all instead, for example in CI:
 
 ```sh-session
 ldcli aws-devops-agent setup --no-wait \
   --github-owner <owner> --github-repo <repo> --github-repo-id <repo-id>
 ```
 
-`ldcli aws-devops-agent status` shows what exists, and `ldcli aws-devops-agent teardown --agent-space-id <agent-space-id> --delete-roles` removes it.
+`ldcli aws-devops-agent status` shows what exists, and `ldcli aws-devops-agent teardown --agent-space-id <agent-space-id> --delete-roles` removes it. GitHub and the LaunchDarkly MCP server are registered on the account rather than the agent space, so they survive teardown unless you pass `--deregister-github` or `--service-id <mcp-service-id>`.
 
 ### Resource Commands
 

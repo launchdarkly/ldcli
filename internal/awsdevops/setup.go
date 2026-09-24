@@ -222,6 +222,9 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 			return result, err
 		}
 	}
+	if result.GitHubServiceID != "" {
+		logf("GitHub is already registered (service %s)", result.GitHubServiceID)
+	}
 	if result.GitHubServiceID != "" && opts.GitHubRepo != "" {
 		opts.GitHubServiceID = result.GitHubServiceID
 		result.GitHubAssociationID, err = AssociateGitHub(ctx, clients, result.AgentSpaceID, opts)
