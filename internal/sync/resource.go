@@ -66,6 +66,14 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+// NormalizePromptText gives semantically equivalent prompt text one stable
+// representation across API responses, local files, and operating systems.
+func NormalizePromptText(content string) string {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\r", "\n")
+	return strings.TrimSpace(content)
+}
+
 // Variation is the common prompt variation representation used by sync.
 type Variation struct {
 	Mode               VariationMode  `json:"mode" yaml:"mode"`
