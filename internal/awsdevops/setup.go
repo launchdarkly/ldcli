@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
@@ -30,6 +31,10 @@ const (
 	KiroPortalURL = "https://kiro.dev"
 
 	DefaultLDBaseURI = "https://app.launchdarkly.com"
+
+	roleAssumableTimeout     = 2 * time.Minute
+	roleAssumableFirstWait   = time.Second
+	roleAssumableMaxInterval = 10 * time.Second
 
 	MCPServerName     = "LaunchDarkly"
 	MCPServerEndpoint = "https://mcp.launchdarkly.com/mcp/launchdarkly"
@@ -186,17 +191,7 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	if result.AWSAssociationID != "" {
 		logf("Account %s is already associated with the agent space", accountID)
 	} else {
-		awsAssociation, err := clients.Agent.AssociateService(ctx, &devopsagent.AssociateServiceInput{
-			AgentSpaceId: aws.String(result.AgentSpaceID),
-			ServiceId:    aws.String(awsServiceID),
-			Configuration: &agenttypes.ServiceConfigurationMemberAws{
-				Value: agenttypes.AWSConfiguration{
-					AccountId:        aws.String(accountID),
-					AccountType:      agenttypes.MonitorAccountTypeMonitor,
-					AssumableRoleArn: aws.String(result.AgentSpaceRoleARN),
-				},
-			},
-		})
+		awsAssociation, err := associateAWSAccount(ctx, clients, accountID, result, logf)
 		if err != nil {
 			return result, fmt.Errorf("unable to associate the AWS account with the agent space: %w", err)
 		}
@@ -314,6 +309,55 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	result.RemainingManualSteps = remainingManualSteps(clients.Region, opts, result)
 
 	return result, nil
+}
+
+// associateAWSAccount retries while AWS still rejects the agent space role:
+// a freshly created role takes a while to become assumable.
+func associateAWSAccount(
+	ctx context.Context,
+	clients Clients,
+	accountID string,
+	result SetupResult,
+	logf func(string, ...any),
+) (*devopsagent.AssociateServiceOutput, error) {
+	input := &devopsagent.AssociateServiceInput{
+		AgentSpaceId: aws.String(result.AgentSpaceID),
+		ServiceId:    aws.String(awsServiceID),
+		Configuration: &agenttypes.ServiceConfigurationMemberAws{
+			Value: agenttypes.AWSConfiguration{
+				AccountId:        aws.String(accountID),
+				AccountType:      agenttypes.MonitorAccountTypeMonitor,
+				AssumableRoleArn: aws.String(result.AgentSpaceRoleARN),
+			},
+		},
+	}
+
+	deadline := time.Now().Add(roleAssumableTimeout)
+	wait := roleAssumableFirstWait
+	for first := true; ; first = false {
+		association, err := clients.Agent.AssociateService(ctx, input)
+		if err == nil || !isRoleNotAssumableYet(err) || time.Now().After(deadline) {
+			return association, err
+		}
+		if first {
+			logf("Waiting for %s to become assumable", result.AgentSpaceRoleARN)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
+		}
+		if wait < roleAssumableMaxInterval {
+			wait *= 2
+		}
+	}
+}
+
+// isRoleNotAssumableYet matches how AWS reports a role IAM has not finished
+// propagating, which reads as a trust policy problem.
+func isRoleNotAssumableYet(err error) bool {
+	return strings.Contains(err.Error(), "Invalid STS role configuration")
 }
 
 // RegisterMCPServer registers and associates the LaunchDarkly MCP server on

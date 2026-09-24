@@ -2,6 +2,7 @@ package awsdevops_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -31,11 +32,20 @@ type fakeAgent struct {
 	deletedAssetIDs    []string
 	deregisteredIDs    []string
 	deletedAgentSpaces []string
+	associateFailures  int
 }
 
 func (f *fakeAgent) AssociateService(_ context.Context, in *devopsagent.AssociateServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.AssociateServiceOutput, error) {
 	f.calls = append(f.calls, "AssociateService")
 	f.associationInputs = append(f.associationInputs, in)
+
+	if f.associateFailures > 0 {
+		f.associateFailures--
+
+		return nil, errors.New(
+			"ValidationException: Invalid STS role configuration for session monitorVerificationAssociationRoleSession",
+		)
+	}
 
 	return &devopsagent.AssociateServiceOutput{
 		Association: &agenttypes.Association{AssociationId: aws.String("assoc-" + aws.ToString(in.ServiceId))},
@@ -279,6 +289,21 @@ func TestSetupReusesExistingRolesAndAgentSpace(t *testing.T) {
 	assert.NotContains(t, agent.calls, "EnableOperatorApp")
 	assert.Empty(t, iamClient.createdRoles)
 	assert.Equal(t, "arn:aws:iam::"+testAccountID+":role/"+awsdevops.AgentSpaceRoleName, result.AgentSpaceRoleARN)
+}
+
+func TestSetupRetriesTheAccountAssociationUntilTheRoleIsAssumable(t *testing.T) {
+	agent := &fakeAgent{associateFailures: 1}
+
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName:  "launchdarkly",
+		AuthFlow:        "iam",
+		SkipOperatorApp: true,
+		SkipMCPServer:   true,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "assoc-aws", result.AWSAssociationID)
+	assert.Len(t, agent.associationInputs, 2)
 }
 
 func TestSetupWithoutAccessTokenReportsMCPServerAsManualStep(t *testing.T) {
