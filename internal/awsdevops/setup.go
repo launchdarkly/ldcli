@@ -29,6 +29,8 @@ const (
 
 	KiroPortalURL = "https://kiro.dev"
 
+	DefaultLDBaseURI = "https://app.launchdarkly.com"
+
 	MCPServerName     = "LaunchDarkly"
 	MCPServerEndpoint = "https://mcp.launchdarkly.com/mcp/launchdarkly"
 
@@ -63,6 +65,7 @@ type SetupOptions struct {
 	IdpClientSecret string
 	SkipOperatorApp bool
 
+	LDBaseURI        string
 	LDAccessToken    string
 	SkipMCPServer    bool
 	ReplaceMCPToken  bool
@@ -311,6 +314,17 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	result.RemainingManualSteps = remainingManualSteps(clients.Region, opts, result)
 
 	return result, nil
+}
+
+// RegisterMCPServer registers and associates the LaunchDarkly MCP server on
+// its own, for a token collected after Setup has run.
+func RegisterMCPServer(ctx context.Context, clients Clients, opts SetupOptions, result *SetupResult) error {
+	logf := opts.Logf
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
+
+	return registerMCPServer(ctx, clients, opts, result, logf)
 }
 
 func registerMCPServer(
@@ -616,10 +630,10 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 		steps = append(steps, ManualStep{
 			Kind: ManualStepMCPServer,
 			Description: fmt.Sprintf(
-				"Register the LaunchDarkly MCP server (%s) in the console, or re-run setup with --access-token",
+				"Create a LaunchDarkly service token for the MCP server (%s), then re-run setup with --access-token",
 				MCPServerEndpoint,
 			),
-			URL: MCPRegistrationURL(region),
+			URL: AccessTokenURL(opts.LDBaseURI),
 		})
 	}
 	if result.GitHubServiceID == "" {
@@ -647,6 +661,15 @@ func ConsoleURL(region string) string {
 // account, which AWS only exposes in a browser.
 func GitHubRegistrationURL(region string) string {
 	return ConsoleURL(region) + "#/services/register/github"
+}
+
+// AccessTokenURL is the LaunchDarkly page where a service token is created.
+func AccessTokenURL(baseURI string) string {
+	if baseURI == "" {
+		baseURI = DefaultLDBaseURI
+	}
+
+	return strings.TrimSuffix(baseURI, "/") + "/settings/authorization"
 }
 
 // MCPRegistrationURL is the console page that registers an MCP server with the

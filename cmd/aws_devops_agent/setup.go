@@ -55,11 +55,10 @@ along with anything already attached to it. Steps that AWS only exposes through
 the console, such as the GitHub App installation, are listed at the end of the
 run.
 
-Without --access-token the MCP server is left for you to add in the console,
-which is also listed at the end of the run. Pass a LaunchDarkly service token:
-AWS keeps it permanently and the agent acts as that token's account and role,
-so the session token 'ldcli login' writes to your configuration is not used
-here.
+Without --access-token, setup pauses on the LaunchDarkly page where you create
+a service token for the agent and connects the MCP server with the token you
+paste. AWS keeps that token and the agent acts as its account and role, so the
+session token 'ldcli login' writes to your configuration is not used here.
 
 In a terminal, setup pauses on each browser step with the page to open and
 resumes once you are done. Pass --no-wait to only list them.`,
@@ -162,6 +161,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		IdpClientSecret:       mustString(cmd, idpClientSecretFlag),
 		NewAgentSpace:         mustBool(cmd, newAgentSpaceFlag),
 		SkipOperatorApp:       mustBool(cmd, skipOperatorAppFlag),
+		LDBaseURI:             viper.GetString(cliflags.BaseURIFlag),
 		LDAccessToken:         mcpAccessToken(cmd),
 		SkipMCPServer:         mustBool(cmd, skipMCPServerFlag),
 		ReplaceMCPToken:       mustBool(cmd, replaceMCPTokenFlag),

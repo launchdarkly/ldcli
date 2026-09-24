@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -14,8 +15,10 @@ import (
 )
 
 const (
-	skipKey = 's'
-	etx     = 3
+	skipKey   = 's'
+	etx       = 3
+	backspace = 8
+	del       = 127
 )
 
 func manualStepPrompt(step awsdevops.ManualStep) string {
@@ -23,7 +26,7 @@ func manualStepPrompt(step awsdevops.ManualStep) string {
 	case awsdevops.ManualStepOAuthConsent:
 		return "Approve the LaunchDarkly MCP server consent screen at:"
 	case awsdevops.ManualStepMCPServer:
-		return fmt.Sprintf("Add the LaunchDarkly MCP server (%s) under Settings at:", awsdevops.MCPServerEndpoint)
+		return "Create a LaunchDarkly service token for the agent at:"
 	case awsdevops.ManualStepGitHubApp:
 		return "Register GitHub and install the GitHub App at:"
 	case awsdevops.ManualStepKiroAPIKey:
@@ -62,6 +65,14 @@ func walkManualSteps(
 			continue
 		}
 
+		if step.Kind == awsdevops.ManualStepMCPServer {
+			if !connectMCPServer(cmd, clients, opts, result, keys, out, errOut) {
+				skipped = append(skipped, step)
+			}
+
+			continue
+		}
+
 		_, _ = fmt.Fprint(out, "Press Enter when you're done, or s to skip: ")
 		key := keys.next()
 		_, _ = fmt.Fprintln(out)
@@ -71,6 +82,34 @@ func walkManualSteps(
 	}
 
 	return skipped
+}
+
+// connectMCPServer registers the MCP server with a token pasted at the prompt,
+// reporting whether the step is done.
+func connectMCPServer(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	opts awsdevops.SetupOptions,
+	result *awsdevops.SetupResult,
+	keys *keyReader,
+	out io.Writer,
+	errOut io.Writer,
+) bool {
+	_, _ = fmt.Fprint(out, "Paste the token to connect the MCP server, or press Enter to skip: ")
+	token := keys.line()
+	_, _ = fmt.Fprintln(out)
+	if token == "" {
+		return false
+	}
+
+	opts.LDAccessToken = token
+	if err := awsdevops.RegisterMCPServer(cmd.Context(), clients, opts, result); err != nil {
+		_, _ = fmt.Fprintf(errOut, "%s\n", err)
+
+		return false
+	}
+
+	return true
 }
 
 func awaitGitHubService(
@@ -193,6 +232,26 @@ func (k *keyReader) next() byte {
 	}
 
 	return key
+}
+
+// line collects keys until Enter. It does not echo, since the only thing
+// typed at one of these prompts is an access token.
+func (k *keyReader) line() string {
+	var typed []byte
+	for {
+		key, ok := <-k.keys
+		if !ok || key == '\r' || key == '\n' {
+			return strings.TrimSpace(string(typed))
+		}
+		if key == backspace || key == del {
+			if len(typed) > 0 {
+				typed = typed[:len(typed)-1]
+			}
+
+			continue
+		}
+		typed = append(typed, key)
+	}
 }
 
 func (k *keyReader) close() {
