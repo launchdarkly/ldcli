@@ -83,6 +83,31 @@ func TestTeardownDeregistersGitHub(t *testing.T) {
 	assert.Equal(t, []string{"gh-1"}, agent.deregisteredIDs)
 }
 
+func TestSetupReplacesTheMCPServerTokenWhenAsked(t *testing.T) {
+	agent := &fakeAgent{
+		services: []agenttypes.RegisteredService{
+			{
+				ServiceId:   aws.String("mcp-1"),
+				ServiceType: agenttypes.ServiceMcpServer,
+				Name:        aws.String(awsdevops.MCPServerName),
+			},
+		},
+	}
+
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName:  "launchdarkly",
+		AuthFlow:        "iam",
+		SkipOperatorApp: true,
+		LDAccessToken:   "api-token",
+		ReplaceMCPToken: true,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"mcp-1"}, agent.deregisteredIDs)
+	assert.Contains(t, agent.calls, "RegisterService")
+	assert.Equal(t, "mcp-1", result.MCPServiceID)
+}
+
 func TestFindMCPServerMatchesOnTheEndpointInTheServiceDetails(t *testing.T) {
 	agent := &fakeAgent{
 		services: []agenttypes.RegisteredService{

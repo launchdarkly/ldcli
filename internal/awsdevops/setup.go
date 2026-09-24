@@ -65,6 +65,7 @@ type SetupOptions struct {
 
 	LDAccessToken    string
 	SkipMCPServer    bool
+	ReplaceMCPToken  bool
 	MCPServiceID     string
 	MCPReadOnlyTools []string
 	MCPMutativeTools []string
@@ -327,11 +328,26 @@ func registerMCPServer(
 			return err
 		}
 	}
-	if existing != "" {
+	replacingToken := opts.ReplaceMCPToken && opts.LDAccessToken != ""
+	if existing != "" && !replacingToken {
 		result.MCPServiceID = existing
-		logf("Reusing the %s MCP server already registered on this account (%s)", MCPServerName, existing)
+		logf(
+			"Reusing the %s MCP server already registered on this account (%s); it keeps the access "+
+				"token it was registered with, so pass --access-token --replace-mcp-token to change it",
+			MCPServerName,
+			existing,
+		)
 
 		return associateMCPServer(ctx, clients, opts, result, logf)
+	}
+	if existing != "" {
+		if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
+			ServiceId: aws.String(existing),
+		}); err != nil {
+			return fmt.Errorf("unable to deregister the existing LaunchDarkly MCP server %s: %w", existing, err)
+		}
+		logf("Deregistered the %s MCP server (%s) so it can be re-registered with the new access token",
+			MCPServerName, existing)
 	}
 
 	registration, err := clients.Agent.RegisterService(ctx, &devopsagent.RegisterServiceInput{

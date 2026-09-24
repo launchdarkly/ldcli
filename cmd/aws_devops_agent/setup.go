@@ -25,6 +25,7 @@ const (
 	idpClientSecretFlag       = "idp-client-secret"
 	skipOperatorAppFlag       = "skip-operator-app"
 	skipMCPServerFlag         = "skip-mcp-server"
+	replaceMCPTokenFlag       = "replace-mcp-token"
 	mcpServiceIDFlag          = "mcp-service-id"
 	mcpReadOnlyToolsFlag      = "mcp-read-only-tools"
 	mcpMutativeToolsFlag      = "mcp-mutative-tools"
@@ -55,7 +56,10 @@ the console, such as the GitHub App installation, are listed at the end of the
 run.
 
 Without --access-token the MCP server is left for you to add in the console,
-which is also listed at the end of the run.
+which is also listed at the end of the run. Pass a LaunchDarkly service token:
+AWS keeps it permanently and the agent acts as that token's account and role,
+so the session token 'ldcli login' writes to your configuration is not used
+here.
 
 In a terminal, setup pauses on each browser step with the page to open and
 resumes once you are done. Pass --no-wait to only list them.`,
@@ -76,6 +80,7 @@ resumes once you are done. Pass --no-wait to only list them.`,
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
 	cmd.Flags().Bool(skipOperatorAppFlag, false, "Skip the operator app role and web app")
 	cmd.Flags().Bool(skipMCPServerFlag, false, "Skip registering the LaunchDarkly MCP server, without listing it as a manual step")
+	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses the token passed with --access-token")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Service ID of an MCP server already registered on the account to associate instead of registering one")
 	cmd.Flags().StringSlice(mcpReadOnlyToolsFlag, awsdevops.DefaultMCPReadOnlyTools, "LaunchDarkly MCP tools the agent may call without approval")
 	cmd.Flags().StringSlice(mcpMutativeToolsFlag, awsdevops.DefaultMCPMutativeTools, "LaunchDarkly MCP tools that change flag state and need approval")
@@ -115,9 +120,6 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	if plaintext {
 		opts.Logf = func(format string, args ...any) {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
-		}
-		if !opts.SkipMCPServer && opts.LDAccessToken != "" && !cmd.Flags().Changed(cliflags.AccessTokenFlag) {
-			opts.Logf("Connecting the MCP server with the access token from your ldcli configuration")
 		}
 	}
 
@@ -160,8 +162,9 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		IdpClientSecret:       mustString(cmd, idpClientSecretFlag),
 		NewAgentSpace:         mustBool(cmd, newAgentSpaceFlag),
 		SkipOperatorApp:       mustBool(cmd, skipOperatorAppFlag),
-		LDAccessToken:         viper.GetString(cliflags.AccessTokenFlag),
+		LDAccessToken:         mcpAccessToken(cmd),
 		SkipMCPServer:         mustBool(cmd, skipMCPServerFlag),
+		ReplaceMCPToken:       mustBool(cmd, replaceMCPTokenFlag),
 		MCPServiceID:          mustString(cmd, mcpServiceIDFlag),
 		MCPReadOnlyTools:      mustStringSlice(cmd, mcpReadOnlyToolsFlag),
 		MCPMutativeTools:      mustStringSlice(cmd, mcpMutativeToolsFlag),
@@ -204,6 +207,17 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 	}
 
 	return opts, nil
+}
+
+// mcpAccessToken ignores a token that only lives in the ldcli configuration,
+// since `ldcli login` writes a session token there that AWS would keep past
+// its expiry.
+func mcpAccessToken(cmd *cobra.Command) string {
+	if cmd.Flags().Changed(cliflags.AccessTokenFlag) || os.Getenv("LD_ACCESS_TOKEN") != "" {
+		return viper.GetString(cliflags.AccessTokenFlag)
+	}
+
+	return ""
 }
 
 // mustString and friends read flags this package declares itself, so a lookup
