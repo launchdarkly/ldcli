@@ -116,6 +116,9 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		opts.Logf = func(format string, args ...any) {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
 		}
+		if !opts.SkipMCPServer && opts.LDAccessToken != "" && !cmd.Flags().Changed(cliflags.AccessTokenFlag) {
+			opts.Logf("Connecting the MCP server with the access token from your ldcli configuration")
+		}
 	}
 
 	result, err := awsdevops.Setup(cmd.Context(), clients, opts)

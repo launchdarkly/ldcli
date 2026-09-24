@@ -331,7 +331,7 @@ func registerMCPServer(
 		result.MCPServiceID = existing
 		logf("Reusing the %s MCP server already registered on this account (%s)", MCPServerName, existing)
 
-		return associateMCPServer(ctx, clients, opts, result)
+		return associateMCPServer(ctx, clients, opts, result, logf)
 	}
 
 	registration, err := clients.Agent.RegisterService(ctx, &devopsagent.RegisterServiceInput{
@@ -370,17 +370,29 @@ func registerMCPServer(
 		return nil
 	}
 	result.MCPServiceID = aws.ToString(registration.ServiceId)
+	logf(
+		"Registered the %s MCP server (%s) against the LaunchDarkly account the access token belongs to",
+		MCPServerName,
+		result.MCPServiceID,
+	)
 
-	return associateMCPServer(ctx, clients, opts, result)
+	return associateMCPServer(ctx, clients, opts, result, logf)
 }
 
-func associateMCPServer(ctx context.Context, clients Clients, opts SetupOptions, result *SetupResult) error {
+func associateMCPServer(
+	ctx context.Context,
+	clients Clients,
+	opts SetupOptions,
+	result *SetupResult,
+	logf func(string, ...any),
+) error {
 	existing, err := FindAssociation(ctx, clients, result.AgentSpaceID, result.MCPServiceID)
 	if err != nil {
 		return err
 	}
 	if existing != "" {
 		result.MCPAssociationID = existing
+		logf("The %s MCP server is already associated with the agent space", MCPServerName)
 
 		return nil
 	}
@@ -396,6 +408,7 @@ func associateMCPServer(ctx context.Context, clients Clients, opts SetupOptions,
 		return fmt.Errorf("unable to associate the LaunchDarkly MCP server with the agent space: %w", err)
 	}
 	result.MCPAssociationID = aws.ToString(association.Association.AssociationId)
+	logf("Associated the %s MCP server with the agent space", MCPServerName)
 
 	return nil
 }
