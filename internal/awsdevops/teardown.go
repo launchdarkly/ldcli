@@ -10,9 +10,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 )
 
-// TeardownOptions narrows what to remove. With none of them set, Teardown
-// removes everything setup can create. The agent space has to be emptied
-// before it can be deleted, so assets and associations always go first.
+// TeardownOptions narrows what to remove: only AgentSpaceID and ServiceIDs do
+// that, while DeregisterGitHub and DeleteRoles add to a narrowed teardown.
+// With no selector set, Teardown removes everything setup can create. The
+// agent space has to be emptied before it can be deleted, so assets and
+// associations always go first.
 type TeardownOptions struct {
 	AgentSpaceID     string
 	ServiceIDs       []string
@@ -25,7 +27,7 @@ type TeardownOptions struct {
 // RemovesEverything reports whether nothing narrows the teardown, in which
 // case it takes every agent space, registered service and role in the account.
 func (o TeardownOptions) RemovesEverything() bool {
-	return o.AgentSpaceID == "" && len(o.ServiceIDs) == 0 && !o.DeregisterGitHub && !o.DeleteRoles
+	return o.AgentSpaceID == "" && len(o.ServiceIDs) == 0
 }
 
 // Teardown removes the resources Setup created: every association and asset in

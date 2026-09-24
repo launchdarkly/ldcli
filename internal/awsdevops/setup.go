@@ -363,6 +363,40 @@ func associateAWSAccount(
 	}
 }
 
+// registerWithRetry retries while AWS reports the MCP endpoint as unreachable,
+// which it does intermittently for an endpoint that is in fact serving.
+func registerWithRetry(
+	ctx context.Context,
+	clients Clients,
+	input *devopsagent.RegisterServiceInput,
+	logf func(string, ...any),
+) (*devopsagent.RegisterServiceOutput, error) {
+	deadline := time.Now().Add(roleAssumableTimeout)
+	wait := roleAssumableFirstWait
+	for first := true; ; first = false {
+		registration, err := clients.Agent.RegisterService(ctx, input)
+		if err == nil || !isEndpointUnreachable(err) || time.Now().After(deadline) {
+			return registration, err
+		}
+		if first {
+			logf("AWS could not reach %s, retrying", MCPServerEndpoint)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
+		}
+		if wait < roleAssumableMaxInterval {
+			wait *= 2
+		}
+	}
+}
+
+func isEndpointUnreachable(err error) bool {
+	return strings.Contains(err.Error(), "is not reachable")
+}
+
 // isRoleNotAssumableYet matches how AWS reports a role IAM has not finished
 // propagating, which reads as a trust policy problem.
 func isRoleNotAssumableYet(err error) bool {
@@ -417,7 +451,7 @@ func registerMCPServer(
 			MCPServerName, existing)
 	}
 
-	registration, err := clients.Agent.RegisterService(ctx, &devopsagent.RegisterServiceInput{
+	input := &devopsagent.RegisterServiceInput{
 		Service: agenttypes.PostRegisterServiceSupportedServiceMcpServer,
 		ServiceDetails: &agenttypes.ServiceDetailsMemberMcpserver{
 			Value: agenttypes.MCPServerDetails{
@@ -432,7 +466,9 @@ func registerMCPServer(
 				},
 			},
 		},
-	})
+	}
+
+	registration, err := registerWithRetry(ctx, clients, input, logf)
 	if err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
 			return fmt.Errorf("unable to register the LaunchDarkly MCP server: %w", err)

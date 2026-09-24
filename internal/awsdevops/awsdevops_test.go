@@ -486,6 +486,20 @@ func TestTeardownWithoutOptionsRemovesEverything(t *testing.T) {
 	assert.Equal(t, []string{awsdevops.AgentSpaceRoleName, awsdevops.OperatorAppRoleName}, iamClient.deletedRoles)
 }
 
+func TestTeardownStillRemovesEverythingWithDeleteRoles(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}},
+		services:    []agenttypes.RegisteredService{{ServiceId: aws.String("mcp-1")}},
+	}
+
+	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.TeardownOptions{
+		DeleteRoles: true,
+	}))
+
+	assert.Equal(t, []string{"space-1"}, agent.deletedAgentSpaces)
+	assert.Equal(t, []string{"mcp-1"}, agent.deregisteredIDs)
+}
+
 func TestStatusReportsMissingRoles(t *testing.T) {
 	agent := &fakeAgent{
 		associations: []agenttypes.Association{{AssociationId: aws.String("assoc-1"), ServiceId: aws.String("aws")}},
