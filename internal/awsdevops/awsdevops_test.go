@@ -603,3 +603,16 @@ func TestLookupGitHubRepoReportsWhatTheGitHubCLISaid(t *testing.T) {
 	assert.ErrorContains(t, err, "launchdarkly/definitely-not-a-repo")
 	assert.ErrorContains(t, err, "gh auth status")
 }
+
+func TestGitHubAppSettingsURLDependsOnTheOwnerType(t *testing.T) {
+	assert.Equal(
+		t,
+		"https://github.com/organizations/launchdarkly/settings/installations",
+		awsdevops.GitHubAppSettingsURL("launchdarkly", "organization"),
+	)
+	assert.Equal(
+		t,
+		"https://github.com/settings/installations",
+		awsdevops.GitHubAppSettingsURL("andrewjeska", "user"),
+	)
+}

@@ -50,6 +50,17 @@ func LookupGitHubRepo(ctx context.Context, owner, repo string) (GitHubRepo, erro
 	}, nil
 }
 
+// GitHubAppSettingsURL is where the repositories an installed GitHub App can
+// see are granted, so the agent's installation can be given a repository AWS
+// reports as inaccessible.
+func GitHubAppSettingsURL(owner, ownerType string) string {
+	if ownerType == "user" {
+		return "https://github.com/settings/installations"
+	}
+
+	return "https://github.com/organizations/" + owner + "/settings/installations"
+}
+
 // ghError prefers what the GitHub CLI printed to stderr over its exit status.
 func ghError(err error) string {
 	var exitErr *exec.ExitError

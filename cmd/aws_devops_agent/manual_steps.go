@@ -277,6 +277,15 @@ func connectGitHubRepo(
 	associationID, err := awsdevops.AssociateGitHub(cmd.Context(), clients, result.AgentSpaceID, *opts)
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "%s\n", err)
+		if strings.Contains(err.Error(), "GitHub App installation") {
+			_, _ = fmt.Fprintf(
+				errOut,
+				"Give the DevOps Agent app access to %s/%s at:\n  %s\n",
+				owner,
+				repo,
+				awsdevops.GitHubAppSettingsURL(owner, opts.GitHubOwnerType),
+			)
+		}
 
 		return true
 	}
