@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.12.0](https://github.com/launchdarkly/ldcli/compare/v3.11.0...v3.12.0) (2026-09-19)
+
+
+### Features
+
+* add command to check for updates ([#706](https://github.com/launchdarkly/ldcli/issues/706)) ([bebc758](https://github.com/launchdarkly/ldcli/commit/bebc7589d751d96315eab8af6a30d2ab8a1778c7))
+* **dev-server:** add --sdk-init-timeout flag to control SDK init timeout ([#801](https://github.com/launchdarkly/ldcli/issues/801)) ([34eef80](https://github.com/launchdarkly/ldcli/commit/34eef80aaff72e24ecd80e49fa4cd38a3b7a5cd0))
+
+
+### Bug Fixes
+
+* pass allowed methods to CORS middleware ([#670](https://github.com/launchdarkly/ldcli/issues/670)) ([945917d](https://github.com/launchdarkly/ldcli/commit/945917d0cafa90ead0c0e4ce9bde8099473d8243))
+* redact access token in config command output ([#787](https://github.com/launchdarkly/ldcli/issues/787)) ([41caa77](https://github.com/launchdarkly/ldcli/commit/41caa77e0a3224f5b91a471b60b16c226a666f21))
+
 ## [3.11.0](https://github.com/launchdarkly/ldcli/compare/v3.10.0...v3.11.0) (2026-08-22)
 
 
