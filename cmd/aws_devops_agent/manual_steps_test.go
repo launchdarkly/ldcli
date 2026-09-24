@@ -24,6 +24,16 @@ func TestKeyReaderReadsALineWithoutEchoing(t *testing.T) {
 	assert.Equal(t, "api-x1", keys.line())
 }
 
+func TestKeyReaderEchoesTheLineItReadsBack(t *testing.T) {
+	keys := newKeyReader(strings.NewReader("owner/rx\x7fepo\r"))
+	defer keys.close()
+
+	var echoed strings.Builder
+
+	assert.Equal(t, "owner/repo", keys.echoLine(&echoed))
+	assert.Equal(t, "owner/rx\b \bepo", echoed.String())
+}
+
 func TestKeyReaderReadsAnEmptyLine(t *testing.T) {
 	keys := newKeyReader(strings.NewReader("\r"))
 	defer keys.close()

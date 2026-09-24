@@ -22,6 +22,15 @@ func KiroSecretCommand(owner, repo string) string {
 	return fmt.Sprintf("gh secret set %s --repo %s", KiroSecretName, target)
 }
 
+// KiroStepDescription describes the Kiro step, including where a key it reads
+// later has to be stored.
+func KiroStepDescription(owner, repo string) string {
+	return fmt.Sprintf(
+		"Create a Kiro API key in the browser if you want the agent to use Kiro, then store it with '%s'",
+		KiroSecretCommand(owner, repo),
+	)
+}
+
 // StoreKiroAPIKey saves the key as a GitHub Actions secret on the repository
 // the agent reviews, using the GitHub CLI's credentials.
 func StoreKiroAPIKey(ctx context.Context, owner, repo, key string) error {

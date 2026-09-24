@@ -48,6 +48,10 @@ func walkManualSteps(
 	out := keys.writer(cmd.OutOrStdout())
 	errOut := keys.writer(cmd.ErrOrStderr())
 
+	if result.GitHubServiceID != "" && result.GitHubAssociationID == "" {
+		connectGitHubRepo(cmd, clients, &opts, result, keys, out, errOut)
+	}
+
 	var skipped []awsdevops.ManualStep
 	for _, step := range result.RemainingManualSteps {
 		if step.Kind == awsdevops.ManualStepMCPServer {
@@ -61,7 +65,8 @@ func walkManualSteps(
 		_, _ = fmt.Fprintf(out, "\n%s\n  %s\n\n", manualStepPrompt(step), step.URL)
 
 		if step.Kind == awsdevops.ManualStepKiroAPIKey {
-			if !storeKiroAPIKey(cmd, opts, keys, out, errOut) {
+			if !storeKiroAPIKey(cmd, clients, &opts, result, keys, out, errOut) {
+				step.Description = awsdevops.KiroStepDescription(opts.GitHubOwner, opts.GitHubRepo)
 				skipped = append(skipped, step)
 			}
 
@@ -70,7 +75,13 @@ func walkManualSteps(
 
 		if step.Kind == awsdevops.ManualStepGitHubApp {
 			if serviceID := awaitGitHubService(cmd, clients, keys, out, errOut); serviceID != "" {
-				associateGitHub(cmd, clients, opts, result, serviceID, out, errOut)
+				result.GitHubServiceID = serviceID
+				if !connectGitHubRepo(cmd, clients, &opts, result, keys, out, errOut) {
+					_, _ = fmt.Fprintln(
+						out,
+						"GitHub is registered. Re-run setup with --github-owner <owner> --github-repo <repo> to connect a repository",
+					)
+				}
 
 				continue
 			}
@@ -127,15 +138,30 @@ func connectMCPServer(
 // Actions secret the agent's workflow reads.
 func storeKiroAPIKey(
 	cmd *cobra.Command,
-	opts awsdevops.SetupOptions,
+	clients awsdevops.Clients,
+	opts *awsdevops.SetupOptions,
+	result *awsdevops.SetupResult,
 	keys *keyReader,
 	out io.Writer,
 	errOut io.Writer,
 ) bool {
-	_, _ = fmt.Fprint(out, "Paste the key, or press Enter to skip: ")
-	key := keys.line()
-	_, _ = fmt.Fprintln(out)
+	key := opts.KiroAPIKey
 	if key == "" {
+		_, _ = fmt.Fprint(out, "Paste the key, or press Enter to skip: ")
+		key = keys.line()
+		_, _ = fmt.Fprintln(out)
+	}
+	if key == "" {
+		return false
+	}
+
+	if !connectGitHubRepo(cmd, clients, opts, result, keys, out, errOut) {
+		_, _ = fmt.Fprintf(
+			errOut,
+			"No repository to store the key on. Store it later with '%s'\n",
+			awsdevops.KiroSecretCommand(opts.GitHubOwner, opts.GitHubRepo),
+		)
+
 		return false
 	}
 
@@ -190,33 +216,57 @@ func awaitGitHubService(
 	return ""
 }
 
-func associateGitHub(
+// connectGitHubRepo asks which repository the agent should review when the
+// repository flags were not passed, then associates it with the agent space.
+// It reports whether opts ends up naming a repository.
+func connectGitHubRepo(
 	cmd *cobra.Command,
 	clients awsdevops.Clients,
-	opts awsdevops.SetupOptions,
+	opts *awsdevops.SetupOptions,
 	result *awsdevops.SetupResult,
-	serviceID string,
+	keys *keyReader,
 	out io.Writer,
 	errOut io.Writer,
-) {
-	if opts.GitHubOwner == "" || opts.GitHubRepo == "" || opts.GitHubRepoID == "" {
-		_, _ = fmt.Fprintln(
-			out,
-			"GitHub is registered. Re-run setup with --github-owner <owner> --github-repo <repo> --github-repo-id <id> to connect a repository",
-		)
-
-		return
+) bool {
+	if opts.GitHubOwner != "" && opts.GitHubRepo != "" {
+		return true
 	}
 
-	opts.GitHubServiceID = serviceID
-	associationID, err := awsdevops.AssociateGitHub(cmd.Context(), clients, result.AgentSpaceID, opts)
+	_, _ = fmt.Fprint(out, "\nRepository for the agent to review (owner/repo), or press Enter to skip: ")
+	entered := keys.echoLine(out)
+	_, _ = fmt.Fprintln(out)
+	owner, repo, ok := strings.Cut(entered, "/")
+	if !ok || owner == "" || repo == "" {
+		return false
+	}
+
+	repository, err := awsdevops.LookupGitHubRepo(cmd.Context(), owner, repo)
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "%s\n", err)
 
-		return
+		return false
+	}
+	opts.GitHubOwner, opts.GitHubRepo = owner, repo
+	opts.GitHubRepoID = repository.ID
+	if repository.OwnerType != "" {
+		opts.GitHubOwnerType = repository.OwnerType
+	}
+
+	if result.GitHubServiceID == "" || result.GitHubAssociationID != "" {
+		return true
+	}
+
+	opts.GitHubServiceID = result.GitHubServiceID
+	associationID, err := awsdevops.AssociateGitHub(cmd.Context(), clients, result.AgentSpaceID, *opts)
+	if err != nil {
+		_, _ = fmt.Fprintf(errOut, "%s\n", err)
+
+		return true
 	}
 	result.GitHubAssociationID = associationID
-	_, _ = fmt.Fprintf(out, "Connected %s/%s\n", opts.GitHubOwner, opts.GitHubRepo)
+	_, _ = fmt.Fprintf(out, "Connected %s/%s\n", owner, repo)
+
+	return true
 }
 
 // keyReader delivers single keypresses from one long-lived goroutine, so a
@@ -277,9 +327,18 @@ func (k *keyReader) next() byte {
 	return key
 }
 
-// line collects keys until Enter. It does not echo, since the only thing
-// typed at one of these prompts is an access token.
+// line collects keys until Enter without echoing, for prompts that take a
+// credential.
 func (k *keyReader) line() string {
+	return k.readLine(nil)
+}
+
+// echoLine collects keys until Enter, echoing what is typed.
+func (k *keyReader) echoLine(echo io.Writer) string {
+	return k.readLine(echo)
+}
+
+func (k *keyReader) readLine(echo io.Writer) string {
 	var typed []byte
 	for {
 		key, ok := <-k.keys
@@ -289,11 +348,17 @@ func (k *keyReader) line() string {
 		if key == backspace || key == del {
 			if len(typed) > 0 {
 				typed = typed[:len(typed)-1]
+				if echo != nil {
+					_, _ = fmt.Fprint(echo, "\b \b")
+				}
 			}
 
 			continue
 		}
 		typed = append(typed, key)
+		if echo != nil {
+			_, _ = fmt.Fprintf(echo, "%c", key)
+		}
 	}
 }
 

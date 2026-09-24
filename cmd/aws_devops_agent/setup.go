@@ -137,7 +137,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if opts.KiroAPIKey != "" {
+	if opts.KiroAPIKey != "" && opts.GitHubOwner != "" && opts.GitHubRepo != "" {
 		if err := awsdevops.StoreKiroAPIKey(cmd.Context(), opts.GitHubOwner, opts.GitHubRepo, opts.KiroAPIKey); err != nil {
 			return err
 		}

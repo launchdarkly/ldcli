@@ -224,13 +224,13 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	}
 	if result.GitHubServiceID != "" {
 		logf("GitHub is already registered (service %s)", result.GitHubServiceID)
-	}
-	if result.GitHubServiceID != "" && opts.GitHubOwner != "" && opts.GitHubRepo != "" && opts.GitHubRepoID != "" {
-		opts.GitHubServiceID = result.GitHubServiceID
 		result.GitHubAssociationID, err = FindAssociation(ctx, clients, result.AgentSpaceID, result.GitHubServiceID)
 		if err != nil {
 			return result, err
 		}
+	}
+	if result.GitHubServiceID != "" && opts.GitHubOwner != "" && opts.GitHubRepo != "" && opts.GitHubRepoID != "" {
+		opts.GitHubServiceID = result.GitHubServiceID
 		if result.GitHubAssociationID != "" {
 			logf("%s/%s is already associated with the agent space", opts.GitHubOwner, opts.GitHubRepo)
 		} else {
@@ -692,18 +692,15 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 	if result.GitHubServiceID == "" {
 		steps = append(steps, ManualStep{
 			Kind:        ManualStepGitHubApp,
-			Description: "Register GitHub and install the GitHub App (a browser consent screen), then re-run setup with --github-owner, --github-repo and --github-repo-id to connect a repository",
+			Description: "Register GitHub and install the GitHub App (a browser consent screen), then re-run setup with --github-owner and --github-repo to connect a repository",
 			URL:         GitHubRegistrationURL(region),
 		})
 	}
-	if opts.KiroAPIKey == "" {
+	if opts.KiroAPIKey == "" || opts.GitHubOwner == "" || opts.GitHubRepo == "" {
 		steps = append(steps, ManualStep{
-			Kind: ManualStepKiroAPIKey,
-			Description: fmt.Sprintf(
-				"Create a Kiro API key in the browser if you want the agent to use Kiro, then store it with '%s'",
-				KiroSecretCommand(opts.GitHubOwner, opts.GitHubRepo),
-			),
-			URL: KiroPortalURL,
+			Kind:        ManualStepKiroAPIKey,
+			Description: KiroStepDescription(opts.GitHubOwner, opts.GitHubRepo),
+			URL:         KiroPortalURL,
 		})
 	}
 
