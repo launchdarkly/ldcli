@@ -134,7 +134,7 @@ ldcli aws-devops-agent setup --no-wait \
   --github-owner <owner> --github-repo <repo> --github-repo-id <repo-id>
 ```
 
-`ldcli aws-devops-agent status` shows what exists, and `ldcli aws-devops-agent teardown --agent-space-id <agent-space-id> --delete-roles` removes it. GitHub and the LaunchDarkly MCP server are registered on the account rather than the agent space, so they survive teardown unless you pass `--deregister-github` or `--service-id <mcp-service-id>`.
+`ldcli aws-devops-agent status` shows what exists. `ldcli aws-devops-agent teardown` removes everything in the account and region — every agent space, the registered services including GitHub and the MCP server, and the IAM roles — after asking you to confirm (`--force` skips the prompt, and is required when there is no terminal). Flags narrow it instead: `--agent-space-id <agent-space-id>`, `--service-id <service-id>`, `--deregister-github` and `--delete-roles`.
 
 ### Resource Commands
 

@@ -440,10 +440,24 @@ func TestTeardownDeletesMemoryStoresLast(t *testing.T) {
 	assert.Equal(t, []string{"memory-1", "skill-1", "store-1"}, agent.deletedAssetIDs)
 }
 
-func TestTeardownRequiresSomethingToRemove(t *testing.T) {
-	err := awsdevops.Teardown(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), awsdevops.TeardownOptions{})
+func TestTeardownWithoutOptionsRemovesEverything(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{
+			{AgentSpaceId: aws.String("space-1")},
+			{AgentSpaceId: aws.String("space-2")},
+		},
+		services: []agenttypes.RegisteredService{
+			{ServiceId: aws.String("gh-1"), ServiceType: agenttypes.ServiceGithub},
+			{ServiceId: aws.String("mcp-1"), ServiceType: agenttypes.ServiceMcpServer},
+		},
+	}
+	iamClient := newFakeIAM()
 
-	assert.ErrorContains(t, err, "nothing to tear down")
+	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, iamClient), awsdevops.TeardownOptions{}))
+
+	assert.Equal(t, []string{"space-1", "space-2"}, agent.deletedAgentSpaces)
+	assert.Equal(t, []string{"gh-1", "mcp-1"}, agent.deregisteredIDs)
+	assert.Equal(t, []string{awsdevops.AgentSpaceRoleName, awsdevops.OperatorAppRoleName}, iamClient.deletedRoles)
 }
 
 func TestStatusReportsMissingRoles(t *testing.T) {
