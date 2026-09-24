@@ -3,6 +3,7 @@ package awsdevops
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -25,7 +26,12 @@ func LookupGitHubRepo(ctx context.Context, owner, repo string) (GitHubRepo, erro
 
 	out, err := exec.CommandContext(ctx, path, "api", "repos/"+owner+"/"+repo).Output()
 	if err != nil {
-		return GitHubRepo{}, fmt.Errorf("unable to read %s/%s from GitHub, so pass --github-repo-id: %w", owner, repo, err)
+		return GitHubRepo{}, fmt.Errorf(
+			"unable to read %s/%s from GitHub: %s. Check the name and that 'gh auth status' can see it, or pass --github-repo-id",
+			owner,
+			repo,
+			ghError(err),
+		)
 	}
 
 	var body struct {
@@ -42,4 +48,16 @@ func LookupGitHubRepo(ctx context.Context, owner, repo string) (GitHubRepo, erro
 		ID:        strconv.FormatInt(body.ID, 10),
 		OwnerType: strings.ToLower(body.Owner.Type),
 	}, nil
+}
+
+// ghError prefers what the GitHub CLI printed to stderr over its exit status.
+func ghError(err error) string {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		if message := strings.TrimSpace(string(exitErr.Stderr)); message != "" {
+			return strings.SplitN(message, "\n", 2)[0]
+		}
+	}
+
+	return err.Error()
 }

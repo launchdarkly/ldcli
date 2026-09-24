@@ -3,6 +3,7 @@ package awsdevops_test
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -590,4 +591,15 @@ func TestStoreKiroAPIKeyNeedsARepository(t *testing.T) {
 	err := awsdevops.StoreKiroAPIKey(context.Background(), "", "", "ksk_key")
 
 	assert.ErrorContains(t, err, awsdevops.KiroSecretCommand("", ""))
+}
+
+func TestLookupGitHubRepoReportsWhatTheGitHubCLISaid(t *testing.T) {
+	if _, err := exec.LookPath("gh"); err != nil {
+		t.Skip("the GitHub CLI is not installed")
+	}
+
+	_, err := awsdevops.LookupGitHubRepo(context.Background(), "launchdarkly", "definitely-not-a-repo")
+
+	assert.ErrorContains(t, err, "launchdarkly/definitely-not-a-repo")
+	assert.ErrorContains(t, err, "gh auth status")
 }

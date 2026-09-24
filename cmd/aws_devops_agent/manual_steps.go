@@ -48,8 +48,9 @@ func walkManualSteps(
 	out := keys.writer(cmd.OutOrStdout())
 	errOut := keys.writer(cmd.ErrOrStderr())
 
+	var askedForRepo bool
 	if result.GitHubServiceID != "" && result.GitHubAssociationID == "" {
-		connectGitHubRepo(cmd, clients, &opts, result, keys, out, errOut)
+		connectGitHubRepo(cmd, clients, &opts, result, keys, &askedForRepo, out, errOut)
 	}
 
 	var skipped []awsdevops.ManualStep
@@ -65,7 +66,7 @@ func walkManualSteps(
 		_, _ = fmt.Fprintf(out, "\n%s\n  %s\n\n", manualStepPrompt(step), step.URL)
 
 		if step.Kind == awsdevops.ManualStepKiroAPIKey {
-			if !storeKiroAPIKey(cmd, clients, &opts, result, keys, out, errOut) {
+			if !storeKiroAPIKey(cmd, clients, &opts, result, keys, &askedForRepo, out, errOut) {
 				step.Description = awsdevops.KiroStepDescription(opts.GitHubOwner, opts.GitHubRepo)
 				skipped = append(skipped, step)
 			}
@@ -76,7 +77,7 @@ func walkManualSteps(
 		if step.Kind == awsdevops.ManualStepGitHubApp {
 			if serviceID := awaitGitHubService(cmd, clients, keys, out, errOut); serviceID != "" {
 				result.GitHubServiceID = serviceID
-				if !connectGitHubRepo(cmd, clients, &opts, result, keys, out, errOut) {
+				if !connectGitHubRepo(cmd, clients, &opts, result, keys, &askedForRepo, out, errOut) {
 					_, _ = fmt.Fprintln(
 						out,
 						"GitHub is registered. Re-run setup with --github-owner <owner> --github-repo <repo> to connect a repository",
@@ -142,6 +143,7 @@ func storeKiroAPIKey(
 	opts *awsdevops.SetupOptions,
 	result *awsdevops.SetupResult,
 	keys *keyReader,
+	askedForRepo *bool,
 	out io.Writer,
 	errOut io.Writer,
 ) bool {
@@ -155,7 +157,7 @@ func storeKiroAPIKey(
 		return false
 	}
 
-	if !connectGitHubRepo(cmd, clients, opts, result, keys, out, errOut) {
+	if !connectGitHubRepo(cmd, clients, opts, result, keys, askedForRepo, out, errOut) {
 		_, _ = fmt.Fprintf(
 			errOut,
 			"No repository to store the key on. Store it later with '%s'\n",
@@ -218,26 +220,41 @@ func awaitGitHubService(
 
 // connectGitHubRepo asks which repository the agent should review when the
 // repository flags were not passed, then associates it with the agent space.
-// It reports whether opts ends up naming a repository.
+// It asks at most once per run and reports whether opts ends up naming a
+// repository.
 func connectGitHubRepo(
 	cmd *cobra.Command,
 	clients awsdevops.Clients,
 	opts *awsdevops.SetupOptions,
 	result *awsdevops.SetupResult,
 	keys *keyReader,
+	askedForRepo *bool,
 	out io.Writer,
 	errOut io.Writer,
 ) bool {
 	if opts.GitHubOwner != "" && opts.GitHubRepo != "" {
 		return true
 	}
-
-	_, _ = fmt.Fprint(out, "\nRepository for the agent to review (owner/repo), or press Enter to skip: ")
-	entered := keys.echoLine(out)
-	_, _ = fmt.Fprintln(out)
-	owner, repo, ok := strings.Cut(entered, "/")
-	if !ok || owner == "" || repo == "" {
+	if *askedForRepo {
 		return false
+	}
+	*askedForRepo = true
+
+	var owner, repo string
+	for {
+		_, _ = fmt.Fprint(out, "\nRepository for the agent to review (owner/repo), or press Enter to skip: ")
+		entered := keys.echoLine(out)
+		_, _ = fmt.Fprintln(out)
+		if entered == "" {
+			return false
+		}
+
+		var ok bool
+		owner, repo, ok = strings.Cut(entered, "/")
+		if ok && owner != "" && repo != "" {
+			break
+		}
+		_, _ = fmt.Fprintf(errOut, "Include the owner, as in <owner>/%s\n", entered)
 	}
 
 	repository, err := awsdevops.LookupGitHubRepo(cmd.Context(), owner, repo)
