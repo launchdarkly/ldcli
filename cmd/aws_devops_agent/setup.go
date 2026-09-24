@@ -17,6 +17,7 @@ import (
 const (
 	agentSpaceNameFlag        = "agent-space-name"
 	agentSpaceDescriptionFlag = "agent-space-description"
+	newAgentSpaceFlag         = "new-agent-space"
 	authFlowFlag              = "auth-flow"
 	idcInstanceARNFlag        = "idc-instance-arn"
 	issuerURLFlag             = "issuer-url"
@@ -48,9 +49,10 @@ func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 		Long: `Create the IAM roles, agent space, AWS account association, operator app and
 LaunchDarkly MCP server connection the AWS DevOps Agent needs.
 
-Re-run with --agent-space-id to add to an existing agent space. Steps that AWS
-only exposes through the console, such as the GitHub App installation, are
-listed at the end of the run.
+Re-running is safe: setup reuses the agent space matching --agent-space-name
+along with anything already attached to it. Steps that AWS only exposes through
+the console, such as the GitHub App installation, are listed at the end of the
+run.
 
 Without --access-token the MCP server is left for you to add in the console,
 which is also listed at the end of the run.
@@ -66,6 +68,7 @@ resumes once you are done. Pass --no-wait to only list them.`,
 	cmd.Flags().String(agentSpaceIDFlag, "", "Existing agent space to add to instead of creating one")
 	cmd.Flags().String(agentSpaceNameFlag, "launchdarkly", "Name of the agent space to create")
 	cmd.Flags().String(agentSpaceDescriptionFlag, "Managed by the LaunchDarkly CLI", "Description of the agent space to create")
+	cmd.Flags().Bool(newAgentSpaceFlag, false, "Create another agent space instead of reusing the one matching --agent-space-name")
 	cmd.Flags().String(authFlowFlag, "iam", "Operator app sign-in method: iam, idc or idp")
 	cmd.Flags().String(idcInstanceARNFlag, "", "IAM Identity Center instance ARN, required when --auth-flow=idc")
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
@@ -152,6 +155,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		IssuerURL:             mustString(cmd, issuerURLFlag),
 		IdpClientID:           mustString(cmd, idpClientIDFlag),
 		IdpClientSecret:       mustString(cmd, idpClientSecretFlag),
+		NewAgentSpace:         mustBool(cmd, newAgentSpaceFlag),
 		SkipOperatorApp:       mustBool(cmd, skipOperatorAppFlag),
 		LDAccessToken:         viper.GetString(cliflags.AccessTokenFlag),
 		SkipMCPServer:         mustBool(cmd, skipMCPServerFlag),

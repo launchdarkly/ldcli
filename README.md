@@ -123,13 +123,15 @@ ldcli aws-devops-agent setup
 
 The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1` and `eu-west-1`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
 
+`setup` is safe to re-run: it reuses the IAM roles, the agent space matching `--agent-space-name`, the account and MCP associations on it, and any LaunchDarkly MCP server already registered on the account. Pass `--new-agent-space` to create an additional agent space instead.
+
 `--access-token` is optional. When you pass one it is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a token whose permissions match what you want the agent to do. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that. Without a token, `setup` finishes the AWS side and prints the console URL where you can add the MCP server yourself; `--skip-mcp-server` leaves it out entirely.
 
 Two steps cannot be automated because they are browser consent flows: registering and installing the GitHub App, and creating a Kiro API key. In a terminal, `setup` pauses on each one, showing a single URL to open. It resumes when you press Enter, except for GitHub, where it polls AWS and continues on its own once the registration appears — and connects the repository immediately if you passed `--github-owner`, `--github-repo` and `--github-repo-id`. Press `s` to skip a step, or pass `--no-wait` to list them all instead, for example in CI:
 
 ```sh-session
-ldcli aws-devops-agent setup --agent-space-id <agent-space-id> \
-  --github-service-id <service-id> --github-owner <owner> --github-repo <repo> --github-repo-id <repo-id>
+ldcli aws-devops-agent setup --no-wait \
+  --github-owner <owner> --github-repo <repo> --github-repo-id <repo-id>
 ```
 
 `ldcli aws-devops-agent status` shows what exists, and `ldcli aws-devops-agent teardown --agent-space-id <agent-space-id> --delete-roles` removes it.

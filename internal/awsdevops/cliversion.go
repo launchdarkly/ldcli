@@ -23,7 +23,7 @@ func CheckAWSCLIVersion(ctx context.Context) string {
 	path, err := exec.LookPath("aws")
 	if err != nil {
 		return fmt.Sprintf(
-			"The AWS CLI is not installed. Install %s or later to run `aws devops-agent` commands yourself.",
+			"The AWS CLI is not installed. This command does not need it, but `aws devops-agent` needs %s or later.",
 			formatVersion(MinAWSCLIVersion),
 		)
 	}
@@ -39,7 +39,7 @@ func CheckAWSCLIVersion(ctx context.Context) string {
 	}
 	if slices.Compare(version[:], MinAWSCLIVersion[:]) < 0 {
 		return fmt.Sprintf(
-			"AWS CLI %s does not support `aws devops-agent`. Upgrade to %s or later (https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).",
+			"AWS CLI %s does not support `aws devops-agent`. This command does not need it, but upgrade to %s or later to run those commands yourself (https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).",
 			formatVersion(version),
 			formatVersion(MinAWSCLIVersion),
 		)

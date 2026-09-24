@@ -108,10 +108,9 @@ func associateGitHub(
 ) {
 	out := cmd.OutOrStdout()
 	if opts.GitHubOwner == "" || opts.GitHubRepo == "" || opts.GitHubRepoID == "" {
-		_, _ = fmt.Fprintf(
+		_, _ = fmt.Fprintln(
 			out,
-			"Connect a repository with --github-service-id %s --github-owner <owner> --github-repo <repo> --github-repo-id <id>\n",
-			serviceID,
+			"GitHub is registered. Re-run setup with --github-owner <owner> --github-repo <repo> --github-repo-id <id> to connect a repository",
 		)
 
 		return

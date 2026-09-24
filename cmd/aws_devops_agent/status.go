@@ -2,6 +2,7 @@ package awsdevopsagent
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -54,13 +55,15 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		_, _ = fmt.Fprintf(out, "  role %s: missing\n", role.Name)
 	}
 	for _, service := range status.Services {
-		_, _ = fmt.Fprintf(out, "  service %s: %s %s\n", service.ServiceID, service.ServiceType, service.Name)
+		_, _ = fmt.Fprintln(out, strings.TrimRight(fmt.Sprintf(
+			"  service %s: %s %s", service.ServiceID, service.ServiceType, service.Name), " "))
 	}
 	for _, space := range status.AgentSpaces {
 		_, _ = fmt.Fprintf(out, "  agent space %s (%s)\n", space.Name, space.AgentSpaceID)
 		_, _ = fmt.Fprintf(out, "    operator app: %s\n", space.OperatorAppURL)
 		for _, association := range space.Associations {
-			_, _ = fmt.Fprintf(out, "    association %s: %s %s\n", association.AssociationID, association.ServiceID, association.Status)
+			_, _ = fmt.Fprintln(out, strings.TrimRight(fmt.Sprintf(
+				"    association %s: %s %s", association.AssociationID, association.ServiceID, association.Status), " "))
 		}
 		for _, asset := range space.Assets {
 			_, _ = fmt.Fprintf(out, "    asset %s: %s\n", asset.AssetID, asset.AssetType)

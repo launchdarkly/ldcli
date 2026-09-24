@@ -53,6 +53,7 @@ type SetupOptions struct {
 	AgentSpaceID          string
 	AgentSpaceName        string
 	AgentSpaceDescription string
+	NewAgentSpace         bool
 
 	AuthFlow        string
 	IdcInstanceARN  string
@@ -97,6 +98,7 @@ type SetupResult struct {
 	MCPServiceID         string       `json:"mcpServiceId,omitempty"`
 	MCPAssociationID     string       `json:"mcpAssociationId,omitempty"`
 	MCPAuthorizationURL  string       `json:"mcpAuthorizationUrl,omitempty"`
+	GitHubServiceID      string       `json:"githubServiceId,omitempty"`
 	GitHubAssociationID  string       `json:"githubAssociationId,omitempty"`
 	SkillAssetID         string       `json:"skillAssetId,omitempty"`
 	CustomAgentAssetID   string       `json:"customAgentAssetId,omitempty"`
@@ -150,6 +152,16 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	}
 
 	result.AgentSpaceID = opts.AgentSpaceID
+	if result.AgentSpaceID == "" && !opts.NewAgentSpace {
+		existing, err := FindAgentSpace(ctx, clients, opts.AgentSpaceName)
+		if err != nil {
+			return result, err
+		}
+		if existing != "" {
+			result.AgentSpaceID = existing
+			logf("Reusing agent space %s (%s); pass --new-agent-space to create another", opts.AgentSpaceName, existing)
+		}
+	}
 	if result.AgentSpaceID == "" {
 		space, err := clients.Agent.CreateAgentSpace(ctx, &devopsagent.CreateAgentSpaceInput{
 			Name:        aws.String(opts.AgentSpaceName),
@@ -162,22 +174,30 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		logf("Created agent space %s (%s)", opts.AgentSpaceName, result.AgentSpaceID)
 	}
 
-	awsAssociation, err := clients.Agent.AssociateService(ctx, &devopsagent.AssociateServiceInput{
-		AgentSpaceId: aws.String(result.AgentSpaceID),
-		ServiceId:    aws.String(awsServiceID),
-		Configuration: &agenttypes.ServiceConfigurationMemberAws{
-			Value: agenttypes.AWSConfiguration{
-				AccountId:        aws.String(accountID),
-				AccountType:      agenttypes.MonitorAccountTypeMonitor,
-				AssumableRoleArn: aws.String(result.AgentSpaceRoleARN),
-			},
-		},
-	})
+	result.AWSAssociationID, err = FindAssociation(ctx, clients, result.AgentSpaceID, awsServiceID)
 	if err != nil {
-		return result, fmt.Errorf("unable to associate the AWS account with the agent space: %w", err)
+		return result, err
 	}
-	result.AWSAssociationID = aws.ToString(awsAssociation.Association.AssociationId)
-	logf("Associated account %s with the agent space", accountID)
+	if result.AWSAssociationID != "" {
+		logf("Account %s is already associated with the agent space", accountID)
+	} else {
+		awsAssociation, err := clients.Agent.AssociateService(ctx, &devopsagent.AssociateServiceInput{
+			AgentSpaceId: aws.String(result.AgentSpaceID),
+			ServiceId:    aws.String(awsServiceID),
+			Configuration: &agenttypes.ServiceConfigurationMemberAws{
+				Value: agenttypes.AWSConfiguration{
+					AccountId:        aws.String(accountID),
+					AccountType:      agenttypes.MonitorAccountTypeMonitor,
+					AssumableRoleArn: aws.String(result.AgentSpaceRoleARN),
+				},
+			},
+		})
+		if err != nil {
+			return result, fmt.Errorf("unable to associate the AWS account with the agent space: %w", err)
+		}
+		result.AWSAssociationID = aws.ToString(awsAssociation.Association.AssociationId)
+		logf("Associated account %s with the agent space", accountID)
+	}
 
 	if !opts.SkipOperatorApp {
 		operatorApp, err := clients.Agent.EnableOperatorApp(ctx, operatorAppInput(result.AgentSpaceID, result.OperatorAppRoleARN, opts))
@@ -194,7 +214,15 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		}
 	}
 
-	if opts.GitHubServiceID != "" {
+	result.GitHubServiceID = opts.GitHubServiceID
+	if result.GitHubServiceID == "" {
+		result.GitHubServiceID, err = FindGitHubService(ctx, clients)
+		if err != nil {
+			return result, err
+		}
+	}
+	if result.GitHubServiceID != "" && opts.GitHubRepo != "" {
+		opts.GitHubServiceID = result.GitHubServiceID
 		result.GitHubAssociationID, err = AssociateGitHub(ctx, clients, result.AgentSpaceID, opts)
 		if err != nil {
 			return result, err
@@ -343,6 +371,16 @@ func registerMCPServer(
 }
 
 func associateMCPServer(ctx context.Context, clients Clients, opts SetupOptions, result *SetupResult) error {
+	existing, err := FindAssociation(ctx, clients, result.AgentSpaceID, result.MCPServiceID)
+	if err != nil {
+		return err
+	}
+	if existing != "" {
+		result.MCPAssociationID = existing
+
+		return nil
+	}
+
 	association, err := clients.Agent.AssociateService(ctx, &devopsagent.AssociateServiceInput{
 		AgentSpaceId: aws.String(result.AgentSpaceID),
 		ServiceId:    aws.String(result.MCPServiceID),
@@ -536,33 +574,26 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 	var steps []ManualStep
 	if result.MCPAuthorizationURL != "" {
 		steps = append(steps, ManualStep{
-			Kind: ManualStepOAuthConsent,
-			Description: fmt.Sprintf(
-				"Approve the LaunchDarkly MCP server OAuth consent screen, then re-run with --agent-space-id %s",
-				result.AgentSpaceID,
-			),
-			URL: result.MCPAuthorizationURL,
+			Kind:        ManualStepOAuthConsent,
+			Description: "Approve the LaunchDarkly MCP server OAuth consent screen, then re-run setup",
+			URL:         result.MCPAuthorizationURL,
 		})
 	}
 	if !opts.SkipMCPServer && opts.LDAccessToken == "" && result.MCPServiceID == "" {
 		steps = append(steps, ManualStep{
 			Kind: ManualStepMCPServer,
 			Description: fmt.Sprintf(
-				"Register the LaunchDarkly MCP server (%s) in the console, or re-run with --access-token --agent-space-id %s",
+				"Register the LaunchDarkly MCP server (%s) in the console, or re-run setup with --access-token",
 				MCPServerEndpoint,
-				result.AgentSpaceID,
 			),
-			URL: ConsoleURL(region),
+			URL: MCPRegistrationURL(region),
 		})
 	}
-	if opts.GitHubServiceID == "" {
+	if result.GitHubServiceID == "" {
 		steps = append(steps, ManualStep{
-			Kind: ManualStepGitHubApp,
-			Description: fmt.Sprintf(
-				"Register GitHub and install the GitHub App (a browser consent screen), then re-run with --agent-space-id %s --github-service-id <id>",
-				result.AgentSpaceID,
-			),
-			URL: ConsoleURL(region),
+			Kind:        ManualStepGitHubApp,
+			Description: "Register GitHub and install the GitHub App (a browser consent screen), then re-run setup with --github-owner, --github-repo and --github-repo-id to connect a repository",
+			URL:         GitHubRegistrationURL(region),
 		})
 	}
 	steps = append(steps, ManualStep{
@@ -576,7 +607,19 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 
 // ConsoleURL is the AWS DevOps Agent console for a region.
 func ConsoleURL(region string) string {
-	return fmt.Sprintf("https://%s.console.aws.amazon.com/devops-agent/home?region=%[1]s", region)
+	return fmt.Sprintf("https://%s.console.aws.amazon.com/aidevops/home?region=%[1]s", region)
+}
+
+// GitHubRegistrationURL is the console page that registers GitHub with the
+// account, which AWS only exposes in a browser.
+func GitHubRegistrationURL(region string) string {
+	return ConsoleURL(region) + "#/services/register/github"
+}
+
+// MCPRegistrationURL is the console page that registers an MCP server with the
+// account.
+func MCPRegistrationURL(region string) string {
+	return ConsoleURL(region) + "#/services/register/mcpserver"
 }
 
 // OperatorAppURL is the browser entry point for an agent space's operator app.

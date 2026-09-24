@@ -25,6 +25,7 @@ type fakeAgent struct {
 	createdAssetTypes  []string
 	registerOutput     *devopsagent.RegisterServiceOutput
 	associations       []agenttypes.Association
+	agentSpaces        []agenttypes.AgentSpace
 	assets             []agenttypes.Asset
 	disassociatedIDs   []string
 	deletedAssetIDs    []string
@@ -112,6 +113,10 @@ func (f *fakeAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpa
 }
 
 func (f *fakeAgent) ListAgentSpaces(_ context.Context, _ *devopsagent.ListAgentSpacesInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error) {
+	if f.agentSpaces != nil {
+		return &devopsagent.ListAgentSpacesOutput{AgentSpaces: f.agentSpaces}, nil
+	}
+
 	return &devopsagent.ListAgentSpacesOutput{
 		AgentSpaces: []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}},
 	}, nil
@@ -251,7 +256,7 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Contains(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName], "iam:CreateServiceLinkedRole")
 	assert.Equal(
 		t,
-		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
+		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService", "ListServices"},
 		agent.calls,
 	)
 }
@@ -288,7 +293,33 @@ func TestSetupWithoutAccessTokenReportsMCPServerAsManualStep(t *testing.T) {
 	assert.NotContains(t, agent.calls, "RegisterService")
 	assert.Empty(t, result.MCPServiceID)
 	assert.Contains(t, result.RemainingManualSteps[0].Description, awsdevops.MCPServerEndpoint)
-	assert.Equal(t, awsdevops.ConsoleURL("us-east-1"), result.RemainingManualSteps[0].URL)
+	assert.Equal(t, awsdevops.MCPRegistrationURL("us-east-1"), result.RemainingManualSteps[0].URL)
+}
+
+func TestSetupReusesAgentSpaceAndAssociations(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{{
+			AgentSpaceId: aws.String("space-existing"),
+			Name:         aws.String("launchdarkly"),
+		}},
+		associations: []agenttypes.Association{{
+			AssociationId: aws.String("assoc-aws"),
+			ServiceId:     aws.String("aws"),
+		}},
+	}
+
+	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName:  "launchdarkly",
+		AuthFlow:        "iam",
+		SkipMCPServer:   true,
+		SkipOperatorApp: true,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "space-existing", result.AgentSpaceID)
+	assert.Equal(t, "assoc-aws", result.AWSAssociationID)
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+	assert.Empty(t, agent.associationInputs)
 }
 
 func TestSetupClassifiesMCPTools(t *testing.T) {
@@ -333,7 +364,7 @@ func TestSetupReportsOAuthConsentAsManualStep(t *testing.T) {
 	assert.Empty(t, result.MCPServiceID)
 	assert.Equal(t, "https://example.com/consent", result.RemainingManualSteps[0].URL)
 	assert.Contains(t, result.RemainingManualSteps[1].Description, "GitHub")
-	assert.Equal(t, awsdevops.ConsoleURL("us-east-1"), result.RemainingManualSteps[1].URL)
+	assert.Equal(t, awsdevops.GitHubRegistrationURL("us-east-1"), result.RemainingManualSteps[1].URL)
 	assert.Equal(t, awsdevops.KiroPortalURL, result.RemainingManualSteps[2].URL)
 }
 
@@ -417,6 +448,50 @@ func TestStatusReportsMissingRoles(t *testing.T) {
 	assert.Equal(t, "space-1", status.AgentSpaces[0].AgentSpaceID)
 	assert.Equal(t, "aws", status.AgentSpaces[0].Associations[0].ServiceID)
 	assert.Equal(t, "skill", status.AgentSpaces[0].Assets[0].AssetType)
+}
+
+func TestStatusOmitsAgentManagedAssetsAndNamesMCPServers(t *testing.T) {
+	agent := &fakeAgent{
+		services: []agenttypes.RegisteredService{{
+			ServiceId:   aws.String("mcp-1"),
+			ServiceType: agenttypes.ServiceMcpServer,
+			AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
+				Value: agenttypes.RegisteredMCPServerDetails{
+					Name:     aws.String(awsdevops.MCPServerName),
+					Endpoint: aws.String(awsdevops.MCPServerEndpoint),
+				},
+			},
+		}},
+		assets: []agenttypes.Asset{
+			{AssetId: aws.String("asset-1"), AssetType: aws.String("skill")},
+			{AssetId: aws.String("asset-2"), AssetType: aws.String("memory")},
+		},
+	}
+
+	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
+	require.NoError(t, err)
+
+	assert.Equal(t, awsdevops.MCPServerName, status.Services[0].Name)
+	require.Len(t, status.AgentSpaces[0].Assets, 1)
+	assert.Equal(t, "asset-1", status.AgentSpaces[0].Assets[0].AssetID)
+}
+
+func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {
+	assert.Equal(
+		t,
+		"https://eu-west-1.console.aws.amazon.com/aidevops/home?region=eu-west-1",
+		awsdevops.ConsoleURL("eu-west-1"),
+	)
+	assert.Equal(
+		t,
+		awsdevops.ConsoleURL("us-east-1")+"#/services/register/github",
+		awsdevops.GitHubRegistrationURL("us-east-1"),
+	)
+	assert.Equal(
+		t,
+		awsdevops.ConsoleURL("us-east-1")+"#/services/register/mcpserver",
+		awsdevops.MCPRegistrationURL("us-east-1"),
+	)
 }
 
 func TestNewClientsRejectsUnsupportedRegion(t *testing.T) {
