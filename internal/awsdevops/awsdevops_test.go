@@ -424,6 +424,22 @@ func TestTeardownEmptiesAgentSpaceBeforeDeletingIt(t *testing.T) {
 	assert.Equal(t, []string{awsdevops.ServiceLinkedRolePolicyName}, iamClient.deletedInlinePs)
 }
 
+func TestTeardownDeletesMemoryStoresLast(t *testing.T) {
+	agent := &fakeAgent{
+		assets: []agenttypes.Asset{
+			{AssetId: aws.String("store-1"), AssetType: aws.String("memory_store")},
+			{AssetId: aws.String("memory-1"), AssetType: aws.String("memory")},
+			{AssetId: aws.String("skill-1"), AssetType: aws.String("skill")},
+		},
+	}
+
+	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.TeardownOptions{
+		AgentSpaceID: "space-1",
+	}))
+
+	assert.Equal(t, []string{"memory-1", "skill-1", "store-1"}, agent.deletedAssetIDs)
+}
+
 func TestTeardownRequiresSomethingToRemove(t *testing.T) {
 	err := awsdevops.Teardown(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), awsdevops.TeardownOptions{})
 

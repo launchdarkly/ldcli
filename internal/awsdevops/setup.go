@@ -37,6 +37,7 @@ const (
 
 	skillAssetType       = "skill"
 	customAgentAssetType = "custom_agent"
+	memoryStoreAssetType = "memory_store"
 )
 
 // DefaultMCPReadOnlyTools and DefaultMCPMutativeTools are the LaunchDarkly MCP

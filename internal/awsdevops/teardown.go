@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
+	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 )
 
@@ -55,7 +56,7 @@ func Teardown(ctx context.Context, clients Clients, opts TeardownOptions) error 
 		if err != nil {
 			return fmt.Errorf("unable to list assets for agent space %s: %w", opts.AgentSpaceID, err)
 		}
-		for _, asset := range assets.Items {
+		for _, asset := range sortAssetsForDeletion(assets.Items) {
 			if _, err := clients.Agent.DeleteAsset(ctx, &devopsagent.DeleteAssetInput{
 				AgentSpaceId: aws.String(opts.AgentSpaceID),
 				AssetId:      asset.AssetId,
@@ -94,6 +95,23 @@ func Teardown(ctx context.Context, clients Clients, opts TeardownOptions) error 
 	}
 
 	return nil
+}
+
+// sortAssetsForDeletion puts memory stores last, since AWS refuses to delete a
+// store that still holds memory files.
+func sortAssetsForDeletion(assets []agenttypes.Asset) []agenttypes.Asset {
+	ordered := make([]agenttypes.Asset, 0, len(assets))
+	var stores []agenttypes.Asset
+	for _, asset := range assets {
+		if aws.ToString(asset.AssetType) == memoryStoreAssetType {
+			stores = append(stores, asset)
+
+			continue
+		}
+		ordered = append(ordered, asset)
+	}
+
+	return append(ordered, stores...)
 }
 
 func deleteRole(ctx context.Context, client IAMAPI, name, policyARN, inlinePolicyName string) error {
