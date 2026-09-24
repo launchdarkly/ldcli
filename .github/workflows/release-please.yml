@@ -23,7 +23,7 @@ jobs:
           skip-github-pull-request: true
 
       # Need the repository content to be able to create and push a tag.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         if: ${{ steps.release.outputs.release_created == 'true' }}
 
       - name: Create release tag
@@ -61,7 +61,7 @@ jobs:
     outputs:
       images_and_digests: ${{ steps.publish.outputs.images_and_digests }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         name: Checkout
         with:
           fetch-depth: 0
@@ -116,7 +116,7 @@ jobs:
       contents: write
     if: needs.release-please.outputs.release_created == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
       - uses: actions/setup-node@v4
         with:
           node-version: 20.x
