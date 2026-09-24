@@ -630,10 +630,11 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 		steps = append(steps, ManualStep{
 			Kind: ManualStepMCPServer,
 			Description: fmt.Sprintf(
-				"Create a LaunchDarkly service token for the MCP server (%s), then re-run setup with --access-token",
+				"Add the LaunchDarkly MCP server (%s) in the console and log in to LaunchDarkly there, "+
+					"or re-run setup with a service token in --access-token",
 				MCPServerEndpoint,
 			),
-			URL: AccessTokenURL(opts.LDBaseURI),
+			URL: MCPRegistrationURL(region),
 		})
 	}
 	if result.GitHubServiceID == "" {

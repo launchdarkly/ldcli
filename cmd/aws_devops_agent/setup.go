@@ -55,10 +55,11 @@ along with anything already attached to it. Steps that AWS only exposes through
 the console, such as the GitHub App installation, are listed at the end of the
 run.
 
-Without --access-token, setup pauses on the LaunchDarkly page where you create
-a service token for the agent and connects the MCP server with the token you
-paste. AWS keeps that token and the agent acts as its account and role, so the
-session token 'ldcli login' writes to your configuration is not used here.
+Without --access-token, setup pauses to connect the MCP server and offers two
+ways to do it: register it in the AWS console, where AWS runs the LaunchDarkly
+login for you, or paste a service token created in LaunchDarkly. AWS keeps a
+pasted token and the agent acts as its account and role, so the session token
+'ldcli login' writes to your configuration is not used here.
 
 In a terminal, setup pauses on each browser step with the page to open and
 resumes once you are done. Pass --no-wait to only list them.`,
