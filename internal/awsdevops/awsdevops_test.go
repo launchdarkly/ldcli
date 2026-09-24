@@ -568,3 +568,24 @@ func TestNewClientsRequiresCredentials(t *testing.T) {
 
 	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
 }
+
+func TestSetupOmitsTheKiroStepWhenAKeyIsProvided(t *testing.T) {
+	result, err := awsdevops.Setup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceName:  "launchdarkly",
+		AuthFlow:        "iam",
+		SkipOperatorApp: true,
+		SkipMCPServer:   true,
+		KiroAPIKey:      "ksk_key",
+	})
+	require.NoError(t, err)
+
+	for _, step := range result.RemainingManualSteps {
+		assert.NotEqual(t, awsdevops.ManualStepKiroAPIKey, step.Kind)
+	}
+}
+
+func TestStoreKiroAPIKeyNeedsARepository(t *testing.T) {
+	err := awsdevops.StoreKiroAPIKey(context.Background(), "", "", "ksk_key")
+
+	assert.ErrorContains(t, err, awsdevops.KiroSecretCommand("", ""))
+}

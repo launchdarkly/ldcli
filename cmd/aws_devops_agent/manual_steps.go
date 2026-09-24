@@ -60,6 +60,14 @@ func walkManualSteps(
 
 		_, _ = fmt.Fprintf(out, "\n%s\n  %s\n\n", manualStepPrompt(step), step.URL)
 
+		if step.Kind == awsdevops.ManualStepKiroAPIKey {
+			if !storeKiroAPIKey(cmd, opts, keys, out, errOut) {
+				skipped = append(skipped, step)
+			}
+
+			continue
+		}
+
 		if step.Kind == awsdevops.ManualStepGitHubApp {
 			if serviceID := awaitGitHubService(cmd, clients, keys, out, errOut); serviceID != "" {
 				associateGitHub(cmd, clients, opts, result, serviceID, out, errOut)
@@ -111,6 +119,38 @@ func connectMCPServer(
 
 		return false
 	}
+
+	return true
+}
+
+// storeKiroAPIKey reads a pasted Kiro API key and saves it as the GitHub
+// Actions secret the agent's workflow reads.
+func storeKiroAPIKey(
+	cmd *cobra.Command,
+	opts awsdevops.SetupOptions,
+	keys *keyReader,
+	out io.Writer,
+	errOut io.Writer,
+) bool {
+	_, _ = fmt.Fprint(out, "Paste the key, or press Enter to skip: ")
+	key := keys.line()
+	_, _ = fmt.Fprintln(out)
+	if key == "" {
+		return false
+	}
+
+	if err := awsdevops.StoreKiroAPIKey(cmd.Context(), opts.GitHubOwner, opts.GitHubRepo, key); err != nil {
+		_, _ = fmt.Fprintf(errOut, "%s\n", err)
+
+		return false
+	}
+	_, _ = fmt.Fprintf(
+		out,
+		"Stored %s on %s/%s\n",
+		awsdevops.KiroSecretName,
+		opts.GitHubOwner,
+		opts.GitHubRepo,
+	)
 
 	return true
 }

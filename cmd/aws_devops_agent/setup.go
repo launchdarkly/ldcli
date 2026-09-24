@@ -40,6 +40,7 @@ const (
 	githubRepoFlag            = "github-repo"
 	githubRepoIDFlag          = "github-repo-id"
 	githubTargetBranchesFlag  = "github-target-branches"
+	kiroAPIKeyFlag            = "kiro-api-key"
 	noWaitFlag                = "no-wait"
 )
 
@@ -93,8 +94,9 @@ resumes once you are done. Pass --no-wait to only list them.`,
 	cmd.Flags().String(githubOwnerFlag, "", "GitHub owner of the repository to associate")
 	cmd.Flags().String(githubOwnerTypeFlag, "organization", "GitHub owner type: organization or user")
 	cmd.Flags().String(githubRepoFlag, "", "GitHub repository name to associate")
-	cmd.Flags().String(githubRepoIDFlag, "", "GitHub repository ID to associate")
+	cmd.Flags().String(githubRepoIDFlag, "", "GitHub repository ID to associate. Read from the GitHub CLI when omitted")
 	cmd.Flags().StringSlice(githubTargetBranchesFlag, []string{"main"}, "Branches release readiness review runs against")
+	cmd.Flags().String(kiroAPIKeyFlag, "", "Kiro API key to store as the "+awsdevops.KiroSecretName+" secret on the associated repository")
 	cmd.Flags().Bool(noWaitFlag, false, "List the browser-only steps instead of pausing on each one")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -133,6 +135,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	result, err := awsdevops.Setup(cmd.Context(), clients, opts)
 	if err != nil {
 		return err
+	}
+
+	if opts.KiroAPIKey != "" {
+		if err := awsdevops.StoreKiroAPIKey(cmd.Context(), opts.GitHubOwner, opts.GitHubRepo, opts.KiroAPIKey); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Stored %s on %s/%s\n", awsdevops.KiroSecretName, opts.GitHubOwner, opts.GitHubRepo)
 	}
 
 	if !plaintext {
@@ -186,6 +195,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		GitHubRepo:            mustString(cmd, githubRepoFlag),
 		GitHubRepoID:          mustString(cmd, githubRepoIDFlag),
 		GitHubTargetBranches:  mustStringSlice(cmd, githubTargetBranchesFlag),
+		KiroAPIKey:            mustString(cmd, kiroAPIKeyFlag),
 	}
 
 	switch opts.AuthFlow {
@@ -202,8 +212,19 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		return opts, fmt.Errorf("--%s must be iam, idc or idp", authFlowFlag)
 	}
 
-	if opts.GitHubServiceID != "" && (opts.GitHubOwner == "" || opts.GitHubRepo == "" || opts.GitHubRepoID == "") {
-		return opts, fmt.Errorf("--%s, --%s and --%s are required with --%s", githubOwnerFlag, githubRepoFlag, githubRepoIDFlag, githubServiceIDFlag)
+	if opts.GitHubServiceID != "" && (opts.GitHubOwner == "" || opts.GitHubRepo == "") {
+		return opts, fmt.Errorf("--%s and --%s are required with --%s", githubOwnerFlag, githubRepoFlag, githubServiceIDFlag)
+	}
+
+	if opts.GitHubOwner != "" && opts.GitHubRepo != "" && opts.GitHubRepoID == "" {
+		repo, err := awsdevops.LookupGitHubRepo(cmd.Context(), opts.GitHubOwner, opts.GitHubRepo)
+		if err != nil {
+			return opts, err
+		}
+		opts.GitHubRepoID = repo.ID
+		if !cmd.Flags().Changed(githubOwnerTypeFlag) && repo.OwnerType != "" {
+			opts.GitHubOwnerType = repo.OwnerType
+		}
 	}
 
 	if path := mustString(cmd, skillFileFlag); path != "" {

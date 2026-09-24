@@ -90,6 +90,7 @@ type SetupOptions struct {
 	GitHubRepo           string
 	GitHubRepoID         string
 	GitHubTargetBranches []string
+	KiroAPIKey           string
 
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)
@@ -224,13 +225,21 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	if result.GitHubServiceID != "" {
 		logf("GitHub is already registered (service %s)", result.GitHubServiceID)
 	}
-	if result.GitHubServiceID != "" && opts.GitHubRepo != "" {
+	if result.GitHubServiceID != "" && opts.GitHubOwner != "" && opts.GitHubRepo != "" && opts.GitHubRepoID != "" {
 		opts.GitHubServiceID = result.GitHubServiceID
-		result.GitHubAssociationID, err = AssociateGitHub(ctx, clients, result.AgentSpaceID, opts)
+		result.GitHubAssociationID, err = FindAssociation(ctx, clients, result.AgentSpaceID, result.GitHubServiceID)
 		if err != nil {
 			return result, err
 		}
-		logf("Associated %s/%s with release readiness review enabled", opts.GitHubOwner, opts.GitHubRepo)
+		if result.GitHubAssociationID != "" {
+			logf("%s/%s is already associated with the agent space", opts.GitHubOwner, opts.GitHubRepo)
+		} else {
+			result.GitHubAssociationID, err = AssociateGitHub(ctx, clients, result.AgentSpaceID, opts)
+			if err != nil {
+				return result, err
+			}
+			logf("Associated %s/%s with release readiness review enabled", opts.GitHubOwner, opts.GitHubRepo)
+		}
 	}
 
 	if opts.SkillBody != "" {
@@ -687,11 +696,16 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 			URL:         GitHubRegistrationURL(region),
 		})
 	}
-	steps = append(steps, ManualStep{
-		Kind:        ManualStepKiroAPIKey,
-		Description: "Create a Kiro API key if you want the agent to use Kiro — keys can only be created in the browser",
-		URL:         KiroPortalURL,
-	})
+	if opts.KiroAPIKey == "" {
+		steps = append(steps, ManualStep{
+			Kind: ManualStepKiroAPIKey,
+			Description: fmt.Sprintf(
+				"Create a Kiro API key in the browser if you want the agent to use Kiro, then store it with '%s'",
+				KiroSecretCommand(opts.GitHubOwner, opts.GitHubRepo),
+			),
+			URL: KiroPortalURL,
+		})
+	}
 
 	return steps
 }
