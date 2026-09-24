@@ -674,11 +674,10 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 		steps = append(steps, ManualStep{
 			Kind: ManualStepMCPServer,
 			Description: fmt.Sprintf(
-				"Add the LaunchDarkly MCP server (%s) in the console and log in to LaunchDarkly there, "+
-					"or re-run setup with a service token in --access-token",
+				"Create a LaunchDarkly service token to connect the MCP server (%s)",
 				MCPServerEndpoint,
 			),
-			URL: MCPRegistrationURL(region),
+			URL: AccessTokenURL(opts.LDBaseURI),
 		})
 	}
 	if result.GitHubServiceID == "" {
@@ -715,12 +714,6 @@ func AccessTokenURL(baseURI string) string {
 	}
 
 	return strings.TrimSuffix(baseURI, "/") + "/settings/authorization"
-}
-
-// MCPRegistrationURL is the console page that registers an MCP server with the
-// account.
-func MCPRegistrationURL(region string) string {
-	return ConsoleURL(region) + "#/services/register/mcpserver"
 }
 
 // OperatorAppURL is the browser entry point for an agent space's operator app.

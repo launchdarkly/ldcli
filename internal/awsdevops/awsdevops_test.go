@@ -318,7 +318,7 @@ func TestSetupWithoutAccessTokenReportsMCPServerAsManualStep(t *testing.T) {
 	assert.NotContains(t, agent.calls, "RegisterService")
 	assert.Empty(t, result.MCPServiceID)
 	assert.Contains(t, result.RemainingManualSteps[0].Description, awsdevops.MCPServerEndpoint)
-	assert.Equal(t, awsdevops.MCPRegistrationURL("us-east-1"), result.RemainingManualSteps[0].URL)
+	assert.Equal(t, awsdevops.AccessTokenURL(""), result.RemainingManualSteps[0].URL)
 }
 
 func TestSetupReusesAgentSpaceAndAssociations(t *testing.T) {
@@ -544,8 +544,8 @@ func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {
 	)
 	assert.Equal(
 		t,
-		awsdevops.ConsoleURL("us-east-1")+"#/services/register/mcpserver",
-		awsdevops.MCPRegistrationURL("us-east-1"),
+		"https://app.launchdarkly.com/settings/authorization",
+		awsdevops.AccessTokenURL(""),
 	)
 }
 

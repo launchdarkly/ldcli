@@ -41,33 +41,6 @@ func WaitForGitHubService(ctx context.Context, clients Clients, interval time.Du
 	}
 }
 
-// WaitForMCPServer polls until the LaunchDarkly MCP server is registered on
-// the account and returns its ID, for a registration done in the console.
-func WaitForMCPServer(ctx context.Context, clients Clients, interval time.Duration) (string, error) {
-	if interval <= 0 {
-		interval = defaultPollInterval
-	}
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		serviceID, err := FindMCPServer(ctx, clients)
-		if err != nil {
-			return "", err
-		}
-		if serviceID != "" {
-			return serviceID, nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-ticker.C:
-		}
-	}
-}
-
 // FindMCPServer returns the ID of the LaunchDarkly MCP server if one is
 // already registered on the account. AWS keeps MCP servers at the account
 // level, so a second agent space reuses the existing registration.

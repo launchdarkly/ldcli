@@ -127,11 +127,7 @@ The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`,
 
 `--access-token` is optional. When you pass one it is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a [service token](https://launchdarkly.com/docs/home/account/api-create) whose permissions match what you want the agent to do. AWS keeps that token until the MCP server is re-registered, so a token from `ldcli login` is not used here: it expires, and the agent then fails with `unauthorized` errors. Re-run with `--access-token <token> --replace-mcp-token` to re-register an MCP server with a different token. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that.
 
-Without `--access-token`, `setup` pauses to connect the MCP server and lets you choose how, so you do not need a token ready beforehand:
-
-- `l` registers the MCP server in the AWS console, where ticking **Enable Dynamic Client Registration** lets you log in to LaunchDarkly instead of supplying a token. AWS only accepts that OAuth flow from its own console, so the CLI prints the page to open and waits for the registration to appear.
-- `t` shows the LaunchDarkly page where you create a service token, and connects the MCP server with the token you paste.
-- `s` skips the step, which `--skip-mcp-server` also does up front.
+Without `--access-token`, `setup` pauses at the LaunchDarkly page where you create a service token and connects the MCP server with the token you paste there, so you do not need one ready beforehand. Pressing Enter without a token skips the step, which `--skip-mcp-server` also does up front.
 
 Two steps cannot be automated because they are browser consent flows: registering and installing the GitHub App, and creating a Kiro API key. In a terminal, `setup` pauses on each one, showing a single URL to open. It resumes when you press Enter, except for GitHub, where it polls AWS and continues on its own once the registration appears — and connects the repository immediately if you passed `--github-owner`, `--github-repo` and `--github-repo-id`. GitHub is skipped entirely when the account already has a registration. Press `s` to skip a step, or pass `--no-wait` to list them all instead, for example in CI:
 

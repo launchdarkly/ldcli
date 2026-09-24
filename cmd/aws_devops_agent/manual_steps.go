@@ -82,39 +82,9 @@ func walkManualSteps(
 	return skipped
 }
 
-// connectMCPServer registers the LaunchDarkly MCP server, either in the
-// console, where AWS runs the LaunchDarkly login, or from a service token
-// pasted at the prompt. It reports whether the step is done.
+// connectMCPServer registers the LaunchDarkly MCP server with a service token
+// pasted at the prompt, and reports whether the step is done.
 func connectMCPServer(
-	cmd *cobra.Command,
-	clients awsdevops.Clients,
-	opts awsdevops.SetupOptions,
-	result *awsdevops.SetupResult,
-	keys *keyReader,
-	out io.Writer,
-	errOut io.Writer,
-) bool {
-	_, _ = fmt.Fprint(
-		out,
-		"\nConnect the agent to LaunchDarkly:\n"+
-			"  l  log in to LaunchDarkly from the AWS console\n"+
-			"  t  paste a LaunchDarkly service token\n"+
-			"  s  skip\n\nChoose l, t or s: ",
-	)
-	choice := keys.next()
-	_, _ = fmt.Fprintln(out)
-
-	switch choice {
-	case 'l', 'L':
-		return registerMCPServerInConsole(cmd, clients, opts, result, keys, out, errOut)
-	case 't', 'T':
-		return registerMCPServerWithToken(cmd, clients, opts, result, keys, out, errOut)
-	default:
-		return false
-	}
-}
-
-func registerMCPServerInConsole(
 	cmd *cobra.Command,
 	clients awsdevops.Clients,
 	opts awsdevops.SetupOptions,
@@ -125,57 +95,9 @@ func registerMCPServerInConsole(
 ) bool {
 	_, _ = fmt.Fprintf(
 		out,
-		"\nAdd %s as an MCP server, tick Enable Dynamic Client Registration, and log in to LaunchDarkly at:\n  %s\n\n",
-		awsdevops.MCPServerEndpoint,
-		awsdevops.MCPRegistrationURL(clients.Region),
+		"\nCreate a LaunchDarkly service token at:\n  %s\n\n",
+		awsdevops.AccessTokenURL(opts.LDBaseURI),
 	)
-	_, _ = fmt.Fprint(out, "Waiting for the MCP registration, or press any key to skip... ")
-
-	found := make(chan string, 1)
-	failed := make(chan error, 1)
-	go func() {
-		serviceID, err := awsdevops.WaitForMCPServer(cmd.Context(), clients, 0)
-		if err != nil {
-			failed <- err
-
-			return
-		}
-		found <- serviceID
-	}()
-
-	select {
-	case serviceID := <-found:
-		_, _ = fmt.Fprintf(out, "found service %s\n", serviceID)
-		opts.MCPServiceID = serviceID
-	case err := <-failed:
-		_, _ = fmt.Fprintf(errOut, "\nstopped watching for the MCP registration: %s\n", err)
-
-		return false
-	case <-keys.keys:
-		_, _ = fmt.Fprintln(out, "skipped")
-
-		return false
-	}
-
-	if err := awsdevops.RegisterMCPServer(cmd.Context(), clients, opts, result); err != nil {
-		_, _ = fmt.Fprintf(errOut, "%s\n", err)
-
-		return false
-	}
-
-	return true
-}
-
-func registerMCPServerWithToken(
-	cmd *cobra.Command,
-	clients awsdevops.Clients,
-	opts awsdevops.SetupOptions,
-	result *awsdevops.SetupResult,
-	keys *keyReader,
-	out io.Writer,
-	errOut io.Writer,
-) bool {
-	_, _ = fmt.Fprintf(out, "\nCreate a service token at:\n  %s\n\n", awsdevops.AccessTokenURL(opts.LDBaseURI))
 	_, _ = fmt.Fprint(out, "Paste the token, or press Enter to skip: ")
 	token := keys.line()
 	_, _ = fmt.Fprintln(out)
