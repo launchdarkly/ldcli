@@ -1,7 +1,6 @@
 ---
 name: verify-dependabot-pr
 description: Checks a Dependabot pull request on launchdarkly/ldcli for problems CI can't catch. Builds the upgraded code, runs the part of ldcli the package affects (CLI, dev-server, UI, or npm install), and writes a report with a verdict for a maintainer. For maintainers only. Use when a maintainer asks to verify or smoke-test a Dependabot PR by URL or number.
-disable-model-invocation: true
 ---
 
 # Verify a Dependabot PR
