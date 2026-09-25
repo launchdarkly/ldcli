@@ -1,0 +1,12 @@
+id = "root-unknown-shorthand"
+argv = ["-x"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "root-unknown-shorthand.stdout"
+stderr_file = "root-unknown-shorthand.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

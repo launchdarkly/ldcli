@@ -137,6 +137,10 @@ If you wish to test your changes locally, simply
 2. Run `make build` from the repo root;
 3. Run commands as usual with `./ldcli`.
 
+### The Rust port
+
+A Rust build of the CLI is being written under `rust/crates/ldcli`, alongside the Go one. The Go binary is the released CLI and the reference for how the Rust one should behave. `make parity` runs the same arguments against both and diffs the exit code, stdout, stderr, and any files written. See [`parity/README.md`](parity/README.md) for how to run it, read a failure, and add a case.
+
 ## Verifying build provenance with the SLSA framework
 
 LaunchDarkly uses the [SLSA framework](https://slsa.dev/spec/v1.0/about) (Supply-chain Levels for Software Artifacts) to help developers make their supply chain more secure by ensuring the authenticity and build integrity of our published packages. To learn more, see the [provenance guide](./PROVENANCE.md).

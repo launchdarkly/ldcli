@@ -19,6 +19,14 @@ the `go.mod/go.sum` files are tidy.
 
 In addition, pre-commit will run dev server UI tests and build the project to make sure an up-to-date build is being checked in. You will need to install npm.
 
+## The Rust port
+
+The CLI is being ported to Rust. Both builds live in this repo: the Go tree is the released CLI and the reference for behavior, and `rust/crates/ldcli` is the port in progress.
+
+`make parity` runs the same arguments against both binaries and diffs the exit code, stdout, stderr, and declared files. A command that the Rust binary does not implement yet is simply not compared; each case opts in with `rust = true` once it should match. [`parity/README.md`](parity/README.md) covers running the harness, reading a failure, and adding a case.
+
+Two rules follow from this while the port is underway. Changing Go behavior means recapturing the affected transcripts with `make parity-capture`, and that diff is the behavior change under review. Changing Go output so that a Rust diff passes is backwards: the Go tree is what users have today.
+
 ## Adding a new command
 
 There are a few things you need to do in order to wire up a new top-level command.

@@ -1,11 +1,14 @@
-id = "ldcli"
+id = "root-help-force-tty"
 argv = ["--help"]
 declare = ["config:ldcli/config.yml"]
 rust = true
 
+[env]
+FORCE_TTY = "1"
+
 [expect]
 status = 0
-stdout_file = "ldcli.stdout"
+stdout_file = "root-help-force-tty.stdout"
 
 [expect.files]
 "config:ldcli/config.yml" = "{}\n"

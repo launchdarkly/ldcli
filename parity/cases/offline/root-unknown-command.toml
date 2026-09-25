@@ -1,0 +1,12 @@
+id = "root-unknown-command"
+argv = ["not-a-command"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "root-unknown-command.stdout"
+stderr_file = "root-unknown-command.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

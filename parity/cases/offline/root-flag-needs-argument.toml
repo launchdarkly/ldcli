@@ -1,0 +1,12 @@
+id = "root-flag-needs-argument"
+argv = ["--output"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "root-flag-needs-argument.stdout"
+stderr_file = "root-flag-needs-argument.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

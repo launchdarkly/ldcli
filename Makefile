@@ -1,8 +1,10 @@
 .PHONY: build generate log test vendor parity parity-capture
 
 PARITY_GO_BIN := bin/ldcli-go
+PARITY_RUST_BIN := rust/target/debug/ldcli
 PARITY_HARNESS := rust/target/debug/parity
-# Cases are recorded against this version label.
+# The Go build injects its version with -X main.version; the Rust build reads
+# the same label from the environment. Cases are recorded against "test".
 PARITY_VERSION := test
 
 build:
@@ -37,9 +39,9 @@ vendor:
 parity:
 	mkdir -p bin
 	go build -ldflags "-X main.version=$(PARITY_VERSION)" -o $(PARITY_GO_BIN) .
-	cargo build --manifest-path rust/Cargo.toml -p parity
+	LDCLI_VERSION=$(PARITY_VERSION) cargo build --manifest-path rust/Cargo.toml -p ldcli -p parity
 	go run ./parity/dump > bin/commands.txt
-	$(PARITY_HARNESS) check --go-bin $(PARITY_GO_BIN) --commands bin/commands.txt --cases parity/cases --exemptions parity/exemptions.toml --fixtures parity/fixtures
+	$(PARITY_HARNESS) check --go-bin $(PARITY_GO_BIN) --rust-bin $(PARITY_RUST_BIN) --commands bin/commands.txt --cases parity/cases --exemptions parity/exemptions.toml --fixtures parity/fixtures
 
 # Capture never runs the Rust binary: expectations come from the Go oracle.
 parity-capture:

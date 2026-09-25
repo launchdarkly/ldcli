@@ -1,0 +1,12 @@
+id = "root-shorthand-needs-argument"
+argv = ["-o"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "root-shorthand-needs-argument.stdout"
+stderr_file = "root-shorthand-needs-argument.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

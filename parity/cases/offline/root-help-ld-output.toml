@@ -1,11 +1,14 @@
-id = "ldcli"
+id = "root-help-ld-output"
 argv = ["--help"]
 declare = ["config:ldcli/config.yml"]
 rust = true
 
+[env]
+LD_OUTPUT = "markdown"
+
 [expect]
 status = 0
-stdout_file = "ldcli.stdout"
+stdout_file = "root-help-ld-output.stdout"
 
 [expect.files]
 "config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,12 @@
+id = "root-unknown-help-topic"
+argv = ["help", "not-real"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "root-unknown-help-topic.stdout"
+stderr_file = "root-unknown-help-topic.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
