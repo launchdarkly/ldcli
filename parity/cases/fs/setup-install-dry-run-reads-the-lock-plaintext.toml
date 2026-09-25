@@ -1,0 +1,18 @@
+id = "setup-install-dry-run-reads-the-lock-plaintext"
+argv = ["setup", "install", "--sdk-id", "node-server", "--dry-run", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:package.json", "work:pnpm-lock.yaml"]
+rust = true
+
+[seed]
+"work:package.json" = "{}\n"
+"work:pnpm-lock.yaml" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-install-dry-run-reads-the-lock-plaintext.stdout"
+stderr_file = "setup-install-dry-run-reads-the-lock-plaintext.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:package.json" = "{}\n"
+"work:pnpm-lock.yaml" = ""

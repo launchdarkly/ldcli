@@ -1,0 +1,18 @@
+id = "setup-install-dry-run-active-virtual-env"
+argv = ["setup", "install", "--sdk-id", "python-server-sdk", "--package-manager", "pip", "--dry-run", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:rel/venv/bin/pip"]
+rust = true
+
+[env]
+VIRTUAL_ENV = "rel/venv"
+
+[seed]
+"work:rel/venv/bin/pip" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-install-dry-run-active-virtual-env.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:rel/venv/bin/pip" = ""

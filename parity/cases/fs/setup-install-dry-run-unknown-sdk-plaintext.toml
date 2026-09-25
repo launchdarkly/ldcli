@@ -1,0 +1,11 @@
+id = "setup-install-dry-run-unknown-sdk-plaintext"
+argv = ["setup", "install", "--sdk-id", "nope", "--dry-run", "--package-manager", "x", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "setup-install-dry-run-unknown-sdk-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

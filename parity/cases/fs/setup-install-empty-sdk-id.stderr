@@ -1,0 +1,2 @@
+note: --package-manager was not given, so setup read the project and chose "". This previously defaulted to npm or pip. Pass --package-manager to pin it.
+unknown SDK "": no install command available; specify a supported --sdk-id

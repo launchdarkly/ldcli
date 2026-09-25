@@ -1,0 +1,12 @@
+id = "setup-install-missing-tool"
+argv = ["setup", "install", "--sdk-id", "go-server-sdk"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "setup-install-missing-tool.stdout"
+stderr_file = "setup-install-missing-tool.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,15 @@
+id = "setup-install-tool-output-is-trimmed"
+argv = ["setup", "install", "--sdk-id", "node-server", "--package-manager", "npm"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:npm" = "#!/bin/sh\necho\necho '  spaced  '\necho\nexit 1\n"
+
+[expect]
+status = 1
+stdout_file = "setup-install-tool-output-is-trimmed.stdout"
+stderr_file = "setup-install-tool-output-is-trimmed.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

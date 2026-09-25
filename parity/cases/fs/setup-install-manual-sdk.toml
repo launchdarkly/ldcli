@@ -1,0 +1,12 @@
+id = "setup-install-manual-sdk"
+argv = ["setup", "install", "--sdk-id", "java-server-sdk"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "setup-install-manual-sdk.stdout"
+stderr_file = "setup-install-manual-sdk.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

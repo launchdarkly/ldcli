@@ -233,6 +233,20 @@ fn run_setup(sub: &ArgMatches, env: &Env<'_>, default_output: &'static str) -> O
         Some(("install", sub)) if sub.get_flag("help") => {
             Outcome::Stdout(help::setup_install_help(default_output))
         }
+        Some(("install", sub)) if !sub.contains_id("sdk-id") => {
+            Outcome::Failure("required flag(s) \"sdk-id\" not set\n".into())
+        }
+        Some(("install", sub)) => setup::run_install(
+            &setup::InstallContext {
+                path: &string(sub, "path"),
+                sdk_id: &string(sub, "sdk-id"),
+                package_manager: &string(sub, "package-manager"),
+                dry_run: sub.get_flag("dry-run"),
+                json: output_kind(sub) == "json",
+                machine: &machine,
+            },
+            env.stderr,
+        ),
         Some(("init", sub)) if sub.get_flag("help") => {
             Outcome::Stdout(help::setup_init_help(default_output))
         }

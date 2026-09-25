@@ -1,0 +1,18 @@
+id = "setup-install-dry-run-reads-the-lock"
+argv = ["setup", "install", "--sdk-id", "node-server", "--dry-run"]
+declare = ["config:ldcli/config.yml", "work:package-lock.json", "work:package.json"]
+rust = true
+
+[seed]
+"work:package-lock.json" = "{}\n"
+"work:package.json" = "{}\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-dry-run-reads-the-lock.stdout"
+stderr_file = "setup-install-dry-run-reads-the-lock.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:package-lock.json" = "{}\n"
+"work:package.json" = "{}\n"

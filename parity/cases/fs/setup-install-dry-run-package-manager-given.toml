@@ -1,0 +1,11 @@
+id = "setup-install-dry-run-package-manager-given"
+argv = ["setup", "install", "--sdk-id", "react-client-sdk", "--package-manager", "bun", "--dry-run"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "setup-install-dry-run-package-manager-given.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

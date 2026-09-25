@@ -1,0 +1,17 @@
+id = "setup-install-venv-pip-not-executable"
+argv = ["setup", "install", "--sdk-id", "python-server-sdk", "--package-manager", "pip"]
+declare = ["config:ldcli/config.yml", "work:.venv/bin/pip", "work:requirements.txt"]
+rust = true
+
+[seed]
+"work:.venv/bin/pip" = ""
+"work:requirements.txt" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-install-venv-pip-not-executable.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:.venv/bin/pip" = ""
+"work:requirements.txt" = ""

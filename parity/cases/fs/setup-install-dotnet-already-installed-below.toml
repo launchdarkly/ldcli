@@ -1,0 +1,16 @@
+id = "setup-install-dotnet-already-installed-below"
+argv = ["setup", "install", "--sdk-id", "dotnet-server-sdk", "--package-manager", "dotnet"]
+declare = ["config:ldcli/config.yml", "work:a/A.csproj"]
+rust = true
+
+[seed]
+"bin:dotnet" = "#!/bin/sh\necho ok\n"
+"work:a/A.csproj" = "<PackageReference Include=\"LaunchDarkly.ServerSdk\" />\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-dotnet-already-installed-below.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:a/A.csproj" = "<PackageReference Include=\"LaunchDarkly.ServerSdk\" />\n"

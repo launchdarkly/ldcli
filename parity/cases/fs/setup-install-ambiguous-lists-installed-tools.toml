@@ -1,0 +1,15 @@
+id = "setup-install-ambiguous-lists-installed-tools"
+argv = ["setup", "install", "--sdk-id", "node-server"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:yarn" = "#!/bin/sh\necho ok\n"
+
+[expect]
+status = 1
+stdout_file = "setup-install-ambiguous-lists-installed-tools.stdout"
+stderr_file = "setup-install-ambiguous-lists-installed-tools.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

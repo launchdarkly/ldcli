@@ -1,0 +1,15 @@
+id = "setup-install-path-missing"
+argv = ["setup", "install", "--sdk-id", "go-server-sdk", "--path", "missing"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:go" = "#!/bin/sh\necho ok\n"
+
+[expect]
+status = 1
+stdout_file = "setup-install-path-missing.stdout"
+stderr_file = "setup-install-path-missing.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

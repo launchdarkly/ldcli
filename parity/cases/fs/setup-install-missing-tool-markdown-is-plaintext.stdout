@@ -1,0 +1,4 @@
+SDK: ruby-server-sdk
+Package: launchdarkly-server-sdk
+Success: false
+Reason: bundle is not installed or not on your PATH — run `gem install bundler`

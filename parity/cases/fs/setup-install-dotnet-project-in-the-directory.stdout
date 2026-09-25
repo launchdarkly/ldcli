@@ -1,0 +1,1 @@
+{"command":"dotnet add package LaunchDarkly.ServerSdk","package":"LaunchDarkly.ServerSdk","sdk_id":"dotnet-server-sdk","success":true,"version":""}

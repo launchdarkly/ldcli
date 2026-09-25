@@ -1,0 +1,12 @@
+id = "setup-install-ambiguous-node-project"
+argv = ["setup", "install", "--sdk-id", "node-server", "--dry-run"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "setup-install-ambiguous-node-project.stdout"
+stderr_file = "setup-install-ambiguous-node-project.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

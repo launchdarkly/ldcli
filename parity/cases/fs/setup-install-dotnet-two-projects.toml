@@ -1,0 +1,21 @@
+id = "setup-install-dotnet-two-projects"
+argv = ["setup", "install", "--sdk-id", "dotnet-server-sdk"]
+declare = ["config:ldcli/config.yml", "work:App.sln", "work:src/A/A.csproj", "work:src/B/B.csproj"]
+rust = true
+
+[seed]
+"bin:dotnet" = "#!/bin/sh\necho ok\n"
+"work:App.sln" = ""
+"work:src/A/A.csproj" = ""
+"work:src/B/B.csproj" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-install-dotnet-two-projects.stdout"
+stderr_file = "setup-install-dotnet-two-projects.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:App.sln" = ""
+"work:src/A/A.csproj" = ""
+"work:src/B/B.csproj" = ""

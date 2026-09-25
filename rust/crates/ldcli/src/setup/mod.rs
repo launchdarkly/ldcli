@@ -11,6 +11,7 @@ use crate::gopath;
 use crate::help::help_flag;
 use crate::output::gojson;
 use detect::{DetectResult, AMBIGUOUS};
+use install::InstallResult;
 use std::ffi::OsStr;
 
 /// What setup reads from the machine rather than the project.
@@ -62,6 +63,13 @@ impl JsonObject {
 
     fn boolean(self, name: &str, value: bool) -> Self {
         self.raw(name, value.to_string())
+    }
+
+    fn boolean_omitempty(self, name: &str, value: bool) -> Self {
+        if !value {
+            return self;
+        }
+        self.boolean(name, value)
     }
 
     fn finish(self) -> String {
@@ -145,6 +153,105 @@ pub fn run_detect(ctx: &DetectContext<'_>) -> Outcome {
         out.push_str(&format!(
             "Entry Point: {} (suggested, does not exist)\n",
             result.entry_point
+        ));
+    }
+    Outcome::Stdout(out)
+}
+
+pub struct InstallContext<'a> {
+    pub path: &'a str,
+    pub sdk_id: &'a str,
+    pub package_manager: &'a str,
+    pub dry_run: bool,
+    pub json: bool,
+    pub machine: &'a Machine<'a>,
+}
+
+pub fn run_install(ctx: &InstallContext<'_>, stderr: &dyn Fn(&str)) -> Outcome {
+    let dir = match ctx.machine.project_dir(ctx.path) {
+        Ok(dir) => dir,
+        Err(err) => return Outcome::Failure(format!("{err}\n")),
+    };
+    let mut package_manager = ctx.package_manager.to_string();
+    if package_manager.is_empty() {
+        let choice = detect::package_manager_choice_for(ctx.machine, &dir, ctx.sdk_id);
+        if choice.confidence == AMBIGUOUS {
+            let names: Vec<String> = choice
+                .candidates
+                .iter()
+                .map(|c| {
+                    if c.installed {
+                        c.name.clone()
+                    } else {
+                        format!("{} (not installed)", c.name)
+                    }
+                })
+                .collect();
+            return Outcome::Failure(format!(
+                "cannot tell which package manager to use: {}\npass --package-manager with one of: {}\n",
+                choice.reason,
+                names.join(", ")
+            ));
+        }
+        package_manager = choice.name;
+        stderr(&format!(
+            "note: --package-manager was not given, so setup read the project and chose {}. \
+             This previously defaulted to npm or pip. Pass --package-manager to pin it.\n",
+            crate::gostr::quote(&package_manager)
+        ));
+    }
+    let result = if ctx.dry_run {
+        let (args, package) =
+            install::install_args(ctx.machine, &dir, ctx.sdk_id, &package_manager);
+        InstallResult {
+            sdk_id: ctx.sdk_id.to_string(),
+            package,
+            command: args.join(" "),
+            dry_run: true,
+            ..InstallResult::default()
+        }
+    } else {
+        match install::install(ctx.machine, &dir, ctx.sdk_id, &package_manager) {
+            Ok(result) => result,
+            Err(err) => return Outcome::Failure(format!("{err}\n")),
+        }
+    };
+    if ctx.json {
+        let payload = JsonObject::default()
+            .string("sdk_id", &result.sdk_id)
+            .string("package", &result.package)
+            .string("version", "")
+            .string("command", &result.command)
+            .boolean_omitempty("dry_run", result.dry_run)
+            .boolean_omitempty("already_installed", result.already_installed)
+            .boolean_omitempty("failed", result.failed)
+            .string_omitempty("failure_reason", &result.failure_reason)
+            .string_omitempty("warning", &result.warning)
+            .boolean("success", result.success);
+        return Outcome::Stdout(format!("{}\n", payload.finish()));
+    }
+    let mut out = format!("SDK: {}\nPackage: {}\n", result.sdk_id, result.package);
+    if result.already_installed {
+        out.push_str("Already installed — skipping install.\n");
+        return Outcome::Stdout(out);
+    }
+    if !result.command.is_empty() {
+        out.push_str(&format!("Command: {}\n", result.command));
+    }
+    if result.dry_run {
+        out.push_str("Dry run: command not executed\n");
+        return Outcome::Stdout(out);
+    }
+    out.push_str(&format!("Success: {}\n", result.success));
+    if !result.warning.is_empty() {
+        out.push_str(&format!("Warning: {}\n", result.warning));
+    }
+    if !result.failure_reason.is_empty() {
+        out.push_str(&format!("Reason: {}\n", result.failure_reason));
+    } else if !result.success && install::requires_manual_install(&result.sdk_id) {
+        out.push_str(&format!(
+            "Reason: {} has no automated install command; add {} to your build configuration by hand.\n",
+            result.sdk_id, result.package
         ));
     }
     Outcome::Stdout(out)
@@ -251,6 +358,76 @@ mod tests {
                 r#"{"name":"pdm","installed":false,"command":"pdm add launchdarkly-server-sdk"}]}"#,
                 "\n"
             )
+        );
+    }
+
+    fn install_in(files: &[&str], tools: &[&str], package_manager: &str, dry_run: bool) -> Outcome {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = tempfile::tempdir().unwrap();
+        for file in files {
+            let path = dir.path().join(file);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "").unwrap();
+        }
+        for tool in tools {
+            let path = bin.path().join(tool);
+            fs::write(&path, "#!/bin/sh\n").unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let machine = Machine {
+            path: Some(bin.path().as_os_str()),
+            virtual_env: None,
+            pwd: None,
+        };
+        run_install(
+            &InstallContext {
+                path: dir.path().to_str().unwrap(),
+                sdk_id: if files.iter().any(|f| f.ends_with(".csproj")) {
+                    "dotnet-server-sdk"
+                } else {
+                    "node-server"
+                },
+                package_manager,
+                dry_run,
+                json: true,
+                machine: &machine,
+            },
+            &|_| {},
+        )
+    }
+
+    #[test]
+    fn install_json_keeps_go_field_order_and_omits_false_flags() {
+        assert_eq!(
+            install_in(&[], &[], "yarn", true),
+            Outcome::Stdout(concat!(
+                r#"{"sdk_id":"node-server","package":"@launchdarkly/node-server-sdk","version":"","#,
+                r#""command":"yarn add @launchdarkly/node-server-sdk","dry_run":true,"success":false}"#,
+                "\n"
+            ).into())
+        );
+        assert_eq!(
+            install_in(&["src/A/A.csproj", "src/B/B.csproj"], &["dotnet"], "dotnet", false),
+            Outcome::Stdout(concat!(
+                r#"{"sdk_id":"dotnet-server-sdk","package":"LaunchDarkly.ServerSdk","version":"","#,
+                r#""command":"","failed":true,"#,
+                r#""failure_reason":"found 2 projects in this solution; run `dotnet add package LaunchDarkly.ServerSdk --project \u003cpath\u003e` for the one that needs the SDK","#,
+                r#""success":false}"#,
+                "\n"
+            ).into())
+        );
+    }
+
+    #[test]
+    fn install_runs_the_tool_and_reports_success() {
+        assert_eq!(
+            install_in(&["App.csproj"], &["dotnet"], "dotnet", false),
+            Outcome::Stdout(concat!(
+                r#"{"sdk_id":"dotnet-server-sdk","package":"LaunchDarkly.ServerSdk","version":"","#,
+                r#""command":"dotnet add package LaunchDarkly.ServerSdk","success":true}"#,
+                "\n"
+            ).into())
         );
     }
 

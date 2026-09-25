@@ -1,0 +1,14 @@
+id = "setup-install-corepack-refuses-the-spec"
+argv = ["setup", "install", "--sdk-id", "node-server", "--package-manager", "pnpm"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:pnpm" = "#!/bin/sh\necho 'Invalid package manager specification in package.json (pnpm@^9); expected a semver version'\nexit 1\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-corepack-refuses-the-spec.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

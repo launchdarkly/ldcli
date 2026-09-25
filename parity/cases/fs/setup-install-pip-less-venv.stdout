@@ -1,0 +1,1 @@
+{"command":"","failed":true,"failure_reason":"the virtual environment at [SANDBOX]/work/.venv has no pip, which is how `uv venv` creates one. Install into it with `uv pip install launchdarkly-server-sdk`, or recreate it with `python3 -m venv .venv`, then run setup again.","package":"launchdarkly-server-sdk","sdk_id":"python-server-sdk","success":false,"version":""}

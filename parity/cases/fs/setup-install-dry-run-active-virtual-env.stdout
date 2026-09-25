@@ -1,0 +1,4 @@
+SDK: python-server-sdk
+Package: launchdarkly-server-sdk
+Command: [SANDBOX]/work/rel/venv/bin/pip install launchdarkly-server-sdk
+Dry run: command not executed

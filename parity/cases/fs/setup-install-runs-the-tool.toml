@@ -1,0 +1,15 @@
+id = "setup-install-runs-the-tool"
+argv = ["setup", "install", "--sdk-id", "go-server-sdk"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:go" = "#!/bin/sh\necho go $*\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-runs-the-tool.stdout"
+stderr_file = "setup-install-runs-the-tool.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

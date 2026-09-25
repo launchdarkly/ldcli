@@ -1,0 +1,1 @@
+{"command":"","failed":true,"failure_reason":"no .csproj file found; add LaunchDarkly.ServerSdk to your project manually","package":"LaunchDarkly.ServerSdk","sdk_id":"dotnet-server-sdk","success":false,"version":""}

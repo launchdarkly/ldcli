@@ -1,0 +1,1 @@
+{"command":"pip install launchdarkly-server-sdk","package":"launchdarkly-server-sdk","sdk_id":"python-server-sdk","success":true,"version":"","warning":"pip installed launchdarkly-server-sdk but did not record it in requirements/base.txt, so a fresh checkout and CI will not have it. Add a line for launchdarkly-server-sdk to requirements/base.txt."}

@@ -1,0 +1,4 @@
+SDK: node-server
+Package: @launchdarkly/node-server-sdk
+Command: pnpm add @launchdarkly/node-server-sdk
+Dry run: command not executed

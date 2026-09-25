@@ -1,0 +1,5 @@
+SDK: python-server-sdk
+Package: launchdarkly-server-sdk
+Command: pip install launchdarkly-server-sdk
+Success: true
+Warning: pip installed launchdarkly-server-sdk but did not record it in requirements.txt, so a fresh checkout and CI will not have it. Add a line for launchdarkly-server-sdk to requirements.txt.

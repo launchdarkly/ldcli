@@ -1,0 +1,4 @@
+SDK: js-client-sdk
+Package: launchdarkly-js-client-sdk
+Command: npm install launchdarkly-js-client-sdk
+Dry run: command not executed

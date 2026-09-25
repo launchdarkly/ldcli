@@ -1,0 +1,17 @@
+id = "setup-install-tool-runs-in-the-project"
+argv = ["setup", "install", "--sdk-id", "go-server-sdk", "--path", "sub/../sub"]
+declare = ["config:ldcli/config.yml", "work:sub/go.mod"]
+rust = true
+
+[seed]
+"bin:go" = "#!/bin/sh\necho \"pwd=$PWD\"\nexit 2\n"
+"work:sub/go.mod" = "module m\n"
+
+[expect]
+status = 1
+stdout_file = "setup-install-tool-runs-in-the-project.stdout"
+stderr_file = "setup-install-tool-runs-in-the-project.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:sub/go.mod" = "module m\n"

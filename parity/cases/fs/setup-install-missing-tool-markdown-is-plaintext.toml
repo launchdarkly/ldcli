@@ -1,0 +1,11 @@
+id = "setup-install-missing-tool-markdown-is-plaintext"
+argv = ["setup", "install", "--sdk-id", "ruby-server-sdk", "--package-manager", "bundle", "-o", "markdown"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "setup-install-missing-tool-markdown-is-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,1 @@
+note: --package-manager was not given, so setup read the project and chose "pnpm". This previously defaulted to npm or pip. Pass --package-manager to pin it.

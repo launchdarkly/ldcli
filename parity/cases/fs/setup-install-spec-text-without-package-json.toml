@@ -1,0 +1,15 @@
+id = "setup-install-spec-text-without-package-json"
+argv = ["setup", "install", "--sdk-id", "node-server", "--package-manager", "pnpm"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:pnpm" = "#!/bin/sh\necho 'No version specified'\nexit 1\n"
+
+[expect]
+status = 1
+stdout_file = "setup-install-spec-text-without-package-json.stdout"
+stderr_file = "setup-install-spec-text-without-package-json.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

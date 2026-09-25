@@ -1,0 +1,4 @@
+SDK: dotnet-server-sdk
+Package: LaunchDarkly.ServerSdk
+Command: dotnet add package LaunchDarkly.ServerSdk --project src/A/A.csproj
+Success: true

@@ -1,0 +1,21 @@
+id = "setup-install-dotnet-project-below-the-solution-plaintext"
+argv = ["setup", "install", "--sdk-id", "dotnet-server-sdk", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:App.sln", "work:bin/B/B.csproj", "work:src/A/A.csproj"]
+rust = true
+
+[seed]
+"bin:dotnet" = "#!/bin/sh\necho ok\n"
+"work:App.sln" = ""
+"work:bin/B/B.csproj" = ""
+"work:src/A/A.csproj" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-install-dotnet-project-below-the-solution-plaintext.stdout"
+stderr_file = "setup-install-dotnet-project-below-the-solution-plaintext.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:App.sln" = ""
+"work:bin/B/B.csproj" = ""
+"work:src/A/A.csproj" = ""

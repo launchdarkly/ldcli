@@ -1,0 +1,14 @@
+id = "setup-install-externally-managed"
+argv = ["setup", "install", "--sdk-id", "python-server-sdk", "--package-manager", "pip"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:pip3" = "#!/bin/sh\necho 'error: externally-managed-environment' >&2\nexit 1\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-externally-managed.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,15 @@
+id = "setup-install-tool-fails"
+argv = ["setup", "install", "--sdk-id", "node-server", "--package-manager", "npm"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:npm" = "#!/bin/sh\necho out\necho err >&2\nexit 3\n"
+
+[expect]
+status = 1
+stdout_file = "setup-install-tool-fails.stdout"
+stderr_file = "setup-install-tool-fails.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

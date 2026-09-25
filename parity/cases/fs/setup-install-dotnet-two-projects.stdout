@@ -1,0 +1,1 @@
+{"command":"","failed":true,"failure_reason":"found 2 projects in this solution; run `dotnet add package LaunchDarkly.ServerSdk --project <path>` for the one that needs the SDK","package":"LaunchDarkly.ServerSdk","sdk_id":"dotnet-server-sdk","success":false,"version":""}

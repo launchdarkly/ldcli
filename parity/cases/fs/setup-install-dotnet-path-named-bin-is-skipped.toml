@@ -1,0 +1,16 @@
+id = "setup-install-dotnet-path-named-bin-is-skipped"
+argv = ["setup", "install", "--sdk-id", "dotnet-server-sdk", "--path", "bin", "--package-manager", "dotnet"]
+declare = ["config:ldcli/config.yml", "work:bin/x/A.csproj"]
+rust = true
+
+[seed]
+"bin:dotnet" = "#!/bin/sh\necho ok\n"
+"work:bin/x/A.csproj" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-install-dotnet-path-named-bin-is-skipped.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:bin/x/A.csproj" = ""

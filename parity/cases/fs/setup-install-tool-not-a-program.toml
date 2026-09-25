@@ -1,0 +1,15 @@
+id = "setup-install-tool-not-a-program"
+argv = ["setup", "install", "--sdk-id", "node-server", "--package-manager", "npm"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:npm" = "not a script\n"
+
+[expect]
+status = 1
+stdout_file = "setup-install-tool-not-a-program.stdout"
+stderr_file = "setup-install-tool-not-a-program.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

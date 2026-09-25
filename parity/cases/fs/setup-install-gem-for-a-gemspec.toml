@@ -1,0 +1,17 @@
+id = "setup-install-gem-for-a-gemspec"
+argv = ["setup", "install", "--sdk-id", "ruby-server-sdk"]
+declare = ["config:ldcli/config.yml", "work:x.gemspec"]
+rust = true
+
+[seed]
+"bin:gem" = "#!/bin/sh\necho ok\n"
+"work:x.gemspec" = ""
+
+[expect]
+status = 1
+stdout_file = "setup-install-gem-for-a-gemspec.stdout"
+stderr_file = "setup-install-gem-for-a-gemspec.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:x.gemspec" = ""

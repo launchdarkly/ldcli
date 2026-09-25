@@ -1,0 +1,16 @@
+id = "setup-install-uv-records-the-dependency"
+argv = ["setup", "install", "--sdk-id", "python-server-sdk", "--package-manager", "uv"]
+declare = ["config:ldcli/config.yml", "work:pyproject.toml"]
+rust = true
+
+[seed]
+"bin:uv" = "#!/bin/sh\necho ok\n"
+"work:pyproject.toml" = "[project]\nname = \"app\"\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-uv-records-the-dependency.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:pyproject.toml" = "[project]\nname = \"app\"\n"

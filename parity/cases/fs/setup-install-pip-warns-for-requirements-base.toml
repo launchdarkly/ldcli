@@ -1,0 +1,16 @@
+id = "setup-install-pip-warns-for-requirements-base"
+argv = ["setup", "install", "--sdk-id", "python-server-sdk", "--package-manager", "pip"]
+declare = ["config:ldcli/config.yml", "work:requirements/base.txt"]
+rust = true
+
+[seed]
+"bin:pip" = "#!/bin/sh\necho ok\n"
+"work:requirements/base.txt" = "launchdarkly-server-sdk-otel\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-pip-warns-for-requirements-base.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:requirements/base.txt" = "launchdarkly-server-sdk-otel\n"

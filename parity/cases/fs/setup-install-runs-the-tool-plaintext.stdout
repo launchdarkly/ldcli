@@ -1,0 +1,4 @@
+SDK: ruby-server-sdk
+Package: launchdarkly-server-sdk
+Command: bundle add launchdarkly-server-sdk
+Success: true

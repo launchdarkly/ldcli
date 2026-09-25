@@ -43,11 +43,7 @@ fn run(name: &str, program: &Path, url: &str) -> Result<(), String> {
     if status.success() {
         return Ok(());
     }
-    match (status.code(), status.signal()) {
-        (Some(code), _) => Err(format!("exit status {code}")),
-        (None, Some(signal)) => Err(format!("signal: {}", signal_name(signal))),
-        (None, None) => Err("exit status -1".to_string()),
-    }
+    Err(exit_text(status))
 }
 
 /// `exec.LookPath`. A name with a slash is checked as given. Otherwise each
@@ -116,17 +112,60 @@ pub(crate) fn errno_text(err: &std::io::Error) -> String {
     }
 }
 
+/// `os.ProcessState.String()` for a process that did not exit 0.
+pub(crate) fn exit_text(status: std::process::ExitStatus) -> String {
+    let text = match (status.code(), status.signal()) {
+        (Some(code), _) => format!("exit status {code}"),
+        (None, Some(signal)) => format!("signal: {}", signal_name(signal)),
+        (None, None) => "exit status -1".to_string(),
+    };
+    if status.core_dumped() {
+        return format!("{text} (core dumped)");
+    }
+    text
+}
+
+const SIGNAL_NAMES: [&str; 31] = [
+    "hangup",
+    "interrupt",
+    "quit",
+    "illegal instruction",
+    "trace/breakpoint trap",
+    "aborted",
+    "bus error",
+    "floating point exception",
+    "killed",
+    "user defined signal 1",
+    "segmentation fault",
+    "user defined signal 2",
+    "broken pipe",
+    "alarm clock",
+    "terminated",
+    "stack fault",
+    "child exited",
+    "continued",
+    "stopped (signal)",
+    "stopped",
+    "stopped (tty input)",
+    "stopped (tty output)",
+    "urgent I/O condition",
+    "CPU time limit exceeded",
+    "file size limit exceeded",
+    "virtual timer expired",
+    "profiling timer expired",
+    "window changed",
+    "I/O possible",
+    "power failure",
+    "bad system call",
+];
+
 fn signal_name(signal: i32) -> String {
-    match signal {
-        1 => "hangup".into(),
-        2 => "interrupt".into(),
-        3 => "quit".into(),
-        6 => "aborted".into(),
-        9 => "killed".into(),
-        11 => "segmentation fault".into(),
-        13 => "broken pipe".into(),
-        15 => "terminated".into(),
-        other => format!("signal {other}"),
+    match usize::try_from(signal - 1)
+        .ok()
+        .and_then(|i| SIGNAL_NAMES.get(i))
+    {
+        Some(name) => (*name).to_string(),
+        None => format!("signal {signal}"),
     }
 }
 

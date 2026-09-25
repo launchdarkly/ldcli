@@ -1,0 +1,17 @@
+id = "setup-install-dry-run-pip-less-venv"
+argv = ["setup", "install", "--sdk-id", "python-server-sdk", "--package-manager", "pip", "--dry-run"]
+declare = ["config:ldcli/config.yml", "work:.venv/pyvenv.cfg", "work:requirements.txt"]
+rust = true
+
+[seed]
+"work:.venv/pyvenv.cfg" = ""
+"work:requirements.txt" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-install-dry-run-pip-less-venv.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:.venv/pyvenv.cfg" = ""
+"work:requirements.txt" = ""

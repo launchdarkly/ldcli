@@ -1,0 +1,3 @@
+note: --package-manager was not given, so setup read the project and chose "go". This previously defaulted to npm or pip. Pass --package-manager to pin it.
+go get github.com/launchdarkly/go-server-sdk/v7: exit status 2
+pwd=[SANDBOX]/work/sub

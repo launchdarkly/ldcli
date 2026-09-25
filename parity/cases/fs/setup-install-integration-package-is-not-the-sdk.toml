@@ -1,0 +1,16 @@
+id = "setup-install-integration-package-is-not-the-sdk"
+argv = ["setup", "install", "--sdk-id", "node-server", "--package-manager", "npm"]
+declare = ["config:ldcli/config.yml", "work:package.json"]
+rust = true
+
+[seed]
+"bin:npm" = "#!/bin/sh\necho ok\n"
+"work:package.json" = "{\"dependencies\": {\"@launchdarkly/node-server-sdk-redis\": \"9\"}}\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-integration-package-is-not-the-sdk.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:package.json" = "{\"dependencies\":{\"@launchdarkly/node-server-sdk-redis\":\"9\"}}\n"

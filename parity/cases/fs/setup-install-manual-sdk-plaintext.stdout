@@ -1,0 +1,4 @@
+SDK: swift-client-sdk
+Package: LaunchDarkly
+Success: false
+Reason: swift-client-sdk has no automated install command; add LaunchDarkly to your build configuration by hand.

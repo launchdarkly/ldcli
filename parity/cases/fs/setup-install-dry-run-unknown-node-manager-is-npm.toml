@@ -1,0 +1,11 @@
+id = "setup-install-dry-run-unknown-node-manager-is-npm"
+argv = ["setup", "install", "--sdk-id", "js-client-sdk", "--package-manager", "deno", "--dry-run", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "setup-install-dry-run-unknown-node-manager-is-npm.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

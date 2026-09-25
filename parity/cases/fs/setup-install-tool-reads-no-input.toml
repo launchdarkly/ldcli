@@ -1,0 +1,15 @@
+id = "setup-install-tool-reads-no-input"
+argv = ["setup", "install", "--sdk-id", "node-server", "--package-manager", "npm"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:npm" = "#!/bin/sh\nread line\necho \"read status $? line=$line\"\nexit 1\n"
+
+[expect]
+status = 1
+stdout_file = "setup-install-tool-reads-no-input.stdout"
+stderr_file = "setup-install-tool-reads-no-input.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

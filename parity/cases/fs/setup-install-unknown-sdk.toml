@@ -1,0 +1,12 @@
+id = "setup-install-unknown-sdk"
+argv = ["setup", "install", "--sdk-id", "nope", "--package-manager", "x"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "setup-install-unknown-sdk.stdout"
+stderr_file = "setup-install-unknown-sdk.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

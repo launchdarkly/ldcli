@@ -1,0 +1,17 @@
+id = "setup-install-dotnet-project-in-the-directory"
+argv = ["setup", "install", "--sdk-id", "dotnet-server-sdk"]
+declare = ["config:ldcli/config.yml", "work:App.csproj"]
+rust = true
+
+[seed]
+"bin:dotnet" = "#!/bin/sh\necho ok\n"
+"work:App.csproj" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-install-dotnet-project-in-the-directory.stdout"
+stderr_file = "setup-install-dotnet-project-in-the-directory.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:App.csproj" = ""

@@ -1,0 +1,2 @@
+cannot tell which package manager to use: this project doesn't say which package manager it uses
+pass --package-manager with one of: npm (not installed), yarn, pnpm (not installed), bun (not installed)

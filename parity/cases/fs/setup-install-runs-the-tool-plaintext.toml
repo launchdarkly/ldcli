@@ -1,0 +1,17 @@
+id = "setup-install-runs-the-tool-plaintext"
+argv = ["setup", "install", "--sdk-id", "ruby-server-sdk", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:Gemfile"]
+rust = true
+
+[seed]
+"bin:bundle" = "#!/bin/sh\necho ok\n"
+"work:Gemfile" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-install-runs-the-tool-plaintext.stdout"
+stderr_file = "setup-install-runs-the-tool-plaintext.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:Gemfile" = ""

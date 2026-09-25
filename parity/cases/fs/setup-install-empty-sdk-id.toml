@@ -1,0 +1,12 @@
+id = "setup-install-empty-sdk-id"
+argv = ["setup", "install", "--sdk-id", ""]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "setup-install-empty-sdk-id.stdout"
+stderr_file = "setup-install-empty-sdk-id.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

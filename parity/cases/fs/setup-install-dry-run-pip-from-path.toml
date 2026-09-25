@@ -1,0 +1,15 @@
+id = "setup-install-dry-run-pip-from-path"
+argv = ["setup", "install", "--sdk-id", "python-server-sdk", "--package-manager", "pip", "--dry-run"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"bin:pip" = "#!/bin/sh\necho ok\n"
+"bin:pip3" = "#!/bin/sh\necho ok\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-dry-run-pip-from-path.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,18 @@
+id = "setup-install-already-installed-in-go-sum"
+argv = ["setup", "install", "--sdk-id", "go-server-sdk"]
+declare = ["config:ldcli/config.yml", "work:go.mod", "work:go.sum"]
+rust = true
+
+[seed]
+"work:go.mod" = "module m\n"
+"work:go.sum" = "github.com/launchdarkly/go-server-sdk/v7 v7.0.0 h1:x\n"
+
+[expect]
+status = 0
+stdout_file = "setup-install-already-installed-in-go-sum.stdout"
+stderr_file = "setup-install-already-installed-in-go-sum.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:go.mod" = "module m\n"
+"work:go.sum" = "github.com/launchdarkly/go-server-sdk/v7 v7.0.0 h1:x\n"
