@@ -1,4 +1,4 @@
-.PHONY: build generate log test vendor parity parity-capture
+.PHONY: build generate log test vendor parity parity-capture output-fixtures rust-test
 
 PARITY_GO_BIN := bin/ldcli-go
 PARITY_RUST_BIN := rust/target/debug/ldcli
@@ -32,6 +32,14 @@ openapi-spec-update:
 
 test:
 	go test ./...
+
+# Re-record what the Go formatters produce. The Rust formatter tests compare
+# against these, so a deliberate change to Go output lands here first.
+output-fixtures:
+	go run ./parity/output_fixtures
+
+rust-test:
+	cargo test --manifest-path rust/Cargo.toml
 
 vendor:
 	go mod tidy && go mod vendor

@@ -1,0 +1,34 @@
+[
+  {
+    "input": "json",
+    "kind": "json"
+  },
+  {
+    "input": "plaintext",
+    "kind": "plaintext"
+  },
+  {
+    "input": "markdown",
+    "kind": "markdown"
+  },
+  {
+    "input": "yaml",
+    "kind": "",
+    "error": "output is invalid. Use 'json', 'plaintext', or 'markdown'"
+  },
+  {
+    "input": "",
+    "kind": "",
+    "error": "output is invalid. Use 'json', 'plaintext', or 'markdown'"
+  },
+  {
+    "input": "JSON",
+    "kind": "",
+    "error": "output is invalid. Use 'json', 'plaintext', or 'markdown'"
+  },
+  {
+    "input": " json",
+    "kind": "",
+    "error": "output is invalid. Use 'json', 'plaintext', or 'markdown'"
+  }
+]

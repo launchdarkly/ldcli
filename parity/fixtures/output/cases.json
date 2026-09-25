@@ -1,0 +1,2464 @@
+[
+  {
+    "name": "email-only-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }"
+  },
+  {
+    "name": "email-only-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "* ada@example.com"
+  },
+  {
+    "name": "email-only-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "- ada@example.com"
+  },
+  {
+    "name": "email-only-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }"
+  },
+  {
+    "name": "email-only-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "* ada@example.com"
+  },
+  {
+    "name": "email-only-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "- ada@example.com"
+  },
+  {
+    "name": "email-only-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }"
+  },
+  {
+    "name": "email-only-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "Successfully created\n* ada@example.com"
+  },
+  {
+    "name": "email-only-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "Successfully created\n\n- ada@example.com"
+  },
+  {
+    "name": "email-only-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }"
+  },
+  {
+    "name": "email-only-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "Successfully updated\n* ada@example.com"
+  },
+  {
+    "name": "email-only-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "Successfully updated\n\n- ada@example.com"
+  },
+  {
+    "name": "email-only-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }"
+  },
+  {
+    "name": "email-only-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "Successfully deleted\n* ada@example.com"
+  },
+  {
+    "name": "email-only-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"email\": \"ada@example.com\" } ] }",
+    "stdout": "Successfully deleted\n\n- ada@example.com"
+  },
+  {
+    "name": "empty-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "{ \"items\": [], \"totalCount\": 0 }"
+  },
+  {
+    "name": "empty-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "empty-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "empty-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "{ \"items\": [], \"totalCount\": 0 }"
+  },
+  {
+    "name": "empty-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "empty-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "empty-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "{ \"items\": [], \"totalCount\": 0 }"
+  },
+  {
+    "name": "empty-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "empty-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "empty-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "{ \"items\": [], \"totalCount\": 0 }"
+  },
+  {
+    "name": "empty-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "empty-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "empty-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "{ \"items\": [], \"totalCount\": 0 }"
+  },
+  {
+    "name": "empty-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "empty-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{ \"items\": [], \"totalCount\": 0 }",
+    "stdout": "No items found"
+  },
+  {
+    "name": "environments-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "environments-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "KEY          NAME         COLOR\nproduction   Production   417505\ntest         Test         F5A623"
+  },
+  {
+    "name": "environments-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "| KEY | NAME | COLOR |\n| --- | --- | --- |\n| production | Production | 417505 |\n| test | Test | F5A623 |"
+  },
+  {
+    "name": "environments-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "environments-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "KEY          NAME         COLOR\nproduction   Production   417505\ntest         Test         F5A623"
+  },
+  {
+    "name": "environments-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "| KEY | NAME | COLOR |\n| --- | --- | --- |\n| production | Production | 417505 |\n| test | Test | F5A623 |"
+  },
+  {
+    "name": "environments-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "environments-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\nKEY          NAME         COLOR\nproduction   Production   417505\ntest         Test         F5A623"
+  },
+  {
+    "name": "environments-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\n\n| KEY | NAME | COLOR |\n| --- | --- | --- |\n| production | Production | 417505 |\n| test | Test | F5A623 |"
+  },
+  {
+    "name": "environments-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "environments-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\nKEY          NAME         COLOR\nproduction   Production   417505\ntest         Test         F5A623"
+  },
+  {
+    "name": "environments-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\n\n| KEY | NAME | COLOR |\n| --- | --- | --- |\n| production | Production | 417505 |\n| test | Test | F5A623 |"
+  },
+  {
+    "name": "environments-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "environments-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\nKEY          NAME         COLOR\nproduction   Production   417505\ntest         Test         F5A623"
+  },
+  {
+    "name": "environments-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "environments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"production\", \"name\": \"Production\", \"color\": \"417505\" },\n    { \"key\": \"test\", \"name\": \"Test\", \"color\": \"F5A623\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\n\n| KEY | NAME | COLOR |\n| --- | --- | --- |\n| production | Production | 417505 |\n| test | Test | F5A623 |"
+  },
+  {
+    "name": "flags-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}"
+  },
+  {
+    "name": "flags-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "KEY                 NAME                KIND           TEMPORARY   TAGS\nalt-page            Alternate page      boolean        yes         ops, experiments, beta, ...\ncheckout|redesign   Checkout redesign   multivariate   no          \nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "| KEY | NAME | KIND | TEMPORARY | TAGS |\n| --- | --- | --- | --- | --- |\n| alt-page | Alternate page | boolean | yes | ops, experiments, beta, ... |\n| checkout\\|redesign | Checkout redesign | multivariate | no |  |\nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}"
+  },
+  {
+    "name": "flags-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "KEY                 NAME                KIND           TEMPORARY   TAGS\nalt-page            Alternate page      boolean        yes         ops, experiments, beta, ...\ncheckout|redesign   Checkout redesign   multivariate   no          \nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "| KEY | NAME | KIND | TEMPORARY | TAGS |\n| --- | --- | --- | --- | --- |\n| alt-page | Alternate page | boolean | yes | ops, experiments, beta, ... |\n| checkout\\|redesign | Checkout redesign | multivariate | no |  |\nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}"
+  },
+  {
+    "name": "flags-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "Successfully created\nKEY                 NAME                KIND           TEMPORARY   TAGS\nalt-page            Alternate page      boolean        yes         ops, experiments, beta, ...\ncheckout|redesign   Checkout redesign   multivariate   no          \nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "Successfully created\n\n| KEY | NAME | KIND | TEMPORARY | TAGS |\n| --- | --- | --- | --- | --- |\n| alt-page | Alternate page | boolean | yes | ops, experiments, beta, ... |\n| checkout\\|redesign | Checkout redesign | multivariate | no |  |\nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}"
+  },
+  {
+    "name": "flags-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "Successfully updated\nKEY                 NAME                KIND           TEMPORARY   TAGS\nalt-page            Alternate page      boolean        yes         ops, experiments, beta, ...\ncheckout|redesign   Checkout redesign   multivariate   no          \nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "Successfully updated\n\n| KEY | NAME | KIND | TEMPORARY | TAGS |\n| --- | --- | --- | --- | --- |\n| alt-page | Alternate page | boolean | yes | ops, experiments, beta, ... |\n| checkout\\|redesign | Checkout redesign | multivariate | no |  |\nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}"
+  },
+  {
+    "name": "flags-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "Successfully deleted\nKEY                 NAME                KIND           TEMPORARY   TAGS\nalt-page            Alternate page      boolean        yes         ops, experiments, beta, ...\ncheckout|redesign   Checkout redesign   multivariate   no          \nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "Successfully deleted\n\n| KEY | NAME | KIND | TEMPORARY | TAGS |\n| --- | --- | --- | --- | --- |\n| alt-page | Alternate page | boolean | yes | ops, experiments, beta, ... |\n| checkout\\|redesign | Checkout redesign | multivariate | no |  |\nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  },
+  {
+    "name": "flags-single.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}"
+  },
+  {
+    "name": "flags-single.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "Key:        alt-page\nName:       Alternate page\nKind:       boolean\nTemporary:  yes\nCreated:    2014-12-15T23:05:22Z\nTags:       ops, experiments"
+  },
+  {
+    "name": "flags-single.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "## alt-page\n\nServes the alternate product page.\n\n| Environment | Status | Fallthrough | Rules |\n| --- | --- | --- | --- |\n| production | ON | on (true) | 2 |\n| test | OFF | false | 0 |\n\n- **Kind:** boolean\n- **Temporary:** yes\n- **Tags:** ops, experiments\n- **Maintainer:** Ada Lovelace"
+  },
+  {
+    "name": "flags-single.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}"
+  },
+  {
+    "name": "flags-single.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "Key:        alt-page\nName:       Alternate page\nKind:       boolean\nTemporary:  yes\nCreated:    2014-12-15T23:05:22Z\nTags:       ops, experiments"
+  },
+  {
+    "name": "flags-single.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "## alt-page\n\nServes the alternate product page.\n\n| Environment | Status | Fallthrough | Rules |\n| --- | --- | --- | --- |\n| production | ON | on (true) | 2 |\n| test | OFF | false | 0 |\n\n- **Kind:** boolean\n- **Temporary:** yes\n- **Tags:** ops, experiments\n- **Maintainer:** Ada Lovelace"
+  },
+  {
+    "name": "flags-single.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}"
+  },
+  {
+    "name": "flags-single.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "Successfully created\n\nKey:        alt-page\nName:       Alternate page\nKind:       boolean\nTemporary:  yes\nCreated:    2014-12-15T23:05:22Z\nTags:       ops, experiments"
+  },
+  {
+    "name": "flags-single.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "Successfully created\n\n## alt-page\n\nServes the alternate product page.\n\n| Environment | Status | Fallthrough | Rules |\n| --- | --- | --- | --- |\n| production | ON | on (true) | 2 |\n| test | OFF | false | 0 |\n\n- **Kind:** boolean\n- **Temporary:** yes\n- **Tags:** ops, experiments\n- **Maintainer:** Ada Lovelace"
+  },
+  {
+    "name": "flags-single.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}"
+  },
+  {
+    "name": "flags-single.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "Successfully updated\n\nKey:        alt-page\nName:       Alternate page\nKind:       boolean\nTemporary:  yes\nCreated:    2014-12-15T23:05:22Z\nTags:       ops, experiments"
+  },
+  {
+    "name": "flags-single.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "Successfully updated\n\n## alt-page\n\nServes the alternate product page.\n\n| Environment | Status | Fallthrough | Rules |\n| --- | --- | --- | --- |\n| production | ON | on (true) | 2 |\n| test | OFF | false | 0 |\n\n- **Kind:** boolean\n- **Temporary:** yes\n- **Tags:** ops, experiments\n- **Maintainer:** Ada Lovelace"
+  },
+  {
+    "name": "flags-single.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}"
+  },
+  {
+    "name": "flags-single.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "Successfully deleted\n\nKey:        alt-page\nName:       Alternate page\nKind:       boolean\nTemporary:  yes\nCreated:    2014-12-15T23:05:22Z\nTags:       ops, experiments"
+  },
+  {
+    "name": "flags-single.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "flags",
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "Successfully deleted\n\n## alt-page\n\nServes the alternate product page.\n\n| Environment | Status | Fallthrough | Rules |\n| --- | --- | --- | --- |\n| production | ON | on (true) | 2 |\n| test | OFF | false | 0 |\n\n- **Kind:** boolean\n- **Temporary:** yes\n- **Tags:** ops, experiments\n- **Maintainer:** Ada Lovelace"
+  },
+  {
+    "name": "id-only-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "{ \"items\": [ { \"_id\": \"test-id\" } ] }"
+  },
+  {
+    "name": "id-only-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "* test-id"
+  },
+  {
+    "name": "id-only-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "- test-id"
+  },
+  {
+    "name": "id-only-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "{ \"items\": [ { \"_id\": \"test-id\" } ] }"
+  },
+  {
+    "name": "id-only-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "* test-id"
+  },
+  {
+    "name": "id-only-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "- test-id"
+  },
+  {
+    "name": "id-only-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "{ \"items\": [ { \"_id\": \"test-id\" } ] }"
+  },
+  {
+    "name": "id-only-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "Successfully created\n* test-id"
+  },
+  {
+    "name": "id-only-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "Successfully created\n\n- test-id"
+  },
+  {
+    "name": "id-only-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "{ \"items\": [ { \"_id\": \"test-id\" } ] }"
+  },
+  {
+    "name": "id-only-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "Successfully updated\n* test-id"
+  },
+  {
+    "name": "id-only-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "Successfully updated\n\n- test-id"
+  },
+  {
+    "name": "id-only-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "{ \"items\": [ { \"_id\": \"test-id\" } ] }"
+  },
+  {
+    "name": "id-only-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "Successfully deleted\n* test-id"
+  },
+  {
+    "name": "id-only-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"_id\": \"test-id\" } ] }",
+    "stdout": "Successfully deleted\n\n- test-id"
+  },
+  {
+    "name": "members-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "members-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "EMAIL               ROLE     LAST NAME   FIRST NAME\nada@example.com     admin    Lovelace    Ada\ngrace@example.com   writer   Hopper      Grace"
+  },
+  {
+    "name": "members-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "| EMAIL | ROLE | LAST NAME | FIRST NAME |\n| --- | --- | --- | --- |\n| ada@example.com | admin | Lovelace | Ada |\n| grace@example.com | writer | Hopper | Grace |"
+  },
+  {
+    "name": "members-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "members-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "EMAIL               ROLE     LAST NAME   FIRST NAME\nada@example.com     admin    Lovelace    Ada\ngrace@example.com   writer   Hopper      Grace"
+  },
+  {
+    "name": "members-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "| EMAIL | ROLE | LAST NAME | FIRST NAME |\n| --- | --- | --- | --- |\n| ada@example.com | admin | Lovelace | Ada |\n| grace@example.com | writer | Hopper | Grace |"
+  },
+  {
+    "name": "members-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "members-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\nEMAIL               ROLE     LAST NAME   FIRST NAME\nada@example.com     admin    Lovelace    Ada\ngrace@example.com   writer   Hopper      Grace"
+  },
+  {
+    "name": "members-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\n\n| EMAIL | ROLE | LAST NAME | FIRST NAME |\n| --- | --- | --- | --- |\n| ada@example.com | admin | Lovelace | Ada |\n| grace@example.com | writer | Hopper | Grace |"
+  },
+  {
+    "name": "members-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "members-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\nEMAIL               ROLE     LAST NAME   FIRST NAME\nada@example.com     admin    Lovelace    Ada\ngrace@example.com   writer   Hopper      Grace"
+  },
+  {
+    "name": "members-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\n\n| EMAIL | ROLE | LAST NAME | FIRST NAME |\n| --- | --- | --- | --- |\n| ada@example.com | admin | Lovelace | Ada |\n| grace@example.com | writer | Hopper | Grace |"
+  },
+  {
+    "name": "members-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "members-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\nEMAIL               ROLE     LAST NAME   FIRST NAME\nada@example.com     admin    Lovelace    Ada\ngrace@example.com   writer   Hopper      Grace"
+  },
+  {
+    "name": "members-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "members",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"1\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\" },\n    { \"_id\": \"2\", \"email\": \"grace@example.com\", \"role\": \"writer\", \"firstName\": \"Grace\", \"lastName\": \"Hopper\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\n\n| EMAIL | ROLE | LAST NAME | FIRST NAME |\n| --- | --- | --- | --- |\n| ada@example.com | admin | Lovelace | Ada |\n| grace@example.com | writer | Hopper | Grace |"
+  },
+  {
+    "name": "no-resource-name-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }"
+  },
+  {
+    "name": "no-resource-name-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "* test-name (test-key)"
+  },
+  {
+    "name": "no-resource-name-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "- test-name (test-key)"
+  },
+  {
+    "name": "no-resource-name-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }"
+  },
+  {
+    "name": "no-resource-name-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "* test-name (test-key)"
+  },
+  {
+    "name": "no-resource-name-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "- test-name (test-key)"
+  },
+  {
+    "name": "no-resource-name-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }"
+  },
+  {
+    "name": "no-resource-name-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "Successfully created\n* test-name (test-key)"
+  },
+  {
+    "name": "no-resource-name-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "Successfully created\n\n- test-name (test-key)"
+  },
+  {
+    "name": "no-resource-name-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }"
+  },
+  {
+    "name": "no-resource-name-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "Successfully updated\n* test-name (test-key)"
+  },
+  {
+    "name": "no-resource-name-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "Successfully updated\n\n- test-name (test-key)"
+  },
+  {
+    "name": "no-resource-name-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }"
+  },
+  {
+    "name": "no-resource-name-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "Successfully deleted\n* test-name (test-key)"
+  },
+  {
+    "name": "no-resource-name-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ], \"totalCount\": 1 }",
+    "stdout": "Successfully deleted\n\n- test-name (test-key)"
+  },
+  {
+    "name": "numeric-fields-single.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "{ \"_id\": 1418684722483, \"name\": 2.5 }"
+  },
+  {
+    "name": "numeric-fields-single.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "2.5 (1.418684722483e+12)"
+  },
+  {
+    "name": "numeric-fields-single.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "## 2.5"
+  },
+  {
+    "name": "numeric-fields-single.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "{ \"_id\": 1418684722483, \"name\": 2.5 }"
+  },
+  {
+    "name": "numeric-fields-single.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "2.5 (1.418684722483e+12)"
+  },
+  {
+    "name": "numeric-fields-single.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "## 2.5"
+  },
+  {
+    "name": "numeric-fields-single.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "{ \"_id\": 1418684722483, \"name\": 2.5 }"
+  },
+  {
+    "name": "numeric-fields-single.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "Successfully created 2.5 (1.418684722483e+12)"
+  },
+  {
+    "name": "numeric-fields-single.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "Successfully created\n\n## 2.5"
+  },
+  {
+    "name": "numeric-fields-single.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "{ \"_id\": 1418684722483, \"name\": 2.5 }"
+  },
+  {
+    "name": "numeric-fields-single.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "Successfully updated 2.5 (1.418684722483e+12)"
+  },
+  {
+    "name": "numeric-fields-single.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "Successfully updated\n\n## 2.5"
+  },
+  {
+    "name": "numeric-fields-single.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "{ \"_id\": 1418684722483, \"name\": 2.5 }"
+  },
+  {
+    "name": "numeric-fields-single.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "Successfully deleted 2.5 (1.418684722483e+12)"
+  },
+  {
+    "name": "numeric-fields-single.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{ \"_id\": 1418684722483, \"name\": 2.5 }",
+    "stdout": "Successfully deleted\n\n## 2.5"
+  },
+  {
+    "name": "numeric-scalar-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }"
+  },
+  {
+    "name": "numeric-scalar-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "* 1\n* 2.5\n* 1.418684722483e+12"
+  },
+  {
+    "name": "numeric-scalar-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "- 1\n- 2.5\n- 1.418684722483e+12"
+  },
+  {
+    "name": "numeric-scalar-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }"
+  },
+  {
+    "name": "numeric-scalar-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "* 1\n* 2.5\n* 1.418684722483e+12"
+  },
+  {
+    "name": "numeric-scalar-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "- 1\n- 2.5\n- 1.418684722483e+12"
+  },
+  {
+    "name": "numeric-scalar-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }"
+  },
+  {
+    "name": "numeric-scalar-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "Successfully created\n* 1\n* 2.5\n* 1.418684722483e+12"
+  },
+  {
+    "name": "numeric-scalar-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "Successfully created\n\n- 1\n- 2.5\n- 1.418684722483e+12"
+  },
+  {
+    "name": "numeric-scalar-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }"
+  },
+  {
+    "name": "numeric-scalar-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "Successfully updated\n* 1\n* 2.5\n* 1.418684722483e+12"
+  },
+  {
+    "name": "numeric-scalar-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "Successfully updated\n\n- 1\n- 2.5\n- 1.418684722483e+12"
+  },
+  {
+    "name": "numeric-scalar-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }"
+  },
+  {
+    "name": "numeric-scalar-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "Successfully deleted\n* 1\n* 2.5\n* 1.418684722483e+12"
+  },
+  {
+    "name": "numeric-scalar-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{ \"items\": [1, 2.5, 1418684722483], \"totalCount\": 3 }",
+    "stdout": "Successfully deleted\n\n- 1\n- 2.5\n- 1.418684722483e+12"
+  },
+  {
+    "name": "paginated-first-page.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-first-page.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "* test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-first-page.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "- test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-first-page.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-first-page.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "* test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-first-page.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "- test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-first-page.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-first-page.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully created\n* test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-first-page.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully created\n\n- test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-first-page.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-first-page.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully updated\n* test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-first-page.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully updated\n\n- test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-first-page.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-first-page.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully deleted\n* test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-first-page.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=0\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully deleted\n\n- test-name (test-key)\nShowing results 1 - 5 of 100. Use --offset 5 for additional results."
+  },
+  {
+    "name": "paginated-last-page.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-last-page.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "* test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-last-page.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "- test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-last-page.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-last-page.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "* test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-last-page.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "- test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-last-page.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-last-page.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully created\n* test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-last-page.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully created\n\n- test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-last-page.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-last-page.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully updated\n* test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-last-page.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully updated\n\n- test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-last-page.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-last-page.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully deleted\n* test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-last-page.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=95\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully deleted\n\n- test-name (test-key)\nShowing results 96 - 100 of 100."
+  },
+  {
+    "name": "paginated-middle-page.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-middle-page.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "* test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "paginated-middle-page.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "- test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "paginated-middle-page.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-middle-page.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "* test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "paginated-middle-page.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "- test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "paginated-middle-page.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-middle-page.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully created\n* test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "paginated-middle-page.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully created\n\n- test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "paginated-middle-page.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-middle-page.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully updated\n* test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "paginated-middle-page.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully updated\n\n- test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "paginated-middle-page.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}"
+  },
+  {
+    "name": "paginated-middle-page.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully deleted\n* test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "paginated-middle-page.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{\n  \"_links\": { \"self\": { \"href\": \"/my-resources?limit=5\u0026offset=5\", \"type\": \"application/json\" } },\n  \"items\": [ { \"key\": \"test-key\", \"name\": \"test-name\" } ],\n  \"totalCount\": 100\n}",
+    "stdout": "Successfully deleted\n\n- test-name (test-key)\nShowing results 6 - 10 of 100. Use --offset 10 for additional results."
+  },
+  {
+    "name": "projects-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "projects-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "KEY       NAME      TAG COUNT\ndefault   Default   2\nmobile    Mobile    0"
+  },
+  {
+    "name": "projects-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "| KEY | NAME | TAG COUNT |\n| --- | --- | --- |\n| default | Default | 2 |\n| mobile | Mobile | 0 |"
+  },
+  {
+    "name": "projects-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "projects-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "KEY       NAME      TAG COUNT\ndefault   Default   2\nmobile    Mobile    0"
+  },
+  {
+    "name": "projects-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "| KEY | NAME | TAG COUNT |\n| --- | --- | --- |\n| default | Default | 2 |\n| mobile | Mobile | 0 |"
+  },
+  {
+    "name": "projects-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "projects-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\nKEY       NAME      TAG COUNT\ndefault   Default   2\nmobile    Mobile    0"
+  },
+  {
+    "name": "projects-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\n\n| KEY | NAME | TAG COUNT |\n| --- | --- | --- |\n| default | Default | 2 |\n| mobile | Mobile | 0 |"
+  },
+  {
+    "name": "projects-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "projects-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\nKEY       NAME      TAG COUNT\ndefault   Default   2\nmobile    Mobile    0"
+  },
+  {
+    "name": "projects-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\n\n| KEY | NAME | TAG COUNT |\n| --- | --- | --- |\n| default | Default | 2 |\n| mobile | Mobile | 0 |"
+  },
+  {
+    "name": "projects-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "projects-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\nKEY       NAME      TAG COUNT\ndefault   Default   2\nmobile    Mobile    0"
+  },
+  {
+    "name": "projects-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{\n  \"items\": [\n    { \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] },\n    { \"key\": \"mobile\", \"name\": \"Mobile\", \"tags\": [] }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\n\n| KEY | NAME | TAG COUNT |\n| --- | --- | --- |\n| default | Default | 2 |\n| mobile | Mobile | 0 |"
+  },
+  {
+    "name": "projects-single.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }"
+  },
+  {
+    "name": "projects-single.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "Key:        default\nName:       Default\nTag Count:  2"
+  },
+  {
+    "name": "projects-single.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "## Default (default)\n\n- **Key:** default\n- **Name:** Default\n- **Tag Count:** 2"
+  },
+  {
+    "name": "projects-single.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }"
+  },
+  {
+    "name": "projects-single.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "Key:        default\nName:       Default\nTag Count:  2"
+  },
+  {
+    "name": "projects-single.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "## Default (default)\n\n- **Key:** default\n- **Name:** Default\n- **Tag Count:** 2"
+  },
+  {
+    "name": "projects-single.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }"
+  },
+  {
+    "name": "projects-single.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "Successfully created\n\nKey:        default\nName:       Default\nTag Count:  2"
+  },
+  {
+    "name": "projects-single.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "Successfully created\n\n## Default (default)\n\n- **Key:** default\n- **Name:** Default\n- **Tag Count:** 2"
+  },
+  {
+    "name": "projects-single.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }"
+  },
+  {
+    "name": "projects-single.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "Successfully updated\n\nKey:        default\nName:       Default\nTag Count:  2"
+  },
+  {
+    "name": "projects-single.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "Successfully updated\n\n## Default (default)\n\n- **Key:** default\n- **Name:** Default\n- **Tag Count:** 2"
+  },
+  {
+    "name": "projects-single.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }"
+  },
+  {
+    "name": "projects-single.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "Successfully deleted\n\nKey:        default\nName:       Default\nTag Count:  2"
+  },
+  {
+    "name": "projects-single.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "projects",
+    "input": "{ \"key\": \"default\", \"name\": \"Default\", \"tags\": [\"a\", \"b\"] }",
+    "stdout": "Successfully deleted\n\n## Default (default)\n\n- **Key:** default\n- **Name:** Default\n- **Tag Count:** 2"
+  },
+  {
+    "name": "scalar-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "scalar-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "* tag1\n* tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "scalar-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "- tag1\n- tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "scalar-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "scalar-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "* tag1\n* tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "scalar-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "- tag1\n- tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "scalar-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "scalar-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\n* tag1\n* tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "scalar-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\n\n- tag1\n- tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "scalar-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "scalar-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\n* tag1\n* tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "scalar-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\n\n- tag1\n- tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "scalar-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "scalar-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\n* tag1\n* tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "scalar-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{\n  \"items\": [\"tag1\", \"tag2\"],\n  \"_links\": { \"self\": { \"href\": \"/api/v2/tags\", \"type\": \"application/json\" } },\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\n\n- tag1\n- tag2\nShowing results 1 - 2 of 2."
+  },
+  {
+    "name": "segments-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "segments-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "KEY          NAME         CREATED\nbeta-users   Beta users   2014-12-15T23:05:22Z\ninternal     Internal     2021-04-17T18:38:42Z"
+  },
+  {
+    "name": "segments-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "| KEY | NAME | CREATED |\n| --- | --- | --- |\n| beta-users | Beta users | 2014-12-15T23:05:22Z |\n| internal | Internal | 2021-04-17T18:38:42Z |"
+  },
+  {
+    "name": "segments-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "segments-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "KEY          NAME         CREATED\nbeta-users   Beta users   2014-12-15T23:05:22Z\ninternal     Internal     2021-04-17T18:38:42Z"
+  },
+  {
+    "name": "segments-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "| KEY | NAME | CREATED |\n| --- | --- | --- |\n| beta-users | Beta users | 2014-12-15T23:05:22Z |\n| internal | Internal | 2021-04-17T18:38:42Z |"
+  },
+  {
+    "name": "segments-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "segments-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\nKEY          NAME         CREATED\nbeta-users   Beta users   2014-12-15T23:05:22Z\ninternal     Internal     2021-04-17T18:38:42Z"
+  },
+  {
+    "name": "segments-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\n\n| KEY | NAME | CREATED |\n| --- | --- | --- |\n| beta-users | Beta users | 2014-12-15T23:05:22Z |\n| internal | Internal | 2021-04-17T18:38:42Z |"
+  },
+  {
+    "name": "segments-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "segments-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\nKEY          NAME         CREATED\nbeta-users   Beta users   2014-12-15T23:05:22Z\ninternal     Internal     2021-04-17T18:38:42Z"
+  },
+  {
+    "name": "segments-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\n\n| KEY | NAME | CREATED |\n| --- | --- | --- |\n| beta-users | Beta users | 2014-12-15T23:05:22Z |\n| internal | Internal | 2021-04-17T18:38:42Z |"
+  },
+  {
+    "name": "segments-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "segments-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\nKEY          NAME         CREATED\nbeta-users   Beta users   2014-12-15T23:05:22Z\ninternal     Internal     2021-04-17T18:38:42Z"
+  },
+  {
+    "name": "segments-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "segments",
+    "input": "{\n  \"items\": [\n    { \"key\": \"beta-users\", \"name\": \"Beta users\", \"creationDate\": 1418684722483 },\n    { \"key\": \"internal\", \"name\": \"Internal\", \"creationDate\": 1618684722483 }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\n\n| KEY | NAME | CREATED |\n| --- | --- | --- |\n| beta-users | Beta users | 2014-12-15T23:05:22Z |\n| internal | Internal | 2021-04-17T18:38:42Z |"
+  },
+  {
+    "name": "singular-no-columns.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "{ \"key\": \"test-key\", \"name\": \"test-name\" }"
+  },
+  {
+    "name": "singular-no-columns.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "test-name (test-key)"
+  },
+  {
+    "name": "singular-no-columns.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "## test-name (test-key)"
+  },
+  {
+    "name": "singular-no-columns.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "{ \"key\": \"test-key\", \"name\": \"test-name\" }"
+  },
+  {
+    "name": "singular-no-columns.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "test-name (test-key)"
+  },
+  {
+    "name": "singular-no-columns.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "## test-name (test-key)"
+  },
+  {
+    "name": "singular-no-columns.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "{ \"key\": \"test-key\", \"name\": \"test-name\" }"
+  },
+  {
+    "name": "singular-no-columns.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "Successfully created test-name (test-key)"
+  },
+  {
+    "name": "singular-no-columns.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "Successfully created\n\n## test-name (test-key)"
+  },
+  {
+    "name": "singular-no-columns.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "{ \"key\": \"test-key\", \"name\": \"test-name\" }"
+  },
+  {
+    "name": "singular-no-columns.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "Successfully updated test-name (test-key)"
+  },
+  {
+    "name": "singular-no-columns.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "Successfully updated\n\n## test-name (test-key)"
+  },
+  {
+    "name": "singular-no-columns.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "{ \"key\": \"test-key\", \"name\": \"test-name\" }"
+  },
+  {
+    "name": "singular-no-columns.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "Successfully deleted test-name (test-key)"
+  },
+  {
+    "name": "singular-no-columns.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{ \"key\": \"test-key\", \"name\": \"test-name\" }",
+    "stdout": "Successfully deleted\n\n## test-name (test-key)"
+  },
+  {
+    "name": "unreadable-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "{ \"items\": [ { \"color\": \"blue\" } ] }"
+  },
+  {
+    "name": "unreadable-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "* cannot read resource"
+  },
+  {
+    "name": "unreadable-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "- cannot read resource"
+  },
+  {
+    "name": "unreadable-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "{ \"items\": [ { \"color\": \"blue\" } ] }"
+  },
+  {
+    "name": "unreadable-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "* cannot read resource"
+  },
+  {
+    "name": "unreadable-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "- cannot read resource"
+  },
+  {
+    "name": "unreadable-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "{ \"items\": [ { \"color\": \"blue\" } ] }"
+  },
+  {
+    "name": "unreadable-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "Successfully created\n* cannot read resource"
+  },
+  {
+    "name": "unreadable-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "Successfully created\n\n- cannot read resource"
+  },
+  {
+    "name": "unreadable-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "{ \"items\": [ { \"color\": \"blue\" } ] }"
+  },
+  {
+    "name": "unreadable-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "Successfully updated\n* cannot read resource"
+  },
+  {
+    "name": "unreadable-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "Successfully updated\n\n- cannot read resource"
+  },
+  {
+    "name": "unreadable-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "{ \"items\": [ { \"color\": \"blue\" } ] }"
+  },
+  {
+    "name": "unreadable-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "Successfully deleted\n* cannot read resource"
+  },
+  {
+    "name": "unreadable-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "input": "{ \"items\": [ { \"color\": \"blue\" } ] }",
+    "stdout": "Successfully deleted\n\n- cannot read resource"
+  },
+  {
+    "name": "unregistered-list.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "unregistered-list.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "* Deploy hook (hook-1)\n* hook-2"
+  },
+  {
+    "name": "unregistered-list.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "- Deploy hook (hook-1)\n- hook-2"
+  },
+  {
+    "name": "unregistered-list.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "unregistered-list.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "* Deploy hook (hook-1)\n* hook-2"
+  },
+  {
+    "name": "unregistered-list.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "- Deploy hook (hook-1)\n- hook-2"
+  },
+  {
+    "name": "unregistered-list.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "unregistered-list.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\n* Deploy hook (hook-1)\n* hook-2"
+  },
+  {
+    "name": "unregistered-list.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully created\n\n- Deploy hook (hook-1)\n- hook-2"
+  },
+  {
+    "name": "unregistered-list.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "unregistered-list.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\n* Deploy hook (hook-1)\n* hook-2"
+  },
+  {
+    "name": "unregistered-list.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully updated\n\n- Deploy hook (hook-1)\n- hook-2"
+  },
+  {
+    "name": "unregistered-list.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}"
+  },
+  {
+    "name": "unregistered-list.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\n* Deploy hook (hook-1)\n* hook-2"
+  },
+  {
+    "name": "unregistered-list.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{\n  \"items\": [\n    { \"_id\": \"hook-1\", \"name\": \"Deploy hook\" },\n    { \"_id\": \"hook-2\" }\n  ],\n  \"totalCount\": 2\n}",
+    "stdout": "Successfully deleted\n\n- Deploy hook (hook-1)\n- hook-2"
+  },
+  {
+    "name": "unregistered-single.list.json",
+    "action": "list",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }"
+  },
+  {
+    "name": "unregistered-single.list.plaintext",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "Deploy hook (hook-1)"
+  },
+  {
+    "name": "unregistered-single.list.markdown",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "## Deploy hook"
+  },
+  {
+    "name": "unregistered-single.get.json",
+    "action": "get",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }"
+  },
+  {
+    "name": "unregistered-single.get.plaintext",
+    "action": "get",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "Deploy hook (hook-1)"
+  },
+  {
+    "name": "unregistered-single.get.markdown",
+    "action": "get",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "## Deploy hook"
+  },
+  {
+    "name": "unregistered-single.create.json",
+    "action": "create",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }"
+  },
+  {
+    "name": "unregistered-single.create.plaintext",
+    "action": "create",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "Successfully created Deploy hook (hook-1)"
+  },
+  {
+    "name": "unregistered-single.create.markdown",
+    "action": "create",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "Successfully created\n\n## Deploy hook"
+  },
+  {
+    "name": "unregistered-single.update.json",
+    "action": "update",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }"
+  },
+  {
+    "name": "unregistered-single.update.plaintext",
+    "action": "update",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "Successfully updated Deploy hook (hook-1)"
+  },
+  {
+    "name": "unregistered-single.update.markdown",
+    "action": "update",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "Successfully updated\n\n## Deploy hook"
+  },
+  {
+    "name": "unregistered-single.delete.json",
+    "action": "delete",
+    "kind": "json",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }"
+  },
+  {
+    "name": "unregistered-single.delete.plaintext",
+    "action": "delete",
+    "kind": "plaintext",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "Successfully deleted Deploy hook (hook-1)"
+  },
+  {
+    "name": "unregistered-single.delete.markdown",
+    "action": "delete",
+    "kind": "markdown",
+    "resource": "webhooks",
+    "input": "{ \"_id\": \"hook-1\", \"name\": \"Deploy hook\" }",
+    "stdout": "Successfully deleted\n\n## Deploy hook"
+  },
+  {
+    "name": "flags-list.list.json.fields",
+    "action": "list",
+    "kind": "json",
+    "resource": "flags",
+    "fields": [
+      "key",
+      "name"
+    ],
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\"\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\"\n    }\n  ],\n  \"totalCount\": 7\n}"
+  },
+  {
+    "name": "flags-list.list.plaintext.fields",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "flags",
+    "fields": [
+      "key",
+      "name"
+    ],
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "KEY                 NAME                KIND           TEMPORARY   TAGS\nalt-page            Alternate page      boolean        yes         ops, experiments, beta, ...\ncheckout|redesign   Checkout redesign   multivariate   no          \nShowing results 1 - 2 of 7. Use --offset 2 for additional results.",
+    "stderr": "note: --fields is only supported with JSON output; ignoring\n"
+  },
+  {
+    "name": "flags-list.list.markdown.fields",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "flags",
+    "fields": [
+      "key",
+      "name"
+    ],
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "| KEY | NAME | KIND | TEMPORARY | TAGS |\n| --- | --- | --- | --- | --- |\n| alt-page | Alternate page | boolean | yes | ops, experiments, beta, ... |\n| checkout\\|redesign | Checkout redesign | multivariate | no |  |\nShowing results 1 - 2 of 7. Use --offset 2 for additional results.",
+    "stderr": "note: --fields is only supported with JSON output; ignoring\n"
+  },
+  {
+    "name": "flags-single.list.json.fields",
+    "action": "list",
+    "kind": "json",
+    "resource": "flags",
+    "fields": [
+      "key",
+      "name"
+    ],
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\"\n}"
+  },
+  {
+    "name": "flags-single.list.plaintext.fields",
+    "action": "list",
+    "kind": "plaintext",
+    "resource": "flags",
+    "fields": [
+      "key",
+      "name"
+    ],
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "Key:        alt-page\nName:       Alternate page\nKind:       boolean\nTemporary:  yes\nCreated:    2014-12-15T23:05:22Z\nTags:       ops, experiments",
+    "stderr": "note: --fields is only supported with JSON output; ignoring\n"
+  },
+  {
+    "name": "flags-single.list.markdown.fields",
+    "action": "list",
+    "kind": "markdown",
+    "resource": "flags",
+    "fields": [
+      "key",
+      "name"
+    ],
+    "input": "{\n  \"key\": \"alt-page\",\n  \"name\": \"Alternate page\",\n  \"kind\": \"boolean\",\n  \"temporary\": true,\n  \"creationDate\": 1418684722483,\n  \"description\": \"Serves the alternate product page.\",\n  \"tags\": [\"ops\", \"experiments\"],\n  \"_maintainer\": {\n    \"name\": \"Ada Lovelace\",\n    \"email\": \"ada@example.com\"\n  },\n  \"variations\": [\n    { \"name\": \"on\", \"value\": true },\n    { \"value\": false }\n  ],\n  \"environments\": {\n    \"production\": {\n      \"on\": true,\n      \"fallthrough\": { \"variation\": 0 },\n      \"rules\": [{ \"id\": \"r1\" }, { \"id\": \"r2\" }]\n    },\n    \"test\": {\n      \"on\": false,\n      \"fallthrough\": { \"variation\": 1 },\n      \"rules\": []\n    }\n  }\n}",
+    "stdout": "## alt-page\n\nServes the alternate product page.\n\n| Environment | Status | Fallthrough | Rules |\n| --- | --- | --- | --- |\n| production | ON | on (true) | 2 |\n| test | OFF | false | 0 |\n\n- **Kind:** boolean\n- **Temporary:** yes\n- **Tags:** ops, experiments\n- **Maintainer:** Ada Lovelace",
+    "stderr": "note: --fields is only supported with JSON output; ignoring\n"
+  },
+  {
+    "name": "flags-list.list.json.unknown-field",
+    "action": "list",
+    "kind": "json",
+    "resource": "flags",
+    "fields": [
+      "nope"
+    ],
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {},\n    {}\n  ],\n  \"totalCount\": 7\n}"
+  },
+  {
+    "name": "flags-list.list.json.blank-fields",
+    "action": "list",
+    "kind": "json",
+    "resource": "flags",
+    "fields": [
+      "",
+      "  "
+    ],
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}"
+  },
+  {
+    "name": "flags-list.list.yaml.unvalidated-kind",
+    "action": "list",
+    "kind": "yaml",
+    "resource": "flags",
+    "input": "{\n  \"_links\": {\n    \"self\": {\n      \"href\": \"/api/v2/flags/default?limit=2\u0026offset=0\",\n      \"type\": \"application/json\"\n    }\n  },\n  \"items\": [\n    {\n      \"key\": \"alt-page\",\n      \"name\": \"Alternate page\",\n      \"kind\": \"boolean\",\n      \"temporary\": true,\n      \"tags\": [\"ops\", \"experiments\", \"beta\", \"internal\"]\n    },\n    {\n      \"key\": \"checkout|redesign\",\n      \"name\": \"Checkout redesign\",\n      \"kind\": \"multivariate\",\n      \"temporary\": false,\n      \"tags\": []\n    }\n  ],\n  \"totalCount\": 7\n}",
+    "stdout": "KEY                 NAME                KIND           TEMPORARY   TAGS\nalt-page            Alternate page      boolean        yes         ops, experiments, beta, ...\ncheckout|redesign   Checkout redesign   multivariate   no          \nShowing results 1 - 2 of 7. Use --offset 2 for additional results."
+  }
+]

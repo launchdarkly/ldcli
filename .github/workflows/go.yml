@@ -34,5 +34,15 @@ jobs:
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@stable
 
+    - name: rust test
+      run: make rust-test
+
+    # The formatter fixtures are recorded from the Go formatters. If a change
+    # to Go output was not recaptured, this leaves a diff behind.
+    - name: output fixtures are current
+      run: |
+        make output-fixtures
+        git diff --exit-code parity/fixtures/output
+
     - name: parity
       run: make parity

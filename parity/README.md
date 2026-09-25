@@ -78,6 +78,22 @@ Set `rust = true` once the Rust binary is supposed to match that case.
 
 The coverage gate reads the Go command tree, including hidden commands, from `go run ./parity/dump`. A command with neither a help transcript nor an exemption fails `make parity`.
 
+## Formatter fixtures
+
+Transcripts cover a whole command. The output formatters are also compared on their own, because a canonical JSON diff can hide an indentation or column bug and because most renderings have no command wired up yet.
+
+`make output-fixtures` runs a fixed set of payloads through Go's own `internal/output` and records what it produced under `parity/fixtures/output`. `make rust-test` compares the Rust formatters against those recordings. CI regenerates the fixtures and fails if that leaves a diff, so a change to Go output has to be recaptured in the same commit.
+
+```text
+cases.json     every payload rendered as json, plaintext, and markdown
+errors.json    every error shape rendered in each kind
+kinds.json     what NewOutputKind accepts and what it says when it does not
+numbers.json   how a decoded value is written back out as JSON
+sprint.json    how a decoded number is printed in plaintext
+```
+
+The last two exist because Go prints a number two different ways. Written back out as JSON, 1418684722483 stays itself. Printed in plaintext it goes through `fmt.Sprint` of a float64 and reads `1.418684722483e+12`. A decoded number is always a float64, so a value past 2^53 loses precision in both.
+
 ## Layout
 
 ```text
@@ -85,9 +101,10 @@ parity/cases/help/       one --help transcript per Go command
 parity/cases/offline/    commands that do not need the network
 parity/cases/http/       commands pointed at a fixture server
 parity/cases/fs/         commands whose filesystem result is the assertion
-parity/fixtures/         placeholder fixtures only
+parity/fixtures/output/  recorded renderings from the Go formatters
 parity/exemptions.toml
 parity/dump/             prints the Go command tree, including hidden commands
+parity/output_fixtures/  records the formatter fixtures from the Go tree
 ```
 
 Stdout and stderr are sibling files (`.stdout`, `.stderr`) so the transcripts stay readable. The TOML file holds argv, status, and declared file bytes.

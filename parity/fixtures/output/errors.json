@@ -1,0 +1,179 @@
+[
+  {
+    "name": "code-message-suggestion.json",
+    "kind": "json",
+    "source": "code-message-suggestion",
+    "body": "{\"code\":\"invalid_request\",\"message\":\"flag key is required\",\"suggestion\":\"Pass --key.\"}",
+    "output": "{\"code\":\"invalid_request\",\"message\":\"flag key is required\",\"suggestion\":\"Pass --key.\"}"
+  },
+  {
+    "name": "code-message-suggestion.plaintext",
+    "kind": "plaintext",
+    "source": "code-message-suggestion",
+    "body": "{\"code\":\"invalid_request\",\"message\":\"flag key is required\",\"suggestion\":\"Pass --key.\"}",
+    "output": "flag key is required (code: invalid_request)\nSuggestion: Pass --key."
+  },
+  {
+    "name": "code-message-suggestion.markdown",
+    "kind": "markdown",
+    "source": "code-message-suggestion",
+    "body": "{\"code\":\"invalid_request\",\"message\":\"flag key is required\",\"suggestion\":\"Pass --key.\"}",
+    "output": "flag key is required (code: invalid_request)\nSuggestion: Pass --key."
+  },
+  {
+    "name": "code-and-message.json",
+    "kind": "json",
+    "source": "code-and-message",
+    "body": "{\"code\":\"not_found\",\"message\":\"unknown flag\"}",
+    "output": "{\"code\":\"not_found\",\"message\":\"unknown flag\"}"
+  },
+  {
+    "name": "code-and-message.plaintext",
+    "kind": "plaintext",
+    "source": "code-and-message",
+    "body": "{\"code\":\"not_found\",\"message\":\"unknown flag\"}",
+    "output": "unknown flag (code: not_found)"
+  },
+  {
+    "name": "code-and-message.markdown",
+    "kind": "markdown",
+    "source": "code-and-message",
+    "body": "{\"code\":\"not_found\",\"message\":\"unknown flag\"}",
+    "output": "unknown flag (code: not_found)"
+  },
+  {
+    "name": "message-only.json",
+    "kind": "json",
+    "source": "message-only",
+    "body": "{\"message\":\"something went wrong\"}",
+    "output": "{\"message\":\"something went wrong\"}"
+  },
+  {
+    "name": "message-only.plaintext",
+    "kind": "plaintext",
+    "source": "message-only",
+    "body": "{\"message\":\"something went wrong\"}",
+    "output": "something went wrong"
+  },
+  {
+    "name": "message-only.markdown",
+    "kind": "markdown",
+    "source": "message-only",
+    "body": "{\"message\":\"something went wrong\"}",
+    "output": "something went wrong"
+  },
+  {
+    "name": "empty-message.json",
+    "kind": "json",
+    "source": "empty-message",
+    "body": "{\"code\":\"conflict\",\"message\":\"\"}",
+    "output": "{\"code\":\"conflict\",\"message\":\"\"}"
+  },
+  {
+    "name": "empty-message.plaintext",
+    "kind": "plaintext",
+    "source": "empty-message",
+    "body": "{\"code\":\"conflict\",\"message\":\"\"}",
+    "output": "an error occurred (code: conflict)"
+  },
+  {
+    "name": "empty-message.markdown",
+    "kind": "markdown",
+    "source": "empty-message",
+    "body": "{\"code\":\"conflict\",\"message\":\"\"}",
+    "output": "an error occurred (code: conflict)"
+  },
+  {
+    "name": "empty-body.json",
+    "kind": "json",
+    "source": "empty-body",
+    "body": "{}",
+    "output": "{}"
+  },
+  {
+    "name": "empty-body.plaintext",
+    "kind": "plaintext",
+    "source": "empty-body",
+    "body": "{}",
+    "output": "unknown error occurred"
+  },
+  {
+    "name": "empty-body.markdown",
+    "kind": "markdown",
+    "source": "empty-body",
+    "body": "{}",
+    "output": "unknown error occurred"
+  },
+  {
+    "name": "unauthorized-401.json",
+    "kind": "json",
+    "source": "unauthorized-401",
+    "output": "{\"code\":\"unauthorized\",\"message\":\"You do not have access to perform this action\"}"
+  },
+  {
+    "name": "unauthorized-401.plaintext",
+    "kind": "plaintext",
+    "source": "unauthorized-401",
+    "output": "You do not have access to perform this action (code: unauthorized)"
+  },
+  {
+    "name": "unauthorized-401.markdown",
+    "kind": "markdown",
+    "source": "unauthorized-401",
+    "output": "You do not have access to perform this action (code: unauthorized)"
+  },
+  {
+    "name": "plain-error.json",
+    "kind": "json",
+    "source": "plain-error",
+    "output": "{\"message\":\"dial tcp: connection refused\"}"
+  },
+  {
+    "name": "plain-error.plaintext",
+    "kind": "plaintext",
+    "source": "plain-error",
+    "output": "dial tcp: connection refused"
+  },
+  {
+    "name": "plain-error.markdown",
+    "kind": "markdown",
+    "source": "plain-error",
+    "output": "dial tcp: connection refused"
+  },
+  {
+    "name": "cli-error.json",
+    "kind": "json",
+    "source": "cli-error",
+    "output": "null"
+  },
+  {
+    "name": "cli-error.plaintext",
+    "kind": "plaintext",
+    "source": "cli-error",
+    "output": "unknown error occurred"
+  },
+  {
+    "name": "cli-error.markdown",
+    "kind": "markdown",
+    "source": "cli-error",
+    "output": "unknown error occurred"
+  },
+  {
+    "name": "json-unmarshal-type-error.json",
+    "kind": "json",
+    "source": "json-unmarshal-type-error",
+    "output": "{\"message\":\"invalid JSON\"}"
+  },
+  {
+    "name": "json-unmarshal-type-error.plaintext",
+    "kind": "plaintext",
+    "source": "json-unmarshal-type-error",
+    "output": "invalid JSON"
+  },
+  {
+    "name": "json-unmarshal-type-error.markdown",
+    "kind": "markdown",
+    "source": "json-unmarshal-type-error",
+    "output": "invalid JSON"
+  }
+]
