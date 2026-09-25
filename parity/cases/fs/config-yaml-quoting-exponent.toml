@@ -1,0 +1,11 @@
+id = "config-yaml-quoting-exponent"
+argv = ["config", "--set", "project", "1e3", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "config-yaml-quoting-exponent.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "project: \"1e3\"\n"

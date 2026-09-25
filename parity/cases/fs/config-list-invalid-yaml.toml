@@ -1,0 +1,15 @@
+id = "config-list-invalid-yaml"
+argv = ["config", "--list"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "output: [unclosed\n"
+
+[expect]
+status = 1
+stdout_file = "config-list-invalid-yaml.stdout"
+stderr_file = "config-list-invalid-yaml.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: [unclosed\n"

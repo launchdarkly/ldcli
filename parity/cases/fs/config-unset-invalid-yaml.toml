@@ -1,0 +1,15 @@
+id = "config-unset-invalid-yaml"
+argv = ["config", "--unset", "output"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "output: [unclosed\n"
+
+[expect]
+status = 1
+stdout_file = "config-unset-invalid-yaml.stdout"
+stderr_file = "config-unset-invalid-yaml.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: [unclosed\n"

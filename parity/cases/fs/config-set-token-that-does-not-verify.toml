@@ -1,0 +1,12 @@
+id = "config-set-token-that-does-not-verify"
+argv = ["config", "--set", "access-token", "api-not-a-real-token", "--base-uri", "http://127.0.0.1:1"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "config-set-token-that-does-not-verify.stdout"
+stderr_file = "config-set-token-that-does-not-verify.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

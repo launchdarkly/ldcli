@@ -1,0 +1,12 @@
+id = "config-set-invalid-output"
+argv = ["config", "--set", "output", "yaml"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "config-set-invalid-output.stdout"
+stderr_file = "config-set-invalid-output.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

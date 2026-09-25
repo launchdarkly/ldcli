@@ -1,0 +1,12 @@
+id = "config-version-after-subcommand"
+argv = ["config", "-v"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "config-version-after-subcommand.stdout"
+stderr_file = "config-version-after-subcommand.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

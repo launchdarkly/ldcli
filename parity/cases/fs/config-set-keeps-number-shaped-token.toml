@@ -1,0 +1,14 @@
+id = "config-set-keeps-number-shaped-token"
+argv = ["config", "--set", "project", "p", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "access-token: \"12345\"\n"
+
+[expect]
+status = 0
+stdout_file = "config-set-keeps-number-shaped-token.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "access-token: \"12345\"\nproject: p\n"

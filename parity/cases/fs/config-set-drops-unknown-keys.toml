@@ -1,0 +1,14 @@
+id = "config-set-drops-unknown-keys"
+argv = ["config", "--set", "project", "p", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "port: 9000\ncors-enabled: true\nproject: old\n"
+
+[expect]
+status = 0
+stdout_file = "config-set-drops-unknown-keys.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "project: p\n"

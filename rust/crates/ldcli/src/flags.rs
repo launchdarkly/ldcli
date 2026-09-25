@@ -95,6 +95,36 @@ pub fn persistent_flags(default_output: &'static str) -> Vec<Flag> {
     ]
 }
 
+/// The flags `config` declares, plus the help flag Cobra gives every command.
+pub fn config_flags() -> Vec<Flag> {
+    vec![
+        Flag {
+            name: "help",
+            shorthand: Some('h'),
+            usage: "help for config",
+            kind: FlagKind::Bool,
+        },
+        Flag {
+            name: "list",
+            shorthand: None,
+            usage: "List configs",
+            kind: FlagKind::Bool,
+        },
+        Flag {
+            name: "set",
+            shorthand: None,
+            usage: "Set a config field to a value",
+            kind: FlagKind::Bool,
+        },
+        Flag {
+            name: "unset",
+            shorthand: None,
+            usage: "Unset a config field",
+            kind: FlagKind::Str { default: "" },
+        },
+    ]
+}
+
 /// Cobra adds these to the root as it executes a command. The unknown-help-topic
 /// path prints its usage before that happens, so it lists neither.
 pub fn implicit_flags() -> Vec<Flag> {

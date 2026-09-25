@@ -1,0 +1,14 @@
+id = "config-unset-json"
+argv = ["config", "--unset", "project", "-o", "json"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "output: markdown\nproject: proj\n"
+
+[expect]
+status = 0
+stdout_file = "config-unset-json.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: markdown\n"

@@ -1,0 +1,11 @@
+id = "config-yaml-quoting-date"
+argv = ["config", "--set", "project", "2024-01-01", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "config-yaml-quoting-date.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "project: \"2024-01-01\"\n"

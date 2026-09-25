@@ -1,0 +1,11 @@
+id = "config-help-before-subcommand"
+argv = ["--help", "config"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "config-help-before-subcommand.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

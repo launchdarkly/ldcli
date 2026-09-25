@@ -1,0 +1,34 @@
+View and modify specific configuration values
+
+Supported settings:
+- `access-token`: LaunchDarkly access token with write-level access
+- `analytics-opt-out`: Opt out of analytics tracking
+- `base-uri`: LaunchDarkly base URI
+- `cors-enabled`: Enable CORS headers for browser-based developer tools (default: false)
+- `cors-origin`: Allowed CORS origin. Use '*' for all origins (default: '*')
+- `dev-stream-uri`: Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint
+- `environment`: Default environment key
+- `flag`: Default feature flag key
+- `output`: Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise)
+- `port`: Port for the dev server to run on
+- `project`: Default project key
+- `sync-once`: Only sync new projects. Existing projects will neither be resynced nor have overrides specified by CLI flags applied.
+- `update-check-opt-out`: Opt out of update check
+
+Usage:
+  ldcli config [flags]
+
+
+Flags:
+  -h, --help           help for config
+      --list           List configs
+      --set            Set a config field to a value
+      --unset string   Unset a config field
+
+Global flags:
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

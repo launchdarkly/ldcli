@@ -1,0 +1,11 @@
+id = "config-help-short"
+argv = ["config", "-h"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "config-help-short.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

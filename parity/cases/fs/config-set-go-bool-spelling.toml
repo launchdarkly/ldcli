@@ -1,0 +1,11 @@
+id = "config-set-go-bool-spelling"
+argv = ["config", "--set", "analytics-opt-out", "T", "update-check-opt-out", "0", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "config-set-go-bool-spelling.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "analytics-opt-out: true\nupdate-check-opt-out: false\n"

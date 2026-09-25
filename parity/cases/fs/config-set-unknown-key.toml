@@ -1,0 +1,12 @@
+id = "config-set-unknown-key"
+argv = ["config", "--set", "nope", "x"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "config-set-unknown-key.stdout"
+stderr_file = "config-set-unknown-key.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

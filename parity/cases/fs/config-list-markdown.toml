@@ -1,0 +1,14 @@
+id = "config-list-markdown"
+argv = ["config", "--list", "-o", "markdown"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "output: markdown\naccess-token: api-not-a-real-token\nproject: proj\n"
+
+[expect]
+status = 0
+stdout_file = "config-list-markdown.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: markdown\naccess-token: api-not-a-real-token\nproject: proj\n"

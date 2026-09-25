@@ -1,0 +1,12 @@
+id = "config-set-unknown-key-plaintext"
+argv = ["config", "--set", "nope", "x", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "config-set-unknown-key-plaintext.stdout"
+stderr_file = "config-set-unknown-key-plaintext.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

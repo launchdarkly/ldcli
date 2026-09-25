@@ -1,0 +1,14 @@
+id = "config-precedence-file-beats-default"
+argv = ["config", "--list"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "output: plaintext\n"
+
+[expect]
+status = 0
+stdout_file = "config-precedence-file-beats-default.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: plaintext\n"

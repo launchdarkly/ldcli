@@ -1,0 +1,17 @@
+id = "config-precedence-env-beats-file"
+argv = ["config", "--list"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[env]
+LD_OUTPUT = "json"
+
+[seed]
+"config:ldcli/config.yml" = "output: plaintext\n"
+
+[expect]
+status = 0
+stdout_file = "config-precedence-env-beats-file.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: plaintext\n"

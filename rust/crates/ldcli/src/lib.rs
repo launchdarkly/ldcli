@@ -8,7 +8,9 @@
 pub mod analytics;
 pub mod cli;
 pub mod config;
+pub mod config_cmd;
 pub mod flags;
 pub mod help;
+pub mod http;
 pub mod output;
 pub mod settings;

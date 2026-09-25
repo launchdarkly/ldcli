@@ -1,0 +1,12 @@
+id = "config-set-token-shaped-key"
+argv = ["config", "--set", "api-0123456789abcdef0123456789abcdef", "x"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "config-set-token-shaped-key.stdout"
+stderr_file = "config-set-token-shaped-key.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

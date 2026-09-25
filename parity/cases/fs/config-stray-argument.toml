@@ -1,0 +1,11 @@
+id = "config-stray-argument"
+argv = ["config", "stray"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "config-stray-argument.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

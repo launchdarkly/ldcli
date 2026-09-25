@@ -1,0 +1,12 @@
+id = "config-unset-missing-value"
+argv = ["config", "--unset"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "config-unset-missing-value.stdout"
+stderr_file = "config-unset-missing-value.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

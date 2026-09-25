@@ -1,0 +1,11 @@
+id = "config-yaml-quoting-tab"
+argv = ["config", "--set", "project", "tab\tx", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "config-yaml-quoting-tab.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "project: \"tab\\tx\"\n"

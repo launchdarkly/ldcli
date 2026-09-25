@@ -1,0 +1,14 @@
+id = "config-unset-kind-from-file"
+argv = ["config", "--unset", "project"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "output: markdown\nproject: proj\n"
+
+[expect]
+status = 0
+stdout_file = "config-unset-kind-from-file.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: markdown\n"

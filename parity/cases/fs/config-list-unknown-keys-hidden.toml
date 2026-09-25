@@ -1,0 +1,14 @@
+id = "config-list-unknown-keys-hidden"
+argv = ["config", "--list", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "port: 9000\nproject: old\n"
+
+[expect]
+status = 0
+stdout_file = "config-list-unknown-keys-hidden.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "port: 9000\nproject: old\n"

@@ -1,0 +1,17 @@
+id = "config-precedence-ld-json-ignored"
+argv = ["config", "--list"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[env]
+LD_JSON = "true"
+
+[seed]
+"config:ldcli/config.yml" = "output: plaintext\n"
+
+[expect]
+status = 0
+stdout_file = "config-precedence-ld-json-ignored.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: plaintext\n"

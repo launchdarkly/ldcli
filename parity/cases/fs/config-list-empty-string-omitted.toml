@@ -1,0 +1,14 @@
+id = "config-list-empty-string-omitted"
+argv = ["config", "--list"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "project: \"\"\n"
+
+[expect]
+status = 0
+stdout_file = "config-list-empty-string-omitted.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "project: \"\"\n"

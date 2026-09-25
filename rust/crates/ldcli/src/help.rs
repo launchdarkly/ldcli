@@ -95,6 +95,41 @@ pub fn version_line(version: &str) -> String {
     format!("ldcli version {version}\n")
 }
 
+/// Help for a subcommand that inherits the root template, which takes the
+/// template's non-root branch: the use line, then local flags, then the
+/// root's persistent flags under `Global flags`.
+pub fn subcommand_help(long: &str, use_line: &str, local: &[Flag], inherited: &[Flag]) -> String {
+    let mut out = format!(
+        "{}\n\nUsage:\n  {use_line}\n",
+        trim_trailing_whitespace(long)
+    );
+    if !local.is_empty() {
+        out.push_str("\n\nFlags:\n");
+        out.push_str(trim_trailing_whitespace(&flag_usages(local)));
+    }
+    if !inherited.is_empty() {
+        out.push_str("\n\nGlobal flags:\n");
+        out.push_str(trim_trailing_whitespace(&flag_usages(inherited)));
+    }
+    out.push('\n');
+    out
+}
+
+/// `config`'s help appends the list of settings to its long description.
+pub fn config_help(default_output: &'static str) -> String {
+    let mut long =
+        String::from("View and modify specific configuration values\n\nSupported settings:\n");
+    for (name, usage) in crate::config::SETTINGS {
+        long.push_str(&format!("- `{name}`: {usage}\n"));
+    }
+    subcommand_help(
+        &long,
+        "ldcli config [flags]",
+        &crate::flags::config_flags(),
+        &persistent_flags(default_output),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

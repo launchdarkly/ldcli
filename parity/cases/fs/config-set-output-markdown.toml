@@ -1,0 +1,11 @@
+id = "config-set-output-markdown"
+argv = ["config", "--set", "output", "plaintext", "-o", "markdown"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "config-set-output-markdown.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: plaintext\n"

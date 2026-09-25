@@ -1,0 +1,14 @@
+id = "config-unset-plaintext"
+argv = ["config", "--unset", "project", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "output: markdown\nproject: proj\n"
+
+[expect]
+status = 0
+stdout_file = "config-unset-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: markdown\n"

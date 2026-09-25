@@ -1,0 +1,12 @@
+id = "config-set-invalid-bool"
+argv = ["config", "--set", "analytics-opt-out", "maybe"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "config-set-invalid-bool.stdout"
+stderr_file = "config-set-invalid-bool.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

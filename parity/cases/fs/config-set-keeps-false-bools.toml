@@ -1,0 +1,14 @@
+id = "config-set-keeps-false-bools"
+argv = ["config", "--set", "project", "p", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "analytics-opt-out: false\nupdate-check-opt-out: false\noutput: json\n"
+
+[expect]
+status = 0
+stdout_file = "config-set-keeps-false-bools.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "analytics-opt-out: false\noutput: json\nproject: p\nupdate-check-opt-out: false\n"

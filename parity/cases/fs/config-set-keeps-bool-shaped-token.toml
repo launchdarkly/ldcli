@@ -1,0 +1,14 @@
+id = "config-set-keeps-bool-shaped-token"
+argv = ["config", "--set", "project", "p", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "access-token: \"true\"\n"
+
+[expect]
+status = 0
+stdout_file = "config-set-keeps-bool-shaped-token.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "access-token: \"true\"\nproject: p\n"

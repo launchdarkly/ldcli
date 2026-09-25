@@ -1,0 +1,11 @@
+id = "config-yaml-quoting-hash"
+argv = ["config", "--set", "project", "#x", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "config-yaml-quoting-hash.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "project: '#x'\n"

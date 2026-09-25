@@ -15,9 +15,11 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", default-features = false, features = ["std", "error-context"] }
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
+ureq = { version = "2", default-features = false, features = ["tls"] }
 
 [dev-dependencies]
 tempfile = "3"

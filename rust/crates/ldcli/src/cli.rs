@@ -4,13 +4,21 @@
 //! `SilenceErrors` and `SilenceUsage` and then prints the error itself before
 //! `os.Exit(1)`, so a usage error prints one line to stderr with no usage
 //! block, and exits 1 rather than clap's 2.
+//!
+//! The root's persistent flags are global, so they parse before or after a
+//! subcommand. Help and version belong to the root alone: placed before a
+//! subcommand they still print the root's help or version, as Cobra does,
+//! and after one they are unknown.
 
+use crate::config_cmd::{self, ConfigArgs, ConfigContext};
 use crate::flags::{persistent_flags, Flag};
-use crate::help;
-use crate::settings;
+use crate::{config, help, settings};
 use clap::error::{ContextKind, ContextValue, ErrorKind};
-use clap::{Arg, ArgAction, Command};
+use clap::parser::ValueSource;
+use clap::{Arg, ArgAction, ArgMatches, Command};
+use std::collections::BTreeMap;
 use std::ffi::OsString;
+use std::path::PathBuf;
 
 pub struct Env<'a> {
     pub var: &'a dyn Fn(&str) -> Option<OsString>,
@@ -27,40 +35,41 @@ pub enum Outcome {
     StderrOk(String),
 }
 
+fn flag_arg(flag: &Flag) -> Arg {
+    let mut arg = Arg::new(flag.name).long(flag.name);
+    if let Some(short) = flag.shorthand {
+        arg = arg.short(short);
+    }
+    if flag.takes_value() {
+        arg.num_args(1).action(ArgAction::Set)
+    } else {
+        arg.num_args(0).action(ArgAction::SetTrue)
+    }
+}
+
+fn config_command() -> Command {
+    let mut command = Command::new("config")
+        .disable_help_flag(true)
+        .disable_version_flag(true);
+    for flag in crate::flags::config_flags() {
+        command = command.arg(flag_arg(&flag));
+    }
+    command.arg(Arg::new("args").num_args(0..).action(ArgAction::Append))
+}
+
 pub fn build_command(flags: &[Flag]) -> Command {
     let mut command = Command::new("ldcli")
         .disable_help_flag(true)
         .disable_version_flag(true)
         .disable_help_subcommand(true)
         .allow_external_subcommands(true);
-
     for flag in flags {
-        let mut arg = Arg::new(flag.name).long(flag.name);
-        if let Some(short) = flag.shorthand {
-            arg = arg.short(short);
-        }
-        arg = if flag.takes_value() {
-            arg.num_args(1).action(ArgAction::Set)
-        } else {
-            arg.num_args(0).action(ArgAction::SetTrue)
-        };
-        command = command.arg(arg);
+        command = command.arg(flag_arg(flag).global(true));
     }
-    command
-        .arg(
-            Arg::new("help")
-                .long("help")
-                .short('h')
-                .num_args(0)
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("version")
-                .long("version")
-                .short('v')
-                .num_args(0)
-                .action(ArgAction::SetTrue),
-        )
+    for flag in crate::flags::implicit_flags() {
+        command = command.arg(flag_arg(&flag));
+    }
+    command.subcommand(config_command())
 }
 
 pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
@@ -87,24 +96,87 @@ pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
 
     match matches.subcommand() {
         None => Outcome::Stdout(help::help_string(default_output)),
+        Some(("config", sub)) => run_config(sub, version, env, default_output),
         Some(("help", sub)) => {
             let topics = external_args(sub);
-            if topics.is_empty() {
-                Outcome::Stdout(help::help_string(default_output))
-            } else {
-                Outcome::StderrOk(format!(
+            match topics.iter().map(String::as_str).collect::<Vec<_>>()[..] {
+                [] => Outcome::Stdout(help::help_string(default_output)),
+                ["config"] => Outcome::Stdout(help::config_help(default_output)),
+                _ => Outcome::StderrOk(format!(
                     "{}{}",
                     help::unknown_help_topic(&topics),
                     help::usage_without_implicit_flags(default_output)
-                ))
+                )),
             }
         }
         Some((name, _)) => Outcome::Failure(format!("unknown command {name:?} for \"ldcli\"\n")),
     }
 }
 
+fn run_config(
+    sub: &ArgMatches,
+    version: &str,
+    env: &Env<'_>,
+    default_output: &'static str,
+) -> Outcome {
+    if sub.get_flag("help") {
+        return Outcome::Stdout(help::config_help(default_output));
+    }
+    let path = config::config_file(env.var).unwrap_or_default();
+    let resolved = Resolved::new(sub, env, &path, default_output);
+    let args = ConfigArgs {
+        list: sub.get_flag("list"),
+        set: sub.get_flag("set"),
+        unset: sub.get_one::<String>("unset").cloned(),
+        args: sub
+            .get_many::<String>("args")
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect(),
+    };
+    config_cmd::run(
+        &args,
+        &ConfigContext {
+            path: &path,
+            output: &resolved.output,
+            base_uri: &resolved.base_uri,
+            version,
+            help: help::config_help(default_output),
+        },
+    )
+}
+
+/// Settings resolved by precedence for one invocation.
+struct Resolved {
+    output: String,
+    base_uri: String,
+}
+
+impl Resolved {
+    fn new(matches: &ArgMatches, env: &Env<'_>, path: &PathBuf, default_output: &str) -> Self {
+        let on_command_line: BTreeMap<String, String> = ["output", "base-uri"]
+            .into_iter()
+            .filter(|name| matches.value_source(name) == Some(ValueSource::CommandLine))
+            .filter_map(|name| {
+                matches
+                    .get_one::<String>(name)
+                    .map(|value| (name.to_string(), value.clone()))
+            })
+            .collect();
+        let file = config::load(Some(path));
+        let resolve = |name: &str, default: &str| {
+            settings::resolve(name, &on_command_line, env.var, &file, default).value
+        };
+        Self {
+            output: resolve("output", default_output),
+            base_uri: resolve("base-uri", settings::BASE_URI_DEFAULT),
+        }
+    }
+}
+
 /// An external subcommand's trailing words arrive under the empty argument id.
-fn external_args(matches: &clap::ArgMatches) -> Vec<String> {
+fn external_args(matches: &ArgMatches) -> Vec<String> {
     matches
         .get_many::<OsString>("")
         .into_iter()
@@ -225,6 +297,30 @@ mod tests {
     }
 
     #[test]
+    fn root_flags_before_a_subcommand_still_act_on_the_root() {
+        assert_eq!(run_argv(&["--help", "config"]), run_argv(&["--help"]));
+        assert_eq!(run_argv(&["-v", "config"]), run_argv(&["--version"]));
+        assert_eq!(
+            failure(&["config", "-v"]),
+            "unknown shorthand flag: 'v' in -v\n"
+        );
+    }
+
+    #[test]
+    fn config_help_is_reachable_three_ways() {
+        let help = run_argv(&["config", "--help"]);
+        assert_eq!(help, run_argv(&["config", "-h"]));
+        assert_eq!(help, run_argv(&["help", "config"]));
+        match help {
+            Outcome::Stdout(text) => {
+                assert!(text.starts_with("View and modify specific configuration values\n"));
+                assert!(text.contains("\nGlobal flags:\n"));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
     fn an_unknown_command_fails_without_printing_usage() {
         let message = failure(&["not-a-command"]);
         assert_eq!(message, "unknown command \"not-a-command\" for \"ldcli\"\n");
@@ -235,6 +331,7 @@ mod tests {
     fn an_unknown_flag_reports_the_flag_it_saw() {
         assert_eq!(failure(&["--nope"]), "unknown flag: --nope\n");
         assert_eq!(failure(&["-x"]), "unknown shorthand flag: 'x' in -x\n");
+        assert_eq!(failure(&["config", "--nope"]), "unknown flag: --nope\n");
     }
 
     #[test]
@@ -244,6 +341,10 @@ mod tests {
         assert_eq!(
             failure(&["--access-token"]),
             "flag needs an argument: --access-token\n"
+        );
+        assert_eq!(
+            failure(&["config", "--unset"]),
+            "flag needs an argument: --unset\n"
         );
     }
 
@@ -277,5 +378,64 @@ mod tests {
             Outcome::Stdout(text) => assert!(text.contains(r#"(default "json")"#), "{text}"),
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn config_output_follows_flag_then_environment_then_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_home = dir.path().to_path_buf();
+        std::fs::create_dir_all(config_home.join("ldcli")).unwrap();
+        std::fs::write(config_home.join("ldcli/config.yml"), "output: plaintext\n").unwrap();
+
+        let run_with = |extra: Option<(&str, &str)>, args: &[&str]| {
+            let home = config_home.clone();
+            let lookup = move |name: &str| match name {
+                "XDG_CONFIG_HOME" => Some(OsString::from(home.clone())),
+                _ => extra
+                    .filter(|(key, _)| *key == name)
+                    .map(|(_, value)| OsString::from(value)),
+            };
+            let argv: Vec<String> = args.iter().map(|a| (*a).to_string()).collect();
+            run(
+                &argv,
+                "test",
+                &Env {
+                    var: &lookup,
+                    stdout_is_terminal: false,
+                },
+            )
+        };
+
+        // The file says plaintext.
+        assert_eq!(
+            run_with(None, &["config", "--list"]),
+            Outcome::Stdout("output: plaintext\n".into())
+        );
+        // LD_OUTPUT beats the file, and LD_JSON is not a setting at all.
+        assert_eq!(
+            run_with(Some(("LD_OUTPUT", "json")), &["config", "--list"]),
+            Outcome::Stdout("{\"output\":\"plaintext\"}\n".into())
+        );
+        assert_eq!(
+            run_with(Some(("LD_JSON", "true")), &["config", "--list"]),
+            Outcome::Stdout("output: plaintext\n".into())
+        );
+        // A flag beats both, before or after the subcommand, and --json is
+        // ignored by config.
+        assert_eq!(
+            run_with(
+                Some(("LD_OUTPUT", "plaintext")),
+                &["config", "--list", "-o", "json"]
+            ),
+            Outcome::Stdout("{\"output\":\"plaintext\"}\n".into())
+        );
+        assert_eq!(
+            run_with(None, &["-o", "json", "config", "--list"]),
+            Outcome::Stdout("{\"output\":\"plaintext\"}\n".into())
+        );
+        assert_eq!(
+            run_with(None, &["config", "--list", "--json"]),
+            Outcome::Stdout("output: plaintext\n".into())
+        );
     }
 }
