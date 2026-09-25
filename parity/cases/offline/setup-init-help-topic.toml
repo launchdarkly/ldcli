@@ -1,11 +1,11 @@
-id = "ldcli__setup__detect"
-argv = ["setup", "detect", "--help"]
+id = "setup-init-help-topic"
+argv = ["help", "setup", "init"]
 declare = ["config:ldcli/config.yml"]
 rust = true
 
 [expect]
 status = 0
-stdout_file = "ldcli__setup__detect.stdout"
+stdout_file = "setup-init-help-topic.stdout"
 
 [expect.files]
 "config:ldcli/config.yml" = "{}\n"

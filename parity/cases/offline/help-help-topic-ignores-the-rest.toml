@@ -1,0 +1,11 @@
+id = "help-help-topic-ignores-the-rest"
+argv = ["help", "help", "setup"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "help-help-topic-ignores-the-rest.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

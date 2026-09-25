@@ -1,0 +1,22 @@
+Inject LaunchDarkly SDK initialization code into a file
+
+Usage:
+  ldcli setup init [flags]
+
+
+Flags:
+      --client-side-id string   Client-side environment ID
+      --file string             Target file to inject initialization code into
+      --flag-key string         Feature flag key to use in the initialization example
+  -h, --help                    help for init
+      --mobile-key string       Mobile SDK key
+      --sdk-id string           SDK identifier (e.g. node-server, react-client-sdk)
+      --sdk-key string          Server-side SDK key
+
+Global flags:
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

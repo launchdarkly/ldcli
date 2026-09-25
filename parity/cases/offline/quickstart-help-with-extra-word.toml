@@ -1,0 +1,12 @@
+id = "quickstart-help-with-extra-word"
+argv = ["quickstart", "--help", "extra"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "quickstart-help-with-extra-word.stdout"
+stderr_file = "quickstart-help-with-extra-word.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

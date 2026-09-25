@@ -1,6 +1,7 @@
 id = "ldcli__help"
 argv = ["help", "--help"]
 declare = ["config:ldcli/config.yml"]
+rust = true
 
 [expect]
 status = 0

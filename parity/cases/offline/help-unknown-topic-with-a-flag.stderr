@@ -1,0 +1,30 @@
+Unknown help topic [`nope`]
+Usage:
+  ldcli [command]
+
+Commands:
+  setup                         Set up LaunchDarkly in your project (detect, install, initialize)
+  quickstart                    Create your first feature flag using a step-by-step guide (deprecated: use setup)
+  config                        View and modify specific configuration values
+  completion                    Enable command autocompletion within supported shells
+  login                         Log in to your LaunchDarkly account
+  signup                        Create a new LaunchDarkly account
+  dev-server                    Run a development server to serve flags locally
+
+Common resource commands:
+  flags                         List, create, and modify feature flags and their targeting
+  environments                  List, create, and manage environments
+  projects                      List, create, and manage projects
+  members                       Invite new members to an account
+  segments                      List, create, modify, and delete segments
+  sourcemaps                    Manage sourcemaps for error monitoring
+  symbols                       Manage symbol files for error monitoring
+  ...                           To see more resource commands, run 'ldcli resources'
+
+Flags:
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

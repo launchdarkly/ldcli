@@ -1,0 +1,20 @@
+Install the LaunchDarkly SDK package for the detected project
+
+Usage:
+  ldcli setup install [flags]
+
+
+Flags:
+      --dry-run                  Print the install command that would run without executing it
+  -h, --help                     help for install
+      --package-manager string   Package manager to use (e.g. npm, pip, go)
+      --path string              Path to the project directory (defaults to current directory)
+      --sdk-id string            SDK identifier to install (e.g. node-server, react-client-sdk)
+
+Global flags:
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

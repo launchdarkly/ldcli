@@ -1,0 +1,11 @@
+id = "setup-help-topic-ignores-an-unknown-word"
+argv = ["help", "setup", "nope"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "setup-help-topic-ignores-an-unknown-word.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

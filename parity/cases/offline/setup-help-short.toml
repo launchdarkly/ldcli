@@ -1,11 +1,11 @@
-id = "ldcli__setup__detect"
-argv = ["setup", "detect", "--help"]
+id = "setup-help-short"
+argv = ["setup", "-h"]
 declare = ["config:ldcli/config.yml"]
 rust = true
 
 [expect]
 status = 0
-stdout_file = "ldcli__setup__detect.stdout"
+stdout_file = "setup-help-short.stdout"
 
 [expect.files]
 "config:ldcli/config.yml" = "{}\n"

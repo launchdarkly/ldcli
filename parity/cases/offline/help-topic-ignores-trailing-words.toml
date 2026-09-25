@@ -1,0 +1,11 @@
+id = "help-topic-ignores-trailing-words"
+argv = ["help", "login", "extra", "words"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "help-topic-ignores-trailing-words.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,12 @@
+id = "help-unknown-shorthand"
+argv = ["help", "-v"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "help-unknown-shorthand.stdout"
+stderr_file = "help-unknown-shorthand.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

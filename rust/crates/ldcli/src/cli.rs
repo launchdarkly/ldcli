@@ -10,6 +10,7 @@
 //! subcommand they still print the root's help or version, as Cobra does,
 //! and after one they are unknown.
 
+use crate::cobra_find::{self, Found};
 use crate::config_cmd::{self, ConfigArgs, ConfigContext};
 use crate::flags::{persistent_flags, Flag};
 use crate::login::{self, LoginContext};
@@ -29,6 +30,8 @@ pub struct Env<'a> {
     /// Writes to stdout at once, for output that has to appear before the
     /// command finishes. Everything else goes in the `Outcome`.
     pub stdout: &'a dyn Fn(&str),
+    /// Writes to stderr at once, for a notice that precedes the outcome.
+    pub stderr: &'a dyn Fn(&str),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -74,6 +77,25 @@ fn plain_command(name: &'static str, help_usage: &'static str) -> Command {
         .arg(Arg::new("args").num_args(0..).action(ArgAction::Append))
 }
 
+/// A subcommand with its own flags. Stray arguments are accepted, as Cobra's
+/// legacy argument check does for a command without subcommands.
+fn flagged_command(name: &'static str, flags: &[Flag]) -> Command {
+    let mut command = Command::new(name)
+        .disable_help_flag(true)
+        .disable_version_flag(true);
+    for flag in flags {
+        command = command.arg(flag_arg(flag));
+    }
+    command.arg(Arg::new("args").num_args(0..).action(ArgAction::Append))
+}
+
+fn setup_command() -> Command {
+    plain_command("setup", "help for setup")
+        .subcommand(flagged_command("detect", &crate::setup::detect_flags()))
+        .subcommand(flagged_command("install", &crate::setup::install_flags()))
+        .subcommand(flagged_command("init", &crate::setup::init_flags()))
+}
+
 pub fn build_command(flags: &[Flag]) -> Command {
     let mut command = Command::new("ldcli")
         .disable_help_flag(true)
@@ -88,9 +110,18 @@ pub fn build_command(flags: &[Flag]) -> Command {
     }
     command
         .subcommand(config_command())
+        .subcommand(plain_command("help", "help for help"))
         .subcommand(plain_command("login", "help for login"))
+        .subcommand(plain_command("quickstart", "help for quickstart"))
+        .subcommand(setup_command())
         .subcommand(plain_command("signup", "help for signup"))
         .subcommand(plain_command("whoami", "help for whoami"))
+}
+
+/// Only Find's answer says whether quickstart executed, and so printed its
+/// deprecation notice, before a flag failed to parse.
+fn names_quickstart(argv: &[String]) -> bool {
+    matches!(cobra_find::find(argv), Found::Command(path, _) if path == ["quickstart"])
 }
 
 pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
@@ -103,7 +134,13 @@ pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
 
     let matches = match command.try_get_matches_from(full_argv) {
         Ok(matches) => matches,
-        Err(err) => return Outcome::Failure(parse_error_message(&err, argv, &flags)),
+        Err(err) => {
+            let message = parse_error_message(&err, argv, &flags);
+            if names_quickstart(argv) {
+                return Outcome::Failure(format!("{}{message}", help::QUICKSTART_DEPRECATED));
+            }
+            return Outcome::Failure(message);
+        }
     };
 
     // Cobra checks the help flag before the version flag, so `--help
@@ -121,22 +158,66 @@ pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
         Some(("login", sub)) => run_login(sub, version, env, default_output),
         Some(("signup", sub)) => run_signup(sub, env, default_output),
         Some(("whoami", sub)) => run_whoami(sub, version, env, default_output),
-        Some(("help", sub)) => {
-            let topics = external_args(sub);
-            match topics.iter().map(String::as_str).collect::<Vec<_>>()[..] {
-                [] => Outcome::Stdout(help::help_string(default_output)),
-                ["config"] => Outcome::Stdout(help::config_help(default_output)),
-                ["login"] => Outcome::Stdout(help::login_help(default_output)),
-                ["signup"] => Outcome::Stdout(help::signup_help(default_output)),
-                ["whoami"] => Outcome::Stdout(help::whoami_help(default_output)),
-                _ => Outcome::StderrOk(format!(
-                    "{}{}",
-                    help::unknown_help_topic(&topics),
-                    help::usage_without_implicit_flags(default_output)
-                )),
+        Some(("help", sub)) => run_help(sub, default_output),
+        Some(("quickstart", sub)) => {
+            (env.stderr)(help::QUICKSTART_DEPRECATED);
+            if sub.get_flag("help") {
+                return Outcome::Stdout(help::quickstart_help(default_output));
             }
+            Outcome::Failure(WIZARD_NOT_PORTED.replace("{}", "quickstart"))
         }
+        Some(("setup", sub)) => run_setup(sub, default_output),
         Some((name, _)) => Outcome::Failure(format!("unknown command {name:?} for \"ldcli\"\n")),
+    }
+}
+
+const WIZARD_NOT_PORTED: &str =
+    "the {} wizard is not ported to the Rust ldcli; run it with the Go ldcli\n";
+
+/// Cobra's help command parses its own flags, then asks Find which command
+/// the remaining words name. Words after the deepest command are ignored.
+fn run_help(sub: &ArgMatches, default_output: &'static str) -> Outcome {
+    if sub.get_flag("help") {
+        return Outcome::Stdout(help::help_help(default_output));
+    }
+    let topics: Vec<String> = sub
+        .get_many::<String>("args")
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect();
+    let found = match cobra_find::find(&topics) {
+        Found::Command(path, _) => help::topic_help(&path, default_output),
+        Found::Unknown => None,
+    };
+    match found {
+        Some(text) => Outcome::Stdout(text),
+        None => Outcome::StderrOk(format!(
+            "{}{}",
+            help::unknown_help_topic(&topics),
+            help::usage_without_implicit_flags(default_output)
+        )),
+    }
+}
+
+fn run_setup(sub: &ArgMatches, default_output: &'static str) -> Outcome {
+    if sub.get_flag("help") {
+        return Outcome::Stdout(help::setup_help(default_output));
+    }
+    match sub.subcommand() {
+        Some(("detect", sub)) if sub.get_flag("help") => {
+            Outcome::Stdout(help::setup_detect_help(default_output))
+        }
+        Some(("install", sub)) if sub.get_flag("help") => {
+            Outcome::Stdout(help::setup_install_help(default_output))
+        }
+        Some(("init", sub)) if sub.get_flag("help") => {
+            Outcome::Stdout(help::setup_init_help(default_output))
+        }
+        Some((name, _)) => Outcome::Failure(format!(
+            "ldcli setup {name} is not ported to the Rust ldcli yet\n"
+        )),
+        None => Outcome::Failure(WIZARD_NOT_PORTED.replace("{}", "setup")),
     }
 }
 
@@ -266,16 +347,6 @@ impl Resolved {
     }
 }
 
-/// An external subcommand's trailing words arrive under the empty argument id.
-fn external_args(matches: &ArgMatches) -> Vec<String> {
-    matches
-        .get_many::<OsString>("")
-        .into_iter()
-        .flatten()
-        .map(|value| value.to_string_lossy().into_owned())
-        .collect()
-}
-
 /// Translate a clap parse failure into the pflag sentence Go prints.
 ///
 /// clap always names the long form of a flag. pflag names whichever form the
@@ -346,6 +417,7 @@ mod tests {
             var: &no_env,
             stdout_is_terminal: false,
             stdout: &|_| {},
+            stderr: &|_| {},
         }
     }
 
@@ -452,6 +524,82 @@ mod tests {
     }
 
     #[test]
+    fn a_help_topic_ignores_words_after_the_deepest_command_it_names() {
+        assert_eq!(
+            run_argv(&["help", "setup", "nope"]),
+            run_argv(&["setup", "-h"])
+        );
+        assert_eq!(
+            run_argv(&["help", "setup", "detect", "x"]),
+            run_argv(&["setup", "detect", "--help"])
+        );
+        assert_eq!(
+            run_argv(&["help", "login", "extra"]),
+            run_argv(&["login", "-h"])
+        );
+        assert_eq!(
+            run_argv(&["help", "--json", "config"]),
+            run_argv(&["config", "-h"])
+        );
+        assert_eq!(
+            run_argv(&["help", "help", "setup"]),
+            run_argv(&["help", "-h"])
+        );
+    }
+
+    #[test]
+    fn help_parses_its_own_flags_before_it_reads_the_topic() {
+        assert_eq!(
+            failure(&["help", "--output"]),
+            "flag needs an argument: --output\n"
+        );
+        assert_eq!(failure(&["help", "--nope"]), "unknown flag: --nope\n");
+        match run_argv(&["help", "nope", "--json"]) {
+            Outcome::StderrOk(text) => {
+                assert!(text.starts_with("Unknown help topic [`nope`]\n"), "{text}")
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    fn run_with_stderr(args: &[&str]) -> (Outcome, String) {
+        let argv: Vec<String> = args.iter().map(|a| (*a).to_string()).collect();
+        let stderr = std::cell::RefCell::new(String::new());
+        let write = |text: &str| stderr.borrow_mut().push_str(text);
+        let outcome = run(
+            &argv,
+            "test",
+            &Env {
+                var: &no_env,
+                stdout_is_terminal: false,
+                stdout: &|_| {},
+                stderr: &write,
+            },
+        );
+        (outcome, stderr.into_inner())
+    }
+
+    #[test]
+    fn quickstart_help_carries_the_deprecation_notice_only_when_quickstart_executes() {
+        let (outcome, stderr) = run_with_stderr(&["quickstart", "--help"]);
+        assert_eq!(outcome, Outcome::Stdout(help::quickstart_help("json")));
+        assert_eq!(stderr, help::QUICKSTART_DEPRECATED);
+
+        let (outcome, stderr) = run_with_stderr(&["help", "quickstart"]);
+        assert_eq!(outcome, Outcome::Stdout(help::quickstart_help("json")));
+        assert_eq!(stderr, "");
+    }
+
+    #[test]
+    fn a_quickstart_flag_error_follows_the_deprecation_notice_if_find_reached_quickstart() {
+        assert_eq!(
+            failure(&["--json", "quickstart", "--nope"]),
+            format!("{}unknown flag: --nope\n", help::QUICKSTART_DEPRECATED)
+        );
+        assert_eq!(failure(&["--nope", "quickstart"]), "unknown flag: --nope\n");
+    }
+
+    #[test]
     fn a_terminal_changes_the_default_shown_in_help() {
         let argv = vec!["--help".to_string()];
         let on_terminal = run(
@@ -461,6 +609,7 @@ mod tests {
                 var: &no_env,
                 stdout_is_terminal: true,
                 stdout: &|_| {},
+                stderr: &|_| {},
             },
         );
         match on_terminal {
@@ -496,6 +645,7 @@ mod tests {
                     var: &lookup,
                     stdout_is_terminal: false,
                     stdout: &|_| {},
+                    stderr: &|_| {},
                 },
             )
         };

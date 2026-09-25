@@ -172,6 +172,90 @@ pub fn signup_help(default_output: &'static str) -> String {
     )
 }
 
+/// Setup's subcommands are hidden, so its help lists none and its use line
+/// has no `[command]`.
+pub fn setup_help(default_output: &'static str) -> String {
+    subcommand_help(
+        "Guided setup to integrate LaunchDarkly into your codebase.\n\nDetects your project's language and framework, installs the correct SDK,\ninitializes it with your environment's SDK key, creates a feature flag,\nand verifies the connection.",
+        "ldcli setup [flags]",
+        &[help_flag("help for setup")],
+        &persistent_flags(default_output),
+    )
+}
+
+pub fn setup_detect_help(default_output: &'static str) -> String {
+    subcommand_help(
+        "Detect language, framework, and recommended SDK for a project",
+        "ldcli setup detect [flags]",
+        &crate::setup::detect_flags(),
+        &persistent_flags(default_output),
+    )
+}
+
+pub fn setup_install_help(default_output: &'static str) -> String {
+    subcommand_help(
+        "Install the LaunchDarkly SDK package for the detected project",
+        "ldcli setup install [flags]",
+        &crate::setup::install_flags(),
+        &persistent_flags(default_output),
+    )
+}
+
+pub fn setup_init_help(default_output: &'static str) -> String {
+    subcommand_help(
+        "Inject LaunchDarkly SDK initialization code into a file",
+        "ldcli setup init [flags]",
+        &crate::setup::init_flags(),
+        &persistent_flags(default_output),
+    )
+}
+
+/// quickstart is built with `Use: "setup"` and renamed afterwards, so its
+/// help is the old setup command's short description.
+pub fn quickstart_help(default_output: &'static str) -> String {
+    subcommand_help(
+        "Setup guide to create your first feature flag",
+        "ldcli quickstart [flags]",
+        &[help_flag("help for quickstart")],
+        &persistent_flags(default_output),
+    )
+}
+
+/// Cobra prints this when a deprecated command executes, before it parses
+/// the command's flags. `help quickstart` never executes quickstart, so it
+/// prints no notice.
+pub const QUICKSTART_DEPRECATED: &str =
+    "Command \"quickstart\" is deprecated, use 'ldcli setup' for the new guided setup experience\n";
+
+/// Cobra's own help command.
+pub fn help_help(default_output: &'static str) -> String {
+    subcommand_help(
+        "Help provides help for any command in the application.\nSimply type ldcli help [path to command] for full details.",
+        "ldcli help [command] [flags]",
+        &[help_flag("help for help")],
+        &persistent_flags(default_output),
+    )
+}
+
+/// The help `help <topic>` prints for a command path Find settled on.
+pub fn topic_help(path: &[&str], default_output: &'static str) -> Option<String> {
+    let text = match path {
+        [] => help_string(default_output),
+        ["config"] => config_help(default_output),
+        ["help"] => help_help(default_output),
+        ["login"] => login_help(default_output),
+        ["quickstart"] => quickstart_help(default_output),
+        ["setup"] => setup_help(default_output),
+        ["setup", "detect"] => setup_detect_help(default_output),
+        ["setup", "init"] => setup_init_help(default_output),
+        ["setup", "install"] => setup_install_help(default_output),
+        ["signup"] => signup_help(default_output),
+        ["whoami"] => whoami_help(default_output),
+        _ => return None,
+    };
+    Some(text)
+}
+
 /// `config`'s help appends the list of settings to its long description.
 pub fn config_help(default_output: &'static str) -> String {
     let mut long =

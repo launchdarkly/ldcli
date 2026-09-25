@@ -1,0 +1,12 @@
+id = "setup-unknown-flag"
+argv = ["setup", "--nope"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "setup-unknown-flag.stdout"
+stderr_file = "setup-unknown-flag.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

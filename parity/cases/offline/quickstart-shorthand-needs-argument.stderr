@@ -1,0 +1,2 @@
+Command "quickstart" is deprecated, use 'ldcli setup' for the new guided setup experience
+flag needs an argument: 'o' in -o

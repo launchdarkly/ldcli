@@ -1,0 +1,11 @@
+id = "help-double-dash-flag-swallows-the-topic"
+argv = ["help", "--", "-h", "config"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "help-double-dash-flag-swallows-the-topic.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

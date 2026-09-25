@@ -1,0 +1,12 @@
+id = "quickstart-after-a-bool-flag"
+argv = ["--json", "quickstart", "--nope"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "quickstart-after-a-bool-flag.stdout"
+stderr_file = "quickstart-after-a-bool-flag.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

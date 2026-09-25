@@ -1,0 +1,12 @@
+id = "help-flag-needs-argument"
+argv = ["help", "--output"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "help-flag-needs-argument.stdout"
+stderr_file = "help-flag-needs-argument.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,12 @@
+id = "quickstart-after-an-unknown-flag"
+argv = ["--nope", "quickstart"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "quickstart-after-an-unknown-flag.stdout"
+stderr_file = "quickstart-after-an-unknown-flag.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

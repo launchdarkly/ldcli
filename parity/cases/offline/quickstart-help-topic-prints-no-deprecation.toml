@@ -1,0 +1,11 @@
+id = "quickstart-help-topic-prints-no-deprecation"
+argv = ["help", "quickstart"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "quickstart-help-topic-prints-no-deprecation.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -8,6 +8,7 @@
 pub mod analytics;
 pub mod browser;
 pub mod cli;
+pub mod cobra_find;
 pub mod config;
 pub mod config_cmd;
 pub mod flags;
@@ -19,5 +20,6 @@ pub mod http;
 pub mod login;
 pub mod output;
 pub mod settings;
+pub mod setup;
 pub mod signup;
 pub mod whoami;
