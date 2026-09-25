@@ -15,7 +15,8 @@ pub struct RunRequest<'a> {
     pub argv: &'a [String],
     pub declare: &'a [String],
     pub extra_env: &'a BTreeMap<String, String>,
-    /// Files to write before the run, keyed `config:<path>` or `state:<path>`.
+    /// Files to write before the run, keyed `config:<path>`, `state:<path>`,
+    /// `work:<path>`, or `bin:<name>`.
     pub seed: &'a BTreeMap<String, String>,
     pub opt_out_update_check: bool,
 }
@@ -65,8 +66,23 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
     for name in BROWSER_OPENERS {
         write_executable(&shims.join(name), BROWSER_SHIM)?;
     }
+    let roots = Roots {
+        config: &config_home,
+        state: &state_home,
+        work: &work,
+    };
     for (key, contents) in request.seed {
-        let path = seed_path(key, &config_home, &state_home)?;
+        if let Some(name) = key.strip_prefix("bin:") {
+            if BROWSER_OPENERS.contains(&name) {
+                return Err(anyhow!("seed key {key} would replace a browser shim"));
+            }
+            if name.is_empty() || name.contains('/') || name == ".." || name == "." {
+                return Err(anyhow!("seed key {key} must name one program"));
+            }
+            write_executable(&shims.join(name), contents)?;
+            continue;
+        }
+        let path = seed_path(key, &roots)?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
                 .map_err(|err| anyhow!("mkdir {}: {err}", parent.display()))?;
@@ -117,9 +133,7 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
     };
     cmd.env("PATH", path);
 
-    let mut child = cmd
-        .spawn()
-        .map_err(|err| anyhow!("spawn {}: {err}", bin.display()))?;
+    let mut child = spawn(&mut cmd).map_err(|err| anyhow!("spawn {}: {err}", bin.display()))?;
     let mut stdout_pipe = child.stdout.take().ok_or_else(|| anyhow!("stdout pipe"))?;
     let mut stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("stderr pipe"))?;
     let stdout_thread = thread::spawn(move || {
@@ -158,7 +172,7 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
 
     let stdout = String::from_utf8(stdout_bytes).map_err(|_| anyhow!("stdout is not utf-8"))?;
     let stderr = String::from_utf8(stderr_bytes).map_err(|_| anyhow!("stderr is not utf-8"))?;
-    let (files, undeclared) = snapshot(&config_home, &state_home, request.declare)?;
+    let (files, undeclared) = snapshot(&roots, request.declare)?;
     let code = status.code().unwrap_or(128);
 
     Ok(RunResult {
@@ -173,6 +187,23 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
     })
 }
 
+/// A script another thread has just written can still be open for writing in
+/// a child forked meanwhile, until that child execs, and exec then fails with
+/// ETXTBSY. Retrying for a moment outlasts that window.
+fn spawn(cmd: &mut Command) -> std::io::Result<std::process::Child> {
+    const ETXTBSY: i32 = 26;
+    let mut attempts = 0;
+    loop {
+        match cmd.spawn() {
+            Err(err) if err.raw_os_error() == Some(ETXTBSY) && attempts < 50 => {
+                attempts += 1;
+                thread::sleep(Duration::from_millis(10));
+            }
+            other => return other,
+        }
+    }
+}
+
 fn write_executable(path: &Path, contents: &str) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
     fs::write(path, contents).map_err(|err| anyhow!("write {}: {err}", path.display()))?;
@@ -180,15 +211,28 @@ fn write_executable(path: &Path, contents: &str) -> Result<()> {
         .map_err(|err| anyhow!("chmod {}: {err}", path.display()))
 }
 
-/// Resolve a `config:` or `state:` key inside the sandbox. A key that would
-/// climb out of it is refused.
-fn seed_path(key: &str, config_home: &Path, state_home: &Path) -> Result<PathBuf> {
+/// The sandbox directories a seed or declare key can name, and the snapshot
+/// reads back.
+struct Roots<'a> {
+    config: &'a Path,
+    state: &'a Path,
+    /// The child's current directory.
+    work: &'a Path,
+}
+
+/// Resolve a `config:`, `state:`, or `work:` key inside the sandbox. A key
+/// that would climb out of it is refused.
+fn seed_path(key: &str, roots: &Roots<'_>) -> Result<PathBuf> {
     let (root, rel) = if let Some(rel) = key.strip_prefix("config:") {
-        (config_home, rel)
+        (roots.config, rel)
     } else if let Some(rel) = key.strip_prefix("state:") {
-        (state_home, rel)
+        (roots.state, rel)
+    } else if let Some(rel) = key.strip_prefix("work:") {
+        (roots.work, rel)
     } else {
-        return Err(anyhow!("seed key {key} must start with config: or state:"));
+        return Err(anyhow!(
+            "seed key {key} must start with config:, state:, work:, or bin:"
+        ));
     };
     if rel.is_empty() || rel.starts_with('/') || rel.split('/').any(|part| part == "..") {
         return Err(anyhow!("seed key {key} must stay inside the sandbox"));
@@ -197,21 +241,19 @@ fn seed_path(key: &str, config_home: &Path, state_home: &Path) -> Result<PathBuf
 }
 
 fn snapshot(
-    config_home: &Path,
-    state_home: &Path,
+    roots: &Roots<'_>,
     declare: &[String],
 ) -> Result<(BTreeMap<String, String>, Vec<String>)> {
     let declared: BTreeSet<&str> = declare.iter().map(String::as_str).collect();
     let mut files = BTreeMap::new();
     let mut undeclared = Vec::new();
-    collect(
-        config_home,
-        "config",
-        &declared,
-        &mut files,
-        &mut undeclared,
-    )?;
-    collect(state_home, "state", &declared, &mut files, &mut undeclared)?;
+    for (root, prefix) in [
+        (roots.config, "config"),
+        (roots.state, "state"),
+        (roots.work, "work"),
+    ] {
+        collect(root, prefix, &declared, &mut files, &mut undeclared)?;
+    }
     Ok((files, undeclared))
 }
 
@@ -426,5 +468,104 @@ mod tests {
         })
         .unwrap_err();
         assert!(err.to_string().contains("inside the sandbox"), "{err}");
+    }
+
+    fn run_seeded(body: &str, declare: &[String], seed: &BTreeMap<String, String>) -> RunResult {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = script(dir.path(), body);
+        run_command(&RunRequest {
+            bin: &bin,
+            argv: &[],
+            declare,
+            extra_env: &BTreeMap::new(),
+            seed,
+            opt_out_update_check: true,
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn a_work_seed_is_in_the_current_directory_and_what_the_run_leaves_there_is_compared() {
+        let declare = vec![
+            "work:package.json".to_string(),
+            "work:src/index.js".to_string(),
+        ];
+        let seed = BTreeMap::from([("work:package.json".to_string(), "{}\n".to_string())]);
+        let result = run_seeded(
+            "#!/bin/sh\ncat package.json\nmkdir -p src\nprintf 'init\\n' > src/index.js\nprintf 'x\\n' > stray.txt\n",
+            &declare,
+            &seed,
+        );
+        assert_eq!(result.stdout, "{}\n");
+        assert_eq!(
+            result.files,
+            BTreeMap::from([
+                ("work:package.json".to_string(), "{}\n".to_string()),
+                ("work:src/index.js".to_string(), "init\n".to_string()),
+            ])
+        );
+        assert_eq!(result.undeclared, vec!["work:stray.txt".to_string()]);
+    }
+
+    #[test]
+    fn a_work_seed_that_leaves_the_work_directory_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = script(dir.path(), "#!/bin/sh\n");
+        for key in [
+            "work:../config/ldcli/config.yml",
+            "work:/etc/passwd",
+            "work:",
+        ] {
+            let seed = BTreeMap::from([(key.to_string(), "x".to_string())]);
+            let err = run_command(&RunRequest {
+                bin: &bin,
+                argv: &[],
+                declare: &[],
+                extra_env: &BTreeMap::new(),
+                seed: &seed,
+                opt_out_update_check: true,
+            })
+            .unwrap_err();
+            assert!(
+                err.to_string().contains("inside the sandbox"),
+                "{key}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_bin_seed_is_an_executable_on_path_and_is_not_part_of_the_snapshot() {
+        let seed = BTreeMap::from([(
+            "bin:npm".to_string(),
+            "#!/bin/sh\necho \"fake npm $*\"\n".to_string(),
+        )]);
+        let result = run_seeded("#!/bin/sh\nnpm install thing\n", &[], &seed);
+        assert_eq!(result.stdout, "fake npm install thing\n");
+        assert!(result.files.is_empty(), "{:?}", result.files);
+        assert!(result.undeclared.is_empty(), "{:?}", result.undeclared);
+    }
+
+    #[test]
+    fn a_bin_seed_cannot_replace_a_browser_shim_or_name_a_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = script(dir.path(), "#!/bin/sh\n");
+        for (key, message) in [
+            ("bin:xdg-open", "browser shim"),
+            ("bin:open", "browser shim"),
+            ("bin:../npm", "one program"),
+            ("bin:", "one program"),
+        ] {
+            let seed = BTreeMap::from([(key.to_string(), "x".to_string())]);
+            let err = run_command(&RunRequest {
+                bin: &bin,
+                argv: &[],
+                declare: &[],
+                extra_env: &BTreeMap::new(),
+                seed: &seed,
+                opt_out_update_check: true,
+            })
+            .unwrap_err();
+            assert!(err.to_string().contains(message), "{key}: {err}");
+        }
     }
 }

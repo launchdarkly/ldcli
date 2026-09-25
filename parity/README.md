@@ -14,7 +14,7 @@ Go 1.25 or newer has to be on `PATH`. The Rust toolchain comes from `rust-toolch
 
 The harness gives every case its own config directory and state directory, pins width to 80 by running without a terminal (the Go help path falls back to 80), sets `NO_COLOR=1`, sets the Go version label to `test`, turns analytics off, and turns the update check off. It unsets `LD_ACCESS_TOKEN`.
 
-The parent's `PATH` is not passed on either. A case's `PATH` holds one directory, created in its sandbox, containing a shim for each program a CLI runs to open a browser: `xdg-open`, `x-www-browser`, and `www-browser` on Linux, `open` on macOS. Each shim prints `parity browser shim: <url>` on stderr and exits 1, so no run can open a real browser, and both binaries take the same browser-failure path whatever the machine has installed. The CLI's stderr is where that line lands, because Go hands its own stdout and stderr to the opener, so the transcript also shows which URL each binary tried to open. Nothing else is on `PATH`, so a command that looks for a package manager finds none and cannot run one. A case that sets `PATH` in `[env]` gets it after the shim directory.
+The parent's `PATH` is not passed on either. A case's `PATH` holds one directory, created in its sandbox, containing a shim for each program a CLI runs to open a browser: `xdg-open`, `x-www-browser`, and `www-browser` on Linux, `open` on macOS. Each shim prints `parity browser shim: <url>` on stderr and exits 1, so no run can open a real browser, and both binaries take the same browser-failure path whatever the machine has installed. The CLI's stderr is where that line lands, because Go hands its own stdout and stderr to the opener, so the transcript also shows which URL each binary tried to open. Nothing else is on `PATH`, so a command that looks for a package manager finds none and cannot run one, unless the case seeds a stand-in (see `bin:` seeds below). A case that sets `PATH` in `[env]` gets it after the shim directory.
 
 ## Read a diff
 
@@ -60,12 +60,12 @@ Ask for `version` only on a case whose output carries a build version that the t
 
 1. Add `parity/cases/<tier>/<name>.toml`. Tiers are `help`, `offline`, `http`, and `fs`.
 2. Set `argv`, `declare`, and any extra `env`.
-3. Declare every file the command may write under the config or state directory. Root commands write `config:ldcli/config.yml` on startup. An undeclared file fails the case.
+3. Declare every file the command may write under the config, state, or work directory. Root commands write `config:ldcli/config.yml` on startup. An undeclared file fails the case.
 4. Add a `redact` list only if the command prints a value that changes between runs. See Redaction above.
 5. Run `make parity-capture` to fill stdout, stderr, status, and declared files from the Go binary. Capture refuses a `--rust-bin`, so a Rust bug cannot become the expected output.
 6. Run `make parity`. Commit the case only when the diff is a behavior change you mean to accept.
 
-`declare` paths use `config:` and `state:` prefixes, relative to `XDG_CONFIG_HOME` and `XDG_STATE_HOME`.
+`declare` paths use `config:`, `state:`, and `work:` prefixes, relative to `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, and the directory the command runs in. The work directory starts empty; a command that writes into the project it was pointed at, such as `setup init`, declares the files it writes there.
 
 A `[seed]` table writes files into the sandbox before the run, keyed the same way. A case that starts from an existing config file seeds it and declares it, and the harness then compares the bytes each binary leaves behind:
 
@@ -76,7 +76,15 @@ declare = ["config:ldcli/config.yml"]
 "config:ldcli/config.yml" = "output: markdown\nproject: proj\n"
 ```
 
-A seed key that would leave the sandbox is refused.
+A seed key that would leave the sandbox is refused. A seeded file is part of the snapshot like any other, so a `work:` seed is declared too, and the harness checks that neither binary changed it.
+
+A `bin:<name>` seed writes an executable into the `PATH` directory beside the browser shims, so a case can show a command that finds a tool. The script runs under `/bin/sh` with nothing else on `PATH`, so it can use shell builtins only. Use it for a stand-in that prints and exits, never for one that reaches the real tool. A `bin:` seed cannot replace a browser shim, and it is not part of the snapshot:
+
+```toml
+[seed]
+"work:package.json" = "{\"name\": \"app\"}\n"
+"bin:npm" = "#!/bin/sh\necho \"added 1 package\"\n"
+```
 
 ## HTTP fixtures
 
