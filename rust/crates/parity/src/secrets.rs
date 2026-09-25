@@ -6,6 +6,60 @@ use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
 
+/// Every minted value starts with one of these. A fresh run mints new values,
+/// so the prefixes are what still catch one that an earlier capture wrote.
+pub const MINTED_PREFIXES: [&str; 4] = [
+    "parity-token-",
+    "parity-device-",
+    "parity-user-",
+    "parity-verify-",
+];
+
+/// The values the harness makes up for a run. Cases name them with
+/// placeholders, and outputs show them as bracketed placeholders.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Minted {
+    pub access_token: String,
+    pub device_code: String,
+    pub user_code: String,
+    /// A path, the way the device-authorization endpoint returns it.
+    pub verification_uri: String,
+}
+
+impl Minted {
+    pub fn new(nonce: &str) -> Self {
+        Self {
+            access_token: format!("{}{nonce}", MINTED_PREFIXES[0]),
+            device_code: format!("{}{nonce}", MINTED_PREFIXES[1]),
+            user_code: format!("{}{nonce}", MINTED_PREFIXES[2]),
+            verification_uri: format!("/confirm-auth/{}{nonce}", MINTED_PREFIXES[3]),
+        }
+    }
+
+    /// Each value with the `{{NAME}}` a case writes for it.
+    pub fn placeholders(&self) -> [(&'static str, &str); 4] {
+        [
+            ("{{ACCESS_TOKEN}}", &self.access_token),
+            ("{{DEVICE_CODE}}", &self.device_code),
+            ("{{USER_CODE}}", &self.user_code),
+            ("{{VERIFICATION_URI}}", &self.verification_uri),
+        ]
+    }
+
+    /// The name of the first minted value `text` still contains.
+    pub fn leaked_in(&self, text: &str) -> Option<&'static str> {
+        [
+            ("access token", &self.access_token),
+            ("device code", &self.device_code),
+            ("user code", &self.user_code),
+            ("verification URI", &self.verification_uri),
+        ]
+        .into_iter()
+        .find(|(_, value)| !value.is_empty() && text.contains(value.as_str()))
+        .map(|(name, _)| name)
+    }
+}
+
 /// Scan `roots` for any non-empty secret.
 pub fn scan_tree(roots: &[impl AsRef<Path>], secrets: &[String]) -> Result<()> {
     let needles: Vec<&str> = secrets
@@ -112,6 +166,47 @@ mod tests {
         fs::write(dir.path().join("note.txt"), "Authorization: [REDACTED]\n").unwrap();
         scan_tree(&[dir.path()], &["parity-token-secret".into()]).unwrap();
         scan_authorization(&[dir.path()]).unwrap();
+    }
+
+    #[test]
+    fn minted_values_are_distinct_and_each_carries_its_prefix() {
+        let minted = Minted::new("abc");
+        let values: Vec<&str> = minted.placeholders().iter().map(|(_, v)| *v).collect();
+        for (value, prefix) in values.iter().zip(MINTED_PREFIXES) {
+            assert!(value.contains(prefix), "{value} lacks {prefix}");
+        }
+        for (i, a) in values.iter().enumerate() {
+            for b in &values[i + 1..] {
+                assert!(!a.contains(b) && !b.contains(a), "{a} overlaps {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_leak_names_the_kind_of_value_that_leaked() {
+        let minted = Minted::new("abc");
+        assert_eq!(minted.leaked_in("nothing here"), None);
+        assert_eq!(
+            minted.leaked_in(&format!("code {}", minted.user_code)),
+            Some("user code")
+        );
+        assert_eq!(
+            minted.leaked_in(&format!("{{\"deviceCode\":\"{}\"}}", minted.device_code)),
+            Some("device code")
+        );
+    }
+
+    #[test]
+    fn scan_rejects_a_device_code_an_earlier_capture_left_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("login.requests"),
+            "{\"deviceCode\":\"parity-device-18a2f\"}\n",
+        )
+        .unwrap();
+        let secrets: Vec<String> = MINTED_PREFIXES.iter().map(|p| p.to_string()).collect();
+        let err = scan_tree(&[dir.path()], &secrets).unwrap_err();
+        assert!(err.to_string().contains("login.requests"), "{err}");
     }
 
     #[test]

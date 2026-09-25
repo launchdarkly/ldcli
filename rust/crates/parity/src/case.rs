@@ -165,6 +165,11 @@ pub fn save_case(path: &Path, case: &Case) -> Result<()> {
         body.push_str(&format!("path = {}\n", toml_basic(&route.path)));
         body.push_str(&format!("status = {}\n", route.status));
         body.push_str(&format!("body = {}\n", toml_basic(&route.body)));
+        for response in &route.then {
+            body.push_str("\n[[http.then]]\n");
+            body.push_str(&format!("status = {}\n", response.status));
+            body.push_str(&format!("body = {}\n", toml_basic(&response.body)));
+        }
     }
     body.push_str("\n[expect]\n");
     body.push_str(&format!("status = {}\n", case.expect.status));
@@ -271,6 +276,7 @@ fn toml_basic(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixture::Response;
 
     #[test]
     fn round_trip_keeps_stdout_separate() {
@@ -282,12 +288,25 @@ mod tests {
             declare: vec!["config:ldcli/config.yml".into()],
             env: BTreeMap::new(),
             seed: BTreeMap::new(),
-            http: vec![Route {
-                method: "GET".into(),
-                path: "/api/v2/caller-identity".into(),
-                status: 200,
-                body: "{}".into(),
-            }],
+            http: vec![
+                Route {
+                    method: "POST".into(),
+                    path: "/internal/device-authorization/token".into(),
+                    status: 400,
+                    body: "{\"code\":\"authorization_pending\"}".into(),
+                    then: vec![Response {
+                        status: 200,
+                        body: "{\"accessToken\":\"{{ACCESS_TOKEN}}\"}".into(),
+                    }],
+                },
+                Route {
+                    method: "GET".into(),
+                    path: "/api/v2/caller-identity".into(),
+                    status: 200,
+                    body: "{}".into(),
+                    then: Vec::new(),
+                },
+            ],
             redact: vec!["hostname".into()],
             rust: false,
             expect: Expectation {

@@ -14,6 +14,8 @@ Go 1.25 or newer has to be on `PATH`. The Rust toolchain comes from `rust-toolch
 
 The harness gives every case its own config directory and state directory, pins width to 80 by running without a terminal (the Go help path falls back to 80), sets `NO_COLOR=1`, sets the Go version label to `test`, turns analytics off, and turns the update check off. It unsets `LD_ACCESS_TOKEN`.
 
+The parent's `PATH` is not passed on either. A case's `PATH` holds one directory, created in its sandbox, containing a shim for each program a CLI runs to open a browser: `xdg-open`, `x-www-browser`, and `www-browser` on Linux, `open` on macOS. Each shim prints `parity browser shim: <url>` on stderr and exits 1, so no run can open a real browser, and both binaries take the same browser-failure path whatever the machine has installed. The CLI's stderr is where that line lands, because Go hands its own stdout and stderr to the opener, so the transcript also shows which URL each binary tried to open. Nothing else is on `PATH`, so a command that looks for a package manager finds none and cannot run one. A case that sets `PATH` in `[env]` gets it after the shim directory.
+
 ## Read a diff
 
 A failing case looks like this:
@@ -93,7 +95,30 @@ status = 200
 body = "{\"accountId\": \"acct-1\"}"
 ```
 
-`{{BASE_URI}}` becomes that run's server address and `{{ACCESS_TOKEN}}` becomes a token minted for the run, anywhere in `argv`, `env`, or `seed`. The server's address changes every run, so it reads `[BASE_URI]` wherever it is printed, and the token reads `[ACCESS_TOKEN]`.
+`{{BASE_URI}}` becomes that run's server address anywhere in `argv`, `env`, `seed`, or a route body. The harness also mints four values for each run and fills them in the same places:
+
+| Placeholder | Minted value | Printed as |
+|---|---|---|
+| `{{ACCESS_TOKEN}}` | `parity-token-…` | `[ACCESS_TOKEN]` |
+| `{{DEVICE_CODE}}` | `parity-device-…` | `[DEVICE_CODE]` |
+| `{{USER_CODE}}` | `parity-user-…` | `[USER_CODE]` |
+| `{{VERIFICATION_URI}}` | `/confirm-auth/parity-verify-…` | `[VERIFICATION_URI]` |
+
+The server's address changes every run, so it reads `[BASE_URI]` wherever it is printed. Capture refuses to write a case whose output still holds a minted value after substitution, and check refuses any file under `parity/` that holds one or starts with one of those prefixes.
+
+A route answers every request the same way unless it lists what comes next. Each `[[http.then]]` table after a route answers the next request, in order, and the last one repeats. This is how a polling client sees a pending answer before the final one:
+
+```toml
+[[http]]
+method = "POST"
+path = "/internal/device-authorization/token"
+status = 400
+body = "{\"code\": \"authorization_pending\"}"
+
+[[http.then]]
+status = 200
+body = "{\"accessToken\": \"{{ACCESS_TOKEN}}\"}"
+```
 
 Every request the server receives is recorded, with its method, path and query, body, and the `Authorization`, `Content-Type`, `LD-API-Version`, and `User-Agent` headers, into a `.requests` file beside the transcript. A case compares those as well, so a binary that prints the right thing after sending the wrong request still fails.
 

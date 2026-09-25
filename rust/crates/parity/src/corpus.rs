@@ -5,10 +5,10 @@ use crate::case::{
 };
 use crate::coverage::{check_coverage, load_command_list, load_exemptions, Coverage, Exemption};
 use crate::diffutil::unified_diff;
-use crate::fixture::{render_requests, FixtureServer};
+use crate::fixture::{render_requests, FixtureServer, BASE_URI_PLACEHOLDER};
 use crate::normalize::{normalize_stream, RedactionRules, Redactor};
 use crate::sandbox::{run_command, RunRequest, RunResult};
-use crate::secrets::{scan_authorization, scan_tree};
+use crate::secrets::{scan_authorization, scan_tree, Minted, MINTED_PREFIXES};
 use anyhow::{anyhow, Result};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -61,9 +61,12 @@ pub fn redactor_for(sandbox_root: &Path, secrets: &Redactor, rules: RedactionRul
     }
 }
 
-fn base_secrets(token: &str) -> Redactor {
+fn base_secrets(minted: &Minted) -> Redactor {
     Redactor {
-        access_token: Some(token.to_string()),
+        access_token: Some(minted.access_token.clone()),
+        device_code: Some(minted.device_code.clone()),
+        user_code: Some(minted.user_code.clone()),
+        verification_uri: Some(minted.verification_uri.clone()),
         ..Redactor::default()
     }
 }
@@ -76,9 +79,6 @@ pub struct Execution {
     pub requests: String,
 }
 
-const BASE_URI_PLACEHOLDER: &str = "{{BASE_URI}}";
-const ACCESS_TOKEN_PLACEHOLDER: &str = "{{ACCESS_TOKEN}}";
-
 fn needs_server(case: &Case) -> bool {
     let named = |text: &String| text.contains(BASE_URI_PLACEHOLDER);
     !case.http.is_empty()
@@ -87,18 +87,31 @@ fn needs_server(case: &Case) -> bool {
         || case.seed.values().any(named)
 }
 
-pub fn execute_case(bin: &Path, case: &Case, secrets: &Redactor) -> Result<Execution> {
+fn fill_minted(text: &str, minted: &Minted) -> String {
+    minted
+        .placeholders()
+        .into_iter()
+        .fold(text.to_string(), |text, (placeholder, value)| {
+            text.replace(placeholder, value)
+        })
+}
+
+pub fn execute_case(bin: &Path, case: &Case, minted: &Minted) -> Result<Execution> {
     let rules =
         RedactionRules::parse(&case.redact).map_err(|err| anyhow!("case {}: {err}", case.id))?;
     let server = if needs_server(case) {
-        Some(FixtureServer::start(case.http.clone())?)
+        let routes = case
+            .http
+            .iter()
+            .map(|route| route.map_bodies(|body| fill_minted(body, minted)))
+            .collect();
+        Some(FixtureServer::start(routes)?)
     } else {
         None
     };
     let base_uri = server.as_ref().map(|server| server.base_uri.clone());
-    let token = secrets.access_token.clone().unwrap_or_default();
     let fill = |text: &String| {
-        let text = text.replace(ACCESS_TOKEN_PLACEHOLDER, &token);
+        let text = fill_minted(text, minted);
         match &base_uri {
             Some(base) => text.replace(BASE_URI_PLACEHOLDER, base),
             None => text,
@@ -129,7 +142,7 @@ pub fn execute_case(bin: &Path, case: &Case, secrets: &Redactor) -> Result<Execu
         .map(|server| render_requests(&server.finish()))
         .unwrap_or_default();
     let result = run?;
-    let mut redactor = redactor_for(&result.sandbox_root, secrets, rules);
+    let mut redactor = redactor_for(&result.sandbox_root, &base_secrets(minted), rules);
     redactor.base_uri = base_uri;
     let requests = normalize_stream(&requests, &redactor);
     Ok(Execution {
@@ -153,13 +166,12 @@ fn normalized_output(
     (stdout, stderr, files)
 }
 
-pub fn capture_case(go_bin: &Path, case: &Case, token: &str) -> Result<Case> {
-    let secrets = base_secrets(token);
+pub fn capture_case(go_bin: &Path, case: &Case, minted: &Minted) -> Result<Case> {
     let Execution {
         result,
         redactor,
         requests,
-    } = execute_case(go_bin, case, &secrets)?;
+    } = execute_case(go_bin, case, minted)?;
     if !result.undeclared.is_empty() {
         return Err(anyhow!(
             "case {} wrote undeclared paths: {}",
@@ -168,22 +180,18 @@ pub fn capture_case(go_bin: &Path, case: &Case, token: &str) -> Result<Case> {
         ));
     }
     let (stdout, stderr, files) = normalized_output(&result, &redactor);
-    for (label, text) in [
-        ("stdout", &stdout),
-        ("stderr", &stderr),
-        ("requests", &requests),
-    ] {
-        if token_leaks(text, token) {
+    let streams = [
+        ("stdout".to_string(), &stdout),
+        ("stderr".to_string(), &stderr),
+        ("requests".to_string(), &requests),
+    ];
+    let files_named = files
+        .iter()
+        .map(|(key, text)| (format!("file {key}"), text));
+    for (label, text) in streams.into_iter().chain(files_named) {
+        if let Some(secret) = minted.leaked_in(text) {
             return Err(anyhow!(
-                "case {} {label} still contains the harness access token after substitution",
-                case.id
-            ));
-        }
-    }
-    for (key, text) in &files {
-        if token_leaks(text, token) {
-            return Err(anyhow!(
-                "case {} file {key} still contains the harness access token after substitution",
+                "case {} {label} still contains the harness {secret} after substitution",
                 case.id
             ));
         }
@@ -200,22 +208,18 @@ pub fn capture_case(go_bin: &Path, case: &Case, token: &str) -> Result<Case> {
     })
 }
 
-fn token_leaks(text: &str, token: &str) -> bool {
-    !token.is_empty() && text.contains(token)
-}
-
 pub fn check_case(
     go_bin: &Path,
     rust_bin: Option<&Path>,
     case: &Case,
-    token: &str,
+    minted: &Minted,
 ) -> Result<Vec<CaseFailure>> {
-    let secrets = base_secrets(token);
+    let secrets = base_secrets(minted);
     let Execution {
         result: go_result,
         redactor: go_redactor,
         requests: go_requests,
-    } = execute_case(go_bin, case, &secrets)?;
+    } = execute_case(go_bin, case, minted)?;
     let mut failures = Vec::new();
     if !go_result.undeclared.is_empty() {
         failures.push(failure(
@@ -293,7 +297,7 @@ pub fn check_case(
         result: rust_result,
         redactor: rust_redactor,
         requests: rust_requests,
-    } = execute_case(rust_bin, case, &secrets)?;
+    } = execute_case(rust_bin, case, minted)?;
     if !rust_result.undeclared.is_empty() {
         failures.push(failure(
             case,
@@ -416,7 +420,7 @@ pub fn seed_missing_help(commands: &[String], cases_dir: &Path) -> Result<Vec<Pa
     Ok(created)
 }
 
-pub fn capture_tree(go_bin: &Path, cases_dir: &Path, token: &str) -> Result<()> {
+pub fn capture_tree(go_bin: &Path, cases_dir: &Path, minted: &Minted) -> Result<()> {
     let paths = iter_cases(cases_dir)?;
     let total = paths.len();
     for (index, path) in paths.iter().enumerate() {
@@ -424,7 +428,7 @@ pub fn capture_tree(go_bin: &Path, cases_dir: &Path, token: &str) -> Result<()> 
         if index % 25 == 0 {
             eprintln!("capture {}/{} {}", index + 1, total, case.id);
         }
-        let captured = capture_case(go_bin, &case, token)?;
+        let captured = capture_case(go_bin, &case, minted)?;
         save_case(path, &captured)?;
     }
     Ok(())
@@ -434,12 +438,12 @@ pub fn check_tree(
     go_bin: &Path,
     rust_bin: Option<&Path>,
     cases_dir: &Path,
-    token: &str,
+    minted: &Minted,
 ) -> Result<Vec<CaseFailure>> {
     let mut failures = Vec::new();
     for path in iter_cases(cases_dir)? {
         let case = load_case(&path)?;
-        failures.extend(check_case(go_bin, rust_bin, &case, token)?);
+        failures.extend(check_case(go_bin, rust_bin, &case, minted)?);
     }
     Ok(failures)
 }
@@ -506,10 +510,13 @@ pub fn coverage_report(
     Ok(check_coverage(&commands, &help, &exemptions))
 }
 
-pub fn scan_parity(cases_dir: &Path, fixtures_dir: &Path, token: &str) -> Result<()> {
-    // Any minted token uses this prefix. A fresh check must still reject one
-    // that capture wrote earlier.
-    let secrets = vec![token.to_string(), "parity-token-".to_string()];
+pub fn scan_parity(cases_dir: &Path, fixtures_dir: &Path, minted: &Minted) -> Result<()> {
+    let secrets: Vec<String> = minted
+        .placeholders()
+        .into_iter()
+        .map(|(_, value)| value.to_string())
+        .chain(MINTED_PREFIXES.iter().map(|prefix| prefix.to_string()))
+        .collect();
     let roots = [cases_dir, fixtures_dir];
     scan_tree(&roots, &secrets)?;
     scan_authorization(&roots)
@@ -518,10 +525,14 @@ pub fn scan_parity(cases_dir: &Path, fixtures_dir: &Path, token: &str) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixture::Route;
     use std::os::unix::fs::PermissionsExt;
 
+    /// The sandbox PATH holds only the browser shims, so a fake binary
+    /// that calls `mkdir` or `cat` names where they live itself.
     fn script(dir: &Path, body: &str) -> PathBuf {
         let path = dir.join("fake-ldcli");
+        let body = body.replacen('\n', "\nPATH=\"$PATH:/usr/bin:/bin\"\n", 1);
         fs::write(&path, body).unwrap();
         let mut perms = fs::metadata(&path).unwrap().permissions();
         perms.set_mode(0o755);
@@ -559,9 +570,61 @@ mod tests {
             dir.path(),
             &format!("#!/bin/sh\n{WRITE_CONFIG}printf 'Usage:\\n  ldcli [command]\\n'\n"),
         );
-        let captured = capture_case(&bin, &help_case(""), "parity-token-unused").unwrap();
-        let failures = check_case(&bin, None, &captured, "parity-token-unused").unwrap();
+        let captured = capture_case(&bin, &help_case(""), &Minted::new("unused")).unwrap();
+        let failures = check_case(&bin, None, &captured, &Minted::new("unused")).unwrap();
         assert!(failures.is_empty(), "{failures:?}");
+    }
+
+    #[test]
+    fn every_minted_placeholder_is_filled_for_the_run_and_captured_as_its_label() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = script(
+            dir.path(),
+            &format!("#!/bin/sh\n{WRITE_CONFIG}printf '%s\\n' \"$@\"\n"),
+        );
+        let mut case = help_case("");
+        case.argv = [
+            "{{ACCESS_TOKEN}}",
+            "{{DEVICE_CODE}}",
+            "{{USER_CODE}}",
+            "{{VERIFICATION_URI}}",
+        ]
+        .map(String::from)
+        .to_vec();
+        let captured = capture_case(&bin, &case, &Minted::new("abc")).unwrap();
+        assert_eq!(
+            captured.expect.stdout,
+            "[ACCESS_TOKEN]\n[DEVICE_CODE]\n[USER_CODE]\n[VERIFICATION_URI]\n"
+        );
+    }
+
+    #[test]
+    fn a_route_body_is_filled_with_the_minted_values() {
+        let minted = Minted::new("abc");
+        let route = Route {
+            method: "POST".into(),
+            path: "/internal/device-authorization".into(),
+            status: 200,
+            body:
+                "{\"deviceCode\":\"{{DEVICE_CODE}}\",\"verificationUri\":\"{{VERIFICATION_URI}}\"}"
+                    .into(),
+            then: vec![crate::fixture::Response {
+                status: 200,
+                body: "{\"accessToken\":\"{{ACCESS_TOKEN}}\"}".into(),
+            }],
+        };
+        let filled = route.map_bodies(|body| fill_minted(body, &minted));
+        assert_eq!(
+            filled.body,
+            format!(
+                "{{\"deviceCode\":\"{}\",\"verificationUri\":\"{}\"}}",
+                minted.device_code, minted.verification_uri
+            )
+        );
+        assert_eq!(
+            filled.then[0].body,
+            format!("{{\"accessToken\":\"{}\"}}", minted.access_token)
+        );
     }
 
     #[test]
@@ -572,7 +635,7 @@ mod tests {
             &format!("#!/bin/sh\n{WRITE_CONFIG}printf 'Flags:\\n      --beta    added\\n'\n"),
         );
         let case = help_case("Flags:\n      --alpha   removed\n");
-        let failures = check_case(&bin, None, &case, "parity-token-unused").unwrap();
+        let failures = check_case(&bin, None, &case, &Minted::new("unused")).unwrap();
         let detail = failures
             .iter()
             .map(|f| f.detail.clone())
@@ -592,11 +655,11 @@ mod tests {
         );
         let mut case = help_case("{\"a\":2,\"b\":1}\n");
         case.argv = vec!["--output".into(), "json".into()];
-        let failures = check_case(&bin, None, &case, "parity-token-unused").unwrap();
+        let failures = check_case(&bin, None, &case, &Minted::new("unused")).unwrap();
         assert!(failures.is_empty(), "{failures:?}");
 
         case.expect.stdout = "{\"a\":2,\"b\":1,\"c\":3}\n".into();
-        let failures = check_case(&bin, None, &case, "parity-token-unused").unwrap();
+        let failures = check_case(&bin, None, &case, &Minted::new("unused")).unwrap();
         assert!(!failures.is_empty(), "extra key should fail");
     }
 
@@ -610,7 +673,7 @@ mod tests {
         let mut case = help_case("ok\n");
         case.declare.clear();
         case.expect.files.clear();
-        let failures = check_case(&bin, None, &case, "parity-token-unused").unwrap();
+        let failures = check_case(&bin, None, &case, &Minted::new("unused")).unwrap();
         assert!(
             failures
                 .iter()

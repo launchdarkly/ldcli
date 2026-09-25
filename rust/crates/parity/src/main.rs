@@ -4,6 +4,7 @@ use parity::corpus::{
     scan_parity, seed_missing_help, CaseFailure,
 };
 use parity::coverage::{load_command_list, load_exemptions};
+use parity::secrets::Minted;
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -88,12 +89,12 @@ fn need(args: &mut impl Iterator<Item = String>, flag: &str) -> Result<String> {
     args.next().ok_or_else(|| anyhow!("{flag} needs a value"))
 }
 
-fn mint_token() -> String {
+fn mint() -> Minted {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    format!("parity-token-{nanos:x}")
+    Minted::new(&format!("{nanos:x}"))
 }
 
 fn cmd_capture(opts: &Options) -> Result<()> {
@@ -103,23 +104,23 @@ fn cmd_capture(opts: &Options) -> Result<()> {
         let created = seed_missing_help(&commands, &opts.cases)?;
         eprintln!("seeded {} help cases", created.len());
     }
-    let token = mint_token();
-    capture_tree(&opts.go_bin, &opts.cases, &token)?;
-    scan_parity(&opts.cases, &opts.fixtures, &token)?;
+    let minted = mint();
+    capture_tree(&opts.go_bin, &opts.cases, &minted)?;
+    scan_parity(&opts.cases, &opts.fixtures, &minted)?;
     println!("captured cases under {}", opts.cases.display());
     Ok(())
 }
 
 fn cmd_check(opts: &Options) -> Result<()> {
-    let token = mint_token();
-    let failures = check_tree(&opts.go_bin, opts.rust_bin.as_deref(), &opts.cases, &token)?;
+    let minted = mint();
+    let failures = check_tree(&opts.go_bin, opts.rust_bin.as_deref(), &opts.cases, &minted)?;
     let exemptions = load_exemptions(&opts.exemptions)?;
     let mut substitute_failures = run_exit0_substitutes(&opts.go_bin, &exemptions, false)?;
     if let Some(rust_bin) = &opts.rust_bin {
         substitute_failures.extend(run_exit0_substitutes(rust_bin, &exemptions, true)?);
     }
     let coverage = coverage_report(&opts.commands, &opts.cases, &opts.exemptions)?;
-    scan_parity(&opts.cases, &opts.fixtures, &token)?;
+    scan_parity(&opts.cases, &opts.fixtures, &minted)?;
     // The report prints whether or not the gate passed, so a reviewer reading a
     // failure still sees each command's state beside the uncovered ones.
     for line in &coverage.report {

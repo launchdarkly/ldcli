@@ -32,6 +32,15 @@ pub struct RunResult {
     pub sandbox_root: PathBuf,
 }
 
+/// The names a CLI looks for when it opens a browser: `xdg-open` and its two
+/// fallbacks on Linux, `open` on macOS.
+pub const BROWSER_OPENERS: [&str; 4] = ["xdg-open", "x-www-browser", "www-browser", "open"];
+
+/// What every browser opener in the sandbox does instead of opening one. It
+/// names the URL on stderr, which the CLI's own stderr inherits, and fails the
+/// way a machine with no usable browser does.
+pub const BROWSER_SHIM: &str = "#!/bin/sh\necho \"parity browser shim: $*\" >&2\nexit 1\n";
+
 pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
     let root = tempfile::tempdir().map_err(|err| anyhow!("tempdir: {err}"))?;
     let sandbox_root = root.path().to_path_buf();
@@ -41,6 +50,7 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
     let data_home = sandbox_root.join("data");
     let home = sandbox_root.join("home");
     let work = sandbox_root.join("work");
+    let shims = sandbox_root.join("bin");
     for dir in [
         &config_home,
         &state_home,
@@ -48,8 +58,12 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
         &data_home,
         &home,
         &work,
+        &shims,
     ] {
         fs::create_dir_all(dir).map_err(|err| anyhow!("mkdir {}: {err}", dir.display()))?;
+    }
+    for name in BROWSER_OPENERS {
+        write_executable(&shims.join(name), BROWSER_SHIM)?;
     }
     for (key, contents) in request.seed {
         let path = seed_path(key, &config_home, &state_home)?;
@@ -74,7 +88,6 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env_clear();
-    cmd.env("PATH", std::env::var("PATH").unwrap_or_default());
     cmd.env("HOME", &home);
     cmd.env("XDG_CONFIG_HOME", &config_home);
     cmd.env("XDG_STATE_HOME", &state_home);
@@ -94,6 +107,15 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
     for (key, value) in request.extra_env {
         cmd.env(key, value);
     }
+    // The parent's PATH is not passed on. What a command finds there, such as
+    // a package manager or a real browser, would make the transcript depend
+    // on the machine, and running it would reach outside the sandbox. A case
+    // that sets PATH gets it after the shims, so an opener is still a shim.
+    let path = match request.extra_env.get("PATH") {
+        Some(extra) => format!("{}:{extra}", shims.display()),
+        None => shims.display().to_string(),
+    };
+    cmd.env("PATH", path);
 
     let mut child = cmd
         .spawn()
@@ -149,6 +171,13 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
         state_home,
         sandbox_root,
     })
+}
+
+fn write_executable(path: &Path, contents: &str) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::write(path, contents).map_err(|err| anyhow!("write {}: {err}", path.display()))?;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o755))
+        .map_err(|err| anyhow!("chmod {}: {err}", path.display()))
 }
 
 /// Resolve a `config:` or `state:` key inside the sandbox. A key that would
@@ -236,8 +265,11 @@ mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
 
+    /// The sandbox PATH holds only the browser shims, so a fake binary
+    /// that calls `mkdir` or `cat` names where they live itself.
     fn script(dir: &Path, body: &str) -> PathBuf {
         let path = dir.join("fake-ldcli");
+        let body = body.replacen('\n', "\nPATH=\"$PATH:/usr/bin:/bin\"\n", 1);
         fs::write(&path, body).unwrap();
         let mut perms = fs::metadata(&path).unwrap().permissions();
         perms.set_mode(0o755);
@@ -311,6 +343,51 @@ mod tests {
                 .any(|p| p == "config:ldcli/config.yml"),
             "{:?}",
             result.undeclared
+        );
+    }
+
+    fn run_raw(body: &str, extra_env: &BTreeMap<String, String>) -> RunResult {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fake-ldcli");
+        write_executable(&path, body).unwrap();
+        run_command(&RunRequest {
+            bin: &path,
+            argv: &[],
+            declare: &[],
+            extra_env,
+            seed: &BTreeMap::new(),
+            opt_out_update_check: true,
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn path_holds_only_the_browser_shims_and_every_opener_fails_without_a_browser() {
+        // Only shell builtins here: nothing else is reachable on this PATH.
+        let result = run_raw(
+            "#!/bin/sh\necho \"$PATH\"\nfor name in xdg-open x-www-browser www-browser open; do\n  \"$name\" \"https://example.test/$name\"\n  echo \"$name exited $?\"\ndone\n",
+            &BTreeMap::new(),
+        );
+        let root = result.sandbox_root.display().to_string();
+        assert_eq!(
+            result.stdout,
+            format!(
+                "{root}/bin\nxdg-open exited 1\nx-www-browser exited 1\nwww-browser exited 1\nopen exited 1\n"
+            )
+        );
+        assert_eq!(
+            result.stderr,
+            "parity browser shim: https://example.test/xdg-open\nparity browser shim: https://example.test/x-www-browser\nparity browser shim: https://example.test/www-browser\nparity browser shim: https://example.test/open\n"
+        );
+    }
+
+    #[test]
+    fn a_case_path_comes_after_the_shims() {
+        let env = BTreeMap::from([("PATH".to_string(), "/nonexistent".to_string())]);
+        let result = run_raw("#!/bin/sh\necho \"$PATH\"\n", &env);
+        assert_eq!(
+            result.stdout,
+            format!("{}/bin:/nonexistent\n", result.sandbox_root.display())
         );
     }
 

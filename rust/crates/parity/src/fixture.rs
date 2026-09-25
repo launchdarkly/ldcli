@@ -3,7 +3,8 @@
 //! Each run gets its own server with the case's canned routes. Every request
 //! that arrives is recorded, so a case compares what each binary sent as well
 //! as what it printed. A request with no matching route gets a 404 with an
-//! empty body.
+//! empty body. A route can answer successive requests differently, which is
+//! how a polling client sees a pending answer before the final one.
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -23,10 +24,26 @@ const RECORDED_HEADERS: [&str; 4] = [
     "user-agent",
 ];
 
+/// Written in a route body, it becomes the address of the server answering.
+pub const BASE_URI_PLACEHOLDER: &str = "{{BASE_URI}}";
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Route {
     pub method: String,
     pub path: String,
+    /// The answer to the first request.
+    #[serde(default = "ok_status")]
+    pub status: u16,
+    #[serde(default)]
+    pub body: String,
+    /// Answers to the second and later requests, in order. The last one
+    /// repeats, and with none the first answer repeats.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub then: Vec<Response>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Response {
     #[serde(default = "ok_status")]
     pub status: u16,
     #[serde(default)]
@@ -35,6 +52,35 @@ pub struct Route {
 
 fn ok_status() -> u16 {
     200
+}
+
+impl Route {
+    /// The answer to the request numbered `hit`, counting from zero.
+    fn response(&self, hit: usize) -> (u16, &str) {
+        match hit.checked_sub(1) {
+            Some(index) if !self.then.is_empty() => {
+                let response = &self.then[index.min(self.then.len() - 1)];
+                (response.status, &response.body)
+            }
+            _ => (self.status, &self.body),
+        }
+    }
+
+    /// The same route with `fill` applied to every body.
+    pub fn map_bodies(&self, fill: impl Fn(&str) -> String) -> Route {
+        Route {
+            body: fill(&self.body),
+            then: self
+                .then
+                .iter()
+                .map(|response| Response {
+                    status: response.status,
+                    body: fill(&response.body),
+                })
+                .collect(),
+            ..self.clone()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,14 +134,19 @@ impl FixtureServer {
             "http://{}",
             listener.local_addr().map_err(|err| anyhow!(err))?
         );
+        let routes: Vec<Route> = routes
+            .iter()
+            .map(|route| route.map_bodies(|body| body.replace(BASE_URI_PLACEHOLDER, &base_uri)))
+            .collect();
         let stop = Arc::new(AtomicBool::new(false));
         let stop_flag = Arc::clone(&stop);
         let handle = thread::spawn(move || {
             let mut recorded = Vec::new();
+            let mut hits = vec![0usize; routes.len()];
             while !stop_flag.load(Ordering::SeqCst) {
                 match listener.accept() {
                     Ok((stream, _)) => {
-                        if let Some(request) = serve(stream, &routes) {
+                        if let Some(request) = serve(stream, &routes, &mut hits) {
                             recorded.push(request);
                         }
                     }
@@ -121,7 +172,7 @@ impl FixtureServer {
     }
 }
 
-fn serve(stream: TcpStream, routes: &[Route]) -> Option<Recorded> {
+fn serve(stream: TcpStream, routes: &[Route], hits: &mut [usize]) -> Option<Recorded> {
     stream.set_nonblocking(false).ok()?;
     stream
         .set_read_timeout(Some(Duration::from_secs(10)))
@@ -158,11 +209,15 @@ fn serve(stream: TcpStream, routes: &[Route]) -> Option<Recorded> {
     reader.read_exact(&mut body).ok()?;
 
     let path = target.split('?').next().unwrap_or("");
-    let route = routes
+    let matched = routes
         .iter()
-        .find(|route| route.method.eq_ignore_ascii_case(&method) && route.path == path);
-    let (status, response_body) = match route {
-        Some(route) => (route.status, route.body.as_str()),
+        .position(|route| route.method.eq_ignore_ascii_case(&method) && route.path == path);
+    let (status, response_body) = match matched {
+        Some(index) => {
+            let answer = routes[index].response(hits[index]);
+            hits[index] += 1;
+            answer
+        }
         None => (404, ""),
     };
     let payload = if method.eq_ignore_ascii_case("HEAD") {
@@ -229,6 +284,7 @@ mod tests {
             path: "/api/v2/caller-identity".into(),
             status: 200,
             body: "{\"accountId\":\"a\"}".into(),
+            then: Vec::new(),
         }])
         .unwrap();
         let base = server.base_uri.clone();
@@ -244,5 +300,66 @@ mod tests {
             rendered,
             "GET /api/v2/caller-identity?limit=5\nauthorization: api-token\n---\nGET /nope?limit=5\nauthorization: api-token\n"
         );
+    }
+
+    #[test]
+    fn successive_requests_walk_the_sequence_and_the_last_answer_repeats() {
+        let server = FixtureServer::start(vec![Route {
+            method: "GET".into(),
+            path: "/poll".into(),
+            status: 400,
+            body: "pending".into(),
+            then: vec![
+                Response {
+                    status: 400,
+                    body: "still pending".into(),
+                },
+                Response {
+                    status: 200,
+                    body: "done".into(),
+                },
+            ],
+        }])
+        .unwrap();
+        let base = server.base_uri.clone();
+        let answers: Vec<(u16, String)> = (0..4).map(|_| get(&base, "/poll", "t")).collect();
+        server.finish();
+        assert_eq!(
+            answers,
+            vec![
+                (400, "pending".to_string()),
+                (400, "still pending".to_string()),
+                (200, "done".to_string()),
+                (200, "done".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_route_without_a_sequence_gives_the_same_answer_every_time() {
+        let route = Route {
+            method: "GET".into(),
+            path: "/x".into(),
+            status: 201,
+            body: "same".into(),
+            then: Vec::new(),
+        };
+        assert_eq!(route.response(0), route.response(5));
+    }
+
+    #[test]
+    fn a_body_that_names_the_base_uri_gets_this_servers_address() {
+        let server = FixtureServer::start(vec![Route {
+            method: "GET".into(),
+            path: "/where".into(),
+            status: 200,
+            body: "{\"self\":\"{{BASE_URI}}/where\"}".into(),
+            then: Vec::new(),
+        }])
+        .unwrap();
+        let base = server.base_uri.clone();
+        let (_, body) = get(&base, "/where", "t");
+        server.finish();
+        assert_eq!(body, format!("{{\"self\":\"{base}/where\"}}"));
     }
 }
