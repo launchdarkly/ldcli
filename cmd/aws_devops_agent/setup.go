@@ -15,37 +15,19 @@ import (
 )
 
 const (
-	agentSpaceNameFlag        = "agent-space-name"
-	agentSpaceDescriptionFlag = "agent-space-description"
-	newAgentSpaceFlag         = "new-agent-space"
-	authFlowFlag              = "auth-flow"
-	idcInstanceARNFlag        = "idc-instance-arn"
-	issuerURLFlag             = "issuer-url"
-	idpClientIDFlag           = "idp-client-id"
-	idpClientSecretFlag       = "idp-client-secret"
-	skipOperatorAppFlag       = "skip-operator-app"
-	skipMCPServerFlag         = "skip-mcp-server"
-	replaceMCPTokenFlag       = "replace-mcp-token"
-	mcpServiceIDFlag          = "mcp-service-id"
-	mcpReadOnlyToolsFlag      = "mcp-read-only-tools"
-	mcpMutativeToolsFlag      = "mcp-mutative-tools"
-	skillNameFlag             = "skill-name"
-	skillFileFlag             = "skill-file"
-	customAgentNameFlag       = "custom-agent-name"
-	customAgentToolsFlag      = "custom-agent-tools"
-	scheduleFlag              = "schedule"
-	githubServiceIDFlag       = "github-service-id"
-	githubOwnerFlag           = "github-owner"
-	githubOwnerTypeFlag       = "github-owner-type"
-	githubRepoFlag            = "github-repo"
-	githubRepoIDFlag          = "github-repo-id"
-	githubTargetBranchesFlag  = "github-target-branches"
-	kiroAPIKeyFlag            = "kiro-api-key"
-	skipRepoFilesFlag         = "skip-repo-files"
-	skipActionsPRsFlag        = "skip-allow-actions-prs"
-	skipBranchProtectionFlag  = "skip-branch-protection"
-	protectedBranchFlag       = "protected-branch"
-	noWaitFlag                = "no-wait"
+	agentSpaceNameFlag       = "agent-space-name"
+	newAgentSpaceFlag        = "new-agent-space"
+	replaceMCPTokenFlag      = "replace-mcp-token"
+	mcpReadOnlyToolsFlag     = "mcp-read-only-tools"
+	mcpMutativeToolsFlag     = "mcp-mutative-tools"
+	skillFlag                = "skill"
+	githubOwnerFlag          = "github-owner"
+	githubRepoFlag           = "github-repo"
+	githubTargetBranchesFlag = "github-target-branches"
+	protectedBranchFlag      = "protected-branch"
+	kiroAPIKeyFlag           = "kiro-api-key"
+	skipFlag                 = "skip"
+	noWaitFlag               = "no-wait"
 )
 
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
@@ -54,20 +36,23 @@ func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 		Short: "Provision the AWS DevOps Agent for LaunchDarkly",
 		Long: `Create the IAM roles, agent space, AWS account association, operator app,
 LaunchDarkly MCP server connection, GitHub repository association, Kiro agent
-workflow files, GitHub Actions permissions and branch protection the AWS
-DevOps Agent needs, plus the built-in experiment-orchestration skill.
+workflow files, GitHub Actions permissions, branch protection and the built-in
+experiment-orchestration skill.
 
 Re-running is safe: setup reuses the agent space matching --agent-space-name
-along with anything already attached to it. Files already on the repository
-are left as they are so a hand edit is never overwritten. Steps that AWS only
-exposes through the console, such as the GitHub App installation, are listed
-at the end of the run.
+along with anything already attached to it. Files already on the repository are
+left as they are so a hand edit is never overwritten. Steps that AWS only
+exposes through the console, such as the GitHub App installation, are listed at
+the end of the run.
 
 The MCP server is connected with --access-token, or with the token in your
 ldcli configuration when you do not pass one. With neither, setup pauses at the
 LaunchDarkly page where you create a service token and uses the token you
-paste. AWS keeps that token and the agent acts as its account and role, so a
-session token from 'ldcli login' stops working once it expires.
+paste. AWS keeps that token, so a session token from 'ldcli login' stops
+working once it expires; re-run with --access-token --replace-mcp-token to
+rotate it.
+
+Pass --skip=step1,step2 to leave out any of: ` + strings.Join(awsdevops.AllSkipSteps, ", ") + `.
 
 In a terminal, setup pauses on each browser step with the page to open and
 resumes once you are done. Pass --no-wait to only list them.`,
@@ -77,37 +62,18 @@ resumes once you are done. Pass --no-wait to only list them.`,
 	}
 
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
-	cmd.Flags().String(agentSpaceIDFlag, "", "Existing agent space to add to instead of creating one")
 	cmd.Flags().String(agentSpaceNameFlag, "launchdarkly", "Name of the agent space to create")
-	cmd.Flags().String(agentSpaceDescriptionFlag, "Managed by the LaunchDarkly CLI", "Description of the agent space to create")
 	cmd.Flags().Bool(newAgentSpaceFlag, false, "Create another agent space instead of reusing the one matching --agent-space-name")
-	cmd.Flags().String(authFlowFlag, "iam", "Operator app sign-in method: iam, idc or idp")
-	cmd.Flags().String(idcInstanceARNFlag, "", "IAM Identity Center instance ARN, required when --auth-flow=idc")
-	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
-	cmd.Flags().String(idpClientIDFlag, "", "OIDC client ID, required when --auth-flow=idp")
-	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
-	cmd.Flags().Bool(skipOperatorAppFlag, false, "Skip the operator app role and web app")
-	cmd.Flags().Bool(skipMCPServerFlag, false, "Skip registering the LaunchDarkly MCP server, without listing it as a manual step")
 	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses the token passed with --access-token")
-	cmd.Flags().String(mcpServiceIDFlag, "", "Service ID of an MCP server already registered on the account to associate instead of registering one")
 	cmd.Flags().StringSlice(mcpReadOnlyToolsFlag, awsdevops.DefaultMCPReadOnlyTools, "LaunchDarkly MCP tools the agent may call without approval")
 	cmd.Flags().StringSlice(mcpMutativeToolsFlag, awsdevops.DefaultMCPMutativeTools, "LaunchDarkly MCP tools that change flag state and need approval")
-	cmd.Flags().String(skillNameFlag, awsdevops.DefaultSkillName, "Name of the skill asset to create. When left at the default and --skill-file is not passed, the built-in experiment-orchestration skill is used")
-	cmd.Flags().String(skillFileFlag, "", "Path to a SKILL.md to upload as a skill asset instead of the built-in experiment-orchestration skill")
-	cmd.Flags().String(customAgentNameFlag, "", "Create a custom agent with this name")
-	cmd.Flags().StringSlice(customAgentToolsFlag, nil, "Tools the custom agent may use")
-	cmd.Flags().String(scheduleFlag, "", "Cron or rate expression to run the custom agent on, for example 'rate(1 day)'")
-	cmd.Flags().String(githubServiceIDFlag, "", "Service ID of a GitHub registration to associate with the agent space")
+	cmd.Flags().String(skillFlag, "", "Path to a SKILL.md to upload as a skill asset. When omitted, the built-in experiment-orchestration skill is used")
 	cmd.Flags().String(githubOwnerFlag, "", "GitHub owner of the repository to associate")
-	cmd.Flags().String(githubOwnerTypeFlag, "organization", "GitHub owner type: organization or user")
 	cmd.Flags().String(githubRepoFlag, "", "GitHub repository name to associate")
-	cmd.Flags().String(githubRepoIDFlag, "", "GitHub repository ID to associate. Read from the GitHub CLI when omitted")
 	cmd.Flags().StringSlice(githubTargetBranchesFlag, []string{"main"}, "Branches release readiness review runs against")
-	cmd.Flags().String(kiroAPIKeyFlag, "", "Kiro API key to store as the "+awsdevops.KiroSecretName+" secret on the associated repository")
-	cmd.Flags().Bool(skipRepoFilesFlag, false, "Skip committing the Kiro agent JSON and GitHub Actions workflows to the associated repository")
-	cmd.Flags().Bool(skipActionsPRsFlag, false, "Skip enabling 'Allow GitHub Actions to create and approve pull requests' on the associated repository")
-	cmd.Flags().Bool(skipBranchProtectionFlag, false, "Skip enabling branch protection on the associated repository")
 	cmd.Flags().String(protectedBranchFlag, "main", "Branch to protect on the associated repository")
+	cmd.Flags().String(kiroAPIKeyFlag, "", "Kiro API key to store as the "+awsdevops.KiroSecretName+" secret on the associated repository")
+	cmd.Flags().StringSlice(skipFlag, nil, "Steps to skip: "+strings.Join(awsdevops.AllSkipSteps, ", "))
 	cmd.Flags().Bool(noWaitFlag, false, "List the browser-only steps instead of pausing on each one")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -178,79 +144,44 @@ func runSetup(cmd *cobra.Command, args []string) error {
 }
 
 func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
-	opts := awsdevops.SetupOptions{
-		AgentSpaceID:          mustString(cmd, agentSpaceIDFlag),
-		AgentSpaceName:        mustString(cmd, agentSpaceNameFlag),
-		AgentSpaceDescription: mustString(cmd, agentSpaceDescriptionFlag),
-		AuthFlow:              strings.ToLower(mustString(cmd, authFlowFlag)),
-		IdcInstanceARN:        mustString(cmd, idcInstanceARNFlag),
-		IssuerURL:             mustString(cmd, issuerURLFlag),
-		IdpClientID:           mustString(cmd, idpClientIDFlag),
-		IdpClientSecret:       mustString(cmd, idpClientSecretFlag),
-		NewAgentSpace:         mustBool(cmd, newAgentSpaceFlag),
-		SkipOperatorApp:       mustBool(cmd, skipOperatorAppFlag),
-		LDBaseURI:             viper.GetString(cliflags.BaseURIFlag),
-		LDAccessToken:         viper.GetString(cliflags.AccessTokenFlag),
-		SkipMCPServer:         mustBool(cmd, skipMCPServerFlag),
-		ReplaceMCPToken:       mustBool(cmd, replaceMCPTokenFlag),
-		MCPServiceID:          mustString(cmd, mcpServiceIDFlag),
-		MCPReadOnlyTools:      mustStringSlice(cmd, mcpReadOnlyToolsFlag),
-		MCPMutativeTools:      mustStringSlice(cmd, mcpMutativeToolsFlag),
-		SkillName:             mustString(cmd, skillNameFlag),
-		CustomAgentName:       mustString(cmd, customAgentNameFlag),
-		CustomAgentTools:      mustStringSlice(cmd, customAgentToolsFlag),
-		Schedule:              mustString(cmd, scheduleFlag),
-		GitHubServiceID:       mustString(cmd, githubServiceIDFlag),
-		GitHubOwner:           mustString(cmd, githubOwnerFlag),
-		GitHubOwnerType:       mustString(cmd, githubOwnerTypeFlag),
-		GitHubRepo:            mustString(cmd, githubRepoFlag),
-		GitHubRepoID:          mustString(cmd, githubRepoIDFlag),
-		GitHubTargetBranches:  mustStringSlice(cmd, githubTargetBranchesFlag),
-		KiroAPIKey:            mustString(cmd, kiroAPIKeyFlag),
-		SkipRepoFiles:         mustBool(cmd, skipRepoFilesFlag),
-		SkipActionsPRs:        mustBool(cmd, skipActionsPRsFlag),
-		SkipBranchProtection:  mustBool(cmd, skipBranchProtectionFlag),
-		ProtectedBranch:       mustString(cmd, protectedBranchFlag),
+	skip := mustStringSlice(cmd, skipFlag)
+	if err := validateSkipSteps(skip); err != nil {
+		return awsdevops.SetupOptions{}, err
 	}
 
-	switch opts.AuthFlow {
-	case "iam":
-	case "idc":
-		if opts.IdcInstanceARN == "" {
-			return opts, fmt.Errorf("--%s is required when --%s=idc", idcInstanceARNFlag, authFlowFlag)
-		}
-	case "idp":
-		if opts.IssuerURL == "" || opts.IdpClientID == "" || opts.IdpClientSecret == "" {
-			return opts, fmt.Errorf("--%s, --%s and --%s are required when --%s=idp", issuerURLFlag, idpClientIDFlag, idpClientSecretFlag, authFlowFlag)
-		}
-	default:
-		return opts, fmt.Errorf("--%s must be iam, idc or idp", authFlowFlag)
-	}
+	return awsdevops.SetupOptions{
+		AgentSpaceName:       mustString(cmd, agentSpaceNameFlag),
+		NewAgentSpace:        mustBool(cmd, newAgentSpaceFlag),
+		LDBaseURI:            viper.GetString(cliflags.BaseURIFlag),
+		LDAccessToken:        viper.GetString(cliflags.AccessTokenFlag),
+		ReplaceMCPToken:      mustBool(cmd, replaceMCPTokenFlag),
+		MCPReadOnlyTools:     mustStringSlice(cmd, mcpReadOnlyToolsFlag),
+		MCPMutativeTools:     mustStringSlice(cmd, mcpMutativeToolsFlag),
+		SkillPath:            mustString(cmd, skillFlag),
+		GitHubOwner:          mustString(cmd, githubOwnerFlag),
+		GitHubRepo:           mustString(cmd, githubRepoFlag),
+		GitHubTargetBranches: mustStringSlice(cmd, githubTargetBranchesFlag),
+		ProtectedBranch:      mustString(cmd, protectedBranchFlag),
+		KiroAPIKey:           mustString(cmd, kiroAPIKeyFlag),
+		Skip:                 skip,
+	}, nil
+}
 
-	if opts.GitHubServiceID != "" && (opts.GitHubOwner == "" || opts.GitHubRepo == "") {
-		return opts, fmt.Errorf("--%s and --%s are required with --%s", githubOwnerFlag, githubRepoFlag, githubServiceIDFlag)
+// validateSkipSteps rejects unknown --skip values up front so a typo does not
+// silently run every step.
+func validateSkipSteps(skip []string) error {
+	valid := map[string]bool{}
+	for _, s := range awsdevops.AllSkipSteps {
+		valid[s] = true
 	}
-
-	if opts.GitHubOwner != "" && opts.GitHubRepo != "" && opts.GitHubRepoID == "" {
-		repo, err := awsdevops.LookupGitHubRepo(cmd.Context(), opts.GitHubOwner, opts.GitHubRepo)
-		if err != nil {
-			return opts, err
-		}
-		opts.GitHubRepoID = repo.ID
-		if !cmd.Flags().Changed(githubOwnerTypeFlag) && repo.OwnerType != "" {
-			opts.GitHubOwnerType = repo.OwnerType
+	for _, entry := range skip {
+		if !valid[strings.ToLower(entry)] {
+			return fmt.Errorf("--%s=%q is not a step: valid values are %s",
+				skipFlag, entry, strings.Join(awsdevops.AllSkipSteps, ", "))
 		}
 	}
 
-	if path := mustString(cmd, skillFileFlag); path != "" {
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return opts, fmt.Errorf("unable to read %s: %w", path, err)
-		}
-		opts.SkillBody = string(body)
-	}
-
-	return opts, nil
+	return nil
 }
 
 // accessTokenFromConfig reports whether the token came from the ldcli

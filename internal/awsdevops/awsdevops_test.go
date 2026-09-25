@@ -253,7 +253,6 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, iamClient), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",
-		AuthFlow:       "iam",
 		LDAccessToken:  "api-token",
 	})
 	require.NoError(t, err)
@@ -269,21 +268,34 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Contains(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName], "iam:CreateServiceLinkedRole")
 	assert.Equal(
 		t,
-		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService", "ListServices"},
+		[]string{
+			"CreateAgentSpace",
+			"AssociateService",
+			"EnableOperatorApp",
+			"ListServices",
+			"RegisterService",
+			"AssociateService",
+			"ListServices",
+			// The default skill is created because SkillPath was not set.
+			"CreateAsset",
+		},
 		agent.calls,
 	)
 }
 
 func TestSetupReusesExistingRolesAndAgentSpace(t *testing.T) {
-	agent := &fakeAgent{}
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{{
+			AgentSpaceId: aws.String("space-existing"),
+			Name:         aws.String("launchdarkly"),
+		}},
+	}
 	iamClient := newFakeIAM()
 	iamClient.existingRoles[awsdevops.AgentSpaceRoleName] = true
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, iamClient), awsdevops.SetupOptions{
-		AgentSpaceID:    "space-existing",
-		AuthFlow:        "iam",
-		SkipOperatorApp: true,
-		SkipMCPServer:   true,
+		AgentSpaceName: "launchdarkly",
+		Skip:           []string{awsdevops.SkipOperatorApp, awsdevops.SkipMCP},
 	})
 	require.NoError(t, err)
 
@@ -298,10 +310,8 @@ func TestSetupRetriesTheAccountAssociationUntilTheRoleIsAssumable(t *testing.T) 
 	agent := &fakeAgent{associateFailures: 1}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		SkipOperatorApp: true,
-		SkipMCPServer:   true,
+		AgentSpaceName: "launchdarkly",
+		Skip:           []string{awsdevops.SkipOperatorApp, awsdevops.SkipMCP},
 	})
 	require.NoError(t, err)
 
@@ -314,7 +324,6 @@ func TestSetupWithoutAccessTokenReportsMCPServerAsManualStep(t *testing.T) {
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",
-		AuthFlow:       "iam",
 	})
 	require.NoError(t, err)
 
@@ -337,10 +346,8 @@ func TestSetupReusesAgentSpaceAndAssociations(t *testing.T) {
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		SkipMCPServer:   true,
-		SkipOperatorApp: true,
+		AgentSpaceName: "launchdarkly",
+		Skip:           []string{awsdevops.SkipMCP, awsdevops.SkipOperatorApp},
 	})
 	require.NoError(t, err)
 
@@ -355,9 +362,8 @@ func TestSetupClassifiesMCPTools(t *testing.T) {
 
 	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName:   "launchdarkly",
-		AuthFlow:         "iam",
 		LDAccessToken:    "api-token",
-		SkipOperatorApp:  true,
+		Skip:             []string{awsdevops.SkipOperatorApp},
 		MCPReadOnlyTools: []string{"list-flags"},
 		MCPMutativeTools: []string{"toggle-flag"},
 	})
@@ -382,10 +388,9 @@ func TestSetupReportsOAuthConsentAsManualStep(t *testing.T) {
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		LDAccessToken:   "api-token",
-		SkipOperatorApp: true,
+		AgentSpaceName: "launchdarkly",
+		LDAccessToken:  "api-token",
+		Skip:           []string{awsdevops.SkipOperatorApp},
 	})
 	require.NoError(t, err)
 
@@ -394,39 +399,6 @@ func TestSetupReportsOAuthConsentAsManualStep(t *testing.T) {
 	assert.Contains(t, result.RemainingManualSteps[1].Description, "GitHub")
 	assert.Equal(t, awsdevops.GitHubRegistrationURL("us-east-1"), result.RemainingManualSteps[1].URL)
 	assert.Equal(t, awsdevops.KiroPortalURL, result.RemainingManualSteps[2].URL)
-}
-
-func TestSetupCreatesSkillAndScheduledCustomAgent(t *testing.T) {
-	agent := &fakeAgent{}
-
-	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		SkipOperatorApp: true,
-		SkipMCPServer:   true,
-		SkillName:       "launchdarkly",
-		SkillBody:       "# LaunchDarkly\n",
-		CustomAgentName: "flag-cleanup",
-		Schedule:        "rate(1 day)",
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, []string{"skill", "custom_agent"}, agent.createdAssetTypes)
-	assert.Equal(t, "asset-skill", result.SkillAssetID)
-	assert.Equal(t, "asset-custom_agent", result.CustomAgentAssetID)
-	assert.Equal(t, "trigger-1", result.TriggerID)
-}
-
-func TestSetupRejectsScheduleWithoutCustomAgent(t *testing.T) {
-	_, err := awsdevops.Setup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		SkipOperatorApp: true,
-		SkipMCPServer:   true,
-		Schedule:        "rate(1 day)",
-	})
-
-	assert.ErrorContains(t, err, "--schedule requires --custom-agent-name")
 }
 
 func TestTeardownEmptiesAgentSpaceBeforeDeletingIt(t *testing.T) {
@@ -588,13 +560,11 @@ func TestNewClientsRequiresCredentials(t *testing.T) {
 
 func TestSetupOmitsTheKiroStepWhenAKeyAndRepositoryAreProvided(t *testing.T) {
 	result, err := awsdevops.Setup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		SkipOperatorApp: true,
-		SkipMCPServer:   true,
-		KiroAPIKey:      "ksk_key",
-		GitHubOwner:     "launchdarkly",
-		GitHubRepo:      "ldcli",
+		AgentSpaceName: "launchdarkly",
+		Skip:           []string{awsdevops.SkipOperatorApp, awsdevops.SkipMCP},
+		KiroAPIKey:     "ksk_key",
+		GitHubOwner:    "launchdarkly",
+		GitHubRepo:     "ldcli",
 	})
 	require.NoError(t, err)
 

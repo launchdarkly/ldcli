@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -56,51 +58,69 @@ var (
 	DefaultMCPMutativeTools = []string{"toggle-flag"}
 )
 
-// SetupOptions describes what to provision. Zero values mean "skip that step".
+// SetupOptions describes what to provision. Non-default values change the name
+// of a resource, add credentials the operator app or MCP server needs, or point
+// the run at a different repository; Skip narrows which steps run.
 type SetupOptions struct {
-	AgentSpaceID          string
-	AgentSpaceName        string
-	AgentSpaceDescription string
-	NewAgentSpace         bool
-
-	AuthFlow        string
-	IdcInstanceARN  string
-	IssuerURL       string
-	IdpClientID     string
-	IdpClientSecret string
-	SkipOperatorApp bool
+	AgentSpaceName string
+	NewAgentSpace  bool
 
 	LDBaseURI        string
 	LDAccessToken    string
-	SkipMCPServer    bool
 	ReplaceMCPToken  bool
-	MCPServiceID     string
 	MCPReadOnlyTools []string
 	MCPMutativeTools []string
 
-	SkillName        string
-	SkillBody        string
-	SkillDescription string
-	CustomAgentName  string
-	CustomAgentTools []string
-	Schedule         string
+	// SkillPath is a path to a SKILL.md to upload. When empty, the embedded
+	// experiment-orchestration skill body is used.
+	SkillPath string
 
-	GitHubServiceID      string
 	GitHubOwner          string
-	GitHubOwnerType      string
 	GitHubRepo           string
-	GitHubRepoID         string
 	GitHubTargetBranches []string
+	ProtectedBranch      string
 	KiroAPIKey           string
 
-	SkipRepoFiles         bool
-	SkipActionsPRs        bool
-	SkipBranchProtection  bool
-	ProtectedBranch       string
+	// Skip names steps to skip. Valid entries are the Skip* constants.
+	Skip []string
 
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)
 }
+
+// Skip step names used with SetupOptions.Skip.
+const (
+	SkipMCP              = "mcp"
+	SkipOperatorApp      = "operator-app"
+	SkipRepoFiles        = "repo-files"
+	SkipAllowActionsPRs  = "allow-actions-prs"
+	SkipBranchProtection = "branch-protection"
+)
+
+// AllSkipSteps is the set of valid Skip values, in the order the CLI shows them.
+var AllSkipSteps = []string{
+	SkipMCP,
+	SkipOperatorApp,
+	SkipRepoFiles,
+	SkipAllowActionsPRs,
+	SkipBranchProtection,
+}
+
+// skips reports whether the given step is in the Skip list.
+func (o SetupOptions) skips(step string) bool {
+	for _, s := range o.Skip {
+		if strings.EqualFold(s, step) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// agentSpaceDescription is the description set on any agent space this CLI
+// creates. It is not configurable because the description does not affect
+// behavior.
+const agentSpaceDescription = "Managed by the LaunchDarkly CLI"
 
 // SetupResult holds the identifiers of everything the setup touched. Callers
 // need these to tear the environment back down.
@@ -118,8 +138,6 @@ type SetupResult struct {
 	GitHubServiceID      string       `json:"githubServiceId,omitempty"`
 	GitHubAssociationID  string       `json:"githubAssociationId,omitempty"`
 	SkillAssetID         string       `json:"skillAssetId,omitempty"`
-	CustomAgentAssetID   string       `json:"customAgentAssetId,omitempty"`
-	TriggerID            string       `json:"triggerId,omitempty"`
 	RemainingManualSteps []ManualStep `json:"remainingManualSteps,omitempty"`
 }
 
@@ -160,7 +178,8 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	}
 	logf("Agent space role ready: %s", result.AgentSpaceRoleARN)
 
-	if !opts.SkipOperatorApp {
+	skipOperatorApp := opts.skips(SkipOperatorApp)
+	if !skipOperatorApp {
 		result.OperatorAppRoleARN, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, clients.Region)
 		if err != nil {
 			return result, err
@@ -168,8 +187,7 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		logf("Operator app role ready: %s", result.OperatorAppRoleARN)
 	}
 
-	result.AgentSpaceID = opts.AgentSpaceID
-	if result.AgentSpaceID == "" && !opts.NewAgentSpace {
+	if !opts.NewAgentSpace {
 		existing, err := FindAgentSpace(ctx, clients, opts.AgentSpaceName)
 		if err != nil {
 			return result, err
@@ -182,7 +200,7 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	if result.AgentSpaceID == "" {
 		space, err := clients.Agent.CreateAgentSpace(ctx, &devopsagent.CreateAgentSpaceInput{
 			Name:        aws.String(opts.AgentSpaceName),
-			Description: aws.String(opts.AgentSpaceDescription),
+			Description: aws.String(agentSpaceDescription),
 		})
 		if err != nil {
 			return result, fmt.Errorf("unable to create the agent space: %w", err)
@@ -206,8 +224,12 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		logf("Associated account %s with the agent space", accountID)
 	}
 
-	if !opts.SkipOperatorApp {
-		operatorApp, err := clients.Agent.EnableOperatorApp(ctx, operatorAppInput(result.AgentSpaceID, result.OperatorAppRoleARN, opts))
+	if !skipOperatorApp {
+		operatorApp, err := clients.Agent.EnableOperatorApp(ctx, &devopsagent.EnableOperatorAppInput{
+			AgentSpaceId:       aws.String(result.AgentSpaceID),
+			AuthFlow:           agenttypes.AuthFlowIam,
+			OperatorAppRoleArn: aws.String(result.OperatorAppRoleARN),
+		})
 		if err != nil {
 			return result, fmt.Errorf("unable to enable the operator app: %w", err)
 		}
@@ -215,18 +237,32 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		logf("Operator app available at %s", result.OperatorAppURL)
 	}
 
-	if !opts.SkipMCPServer && (opts.LDAccessToken != "" || opts.MCPServiceID != "") {
+	if !opts.skips(SkipMCP) && opts.LDAccessToken != "" {
 		if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
 			return result, err
 		}
-	}
-
-	result.GitHubServiceID = opts.GitHubServiceID
-	if result.GitHubServiceID == "" {
-		result.GitHubServiceID, err = FindGitHubService(ctx, clients)
+	} else if !opts.skips(SkipMCP) {
+		existing, err := FindMCPServer(ctx, clients)
 		if err != nil {
 			return result, err
 		}
+		if existing != "" {
+			result.MCPServiceID = existing
+			logf(
+				"Reusing the %s MCP server already registered on this account (%s); "+
+					"it keeps the access token it was registered with",
+				MCPServerName,
+				existing,
+			)
+			if err := associateMCPServer(ctx, clients, opts, &result, logf); err != nil {
+				return result, err
+			}
+		}
+	}
+
+	result.GitHubServiceID, err = FindGitHubService(ctx, clients)
+	if err != nil {
+		return result, err
 	}
 	if result.GitHubServiceID != "" {
 		logf("GitHub is already registered (service %s)", result.GitHubServiceID)
@@ -235,138 +271,104 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 			return result, err
 		}
 	}
-	if result.GitHubServiceID != "" && opts.GitHubOwner != "" && opts.GitHubRepo != "" && opts.GitHubRepoID != "" {
-		opts.GitHubServiceID = result.GitHubServiceID
+	if result.GitHubServiceID != "" && opts.GitHubOwner != "" && opts.GitHubRepo != "" {
+		repo, err := LookupGitHubRepo(ctx, opts.GitHubOwner, opts.GitHubRepo)
+		if err != nil {
+			return result, err
+		}
+
 		if result.GitHubAssociationID != "" {
 			logf("%s/%s is already associated with the agent space", opts.GitHubOwner, opts.GitHubRepo)
 		} else {
-			result.GitHubAssociationID, err = AssociateGitHub(ctx, clients, result.AgentSpaceID, opts)
+			result.GitHubAssociationID, err = AssociateGitHub(ctx, clients, result.AgentSpaceID, GitHubAssociation{
+				ServiceID:      result.GitHubServiceID,
+				Owner:          opts.GitHubOwner,
+				OwnerType:      repo.OwnerType,
+				Repo:           opts.GitHubRepo,
+				RepoID:         repo.ID,
+				TargetBranches: opts.GitHubTargetBranches,
+			})
 			if err != nil {
 				return result, err
 			}
 			logf("Associated %s/%s with release readiness review enabled", opts.GitHubOwner, opts.GitHubRepo)
 		}
 
-		if !opts.SkipRepoFiles {
+		if !opts.skips(SkipRepoFiles) {
 			if err := CommitAgentFiles(ctx, opts.GitHubOwner, opts.GitHubRepo, AgentFiles(), logf); err != nil {
 				return result, err
 			}
 		}
-		if !opts.SkipActionsPRs {
+		if !opts.skips(SkipAllowActionsPRs) {
 			if err := EnableActionsCanCreatePRs(ctx, opts.GitHubOwner, opts.GitHubRepo, logf); err != nil {
 				return result, err
 			}
 		}
-		if !opts.SkipBranchProtection {
+		if !opts.skips(SkipBranchProtection) {
 			if err := EnableBranchProtection(ctx, opts.GitHubOwner, opts.GitHubRepo, opts.ProtectedBranch, logf); err != nil {
 				return result, err
 			}
 		}
 	}
 
-	if opts.SkillBody == "" && opts.SkillName == DefaultSkillName {
-		opts.SkillBody = DefaultSkillBody()
+	skillName, skillBody, err := readSkill(opts.SkillPath)
+	if err != nil {
+		return result, err
 	}
-	if opts.SkillDescription == "" {
-		opts.SkillDescription = skillDescriptionFrom(opts.SkillBody)
-	}
-	if opts.SkillBody != "" {
-		existing, err := FindAsset(ctx, clients, result.AgentSpaceID, skillAssetType, opts.SkillName)
+	if skillBody != "" {
+		existing, err := FindAsset(ctx, clients, result.AgentSpaceID, skillAssetType, skillName)
 		if err != nil {
 			return result, err
 		}
 		if existing != "" {
 			result.SkillAssetID = existing
-			logf("Reusing skill %s (%s)", opts.SkillName, existing)
-		}
-	}
-	if opts.SkillBody != "" && result.SkillAssetID == "" {
-		skill, err := clients.Agent.CreateAsset(ctx, &devopsagent.CreateAssetInput{
-			AgentSpaceId: aws.String(result.AgentSpaceID),
-			AssetType:    aws.String(skillAssetType),
-			Metadata: document.NewLazyDocument(map[string]any{
-				"name":        opts.SkillName,
-				"description": opts.SkillDescription,
-				"agent_types": []string{"GENERIC"},
-			}),
-			Content: &agenttypes.AssetContentMemberFile{
-				Value: agenttypes.AssetFileContent{
-					Path: aws.String("SKILL.md"),
-					Body: &agenttypes.AssetFileBodyMemberText{Value: opts.SkillBody},
-				},
-			},
-		})
-		if err != nil {
-			return result, fmt.Errorf("unable to create the skill asset: %w", err)
-		}
-		result.SkillAssetID = aws.ToString(skill.Asset.AssetId)
-		logf("Created skill %s (%s)", opts.SkillName, result.SkillAssetID)
-	}
-
-	if opts.CustomAgentName != "" {
-		existing, err := FindAsset(ctx, clients, result.AgentSpaceID, customAgentAssetType, opts.CustomAgentName)
-		if err != nil {
-			return result, err
-		}
-		if existing != "" {
-			result.CustomAgentAssetID = existing
-			logf("Reusing custom agent %s (%s)", opts.CustomAgentName, existing)
-		}
-	}
-	if opts.CustomAgentName != "" && result.CustomAgentAssetID == "" {
-		metadata := map[string]any{"name": opts.CustomAgentName}
-		if result.SkillAssetID != "" {
-			metadata["skills"] = []string{result.SkillAssetID}
-		}
-		if len(opts.CustomAgentTools) > 0 {
-			metadata["tools"] = opts.CustomAgentTools
-		}
-		agent, err := clients.Agent.CreateAsset(ctx, &devopsagent.CreateAssetInput{
-			AgentSpaceId: aws.String(result.AgentSpaceID),
-			AssetType:    aws.String(customAgentAssetType),
-			Metadata:     document.NewLazyDocument(metadata),
-			Content: &agenttypes.AssetContentMemberFile{
-				Value: agenttypes.AssetFileContent{
-					Path: aws.String("AGENT.md"),
-					Body: &agenttypes.AssetFileBodyMemberText{
-						Value: fmt.Sprintf("# %s\n", opts.CustomAgentName),
+			logf("Reusing skill %s (%s)", skillName, existing)
+		} else {
+			skill, err := clients.Agent.CreateAsset(ctx, &devopsagent.CreateAssetInput{
+				AgentSpaceId: aws.String(result.AgentSpaceID),
+				AssetType:    aws.String(skillAssetType),
+				Metadata: document.NewLazyDocument(map[string]any{
+					"name":        skillName,
+					"description": skillDescriptionFrom(skillBody),
+					"agent_types": []string{"GENERIC"},
+				}),
+				Content: &agenttypes.AssetContentMemberFile{
+					Value: agenttypes.AssetFileContent{
+						Path: aws.String("SKILL.md"),
+						Body: &agenttypes.AssetFileBodyMemberText{Value: skillBody},
 					},
 				},
-			},
-		})
-		if err != nil {
-			return result, fmt.Errorf("unable to create the custom agent asset: %w", err)
+			})
+			if err != nil {
+				return result, fmt.Errorf("unable to create the skill asset: %w", err)
+			}
+			result.SkillAssetID = aws.ToString(skill.Asset.AssetId)
+			logf("Created skill %s (%s)", skillName, result.SkillAssetID)
 		}
-		result.CustomAgentAssetID = aws.ToString(agent.Asset.AssetId)
-		logf("Created custom agent %s (%s)", opts.CustomAgentName, result.CustomAgentAssetID)
-	}
-
-	if opts.Schedule != "" {
-		if result.CustomAgentAssetID == "" {
-			return result, errors.New("--schedule requires --custom-agent-name so the trigger has an agent to run")
-		}
-		trigger, err := clients.Agent.CreateTrigger(ctx, &devopsagent.CreateTriggerInput{
-			AgentSpaceId: aws.String(result.AgentSpaceID),
-			Type:         aws.String("TIME_BASED"),
-			Status:       aws.String("Active"),
-			Condition: &agenttypes.TriggerConditionMemberSchedule{
-				Value: agenttypes.ScheduleCondition{Expression: aws.String(opts.Schedule)},
-			},
-			Action: document.NewLazyDocument(map[string]any{
-				"actionType": "create:task",
-				"task":       map[string]any{"agent": "custom:" + result.CustomAgentAssetID},
-			}),
-		})
-		if err != nil {
-			return result, fmt.Errorf("unable to schedule the custom agent: %w", err)
-		}
-		result.TriggerID = aws.ToString(trigger.Trigger.TriggerId)
-		logf("Scheduled %s on %s", opts.CustomAgentName, opts.Schedule)
 	}
 
 	result.RemainingManualSteps = remainingManualSteps(clients.Region, opts, result)
 
 	return result, nil
+}
+
+// readSkill returns the name and body of the skill to upload: the embedded
+// experiment-orchestration skill when path is empty, or a user-supplied file
+// whose skill name is the basename without extension.
+func readSkill(path string) (string, string, error) {
+	if path == "" {
+		return DefaultSkillName, DefaultSkillBody(), nil
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return "", "", fmt.Errorf("unable to read skill file %s: %w", path, err)
+	}
+	name := filepath.Base(path)
+	if ext := filepath.Ext(name); ext != "" {
+		name = strings.TrimSuffix(name, ext)
+	}
+
+	return name, string(body), nil
 }
 
 // associateAWSAccount retries while AWS still rejects the agent space role:
@@ -470,13 +472,9 @@ func registerMCPServer(
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
-	existing := opts.MCPServiceID
-	if existing == "" {
-		var err error
-		existing, err = FindMCPServer(ctx, clients)
-		if err != nil {
-			return err
-		}
+	existing, err := FindMCPServer(ctx, clients)
+	if err != nil {
+		return err
 	}
 	replacingToken := opts.ReplaceMCPToken && opts.LDAccessToken != ""
 	if existing != "" && !replacingToken {
@@ -526,9 +524,10 @@ func registerMCPServer(
 		return fmt.Errorf(
 			"an MCP server named %s already exists on this account but is not visible to ListServices, "+
 				"so it cannot be associated automatically: associate it with agent space %s in the console, "+
-				"or re-run with --skip-mcp-server",
+				"or re-run with --skip=%s",
 			MCPServerName,
 			result.AgentSpaceID,
+			SkipMCP,
 		)
 	}
 
@@ -616,45 +615,28 @@ func mcpServerConfiguration(opts SetupOptions) agenttypes.MCPServerConfiguration
 	return config
 }
 
-func operatorAppInput(agentSpaceID, roleARN string, opts SetupOptions) *devopsagent.EnableOperatorAppInput {
-	input := &devopsagent.EnableOperatorAppInput{
-		AgentSpaceId:       aws.String(agentSpaceID),
-		AuthFlow:           agenttypes.AuthFlow(opts.AuthFlow),
-		OperatorAppRoleArn: aws.String(roleARN),
-	}
-	switch agenttypes.AuthFlow(opts.AuthFlow) {
-	case agenttypes.AuthFlowIdc:
-		input.IdcInstanceArn = aws.String(opts.IdcInstanceARN)
-	case agenttypes.AuthFlowIdp:
-		input.IssuerUrl = aws.String(opts.IssuerURL)
-		input.IdpClientId = aws.String(opts.IdpClientID)
-		input.IdpClientSecret = aws.String(opts.IdpClientSecret)
-	}
-
-	return input
+// GitHubAssociation describes what AssociateGitHub connects an agent space to.
+type GitHubAssociation struct {
+	ServiceID      string
+	Owner          string
+	OwnerType      string
+	Repo           string
+	RepoID         string
+	TargetBranches []string
 }
 
 // AssociateGitHub connects a repository to an agent space once GitHub itself
 // has been registered in the console.
-func AssociateGitHub(ctx context.Context, clients Clients, agentSpaceID string, opts SetupOptions) (string, error) {
-	association, err := clients.Agent.AssociateService(ctx, githubAssociationInput(agentSpaceID, opts))
-	if err != nil {
-		return "", fmt.Errorf("unable to associate the GitHub repository: %w", err)
-	}
-
-	return aws.ToString(association.Association.AssociationId), nil
-}
-
-func githubAssociationInput(agentSpaceID string, opts SetupOptions) *devopsagent.AssociateServiceInput {
-	input := &devopsagent.AssociateServiceInput{
+func AssociateGitHub(ctx context.Context, clients Clients, agentSpaceID string, req GitHubAssociation) (string, error) {
+	association, err := clients.Agent.AssociateService(ctx, &devopsagent.AssociateServiceInput{
 		AgentSpaceId: aws.String(agentSpaceID),
-		ServiceId:    aws.String(opts.GitHubServiceID),
+		ServiceId:    aws.String(req.ServiceID),
 		Configuration: &agenttypes.ServiceConfigurationMemberGithub{
 			Value: agenttypes.GitHubConfiguration{
-				Owner:     aws.String(opts.GitHubOwner),
-				OwnerType: agenttypes.GithubRepoOwnerType(strings.ToLower(opts.GitHubOwnerType)),
-				RepoId:    aws.String(opts.GitHubRepoID),
-				RepoName:  aws.String(opts.GitHubRepo),
+				Owner:     aws.String(req.Owner),
+				OwnerType: agenttypes.GithubRepoOwnerType(strings.ToLower(req.OwnerType)),
+				RepoId:    aws.String(req.RepoID),
+				RepoName:  aws.String(req.Repo),
 			},
 		},
 		Capabilities: map[string]agenttypes.CapabilityConfiguration{
@@ -664,16 +646,19 @@ func githubAssociationInput(agentSpaceID string, opts SetupOptions) *devopsagent
 					{
 						Events: []agenttypes.TriggerEvent{agenttypes.TriggerEventPullRequestReadyForReview},
 						TargetBranches: &agenttypes.PatternFilter{
-							Patterns: opts.GitHubTargetBranches,
+							Patterns: req.TargetBranches,
 						},
 					},
 				},
 			},
 			releaseReadinessTestingCapability: {Enabled: aws.Bool(true)},
 		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("unable to associate the GitHub repository: %w", err)
 	}
 
-	return input
+	return aws.ToString(association.Association.AssociationId), nil
 }
 
 func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID, region string) (string, error) {
@@ -764,7 +749,7 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 			URL:         result.MCPAuthorizationURL,
 		})
 	}
-	if !opts.SkipMCPServer && opts.LDAccessToken == "" && result.MCPServiceID == "" {
+	if !opts.skips(SkipMCP) && opts.LDAccessToken == "" && result.MCPServiceID == "" {
 		steps = append(steps, ManualStep{
 			Kind: ManualStepMCPServer,
 			Description: fmt.Sprintf(

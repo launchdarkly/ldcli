@@ -84,11 +84,8 @@ func TestSetupCreatesTheDefaultSkillWhenNoBodyIsGiven(t *testing.T) {
 	agent := &fakeAgent{}
 
 	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		SkipOperatorApp: true,
-		SkipMCPServer:   true,
-		SkillName:       awsdevops.DefaultSkillName,
+		AgentSpaceName: "launchdarkly",
+		Skip:           []string{awsdevops.SkipOperatorApp, awsdevops.SkipMCP},
 	})
 	require.NoError(t, err)
 
@@ -128,11 +125,8 @@ func TestSetupReusesAnExistingSkillInsteadOfCreatingIt(t *testing.T) {
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
-		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		SkipOperatorApp: true,
-		SkipMCPServer:   true,
-		SkillName:       awsdevops.DefaultSkillName,
+		AgentSpaceName: "launchdarkly",
+		Skip:           []string{awsdevops.SkipOperatorApp, awsdevops.SkipMCP},
 	})
 	require.NoError(t, err)
 

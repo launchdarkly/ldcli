@@ -264,17 +264,19 @@ func connectGitHubRepo(
 		return false
 	}
 	opts.GitHubOwner, opts.GitHubRepo = owner, repo
-	opts.GitHubRepoID = repository.ID
-	if repository.OwnerType != "" {
-		opts.GitHubOwnerType = repository.OwnerType
-	}
 
 	if result.GitHubServiceID == "" || result.GitHubAssociationID != "" {
 		return true
 	}
 
-	opts.GitHubServiceID = result.GitHubServiceID
-	associationID, err := awsdevops.AssociateGitHub(cmd.Context(), clients, result.AgentSpaceID, *opts)
+	associationID, err := awsdevops.AssociateGitHub(cmd.Context(), clients, result.AgentSpaceID, awsdevops.GitHubAssociation{
+		ServiceID:      result.GitHubServiceID,
+		Owner:          owner,
+		OwnerType:      repository.OwnerType,
+		Repo:           repo,
+		RepoID:         repository.ID,
+		TargetBranches: opts.GitHubTargetBranches,
+	})
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "%s\n", err)
 		if strings.Contains(err.Error(), "GitHub App installation") {
@@ -283,7 +285,7 @@ func connectGitHubRepo(
 				"Give the DevOps Agent app access to %s/%s at:\n  %s\n",
 				owner,
 				repo,
-				awsdevops.GitHubAppSettingsURL(owner, opts.GitHubOwnerType),
+				awsdevops.GitHubAppSettingsURL(owner, repository.OwnerType),
 			)
 		}
 

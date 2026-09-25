@@ -39,7 +39,6 @@ func TestSetupReusesAnAlreadyRegisteredMCPServer(t *testing.T) {
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",
-		AuthFlow:       "iam",
 		LDAccessToken:  "api-token",
 	})
 	require.NoError(t, err)
@@ -58,8 +57,7 @@ func TestSetupSkipsTheGitHubStepWhenItIsAlreadyRegistered(t *testing.T) {
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",
-		AuthFlow:       "iam",
-		SkipMCPServer:  true,
+		Skip:           []string{awsdevops.SkipMCP},
 	})
 	require.NoError(t, err)
 
@@ -96,8 +94,7 @@ func TestSetupReplacesTheMCPServerTokenWhenAsked(t *testing.T) {
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName:  "launchdarkly",
-		AuthFlow:        "iam",
-		SkipOperatorApp: true,
+		Skip:            []string{awsdevops.SkipOperatorApp},
 		LDAccessToken:   "api-token",
 		ReplaceMCPToken: true,
 	})
