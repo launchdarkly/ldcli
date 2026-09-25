@@ -1,0 +1,15 @@
+id = "setup-detect-python-requirements"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:requirements.txt"]
+rust = true
+
+[seed]
+"work:requirements.txt" = "flask\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-python-requirements.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:requirements.txt" = "flask\n"

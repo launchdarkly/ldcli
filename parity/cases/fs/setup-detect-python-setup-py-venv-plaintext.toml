@@ -1,0 +1,17 @@
+id = "setup-detect-python-setup-py-venv-plaintext"
+argv = ["setup", "detect", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:setup.py", "work:venv/pyvenv.cfg"]
+rust = true
+
+[seed]
+"work:setup.py" = ""
+"work:venv/pyvenv.cfg" = "home = /usr/bin\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-python-setup-py-venv-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:setup.py" = ""
+"work:venv/pyvenv.cfg" = "home = /usr/bin\n"

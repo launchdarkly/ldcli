@@ -1,0 +1,1 @@
+{"entry_point":"svc/main.go","entry_point_exists":true,"language":"Go","package_manager":"go","package_manager_confidence":"definite","sdk_id":"go-server-sdk"}

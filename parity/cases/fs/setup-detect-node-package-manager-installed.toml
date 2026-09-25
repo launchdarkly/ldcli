@@ -1,0 +1,18 @@
+id = "setup-detect-node-package-manager-installed"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:package-lock.json", "work:package.json"]
+rust = true
+
+[seed]
+"bin:npm" = "#!/bin/sh\nexit 0\n"
+"work:package-lock.json" = "{}\n"
+"work:package.json" = "{\"dependencies\": {\"express\": \"4\"}}\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-node-package-manager-installed.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:package-lock.json" = "{}\n"
+"work:package.json" = "{\"dependencies\":{\"express\":\"4\"}}\n"

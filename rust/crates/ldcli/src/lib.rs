@@ -13,6 +13,7 @@ pub mod config;
 pub mod config_cmd;
 pub mod flags;
 pub mod godecode;
+pub mod gopath;
 pub mod gostr;
 pub mod gourl;
 pub mod help;

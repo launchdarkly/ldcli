@@ -1,0 +1,15 @@
+id = "setup-detect-ruby-gemfile"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:Gemfile"]
+rust = true
+
+[seed]
+"work:Gemfile" = "source \"https://rubygems.org\"\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-ruby-gemfile.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:Gemfile" = "source \"https://rubygems.org\"\n"

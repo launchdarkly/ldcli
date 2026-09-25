@@ -1,0 +1,18 @@
+id = "setup-detect-python-virtual-env"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:requirements.txt"]
+rust = true
+
+[env]
+VIRTUAL_ENV = "/nonexistent/venv"
+
+[seed]
+"work:requirements.txt" = "flask\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-python-virtual-env.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:requirements.txt" = "flask\n"

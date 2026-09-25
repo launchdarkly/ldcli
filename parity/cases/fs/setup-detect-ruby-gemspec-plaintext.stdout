@@ -1,0 +1,4 @@
+Language: Ruby
+Package Manager: gem (uncertain — this project doesn't say which package manager it uses)
+Recommended SDK: ruby-server-sdk
+Entry Point: [SANDBOX]/work/main.rb (suggested, does not exist)

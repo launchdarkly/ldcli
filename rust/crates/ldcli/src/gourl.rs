@@ -528,7 +528,7 @@ fn path_join(elems: &[Vec<u8>]) -> Vec<u8> {
 }
 
 /// `path.Clean`.
-fn path_clean(path: &[u8]) -> Vec<u8> {
+pub(crate) fn path_clean(path: &[u8]) -> Vec<u8> {
     if path.is_empty() {
         return b".".to_vec();
     }

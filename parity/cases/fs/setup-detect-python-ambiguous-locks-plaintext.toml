@@ -1,0 +1,19 @@
+id = "setup-detect-python-ambiguous-locks-plaintext"
+argv = ["setup", "detect", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:poetry.lock", "work:requirements.txt", "work:uv.lock"]
+rust = true
+
+[seed]
+"work:poetry.lock" = ""
+"work:requirements.txt" = "flask\n"
+"work:uv.lock" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-python-ambiguous-locks-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:poetry.lock" = ""
+"work:requirements.txt" = "flask\n"
+"work:uv.lock" = ""

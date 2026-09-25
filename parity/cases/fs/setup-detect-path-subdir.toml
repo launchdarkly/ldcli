@@ -1,0 +1,17 @@
+id = "setup-detect-path-subdir"
+argv = ["setup", "detect", "--path", "svc"]
+declare = ["config:ldcli/config.yml", "work:svc/go.mod", "work:svc/main.go"]
+rust = true
+
+[seed]
+"work:svc/go.mod" = "module svc\n"
+"work:svc/main.go" = "package main\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-path-subdir.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:svc/go.mod" = "module svc\n"
+"work:svc/main.go" = "package main\n"

@@ -1,0 +1,17 @@
+id = "setup-detect-xcode-app"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:My.xcodeproj/project.pbxproj", "work:MyApp/Views/MyAppApp.swift"]
+rust = true
+
+[seed]
+"work:My.xcodeproj/project.pbxproj" = ""
+"work:MyApp/Views/MyAppApp.swift" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-xcode-app.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:My.xcodeproj/project.pbxproj" = ""
+"work:MyApp/Views/MyAppApp.swift" = ""

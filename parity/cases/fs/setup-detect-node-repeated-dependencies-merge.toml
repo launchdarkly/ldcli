@@ -1,0 +1,15 @@
+id = "setup-detect-node-repeated-dependencies-merge"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:package.json"]
+rust = true
+
+[seed]
+"work:package.json" = "{\"dependencies\": {\"react\": \"18\"}, \"dependencies\": {\"vue\": \"3\"}}\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-node-repeated-dependencies-merge.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:package.json" = "{\"dependencies\":{\"vue\":\"3\"}}\n"

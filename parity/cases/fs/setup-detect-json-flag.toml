@@ -1,0 +1,18 @@
+id = "setup-detect-json-flag"
+argv = ["setup", "detect", "--json"]
+declare = ["config:ldcli/config.yml", "work:go.mod"]
+rust = true
+
+[env]
+LD_OUTPUT = "plaintext"
+
+[seed]
+"work:go.mod" = "module m\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-json-flag.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:go.mod" = "module m\n"

@@ -1,0 +1,12 @@
+id = "setup-detect-nothing"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "setup-detect-nothing.stdout"
+stderr_file = "setup-detect-nothing.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,15 @@
+id = "setup-detect-dotnet-plaintext"
+argv = ["setup", "detect", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:App.sln"]
+rust = true
+
+[seed]
+"work:App.sln" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-dotnet-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:App.sln" = ""

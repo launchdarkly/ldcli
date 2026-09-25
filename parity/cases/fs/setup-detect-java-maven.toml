@@ -1,0 +1,17 @@
+id = "setup-detect-java-maven"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:pom.xml", "work:src/main/java/com/example/App.java"]
+rust = true
+
+[seed]
+"work:pom.xml" = "<project/>\n"
+"work:src/main/java/com/example/App.java" = "class App {}\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-java-maven.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:pom.xml" = "<project/>\n"
+"work:src/main/java/com/example/App.java" = "class App {}\n"

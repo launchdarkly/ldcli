@@ -1,0 +1,15 @@
+id = "setup-detect-path-glob-metacharacters"
+argv = ["setup", "detect", "--path", "x[1]"]
+declare = ["config:ldcli/config.yml", "work:x1/foo.gemspec"]
+rust = true
+
+[seed]
+"work:x1/foo.gemspec" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-path-glob-metacharacters.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:x1/foo.gemspec" = ""

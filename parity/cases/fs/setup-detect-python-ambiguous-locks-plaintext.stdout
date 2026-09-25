@@ -1,0 +1,4 @@
+Language: Python
+Package Manager: uv (uncertain — this project is set up for more than one manager (uv, poetry))
+Recommended SDK: python-server-sdk
+Entry Point: [SANDBOX]/work/main.py (suggested, does not exist)

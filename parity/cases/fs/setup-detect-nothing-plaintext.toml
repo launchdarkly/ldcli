@@ -1,0 +1,12 @@
+id = "setup-detect-nothing-plaintext"
+argv = ["setup", "detect", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "setup-detect-nothing-plaintext.stdout"
+stderr_file = "setup-detect-nothing-plaintext.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

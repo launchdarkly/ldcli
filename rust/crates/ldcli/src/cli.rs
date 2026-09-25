@@ -16,7 +16,7 @@ use crate::flags::{persistent_flags, Flag};
 use crate::login::{self, LoginContext};
 use crate::signup::{self, SignupContext};
 use crate::whoami::{self, WhoamiContext};
-use crate::{config, help, settings};
+use crate::{config, help, settings, setup};
 use clap::error::{ContextKind, ContextValue, ErrorKind};
 use clap::parser::ValueSource;
 use clap::{Arg, ArgAction, ArgMatches, Command};
@@ -166,7 +166,7 @@ pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
             }
             Outcome::Failure(WIZARD_NOT_PORTED.replace("{}", "quickstart"))
         }
-        Some(("setup", sub)) => run_setup(sub, default_output),
+        Some(("setup", sub)) => run_setup(sub, env, default_output),
         Some((name, _)) => Outcome::Failure(format!("unknown command {name:?} for \"ldcli\"\n")),
     }
 }
@@ -200,14 +200,36 @@ fn run_help(sub: &ArgMatches, default_output: &'static str) -> Outcome {
     }
 }
 
-fn run_setup(sub: &ArgMatches, default_output: &'static str) -> Outcome {
+fn run_setup(sub: &ArgMatches, env: &Env<'_>, default_output: &'static str) -> Outcome {
     if sub.get_flag("help") {
         return Outcome::Stdout(help::setup_help(default_output));
     }
+    let lossy = |name: &str| (env.var)(name).map(|value| value.to_string_lossy().into_owned());
+    let path = (env.var)("PATH");
+    let virtual_env = lossy("VIRTUAL_ENV");
+    let pwd = lossy("PWD");
+    let machine = setup::Machine {
+        path: path.as_deref(),
+        virtual_env: virtual_env.as_deref(),
+        pwd: pwd.as_deref(),
+    };
+    let string = |matches: &ArgMatches, name: &str| {
+        matches.get_one::<String>(name).cloned().unwrap_or_default()
+    };
+    let output_kind = |matches: &ArgMatches| {
+        let config_path = config::config_file(env.var).unwrap_or_default();
+        let resolved = Resolved::new(matches, env, &config_path, default_output);
+        settings::output_kind(matches.get_flag("json"), &resolved.output)
+    };
     match sub.subcommand() {
         Some(("detect", sub)) if sub.get_flag("help") => {
             Outcome::Stdout(help::setup_detect_help(default_output))
         }
+        Some(("detect", sub)) => setup::run_detect(&setup::DetectContext {
+            path: &string(sub, "path"),
+            json: output_kind(sub) == "json",
+            machine: &machine,
+        }),
         Some(("install", sub)) if sub.get_flag("help") => {
             Outcome::Stdout(help::setup_install_help(default_output))
         }

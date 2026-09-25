@@ -1,0 +1,16 @@
+id = "setup-detect-path-is-a-file"
+argv = ["setup", "detect", "--path", "go.mod"]
+declare = ["config:ldcli/config.yml", "work:go.mod"]
+rust = true
+
+[seed]
+"work:go.mod" = "module m\n"
+
+[expect]
+status = 1
+stdout_file = "setup-detect-path-is-a-file.stdout"
+stderr_file = "setup-detect-path-is-a-file.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:go.mod" = "module m\n"

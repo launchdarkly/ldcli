@@ -1,0 +1,20 @@
+id = "setup-detect-python-ambiguous-with-an-installed-tool"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:poetry.lock", "work:requirements.txt", "work:uv.lock"]
+rust = true
+
+[seed]
+"bin:uv" = "#!/bin/sh\nexit 0\n"
+"work:poetry.lock" = ""
+"work:requirements.txt" = "flask\n"
+"work:uv.lock" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-python-ambiguous-with-an-installed-tool.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:poetry.lock" = ""
+"work:requirements.txt" = "flask\n"
+"work:uv.lock" = ""

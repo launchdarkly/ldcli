@@ -1,0 +1,12 @@
+id = "setup-detect-path-missing"
+argv = ["setup", "detect", "--path", "missing"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "setup-detect-path-missing.stdout"
+stderr_file = "setup-detect-path-missing.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

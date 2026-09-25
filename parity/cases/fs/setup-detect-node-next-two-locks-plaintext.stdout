@@ -1,0 +1,5 @@
+Language: JavaScript
+Framework: Next.js
+Package Manager: pnpm (uncertain — this project is set up for more than one manager (pnpm, yarn))
+Recommended SDK: node-server
+Entry Point: [SANDBOX]/work/instrumentation.ts (suggested, does not exist)

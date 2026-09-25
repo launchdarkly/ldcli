@@ -1,0 +1,17 @@
+id = "setup-detect-python-pipfile-venv"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:.venv/bin/pip", "work:Pipfile"]
+rust = true
+
+[seed]
+"work:.venv/bin/pip" = ""
+"work:Pipfile" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-python-pipfile-venv.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:.venv/bin/pip" = ""
+"work:Pipfile" = ""

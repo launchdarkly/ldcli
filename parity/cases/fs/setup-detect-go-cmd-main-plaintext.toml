@@ -1,0 +1,17 @@
+id = "setup-detect-go-cmd-main-plaintext"
+argv = ["setup", "detect", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:cmd/main.go", "work:go.mod"]
+rust = true
+
+[seed]
+"work:cmd/main.go" = "package main\n"
+"work:go.mod" = "module example.com/app\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-go-cmd-main-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:cmd/main.go" = "package main\n"
+"work:go.mod" = "module example.com/app\n"

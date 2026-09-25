@@ -1,0 +1,16 @@
+id = "setup-detect-node-non-string-dependency"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:package.json"]
+rust = true
+
+[seed]
+"work:package.json" = "{\"dependencies\": {\"vue\": 3}}\n"
+
+[expect]
+status = 1
+stdout_file = "setup-detect-node-non-string-dependency.stdout"
+stderr_file = "setup-detect-node-non-string-dependency.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:package.json" = "{\"dependencies\":{\"vue\":3}}\n"

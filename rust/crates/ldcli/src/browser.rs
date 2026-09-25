@@ -103,7 +103,7 @@ fn find_executable(file: &Path) -> Result<(), String> {
 }
 
 /// Go's `syscall.Errno` text, which is the C library's message in lower case.
-fn errno_text(err: &std::io::Error) -> String {
+pub(crate) fn errno_text(err: &std::io::Error) -> String {
     let text = err.to_string();
     let message = match text.find(" (os error ") {
         Some(i) => &text[..i],

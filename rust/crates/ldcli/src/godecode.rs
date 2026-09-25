@@ -1,5 +1,5 @@
-//! Go's `json.Unmarshal` into a flat struct of string and int fields, with the
-//! error text Go returns.
+//! Go's `json.Unmarshal` into a flat struct of string, int, and
+//! `map[string]string` fields, with the error text Go returns.
 //!
 //! Go validates the whole document before it decodes any of it, so a syntax
 //! error anywhere wins over a type mismatch, and the syntax error names the
@@ -16,12 +16,16 @@ const MAX_NESTING_DEPTH: usize = 10000;
 pub enum Kind {
     String,
     Int,
+    /// `map[string]string`. Only the keys are kept.
+    StringMap,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Field {
     Str(String),
     Int(i64),
+    /// A map's keys, in the order they were first set.
+    Map(Vec<String>),
 }
 
 impl Field {
@@ -29,13 +33,21 @@ impl Field {
         match kind {
             Kind::String => Self::Str(String::new()),
             Kind::Int => Self::Int(0),
+            Kind::StringMap => Self::Map(Vec::new()),
         }
     }
 
     pub fn as_str(&self) -> &str {
         match self {
             Self::Str(s) => s,
-            Self::Int(_) => "",
+            Self::Int(_) | Self::Map(_) => "",
+        }
+    }
+
+    pub fn keys(&self) -> &[String] {
+        match self {
+            Self::Map(keys) => keys,
+            Self::Str(_) | Self::Int(_) => &[],
         }
     }
 }
@@ -72,14 +84,20 @@ pub fn unmarshal(data: &[u8], target: &Struct<'_>) -> Result<Vec<Field>, String>
                     continue;
                 };
                 let (name, kind) = target.fields[index];
+                let mismatch = |found: String, of: &str| {
+                    format!(
+                        "json: cannot unmarshal {found} into Go struct field {}.{name} of type {of}",
+                        target.name
+                    )
+                };
+                if let (Json::Object(members), Field::Map(keys)) = (&value, &mut fields[index]) {
+                    merge_string_map(members, keys, |found| save(mismatch(found, "string")));
+                    continue;
+                }
                 match store(&value, kind) {
                     Ok(Some(field)) => fields[index] = field,
                     Ok(None) => {}
-                    Err(found) => save(format!(
-                        "json: cannot unmarshal {found} into Go struct field {}.{name} of type {}",
-                        target.name,
-                        kind_name(kind)
-                    )),
+                    Err(found) => save(mismatch(found, kind_name(kind))),
                 }
             }
         }
@@ -100,6 +118,26 @@ fn kind_name(kind: Kind) -> &'static str {
     match kind {
         Kind::String => "string",
         Kind::Int => "int",
+        Kind::StringMap => "map[string]string",
+    }
+}
+
+/// Go decodes an object into the map already there, so a repeated key merges
+/// into it rather than replacing it. An element that is not a string is a
+/// mismatch, but its key is still set, to the zero value.
+fn merge_string_map(
+    members: &[(String, Json)],
+    keys: &mut Vec<String>,
+    mut mismatch: impl FnMut(String),
+) {
+    for (key, value) in members {
+        match value {
+            Json::String(_) | Json::Null => {}
+            other => mismatch(other.describe().to_string()),
+        }
+        if !keys.contains(key) {
+            keys.push(key.clone());
+        }
     }
 }
 
@@ -745,6 +783,36 @@ mod tests {
                 Field::Int(0),
                 Field::Str(String::new())
             ]
+        );
+    }
+
+    const PACKAGE: Struct<'static> = Struct {
+        name: "",
+        type_string: "struct { ... }",
+        fields: &[("dependencies", Kind::StringMap)],
+    };
+
+    #[test]
+    fn a_repeated_map_merges_and_a_non_string_element_is_a_mismatch_that_still_sets_its_key() {
+        assert_eq!(
+            unmarshal(
+                br#"{"dependencies": {"a": "1"}, "Dependencies": {"b": null, "a": "2"}}"#,
+                &PACKAGE
+            )
+            .unwrap(),
+            vec![Field::Map(vec!["a".into(), "b".into()])]
+        );
+        assert_eq!(
+            unmarshal(br#"{"dependencies": {"a": 1, "b": "x"}}"#, &PACKAGE).unwrap_err(),
+            "json: cannot unmarshal number into Go struct field .dependencies of type string"
+        );
+        assert_eq!(
+            unmarshal(br#"{"dependencies": [1]}"#, &PACKAGE).unwrap_err(),
+            "json: cannot unmarshal array into Go struct field .dependencies of type map[string]string"
+        );
+        assert_eq!(
+            unmarshal(b"null", &PACKAGE).unwrap(),
+            vec![Field::Map(vec![])]
         );
     }
 

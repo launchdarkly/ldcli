@@ -1,0 +1,15 @@
+id = "setup-detect-python-pyproject-hatch-and-uv"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:pyproject.toml"]
+rust = true
+
+[seed]
+"work:pyproject.toml" = "[tool.hatch.build]\n[tool.uv]\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-python-pyproject-hatch-and-uv.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:pyproject.toml" = "[tool.hatch.build]\n[tool.uv]\n"

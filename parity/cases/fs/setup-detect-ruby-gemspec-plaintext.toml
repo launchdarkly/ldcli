@@ -1,0 +1,15 @@
+id = "setup-detect-ruby-gemspec-plaintext"
+argv = ["setup", "detect", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:x.gemspec"]
+rust = true
+
+[seed]
+"work:x.gemspec" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-ruby-gemspec-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:x.gemspec" = ""

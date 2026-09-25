@@ -1,0 +1,15 @@
+id = "setup-detect-python-pyproject-tool-key-case"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:pyproject.toml"]
+rust = true
+
+[seed]
+"work:pyproject.toml" = "[TOOL.poetry]\nname = \"app\"\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-python-pyproject-tool-key-case.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:pyproject.toml" = "[TOOL.poetry]\nname = \"app\"\n"

@@ -1,0 +1,17 @@
+id = "setup-detect-python-pyproject-tool-not-a-table"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:pyproject.toml", "work:uv.lock"]
+rust = true
+
+[seed]
+"work:pyproject.toml" = "tool = 1\n"
+"work:uv.lock" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-python-pyproject-tool-not-a-table.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:pyproject.toml" = "tool = 1\n"
+"work:uv.lock" = ""

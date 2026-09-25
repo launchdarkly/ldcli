@@ -1,0 +1,15 @@
+id = "setup-detect-node-package-manager-field"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:package.json"]
+rust = true
+
+[seed]
+"work:package.json" = "{\"packageManager\": \"pnpm@9.0.0\", \"devDependencies\": {\"react\": \"18.0.0\"}}\n"
+
+[expect]
+status = 0
+stdout_file = "setup-detect-node-package-manager-field.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:package.json" = "{\"devDependencies\":{\"react\":\"18.0.0\"},\"packageManager\":\"pnpm@9.0.0\"}\n"

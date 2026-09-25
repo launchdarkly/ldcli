@@ -1,0 +1,17 @@
+id = "setup-detect-swift-package"
+argv = ["setup", "detect"]
+declare = ["config:ldcli/config.yml", "work:Package.swift", "work:Sources/Tool/Tool.swift"]
+rust = true
+
+[seed]
+"work:Package.swift" = "// swift-tools-version:5.9\n"
+"work:Sources/Tool/Tool.swift" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-swift-package.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:Package.swift" = "// swift-tools-version:5.9\n"
+"work:Sources/Tool/Tool.swift" = ""

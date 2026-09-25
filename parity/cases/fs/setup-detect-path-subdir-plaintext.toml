@@ -1,0 +1,15 @@
+id = "setup-detect-path-subdir-plaintext"
+argv = ["setup", "detect", "--path", "svc", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:svc/Gemfile"]
+rust = true
+
+[seed]
+"work:svc/Gemfile" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-path-subdir-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:svc/Gemfile" = ""

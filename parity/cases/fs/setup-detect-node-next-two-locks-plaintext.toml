@@ -1,0 +1,19 @@
+id = "setup-detect-node-next-two-locks-plaintext"
+argv = ["setup", "detect", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml", "work:package.json", "work:pnpm-lock.yaml", "work:yarn.lock"]
+rust = true
+
+[seed]
+"work:package.json" = "{\"dependencies\": {\"next\": \"14.0.0\"}}\n"
+"work:pnpm-lock.yaml" = ""
+"work:yarn.lock" = ""
+
+[expect]
+status = 0
+stdout_file = "setup-detect-node-next-two-locks-plaintext.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
+"work:package.json" = "{\"dependencies\":{\"next\":\"14.0.0\"}}\n"
+"work:pnpm-lock.yaml" = ""
+"work:yarn.lock" = ""

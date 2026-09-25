@@ -1,0 +1,4 @@
+Language: C#
+Package Manager: dotnet
+Recommended SDK: dotnet-server-sdk
+Entry Point: [SANDBOX]/work/Program.cs (suggested, does not exist)

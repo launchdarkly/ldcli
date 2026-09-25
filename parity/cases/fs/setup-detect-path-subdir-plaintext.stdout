@@ -1,0 +1,4 @@
+Language: Ruby
+Package Manager: bundle
+Recommended SDK: ruby-server-sdk
+Entry Point: svc/main.rb (suggested, does not exist)
