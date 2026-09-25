@@ -1,0 +1,78 @@
+name: Kiro Implement Behind Flag
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_description:
+        description: "What to implement"
+        required: true
+      flag_key:
+        description: "LaunchDarkly flag key gating the change"
+        required: true
+      variation_details:
+        description: "Behavior of the treatment variation"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Kiro CLI
+        run: curl -fsSL https://cli.kiro.dev/install | bash
+
+      - name: Create working branch
+        run: |
+          BRANCH="experiment/${{ inputs.flag_key }}-${{ github.run_id }}"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+          git checkout -b "$BRANCH"
+          git config user.email "kiro-agent@users.noreply.github.com"
+          git config user.name "Kiro Agent"
+
+      - name: Implement the change
+        env:
+          KIRO_API_KEY: ${{ secrets.KIRO_API_KEY }}
+        run: |
+          set -o pipefail
+          kiro-cli chat \
+            --agent flag-implementer \
+            --no-interactive \
+            --trust-tools=fs_read,fs_write \
+            "Task: ${{ inputs.task_description }}
+             LaunchDarkly flag key: ${{ inputs.flag_key }}
+             Treatment variation: ${{ inputs.variation_details }}" \
+            | tee "$RUNNER_TEMP/kiro-run.jsonl"
+
+      - name: Commit and push
+        run: |
+          git add -A
+          if git diff --staged --quiet; then
+            echo "::error::Kiro produced no changes"
+            exit 1
+          fi
+          git commit -m "feat: ${{ inputs.task_description }} (flag: ${{ inputs.flag_key }})"
+          git push origin "$BRANCH"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "feat: ${{ inputs.task_description }}" \
+            --body "Implemented by Kiro CLI in headless mode.
+            Gated behind LaunchDarkly flag ${{ inputs.flag_key }}."
+
+      - name: Upload run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiro-run-log
+          path: ${{ runner.temp }}/kiro-run.jsonl

@@ -1,0 +1,24 @@
+name: Merge Experiment PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number to merge"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Merge the pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ inputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --squash --delete-branch

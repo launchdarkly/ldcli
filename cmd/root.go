@@ -17,6 +17,7 @@ import (
 	"golang.org/x/term"
 
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
+	awsdevopsagentcmd "github.com/launchdarkly/ldcli/cmd/aws_devops_agent"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	configcmd "github.com/launchdarkly/ldcli/cmd/config"
 	devcmd "github.com/launchdarkly/ldcli/cmd/dev_server"
@@ -109,13 +110,14 @@ func forceTTYDefaultOutput(getenv func(string) string) bool {
 // authExemptCommands are commands (and their subcommands) that don't call the
 // LaunchDarkly API and so don't require --access-token.
 var authExemptCommands = map[string]bool{
-	"completion": true,
-	"config":     true,
-	"help":       true,
-	"login":      true,
-	"setup":      true,
-	"signup":     true,
-	"whoami":     true,
+	"aws-devops-agent": true,
+	"completion":       true,
+	"config":           true,
+	"help":             true,
+	"login":            true,
+	"setup":            true,
+	"signup":           true,
+	"whoami":           true,
 }
 
 // clearAccessTokenRequirement drops the "required" annotation on --access-token
@@ -299,6 +301,7 @@ func NewRootCommand(
 	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(clients.ResourcesClient, analyticsTrackerFn, clients.DevClient))
+	cmd.AddCommand(awsdevopsagentcmd.NewAWSDevOpsAgentCmd(analyticsTrackerFn))
 	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	cmd.AddCommand(symbolscmd.NewSymbolsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	cmd.AddCommand(whoamicmd.NewWhoAmICmd(clients.ResourcesClient))

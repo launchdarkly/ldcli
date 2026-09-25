@@ -106,6 +106,42 @@ LaunchDarkly CLI commands:
 
 - `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
 - `dev-server` lets you start a local server and retrieve flag values from a LaunchDarkly source environment so you can test your code locally. For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
+- `aws-devops-agent` provisions the AWS DevOps Agent integration in your own AWS account
+
+### AWS DevOps Agent
+
+`ldcli aws-devops-agent` provisions everything the [AWS DevOps Agent](https://aws.amazon.com/devops-agent/) needs to run the LaunchDarkly experiment-orchestration lifecycle end-to-end: the IAM roles it assumes, an agent space, the association with your AWS account, the operator web app, the LaunchDarkly MCP server connection, a GitHub repository association with release readiness review turned on, the Kiro flag-implementer agent JSON and the two GitHub Actions workflows (`kiro-implement.yml` and `merge-pr.yml`) committed to that repository, the "allow Actions to create pull requests" repo setting, branch protection on `main`, the built-in `experiment-orchestration` skill and the `KIRO_API_KEY` GitHub Actions secret.
+
+The commands use your existing AWS session rather than any cross-account LaunchDarkly role, so authenticate first. They fail before creating anything if no credentials are available:
+
+```sh-session
+aws sso login --profile my-profile
+export AWS_PROFILE=my-profile AWS_REGION=us-east-1
+
+ldcli aws-devops-agent setup
+```
+
+The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1` and `eu-west-1`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
+
+`setup` is safe to re-run: it reuses the IAM roles, the agent space matching `--agent-space-name`, the account and MCP associations on it, and any LaunchDarkly MCP server already registered on the account. Pass `--new-agent-space` to create an additional agent space instead.
+
+`--access-token` is optional. The first available token — the flag, then `LD_ACCESS_TOKEN`, then the one already in your ldcli configuration — is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a [service token](https://launchdarkly.com/docs/home/account/api-create) whose permissions match what you want the agent to do. AWS keeps it until the MCP server is re-registered, so a session token written by `ldcli login` eventually expires and the agent then fails with `unauthorized` errors. Re-run with `--access-token <token> --replace-mcp-token` to re-register an MCP server with a different token. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that.
+
+With no token configured at all, `setup` pauses at the LaunchDarkly page where you create a service token and connects the MCP server with the token you paste there, so you do not need one ready beforehand. Pressing Enter without a token skips the step, which `--skip=mcp` also does up front.
+
+Two steps cannot be automated because they are browser flows: registering and installing the GitHub App, and creating a Kiro API key. In a terminal, `setup` pauses on each one, showing a single URL to open. GitHub polls AWS and continues on its own once the registration appears, and is skipped entirely when the account already has one; any key stops it waiting.
+
+The repository the agent reviews does not have to be passed as a flag. When `--github-owner`/`--github-repo` are missing, `setup` asks for it as `owner/repo`, reads its numeric ID through the GitHub CLI and associates it with the agent space. Once the repository is connected, `setup` commits the Kiro `flag-implementer` agent JSON and the two GitHub Actions workflows to it (skipping any file that already exists so a hand edit is never overwritten), turns on "Allow GitHub Actions to create and approve pull requests," and protects the branch named by `--protected-branch` (default `main`). The Kiro pause stores the key you paste as that repository's `KIRO_API_KEY` GitHub Actions secret, again through the GitHub CLI; pressing Enter without a key skips it, and `--kiro-api-key` stores one without pausing. Committing files under `.github/workflows/` needs the `workflow` scope on the GitHub CLI's token — re-authenticate with `gh auth refresh --scopes workflow` if `setup` reports it is missing. Branch protection is only available on public repositories or paid GitHub plans; `setup` says so and continues when it is not. Pass `--no-wait` to list the steps instead, for example in CI:
+
+```sh-session
+ldcli aws-devops-agent setup --no-wait \
+  --github-owner <owner> --github-repo <repo> \
+  --kiro-api-key <kiro-key>
+```
+
+Skip individual steps with a comma-separated list: `--skip=mcp,operator-app,repo-files,allow-actions-prs,branch-protection`. The `experiment-orchestration` skill is created by default from an embedded copy of the AWS DevOps Agent setup guide's skill body. Pass `--skill=./my-skill.md` to upload your own instead; the file's basename becomes the skill name. Existing skills with the same name are reused rather than recreated.
+
+`ldcli aws-devops-agent status` shows what exists. `ldcli aws-devops-agent teardown` removes everything in the account and region — every agent space, the registered services including GitHub and the MCP server, and the IAM roles — after asking you to confirm (`--force` skips the prompt, and is required when there is no terminal). `--agent-space-id <agent-space-id>` and `--service-id <service-id>` narrow it to those resources, and `--deregister-github` and `--delete-roles` add the GitHub registration and the IAM roles back to a narrowed teardown.
 
 ### Resource Commands
 

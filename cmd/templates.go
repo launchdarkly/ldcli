@@ -19,6 +19,7 @@ Commands:
   {{rpad "login" 29}} Log in to your LaunchDarkly account
   {{rpad "signup" 29}} Create a new LaunchDarkly account
   {{rpad "dev-server" 29}} Run a development server to serve flags locally
+  {{rpad "aws-devops-agent" 29}} Set up the AWS DevOps Agent in your AWS account
 
 Common resource commands:
   {{rpad "flags" 29}} List, create, and modify feature flags and their targeting

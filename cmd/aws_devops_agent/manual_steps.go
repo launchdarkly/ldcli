@@ -1,0 +1,421 @@
+package awsdevopsagent
+
+import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
+
+	"github.com/launchdarkly/ldcli/internal/awsdevops"
+)
+
+const (
+	skipKey   = 's'
+	etx       = 3
+	backspace = 8
+	del       = 127
+)
+
+func manualStepPrompt(step awsdevops.ManualStep) string {
+	switch step.Kind {
+	case awsdevops.ManualStepOAuthConsent:
+		return "Approve the LaunchDarkly MCP server consent screen at:"
+	case awsdevops.ManualStepGitHubApp:
+		return "Register GitHub and install the GitHub App at:"
+	case awsdevops.ManualStepKiroAPIKey:
+		return "Create a Kiro API key (optional) at:"
+	default:
+		return step.Description
+	}
+}
+
+// walkManualSteps pauses on each browser-only step so the operator can finish
+// it, then picks up whatever they created. Steps they skip are returned so the
+// caller can still list them.
+func walkManualSteps(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	opts awsdevops.SetupOptions,
+	result *awsdevops.SetupResult,
+) []awsdevops.ManualStep {
+	keys := newKeyReader(cmd.InOrStdin())
+	defer keys.close()
+	out := keys.writer(cmd.OutOrStdout())
+	errOut := keys.writer(cmd.ErrOrStderr())
+
+	var askedForRepo bool
+	if result.GitHubServiceID != "" && result.GitHubAssociationID == "" {
+		connectGitHubRepo(cmd, clients, &opts, result, keys, &askedForRepo, out, errOut)
+	}
+
+	var skipped []awsdevops.ManualStep
+	for _, step := range result.RemainingManualSteps {
+		if step.Kind == awsdevops.ManualStepMCPServer {
+			if !connectMCPServer(cmd, clients, opts, result, keys, out, errOut) {
+				skipped = append(skipped, step)
+			}
+
+			continue
+		}
+
+		_, _ = fmt.Fprintf(out, "\n%s\n  %s\n\n", manualStepPrompt(step), step.URL)
+
+		if step.Kind == awsdevops.ManualStepKiroAPIKey {
+			if !storeKiroAPIKey(cmd, clients, &opts, result, keys, &askedForRepo, out, errOut) {
+				step.Description = awsdevops.KiroStepDescription(opts.GitHubOwner, opts.GitHubRepo)
+				skipped = append(skipped, step)
+			}
+
+			continue
+		}
+
+		if step.Kind == awsdevops.ManualStepGitHubApp {
+			if serviceID := awaitGitHubService(cmd, clients, keys, out, errOut); serviceID != "" {
+				result.GitHubServiceID = serviceID
+				if !connectGitHubRepo(cmd, clients, &opts, result, keys, &askedForRepo, out, errOut) {
+					_, _ = fmt.Fprintln(
+						out,
+						"GitHub is registered. Re-run setup with --github-owner <owner> --github-repo <repo> to connect a repository",
+					)
+				}
+
+				continue
+			}
+			skipped = append(skipped, step)
+
+			continue
+		}
+
+		_, _ = fmt.Fprint(out, "Press Enter when you're done, or s to skip: ")
+		key := keys.next()
+		_, _ = fmt.Fprintln(out)
+		if key == skipKey {
+			skipped = append(skipped, step)
+		}
+	}
+
+	return skipped
+}
+
+// connectMCPServer registers the LaunchDarkly MCP server with a service token
+// pasted at the prompt, and reports whether the step is done.
+func connectMCPServer(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	opts awsdevops.SetupOptions,
+	result *awsdevops.SetupResult,
+	keys *keyReader,
+	out io.Writer,
+	errOut io.Writer,
+) bool {
+	_, _ = fmt.Fprintf(
+		out,
+		"\nCreate a LaunchDarkly service token at:\n  %s\n\n",
+		awsdevops.AccessTokenURL(opts.LDBaseURI),
+	)
+	_, _ = fmt.Fprint(out, "Paste the token, or press Enter to skip: ")
+	token := keys.line()
+	_, _ = fmt.Fprintln(out)
+	if token == "" {
+		return false
+	}
+
+	opts.LDAccessToken = token
+	if err := awsdevops.RegisterMCPServer(cmd.Context(), clients, opts, result); err != nil {
+		_, _ = fmt.Fprintf(errOut, "%s\n", err)
+
+		return false
+	}
+
+	return true
+}
+
+// storeKiroAPIKey reads a pasted Kiro API key and saves it as the GitHub
+// Actions secret the agent's workflow reads.
+func storeKiroAPIKey(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	opts *awsdevops.SetupOptions,
+	result *awsdevops.SetupResult,
+	keys *keyReader,
+	askedForRepo *bool,
+	out io.Writer,
+	errOut io.Writer,
+) bool {
+	key := opts.KiroAPIKey
+	if key == "" {
+		_, _ = fmt.Fprint(out, "Paste the key, or press Enter to skip: ")
+		key = keys.line()
+		_, _ = fmt.Fprintln(out)
+	}
+	if key == "" {
+		return false
+	}
+
+	if !connectGitHubRepo(cmd, clients, opts, result, keys, askedForRepo, out, errOut) {
+		_, _ = fmt.Fprintf(
+			errOut,
+			"No repository to store the key on. Store it later with '%s'\n",
+			awsdevops.KiroSecretCommand(opts.GitHubOwner, opts.GitHubRepo),
+		)
+
+		return false
+	}
+
+	if err := awsdevops.StoreKiroAPIKey(cmd.Context(), opts.GitHubOwner, opts.GitHubRepo, key); err != nil {
+		_, _ = fmt.Fprintf(errOut, "%s\n", err)
+
+		return false
+	}
+	_, _ = fmt.Fprintf(
+		out,
+		"Stored %s on %s/%s\n",
+		awsdevops.KiroSecretName,
+		opts.GitHubOwner,
+		opts.GitHubRepo,
+	)
+
+	return true
+}
+
+func awaitGitHubService(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	keys *keyReader,
+	out io.Writer,
+	errOut io.Writer,
+) string {
+	_, _ = fmt.Fprint(out, "Waiting for the GitHub registration, or press any key to skip... ")
+
+	found := make(chan string, 1)
+	failed := make(chan error, 1)
+	go func() {
+		serviceID, err := awsdevops.WaitForGitHubService(cmd.Context(), clients, 0)
+		if err != nil {
+			failed <- err
+
+			return
+		}
+		found <- serviceID
+	}()
+
+	select {
+	case serviceID := <-found:
+		_, _ = fmt.Fprintf(out, "found service %s\n", serviceID)
+
+		return serviceID
+	case err := <-failed:
+		_, _ = fmt.Fprintf(errOut, "\nstopped watching for the GitHub registration: %s\n", err)
+	case <-keys.keys:
+		_, _ = fmt.Fprintln(out, "skipped")
+	}
+
+	return ""
+}
+
+// connectGitHubRepo asks which repository the agent should review when the
+// repository flags were not passed, then associates it with the agent space.
+// It asks at most once per run and reports whether opts ends up naming a
+// repository.
+func connectGitHubRepo(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	opts *awsdevops.SetupOptions,
+	result *awsdevops.SetupResult,
+	keys *keyReader,
+	askedForRepo *bool,
+	out io.Writer,
+	errOut io.Writer,
+) bool {
+	if opts.GitHubOwner != "" && opts.GitHubRepo != "" {
+		return true
+	}
+	if *askedForRepo {
+		return false
+	}
+	*askedForRepo = true
+
+	var owner, repo string
+	for {
+		_, _ = fmt.Fprint(out, "\nRepository for the agent to review (owner/repo), or press Enter to skip: ")
+		entered := keys.echoLine(out)
+		_, _ = fmt.Fprintln(out)
+		if entered == "" {
+			return false
+		}
+
+		var ok bool
+		owner, repo, ok = strings.Cut(entered, "/")
+		if ok && owner != "" && repo != "" {
+			break
+		}
+		_, _ = fmt.Fprintf(errOut, "Include the owner, as in <owner>/%s\n", entered)
+	}
+
+	repository, err := awsdevops.LookupGitHubRepo(cmd.Context(), owner, repo)
+	if err != nil {
+		_, _ = fmt.Fprintf(errOut, "%s\n", err)
+
+		return false
+	}
+	opts.GitHubOwner, opts.GitHubRepo = owner, repo
+
+	if result.GitHubServiceID == "" || result.GitHubAssociationID != "" {
+		return true
+	}
+
+	associationID, err := awsdevops.AssociateGitHub(cmd.Context(), clients, result.AgentSpaceID, awsdevops.GitHubAssociation{
+		ServiceID:      result.GitHubServiceID,
+		Owner:          owner,
+		OwnerType:      repository.OwnerType,
+		Repo:           repo,
+		RepoID:         repository.ID,
+		TargetBranches: opts.GitHubTargetBranches,
+	})
+	if err != nil {
+		_, _ = fmt.Fprintf(errOut, "%s\n", err)
+		if strings.Contains(err.Error(), "GitHub App installation") {
+			_, _ = fmt.Fprintf(
+				errOut,
+				"Give the DevOps Agent app access to %s/%s at:\n  %s\n",
+				owner,
+				repo,
+				awsdevops.GitHubAppSettingsURL(owner, repository.OwnerType),
+			)
+		}
+
+		return true
+	}
+	result.GitHubAssociationID = associationID
+	_, _ = fmt.Fprintf(out, "Connected %s/%s\n", owner, repo)
+
+	return true
+}
+
+// keyReader delivers single keypresses from one long-lived goroutine, so a
+// pause that gives up on stdin cannot leave a reader behind to swallow the
+// keys meant for the next one. On a terminal it switches to raw mode, where a
+// key registers without Enter.
+type keyReader struct {
+	keys    chan byte
+	restore func()
+	raw     bool
+}
+
+func newKeyReader(in io.Reader) *keyReader {
+	reader := &keyReader{keys: make(chan byte, 1), restore: func() {}}
+
+	if file, ok := in.(*os.File); ok && term.IsTerminal(int(file.Fd())) {
+		if state, err := term.MakeRaw(int(file.Fd())); err == nil {
+			reader.restore = func() { _ = term.Restore(int(file.Fd()), state) }
+			reader.raw = true
+		}
+	}
+
+	go reader.read(in)
+
+	return reader
+}
+
+func (k *keyReader) read(in io.Reader) {
+	buffered := bufio.NewReader(in)
+	for {
+		key, err := buffered.ReadByte()
+		if err != nil {
+			close(k.keys)
+
+			return
+		}
+		if key == etx {
+			k.restore()
+			if process, err := os.FindProcess(os.Getpid()); err == nil {
+				_ = process.Signal(os.Interrupt)
+			}
+
+			return
+		}
+		k.keys <- key
+	}
+}
+
+func (k *keyReader) next() byte {
+	key, ok := <-k.keys
+	if !ok {
+		return 0
+	}
+	if key == 'S' {
+		return skipKey
+	}
+
+	return key
+}
+
+// line collects keys until Enter without echoing, for prompts that take a
+// credential.
+func (k *keyReader) line() string {
+	return k.readLine(nil)
+}
+
+// echoLine collects keys until Enter, echoing what is typed.
+func (k *keyReader) echoLine(echo io.Writer) string {
+	return k.readLine(echo)
+}
+
+func (k *keyReader) readLine(echo io.Writer) string {
+	var typed []byte
+	for {
+		key, ok := <-k.keys
+		if !ok || key == '\r' || key == '\n' {
+			return strings.TrimSpace(string(typed))
+		}
+		if key == backspace || key == del {
+			if len(typed) > 0 {
+				typed = typed[:len(typed)-1]
+				if echo != nil {
+					_, _ = fmt.Fprint(echo, "\b \b")
+				}
+			}
+
+			continue
+		}
+		typed = append(typed, key)
+		if echo != nil {
+			_, _ = fmt.Fprintf(echo, "%c", key)
+		}
+	}
+}
+
+func (k *keyReader) close() {
+	k.restore()
+}
+
+// writer keeps output readable while the terminal is raw, where a bare newline
+// no longer returns the cursor to the first column.
+func (k *keyReader) writer(w io.Writer) io.Writer {
+	if !k.raw {
+		return w
+	}
+
+	return crlfWriter{w: w}
+}
+
+type crlfWriter struct {
+	w io.Writer
+}
+
+func (c crlfWriter) Write(p []byte) (int, error) {
+	if _, err := c.w.Write(bytes.ReplaceAll(p, []byte("\n"), []byte("\r\n"))); err != nil {
+		return 0, err
+	}
+
+	return len(p), nil
+}
+
+func canPrompt() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
