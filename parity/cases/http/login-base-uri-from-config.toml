@@ -1,8 +1,8 @@
 id = "login-base-uri-from-config"
 argv = ["login"]
 declare = ["config:ldcli/config.yml"]
-rust = true
 redact = ["hostname"]
+rust = true
 
 [seed]
 "config:ldcli/config.yml" = "base-uri: {{BASE_URI}}\nproject: kept\n"

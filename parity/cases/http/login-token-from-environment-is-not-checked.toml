@@ -1,8 +1,8 @@
 id = "login-token-from-environment-is-not-checked"
 argv = ["login", "--base-uri", "{{BASE_URI}}"]
 declare = ["config:ldcli/config.yml"]
-rust = true
 redact = ["hostname"]
+rust = true
 
 [env]
 LD_ACCESS_TOKEN = "{{ACCESS_TOKEN}}"

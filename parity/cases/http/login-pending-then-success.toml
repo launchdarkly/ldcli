@@ -1,8 +1,8 @@
 id = "login-pending-then-success"
 argv = ["login", "--base-uri", "{{BASE_URI}}"]
 declare = ["config:ldcli/config.yml"]
-rust = true
 redact = ["hostname"]
+rust = true
 
 [[http]]
 method = "POST"
