@@ -1,0 +1,16 @@
+id = "signup-base-uri-from-config"
+argv = ["signup", "stray"]
+declare = ["config:ldcli/config.yml"]
+redact = ["signup-browser"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "base-uri: http://file.example.test\n"
+
+[expect]
+status = 0
+stdout_file = "signup-base-uri-from-config.stdout"
+stderr_file = "signup-base-uri-from-config.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "base-uri: http://file.example.test\n"

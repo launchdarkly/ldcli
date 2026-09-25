@@ -19,4 +19,5 @@ pub mod http;
 pub mod login;
 pub mod output;
 pub mod settings;
+pub mod signup;
 pub mod whoami;

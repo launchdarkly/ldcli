@@ -163,6 +163,15 @@ pub fn login_help(default_output: &'static str) -> String {
     )
 }
 
+pub fn signup_help(default_output: &'static str) -> String {
+    subcommand_help(
+        "Open your browser to create a new LaunchDarkly account",
+        "ldcli signup [flags]",
+        &[help_flag("help for signup")],
+        &persistent_flags(default_output),
+    )
+}
+
 /// `config`'s help appends the list of settings to its long description.
 pub fn config_help(default_output: &'static str) -> String {
     let mut long =

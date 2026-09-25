@@ -1,0 +1,19 @@
+id = "signup-base-uri-from-environment"
+argv = ["signup"]
+declare = ["config:ldcli/config.yml"]
+redact = ["signup-browser"]
+rust = true
+
+[env]
+LD_BASE_URI = "http://env.example.test"
+
+[seed]
+"config:ldcli/config.yml" = "base-uri: http://file.example.test\n"
+
+[expect]
+status = 0
+stdout_file = "signup-base-uri-from-environment.stdout"
+stderr_file = "signup-base-uri-from-environment.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "base-uri: http://file.example.test\n"

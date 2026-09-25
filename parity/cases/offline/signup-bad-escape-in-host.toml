@@ -1,0 +1,12 @@
+id = "signup-bad-escape-in-host"
+argv = ["signup", "--base-uri", "http://exa mple.test/%zz"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "signup-bad-escape-in-host.stdout"
+stderr_file = "signup-bad-escape-in-host.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -13,6 +13,7 @@
 use crate::config_cmd::{self, ConfigArgs, ConfigContext};
 use crate::flags::{persistent_flags, Flag};
 use crate::login::{self, LoginContext};
+use crate::signup::{self, SignupContext};
 use crate::whoami::{self, WhoamiContext};
 use crate::{config, help, settings};
 use clap::error::{ContextKind, ContextValue, ErrorKind};
@@ -88,6 +89,7 @@ pub fn build_command(flags: &[Flag]) -> Command {
     command
         .subcommand(config_command())
         .subcommand(plain_command("login", "help for login"))
+        .subcommand(plain_command("signup", "help for signup"))
         .subcommand(plain_command("whoami", "help for whoami"))
 }
 
@@ -117,6 +119,7 @@ pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
         None => Outcome::Stdout(help::help_string(default_output)),
         Some(("config", sub)) => run_config(sub, version, env, default_output),
         Some(("login", sub)) => run_login(sub, version, env, default_output),
+        Some(("signup", sub)) => run_signup(sub, env, default_output),
         Some(("whoami", sub)) => run_whoami(sub, version, env, default_output),
         Some(("help", sub)) => {
             let topics = external_args(sub);
@@ -124,6 +127,7 @@ pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
                 [] => Outcome::Stdout(help::help_string(default_output)),
                 ["config"] => Outcome::Stdout(help::config_help(default_output)),
                 ["login"] => Outcome::Stdout(help::login_help(default_output)),
+                ["signup"] => Outcome::Stdout(help::signup_help(default_output)),
                 ["whoami"] => Outcome::Stdout(help::whoami_help(default_output)),
                 _ => Outcome::StderrOk(format!(
                     "{}{}",
@@ -189,6 +193,19 @@ fn run_login(
         device_name: login::device_name(),
         interval: login::TOKEN_INTERVAL,
         max_attempts: login::MAX_FETCH_TOKEN_ATTEMPTS,
+        stdout: env.stdout,
+    })
+}
+
+fn run_signup(sub: &ArgMatches, env: &Env<'_>, default_output: &'static str) -> Outcome {
+    if sub.get_flag("help") {
+        return Outcome::Stdout(help::signup_help(default_output));
+    }
+    let path = config::config_file(env.var).unwrap_or_default();
+    let resolved = Resolved::new(sub, env, &path, default_output);
+    signup::run(&SignupContext {
+        base_uri: &resolved.base_uri,
+        path: (env.var)("PATH"),
         stdout: env.stdout,
     })
 }

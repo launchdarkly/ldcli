@@ -1,0 +1,13 @@
+id = "signup-default-base-uri"
+argv = ["signup"]
+declare = ["config:ldcli/config.yml"]
+redact = ["signup-browser"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "signup-default-base-uri.stdout"
+stderr_file = "signup-default-base-uri.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

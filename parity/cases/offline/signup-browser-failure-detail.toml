@@ -1,0 +1,12 @@
+id = "signup-browser-failure-detail"
+argv = ["signup", "--base-uri", "http://example.test"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "signup-browser-failure-detail.stdout"
+stderr_file = "signup-browser-failure-detail.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

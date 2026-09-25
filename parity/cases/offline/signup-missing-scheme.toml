@@ -1,0 +1,12 @@
+id = "signup-missing-scheme"
+argv = ["signup", "--base-uri", "://example.test"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "signup-missing-scheme.stdout"
+stderr_file = "signup-missing-scheme.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

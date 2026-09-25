@@ -1,0 +1,13 @@
+id = "signup-relative-base-uri"
+argv = ["signup", "--base-uri", "app.launchdarkly.com"]
+declare = ["config:ldcli/config.yml"]
+redact = ["signup-browser"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "signup-relative-base-uri.stdout"
+stderr_file = "signup-relative-base-uri.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

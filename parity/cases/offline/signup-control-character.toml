@@ -1,0 +1,12 @@
+id = "signup-control-character"
+argv = ["signup", "--base-uri", "http://example.test/\tx"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "signup-control-character.stdout"
+stderr_file = "signup-control-character.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

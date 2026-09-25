@@ -1,0 +1,1 @@
+failed to construct signup URL: parse "http://example.test/\tx": net/url: invalid control character in URL

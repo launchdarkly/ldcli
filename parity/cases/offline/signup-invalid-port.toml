@@ -1,0 +1,12 @@
+id = "signup-invalid-port"
+argv = ["signup", "--base-uri", "http://example.test:abc"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "signup-invalid-port.stdout"
+stderr_file = "signup-invalid-port.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

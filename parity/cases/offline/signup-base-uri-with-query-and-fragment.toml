@@ -1,0 +1,13 @@
+id = "signup-base-uri-with-query-and-fragment"
+argv = ["signup", "--base-uri", "HTTP://User:p%40ss@Example.test/a/../b?ref=cli#top"]
+declare = ["config:ldcli/config.yml"]
+redact = ["signup-browser"]
+rust = true
+
+[expect]
+status = 0
+stdout_file = "signup-base-uri-with-query-and-fragment.stdout"
+stderr_file = "signup-base-uri-with-query-and-fragment.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
