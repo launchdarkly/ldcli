@@ -1,6 +1,7 @@
 package interactive
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -25,6 +26,17 @@ func Select[T any](
 	title string,
 	choices []Choice[T],
 ) (T, bool, error) {
+	return SelectContext(context.Background(), input, output, title, choices)
+}
+
+// SelectContext asks the user to choose one value and stops when the context ends.
+func SelectContext[T any](
+	ctx context.Context,
+	input io.Reader,
+	output io.Writer,
+	title string,
+	choices []Choice[T],
+) (T, bool, error) {
 	var zero T
 	if len(choices) == 0 {
 		return zero, false, fmt.Errorf("%s: no choices are available", title)
@@ -36,7 +48,8 @@ func Select[T any](
 		options[index] = huh.NewOption(choiceLabel(choice), index)
 	}
 
-	canceled, err := RunForm(
+	canceled, err := RunFormContext(
+		ctx,
 		input,
 		output,
 		huh.NewSelect[int]().
@@ -97,12 +110,22 @@ func RunForm(
 	output io.Writer,
 	fields ...huh.Field,
 ) (bool, error) {
+	return RunFormContext(context.Background(), input, output, fields...)
+}
+
+// RunFormContext runs fields until they complete, abort, or the context ends.
+func RunFormContext(
+	ctx context.Context,
+	input io.Reader,
+	output io.Writer,
+	fields ...huh.Field,
+) (bool, error) {
 	err := huh.NewForm(huh.NewGroup(fields...)).
 		WithInput(input).
 		WithOutput(output).
+		WithAccessible(false).
 		WithTheme(formTheme()).
-		WithProgramOptions(tea.WithAltScreen()).
-		Run()
+		RunWithContext(ctx)
 	if errors.Is(err, huh.ErrUserAborted) {
 		return true, nil
 	}
