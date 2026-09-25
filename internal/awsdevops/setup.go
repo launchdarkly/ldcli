@@ -80,6 +80,7 @@ type SetupOptions struct {
 
 	SkillName        string
 	SkillBody        string
+	SkillDescription string
 	CustomAgentName  string
 	CustomAgentTools []string
 	Schedule         string
@@ -91,6 +92,11 @@ type SetupOptions struct {
 	GitHubRepoID         string
 	GitHubTargetBranches []string
 	KiroAPIKey           string
+
+	SkipRepoFiles         bool
+	SkipActionsPRs        bool
+	SkipBranchProtection  bool
+	ProtectedBranch       string
 
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)
@@ -240,14 +246,47 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 			}
 			logf("Associated %s/%s with release readiness review enabled", opts.GitHubOwner, opts.GitHubRepo)
 		}
+
+		if !opts.SkipRepoFiles {
+			if err := CommitAgentFiles(ctx, opts.GitHubOwner, opts.GitHubRepo, AgentFiles(), logf); err != nil {
+				return result, err
+			}
+		}
+		if !opts.SkipActionsPRs {
+			if err := EnableActionsCanCreatePRs(ctx, opts.GitHubOwner, opts.GitHubRepo, logf); err != nil {
+				return result, err
+			}
+		}
+		if !opts.SkipBranchProtection {
+			if err := EnableBranchProtection(ctx, opts.GitHubOwner, opts.GitHubRepo, opts.ProtectedBranch, logf); err != nil {
+				return result, err
+			}
+		}
 	}
 
+	if opts.SkillBody == "" && opts.SkillName == DefaultSkillName {
+		opts.SkillBody = DefaultSkillBody()
+	}
+	if opts.SkillDescription == "" {
+		opts.SkillDescription = skillDescriptionFrom(opts.SkillBody)
+	}
 	if opts.SkillBody != "" {
+		existing, err := FindAsset(ctx, clients, result.AgentSpaceID, skillAssetType, opts.SkillName)
+		if err != nil {
+			return result, err
+		}
+		if existing != "" {
+			result.SkillAssetID = existing
+			logf("Reusing skill %s (%s)", opts.SkillName, existing)
+		}
+	}
+	if opts.SkillBody != "" && result.SkillAssetID == "" {
 		skill, err := clients.Agent.CreateAsset(ctx, &devopsagent.CreateAssetInput{
 			AgentSpaceId: aws.String(result.AgentSpaceID),
 			AssetType:    aws.String(skillAssetType),
 			Metadata: document.NewLazyDocument(map[string]any{
 				"name":        opts.SkillName,
+				"description": opts.SkillDescription,
 				"agent_types": []string{"GENERIC"},
 			}),
 			Content: &agenttypes.AssetContentMemberFile{
@@ -265,6 +304,16 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	}
 
 	if opts.CustomAgentName != "" {
+		existing, err := FindAsset(ctx, clients, result.AgentSpaceID, customAgentAssetType, opts.CustomAgentName)
+		if err != nil {
+			return result, err
+		}
+		if existing != "" {
+			result.CustomAgentAssetID = existing
+			logf("Reusing custom agent %s (%s)", opts.CustomAgentName, existing)
+		}
+	}
+	if opts.CustomAgentName != "" && result.CustomAgentAssetID == "" {
 		metadata := map[string]any{"name": opts.CustomAgentName}
 		if result.SkillAssetID != "" {
 			metadata["skills"] = []string{result.SkillAssetID}
@@ -741,6 +790,36 @@ func remainingManualSteps(region string, opts SetupOptions, result SetupResult) 
 	}
 
 	return steps
+}
+
+// skillDescriptionFrom pulls the `description:` line out of the skill body's
+// YAML front matter, so a skill written with front matter carries its own
+// summary into the AWS metadata without asking for it twice.
+func skillDescriptionFrom(body string) string {
+	const defaultDescription = "LaunchDarkly experiment orchestration skill"
+
+	trimmed := strings.TrimLeft(body, "\uFEFF \t\r\n")
+	if !strings.HasPrefix(trimmed, "---") {
+		return defaultDescription
+	}
+	rest := trimmed[3:]
+	end := strings.Index(rest, "\n---")
+	if end < 0 {
+		return defaultDescription
+	}
+	for _, line := range strings.Split(rest[:end], "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(strings.ToLower(line), "description:") {
+			continue
+		}
+		value := strings.TrimSpace(line[len("description:"):])
+		value = strings.Trim(value, "\"'")
+		if value != "" {
+			return value
+		}
+	}
+
+	return defaultDescription
 }
 
 // ConsoleURL is the AWS DevOps Agent console for a region.

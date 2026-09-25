@@ -24,6 +24,7 @@ type fakeAgent struct {
 	calls              []string
 	services           []agenttypes.RegisteredService
 	associationInputs  []*devopsagent.AssociateServiceInput
+	createdAssetInputs []*devopsagent.CreateAssetInput
 	createdAssetTypes  []string
 	registerOutput     *devopsagent.RegisterServiceOutput
 	associations       []agenttypes.Association
@@ -64,6 +65,7 @@ func (f *fakeAgent) CreateAgentSpace(_ context.Context, _ *devopsagent.CreateAge
 func (f *fakeAgent) CreateAsset(_ context.Context, in *devopsagent.CreateAssetInput, _ ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error) {
 	f.calls = append(f.calls, "CreateAsset")
 	f.createdAssetTypes = append(f.createdAssetTypes, aws.ToString(in.AssetType))
+	f.createdAssetInputs = append(f.createdAssetInputs, in)
 
 	return &devopsagent.CreateAssetOutput{
 		Asset: &agenttypes.Asset{AssetId: aws.String("asset-" + aws.ToString(in.AssetType))},

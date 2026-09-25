@@ -2,6 +2,7 @@ package awsdevops
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -135,6 +136,55 @@ func serviceName(service agenttypes.RegisteredService) string {
 	}
 
 	return aws.ToString(service.Name)
+}
+
+// FindAsset returns the ID of an asset with the given type and metadata name
+// in an agent space, so setup can skip recreating one it already made.
+func FindAsset(ctx context.Context, clients Clients, agentSpaceID, assetType, name string) (string, error) {
+	var nextToken *string
+	for {
+		assets, err := clients.Agent.ListAssets(ctx, &devopsagent.ListAssetsInput{
+			AgentSpaceId: aws.String(agentSpaceID),
+			NextToken:    nextToken,
+		})
+		if err != nil {
+			return "", fmt.Errorf("unable to list assets for agent space %s: %w", agentSpaceID, err)
+		}
+		for _, asset := range assets.Items {
+			if aws.ToString(asset.AssetType) != assetType {
+				continue
+			}
+			if strings.EqualFold(assetName(asset), name) {
+				return aws.ToString(asset.AssetId), nil
+			}
+		}
+		if assets.NextToken == nil {
+			return "", nil
+		}
+		nextToken = assets.NextToken
+	}
+}
+
+// assetName pulls the name AWS keeps in the asset's metadata document. The
+// document type's own unmarshal reports a spurious "unsupported json type"
+// error while still populating the destination, so the JSON bytes are read
+// directly instead.
+func assetName(asset agenttypes.Asset) string {
+	if asset.Metadata == nil {
+		return ""
+	}
+	raw, err := asset.Metadata.MarshalSmithyDocument()
+	if err != nil {
+		return ""
+	}
+	var meta struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		return ""
+	}
+
+	return meta.Name
 }
 
 // FindGitHubService returns the ID of the GitHub registration on the account,

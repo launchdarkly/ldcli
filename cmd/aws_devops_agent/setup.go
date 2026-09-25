@@ -41,6 +41,10 @@ const (
 	githubRepoIDFlag          = "github-repo-id"
 	githubTargetBranchesFlag  = "github-target-branches"
 	kiroAPIKeyFlag            = "kiro-api-key"
+	skipRepoFilesFlag         = "skip-repo-files"
+	skipActionsPRsFlag        = "skip-allow-actions-prs"
+	skipBranchProtectionFlag  = "skip-branch-protection"
+	protectedBranchFlag       = "protected-branch"
 	noWaitFlag                = "no-wait"
 )
 
@@ -48,13 +52,16 @@ func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Provision the AWS DevOps Agent for LaunchDarkly",
-		Long: `Create the IAM roles, agent space, AWS account association, operator app and
-LaunchDarkly MCP server connection the AWS DevOps Agent needs.
+		Long: `Create the IAM roles, agent space, AWS account association, operator app,
+LaunchDarkly MCP server connection, GitHub repository association, Kiro agent
+workflow files, GitHub Actions permissions and branch protection the AWS
+DevOps Agent needs, plus the built-in experiment-orchestration skill.
 
 Re-running is safe: setup reuses the agent space matching --agent-space-name
-along with anything already attached to it. Steps that AWS only exposes through
-the console, such as the GitHub App installation, are listed at the end of the
-run.
+along with anything already attached to it. Files already on the repository
+are left as they are so a hand edit is never overwritten. Steps that AWS only
+exposes through the console, such as the GitHub App installation, are listed
+at the end of the run.
 
 The MCP server is connected with --access-token, or with the token in your
 ldcli configuration when you do not pass one. With neither, setup pauses at the
@@ -85,8 +92,8 @@ resumes once you are done. Pass --no-wait to only list them.`,
 	cmd.Flags().String(mcpServiceIDFlag, "", "Service ID of an MCP server already registered on the account to associate instead of registering one")
 	cmd.Flags().StringSlice(mcpReadOnlyToolsFlag, awsdevops.DefaultMCPReadOnlyTools, "LaunchDarkly MCP tools the agent may call without approval")
 	cmd.Flags().StringSlice(mcpMutativeToolsFlag, awsdevops.DefaultMCPMutativeTools, "LaunchDarkly MCP tools that change flag state and need approval")
-	cmd.Flags().String(skillNameFlag, "launchdarkly", "Name of the skill asset to create from --skill-file")
-	cmd.Flags().String(skillFileFlag, "", "Path to a SKILL.md to upload as a skill asset")
+	cmd.Flags().String(skillNameFlag, awsdevops.DefaultSkillName, "Name of the skill asset to create. When left at the default and --skill-file is not passed, the built-in experiment-orchestration skill is used")
+	cmd.Flags().String(skillFileFlag, "", "Path to a SKILL.md to upload as a skill asset instead of the built-in experiment-orchestration skill")
 	cmd.Flags().String(customAgentNameFlag, "", "Create a custom agent with this name")
 	cmd.Flags().StringSlice(customAgentToolsFlag, nil, "Tools the custom agent may use")
 	cmd.Flags().String(scheduleFlag, "", "Cron or rate expression to run the custom agent on, for example 'rate(1 day)'")
@@ -97,6 +104,10 @@ resumes once you are done. Pass --no-wait to only list them.`,
 	cmd.Flags().String(githubRepoIDFlag, "", "GitHub repository ID to associate. Read from the GitHub CLI when omitted")
 	cmd.Flags().StringSlice(githubTargetBranchesFlag, []string{"main"}, "Branches release readiness review runs against")
 	cmd.Flags().String(kiroAPIKeyFlag, "", "Kiro API key to store as the "+awsdevops.KiroSecretName+" secret on the associated repository")
+	cmd.Flags().Bool(skipRepoFilesFlag, false, "Skip committing the Kiro agent JSON and GitHub Actions workflows to the associated repository")
+	cmd.Flags().Bool(skipActionsPRsFlag, false, "Skip enabling 'Allow GitHub Actions to create and approve pull requests' on the associated repository")
+	cmd.Flags().Bool(skipBranchProtectionFlag, false, "Skip enabling branch protection on the associated repository")
+	cmd.Flags().String(protectedBranchFlag, "main", "Branch to protect on the associated repository")
 	cmd.Flags().Bool(noWaitFlag, false, "List the browser-only steps instead of pausing on each one")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -196,6 +207,10 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		GitHubRepoID:          mustString(cmd, githubRepoIDFlag),
 		GitHubTargetBranches:  mustStringSlice(cmd, githubTargetBranchesFlag),
 		KiroAPIKey:            mustString(cmd, kiroAPIKeyFlag),
+		SkipRepoFiles:         mustBool(cmd, skipRepoFilesFlag),
+		SkipActionsPRs:        mustBool(cmd, skipActionsPRsFlag),
+		SkipBranchProtection:  mustBool(cmd, skipBranchProtectionFlag),
+		ProtectedBranch:       mustString(cmd, protectedBranchFlag),
 	}
 
 	switch opts.AuthFlow {

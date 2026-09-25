@@ -110,7 +110,7 @@ LaunchDarkly CLI commands:
 
 ### AWS DevOps Agent
 
-`ldcli aws-devops-agent` creates the AWS resources the [AWS DevOps Agent](https://aws.amazon.com/devops-agent/) needs to manage your LaunchDarkly flags: the IAM roles it assumes, an agent space, the association with your AWS account, the operator web app, and the LaunchDarkly MCP server connection.
+`ldcli aws-devops-agent` provisions everything the [AWS DevOps Agent](https://aws.amazon.com/devops-agent/) needs to run the LaunchDarkly experiment-orchestration lifecycle end-to-end: the IAM roles it assumes, an agent space, the association with your AWS account, the operator web app, the LaunchDarkly MCP server connection, a GitHub repository association with release readiness review turned on, the Kiro flag-implementer agent JSON and the two GitHub Actions workflows (`kiro-implement.yml` and `merge-pr.yml`) committed to that repository, the "allow Actions to create pull requests" repo setting, branch protection on `main`, the built-in `experiment-orchestration` skill and the `KIRO_API_KEY` GitHub Actions secret.
 
 The commands use your existing AWS session rather than any cross-account LaunchDarkly role, so authenticate first. They fail before creating anything if no credentials are available:
 
@@ -131,12 +131,15 @@ With no token configured at all, `setup` pauses at the LaunchDarkly page where y
 
 Two steps cannot be automated because they are browser flows: registering and installing the GitHub App, and creating a Kiro API key. In a terminal, `setup` pauses on each one, showing a single URL to open. GitHub polls AWS and continues on its own once the registration appears, and is skipped entirely when the account already has one; any key stops it waiting.
 
-The repository the agent reviews does not have to be passed as a flag. When `--github-owner`/`--github-repo` are missing, `setup` asks for it as `owner/repo`, reads its numeric ID through the GitHub CLI and associates it with the agent space. The Kiro pause then stores the key you paste as that repository's `KIRO_API_KEY` GitHub Actions secret, again through the GitHub CLI; pressing Enter without a key skips it, and `--kiro-api-key` stores one without pausing. Pass `--no-wait` to list the steps instead, for example in CI:
+The repository the agent reviews does not have to be passed as a flag. When `--github-owner`/`--github-repo` are missing, `setup` asks for it as `owner/repo`, reads its numeric ID through the GitHub CLI and associates it with the agent space. Once the repository is connected, `setup` commits the Kiro `flag-implementer` agent JSON and the two GitHub Actions workflows to it (skipping any file that already exists so a hand edit is never overwritten), turns on "Allow GitHub Actions to create and approve pull requests," and protects the branch named by `--protected-branch` (default `main`). Pass `--skip-repo-files`, `--skip-allow-actions-prs` or `--skip-branch-protection` to opt out of any of these. The Kiro pause stores the key you paste as that repository's `KIRO_API_KEY` GitHub Actions secret, again through the GitHub CLI; pressing Enter without a key skips it, and `--kiro-api-key` stores one without pausing. Committing files under `.github/workflows/` needs the `workflow` scope on the GitHub CLI's token — re-authenticate with `gh auth refresh --scopes workflow` if `setup` reports it is missing. Branch protection is only available on public repositories or paid GitHub plans; `setup` says so and continues when it is not. Pass `--no-wait` to list the steps instead, for example in CI:
 
 ```sh-session
 ldcli aws-devops-agent setup --no-wait \
-  --github-owner <owner> --github-repo <repo>
+  --github-owner <owner> --github-repo <repo> \
+  --kiro-api-key <kiro-key>
 ```
+
+The `experiment-orchestration` skill is created by default when `--skill-name` is left at its default and no `--skill-file` is passed; the built-in skill body from the AWS DevOps Agent setup guide is used. Pass `--skill-file` to upload a different SKILL.md, or `--skill-name` to name the skill something else. A custom agent is only created when `--custom-agent-name` is passed, and existing skills or custom agents matching the same name are reused rather than recreated.
 
 `ldcli aws-devops-agent status` shows what exists. `ldcli aws-devops-agent teardown` removes everything in the account and region — every agent space, the registered services including GitHub and the MCP server, and the IAM roles — after asking you to confirm (`--force` skips the prompt, and is required when there is no terminal). `--agent-space-id <agent-space-id>` and `--service-id <service-id>` narrow it to those resources, and `--deregister-github` and `--delete-roles` add the GitHub registration and the IAM roles back to a narrowed teardown.
 
