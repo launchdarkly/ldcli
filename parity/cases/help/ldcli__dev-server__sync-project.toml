@@ -1,0 +1,10 @@
+id = "ldcli__dev-server__sync-project"
+argv = ["dev-server", "sync-project", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__dev-server__sync-project.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

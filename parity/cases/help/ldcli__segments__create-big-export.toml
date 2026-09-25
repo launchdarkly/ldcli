@@ -1,0 +1,10 @@
+id = "ldcli__segments__create-big-export"
+argv = ["segments", "create-big-export", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__segments__create-big-export.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

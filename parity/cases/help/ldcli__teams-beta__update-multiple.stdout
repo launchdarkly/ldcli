@@ -1,0 +1,79 @@
+
+Perform a partial update to multiple teams. Updating teams uses the semantic patch format.
+
+To make a semantic patch request, you must append domain-model=launchdarkly.semanticpatch to your Content-Type header. To learn more, read Updates using semantic patch https://launchdarkly.com/docs/api#updates-using-semantic-patch.
+
+### Instructions
+
+Semantic patch requests support the following kind instructions for updating teams.
+Click to expand instructions for updating teams
+#### addMembersToTeams
+
+Add the members to teams.
+
+##### Parameters
+
+• memberIDs: List of member IDs to add.
+• teamKeys: List of teams to update.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "addMembersToTeams",
+      "memberIDs": [
+        "1234a56b7c89d012345e678f"
+      ],
+      "teamKeys": [
+        "example-team-1",
+        "example-team-2"
+      ]
+    }]
+  }
+
+#### addAllMembersToTeams
+
+Add all members to the team. Members that match any of the filters are **excluded** from the update.
+
+##### Parameters
+
+• teamKeys: List of teams to update.
+• filterLastSeen: (Optional) A JSON object with one of the following formats:
+    • {"never": true} - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.
+    • {"noData": true} - Members that have not been active since LaunchDarkly began recording last seen timestamps.
+    • {"before": 1608672063611} - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.
+• filterQuery: (Optional) A string that matches against the members' emails and names. It is not case sensitive.
+• filterRoles: (Optional) A | separated list of roles and custom roles. For the purposes of this filtering, Owner counts as Admin.
+• filterTeamKey: (Optional) A string that matches against the key of the team the members belong to. It is not case sensitive.
+• ignoredMemberIDs: (Optional) A list of member IDs.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "addAllMembersToTeams",
+      "teamKeys": [
+        "example-team-1",
+        "example-team-2"
+      ],
+      "filterLastSeen": { "never": true }
+    }]
+  }
+
+Usage:
+  ldcli teams-beta update-multiple [flags]
+
+Required flags:
+  -d, --data string   Input data in JSON
+
+Optional flags:
+      --semantic-patch   Perform a semantic patch request
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

@@ -1,0 +1,101 @@
+
+Update a layer by adding, changing, or removing traffic reservations for experiments, or by changing layer name or description.
+Updating a layer uses the semantic patch format.
+
+To make a semantic patch request, you must append domain-model=launchdarkly.semanticpatch to your Content-Type header. To learn more, read Updates using semantic patch https://launchdarkly.com/docs/api#updates-using-semantic-patch.
+
+### Instructions
+
+Semantic patch requests support the following kind instructions for updating layers.
+Click to expand instructions for updating layers
+#### updateName
+
+Updates the layer name.
+
+##### Parameters
+
+• name: The new layer name.
+
+Here's an example:
+
+  {
+    "instructions": [{
+        "kind": "updateName",
+        "name": "New name"
+    }]
+  }
+
+#### updateDescription
+
+Updates the layer description.
+
+##### Parameters
+
+• description: The new description.
+
+Here's an example:
+
+  {
+    "instructions": [{
+        "kind": "updateDescription",
+        "description": "New description"
+    }]
+  }
+
+#### updateExperimentReservation
+
+Adds or updates a traffic reservation for an experiment in a layer.
+
+##### Parameters
+
+• experimentKey: The key of the experiment whose reservation you are adding to or updating in the layer.
+• reservationPercent: The amount of traffic in the layer to reserve. Must be an integer. Zero is allowed until iteration start.
+
+Here's an example:
+
+  {
+    "environmentKey": "production",
+    "instructions": [{
+        "kind": "updateExperimentReservation",
+        "experimentKey": "exp-key",
+        "reservationPercent": 10
+    }]
+  }
+
+#### removeExperiment
+
+Removes a traffic reservation for an experiment from a layer.
+
+##### Parameters
+
+• experimentKey: The key of the experiment whose reservation you want to remove from the layer.
+
+Here's an example:
+
+  {
+    "environmentKey": "production",
+    "instructions": [{
+        "kind": "removeExperiment",
+        "experimentKey": "exp-key"
+    }]
+  }
+
+Usage:
+  ldcli layers update [flags]
+
+Required flags:
+  -d, --data string      Input data in JSON
+      --layer string     The layer key
+      --project string   The project key
+
+Optional flags:
+      --semantic-patch   Perform a semantic patch request
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

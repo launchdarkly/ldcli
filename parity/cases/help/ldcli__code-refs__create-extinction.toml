@@ -1,0 +1,10 @@
+id = "ldcli__code-refs__create-extinction"
+argv = ["code-refs", "create-extinction", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__code-refs__create-extinction.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

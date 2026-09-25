@@ -1,0 +1,22 @@
+Get SDK active status for an environment. Returns information about whether any SDKs have initialized in the given environment within the past seven days.
+
+Usage:
+  ldcli environments get-sdk-active [flags]
+
+Required flags:
+      --environment string   The environment key
+      --project string       The project key
+
+Optional flags:
+      --sdk-name string           Filter by SDK name (e.g. go-server-sdk,
+                                  node-server-sdk)
+      --sdk-wrapper-name string   Filter by SDK wrapper name
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

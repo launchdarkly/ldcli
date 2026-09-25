@@ -1,0 +1,36 @@
+
+Get a single feature flag by key. By default, this returns the configurations for all environments. You can filter environments with the env query parameter. For example, setting env=production restricts the returned configurations to just the production environment.
+
+| #### Recommended use
+| 
+| This endpoint can return a large amount of information. Specifying one or multiple environments with the env parameter can decrease response time and overall payload size. We recommend using this parameter to return only the environments relevant to your query.
+
+### Expanding response
+
+LaunchDarkly supports the expand query param to include additional fields in the response, with the following fields:
+
+• evaluation includes evaluation information within returned environments, including which context kinds the flag has been evaluated for in the past 30 days
+• migrationSettings includes migration settings information within the flag and within returned environments. These settings are only included for migration flags, that is, where purpose is migration.
+
+For example, expand=evaluation includes the evaluation field in the response.
+
+Usage:
+  ldcli flags get [flags]
+
+Required flags:
+      --flag string      The feature flag key
+      --project string   The project key
+
+Optional flags:
+      --env string      Filter configurations by environment
+      --expand string   A comma-separated list of fields to expand in the
+                        response. Supported fields are explained above.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

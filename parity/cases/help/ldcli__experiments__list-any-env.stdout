@@ -1,0 +1,37 @@
+
+Get a list of experiments from across all environments in the project
+
+Usage:
+  ldcli experiments list-any-env [flags]
+
+Required flags:
+      --project string   The project key
+
+Optional flags:
+      --expand string            A comma-separated list of properties that
+                                 can reveal additional information in the
+                                 response. Supported fields are explained
+                                 above.
+      --filter string            A comma-separated list of filters. Each
+                                 filter is of the form 'field:value'.
+                                 Supported fields are explained above.
+      --lifecycle-state string   A comma-separated list of experiment
+                                 archived states. Supports 'archived',
+                                 'active', or both. Defaults to 'active'
+                                 experiments.
+      --limit string             The maximum number of experiments to
+                                 return. Defaults to 20.
+      --offset string            Where to start in the list. Use this with
+                                 pagination. For example, an offset of 10
+                                 skips the first ten items and then
+                                 returns the next items in the list, up to
+                                 the query 'limit'.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

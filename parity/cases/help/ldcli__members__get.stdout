@@ -1,0 +1,33 @@
+
+Get a single account member by member ID.
+
+me is a reserved value for the id parameter that returns the caller's member information.
+
+### Expanding the member response
+
+LaunchDarkly supports one field for expanding the "Get member" response. By default, this field is **not** included in the response.
+
+To expand the response, append the expand query parameter and add a comma-separated list with any of the following fields:
+
+• roleAttributes includes a list of the role attributes that you have assigned to the member.
+
+For example, expand=roleAttributes includes roleAttributes field in the response.
+
+Usage:
+  ldcli members get [flags]
+
+Required flags:
+      --id string   The member ID
+
+Optional flags:
+      --expand string   A comma-separated list of properties that can
+                        reveal additional information in the response.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

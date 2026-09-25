@@ -1,0 +1,20 @@
+
+Delete an approval request for a feature flag.
+
+Usage:
+  ldcli approval-requests delete-for-flag [flags]
+
+Required flags:
+      --environment string   The environment key
+      --flag string          The feature flag key
+      --id string            The feature flag approval request ID
+      --project string       The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

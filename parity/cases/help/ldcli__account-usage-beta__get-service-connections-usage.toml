@@ -1,0 +1,10 @@
+id = "ldcli__account-usage-beta__get-service-connections-usage"
+argv = ["account-usage-beta", "get-service-connections-usage", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__account-usage-beta__get-service-connections-usage.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

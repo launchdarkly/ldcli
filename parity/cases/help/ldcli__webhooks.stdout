@@ -1,0 +1,109 @@
+
+The webhooks API lets you build your own integrations that subscribe to activities in LaunchDarkly. When you generate an activity in LaunchDarkly, such as when you change a flag or you create a project, LaunchDarkly sends an HTTP POST payload to the webhook's URL. Use webhooks to update external issue trackers, update support tickets, notify customers of new feature rollouts, and more.
+
+Several of the endpoints in the webhooks API require a webhook ID. The webhook ID is returned as part of the Creates a webhook https://launchdarkly.com/docs/api/webhooks/post-webhook and List webhooks https://launchdarkly.com/docs/api/webhooks/get-all-webhooks responses. It is the _id field, or the _id field of each element in the items array.
+
+## Designating the payload
+
+The webhook payload is identical to an audit log entry. To learn more, read Get audit log entry https://launchdarkly.com/docs/api/audit-log/get-audit-log-entry.
+
+Here's a sample payload:
+
+| ### Webhook delivery order
+| 
+| Webhooks may not be delivered in chronological order. We recommend using the payload's "date" field as a timestamp to reorder webhooks as they are received.
+
+  {
+    "_links": {
+      "canonical": {
+        "href": "/api/v2/projects/alexis/environments/test",
+        "type": "application/json"
+      },
+      "parent": {
+        "href": "/api/v2/auditlog",
+        "type": "application/json"
+      },
+      "self": {
+        "href": "/api/v2/auditlog/57c0a8e29969090743529965",
+        "type": "application/json"
+      },
+      "site": {
+        "href": "/settings#/projects",
+        "type": "text/html"
+      }
+    },
+    "_id": "57c0a8e29969090743529965",
+    "date": 1472243938774,
+    "accesses": [
+      {
+        "action": "updateName",
+        "resource": "proj/alexis:env/test"
+      }
+    ],
+    "kind": "environment",
+    "name": "Testing",
+    "description": "- Changed the name from ~~Test~~ to *Testing*",
+    "member": {
+      "_links": {
+        "parent": {
+          "href": "/internal/account/members",
+          "type": "application/json"
+        },
+        "self": {
+          "href": "/internal/account/members/548f6741c1efad40031b18ae",
+          "type": "application/json"
+        }
+      },
+      "_id": "548f6741c1efad40031b18ae",
+      "email": "ariel@acme.com",
+      "firstName": "Ariel",
+      "lastName": "Flores"
+    },
+    "titleVerb": "changed the name of",
+    "title": "[Ariel Flores](mailto:ariel@acme.com) changed the name of [Testing](https://app.launchdarkly.com/settings#/projects)",
+    "target": {
+      "_links": {
+        "canonical": {
+          "href": "/api/v2/projects/alexis/environments/test",
+          "type": "application/json"
+        },
+        "site": {
+          "href": "/settings#/projects",
+          "type": "text/html"
+        }
+      },
+      "name": "Testing",
+      "resources": ["proj/alexis:env/test"]
+    }
+  }
+
+## Signing the webhook
+
+Optionally, you can define a secret when you create a webhook. If you define the secret, the webhook POST request will include an X-LD-Signature header, whose value will contain an HMAC SHA256 hex digest of the webhook payload, using the secret as the key.
+
+Compute the signature of the payload using the same shared secret in your code to verify that the webhook was triggered by LaunchDarkly.
+
+## Understanding connection retries
+
+If LaunchDarkly receives a non-2xx response to a webhook POST, it will retry the delivery one time. Webhook delivery is not guaranteed. If you build an integration on webhooks, make sure it is tolerant of delivery failures.
+
+Usage:
+  ldcli webhooks [command]
+
+Available Commands:
+  create      Creates a webhook
+  delete      Delete webhook
+  get         Get webhook
+  list        List webhooks
+  update      Update webhook
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli webhooks [command] --help" for more information about a command.

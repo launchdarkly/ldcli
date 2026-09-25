@@ -1,0 +1,27 @@
+
+Get a list of tags.
+
+Usage:
+  ldcli tags list [flags]
+
+Optional flags:
+      --archived string   Whether or not to return archived flags
+      --as-of string      The time to retrieve tags as of. Default is the
+                          current time.
+      --kind string       Fetch tags associated with the specified
+                          resource type. Options are 'flag', 'project',
+                          'environment', 'segment', 'metric',
+                          'metric-data-source', 'aiconfig', and 'view'.
+                          Returns all types by default.
+      --limit string      The number of tags to return. Maximum is 1000.
+      --offset string     The index of the first tag to return. Default is 0.
+      --pre string        Return tags with the specified prefix
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

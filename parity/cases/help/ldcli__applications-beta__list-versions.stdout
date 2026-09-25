@@ -1,0 +1,34 @@
+
+Get a list of versions for a specific application in an account.
+
+Usage:
+  ldcli applications-beta list-versions [flags]
+
+Required flags:
+      --application string   The application key
+
+Optional flags:
+      --filter string   Accepts filter by 'key', 'name', 'supported', and
+                        'autoAdded'. To learn more about the filter
+                        syntax, read [Filtering applications and
+                        application
+                        versions](https://launchdarkly.com/docs/api/applications-beta#filtering-applications-and-application-versions).
+      --limit string    The number of versions to return. Defaults to 50.
+      --offset string   Where to start in the list. Use this with
+                        pagination. For example, an offset of 10 skips the
+                        first ten items and then returns the next items in
+                        the list, up to the query 'limit'.
+      --sort string     Accepts sorting order and fields. Fields can be
+                        comma separated. Possible fields are
+                        'creationDate', 'name'. Examples: 'sort=name' sort
+                        by names ascending, 'sort=-name,creationDate' sort
+                        by names descending and creationDate ascending.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

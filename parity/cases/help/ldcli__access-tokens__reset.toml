@@ -1,0 +1,10 @@
+id = "ldcli__access-tokens__reset"
+argv = ["access-tokens", "reset", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__access-tokens__reset.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

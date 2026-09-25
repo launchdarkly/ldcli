@@ -1,0 +1,22 @@
+
+Get a complete list of custom roles. This includes project and organization roles that you create, or that are provided as presets by LaunchDarkly. It does not include base roles.
+
+Usage:
+  ldcli custom-roles list [flags]
+
+Optional flags:
+      --limit string    The maximum number of custom roles to return.
+                        Defaults to 20.
+      --offset string   Where to start in the list. Defaults to 0. Use
+                        this with pagination. For example, an offset of 10
+                        skips the first ten items and then returns the
+                        next items in the list, up to the query 'limit'.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

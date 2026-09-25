@@ -1,0 +1,10 @@
+id = "ldcli__completion__fish"
+argv = ["completion", "fish", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__completion__fish.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

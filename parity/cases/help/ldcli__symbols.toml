@@ -1,0 +1,10 @@
+id = "ldcli__symbols"
+argv = ["symbols", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__symbols.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

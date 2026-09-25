@@ -1,0 +1,10 @@
+id = "ldcli__approvals-beta__update-request"
+argv = ["approvals-beta", "update-request", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__approvals-beta__update-request.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,25 @@
+
+Get a list of statuses for all feature flags. The status includes the last time the feature flag was requested, as well as a state, which is one of the following:
+
+• new: You created the flag fewer than seven days ago and it has never been requested.
+• active: LaunchDarkly is receiving requests for this flag, but there are either multiple variations configured, or it is toggled off, or there have been changes to configuration in the past seven days.
+• inactive: You created the feature flag more than seven days ago, and hasn't been requested within the past seven days.
+• launched: LaunchDarkly is receiving requests for this flag, it is toggled on, there is only one variation configured, and there have been no changes to configuration in the past seven days.
+
+To learn more, read Flag statuses https://launchdarkly.com/docs/home/observability/flag-status.
+
+Usage:
+  ldcli flags list-statuses [flags]
+
+Required flags:
+      --environment string   The environment key
+      --project string       The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

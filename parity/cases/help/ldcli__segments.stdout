@@ -1,0 +1,57 @@
+
+
+| ### Synced segments and larger list-based segments are an Enterprise feature
+| 
+| This section documents endpoints for rule-based, list-based, and synced segments.
+| 
+| A "big segment" is a segment that is either a synced segment, or a list-based segment with more than 15,000 entries that includes only one targeted context kind. LaunchDarkly uses different implementations for different types of segments so that all of your segments have good performance.
+| 
+| In the segments API, a big segment is indicated by the unbounded field being set to true.
+| 
+| These segments are available to customers on an Enterprise plan. To learn more, read about our pricing https://launchdarkly.com/pricing/. To upgrade your plan, contact Sales https://launchdarkly.com/contact-sales/.
+
+Segments are groups of contexts that you can use to manage flag targeting behavior in bulk. LaunchDarkly supports:
+
+• rule-based segments, which let you target groups of contexts individually or by attribute,
+• list-based segments, which let you target individual contexts or uploaded lists of contexts, and
+• synced segments, which let you target groups of contexts backed by an external data store.
+
+To learn more, read Segments https://launchdarkly.com/docs/home/flags/segments.
+
+The segments API allows you to list, create, modify, and delete segments programmatically.
+
+You can find other APIs for working with big segments under Persistent store integrations (beta) https://launchdarkly.com/docs/api/persistent-store-integrations-beta.
+
+Usage:
+  ldcli segments [command]
+
+Available Commands:
+  create                                  Create segment
+  create-big-export                       Create big segment export
+  create-big-import                       Create big segment import
+  delete                                  Delete segment
+  get                                     Get segment
+  get-big-export                          Get big segment export
+  get-big-import                          Get big segment import
+  get-membership-for-context              Get big segment membership for context
+  get-membership-for-user                 Get big segment membership for user
+  list                                    List segments
+  list-context-instance-membership-by-env List segment memberships for context instance
+  list-expiring-targets                   Get expiring targets for segment
+  list-expiring-user-targets              Get expiring user targets for segment
+  update                                  Patch segment
+  update-big-context-targets              Update context targets on a big segment
+  update-big-targets                      Update user context targets on a big segment
+  update-expiring-targets                 Update expiring targets for segment
+  update-expiring-user-targets            Update expiring user targets for segment
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli segments [command] --help" for more information about a command.

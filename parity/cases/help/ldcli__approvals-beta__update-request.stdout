@@ -1,0 +1,63 @@
+
+Perform a partial update to an approval request. Updating an approval request uses the semantic patch format. This endpoint works with any approval requests.
+
+To make a semantic patch request, you must append domain-model=launchdarkly.semanticpatch to your Content-Type header. To learn more, read Updates using semantic patch https://launchdarkly.com/docs/api#updates-using-semantic-patch.
+
+### Instructions
+
+Semantic patch requests support the following kind instructions for updating an approval request.
+
+#### addReviewers
+
+Adds the specified members and teams to the existing list of reviewers. You must include at least one of notifyMemberIds and notifyTeamKeys.
+
+##### Parameters
+
+• notifyMemberIds: (Optional) List of member IDs.
+• notifyTeamKeys: (Optional) List of team keys.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "addReviewers",
+      "notifyMemberIds": [ "user-key-123abc", "user-key-456def" ],
+      "notifyTeamKeys": [ "team-key-789abc"]
+    }]
+  }
+
+#### updateDescription
+
+Updates the description (title) of the approval request.
+
+##### Parameters
+
+• value: (Required) The new description for the approval request. Must be non-empty and no more than 5000 characters.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "updateDescription",
+      "value": "Updated approval request title"
+    }]
+  }
+
+Usage:
+  ldcli approvals-beta update-request [flags]
+
+Required flags:
+  -d, --data string   Input data in JSON
+      --id string     The approval ID
+
+Optional flags:
+      --semantic-patch   Perform a semantic patch request
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

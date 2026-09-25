@@ -1,0 +1,74 @@
+
+Add multiple members to an existing team by uploading a CSV file of member email addresses. Your CSV file must include email addresses in the first column. You can include data in additional columns, but LaunchDarkly ignores all data outside the first column. Headers are optional. To learn more, read Manage team members https://launchdarkly.com/docs/home/account/manage-teams#manage-team-members.
+
+**Members are only added on a **201** response.** A 207 indicates the CSV file contains a combination of valid and invalid entries. A 207 results in no members being added to the team.
+
+On a 207 response, if an entry contains bad input, the message field contains the row number as well as the reason for the error. The message field is omitted if the entry is valid.
+
+Example 207 response:
+
+  {
+    "items": [
+      {
+        "status": "success",
+        "value": "new-team-member@acme.com"
+      },
+      {
+        "message": "Line 2: empty row",
+        "status": "error",
+        "value": ""
+      },
+      {
+        "message": "Line 3: email already exists in the specified team",
+        "status": "error",
+        "value": "existing-team-member@acme.com"
+      },
+      {
+        "message": "Line 4: invalid email formatting",
+        "status": "error",
+        "value": "invalid email format"
+      }
+    ]
+  }
+
+ Message                                        | Resolution                                                                                                                    
+------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------
+ Empty row                                      | This line is blank. Add an email address and try again.                                                                       
+ Duplicate entry                                | This email address appears in the file twice. Remove the email from the file and try again.                                   
+ Email already exists in the specified team     | This member is already on your team. Remove the email from the file and try again.                                            
+ Invalid formatting                             | This email address is not formatted correctly. Fix the formatting and try again.                                              
+ Email does not belong to a LaunchDarkly member | The email address doesn't belong to a LaunchDarkly account member. Invite them to LaunchDarkly, then re-add them to the team. 
+
+On a 400 response, the message field may contain errors specific to this endpoint.
+
+Example 400 response:
+
+  {
+    "code": "invalid_request",
+    "message": "Unable to process file"
+  }
+
+ Message                                                       | Resolution                                                                                                                                      
+---------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------
+ Unable to process file                                        | LaunchDarkly could not process the file for an unspecified reason. Review your file for errors and try again.                                   
+ File exceeds 25mb                                             | Break up your file into multiple files of less than 25mbs each.                                                                                 
+ All emails have invalid formatting                            | None of the email addresses in the file are in the correct format. Fix the formatting and try again.                                            
+ All emails belong to existing team members                    | All listed members are already on this team. Populate the file with member emails that do not belong to the team and try again.                 
+ File is empty                                                 | The CSV file does not contain any email addresses. Populate the file and try again.                                                             
+ No emails belong to members of your LaunchDarkly organization | None of the email addresses belong to members of your LaunchDarkly account. Invite these members to LaunchDarkly, then re-add them to the team.
+
+Usage:
+  ldcli teams create-members [flags]
+
+Required flags:
+  -d, --data string   Input data in JSON
+      --team string   The team key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

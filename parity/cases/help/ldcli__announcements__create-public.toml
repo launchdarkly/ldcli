@@ -1,0 +1,10 @@
+id = "ldcli__announcements__create-public"
+argv = ["announcements", "create-public", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__announcements__create-public.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

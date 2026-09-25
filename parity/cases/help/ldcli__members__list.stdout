@@ -1,0 +1,71 @@
+
+Return a list of account members.
+
+By default, this returns the first 20 members. Page through this list with the limit parameter and by following the first, prev, next, and last links in the returned _links field. These links are not present if the pages they refer to don't exist. For example, the first and prev links will be missing from the response on the first page.
+
+### Filtering members
+
+LaunchDarkly supports the following fields for filters:
+
+• query is a string that matches against the members' emails and names. It is not case sensitive.
+• role is a | separated list of roles and custom roles. It filters the list to members who have any of the roles in the list. For the purposes of this filtering, Owner counts as Admin.
+• id is a | separated list of member IDs. It filters the list to members who match any of the IDs in the list.
+• email is a | separated list of member emails. It filters the list to members who match any of the emails in the list.
+• team is a string that matches against the key of the teams the members belong to. It is not case sensitive.
+• noteam is a boolean that filters the list of members who are not on a team if true and members on a team if false.
+• lastSeen is a JSON object in one of the following formats:
+    • {"never": true} - Members that have never been active, such as those who have not accepted their invitation to LaunchDarkly, or have not logged in after being provisioned via SCIM.
+    • {"noData": true} - Members that have not been active since LaunchDarkly began recording last seen timestamps.
+    • {"before": 1608672063611} - Members that have not been active since the provided value, which should be a timestamp in Unix epoch milliseconds.
+• accessCheck is a string that represents a specific action on a specific resource and is in the format <ActionSpecifier>:<ResourceSpecifier>. It filters the list to members who have the ability to perform that action on that resource. Note: accessCheck is only supported in API version 20220603 and earlier. To learn more, read Versioning https://launchdarkly.com/docs/api#versioning.
+    • For example, the filter accessCheck:createApprovalRequest:proj/default:env/test:flag/alternate-page matches members with the ability to create an approval request for the alternate-page flag in the test environment of the default project.
+    • Wildcard and tag filters are not supported when filtering for access.
+
+
+For example, the filter query:abc,role:admin|customrole matches members with the string abc in their email or name, ignoring case, who also are either an Owner or Admin or have the custom role customrole.
+
+### Sorting members
+
+LaunchDarkly supports two fields for sorting: displayName and lastSeen:
+
+• displayName sorts by first + last name, using the member's email if no name is set.
+• lastSeen sorts by the _lastSeen property. LaunchDarkly considers members that have never been seen or have no data the oldest.
+
+### Expanding the members response
+
+LaunchDarkly supports two fields for expanding the "List members" response. By default, these fields are **not** included in the response.
+
+To expand the response, append the expand query parameter and add a comma-separated list with any of the following fields:
+
+• customRoles includes a list of the roles that you have assigned to the member.
+• roleAttributes includes a list of the role attributes that you have assigned to the member.
+
+For example, expand=roleAttributes includes roleAttributes field in the response.
+
+Usage:
+  ldcli members list [flags]
+
+Optional flags:
+      --expand string   A comma-separated list of properties that can
+                        reveal additional information in the response.
+      --filter string   A comma-separated list of filters. Each filter is
+                        of the form 'field:value'. Supported fields are
+                        explained above.
+      --limit string    The number of members to return in the response.
+                        Defaults to 20.
+      --offset string   Where to start in the list. This is for use with
+                        pagination. For example, an offset of 10 skips the
+                        first ten items and then returns the next items in
+                        the list, up to the query 'limit'.
+      --sort string     A comma-separated list of fields to sort by.
+                        Fields prefixed by a dash ( - ) sort in descending
+                        order.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

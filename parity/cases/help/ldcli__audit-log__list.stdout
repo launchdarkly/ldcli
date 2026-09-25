@@ -1,0 +1,30 @@
+
+Get a list of all audit log entries. The query parameters let you restrict the results that return by date ranges, resource specifiers, or a full-text search query.
+
+LaunchDarkly uses a resource specifier syntax to name resources or collections of resources. To learn more, read About the resource specifier syntax https://launchdarkly.com/docs/home/account/role-resources#about-the-resource-specifier-syntax.
+
+Usage:
+  ldcli audit-log list [flags]
+
+Optional flags:
+      --after string    A timestamp filter, expressed as a Unix epoch time
+                        in milliseconds. All entries this returns occurred
+                        after the timestamp.
+      --before string   A timestamp filter, expressed as a Unix epoch time
+                        in milliseconds.  All entries this returns
+                        occurred before the timestamp.
+      --limit string    A limit on the number of audit log entries that
+                        return. Set between 1 and 20. The default is 10.
+      --q string        Text to search for. You can search for the full or
+                        partial name of the resource.
+      --spec string     A resource specifier that lets you filter audit
+                        log listings by resource
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

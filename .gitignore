@@ -3,4 +3,9 @@ dist/
 *.log
 node_modules/
 devserver.db
-ldcli
+# The binary `make build` writes, at the repo root only. Without the slash
+# this also matches rust/crates/ldcli/, which would keep the Rust crate
+# untracked.
+/ldcli
+bin/
+rust/target/

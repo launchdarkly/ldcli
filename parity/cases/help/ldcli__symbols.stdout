@@ -1,0 +1,19 @@
+Manage symbol files (for example, React Native sourcemaps) for LaunchDarkly error monitoring
+
+Usage:
+  ldcli symbols [command]
+
+Available Commands:
+  generate    Generate symbol files to a local folder
+  upload      Upload symbol files
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli symbols [command] --help" for more information about a command.

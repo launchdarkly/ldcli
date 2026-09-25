@@ -1,0 +1,10 @@
+id = "ldcli__code-refs__list-branches"
+argv = ["code-refs", "list-branches", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__code-refs__list-branches.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

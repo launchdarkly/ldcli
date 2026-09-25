@@ -1,0 +1,10 @@
+id = "ldcli__segments__list"
+argv = ["segments", "list", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__segments__list.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

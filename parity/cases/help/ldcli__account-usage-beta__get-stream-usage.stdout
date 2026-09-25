@@ -1,0 +1,26 @@
+
+Get a time-series array of the number of streaming connections to LaunchDarkly in each time period. The granularity of the data depends on the age of the data requested. If the requested range is within the past two hours, minutely data is returned. If it is within the last two days, hourly data is returned. Otherwise, daily data is returned.
+
+Usage:
+  ldcli account-usage-beta get-stream-usage [flags]
+
+Required flags:
+      --source string   The source of streaming connections to describe.
+                        Must be either 'client' or 'server'.
+
+Optional flags:
+      --from string   The series of data returned starts from this
+                      timestamp. Defaults to 30 days ago.
+      --to string     The series of data returned ends at this timestamp.
+                      Defaults to the current time.
+      --tz string     The timezone to use for breaks between days when
+                      returning daily data.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

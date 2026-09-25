@@ -1,0 +1,32 @@
+
+Get an approval request by approval request ID.
+
+### Expanding approval response
+
+LaunchDarkly supports the expand query param to include additional fields in the response, with the following fields:
+
+• environments includes the environments the approval request relates to
+• flag includes the flag the approval request belongs to
+• project includes the project the approval request belongs to
+• resource includes details on the resource (flag or segment) the approval request relates to
+
+For example, expand=project,flag includes the project and flag fields in the response.
+
+Usage:
+  ldcli approval-requests get [flags]
+
+Required flags:
+      --id string   The approval request ID
+
+Optional flags:
+      --expand string   A comma-separated list of fields to expand in the
+                        response. Supported fields are explained above.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

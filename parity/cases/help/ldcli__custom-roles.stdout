@@ -1,0 +1,32 @@
+
+
+| ### Custom roles is an Enterprise feature
+| 
+| Custom roles is available to customers on an Enterprise plan. To learn more, read about our pricing https://launchdarkly.com/pricing/. To upgrade your plan, contact Sales https://launchdarkly.com/contact-sales/.
+
+Custom roles allow you to create flexible policies providing fine-grained access control to everything in LaunchDarkly, including feature flags, environments, and teams. With roles, it's possible to enforce access policies that meet your exact workflow needs.
+
+The custom roles API allows you to create, update, and delete roles. You can also use the API to list roles or get a role by key or ID. This API works with roles that you create, and with preset roles https://launchdarkly.com/docs/home/getting-started/vocabulary#preset-roles provided by LaunchDarkly. You cannot use this API to work with base roles https://launchdarkly.com/docs/home/getting-started/vocabulary#base-role.
+
+For more information about roles and the syntax for role policies, read the product documentation for Roles https://launchdarkly.com/docs/home/account/roles.
+
+Usage:
+  ldcli custom-roles [command]
+
+Available Commands:
+  create      Create custom role
+  delete      Delete custom role
+  get         Get custom role
+  list        List custom roles
+  update      Update custom role
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli custom-roles [command] --help" for more information about a command.

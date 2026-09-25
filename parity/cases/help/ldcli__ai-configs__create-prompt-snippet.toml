@@ -1,0 +1,10 @@
+id = "ldcli__ai-configs__create-prompt-snippet"
+argv = ["ai-configs", "create-prompt-snippet", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__ai-configs__create-prompt-snippet.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

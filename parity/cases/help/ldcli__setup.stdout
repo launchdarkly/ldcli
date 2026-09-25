@@ -1,0 +1,20 @@
+Guided setup to integrate LaunchDarkly into your codebase.
+
+Detects your project's language and framework, installs the correct SDK,
+initializes it with your environment's SDK key, creates a feature flag,
+and verifies the connection.
+
+Usage:
+  ldcli setup [flags]
+
+
+Flags:
+  -h, --help   help for setup
+
+Global flags:
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

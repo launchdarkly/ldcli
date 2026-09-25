@@ -1,0 +1,42 @@
+
+Get information for a single metric from the specific project.
+
+### Expanding the metric response
+
+LaunchDarkly supports four fields for expanding the "Get metric" response. By default, these fields are **not** included in the response.
+
+To expand the response, append the expand query parameter and add a comma-separated list with any of the following fields:
+
+• experiments includes all experiments from the specific project that use the metric
+• experimentCount includes the number of experiments from the specific project that use the metric
+• metricGroups includes all metric groups from the specific project that use the metric
+• metricGroupCount includes the number of metric groups from the specific project that use the metric
+
+For example, expand=experiments includes the experiments field in the response.
+
+Usage:
+  ldcli metrics get [flags]
+
+Required flags:
+      --metric string    The metric key
+      --project string   The project key
+
+Optional flags:
+      --expand string       A comma-separated list of properties that can
+                            reveal additional information in the response.
+                            Supported fields are 'experiments',
+                            'experimentCount', 'metricGroups',
+                            'metricGroupCount', 'eventSources',
+                            'guardedRollouts', 'guardedRolloutCount',
+                            'lastUsedInExperiment', and
+                            'lastUsedInGuardedRollout'.
+      --version-id string   The specific version ID of the metric
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

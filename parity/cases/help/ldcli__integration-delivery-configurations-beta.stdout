@@ -1,0 +1,34 @@
+
+
+| ### This feature is in beta
+| 
+| To use this feature, pass in a header including the LD-API-Version key with value set to beta. Use this header with each call. To learn more, read Beta resources https://launchdarkly.com/docs/api#beta-resources.
+| 
+| Resources that are in beta are still undergoing testing and development. They may change without notice, including becoming backwards incompatible.
+
+The integration delivery configurations API allow you to create, modify, validate, and delete delivery configurations.
+
+Several of the endpoints require a delivery configuration ID. The delivery configuration ID is returned as part of the Create delivery configuration https://launchdarkly.com/docs/api/integration-delivery-configurations-beta/create-integration-delivery-configuration and List all delivery configurations https://launchdarkly.com/docs/api/integration-delivery-configurations-beta/get-integration-delivery-configurations responses. It is the _id field, or the _id field of each element in the items array.
+
+Usage:
+  ldcli integration-delivery-configurations-beta [command]
+
+Available Commands:
+  create              Create delivery configuration
+  delete              Delete delivery configuration
+  get                 Get delivery configuration by ID
+  list                List all delivery configurations
+  list-by-environment Get delivery configurations by environment
+  update              Update delivery configuration
+  validate            Validate delivery configuration
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli integration-delivery-configurations-beta [command] --help" for more information about a command.

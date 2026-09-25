@@ -1,0 +1,20 @@
+remove all overrides for a project
+
+Usage:
+  ldcli dev-server remove-overrides [flags]
+
+Required flags:
+      --project string   The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string     LaunchDarkly access token with write-level access
+      --analytics-opt-out       Opt out of analytics tracking
+      --base-uri string         LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --cors-enabled            Enable CORS headers for browser-based developer tools (default: false)
+      --cors-origin string      Allowed CORS origin. Use '*' for all origins (default: '*') (default "*")
+      --dev-stream-uri string   Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint (default "https://stream.launchdarkly.com")
+      --fields strings          Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                    Output JSON format (shorthand for --output json)
+  -o, --output string           Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+      --port string             Port for the dev server to run on (default "8765")

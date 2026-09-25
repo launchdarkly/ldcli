@@ -1,0 +1,10 @@
+id = "ldcli__members__invite"
+argv = ["members", "invite", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__members__invite.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

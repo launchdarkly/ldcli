@@ -1,0 +1,43 @@
+
+Get a list of all linked resources for a given view.
+
+Usage:
+  ldcli views-beta list-linked-resources [flags]
+
+Required flags:
+      --project string         
+      --resource-type string   
+      --view string
+
+Optional flags:
+      --expand string           A comma-separated list of fields to expand.
+      --filter string           Optional resource filter expression for
+                                linked resources.
+                                - Supported for 'flags' and 'segments'
+                                resource types.
+                                - Uses the same syntax as link/unlink and
+                                list endpoints.
+                                - For 'segments', 'environmentId' is
+                                required when 'filter' is provided.
+                                
+      --ld-api-version string   Version of the endpoint.
+      --limit string            The number of views to return.
+      --offset string           Where to start in the list. Use this with
+                                pagination. For example, an offset of 10
+                                skips the first ten items and then returns
+                                the next items in the list, up to the
+                                query 'limit'.
+      --query string            Case-insensitive search query for linked
+                                resources. Matches resource key and, when
+                                expanded, resource name.
+      --sort string             Field to sort by. Default field is
+                                'linkedAt', default order is ascending.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

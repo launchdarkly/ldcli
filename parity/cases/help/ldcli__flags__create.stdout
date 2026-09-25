@@ -1,0 +1,44 @@
+
+Create a feature flag with the given name, key, and variations.
+Click to expand instructions for creating a migration flag
+### Creating a migration flag
+
+When you create a migration flag, the variations are pre-determined based on the number of stages in the migration.
+
+To create a migration flag, omit the variations and defaults information. Instead, provide a purpose of migration, and migrationSettings. If you create a migration flag with six stages, contextKind is required. Otherwise, it should be omitted.
+
+Here's an example:
+
+  {
+    "key": "flag-key-123",
+    "purpose": "migration",
+    "migrationSettings": {
+      "stageCount": 6,
+      "contextKind": "account"
+    }
+  }
+
+To learn more, read Migration Flags https://launchdarkly.com/docs/home/flags/migration.
+
+Usage:
+  ldcli flags create [flags]
+
+Required flags:
+  -d, --data string      Input data in JSON
+      --project string   The project key
+
+Optional flags:
+      --clone string   The key of the feature flag to be cloned. The key
+                       identifies the flag in your code. For example,
+                       setting 'clone=flagKey' copies the full targeting
+                       configuration for all environments, including
+                       'on/off' state, from the original flag to the new flag.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

@@ -1,0 +1,27 @@
+
+Get the approval request settings for the given project, optionally filtered by environment and resource kind.
+
+Usage:
+  ldcli approvals-beta get-request-settings [flags]
+
+Required flags:
+      --project string
+
+Optional flags:
+      --environment string      An environment key filter to apply to the
+                                approval request settings.
+      --expand string           A comma-separated list of fields to expand
+                                in the response. Options include 'default'
+                                and 'strict'.
+      --ld-api-version string   Version of the endpoint.
+      --resource-kind string    A resource kind filter to apply to the
+                                approval request settings.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

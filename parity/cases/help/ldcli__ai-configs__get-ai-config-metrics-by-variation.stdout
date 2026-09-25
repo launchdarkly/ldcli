@@ -1,0 +1,26 @@
+
+Retrieve usage metrics for an AI Config by config key, with results split by variation.
+
+Usage:
+  ldcli ai-configs get-ai-config-metrics-by-variation [flags]
+
+Required flags:
+      --config string    
+      --project string
+
+Optional flags:
+      --env string    An environment key. Only metrics from this
+                      environment will be included.
+      --from string   The starting time, as milliseconds since epoch
+                      (inclusive).
+      --to string     The ending time, as milliseconds since epoch
+                      (exclusive). May not be more than 100 days after 'from'.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

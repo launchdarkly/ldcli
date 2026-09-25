@@ -1,0 +1,10 @@
+id = "ldcli__insights-flag-events-beta__list-flag-events"
+argv = ["insights-flag-events-beta", "list-flag-events", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__insights-flag-events-beta__list-flag-events.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

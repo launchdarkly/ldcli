@@ -1,0 +1,26 @@
+
+Edit an existing agent graph.
+
+The request body must be a JSON object of the fields to update. The values you include replace the existing values for the fields.
+
+If the update includes rootConfigKey or edges, both must be present and will be treated as full replacements.
+
+Usage:
+  ldcli ai-configs update-agent-graph [flags]
+
+Required flags:
+      --graph string     
+      --project string
+
+Optional flags:
+  -d, --data string             Input data in JSON
+      --ld-api-version string   Version of the endpoint.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

@@ -1,0 +1,10 @@
+id = "ldcli__insights-repositories-beta__delete-repository-project"
+argv = ["insights-repositories-beta", "delete-repository-project", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__insights-repositories-beta__delete-repository-project.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

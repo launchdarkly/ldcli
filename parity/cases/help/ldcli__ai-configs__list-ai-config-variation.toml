@@ -1,0 +1,10 @@
+id = "ldcli__ai-configs__list-ai-config-variation"
+argv = ["ai-configs", "list-ai-config-variation", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__ai-configs__list-ai-config-variation.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

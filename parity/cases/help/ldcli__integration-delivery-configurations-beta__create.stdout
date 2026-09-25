@@ -1,0 +1,20 @@
+
+Create a delivery configuration.
+
+Usage:
+  ldcli integration-delivery-configurations-beta create [flags]
+
+Required flags:
+  -d, --data string          Input data in JSON
+      --environment string   The environment key
+      --integration string   The integration key
+      --project string       The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

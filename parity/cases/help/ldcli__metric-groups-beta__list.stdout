@@ -1,0 +1,74 @@
+
+Get a list of all metric groups for the specified project.
+
+### Expanding the metric groups response
+
+This endpoint does not support response expansion.
+
+Although the API accepts an expand query parameter for compatibility reasons, it does not currently modify the response. The parameter is reserved for future use.
+
+### Filtering metric groups
+
+The filter parameter supports the following operators: contains, equals, anyOf.
+
+#### Supported fields and operators
+
+You can only filter certain fields in metrics when using the filter parameter. Additionally, you can only filter some fields with certain operators.
+
+When you search for metrics, the filter parameter supports the following fields and operators:
+
+ Field             | Description                                                                                            | Supported operators 
+-------------------|--------------------------------------------------------------------------------------------------------|---------------------
+ experimentStatus  | The experiment's status. One of not_started, running, stopped, started.                                | equals              
+ hasConnections    | Whether the metric group has connections to experiments or guarded rollouts. One of true, false.       | equals              
+ kind              | The metric group kind. One of funnel, standard.                                                        | equals              
+ maintainerIds     | The metric maintainer IDs.                                                                             | anyOf               
+ maintainerTeamKey | The metric maintainer team key.                                                                        | equals              
+ query             | A "fuzzy" search across metric group key and name. Supply a string or list of strings to the operator. | equals              
+
+### Sorting metric groups
+
+LaunchDarkly supports the following fields for sorting:
+
+• name sorts by metric group name.
+• createdAt sorts by the creation date of the metric group.
+• connectionCount sorts by the number of connections to experiments the metric group has.
+
+By default, the sort is in ascending order. Use - to sort in descending order. For example, ?sort=name sorts the response by metric group name in ascending order, and ?sort=-name sorts in descending order.
+
+#### Sample query
+
+filter=experimentStatus equals 'not_started' and query equals 'metric name'
+
+Usage:
+  ldcli metric-groups-beta list [flags]
+
+Required flags:
+      --project string   The project key
+
+Optional flags:
+      --expand string   This parameter is reserved for future use and is
+                        not currently supported on this endpoint.
+      --filter string   Accepts filter by 'experimentStatus', 'query',
+                        'kind', 'hasConnections', 'maintainerIds', and
+                        'maintainerTeamKey'. Example:
+                        'filter=experimentStatus equals 'running' and
+                        query equals 'test''.
+      --limit string    The number of metric groups to return in the
+                        response. Defaults to 20. Maximum limit is 50.
+      --offset string   Where to start in the list. Use this with
+                        pagination. For example, an offset of 10 skips the
+                        first ten items and returns the next 'limit' items.
+      --sort string     A comma-separated list of fields to sort by.
+                        Fields prefixed by a dash ( - ) sort in descending
+                        order. Read the endpoint description for a full
+                        list of available sort fields.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

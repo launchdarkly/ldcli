@@ -1,0 +1,10 @@
+id = "ldcli__release-policies-beta__list"
+argv = ["release-policies-beta", "list", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__release-policies-beta__list.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,31 @@
+
+
+| ### Relay Proxy automatic configuration is an Enterprise feature
+| 
+| Relay Proxy automatic configuration is available to customers on an Enterprise plan. To learn more, read about our pricing https://launchdarkly.com/pricing/. To upgrade your plan, contact Sales https://launchdarkly.com/contact-sales/.
+
+The Relay Proxy automatic configuration API provides access to all resources related to relay tokens. To learn more, read Automatic configuration https://launchdarkly.com/docs/sdk/relay-proxy/automatic-configuration.
+
+Several of the endpoints in the Relay Proxy automatic configuration API require a configuration ID. The Relay Proxy configuration ID is returned as part of the Create a new Relay Proxy config https://launchdarkly.com/docs/api/relay-proxy-configurations/post-relay-auto-config and List Relay Proxy configs https://launchdarkly.com/docs/api/relay-proxy-configurations/get-relay-proxy-configs responses. It is the _id field, or the _id field of each element in the items array.
+
+Usage:
+  ldcli relay-proxy-configs [command]
+
+Available Commands:
+  create      Create a new Relay Proxy config
+  delete      Delete Relay Proxy config by ID
+  get         Get Relay Proxy config
+  list        List Relay Proxy configs
+  reset       Reset Relay Proxy configuration key
+  update      Update a Relay Proxy config
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli relay-proxy-configs [command] --help" for more information about a command.

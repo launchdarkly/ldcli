@@ -1,0 +1,10 @@
+id = "ldcli__teams-beta__update-multiple"
+argv = ["teams-beta", "update-multiple", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__teams-beta__update-multiple.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

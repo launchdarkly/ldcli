@@ -1,0 +1,10 @@
+id = "ldcli__context-settings__replace"
+argv = ["context-settings", "replace", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__context-settings__replace.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

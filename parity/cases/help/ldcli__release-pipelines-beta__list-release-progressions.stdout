@@ -1,0 +1,35 @@
+
+Get details on the progression of all releases, across all flags, for a release pipeline
+
+Usage:
+  ldcli release-pipelines-beta list-release-progressions [flags]
+
+Required flags:
+      --pipeline string   The pipeline key
+      --project string    The project key
+
+Optional flags:
+      --filter string   Accepts filter by 'status' and 'activePhaseId'.
+                        'status' can take a value of 'completed' or
+                        'active'. 'activePhaseId' takes a UUID and will
+                        filter results down to releases active on the
+                        specified phase. Providing 'status equals
+                        completed' along with an 'activePhaseId' filter
+                        will return an error as they are disjoint sets of
+                        data. The combination of 'status equals active'
+                        and 'activePhaseId' will return the same results
+                        as 'activePhaseId' alone.
+      --limit string    The maximum number of items to return. Defaults to 20.
+      --offset string   Where to start in the list. Defaults to 0. Use
+                        this with pagination. For example, an offset of 10
+                        skips the first ten items and then returns the
+                        next items in the list, up to the query 'limit'.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

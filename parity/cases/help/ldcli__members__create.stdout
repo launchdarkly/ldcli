@@ -1,0 +1,35 @@
+
+Invite one or more new members to join an account. Each member is sent an invitation. Members with Admin or Owner roles may create new members, as well as anyone with a createMember permission for "member/*". If a member cannot be invited, the entire request is rejected and no members are invited from that request.
+
+Each member *must* have an email field and either a role or a customRoles field. If any of the fields are not populated correctly, the request is rejected with the reason specified in the "message" field of the response.
+
+Valid base role names that you can provide for the role field include reader, writer, admin, owner/admin, and no_access. To learn more about base roles, read Organization roles https://launchdarkly.com/docs/home/account/roles/organization-roles.
+
+If you are using the customRoles field instead, you can provide the key for any role that you have created, or for any preset organization role https://launchdarkly.com/docs/home/account/roles/organization-roles or project role https://launchdarkly.com/docs/home/account/roles/project-roles provided by LaunchDarkly. Some preset roles additionally require that you specify roleAttributes. To learn more, read Using role scope https://launchdarkly.com/docs/home/account/roles/role-scope.
+
+Requests to create account members will not work if SCIM is enabled for the account.
+
+*No more than 50 members may be created per request.*
+
+A request may also fail because of conflicts with existing members. These conflicts are reported using the additional code and invalid_emails response fields with the following possible values for code:
+
+• **email_****already_****exists_****in_****account**: A member with this email address already exists in this account.
+• **email_****taken_****in_****different_****account**: A member with this email address exists in another account.
+• **duplicate_****email**s: This request contains two or more members with the same email address.
+
+A request that fails for one of the above reasons returns an HTTP response code of 400 (Bad Request).
+
+Usage:
+  ldcli members create [flags]
+
+Required flags:
+  -d, --data string   Input data in JSON
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

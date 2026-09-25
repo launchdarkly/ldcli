@@ -1,0 +1,10 @@
+id = "ldcli__flags__list-statuses"
+argv = ["flags", "list-statuses", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__flags__list-statuses.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

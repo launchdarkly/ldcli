@@ -1,0 +1,10 @@
+id = "ldcli__insights-scores-beta__list-insight-groups"
+argv = ["insights-scores-beta", "list-insight-groups", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__insights-scores-beta__list-insight-groups.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

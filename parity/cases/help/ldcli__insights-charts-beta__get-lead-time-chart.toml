@@ -1,0 +1,10 @@
+id = "ldcli__insights-charts-beta__get-lead-time-chart"
+argv = ["insights-charts-beta", "get-lead-time-chart", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__insights-charts-beta__get-lead-time-chart.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

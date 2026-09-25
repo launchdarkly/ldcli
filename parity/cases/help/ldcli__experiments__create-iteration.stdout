@@ -1,0 +1,24 @@
+
+Create an experiment iteration.
+
+Experiment iterations let you record experiments in individual blocks of time. Initially, iterations are created with a status of not_started and appear in the draftIteration field of an experiment. To start or stop an iteration, update the experiment https://launchdarkly.com/docs/api/experiments/patch-experiment with the startIteration or stopIteration instruction.
+
+To learn more, read Start experiment iterations https://launchdarkly.com/docs/home/experimentation/create#start-an-experiment-iteration.
+
+Usage:
+  ldcli experiments create-iteration [flags]
+
+Required flags:
+  -d, --data string          Input data in JSON
+      --environment string   The environment key
+      --experiment string    The experiment key
+      --project string       The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

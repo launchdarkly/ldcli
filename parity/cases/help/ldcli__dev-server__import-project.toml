@@ -1,0 +1,10 @@
+id = "ldcli__dev-server__import-project"
+argv = ["dev-server", "import-project", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__dev-server__import-project.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,55 @@
+
+Get a time series of the number of context key usages observed by LaunchDarkly in your account, for the primary context kind only. The counts reflect data reported from client-side SDKs.For past months, the primary context kind is fixed and reflects the last known primary kind for that month. For the current month, it may vary as new primary context kinds are observed.The supported granularity varies by aggregation type. The maximum time range is 365 days.
+
+Usage:
+  ldcli account-usage-beta get-mau-clientside-usage [flags]
+
+Optional flags:
+      --aggregation-type string   Specifies the aggregation method.
+                                  Defaults to 'month_to_date'.<br/>Valid
+                                  values: 'month_to_date', 'incremental',
+                                  'rolling_30d'.
+      --anonymous string          An anonymous value to filter results by.
+                                  Can be specified multiple times, one
+                                  query parameter per anonymous
+                                  value.<br/>Valid values: 'true', 'false'.
+      --environment string        An environment key to filter results by.
+                                  If specified, exactly one 'projectKey'
+                                  must be provided. Can be specified
+                                  multiple times, one query parameter per
+                                  environment key.
+      --from string               The series of data returned starts from
+                                  this timestamp (Unix milliseconds).
+                                  Defaults to the beginning of the current
+                                  month.
+      --granularity string        Specifies the data granularity. Defaults
+                                  to 'daily'. Valid values depend on
+                                  'aggregationType': **month_to_date**
+                                  supports 'daily' and 'monthly';
+                                  **incremental** and **rolling_30d**
+                                  support 'daily' only.
+      --group-by string           If specified, returns data for each
+                                  distinct value of the given field. Can
+                                  be specified multiple times to group
+                                  data by multiple dimensions, one query
+                                  parameter per dimension.<br/>Valid
+                                  values: 'projectId', 'environmentId',
+                                  'sdkName', 'sdkAppId', 'anonymousV2'.
+      --project string            A project key to filter results by. Can
+                                  be specified multiple times, one query
+                                  parameter per project key.
+      --sdk-name string           An SDK name to filter results by. Can be
+                                  specified multiple times, one query
+                                  parameter per SDK name.
+      --to string                 The series of data returned ends at this
+                                  timestamp (Unix milliseconds). Defaults
+                                  to the current time.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

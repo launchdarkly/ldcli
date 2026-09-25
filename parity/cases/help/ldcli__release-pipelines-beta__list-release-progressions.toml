@@ -1,0 +1,10 @@
+id = "ldcli__release-pipelines-beta__list-release-progressions"
+argv = ["release-pipelines-beta", "list-release-progressions", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__release-pipelines-beta__list-release-progressions.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

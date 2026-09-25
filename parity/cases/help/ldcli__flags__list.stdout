@@ -1,0 +1,105 @@
+
+Get a list of all feature flags in the given project. You can include information specific to different environments by adding env query parameter. For example, setting env=production adds configuration details about your production environment to the response. You can also filter feature flags by tag with the tag query parameter.
+
+| #### Recommended use
+| 
+| This endpoint can return a large amount of information. We recommend using some or all of these query parameters to decrease response time and overall payload size: limit, env, query, and filter=creationDate.
+
+### Filtering flags
+
+You can filter on certain fields using the filter query parameter. For example, setting filter=query:dark-mode,tags:beta+test matches flags with the string dark-mode in their key or name, ignoring case, which also have the tags beta and test.
+
+The filter query parameter supports the following arguments:
+
+ Filter argument       | Description                                                                                                                                                                                                                                                                                                                                                                                                               | Example                                                        
+-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------
+ applicationEvaluated  | A string. It filters the list to flags that are evaluated in the application with the given key.                                                                                                                                                                                                                                                                                                                          | filter=applicationEvaluated:com.launchdarkly.cafe              
+ archived              | (deprecated) A boolean value. It filters the list to archived flags.                                                                                                                                                                                                                                                                                                                                                      | Use filter=state:archived instead                              
+ contextKindsEvaluated | A +-separated list of context kind keys. It filters the list to flags which have been evaluated in the past 30 days for all of the context kinds in the list.                                                                                                                                                                                                                                                             | filter=contextKindsEvaluated:user+application                  
+ codeReferences.max    | An integer value. Use 0 to return flags that do not have code references.                                                                                                                                                                                                                                                                                                                                                 | filter=codeReferences.max:0                                    
+ codeReferences.min    | An integer value. Use 1 to return flags that do have code references.                                                                                                                                                                                                                                                                                                                                                     | filter=codeReferences.min:1                                    
+ creationDate          | An object with an optional before field whose value is Unix time in milliseconds. It filters the list to flags created before the date.                                                                                                                                                                                                                                                                                   | filter=creationDate:{"before":1690527600000}                   
+ evaluated             | An object that contains a key of after and a value in Unix time in milliseconds. It filters the list to all flags that have been evaluated since the time you specify, in the environment provided. This filter requires the filterEnv filter.                                                                                                                                                                            | filter=evaluated:{"after":1690527600000},filterEnv:production  
+ filterEnv             | A valid environment key. You must use this field for filters that are environment-specific. If there are multiple environment-specific filters, you only need to include this field once.                                                                                                                                                                                                                                 | filter=evaluated:{"after": 1590768455282},filterEnv:production 
+ guardedRollout        | A string, one of any, monitoring, regressed, rolledBack, completed, archived. It filters the list to flags that are part of guarded rollouts.                                                                                                                                                                                                                                                                             | filter=guardedRollout:monitoring                               
+ hasExperiment         | A boolean value. It filters the list to flags that are used in an experiment.                                                                                                                                                                                                                                                                                                                                             | filter=hasExperiment:true                                      
+ maintainerId          | A valid member ID. It filters the list to flags that are maintained by this member.                                                                                                                                                                                                                                                                                                                                       | filter=maintainerId:12ab3c45de678910abc12345                   
+ maintainerTeamKey     | A string. It filters the list to flags that are maintained by the team with this key.                                                                                                                                                                                                                                                                                                                                     | filter=maintainerTeamKey:example-team-key                      
+ query                 | A string. It filters the list to flags that include the specified string in their key or name. It is not case sensitive.                                                                                                                                                                                                                                                                                                  | filter=query:example                                           
+ releasePipeline       | A release pipeline key. It filters the list to flags that are either currently active in the release pipeline or have completed the release pipeline.                                                                                                                                                                                                                                                                     | filter=releasePipeline:default-release-pipeline                
+ state                 | A string, either live, deprecated, or archived. It filters the list to flags in this state.                                                                                                                                                                                                                                                                                                                               | filter=state:archived                                          
+ sdkAvailability       | A string, one of client, mobile, anyClient, server. Using client filters the list to flags whose client-side SDK availability is set to use the client-side ID. Using mobile filters to flags set to use the mobile key. Using anyClient filters to flags set to use either the client-side ID or the mobile key. Using server filters to flags set to use neither, that is, to flags only available in server-side SDKs. | filter=sdkAvailability:client                                  
+ tags                  | A +-separated list of tags. It filters the list to flags that have all of the tags in the list.                                                                                                                                                                                                                                                                                                                           | filter=tags:beta+test                                          
+ type                  | A string, either temporary or permanent. It filters the list to flags with the specified type.                                                                                                                                                                                                                                                                                                                            | filter=type:permanent                                          
+
+The documented values for the filter query are prior to URL encoding. For example, the + in filter=tags:beta+test must be encoded to %2B.
+
+By default, this endpoint returns all flags. You can page through the list with the limit parameter and by following the first, prev, next, and last links in the returned _links field. These links will not be present if the pages they refer to don't exist. For example, the first and prev links will be missing from the response on the first page.
+
+### Sorting flags
+
+You can sort flags based on the following fields:
+
+• creationDate sorts by the creation date of the flag.
+• key sorts by the key of the flag.
+• maintainerId sorts by the flag maintainer.
+• name sorts by flag name.
+• tags sorts by tags.
+• targetingModifiedDate sorts by the date that the flag's targeting rules were last modified in a given environment. It must be used with env parameter and it can not be combined with any other sort. If multiple env values are provided, it will perform sort using the first one. For example, sort=-targetingModifiedDate&env=production&env=staging returns results sorted by targetingModifiedDate for the production environment.
+• type sorts by flag type
+
+All fields are sorted in ascending order by default. To sort in descending order, prefix the field with a dash ( - ). For example, sort=-name sorts the response by flag name in descending order.
+
+### Expanding response
+
+LaunchDarkly supports the expand query param to include additional fields in the response, with the following fields:
+
+• codeReferences includes code references for the feature flag
+• evaluation includes evaluation information within returned environments, including which context kinds the flag has been evaluated for in the past 30 days
+• migrationSettings includes migration settings information within the flag and within returned environments. These settings are only included for migration flags, that is, where purpose is migration.
+
+For example, expand=evaluation includes the evaluation field in the response.
+
+### Migration flags
+
+For migration flags, the cohort information is included in the rules property of a flag's response, and default cohort information is included in the fallthrough property of a flag's response.
+To learn more, read Migration Flags https://launchdarkly.com/docs/home/flags/migration.
+
+Usage:
+  ldcli flags list [flags]
+
+Required flags:
+      --project string   The project key
+
+Optional flags:
+      --env string       Filter configurations by environment
+      --expand string    A comma-separated list of fields to expand in the
+                         response. Supported fields are explained above.
+      --filter string    A comma-separated list of filters. Each filter is
+                         of the form field:value. Read the endpoint
+                         description for a full list of available filter
+                         fields.
+      --limit string     The number of feature flags to return. Defaults to 20.
+      --offset string    Where to start in the list. Use this with
+                         pagination. For example, an offset of 10 skips
+                         the first ten items and then returns the next
+                         items in the list, up to the query 'limit'.
+      --sort string      A comma-separated list of fields to sort by.
+                         Fields prefixed by a dash ( - ) sort in
+                         descending order. Read the endpoint description
+                         for a full list of available sort fields.
+      --summary string   By default, flags do _not_ include their lists of
+                         prerequisites, targets, or rules for each
+                         environment. Set 'summary=0' and include the
+                         'env' query parameter to include these fields for
+                         each flag returned.
+      --tag string       Filter feature flags by tag
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

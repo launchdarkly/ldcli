@@ -1,0 +1,10 @@
+id = "ldcli__integration-subscriptions__list"
+argv = ["integration-subscriptions", "list", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__integration-subscriptions__list.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

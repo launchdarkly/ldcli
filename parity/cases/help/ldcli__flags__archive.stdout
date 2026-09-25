@@ -1,0 +1,22 @@
+Archive a flag across all environments. It will only appear in your list when filtered for.
+
+Usage:
+  ldcli flags archive [flags]
+
+Required flags:
+      --flag string      The feature flag key. The key identifies the flag
+                         in your code.
+      --project string   The project key
+
+Optional flags:
+      --dry-run   Validate the change without persisting it. Returns a
+                  preview of the result.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

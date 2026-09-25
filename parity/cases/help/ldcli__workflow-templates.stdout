@@ -1,0 +1,35 @@
+
+
+| ### Workflows are in maintenance mode
+| 
+| The workflows feature is in maintenance mode, and is planned for future deprecation at a date not yet specified. We will work with existing customers using workflows to migrate to a replacement solution when deprecation occurs.
+
+Workflow templates allow you to define a set of workflow stages that you can use as a starting point for new workflows. You can create these workflows for any flag in any environment and any project, and you can create as many workflows as you like from a given template.
+
+You can create workflow templates in two ways:
+
+• by specifying the desired stages, using the stages property of the request body
+• by specifying an existing workflow to save as a template, using the workflowId property of the request body
+
+You can use templates to create a workflow in any project, environment, or flag. However, when you create a template, you must specify a particular project, environment, and flag. This means that when you create a template using the stages property, you must also include projectKey, environmentKey, and flagKey properties in the request body. When you create a template from an existing workflow, it will use the project, environment, and flag of the existing workflow, so those properties can be omitted from the request body.
+
+To learn more, read Workflows documentation https://launchdarkly.com/docs/home/releases/workflows and Workflows API documentation https://launchdarkly.com/docs/api/workflows.
+
+Usage:
+  ldcli workflow-templates [command]
+
+Available Commands:
+  create      Create workflow template
+  delete      Delete workflow template
+  list        Get workflow templates
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli workflow-templates [command] --help" for more information about a command.

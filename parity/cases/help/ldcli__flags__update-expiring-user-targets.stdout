@@ -1,0 +1,66 @@
+
+
+| ### Contexts are now available
+| 
+| After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use Update expiring context targets on feature flag https://launchdarkly.com/docs/api/feature-flags/patch-expiring-targets instead of this endpoint. To learn more, read Contexts https://launchdarkly.com/docs/home/observability/contexts.
+
+Schedule a target for removal from individual targeting on a feature flag. The flag must already serve a variation to specific targets based on their key.
+
+You can add, update, or remove a scheduled removal date. You can only schedule a target for removal on a single variation per flag.
+
+Updating an expiring target uses the semantic patch format. To make a semantic patch request, you must append domain-model=launchdarkly.semanticpatch to your Content-Type header. To learn more, read Updates using semantic patch https://launchdarkly.com/docs/api#updates-using-semantic-patch.
+
+### Instructions
+
+Semantic patch requests support the following kind instructions for updating expiring user targets.
+Click to expand instructions for updating expiring user targets
+#### addExpireUserTargetDate
+
+Adds a date and time that LaunchDarkly will remove the user from the flag's individual targeting.
+
+##### Parameters
+
+• value: The time, in Unix milliseconds, when LaunchDarkly should remove the user from individual targeting for this flag
+• variationId: ID of a variation on the flag
+• userKey: The user key for the user to remove from individual targeting
+
+#### updateExpireUserTargetDate
+
+Updates the date and time that LaunchDarkly will remove the user from the flag's individual targeting.
+
+##### Parameters
+
+• value: The time, in Unix milliseconds, when LaunchDarkly should remove the user from individual targeting for this flag
+• variationId: ID of a variation on the flag
+• userKey: The user key for the user to remove from individual targeting
+• version: (Optional) The version of the expiring user target to update. If included, update will fail if version doesn't match current version of the expiring user target.
+
+#### removeExpireUserTargetDate
+
+Removes the scheduled removal of the user from the flag's individual targeting. The user will remain part of the flag's individual targeting until you explicitly remove them, or until you schedule another removal.
+
+##### Parameters
+
+• variationId: ID of a variation on the flag
+• userKey: The user key for the user to remove from individual targeting
+
+Usage:
+  ldcli flags update-expiring-user-targets [flags]
+
+Required flags:
+  -d, --data string          Input data in JSON
+      --environment string   The environment key
+      --flag string          The feature flag key
+      --project string       The project key
+
+Optional flags:
+      --semantic-patch   Perform a semantic patch request
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

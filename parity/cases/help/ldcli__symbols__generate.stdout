@@ -1,0 +1,40 @@
+Generate symbol files (React Native sourcemaps, Android R8/ProGuard mappings, or Apple dSYMs) into a local folder instead of uploading them to LaunchDarkly. The folder mirrors the storage layout the symbolication backend expects.
+
+Usage:
+  ldcli symbols generate [flags]
+
+Required flags:
+      --type string   The symbol type to generate (supported:
+                      react-native, android, apple-dsym, flutter;
+                      apple-dsym also accepts
+                      ios/ipados/tvos/watchos/visionos/macos/apple/dsym;
+                      flutter also accepts dart)
+
+Optional flags:
+      --app-version string   The current version of your deploy
+      --base-path string     An optional base path for the generated
+                             symbol files
+      --include-sources      Also generate a source bundle, for source
+                             context around native frames (apple-dsym and
+                             android)
+      --out string           The directory to write the generated symbol
+                             files to (default: symbols) (default "symbols")
+      --path string          Sets the directory of where the symbol files
+                             are (default ".")
+      --source-path string   Directory to scan for .java/.kt sources when
+                             using --include-sources with --type android
+                             (default ".")
+      --symbols-id string    The symbols id
+                             (launchdarkly.symbols_id.htlhash) to key
+                             files by (Symbols Id Lane). If omitted, a
+                             *.symbolsid sidecar next to the bundle is
+                             used when present
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

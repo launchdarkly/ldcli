@@ -1,0 +1,53 @@
+
+The AI Configs API allows you to create, retrieve, and edit AI Configs, AI Config variations, and AI model configurations.
+
+An AI Config is a resource in LaunchDarkly that you can use to customize, test, and roll out new large language models (LLMs) within your generative AI applications. Within each AI Config, you define one or more AI Config variations, each of which includes a model configuration and one or more messages. The model configuration can be a standard one from the list provided by LaunchDarkly, or you can define your own custom AI model configuration.
+
+To learn more, read AI Configs https://launchdarkly.com/docs/home/ai-configs.
+
+Usage:
+  ldcli ai-configs [command]
+
+Available Commands:
+  create-agent-graph                 Create new agent graph
+  create-ai-config                   Create new AI Config
+  create-ai-config-variation         Create AI Config variation
+  create-ai-tool                     Create an AI tool
+  create-model-config                Create an AI model config
+  create-prompt-snippet              Create a prompt snippet
+  create-restricted-models           Add AI models to the restricted list
+  delete-agent-graph                 Delete agent graph
+  delete-ai-config                   Delete AI Config
+  delete-ai-config-variation         Delete AI Config variation
+  delete-ai-tool                     Delete AI tool
+  delete-model-config                Delete an AI model config
+  delete-restricted-models           Remove AI models from the restricted list
+  get-agent-graph                    Get agent graph
+  get-ai-config                      Get AI Config
+  get-ai-config-metrics              Get AI Config metrics
+  get-ai-config-metrics-by-variation Get AI Config metrics by variation
+  get-ai-config-targeting            Show an AI Config's targeting
+  get-ai-tool                        Get AI tool
+  get-model-config                   Get AI model config
+  list-agent-graphs                  List agent graphs
+  list-ai-config-variation           Get AI Config variation
+  list-ai-configs                    List AI Configs
+  list-ai-tool-versions              List AI tool versions
+  list-ai-tools                      List AI tools
+  list-model-configs                 List AI model configs
+  update-agent-graph                 Update agent graph
+  update-ai-config                   Update AI Config
+  update-ai-config-targeting         Update AI Config targeting
+  update-ai-config-variation         Update AI Config variation
+  update-ai-tool                     Update AI tool
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli ai-configs [command] --help" for more information about a command.

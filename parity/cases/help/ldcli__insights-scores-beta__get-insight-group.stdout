@@ -1,0 +1,31 @@
+
+Get insight group
+
+### Expanding the insight group response
+
+LaunchDarkly supports expanding the insight group response to include additional fields.
+
+To expand the response, append the expand query parameter and include the following:
+
+• scores includes details on all of the scores used in the engineering insights metrics views for this group
+• environment includes details on each environment associated with this group
+
+For example, use ?expand=scores to include the scores field in the response. By default, this field is **not** included in the response.
+
+Usage:
+  ldcli insights-scores-beta get-insight-group [flags]
+
+Required flags:
+      --insight-group string   The insight group key
+
+Optional flags:
+      --expand string   Options: 'scores', 'environment'
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

@@ -1,0 +1,10 @@
+id = "ldcli__contexts__evaluate-instance"
+argv = ["contexts", "evaluate-instance", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__contexts__evaluate-instance.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

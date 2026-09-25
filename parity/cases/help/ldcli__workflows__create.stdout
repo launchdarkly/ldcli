@@ -1,0 +1,116 @@
+
+
+| ### Workflows are in maintenance mode
+| 
+| The workflows feature is in maintenance mode, and is planned for future deprecation at a date not yet specified. We will work with existing customers using workflows to migrate to a replacement solution when deprecation occurs.
+
+Create a workflow for a feature flag. You can create a workflow directly, or you can apply a template to create a new workflow.
+
+### Creating a workflow
+
+You can use the create workflow endpoint to create a workflow directly by adding a stages array to the request body.
+
+For each stage, define the name, conditions when the stage should be executed, and action that describes the stage. For approval stages, only standard LaunchDarkly approvals are permitted. Workflows of kind integration-approval cannot be used for custom workflows.
+Click to expand example
+*Example request body*
+
+  {
+    "name": "Progressive rollout starting in two days",
+    "description": "Turn flag targeting on and increase feature rollout in 10% increments each day",
+    "stages": [
+      {
+        "name": "10% rollout on day 1",
+        "conditions": [
+          {
+            "kind": "schedule",
+            "scheduleKind": "relative", // or "absolute"
+                //  If "scheduleKind" is "absolute", set "executionDate";
+                // "waitDuration" and "waitDurationUnit" will be ignored
+            "waitDuration": 2,
+            "waitDurationUnit": "calendarDay"
+          },
+          {
+            "kind": "ld-approval",
+            "notifyMemberIds": [ "507f1f77bcf86cd799439011" ],
+            "notifyTeamKeys": [ "team-key-123abc" ]
+          }
+        ],
+        "action": {
+          "instructions": [
+            {
+              "kind": "turnFlagOn"
+            },
+            {
+              "kind": "updateFallthroughVariationOrRollout",
+              "rolloutWeights": {
+                "452f5fb5-7320-4ba3-81a1-8f4324f79d49": 90000,
+                "fc15f6a4-05d3-4aa4-a997-446be461345d": 10000
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+
+### Creating a workflow by applying a workflow template
+
+You can also create a workflow by applying a workflow template. If you pass a valid workflow template key as the templateKey query parameter with the request, the API will attempt to create a new workflow with the stages defined in the workflow template with the corresponding key.
+
+#### Applicability of stages
+
+Templates are created in the context of a particular flag in a particular environment in a particular project. However, because workflows created from a template can be applied to any project, environment, and flag, some steps of the workflow may need to be updated in order to be applicable for the target resource.
+
+You can pass a dryRun query parameter to tell the API to return a report of which steps of the workflow template are applicable in the target project/environment/flag, and which will need to be updated. When the dryRun query parameter is present the response body includes a meta property that holds a list of parameters that could potentially be inapplicable for the target resource. Each of these parameters will include a valid field. You will need to update any invalid parameters in order to create the new workflow. You can do this using the parameters property, which overrides the workflow template parameters.
+
+#### Overriding template parameters
+
+You can use the parameters property in the request body to tell the API to override the specified workflow template parameters with new values that are specific to your target project/environment/flag.
+Click to expand example
+*Example request body*
+
+  {
+  	"name": "workflow created from my-template",
+  	"description": "description of my workflow",
+  	"parameters": [
+  		{
+  			"_id": "62cf2bc4cadbeb7697943f3b",
+  			"path": "/clauses/0/values",
+  			"default": {
+  				"value": ["updated-segment"]
+  			}
+  		},
+  		{
+  			"_id": "62cf2bc4cadbeb7697943f3d",
+  			"path": "/variationId",
+  			"default": {
+  				"value": "abcd1234-abcd-1234-abcd-1234abcd12"
+  			}
+  		}
+  	]
+  }
+
+If there are any steps in the template that are not applicable to the target resource, the workflow will not be created, and the meta property will be included in the response body detailing which parameters need to be updated.
+
+Usage:
+  ldcli workflows create [flags]
+
+Required flags:
+  -d, --data string          Input data in JSON
+      --environment string   The environment key
+      --flag string          The feature flag key
+      --project string       The project key
+
+Optional flags:
+      --dry-run string    Whether to call the endpoint in dry-run mode
+      --template string   The template key to apply as a starting point
+                          for the new workflow
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

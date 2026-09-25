@@ -1,0 +1,10 @@
+id = "ldcli__metric-groups-beta__get"
+argv = ["metric-groups-beta", "get", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__metric-groups-beta__get.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,38 @@
+# Commands the dual-binary diff does not execute as live processes.
+# Each entry names the substitute assertion that still runs.
+# A command is covered by a help transcript, by one of these entries, or the
+# harness fails.
+
+[[exemption]]
+name = "setup-wizard"
+kind = "command"
+commands = ["ldcli setup"]
+reason = "Raw Bubbletea frames for the setup wizard are not diffed."
+substitute = "help"
+
+[[exemption]]
+name = "quickstart-wizard"
+kind = "command"
+commands = ["ldcli quickstart"]
+reason = "Raw Bubbletea frames for the quickstart wizard are not diffed."
+substitute = "help"
+
+[[exemption]]
+name = "dev-server-start"
+kind = "command"
+commands = ["ldcli dev-server start"]
+reason = "dev-server start is long-running and is not executed by the harness."
+substitute = "help"
+
+[[exemption]]
+name = "completion-scripts"
+kind = "command"
+commands = ["ldcli completion bash", "ldcli completion zsh", "ldcli completion fish", "ldcli completion powershell"]
+reason = "Shell completion script bytes are not diffed."
+substitute = "exit-0"
+
+[[exemption]]
+name = "analytics-posts"
+kind = "behavior"
+reason = "Live analytics posts are not part of the dual-binary diff. R13 covers the property map in a unit test."
+substitute = "unit-test:R13"

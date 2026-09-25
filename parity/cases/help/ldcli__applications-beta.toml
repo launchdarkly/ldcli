@@ -1,0 +1,10 @@
+id = "ldcli__applications-beta"
+argv = ["applications-beta", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__applications-beta.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

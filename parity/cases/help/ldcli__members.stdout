@@ -1,0 +1,30 @@
+
+The account members API allows you to invite new members to an account by making a POST request to /api/v2/members. When you invite a new member to an account, an invitation is sent to the email you provided. Members with Admin or Owner roles may create new members, as well as anyone with a createMember permission for "member/*". To learn more, read LaunchDarkly account members https://launchdarkly.com/docs/home/account/members.
+
+Any member may request the complete list of account members with a GET to /api/v2/members.
+
+Several of the endpoints in the account members API require a member ID. The member ID is returned as part of the Invite new members https://launchdarkly.com/docs/api/account-members/post-members and List account members https://launchdarkly.com/docs/api/account-members/get-members responses. It is the _id field of each element in the items array.
+
+Usage:
+  ldcli members [command]
+
+Available Commands:
+  create          Invite new members
+  create-teams    Add a member to teams
+  delete          Delete account member
+  get             Get account member
+  invite          Invite new members
+  list            List account members
+  update          Modify an account member
+  update-multiple Modify account members
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli members [command] --help" for more information about a command.

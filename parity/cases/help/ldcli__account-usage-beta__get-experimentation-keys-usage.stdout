@@ -1,0 +1,50 @@
+
+Get a time series array showing the number of experimentation keys from your account. The supported granularity varies by aggregation type. The maximum time range is 365 days.
+
+Usage:
+  ldcli account-usage-beta get-experimentation-keys-usage [flags]
+
+Optional flags:
+      --aggregation-type string   Specifies the aggregation method.
+                                  Defaults to 'month_to_date'.<br/>Valid
+                                  values: 'month_to_date', 'incremental'.
+      --environment string        An environment key to filter results by.
+                                  If specified, exactly one 'projectKey'
+                                  must be provided. Can be specified
+                                  multiple times, one query parameter per
+                                  environment key.
+      --experiment-id string      An experiment ID to filter results by.
+                                  Can be specified multiple times, one
+                                  query parameter per experiment ID.
+      --from string               The series of data returned starts from
+                                  this timestamp (Unix milliseconds).
+                                  Defaults to the beginning of the current
+                                  month.
+      --granularity string        Specifies the data granularity. Defaults
+                                  to 'daily'. 'monthly' granularity is
+                                  only supported with the
+                                  **month_to_date** aggregation
+                                  type.<br/>Valid values: 'daily',
+                                  'hourly', 'monthly'.
+      --group-by string           If specified, returns data for each
+                                  distinct value of the given field. Can
+                                  be specified multiple times to group
+                                  data by multiple dimensions, one query
+                                  parameter per dimension.<br/>Valid
+                                  values: 'projectId', 'environmentId',
+                                  'experimentId'.
+      --project string            A project key to filter results by. Can
+                                  be specified multiple times, one query
+                                  parameter per project key.
+      --to string                 The series of data returned ends at this
+                                  timestamp (Unix milliseconds). Defaults
+                                  to the current time.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

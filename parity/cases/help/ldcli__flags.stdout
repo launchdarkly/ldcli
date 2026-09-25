@@ -1,0 +1,259 @@
+
+The feature flags API allows you to list, create, and modify feature flags and their targeting. For example, you can control percentage rollouts, target specific contexts, or even toggle off a feature flag programmatically.
+
+## Sample feature flag representation
+
+Every feature flag has a set of top-level attributes, as well as an environments map containing the flag rollout and targeting rules specific to each environment. To learn more, read Using feature flags https://launchdarkly.com/docs/home/flags/create.
+Click to expand an example of a complete feature flag representation
+  {
+    "name": "Alternate product page",
+    "kind": "boolean",
+    "description": "This is a description",
+    "key": "alternate.page",
+    "_version": 2,
+    "creationDate": 1418684722483,
+    "includeInSnippet": true,
+    "clientSideAvailability" {
+      "usingMobileKey": false,
+      "usingEnvironmentId": true,
+    },
+    "variations": [
+      {
+        "value": true,
+        "name": "true",
+        "_id": "86208e6e-468f-4425-b334-7f318397f95c"
+      },
+      {
+        "value": false,
+        "name": "false",
+        "_id": "7b32de80-f346-4276-bb77-28dfa7ddc2d8"
+      }
+    ],
+    "variationJsonSchema": null,
+    "defaults": {
+      "onVariation": 0,
+      "offVariation": 1
+    },
+    "temporary": false,
+    "tags": ["ops", "experiments"],
+    "_links": {
+      "parent": {
+        "href": "/api/v2/flags/default",
+        "type": "application/json"
+      },
+      "self": {
+        "href": "/api/v2/flags/default/alternate.page",
+        "type": "application/json"
+      }
+    },
+    "maintainerId": "548f6741c1efad40031b18ae",
+    "_maintainer": {
+      "_links": {
+        "self": {
+          "href": "/api/v2/members/548f6741c1efad40031b18ae",
+          "type": "application/json"
+        }
+      },
+      "_id": "548f6741c1efad40031b18ae",
+      "firstName": "Ariel",
+      "lastName": "Flores",
+      "role": "reader",
+      "email": "ariel@acme.com"
+    },
+    "goalIds": [],
+    "experiments": {
+      "baselineIdx": 0,
+      "items": []
+    },
+    "environments": {
+      "production": {
+        "on": true,
+        "archived": false,
+        "salt": "YWx0ZXJuYXRlLnBhZ2U=",
+        "sel": "45501b9314dc4641841af774cb038b96",
+        "lastModified": 1469326565348,
+        "version": 61,
+        "targets": [{
+            "values": ["user-key-123abc"],
+            "variation": 0,
+            "contextKind": "user"
+        }],
+        "contextTargets": [{
+          "values": [],
+          "variation": 0,
+          "contextKind": "user"
+          }, {
+          "values": ["org-key-123abc"],
+          "variation": 0,
+          "contextKind": "organization"
+        }],
+        "rules": [
+          {
+            "_id": "f3ea72d0-e473-4e8b-b942-565b790ffe18",
+            "variation": 0,
+            "clauses": [
+              {
+                "_id": "6b81968e-3744-4416-9d64-74547eb0a7d1",
+                "attribute": "groups",
+                "op": "in",
+                "values": ["Top Customers"],
+                "contextKind": "user",
+                "negate": false
+              },
+              {
+                "_id": "9d60165d-82b8-4b9a-9136-f23407ba1718",
+                "attribute": "email",
+                "op": "endsWith",
+                "values": ["gmail.com"],
+                "contextKind": "user",
+                "negate": false
+              }
+            ],
+            "trackEvents": false,
+            "ref": "73257308-472b-4d9c-a556-10aa7adbf857"
+          }
+        ],
+        "fallthrough": {
+          "rollout": {
+            "variations": [
+              {
+                "variation": 0,
+                "weight": 60000
+              },
+              {
+                "variation": 1,
+                "weight": 40000
+              }
+            ],
+            "contextKind": "user"
+          }
+        },
+        "offVariation": 1,
+        "prerequisites": [],
+        "_site": {
+          "href": "/default/production/features/alternate.page",
+          "type": "text/html"
+        },
+        "_environmentName": "Production",
+        "trackEvents": false,
+        "trackEventsFallthrough": false,
+        "_summary": {
+          "variations": {
+            "0": {
+              "rules": 1,
+              "nullRules": 0,
+              "targets": 2,
+              "rollout": 60000
+            },
+            "1": {
+              "rules": 0,
+              "nullRules": 0,
+              "targets": 0,
+              "isOff": true,
+              "rollout": 40000
+            }
+          },
+          "prerequisites": 0
+        }
+      }
+  }
+
+## Anatomy of a feature flag
+
+This section describes the sample feature flag representation in more detail.
+
+### Top-level attributes
+
+Most of the top-level attributes have a straightforward interpretation, for example name and description.
+
+The variations array represents the different variation values that a feature flag has. For a boolean flag, there are two variations: true and false. Multivariate flags have more variation values, and those values could be any JSON type: numbers, strings, objects, or arrays. In targeting rules, the variations are referred to by their index into this array.
+
+To update these attributes, read Update feature flag, especially the instructions for **updating flag settings**.
+
+### Per-environment configurations
+
+Each entry in the environments map contains a JSON object that represents the environment-specific flag configuration data available in the flag's targeting page. To learn more, read Targeting with flags https://launchdarkly.com/docs/home/flags/target.
+
+To update per-environment information for a flag, read Update feature flag, especially the instructions for **turning flags on and off** and **working with targeting and variations**.
+
+### Individual context targets
+
+The targets and contextTargets arrays in the per-environment configuration data correspond to the individual context targeting on the flag's targeting page. To learn more, read Individual targeting https://launchdarkly.com/docs/home/flags/individual-targeting.
+
+Each object in the targets and contextTargets arrays represents a list of context keys assigned to a particular variation. The targets array includes contexts with contextKind of "user" and the contextTargets array includes contexts with context kinds other than "user."
+
+For example:
+
+  {
+    ...
+    "environments" : {
+      "production" : {
+        ...
+        "targets": [
+          {
+            "values": ["user-key-123abc"],
+            "variation": 0,
+            "contextKind": "user"
+          }
+        ],
+        "contextTargets": [
+          {
+            "values": ["org-key-123abc"],
+            "variation": 0,
+            "contextKind": "organization"
+          }
+        ]
+      }
+    }
+  }
+
+The targets array means that any user context instance with the key user-key-123abc receives the first variation listed in the variations array. The contextTargets array means that any organization context with the key org-key-123abc receives the first variation listed in the variations array. Recall that the variations are stored at the top level of the flag JSON in an array, and the per-environment configuration rules point to indexes into this array. If this is a boolean flag, both contexts are receiving the true variation.
+
+### Targeting rules
+
+The rules array corresponds to the rules section of the flag's targeting page. This is where you can express complex rules on attributes with conditions and operators. For example, you might create a rule that specifies "roll out the true variation to 80% of contexts whose email address ends with gmail.com". To learn more, read Targeting rules https://launchdarkly.com/docs/home/flags/targeting-rules.
+
+### The fallthrough rule
+
+The fallthrough object is a special rule that contains no conditions. It is the rollout strategy that is applied when none of the individual or custom targeting rules match. In the LaunchDarkly UI, it is called the "Default rule."
+
+### The off variation
+
+The off variation represents the variation to serve if the feature flag targeting is turned off, meaning the on attribute is false. For boolean flags, this is usually false. For multivariate flags, set the off variation to whatever variation represents the control or baseline behavior for your application. If you don't set the off variation, LaunchDarkly will serve the fallback value defined in your code.
+
+### Percentage rollouts
+
+When you work with targeting rules and with the default rule, you can specify either a single variation or a percentage rollout. The weight attribute defines the percentage rollout for each variation. Weights range from 0 (a 0% rollout) to 100000 (a 100% rollout). The weights are scaled by a factor of 1000 so that fractions of a percent can be represented without using floating-point. For example, a weight of 60000 means that 60% of contexts will receive that variation. The sum of weights across all variations should be 100%.
+
+Usage:
+  ldcli flags [command]
+
+Available Commands:
+  archive                        Archive a feature flag
+  copy                           Copy feature flag
+  create                         Create a feature flag
+  create-migration-safety-issues Get migration safety issues
+  delete                         Delete feature flag
+  get                            Get feature flag
+  get-status                     Get feature flag status
+  get-status-across-environments Get flag status across environments
+  list                           List feature flags
+  list-expiring-context-targets  Get expiring context targets for feature flag
+  list-expiring-user-targets     Get expiring user targets for feature flag
+  list-statuses                  List feature flag statuses
+  toggle-off                     Turn a feature flag off
+  toggle-on                      Turn a feature flag on
+  update                         Update feature flag
+  update-expiring-targets        Update expiring context targets on feature flag
+  update-expiring-user-targets   Update expiring user targets on feature flag
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli flags [command] --help" for more information about a command.

@@ -1,0 +1,36 @@
+
+Get stale flags chart data. Engineering insights displays stale flags data in the flag health metric view https://launchdarkly.com/docs/home/observability/flag-health.
+
+### Expanding the chart response
+
+LaunchDarkly supports expanding the chart response to include additional fields.
+
+To expand the response, append the expand query parameter and include the following:
+
+• metrics includes details on the metrics related to stale flags
+
+For example, use ?expand=metrics to include the metrics field in the response. By default, this field is **not** included in the response.
+
+Usage:
+  ldcli insights-charts-beta get-stale-flags-chart [flags]
+
+Optional flags:
+      --application string       Comma separated list of application keys
+      --environment string       The environment key
+      --expand string            Options: 'metrics'
+      --group-by string          Property to group results by. Options:
+                                 'maintainer'
+      --maintainer-id string     Comma-separated list of individual
+                                 maintainers to filter results.
+      --maintainer-team string   Comma-separated list of team maintainer
+                                 keys to filter results.
+      --project string           The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

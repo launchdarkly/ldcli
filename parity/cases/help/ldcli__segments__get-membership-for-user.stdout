@@ -1,0 +1,25 @@
+
+
+| ### Contexts are now available
+| 
+| After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should use Get expiring targets for segment https://launchdarkly.com/docs/api/segments/get-expiring-targets-for-segment instead of this endpoint. To learn more, read Contexts https://launchdarkly.com/docs/home/observability/contexts.
+
+Get the membership status (included/excluded) for a given user in this big segment. This operation does not support standard segments.
+
+Usage:
+  ldcli segments get-membership-for-user [flags]
+
+Required flags:
+      --environment string   The environment key
+      --project string       The project key
+      --segment string       The segment key
+      --user string          The user key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

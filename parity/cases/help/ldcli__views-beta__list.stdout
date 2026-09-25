@@ -1,0 +1,36 @@
+
+Get a list of all views in the given project.
+
+Usage:
+  ldcli views-beta list [flags]
+
+Required flags:
+      --project string
+
+Optional flags:
+      --expand string           A comma-separated list of fields to expand.
+      --filter string           A filter to apply to the list of views.
+                                Supports the following fields and
+                                operators: 'name' (equals, notEquals,
+                                startsWith, contains, anyOf), 'key'
+                                (equals, notEquals, startsWith, contains,
+                                anyOf), 'tag' (equals, anyOf),
+                                'maintainerId' (equals, anyOf),
+                                'isPayloadView' (equals).
+      --ld-api-version string   Version of the endpoint.
+      --limit string            The number of views to return.
+      --offset string           Where to start in the list. Use this with
+                                pagination. For example, an offset of 10
+                                skips the first ten items and then returns
+                                the next items in the list, up to the
+                                query 'limit'.
+      --sort string             A sort to apply to the list of views.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

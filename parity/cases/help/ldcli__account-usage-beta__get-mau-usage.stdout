@@ -1,0 +1,57 @@
+
+Get a time-series array of the number of monthly active users (MAU) seen by LaunchDarkly from your account. The granularity is always daily.Endpoints for retrieving monthly active users (MAU) do not return information about active context instances. After you have upgraded your LaunchDarkly SDK to use contexts instead of users, you should not rely on this endpoint. To learn more, read Account usage metrics https://launchdarkly.com/docs/home/account/metrics.
+
+Usage:
+  ldcli account-usage-beta get-mau-usage [flags]
+
+Optional flags:
+      --aggregation-type string   If specified, queries for rolling
+                                  30-day, month-to-date, or daily
+                                  incremental counts. Default is rolling
+                                  30-day. Valid values: rolling_30d,
+                                  month_to_date, daily_incremental
+      --anonymous string          If specified, filters results to either
+                                  anonymous or nonanonymous users.
+      --context-kind string       Filters results to the specified context
+                                  kinds. Can be specified multiple times,
+                                  one query parameter per context kind. If
+                                  not set, queries for the user context kind.
+      --environment string        An environment key to filter results to.
+                                  When using this parameter, exactly one
+                                  project key must also be set. Can be
+                                  specified multiple times as separate
+                                  query parameters to view data for
+                                  multiple environments within a single
+                                  project.
+      --from string               The series of data returned starts from
+                                  this timestamp. Defaults to 30 days ago.
+      --groupby string            If specified, returns data for each
+                                  distinct value of the given field. Can
+                                  be specified multiple times to group
+                                  data by multiple dimensions (for
+                                  example, to group by both project and
+                                  SDK). Valid values: project,
+                                  environment, sdktype, sdk, anonymous,
+                                  contextKind, sdkAppId
+      --project string            A project key to filter results to. Can
+                                  be specified multiple times, one query
+                                  parameter per project key, to view data
+                                  for multiple projects.
+      --sdk string                An SDK name to filter results to. Can be
+                                  specified multiple times, one query
+                                  parameter per SDK.
+      --sdktype string            An SDK type to filter results to. Can be
+                                  specified multiple times, one query
+                                  parameter per SDK type. Valid values:
+                                  client, server
+      --to string                 The series of data returned ends at this
+                                  timestamp. Defaults to the current time.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

@@ -1,0 +1,28 @@
+
+Create a new variation for a given AI Config.
+
+The model in the request body requires a modelName and parameters, for example:
+
+    "model": {
+      "modelName": "claude-3-opus-20240229",
+      "parameters": {
+        "max_tokens": 1024
+      }
+    }
+
+Usage:
+  ldcli ai-configs create-ai-config-variation [flags]
+
+Required flags:
+      --config string    
+  -d, --data string      Input data in JSON
+      --project string
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

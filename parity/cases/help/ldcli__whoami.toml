@@ -1,0 +1,10 @@
+id = "ldcli__whoami"
+argv = ["whoami", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__whoami.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

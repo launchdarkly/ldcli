@@ -1,0 +1,52 @@
+
+Return a list of teams.
+
+By default, this returns the first 20 teams. Page through this list with the limit parameter and by following the first, prev, next, and last links in the _links field that returns. If those links do not appear, the pages they refer to don't exist. For example, the first and prev links will be missing from the response on the first page, because there is no previous page and you cannot return to the first page when you are already on the first page.
+
+### Filtering teams
+
+LaunchDarkly supports the following fields for filters:
+
+• query is a string that matches against the teams' names and keys. It is not case-sensitive.
+    • A request with query:abc returns teams with the string abc in their name or key.
+• nomembers is a boolean that filters the list of teams who have 0 members
+    • A request with nomembers:true returns teams that have 0 members
+    • A request with nomembers:false returns teams that have 1 or more members
+
+
+### Expanding the teams response
+
+LaunchDarkly supports expanding several fields in the "List teams" response. By default, these fields are **not** included in the response.
+
+To expand the response, append the expand query parameter and add a comma-separated list with any of the following fields:
+
+• members includes the total count of members that belong to the team.
+• roles includes a paginated list of the custom roles that you have assigned to the team.
+• roleAttributes includes a list of the role attributes that you have assigned to the team.
+• projects includes a paginated list of the projects that the team has any write access to.
+• maintainers includes a paginated list of the maintainers that you have assigned to the team.
+
+For example, expand=members,maintainers includes the members and maintainers fields in the response.
+
+Usage:
+  ldcli teams list [flags]
+
+Optional flags:
+      --expand string   A comma-separated list of properties that can
+                        reveal additional information in the response.
+      --filter string   A comma-separated list of filters. Each filter is
+                        constructed as 'field:value'.
+      --limit string    The number of teams to return in the response.
+                        Defaults to 20.
+      --offset string   Where to start in the list. Use this with
+                        pagination. For example, an offset of 10 skips the
+                        first ten items and returns the next 'limit' items.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

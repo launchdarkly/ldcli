@@ -1,0 +1,10 @@
+id = "ldcli__projects__get-flag-defaults"
+argv = ["projects", "get-flag-defaults", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__projects__get-flag-defaults.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

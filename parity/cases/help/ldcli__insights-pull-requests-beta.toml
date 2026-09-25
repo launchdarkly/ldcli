@@ -1,0 +1,10 @@
+id = "ldcli__insights-pull-requests-beta"
+argv = ["insights-pull-requests-beta", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__insights-pull-requests-beta.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,151 @@
+
+Contexts are people, services, machines, or other resources that encounter feature flags in your product. Contexts are identified by their kind, which describes the type of resources encountering flags, and by their key. Each unique combination of one or more contexts that have encountered a feature flag in your product is called a context instance.
+
+When you use the LaunchDarkly SDK to evaluate a flag, you provide a context to that call. LaunchDarkly records the key and attributes of each context instance. You can view these in the LaunchDarkly user interface from the **Contexts** list, or use the Context APIs. To learn more, read Contexts https://launchdarkly.com/docs/home/observability/contexts.
+
+LaunchDarkly provides APIs for you to:
+
+• retrieve contexts, context instances, and context attribute names and values
+• search for contexts or context instances
+• delete context instances
+• fetch context kinds
+• create and update context kinds
+
+To learn more about context kinds, read Context kinds https://launchdarkly.com/docs/home/observability/context-kinds.
+
+Contexts are always scoped within a project and an environment. Each environment has its own set of context instance records.
+
+Several of the endpoints in the contexts API require a context instance ID or application ID. Both of these IDs are returned as part of the Search for context instances https://launchdarkly.com/docs/api/contexts/search-context-instances response. The context instance ID is the id field of each element in the items array. The application ID is the applicationId field of each element in the items array. By default, the application ID is set to the SDK you are using. In the LaunchDarkly UI, the application ID and application version appear on the context details page in the "From source" field. You can change the application ID as part of your SDK configuration. To learn more, read Application metadata configuration https://launchdarkly.com/docs/sdk/features/app-config.
+
+### Filtering contexts and context instances
+
+When you search for contexts https://launchdarkly.com/docs/api/contexts/search-contexts or context instances https://launchdarkly.com/docs/api/contexts/search-context-instances, you can filter the results using fields and operators with the filter parameter. Specify filter either as a query parameter or as a request body parameter.
+
+The filter parameter supports the following operators: after, anyOf, before, contains, equals, exists, notEquals, startsWith.
+Expand for details on operators and syntax
+#### after
+
+Returns contexts or context instances if the date field value occurs after the specified time. For example:
+
+• myField after "2022-09-21T19:03:15+00:00"
+
+#### anyOf
+
+Returns contexts or context instances if any field value matches any of the provided values. For example:
+
+• myField anyOf [44]
+• myField anyOf ["phone","tablet"]
+• myField anyOf [true]"
+
+#### before
+
+Returns contexts or context instances if the date field value occurs before the provided time. For example:
+
+• myField before "2022-09-21T19:03:15+00:00"
+
+#### contains
+
+Returns contexts or context instances if the field's list of values contains all of the provided values. For example:
+
+• myListField contains 44
+• myListField contains ["phone","tablet"]
+• myListField contains true
+
+#### equals
+
+Returns contexts or context instances only if the field value exactly matches the provided value. For example:
+
+• myField equals 44
+• myField equals "device"
+• myField equals true
+• myField equals [1,2,3,4]
+• myField equals ["hello","goodbye"]
+
+#### exists
+
+Returns contexts or context instances based on whether the specified field exists. For example:
+
+• myField exists true
+• myField exists false
+• *.name exists true
+
+#### notEquals
+
+Returns contexts or context instances if the field value does not exactly match the provided value. For example:
+
+• myField notEquals 44
+• myField notEquals "device"
+• myField notEquals true
+• myField notEquals [1,2,3,4]
+• myField notEquals ["hello","goodbye"]
+
+#### startsWith
+
+Returns contexts or context instances if a singular string field value begins with the provided substring. For example:
+
+• myField startsWith "do"
+
+You can also combine filters in the following ways:
+
+• Use a comma (,) as an AND operator
+• Use a vertical bar (|) as an OR operator
+• Use parentheses () to group filters
+
+For example:
+
+• myField notEquals 0, myField notEquals 1 returns contexts or context instances where myField is not 0 and is not 1
+• myFirstField equals "device",(mySecondField equals "iPhone"|mySecondField equals "iPad") returns contexts or context instances where myFirstField is equal to "device" and mySecondField is equal to either "iPhone" or "iPad"
+
+#### Supported fields and operators
+
+The filter parameter accepts different field types depending on whether you search for contexts or context instances. Also, you can only filter some fields using certain operators.
+
+When you search for contexts https://launchdarkly.com/docs/api/contexts/search-contexts, the filter parameter supports the following fields and operators:
+
+ Field                        | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Supported operators                                   
+------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------
+ applicationId                | An identifier that represents the application where the LaunchDarkly SDK is running.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | equals, notEquals, anyOf                              
+ id                           | The unique identifier for the context.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | equals, notEquals, anyOf                              
+ key                          | The context key.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | equals, notEquals, anyOf, startsWith                  
+ kind                         | The context kind.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | equals, notEquals, anyOf                              
+ kinds                        | A list of all kinds found in the context. Supply a list of strings to the operator.                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | equals, anyOf, contains                               
+ kindKey                      | The kind and key for the context, joined with a :. For example, user:user-key-abc123.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | equals, notEquals, anyOf                              
+ kindKeys                     | A list of all kinds and keys found in the context. Join the kind and key with a :. For example, user:user-key-abc123. Supply a list of strings to the operator.                                                                                                                                                                                                                                                                                                                                                                                                 | equals, anyOf, contains                               
+ q                            | A "fuzzy" search across context attribute values and the context key. Supply a string or list of strings to the operator.                                                                                                                                                                                                                                                                                                                                                                                                                                       | equals                                                
+ name                         | The name for the context.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | equals, notEquals, exists, anyOf, startsWith          
+ <a kind>.<an attribute name> | A kind and the name of any attribute that appears in a context of that kind, for example, user.email. To filter all kinds use * in place of the kind. For example, *.email. You can use either a literal attribute name or a JSON path to specify the attribute. If you use a JSON path, then you must escape the / character using ~1, and escape the ~ character using ~0. For example, use user.job/title or user./job~1title to filter the /job/title field in a user context kind. If the field or value includes whitespace, enclose it in double quotes. | equals, notEquals, exists, startsWith, before, after. 
+
+When searching for context instances https://launchdarkly.com/docs/api/contexts/search-context-instances, the filter parameter supports the following fields and operators:
+
+ Field         | Description                                                                                                                                                                  | Supported operators      
+---------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------
+ applicationId | An identifier representing the application where the LaunchDarkly SDK is running.                                                                                            | equals, notEquals, anyOf 
+ id            | The unique identifier for the context instance.                                                                                                                              | equals, notEquals, anyOf 
+ kinds         | A list of all kinds found in the context instance. Supply a list of strings to the operator.                                                                                 | equals, anyOf, contains  
+ kindKeys      | A list of all kinds and keys found in the context instance. The kind and key are joined with :. For example, user:user-key-abc123. Supply a list of strings to the operator. | equals, anyOf, contains
+
+Usage:
+  ldcli contexts [command]
+
+Available Commands:
+  delete-instances      Delete context instances
+  evaluate-instance     Evaluate flags for context instance
+  list                  Get contexts
+  list-attribute-names  Get context attribute names
+  list-attribute-values Get context attribute values
+  list-instances        Get context instances
+  list-kinds-key        Get context kinds
+  replace-kind          Create or update context kind
+  search                Search for contexts
+  search-instances      Search for context instances
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli contexts [command] --help" for more information about a command.

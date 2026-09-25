@@ -1,0 +1,10 @@
+id = "ldcli__data-export-destinations__update"
+argv = ["data-export-destinations", "update", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__data-export-destinations__update.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

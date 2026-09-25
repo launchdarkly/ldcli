@@ -1,0 +1,30 @@
+
+Get lead time chart data. The engineering insights UI displays lead time data in the lead time metric view https://launchdarkly.com/docs/home/observability/lead-time.
+
+Usage:
+  ldcli insights-charts-beta get-lead-time-chart [flags]
+
+Optional flags:
+      --application string   Comma separated list of application keys
+      --bucket-ms string     Duration of intervals for x-axis in
+                             milliseconds. Default value is one day
+                             ('86400000' milliseconds).
+      --bucket-type string   Specify type of bucket. Options: 'rolling',
+                             'hour', 'day'. Default: 'rolling'.
+      --environment string   The environment key
+      --expand string        Options: 'metrics', 'percentiles'.
+      --from string          Unix timestamp in milliseconds. Default value
+                             is 7 days ago.
+      --group-by string      Options: 'application', 'stage'. Default: 'stage'.
+      --project string       The project key
+      --to string            Unix timestamp in milliseconds. Default value
+                             is now.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

@@ -1,0 +1,10 @@
+id = "ldcli__holdouts-beta__create"
+argv = ["holdouts-beta", "create", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__holdouts-beta__create.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

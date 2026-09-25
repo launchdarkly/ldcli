@@ -1,0 +1,18 @@
+
+Update a single custom role. Updating a custom role uses a JSON patch https://datatracker.ietf.org/doc/html/rfc6902 or JSON merge patch https://datatracker.ietf.org/doc/html/rfc7386 representation of the desired changes. To learn more, read Updates https://launchdarkly.com/docs/api#updates.To add an element to the policy array, set the path to /policy and then append /<array index>. Use /0 to add to the beginning of the array. Use /- to add to the end of the array.
+
+Usage:
+  ldcli custom-roles update [flags]
+
+Required flags:
+      --custom-role string   The custom role key
+  -d, --data string          Input data in JSON
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

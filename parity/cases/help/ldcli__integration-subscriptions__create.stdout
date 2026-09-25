@@ -1,0 +1,18 @@
+
+Create an audit log subscription.For each subscription, you must specify the set of resources you wish to subscribe to audit log notifications for. You can describe these resources using a custom role policy. To learn more, read Custom role concepts https://launchdarkly.com/docs/home/account/role-concepts.
+
+Usage:
+  ldcli integration-subscriptions create [flags]
+
+Required flags:
+  -d, --data string          Input data in JSON
+      --integration string   The integration key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

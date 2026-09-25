@@ -1,0 +1,43 @@
+
+Create an approval request.
+
+This endpoint requires a list of instructions, in semantic patch format, that will be applied when the approval request is approved and applied.
+
+### Flags
+
+If you are creating an approval request for a flag, you can use the following instructions:
+
+• addVariation
+• removeVariation
+• updateVariation
+• updateDefaultVariation
+
+For details on using these instructions, read Update feature flag https://launchdarkly.com/docs/api/feature-flags/patch-feature-flag.
+
+To create an approval for a flag specific to an environment, use Create approval request for a flag https://launchdarkly.com/docs/api/approvals/post-approval-request-for-flag.
+
+### AI Configs
+
+If you are creating an approval request for an AI Config, you can use the semantic patch instructions listed under Update AI Config targeting https://launchdarkly.com/docs/api/ai-configs/patch-ai-config-targeting.
+
+### Segments
+
+If you are creating an approval request for a segment, you can use the semantic patch instructions listed under Patch segment https://launchdarkly.com/docs/api/segments/patch-segment.
+
+Usage:
+  ldcli approval-requests create [flags]
+
+Required flags:
+  -d, --data string   Input data in JSON
+
+Optional flags:
+      --semantic-patch   Perform a semantic patch request
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

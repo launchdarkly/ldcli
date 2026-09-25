@@ -1,0 +1,62 @@
+
+Get details about all experiments in an environment.
+
+### Filtering experiments
+
+LaunchDarkly supports the filter query param for filtering, with the following fields:
+
+• flagKey filters for only experiments that use the flag with the given key.
+• metricKey filters for only experiments that use the metric with the given key.
+• status filters for only experiments with an iteration with the given status. An iteration can have the status not_started, running or stopped.
+
+For example, filter=flagKey:my-flag,status:running,metricKey:page-load-ms filters for experiments for the given flag key and the given metric key which have a currently running iteration.
+
+### Expanding the experiments response
+
+LaunchDarkly supports five fields for expanding the "Get experiments" response. By default, these fields are **not** included in the response.
+
+To expand the response, append the expand query parameter and add a comma-separated list with any of the following fields:
+
+• previousIterations includes all iterations prior to the current iteration. By default only the current iteration is included in the response.
+• draftIteration includes the iteration which has not been started yet, if any.
+• secondaryMetrics includes secondary metrics. By default only the primary metric is included in the response.
+• treatments includes all treatment and parameter details. By default treatment data is not included in the response.
+• analysisConfig includes the analysis configuration for the experiment, such as the Bayesian threshold or significance threshold.
+
+For example, expand=draftIteration,treatments includes the draftIteration and treatments fields in the response. If fields that you request with the expand query parameter are empty, they are not included in the response.
+
+Usage:
+  ldcli experiments list [flags]
+
+Required flags:
+      --environment string   The environment key
+      --project string       The project key
+
+Optional flags:
+      --expand string            A comma-separated list of properties that
+                                 can reveal additional information in the
+                                 response. Supported fields are explained
+                                 above.
+      --filter string            A comma-separated list of filters. Each
+                                 filter is of the form 'field:value'.
+                                 Supported fields are explained above.
+      --lifecycle-state string   A comma-separated list of experiment
+                                 archived states. Supports 'archived',
+                                 'active', or both. Defaults to 'active'
+                                 experiments.
+      --limit string             The maximum number of experiments to
+                                 return. Defaults to 20.
+      --offset string            Where to start in the list. Use this with
+                                 pagination. For example, an offset of 10
+                                 skips the first ten items and then
+                                 returns the next items in the list, up to
+                                 the query 'limit'.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

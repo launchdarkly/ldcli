@@ -1,0 +1,10 @@
+id = "ldcli__ai-configs__delete-agent-graph"
+argv = ["ai-configs", "delete-agent-graph", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__ai-configs__delete-agent-graph.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,10 @@
+id = "ldcli__follow-flags__replace-flag-follower"
+argv = ["follow-flags", "replace-flag-follower", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__follow-flags__replace-flag-follower.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,10 @@
+id = "ldcli__insights-deployments-beta__update-deployment"
+argv = ["insights-deployments-beta", "update-deployment", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__insights-deployments-beta__update-deployment.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

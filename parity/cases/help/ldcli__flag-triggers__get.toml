@@ -1,0 +1,10 @@
+id = "ldcli__flag-triggers__get"
+argv = ["flag-triggers", "get", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__flag-triggers__get.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

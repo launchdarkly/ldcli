@@ -1,0 +1,23 @@
+
+
+| ### Flag prerequisites is an Enterprise feature
+| 
+| Flag prerequisites is available to customers on an Enterprise plan. To learn more, read about our pricing https://launchdarkly.com/pricing/. To upgrade your plan, contact Sales https://launchdarkly.com/contact-sales/.
+
+List dependent flags across all environments for the flag specified in the path parameters. A dependent flag is a flag that uses another flag as a prerequisite. To learn more, read Flag prerequisites https://launchdarkly.com/docs/home/flags/prereqs.
+
+Usage:
+  ldcli flags-beta list-dependent [flags]
+
+Required flags:
+      --flag string      The feature flag key
+      --project string   The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

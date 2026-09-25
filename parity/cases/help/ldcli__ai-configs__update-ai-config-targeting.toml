@@ -1,0 +1,10 @@
+id = "ldcli__ai-configs__update-ai-config-targeting"
+argv = ["ai-configs", "update-ai-config-targeting", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__ai-configs__update-ai-config-targeting.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

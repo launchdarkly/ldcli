@@ -1,0 +1,50 @@
+
+Get all approval requests.
+
+### Filtering approvals
+
+LaunchDarkly supports the filter query param for filtering, with the following fields:
+
+• notifyMemberIds filters for only approvals that are assigned to a member in the specified list. For example: filter=notifyMemberIds anyOf ["memberId1", "memberId2"].
+• requestorId filters for only approvals that correspond to the ID of the member who requested the approval. For example: filter=requestorId equals 457034721476302714390214.
+• resourceId filters for only approvals that correspond to the the specified resource identifier. For example: filter=resourceId equals proj/my-project:env/my-environment:flag/my-flag.
+• resourceKind filters for only approvals that correspond to the specified resource kind. For example: filter=resourceKind equals flag. Currently, flag, segment, and aiConfig resource kinds are supported.
+• reviewStatus filters for only approvals which correspond to the review status in the specified list. The possible values are approved, declined, and pending. For example: filter=reviewStatus anyOf ["pending", "approved"].
+• status filters for only approvals which correspond to the status in the specified list. The possible values are pending, scheduled, failed, and completed. For example: filter=status anyOf ["pending", "scheduled"].
+
+You can also apply multiple filters at once. For example, setting filter=projectKey equals my-project, reviewStatus anyOf ["pending","approved"] matches approval requests which correspond to the my-project project key, and a review status of either pending or approved.
+
+### Expanding approval response
+
+LaunchDarkly supports the expand query param to include additional fields in the response, with the following fields:
+
+• flag includes the flag the approval request belongs to
+• project includes the project the approval request belongs to
+• environments includes the environments the approval request relates to
+
+For example, expand=project,flag includes the project and flag fields in the response.
+
+Usage:
+  ldcli approval-requests list [flags]
+
+Optional flags:
+      --expand string   A comma-separated list of fields to expand in the
+                        response. Supported fields are explained above.
+      --filter string   A comma-separated list of filters. Each filter is
+                        of the form 'field operator value'. Supported
+                        fields are explained above.
+      --limit string    The number of approvals to return. Defaults to 20.
+                        Maximum limit is 200.
+      --offset string   Where to start in the list. Use this with
+                        pagination. For example, an offset of 10 skips the
+                        first ten items and then returns the next items in
+                        the list, up to the query 'limit'.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

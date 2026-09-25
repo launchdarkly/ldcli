@@ -1,0 +1,99 @@
+
+Schedule a context for removal from individual targeting on a feature flag. The flag must already individually target the context.
+
+You can add, update, or remove a scheduled removal date. You can only schedule a context for removal on a single variation per flag.
+
+Updating an expiring target uses the semantic patch format. To make a semantic patch request, you must append domain-model=launchdarkly.semanticpatch to your Content-Type header. To learn more, read Updates using semantic patch https://launchdarkly.com/docs/api#updates-using-semantic-patch.
+
+### Instructions
+
+Semantic patch requests support the following kind instructions for updating expiring targets.
+Click to expand instructions for updating expiring targets
+#### addExpiringTarget
+
+Adds a date and time that LaunchDarkly will remove the context from the flag's individual targeting.
+
+##### Parameters
+
+• value: The time, in Unix milliseconds, when LaunchDarkly should remove the context from individual targeting for this flag
+• variationId: ID of a variation on the flag
+• contextKey: The context key for the context to remove from individual targeting
+• contextKind: The kind of context represented by the contextKey
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "addExpiringTarget",
+      "value": 1754006460000,
+      "variationId": "4254742c-71ae-411f-a992-43b18a51afe0",
+      "contextKey": "user-key-123abc",
+      "contextKind": "user"
+    }]
+  }
+
+#### updateExpiringTarget
+
+Updates the date and time that LaunchDarkly will remove the context from the flag's individual targeting
+
+##### Parameters
+
+• value: The time, in Unix milliseconds, when LaunchDarkly should remove the context from individual targeting for this flag
+• variationId: ID of a variation on the flag
+• contextKey: The context key for the context to remove from individual targeting
+• contextKind: The kind of context represented by the contextKey
+• version: (Optional) The version of the expiring target to update. If included, update will fail if version doesn't match current version of the expiring target.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "updateExpiringTarget",
+      "value": 1754006460000,
+      "variationId": "4254742c-71ae-411f-a992-43b18a51afe0",
+      "contextKey": "user-key-123abc",
+      "contextKind": "user"
+    }]
+  }
+
+#### removeExpiringTarget
+
+Removes the scheduled removal of the context from the flag's individual targeting. The context will remain part of the flag's individual targeting until you explicitly remove it, or until you schedule another removal.
+
+##### Parameters
+
+• variationId: ID of a variation on the flag
+• contextKey: The context key for the context to remove from individual targeting
+• contextKind: The kind of context represented by the contextKey
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "removeExpiringTarget",
+      "variationId": "4254742c-71ae-411f-a992-43b18a51afe0",
+      "contextKey": "user-key-123abc",
+      "contextKind": "user"
+    }]
+  }
+
+Usage:
+  ldcli flags update-expiring-targets [flags]
+
+Required flags:
+  -d, --data string          Input data in JSON
+      --environment string   The environment key
+      --flag string          The feature flag key
+      --project string       The project key
+
+Optional flags:
+      --semantic-patch   Perform a semantic patch request
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

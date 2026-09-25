@@ -1,0 +1,208 @@
+
+Audit log integration subscriptions allow you to send audit log events hooks to one of dozens of external tools. For example, you can send flag change event webhooks to external third party software. To learn more, read Building your own integrations https://launchdarkly.com/docs/integrations/building-integrations#building-your-own-integrations.
+
+You can use the integration subscriptions API to create, delete, and manage your integration audit log subscriptions.
+
+Each of these operations requires an integrationKey that refers to the type of integration. The required config fields to create a subscription vary depending on the integrationKey. You can find a full list of the fields for each integration below.
+
+Several of these operations require a subscription ID. The subscription ID is returned as part of the Create audit log subscription https://launchdarkly.com/docs/api/integration-audit-log-subscriptions/create-subscription and Get audit log subscriptions by integration https://launchdarkly.com/docs/api/integration-audit-log-subscriptions/get-subscriptions responses. It is the _id field, or the _id field of each element in the items array.
+
+### Configuration bodies by integrationKey
+
+#### datadog
+
+apiKey is a sensitive value.
+
+hostURL must evaluate to either "https://api.datadoghq.com" or "https://api.datadoghq.eu" and will default to the former if not explicitly defined.
+
+  "config": {
+      "apiKey": <string, optional>, # sensitive value
+      "hostURL": <string, optional>
+  }
+
+#### dynatrace
+
+apiToken is a sensitive value.
+
+entity must evaluate to one of the following fields and will default to "APPLICATION" if not explicitly defined:
+Click to expand list of fields
+
+"APPLICATION"
+"APPLICATION_METHOD"
+"APPLICATION_METHOD_GROUP"
+"AUTO_SCALING_GROUP"
+"AUXILIARY_SYNTHETIC_TEST"
+"AWS_APPLICATION_LOAD_BALANCER"
+"AWS_AVAILABILITY_ZONE"
+"AWS_CREDENTIALS"
+"AWS_LAMBDA_FUNCTION"
+"AWS_NETWORK_LOAD_BALANCER"
+"AZURE_API_MANAGEMENT_SERVICE"
+"AZURE_APPLICATION_GATEWAY"
+"AZURE_COSMOS_DB"
+"AZURE_CREDENTIALS"
+"AZURE_EVENT_HUB"
+"AZURE_EVENT_HUB_NAMESPACE"
+"AZURE_FUNCTION_APP"
+"AZURE_IOT_HUB"
+"AZURE_LOAD_BALANCER"
+"AZURE_MGMT_GROUP"
+"AZURE_REDIS_CACHE"
+"AZURE_REGION"
+"AZURE_SERVICE_BUS_NAMESPACE"
+"AZURE_SERVICE_BUS_QUEUE"
+"AZURE_SERVICE_BUS_TOPIC"
+"AZURE_SQL_DATABASE"
+"AZURE_SQL_ELASTIC_POOL"
+"AZURE_SQL_SERVER"
+"AZURE_STORAGE_ACCOUNT"
+"AZURE_SUBSCRIPTION"
+"AZURE_TENANT"
+"AZURE_VM"
+"AZURE_VM_SCALE_SET"
+"AZURE_WEB_APP"
+"CF_APPLICATION"
+"CF_FOUNDATION"
+"CINDER_VOLUME"
+"CLOUD_APPLICATION"
+"CLOUD_APPLICATION_INSTANCE"
+"CLOUD_APPLICATION_NAMESPACE"
+"CONTAINER_GROUP"
+"CONTAINER_GROUP_INSTANCE"
+"CUSTOM_APPLICATION"
+"CUSTOM_DEVICE"
+"CUSTOM_DEVICE_GROUP"
+"DCRUM_APPLICATION"
+"DCRUM_SERVICE"
+"DCRUM_SERVICE_INSTANCE"
+"DEVICE_APPLICATION_METHOD"
+"DISK"
+"DOCKER_CONTAINER_GROUP_INSTANCE"
+"DYNAMO_DB_TABLE"
+"EBS_VOLUME"
+"EC2_INSTANCE"
+"ELASTIC_LOAD_BALANCER"
+"ENVIRONMENT"
+"EXTERNAL_SYNTHETIC_TEST_STEP"
+"GCP_ZONE"
+"GEOLOCATION"
+"GEOLOC_SITE"
+"GOOGLE_COMPUTE_ENGINE"
+"HOST"
+"HOST_GROUP"
+"HTTP_CHECK"
+"HTTP_CHECK_STEP"
+"HYPERVISOR"
+"KUBERNETES_CLUSTER"
+"KUBERNETES_NODE"
+"MOBILE_APPLICATION"
+"NETWORK_INTERFACE"
+"NEUTRON_SUBNET"
+"OPENSTACK_PROJECT"
+"OPENSTACK_REGION"
+"OPENSTACK_VM"
+"OS"
+"PROCESS_GROUP"
+"PROCESS_GROUP_INSTANCE"
+"RELATIONAL_DATABASE_SERVICE"
+"SERVICE"
+"SERVICE_INSTANCE"
+"SERVICE_METHOD"
+"SERVICE_METHOD_GROUP"
+"SWIFT_CONTAINER"
+"SYNTHETIC_LOCATION"
+"SYNTHETIC_TEST"
+"SYNTHETIC_TEST_STEP"
+"VIRTUALMACHINE"
+"VMWARE_DATACENTER"
+  "config": {
+      "apiToken": <string, required>,
+      "url": <string, required>,
+      "entity": <string, optional>
+  }
+
+#### elastic
+
+token is a sensitive field.
+
+  "config": {
+      "url": <string, required>,
+      "token": <string, required>,
+      "index": <string, required>
+  }
+
+#### honeycomb
+
+apiKey is a sensitive field.
+
+  "config": {
+      "datasetName": <string, required>,
+      "apiKey": <string, required>
+  }
+
+#### logdna
+
+ingestionKey is a sensitive field.
+
+  "config": {
+      "ingestionKey": <string, required>,
+      "level": <string, optional>
+  }
+
+#### msteams
+
+  "config": {
+      "url": <string, required>
+  }
+
+#### new-relic-apm
+
+apiKey is a sensitive field.
+
+domain must evaluate to either "api.newrelic.com" or "api.eu.newrelic.com" and will default to the former if not explicitly defined.
+
+  "config": {
+      "apiKey": <string, required>,
+      "applicationId": <string, required>,
+      "domain": <string, optional>
+  }
+
+#### signalfx
+
+accessToken is a sensitive field.
+
+  "config": {
+      "accessToken": <string, required>,
+      "realm": <string, required>
+  }
+
+#### splunk
+
+token is a sensitive field.
+
+  "config": {
+      "base-url": <string, required>,
+      "token": <string, required>,
+      "skip-ca-verification": <boolean, required>
+  }
+
+Usage:
+  ldcli integration-subscriptions [command]
+
+Available Commands:
+  create      Create audit log subscription
+  delete      Delete audit log subscription
+  get         Get audit log subscription by ID
+  list        Get audit log subscriptions by integration
+  update      Update audit log subscription
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+
+Use "ldcli integration-subscriptions [command] --help" for more information about a command.

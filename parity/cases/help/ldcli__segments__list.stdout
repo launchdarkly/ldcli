@@ -1,0 +1,70 @@
+
+Get a list of all segments in the given project.
+
+Segments can be rule-based, list-based, or synced. Big segments include larger list-based segments and synced segments. Some fields in the response only apply to big segments.
+
+### Filtering segments
+
+The filter parameter supports the following operators: equals, anyOf, and exists.
+
+You can also combine filters in the following ways:
+
+• Use a comma (,) as an AND operator
+• Use a vertical bar (|) as an OR operator
+• Use parentheses (()) to group filters
+
+#### Supported fields and operators
+
+You can only filter certain fields in segments when using the filter parameter. Additionally, you can only filter some fields with certain operators.
+
+When you search for segments, the filter parameter supports the following fields and operators:
+
+ Field        | Description                                                                                                                                                                                                                    | Supported operators 
+--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------
+ excludedKeys | The segment keys of segments to exclude from the results.                                                                                                                                                                      | anyOf               
+ external     | Whether the segment is a synced segment.                                                                                                                                                                                       | exists              
+ includedKeys | The segment keys of segments to include in the results.                                                                                                                                                                        | anyOf               
+ query        | A "fuzzy" search across segment key, name, and description. Supply a string or list of strings to the operator.                                                                                                                | equals              
+ tags         | The segment tags.                                                                                                                                                                                                              | anyOf               
+ unbounded    | Whether the segment is a standard segment (false) or a big segment (true). Standard segments include rule-based segments and smaller list-based segments. Big segments include larger list-based segments and synced segments. | equals              
+
+Here are a few examples:
+
+• The filter ?filter=tags anyOf ["enterprise", "beta"],query equals "toggle" matches segments with "toggle" in their key, name, or description that also have "enterprise" or "beta" as a tag.
+• The filter ?filter=excludedKeys anyOf ["segmentKey1", "segmentKey2"] excludes the segments with those keys from the results.
+• The filter ?filter=unbounded equals true matches larger list-based segments and synced segments.
+
+The documented values for filter query parameters are prior to URL encoding. For example, the [ in ?filter=tags anyOf ["enterprise", "beta"] must be encoded to %5B.
+
+Usage:
+  ldcli segments list [flags]
+
+Required flags:
+      --environment string   The environment key
+      --project string       The project key
+
+Optional flags:
+      --filter string   Accepts filter by 'excludedKeys', 'external',
+                        'includedKeys', 'query', 'tags', 'unbounded',
+                        'view'. To learn more about the filter syntax,
+                        read the  'Filtering segments' section above.
+      --limit string    The number of segments to return. Defaults to 20.
+      --offset string   Where to start in the list. Use this with
+                        pagination. For example, an offset of 10 skips the
+                        first ten items and then returns the next items in
+                        the list, up to the query 'limit'.
+      --sort string     Accepts sorting order and fields. Fields can be
+                        comma separated. Possible fields are
+                        'creationDate', 'name', 'lastModified'. Example:
+                        'sort=name' sort by names ascending or
+                        'sort=-name,creationDate' sort by names descending
+                        and creationDate ascending.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

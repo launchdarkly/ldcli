@@ -1,0 +1,10 @@
+id = "ldcli__experiments__get-settings"
+argv = ["experiments", "get-settings", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__experiments__get-settings.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

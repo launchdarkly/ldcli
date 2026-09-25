@@ -1,0 +1,10 @@
+id = "ldcli__views-beta__delete"
+argv = ["views-beta", "delete", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__views-beta__delete.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

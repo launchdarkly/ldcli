@@ -1,0 +1,10 @@
+id = "ldcli__applications-beta__update-version"
+argv = ["applications-beta", "update-version", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__applications-beta__update-version.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

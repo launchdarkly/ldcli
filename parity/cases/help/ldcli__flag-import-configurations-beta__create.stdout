@@ -1,0 +1,19 @@
+
+Create a new flag import configuration. The integrationKey path parameter identifies the feature management system from which the import occurs, for example, split. The config object in the request body schema is described by the global integration settings, as specified by the formVariables in the manifest.json for this integration. It varies slightly based on the integrationKey.
+
+Usage:
+  ldcli flag-import-configurations-beta create [flags]
+
+Required flags:
+  -d, --data string          Input data in JSON
+      --integration string   The integration key
+      --project string       The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

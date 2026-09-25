@@ -1,0 +1,10 @@
+id = "ldcli__access-tokens__delete"
+argv = ["access-tokens", "delete", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__access-tokens__delete.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

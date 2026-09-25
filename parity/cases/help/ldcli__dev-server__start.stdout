@@ -1,0 +1,48 @@
+start the dev server
+
+Usage:
+  ldcli dev-server start [flags]
+
+Optional flags:
+      --context string              Stringified JSON representation of
+                                    your context object ex. {"kind":
+                                    "multi", "user": { "email":
+                                    "test@gmail.com", "username": "foo",
+                                    "key": "bar"}
+      --override string             Stringified JSON representation of
+                                    flag overrides ex. {"flagName": true,
+                                    "stringFlagName": "test" }
+      --project string              The project key
+      --sdk-init-timeout duration   How long to wait for the LaunchDarkly
+                                    SDK to connect to the stream and
+                                    receive the full initial flag payload
+                                    when syncing a source environment,
+                                    e.g. 15s or 1m. Increase this for
+                                    large projects or slow links. Must be
+                                    greater than zero. (default 5s)
+      --source string               environment to copy flag values from
+      --stream-flag-startup         Load flag values from the streaming
+                                    connection at startup and resolve
+                                    variation display names from REST in
+                                    the background. Speeds up startup on
+                                    large projects (the health check
+                                    passes in ~1s) at the cost of
+                                    variation names appearing in the UI a
+                                    few seconds later.
+      --sync-once                   Only sync new projects. Existing
+                                    projects will neither be resynced nor
+                                    have overrides specified by CLI flags
+                                    applied.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string     LaunchDarkly access token with write-level access
+      --analytics-opt-out       Opt out of analytics tracking
+      --base-uri string         LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --cors-enabled            Enable CORS headers for browser-based developer tools (default: false)
+      --cors-origin string      Allowed CORS origin. Use '*' for all origins (default: '*') (default "*")
+      --dev-stream-uri string   Streaming service endpoint that the dev server uses to obtain authoritative flag data. This may be a LaunchDarkly or Relay Proxy endpoint (default "https://stream.launchdarkly.com")
+      --fields strings          Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                    Output JSON format (shorthand for --output json)
+  -o, --output string           Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
+      --port string             Port for the dev server to run on (default "8765")

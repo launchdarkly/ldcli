@@ -1,0 +1,10 @@
+id = "ldcli__views-beta__list-linked"
+argv = ["views-beta", "list-linked", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__views-beta__list-linked.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

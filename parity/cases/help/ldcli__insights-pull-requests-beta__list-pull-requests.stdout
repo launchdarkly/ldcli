@@ -1,0 +1,54 @@
+
+Get a list of pull requests
+
+### Expanding the pull request collection response
+
+LaunchDarkly supports expanding the pull request collection response to include additional fields.
+
+To expand the response, append the expand query parameter and include the following:
+
+• deployments includes details on all of the deployments associated with each pull request
+• flagReferences includes details on all of the references to flags in each pull request
+• leadTime includes details about the lead time of the pull request for each stage
+
+For example, use ?expand=deployments to include the deployments field in the response. By default, this field is **not** included in the response.
+
+Usage:
+  ldcli insights-pull-requests-beta list-pull-requests [flags]
+
+Optional flags:
+      --after string         Identifier used for pagination
+      --application string   Filter the results to pull requests deployed
+                             to a comma separated list of applications
+      --before string        Identifier used for pagination
+      --environment string   Required if you are using the
+                             <code>sort</code> parameter's
+                             <code>leadTime</code> option to sort pull
+                             requests.
+      --expand string        Expand properties in response. Options:
+                             'deployments', 'flagReferences', 'leadTime'.
+      --from string          Unix timestamp in milliseconds. Default value
+                             is 7 days ago.
+      --limit string         The number of pull requests to return.
+                             Default is 20. Maximum allowed is 100.
+      --project string       The project key
+      --query string         Filter list of pull requests by title or author
+      --sort string          Sort results. Requires the 'environmentKey'
+                             to be set. Options: 'leadTime' (asc) and
+                             '-leadTime' (desc). When query option is
+                             excluded, default sort is by created or
+                             merged date.
+      --status string        Filter results to pull requests with the
+                             given status. Options: 'open', 'merged',
+                             'closed', 'deployed'.
+      --to string            Unix timestamp in milliseconds. Default value
+                             is now.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

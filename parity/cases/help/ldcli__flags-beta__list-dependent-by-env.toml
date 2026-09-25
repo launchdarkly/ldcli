@@ -1,0 +1,10 @@
+id = "ldcli__flags-beta__list-dependent-by-env"
+argv = ["flags-beta", "list-dependent-by-env", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__flags-beta__list-dependent-by-env.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

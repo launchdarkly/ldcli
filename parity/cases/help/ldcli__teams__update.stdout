@@ -1,0 +1,283 @@
+
+Perform a partial update to a team. Updating a team uses the semantic patch format.
+
+To make a semantic patch request, you must append domain-model=launchdarkly.semanticpatch to your Content-Type header. To learn more, read Updates using semantic patch https://launchdarkly.com/docs/api#updates-using-semantic-patch.
+
+### Instructions
+
+Semantic patch requests support the following kind instructions for updating teams. Several of the instructions require one or more member IDs as parameters. The member ID is returned as part of the List account members https://launchdarkly.com/docs/api/account-members/get-members response. It is the _id field of each element in the items array.
+Click to expand instructions for updating teams
+#### addCustomRoles
+
+Adds custom roles to the team. Team members will have these custom roles granted to them.
+
+##### Parameters
+
+• values: List of custom role keys.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "addCustomRoles",
+      "values": [ "example-custom-role" ]
+    }]
+  }
+
+#### addMembers
+
+Adds members to the team.
+
+##### Parameters
+
+• values: List of member IDs to add.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "addMembers",
+      "values": [ "1234a56b7c89d012345e678f", "507f1f77bcf86cd799439011" ]
+    }]
+  }
+
+#### addPermissionGrants
+
+Adds permission grants to members for the team. For example, a permission grant could allow a member to act as a team maintainer. A permission grant may have either an actionSet or a list of actions but not both at the same time. The members do not have to be team members to have a permission grant for the team.
+
+##### Parameters
+
+• actionSet: Name of the action set.
+• actions: List of actions.
+• memberIDs: List of member IDs.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "addPermissionGrants",
+      "actions": [ "updateTeamName", "updateTeamDescription" ],
+      "memberIDs": [ "1234a56b7c89d012345e678f", "507f1f77bcf86cd799439011" ]
+    }]
+  }
+
+#### addRoleAttribute
+
+Adds a role attribute to a team. Team members will have these role attribute values scoped for all custom roles granted to them.
+
+##### Parameters
+
+• key: The role attribute key to add.
+• values: List of role attribute values for that key.
+
+Here's an example:
+
+  {
+    "instructions": [
+      {
+        "kind": "addRoleAttribute",
+        "key": "testAttribute",
+        "values": ["someNewValue", "someOtherNewValue"]
+      }
+    ]
+  }
+
+#### removeCustomRoles
+
+Removes custom roles from the team. The app will no longer grant these custom roles to the team members.
+
+##### Parameters
+
+• values: List of custom role keys.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "removeCustomRoles",
+      "values": [ "example-custom-role" ]
+    }]
+  }
+
+#### removeMembers
+
+Removes members from the team.
+
+##### Parameters
+
+• values: List of member IDs to remove.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "removeMembers",
+      "values": [ "1234a56b7c89d012345e678f", "507f1f77bcf86cd799439011" ]
+    }]
+  }
+
+#### removePermissionGrants
+
+Removes permission grants from members for the team. A permission grant may have either an actionSet or a list of actions but not both at the same time. The actionSet and actions must match an existing permission grant.
+
+##### Parameters
+
+• actionSet: Name of the action set.
+• actions: List of actions.
+• memberIDs: List of member IDs.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "removePermissionGrants",
+      "actions": [ "updateTeamName", "updateTeamDescription" ],
+      "memberIDs": [ "1234a56b7c89d012345e678f", "507f1f77bcf86cd799439011" ]
+    }]
+  }
+
+#### removeRoleAttribute
+
+Removes a role attribute from the team.
+
+##### Parameters
+
+• key: The role attribute key to remove.
+
+Here's an example:
+
+  {
+    "instructions": [
+      {
+        "kind": "removeRoleAttribute",
+        "key": "testAttribute"
+      }
+    ]
+  }
+
+#### replaceMembers
+
+Replaces the existing members of the team with the new members.
+
+##### Parameters
+
+• values: List of member IDs of the new members.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "replaceMembers",
+      "values": [ "1234a56b7c89d012345e678f", "507f1f77bcf86cd799439011" ]
+    }]
+  }
+
+#### replaceRoleAttributes
+
+Replaces the existing role attributes for the team with new role attributes.
+
+##### Parameters
+
+• value: A map of role attribute keys to lists of role attribute values
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "replaceRoleAttributes",
+      "value": {
+        "testAttribute": [ "someNewValue", "someOtherNewValue" ],
+        "projectRoleAttribute": [ "project1", "project2"]
+      }
+    }]
+  }
+
+#### updateDescription
+
+Updates the description of the team.
+
+##### Parameters
+
+• value: The new description.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "updateDescription",
+      "value": "Updated team description"
+    }]
+  }
+
+#### updateName
+
+Updates the name of the team.
+
+##### Parameters
+
+• value: The new name.
+
+Here's an example:
+
+  {
+    "instructions": [{
+      "kind": "updateName",
+      "value": "Updated team name"
+    }]
+  }
+
+#### updateRoleAttribute
+
+Updates a role attribute on the team. Any existing values for the given key will be replaced with the new values. Team members will have these role attribute values scoped for all custom roles granted to them.
+
+##### Parameters
+
+• key: The role attribute key to update.
+• values: List of role attribute values for that key.
+
+Here's an example:
+
+  {
+    "instructions": [
+      {
+        "kind": "updateRoleAttribute",
+        "key": "testAttribute",
+        "values": ["someNewValue", "someOtherNewValue"]
+      }
+    ]
+  }
+
+### Expanding the teams response
+
+LaunchDarkly supports four fields for expanding the "Update team" response. By default, these fields are **not** included in the response.
+
+To expand the response, append the expand query parameter and add a comma-separated list with any of the following fields:
+
+• members includes the total count of members that belong to the team.
+• roles includes a paginated list of the custom roles that you have assigned to the team.
+• projects includes a paginated list of the projects that the team has any write access to.
+• maintainers includes a paginated list of the maintainers that you have assigned to the team.
+
+For example, expand=members,roles includes the members and roles fields in the response.
+
+Usage:
+  ldcli teams update [flags]
+
+Required flags:
+  -d, --data string   Input data in JSON
+      --team string   The team key
+
+Optional flags:
+      --expand string    A comma-separated list of properties that can
+                         reveal additional information in the response.
+                         Supported fields are explained above.
+      --semantic-patch   Perform a semantic patch request
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

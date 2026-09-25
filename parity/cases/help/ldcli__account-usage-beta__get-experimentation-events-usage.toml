@@ -1,0 +1,10 @@
+id = "ldcli__account-usage-beta__get-experimentation-events-usage"
+argv = ["account-usage-beta", "get-experimentation-events-usage", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__account-usage-beta__get-experimentation-events-usage.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

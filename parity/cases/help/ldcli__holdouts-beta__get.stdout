@@ -1,0 +1,45 @@
+
+Get details about a holdout.
+
+### Expanding the holdout response
+
+LaunchDarkly supports the following fields for expanding the "Get holdout" response. By default, these fields are **not** included in the response.
+
+To expand the response, append the expand query parameter and add a comma-separated list with any of the following fields:
+
+• draftIteration includes the iteration which has not been started yet, if any, for this holdout.
+• previousIterations includes all iterations prior to the current iteration, for this holdout. By default only the current iteration is included in the response.
+• rel-draftIteration includes the iteration which has not been started yet, if any, for the experiments related to this holdout.
+• rel-metrics includes metrics for experiments related to this holdout.
+• rel-previousIterations includes all iterations prior to the current iteration, for the experiments related to this holdout.
+• rel-secondaryMetrics includes secondary metrics for experiments related to this holdout.
+• rel-treatments includes all treatment and parameter details for experiments related to this holdout.
+• secondaryMetrics includes secondary metrics for this holdout. By default only the primary metric is included in the response.
+• treatments includes all treatment and parameter details for this holdout. By default treatment data is not included in the response.
+
+For example, expand=draftIteration,rel-draftIteration includes the draftIteration and rel-draftIteration fields in the response. If fields that you request with the expand query parameter are empty, they are not included in the response.
+
+Usage:
+  ldcli holdouts-beta get [flags]
+
+Required flags:
+      --environment string   The environment key
+      --holdout string       The holdout experiment key
+      --project string       The project key
+
+Optional flags:
+      --expand string   A comma-separated list of properties that can
+                        reveal additional information in the response.
+                        Supported fields are explained above. Holdout
+                        experiment expansion fields have no prefix.
+                        Related experiment expansion fields have 'rel-' as
+                        a prefix.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

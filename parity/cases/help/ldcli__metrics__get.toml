@@ -1,0 +1,10 @@
+id = "ldcli__metrics__get"
+argv = ["metrics", "get", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__metrics__get.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,22 @@
+[package]
+name = "parity"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Diff the Go ldcli oracle against the Rust ldcli binary"
+
+[[bin]]
+name = "parity"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+regex = "1"
+tempfile = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+similar = "2"
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3"

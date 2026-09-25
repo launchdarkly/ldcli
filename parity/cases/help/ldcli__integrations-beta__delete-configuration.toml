@@ -1,0 +1,10 @@
+id = "ldcli__integrations-beta__delete-configuration"
+argv = ["integrations-beta", "delete-configuration", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__integrations-beta__delete-configuration.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

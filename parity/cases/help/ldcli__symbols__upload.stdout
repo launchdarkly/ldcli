@@ -1,0 +1,54 @@
+Upload symbol files (React Native sourcemaps, Android R8/ProGuard mappings, or Apple dSYMs) to LaunchDarkly for error monitoring
+
+Usage:
+  ldcli symbols upload [flags]
+
+Required flags:
+      --project string   The project key
+      --type string      The symbol type to upload (supported:
+                         react-native, android, apple-dsym, flutter;
+                         apple-dsym also accepts
+                         ios/ipados/tvos/watchos/visionos/macos/apple/dsym; flutter also accepts dart)
+
+Optional flags:
+      --app-version string   The current version of your deploy. With
+                             --type android this is read from the packaged
+                             build when omitted
+      --backend-url string   An optional backend url for self-hosted
+                             deployments. Defaults to the observability
+                             API of whichever instance --base-uri names
+                             (https://pri.observability.app.launchdarkly.com for the default)
+      --base-path string     An optional base path for the uploaded symbol
+                             files
+      --include-sources      Also upload your source files so the errors
+                             page can show source context around native
+                             frames (apple-dsym and android). Your source
+                             is stored in LaunchDarkly
+      --no-skip-existing     Re-upload symbols even when LaunchDarkly
+                             already has them. By default a symbols-id
+                             file that is already stored is skipped, since
+                             its id is derived from its contents
+      --path string          Sets the directory of where the symbol files
+                             are. With --type android, run from your
+                             project root and the R8 mapping is found for
+                             you; with --type apple-dsym, an Xcode build
+                             phase uploads what it just built (default ".")
+      --source-path string   Directory to scan for .java/.kt sources when
+                             using --include-sources with --type android
+                             (default ".")
+      --symbols-id string    The symbols id
+                             (launchdarkly.symbols_id.htlhash) to key
+                             uploads by (Symbols Id Lane). If omitted, a
+                             *.symbolsid sidecar next to the bundle is
+                             used when present, and with --type android
+                             the id the packaged app reports, or failing
+                             that the one R8 recorded in the mapping
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

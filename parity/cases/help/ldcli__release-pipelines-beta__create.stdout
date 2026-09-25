@@ -1,0 +1,22 @@
+
+Creates a new release pipeline.
+
+The first release pipeline you create is automatically set as the default release pipeline for your project. To change the default release pipeline, use the Update project https://launchdarkly.com/docs/api/projects/patch-project API to set the defaultReleasePipelineKey.
+
+You can create up to 20 release pipelines per project.
+
+Usage:
+  ldcli release-pipelines-beta create [flags]
+
+Required flags:
+  -d, --data string      Input data in JSON
+      --project string   The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

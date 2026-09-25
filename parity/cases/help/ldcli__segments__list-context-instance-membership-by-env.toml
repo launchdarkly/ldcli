@@ -1,0 +1,10 @@
+id = "ldcli__segments__list-context-instance-membership-by-env"
+argv = ["segments", "list-context-instance-membership-by-env", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__segments__list-context-instance-membership-by-env.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

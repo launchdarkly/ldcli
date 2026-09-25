@@ -1,0 +1,29 @@
+
+Update an environment. Updating an environment uses a JSON patch https://datatracker.ietf.org/doc/html/rfc6902 representation of the desired changes. To learn more, read Updates https://launchdarkly.com/docs/api#updates.
+
+To update fields in the environment object that are arrays, set the path to the name of the field and then append /<array index>. Using /0 appends to the beginning of the array.
+
+### Approval settings
+
+This request only returns the approvalSettings and resourceApprovalSettings if the approvals https://launchdarkly.com/docs/home/releases/approvals/ feature is enabled.
+
+Only the canReviewOwnRequest, canApplyDeclinedChanges, minNumApprovals, required and requiredApprovalTagsfields are editable.
+
+If you try to patch the environment by setting both required and requiredApprovalTags, the request fails and an error appears. You can specify either required approvals for all flags in an environment or those with specific tags, but not both.
+
+Usage:
+  ldcli environments update [flags]
+
+Required flags:
+  -d, --data string          Input data in JSON
+      --environment string   The environment key
+      --project string       The project key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

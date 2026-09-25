@@ -1,0 +1,10 @@
+id = "ldcli__segments__get-membership-for-context"
+argv = ["segments", "get-membership-for-context", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__segments__get-membership-for-context.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

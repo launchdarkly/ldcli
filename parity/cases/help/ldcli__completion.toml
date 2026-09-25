@@ -1,0 +1,10 @@
+id = "ldcli__completion"
+argv = ["completion", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__completion.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

@@ -1,0 +1,44 @@
+
+Get a list of applications.
+
+### Expanding the applications response
+
+LaunchDarkly supports expanding the "Get applications" response to include additional fields.
+
+To expand the response, append the expand query parameter and include the following:
+
+• flags includes details on the flags that have been evaluated by the application
+
+For example, use ?expand=flags to include the flags field in the response. By default, this field is **not** included in the response.
+
+Usage:
+  ldcli applications-beta list [flags]
+
+Optional flags:
+      --expand string   A comma-separated list of properties that can
+                        reveal additional information in the response.
+                        Options: 'flags'.
+      --filter string   Accepts filter by 'key', 'name', 'kind', and
+                        'autoAdded'. To learn more about the filter
+                        syntax, read [Filtering applications and
+                        application
+                        versions](https://launchdarkly.com/docs/api/applications-beta#filtering-applications-and-application-versions).
+      --limit string    The number of applications to return. Defaults to 10.
+      --offset string   Where to start in the list. Use this with
+                        pagination. For example, an offset of 10 skips the
+                        first ten items and then returns the next items in
+                        the list, up to the query 'limit'.
+      --sort string     Accepts sorting order and fields. Fields can be
+                        comma separated. Possible fields are
+                        'creationDate', 'name'. Examples: 'sort=name' sort
+                        by names ascending, 'sort=-name,creationDate' sort
+                        by names descending and creationDate ascending.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

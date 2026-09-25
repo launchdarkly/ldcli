@@ -1,0 +1,24 @@
+
+Get a list of release policies for the specified project with optional filtering.
+
+Usage:
+  ldcli release-policies-beta list [flags]
+
+Required flags:
+      --project string   The project key
+
+Optional flags:
+      --exclude-default string   When true, exclude the default release
+                                 policy from the response. When false or
+                                 omitted, include the default policy if an
+                                 environment filter is present.
+      --ld-api-version string    Version of the endpoint.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

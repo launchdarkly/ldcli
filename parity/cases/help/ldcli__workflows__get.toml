@@ -1,0 +1,10 @@
+id = "ldcli__workflows__get"
+argv = ["workflows", "get", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__workflows__get.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

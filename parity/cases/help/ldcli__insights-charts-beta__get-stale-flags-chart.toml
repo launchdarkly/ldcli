@@ -1,0 +1,10 @@
+id = "ldcli__insights-charts-beta__get-stale-flags-chart"
+argv = ["insights-charts-beta", "get-stale-flags-chart", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__insights-charts-beta__get-stale-flags-chart.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

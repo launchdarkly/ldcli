@@ -1,0 +1,10 @@
+id = "ldcli__approval-requests__create-flag-copy-config"
+argv = ["approval-requests", "create-flag-copy-config", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__approval-requests__create-flag-copy-config.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

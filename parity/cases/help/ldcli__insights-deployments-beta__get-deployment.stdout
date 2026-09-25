@@ -1,0 +1,34 @@
+
+Get a deployment by ID.
+
+The deployment ID is returned as part of the List deployments https://launchdarkly.com/docs/api/insights-deployments-beta/get-deployments response. It is the id field of each element in the items array.
+
+### Expanding the deployment response
+
+LaunchDarkly supports expanding the deployment response to include additional fields.
+
+To expand the response, append the expand query parameter and include the following:
+
+• pullRequests includes details on all of the pull requests associated with each deployment
+• flagReferences includes details on all of the references to flags in each deployment
+
+For example, use ?expand=pullRequests to include the pullRequests field in the response. By default, this field is **not** included in the response.
+
+Usage:
+  ldcli insights-deployments-beta get-deployment [flags]
+
+Required flags:
+      --deployment-id string   The deployment ID
+
+Optional flags:
+      --expand string   Expand properties in response. Options:
+                        'pullRequests', 'flagReferences'
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

@@ -1,0 +1,20 @@
+
+Get statistics about all the code references across repositories for all flags in your project that have code references in the default branch, for example, main. Optionally, you can include the flagKey query parameter to limit your request to statistics about code references for a single flag. This endpoint returns the number of references to your flag keys in your repositories, as well as a link to each repository.
+
+Usage:
+  ldcli code-refs get-statistics [flags]
+
+Required flags:
+      --project string   The project key
+
+Optional flags:
+      --flag string   Filter results to a specific flag key
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

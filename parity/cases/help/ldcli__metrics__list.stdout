@@ -1,0 +1,73 @@
+
+Get a list of all metrics for the specified project.
+
+### Filtering metrics
+
+The filter parameter supports the following operators: contains, equals, anyOf.
+
+#### Supported fields and operators
+
+You can only filter certain fields in metrics when using the filter parameter. Additionally, you can only filter some fields with certain operators.
+
+When you search for metrics, the filter parameter supports the following fields and operators:
+
+ Field               | Description                                                                                      | Supported operators 
+---------------------|--------------------------------------------------------------------------------------------------|---------------------
+ eventKind           | The metric event kind. One of custom, pageview, click.                                           | equals              
+ hasConnections      | Whether the metric has connections to experiments or guarded rollouts. One of true, false.       | equals              
+ isNumeric           | Whether the metric is numeric. One of true, false.                                               | equals              
+ maintainerIds       | A comma-separated list of metric maintainer IDs.                                                 | anyOf               
+ maintainerTeamKey   | The metric maintainer team key.                                                                  | equals              
+ metricUsedIn        | Filter by where the metric is used. One of experiments, guarded_rollouts, any, none.             | equals              
+ query               | A "fuzzy" search across metric key and name. Supply a string or list of strings to the operator. | equals              
+ tags                | The metric tags.                                                                                 | contains            
+ unitAggregationType | The metric's unit aggregation type. One of sum, average.                                         | equals              
+
+For example, the filter ?filter=tags contains ["tag1", "tag2", "tag3"] matches metrics that have all three tags.
+
+The documented values for filter query parameters are prior to URL encoding. For example, the [ in ?filter=tags contains ["tag1", "tag2", "tag3"] must be encoded to %5B.
+
+### Expanding the metric list response
+
+LaunchDarkly supports expanding the "List metrics" response. By default, the expandable field is **not** included in the response.
+
+To expand the response, append the expand query parameter and add the following supported field:
+
+• experimentCount includes the number of experiments from the specific project that use the metric
+
+For example, expand=experimentCount includes the experimentCount field for each metric in the response.
+
+Usage:
+  ldcli metrics list [flags]
+
+Required flags:
+      --project string   The project key
+
+Optional flags:
+      --expand string   A comma-separated list of properties that can
+                        reveal additional information in the response.
+      --filter string   A comma-separated list of filters. This endpoint
+                        accepts filtering by 'query', 'tags', 'eventKind',
+                        'isNumeric', 'unitAggregationType',
+                        'hasConnections', 'maintainerIds',
+                        'maintainerTeamKey', 'view', 'dataSourceKeys',
+                        'metricUsedIn', 'eventKeys', and 'versionIds'. To
+                        learn more about the filter syntax, read the
+                        'Filtering metrics' section above.
+      --limit string    The number of metrics to return in the response.
+                        Defaults to 20. Maximum limit is 50.
+      --offset string   Where to start in the list. Use this with
+                        pagination. For example, an offset of 10 skips the
+                        first ten items and returns the next 'limit' items.
+      --sort string     A field to sort the items by. Prefix field by a
+                        dash ( - ) to sort in descending order. This
+                        endpoint supports sorting by 'createdAt' or 'name'.
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

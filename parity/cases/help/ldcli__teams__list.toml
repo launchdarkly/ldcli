@@ -1,0 +1,10 @@
+id = "ldcli__teams__list"
+argv = ["teams", "list", "--help"]
+declare = ["config:ldcli/config.yml"]
+
+[expect]
+status = 0
+stdout_file = "ldcli__teams__list.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

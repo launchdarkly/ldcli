@@ -1,0 +1,32 @@
+
+Update a single account member. Updating a member uses a JSON patch https://datatracker.ietf.org/doc/html/rfc6902 representation of the desired changes. To learn more, read Updates https://launchdarkly.com/docs/api#updates.
+
+To update fields in the account member object that are arrays, set the path to the name of the field and then append /<array index>. Use /0 to add to the beginning of the array. Use /- to add to the end of the array. For example, to add a new custom role to a member, use the following request body:
+
+    [
+      {
+        "op": "add",
+        "path": "/customRoles/0",
+        "value": "some-role-id"
+      }
+    ]
+
+You can update only an account member's role or custom role using a JSON patch. Members can update their own names and email addresses though the LaunchDarkly UI.
+
+When SAML SSO or SCIM is enabled for the account, account members are managed in the Identity Provider (IdP). Requests to update account members will succeed, but the IdP will override the update shortly afterwards.
+
+Usage:
+  ldcli members update [flags]
+
+Required flags:
+  -d, --data string   Input data in JSON
+      --id string     The member ID
+
+Global flags:
+  -h, --help                  Get help about any command
+      --access-token string   LaunchDarkly access token with write-level access
+      --analytics-opt-out     Opt out of analytics tracking
+      --base-uri string       LaunchDarkly base URI (default "https://app.launchdarkly.com")
+      --fields strings        Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json                  Output JSON format (shorthand for --output json)
+  -o, --output string         Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")
