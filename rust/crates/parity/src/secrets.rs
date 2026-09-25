@@ -69,7 +69,7 @@ fn finish(hits: Vec<String>) -> Result<()> {
 
 fn authorization_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"(?i)authorization:\s*(\S+)").expect("authorization regex"))
+    RE.get_or_init(|| Regex::new(r"(?im)authorization:[ \t]*(\S+)").expect("authorization regex"))
 }
 
 fn walk(dir: &Path, visit: &mut dyn FnMut(&Path, &str)) -> Result<()> {

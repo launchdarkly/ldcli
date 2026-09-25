@@ -1,6 +1,7 @@
 //! TOML cases. Stdout and stderr live beside the TOML so help transcripts
 //! stay readable and are not escaped.
 
+use crate::fixture::Route;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -18,6 +19,10 @@ pub struct Case {
     /// Files written into the sandbox before the run, keyed like `declare`.
     #[serde(default)]
     pub seed: BTreeMap<String, String>,
+    /// Routes the fixture server answers. A case that has any, or that names
+    /// `{{BASE_URI}}`, runs each binary against its own server.
+    #[serde(default)]
+    pub http: Vec<Route>,
     /// Redaction rules this case needs, by name. Empty means the output is
     /// deterministic and every byte is compared.
     #[serde(default)]
@@ -39,6 +44,9 @@ pub struct Expectation {
     pub stderr: String,
     #[serde(default)]
     pub files: BTreeMap<String, String>,
+    /// The requests the fixture server received, in arrival order.
+    #[serde(default)]
+    pub requests: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +59,8 @@ struct CaseFile {
     env: BTreeMap<String, String>,
     #[serde(default)]
     seed: BTreeMap<String, String>,
+    #[serde(default)]
+    http: Vec<Route>,
     #[serde(default)]
     redact: Vec<String>,
     #[serde(default)]
@@ -72,6 +82,8 @@ struct ExpectFile {
     #[serde(default)]
     stderr_file: String,
     #[serde(default)]
+    requests_file: String,
+    #[serde(default)]
     files: BTreeMap<String, String>,
 }
 
@@ -82,12 +94,14 @@ pub fn load_case(path: &Path) -> Result<Case> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     let stdout = read_stream(dir, &parsed.expect.stdout, &parsed.expect.stdout_file)?;
     let stderr = read_stream(dir, &parsed.expect.stderr, &parsed.expect.stderr_file)?;
+    let requests = read_stream(dir, "", &parsed.expect.requests_file)?;
     Ok(Case {
         id: parsed.id,
         argv: parsed.argv,
         declare: parsed.declare,
         env: parsed.env,
         seed: parsed.seed,
+        http: parsed.http,
         redact: parsed.redact,
         rust: parsed.rust,
         expect: Expectation {
@@ -95,6 +109,7 @@ pub fn load_case(path: &Path) -> Result<Case> {
             stdout,
             stderr,
             files: parsed.expect.files,
+            requests,
         },
     })
 }
@@ -117,22 +132,10 @@ pub fn save_case(path: &Path, case: &Case) -> Result<()> {
         .ok_or_else(|| anyhow!("case path has no stem: {}", path.display()))?;
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     let stdout_name = format!("{stem}.stdout");
-    let stderr_name = if case.expect.stderr.is_empty() {
-        String::new()
-    } else {
-        format!("{stem}.stderr")
-    };
     fs::write(dir.join(&stdout_name), &case.expect.stdout)
         .map_err(|err| anyhow!("write stdout: {err}"))?;
-    if stderr_name.is_empty() {
-        let stale = dir.join(format!("{stem}.stderr"));
-        if stale.exists() {
-            fs::remove_file(&stale).map_err(|err| anyhow!("remove {}: {err}", stale.display()))?;
-        }
-    } else {
-        fs::write(dir.join(&stderr_name), &case.expect.stderr)
-            .map_err(|err| anyhow!("write stderr: {err}"))?;
-    }
+    let stderr_name = write_optional(dir, stem, "stderr", &case.expect.stderr)?;
+    let requests_name = write_optional(dir, stem, "requests", &case.expect.requests)?;
 
     let mut body = String::new();
     body.push_str(&format!("id = {}\n", toml_basic(&case.id)));
@@ -156,11 +159,21 @@ pub fn save_case(path: &Path, case: &Case) -> Result<()> {
             body.push_str(&format!("{} = {}\n", toml_basic(key), toml_basic(value)));
         }
     }
+    for route in &case.http {
+        body.push_str("\n[[http]]\n");
+        body.push_str(&format!("method = {}\n", toml_basic(&route.method)));
+        body.push_str(&format!("path = {}\n", toml_basic(&route.path)));
+        body.push_str(&format!("status = {}\n", route.status));
+        body.push_str(&format!("body = {}\n", toml_basic(&route.body)));
+    }
     body.push_str("\n[expect]\n");
     body.push_str(&format!("status = {}\n", case.expect.status));
     body.push_str(&format!("stdout_file = {}\n", toml_basic(&stdout_name)));
     if !stderr_name.is_empty() {
         body.push_str(&format!("stderr_file = {}\n", toml_basic(&stderr_name)));
+    }
+    if !requests_name.is_empty() {
+        body.push_str(&format!("requests_file = {}\n", toml_basic(&requests_name)));
     }
     if !case.expect.files.is_empty() {
         body.push_str("\n[expect.files]\n");
@@ -170,6 +183,21 @@ pub fn save_case(path: &Path, case: &Case) -> Result<()> {
     }
     fs::write(path, body).map_err(|err| anyhow!("write {}: {err}", path.display()))?;
     Ok(())
+}
+
+/// Write `<stem>.<extension>` when there is text for it, and remove a stale
+/// one when there is not. Returns the file name, or an empty string.
+fn write_optional(dir: &Path, stem: &str, extension: &str, text: &str) -> Result<String> {
+    let name = format!("{stem}.{extension}");
+    let path = dir.join(&name);
+    if text.is_empty() {
+        if path.exists() {
+            fs::remove_file(&path).map_err(|err| anyhow!("remove {}: {err}", path.display()))?;
+        }
+        return Ok(String::new());
+    }
+    fs::write(&path, text).map_err(|err| anyhow!("write {}: {err}", path.display()))?;
+    Ok(name)
 }
 
 pub fn iter_cases(root: &Path) -> Result<Vec<PathBuf>> {
@@ -254,6 +282,12 @@ mod tests {
             declare: vec!["config:ldcli/config.yml".into()],
             env: BTreeMap::new(),
             seed: BTreeMap::new(),
+            http: vec![Route {
+                method: "GET".into(),
+                path: "/api/v2/caller-identity".into(),
+                status: 200,
+                body: "{}".into(),
+            }],
             redact: vec!["hostname".into()],
             rust: false,
             expect: Expectation {
@@ -261,9 +295,11 @@ mod tests {
                 stdout: "Usage:\n  ldcli config\n".into(),
                 stderr: "deprecated\n".into(),
                 files: BTreeMap::from([("config:ldcli/config.yml".into(), "{}\n".into())]),
+                requests: "GET /api/v2/caller-identity\n".into(),
             },
         };
         save_case(&path, &case).unwrap();
+        assert!(dir.path().join("ldcli__config.requests").is_file());
         assert!(dir.path().join("ldcli__config.stdout").is_file());
         assert!(dir.path().join("ldcli__config.stderr").is_file());
         let loaded = load_case(&path).unwrap();
@@ -281,6 +317,7 @@ mod tests {
             declare: vec![],
             env: BTreeMap::new(),
             seed: BTreeMap::new(),
+            http: Vec::new(),
             redact: vec![],
             rust: false,
             expect: Expectation::default(),

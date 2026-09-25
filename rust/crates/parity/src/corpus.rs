@@ -5,6 +5,7 @@ use crate::case::{
 };
 use crate::coverage::{check_coverage, load_command_list, load_exemptions, Coverage, Exemption};
 use crate::diffutil::unified_diff;
+use crate::fixture::{render_requests, FixtureServer};
 use crate::normalize::{normalize_stream, RedactionRules, Redactor};
 use crate::sandbox::{run_command, RunRequest, RunResult};
 use crate::secrets::{scan_authorization, scan_tree};
@@ -47,6 +48,7 @@ pub fn redactor_for(sandbox_root: &Path, secrets: &Redactor, rules: RedactionRul
         user_code: secrets.user_code.clone(),
         verification_uri: secrets.verification_uri.clone(),
         sandbox_root: Some(sandbox_root.display().to_string()),
+        base_uri: secrets.base_uri.clone(),
         // Reading the machine name matters only to a case that asked to mask
         // it. Otherwise a hostname that happens to be an ordinary word would
         // rewrite that word wherever the CLI printed it.
@@ -66,19 +68,75 @@ fn base_secrets(token: &str) -> Redactor {
     }
 }
 
-pub fn execute_case(bin: &Path, case: &Case, secrets: &Redactor) -> Result<(RunResult, Redactor)> {
+/// One binary's run of a case: what it did, how to normalize it, and the
+/// requests it made to the fixture server.
+pub struct Execution {
+    pub result: RunResult,
+    pub redactor: Redactor,
+    pub requests: String,
+}
+
+const BASE_URI_PLACEHOLDER: &str = "{{BASE_URI}}";
+const ACCESS_TOKEN_PLACEHOLDER: &str = "{{ACCESS_TOKEN}}";
+
+fn needs_server(case: &Case) -> bool {
+    let named = |text: &String| text.contains(BASE_URI_PLACEHOLDER);
+    !case.http.is_empty()
+        || case.argv.iter().any(named)
+        || case.env.values().any(named)
+        || case.seed.values().any(named)
+}
+
+pub fn execute_case(bin: &Path, case: &Case, secrets: &Redactor) -> Result<Execution> {
     let rules =
         RedactionRules::parse(&case.redact).map_err(|err| anyhow!("case {}: {err}", case.id))?;
-    let result = run_command(&RunRequest {
+    let server = if needs_server(case) {
+        Some(FixtureServer::start(case.http.clone())?)
+    } else {
+        None
+    };
+    let base_uri = server.as_ref().map(|server| server.base_uri.clone());
+    let token = secrets.access_token.clone().unwrap_or_default();
+    let fill = |text: &String| {
+        let text = text.replace(ACCESS_TOKEN_PLACEHOLDER, &token);
+        match &base_uri {
+            Some(base) => text.replace(BASE_URI_PLACEHOLDER, base),
+            None => text,
+        }
+    };
+    let argv: Vec<String> = case.argv.iter().map(fill).collect();
+    let env: BTreeMap<String, String> = case
+        .env
+        .iter()
+        .map(|(key, value)| (key.clone(), fill(value)))
+        .collect();
+    let seed: BTreeMap<String, String> = case
+        .seed
+        .iter()
+        .map(|(key, value)| (key.clone(), fill(value)))
+        .collect();
+
+    let run = run_command(&RunRequest {
         bin,
-        argv: &case.argv,
+        argv: &argv,
         declare: &case.declare,
-        extra_env: &case.env,
-        seed: &case.seed,
+        extra_env: &env,
+        seed: &seed,
         opt_out_update_check: true,
-    })?;
-    let redactor = redactor_for(&result.sandbox_root, secrets, rules);
-    Ok((result, redactor))
+    });
+    // Stop the server whether or not the run succeeded.
+    let requests = server
+        .map(|server| render_requests(&server.finish()))
+        .unwrap_or_default();
+    let result = run?;
+    let mut redactor = redactor_for(&result.sandbox_root, secrets, rules);
+    redactor.base_uri = base_uri;
+    let requests = normalize_stream(&requests, &redactor);
+    Ok(Execution {
+        result,
+        redactor,
+        requests,
+    })
 }
 
 fn normalized_output(
@@ -97,7 +155,11 @@ fn normalized_output(
 
 pub fn capture_case(go_bin: &Path, case: &Case, token: &str) -> Result<Case> {
     let secrets = base_secrets(token);
-    let (result, redactor) = execute_case(go_bin, case, &secrets)?;
+    let Execution {
+        result,
+        redactor,
+        requests,
+    } = execute_case(go_bin, case, &secrets)?;
     if !result.undeclared.is_empty() {
         return Err(anyhow!(
             "case {} wrote undeclared paths: {}",
@@ -106,7 +168,11 @@ pub fn capture_case(go_bin: &Path, case: &Case, token: &str) -> Result<Case> {
         ));
     }
     let (stdout, stderr, files) = normalized_output(&result, &redactor);
-    for (label, text) in [("stdout", &stdout), ("stderr", &stderr)] {
+    for (label, text) in [
+        ("stdout", &stdout),
+        ("stderr", &stderr),
+        ("requests", &requests),
+    ] {
         if token_leaks(text, token) {
             return Err(anyhow!(
                 "case {} {label} still contains the harness access token after substitution",
@@ -128,6 +194,7 @@ pub fn capture_case(go_bin: &Path, case: &Case, token: &str) -> Result<Case> {
             stdout,
             stderr,
             files,
+            requests,
         },
         ..case.clone()
     })
@@ -144,7 +211,11 @@ pub fn check_case(
     token: &str,
 ) -> Result<Vec<CaseFailure>> {
     let secrets = base_secrets(token);
-    let (go_result, go_redactor) = execute_case(go_bin, case, &secrets)?;
+    let Execution {
+        result: go_result,
+        redactor: go_redactor,
+        requests: go_requests,
+    } = execute_case(go_bin, case, &secrets)?;
     let mut failures = Vec::new();
     if !go_result.undeclared.is_empty() {
         failures.push(failure(
@@ -196,6 +267,17 @@ pub fn check_case(
         &expected_files,
         &go_files,
     );
+    push_diff(
+        &mut failures,
+        case,
+        "requests",
+        unified_diff(
+            "expected requests",
+            "go requests",
+            &normalize_stream(&case.expect.requests, &expected_redactor),
+            &go_requests,
+        ),
+    );
 
     if !case.rust {
         return Ok(failures);
@@ -207,7 +289,11 @@ pub fn check_case(
         ));
         return Ok(failures);
     };
-    let (rust_result, rust_redactor) = execute_case(rust_bin, case, &secrets)?;
+    let Execution {
+        result: rust_result,
+        redactor: rust_redactor,
+        requests: rust_requests,
+    } = execute_case(rust_bin, case, &secrets)?;
     if !rust_result.undeclared.is_empty() {
         failures.push(failure(
             case,
@@ -241,6 +327,12 @@ pub fn check_case(
         unified_diff("go stderr", "rust stderr", &go_stderr, &rust_stderr),
     );
     diff_files(&mut failures, case, "go", "rust", &go_files, &rust_files);
+    push_diff(
+        &mut failures,
+        case,
+        "requests",
+        unified_diff("go requests", "rust requests", &go_requests, &rust_requests),
+    );
     Ok(failures)
 }
 
@@ -313,6 +405,7 @@ pub fn seed_missing_help(commands: &[String], cases_dir: &Path) -> Result<Vec<Pa
             declare: vec!["config:ldcli/config.yml".into()],
             env: BTreeMap::new(),
             seed: BTreeMap::new(),
+            http: Vec::new(),
             redact: Vec::new(),
             rust: false,
             expect: Expectation::default(),
@@ -446,6 +539,7 @@ mod tests {
             declare: vec!["config:ldcli/config.yml".into()],
             env: BTreeMap::new(),
             seed: BTreeMap::new(),
+            http: Vec::new(),
             redact: Vec::new(),
             rust: false,
             expect: Expectation {
@@ -453,6 +547,7 @@ mod tests {
                 stdout: stdout.into(),
                 stderr: String::new(),
                 files: BTreeMap::from([("config:ldcli/config.yml".into(), "{}\n".into())]),
+                requests: String::new(),
             },
         }
     }

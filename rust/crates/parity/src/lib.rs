@@ -7,6 +7,7 @@ pub mod case;
 pub mod corpus;
 pub mod coverage;
 pub mod diffutil;
+pub mod fixture;
 pub mod normalize;
 pub mod sandbox;
 pub mod secrets;

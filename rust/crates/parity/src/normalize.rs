@@ -65,6 +65,8 @@ pub struct Redactor {
     pub user_code: Option<String>,
     pub verification_uri: Option<String>,
     pub sandbox_root: Option<String>,
+    /// The fixture server's address, which has a different port every run.
+    pub base_uri: Option<String>,
     pub hostname: Option<String>,
     pub rules: RedactionRules,
 }
@@ -101,6 +103,11 @@ impl Redactor {
         if let Some(root) = self.sandbox_root.as_deref() {
             if !root.is_empty() {
                 out = out.replace(root, "[SANDBOX]");
+            }
+        }
+        if let Some(base) = self.base_uri.as_deref() {
+            if !base.is_empty() {
+                out = out.replace(base, "[BASE_URI]");
             }
         }
         out = temp_path_re().replace_all(&out, "[TEMP]").into_owned();
@@ -293,10 +300,11 @@ mod tests {
             user_code: Some("USER-CODE".into()),
             verification_uri: Some("https://example.test/verify/device-123".into()),
             sandbox_root: Some("/tmp/case-a".into()),
+            base_uri: Some("http://127.0.0.1:40123".into()),
             hostname: Some("buildhost".into()),
             rules: RedactionRules::parse(&["hostname".into()]).unwrap(),
         };
-        let raw = "token parity-token-abc at /tmp/case-a on buildhost device-123 USER-CODE https://example.test/verify/device-123\n";
+        let raw = "token parity-token-abc at /tmp/case-a on buildhost via http://127.0.0.1:40123/x device-123 USER-CODE https://example.test/verify/device-123\n";
         let got = normalize_stream(raw, &redactor);
         assert!(!got.contains("parity-token-abc"));
         assert!(!got.contains("device-123"));
@@ -306,6 +314,7 @@ mod tests {
         assert!(got.contains("[USER_CODE]"));
         assert!(got.contains("[VERIFICATION_URI]"));
         assert!(got.contains("[SANDBOX]"));
+        assert!(got.contains("[BASE_URI]/x"), "{got}");
         assert!(got.contains("[HOSTNAME]"));
     }
 }

@@ -76,6 +76,27 @@ declare = ["config:ldcli/config.yml"]
 
 A seed key that would leave the sandbox is refused.
 
+## HTTP fixtures
+
+A command that talks to LaunchDarkly is pointed at a local fixture server instead. Each binary gets its own server, answering the case's `[[http]]` routes; a request with no matching route gets a 404 with an empty body.
+
+```toml
+argv = ["whoami", "--base-uri", "{{BASE_URI}}"]
+
+[env]
+LD_ACCESS_TOKEN = "{{ACCESS_TOKEN}}"
+
+[[http]]
+method = "GET"
+path = "/api/v2/caller-identity"
+status = 200
+body = "{\"accountId\": \"acct-1\"}"
+```
+
+`{{BASE_URI}}` becomes that run's server address and `{{ACCESS_TOKEN}}` becomes a token minted for the run, anywhere in `argv`, `env`, or `seed`. The server's address changes every run, so it reads `[BASE_URI]` wherever it is printed, and the token reads `[ACCESS_TOKEN]`.
+
+Every request the server receives is recorded, with its method, path and query, body, and the `Authorization`, `Content-Type`, `LD-API-Version`, and `User-Agent` headers, into a `.requests` file beside the transcript. A case compares those as well, so a binary that prints the right thing after sending the wrong request still fails.
+
 Set `rust = true` once the Rust binary is supposed to match that case.
 
 ## Add an exemption
