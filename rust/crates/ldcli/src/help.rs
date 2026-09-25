@@ -115,6 +115,32 @@ pub fn subcommand_help(long: &str, use_line: &str, local: &[Flag], inherited: &[
     out
 }
 
+/// Help on the resource template (`SubcommandUsageTemplate`) for a command
+/// with no flags of its own. The template writes the help line itself, padded
+/// to a fixed width, so it does not line up with the flags beneath it.
+pub fn resource_help_without_local_flags(long: &str, use_line: &str, inherited: &[Flag]) -> String {
+    format!(
+        "{}\n\nUsage:\n  {use_line}\n\nGlobal flags:\n{:<29} Get help about any command\n{}\n",
+        trim_trailing_whitespace(long),
+        "  -h, --help",
+        trim_trailing_whitespace(&flag_usages(inherited))
+    )
+}
+
+/// `whoami` hides the root flags that do not apply to it: the token and base
+/// URI come from config, and analytics opt-out is irrelevant.
+pub fn whoami_help(default_output: &'static str) -> String {
+    let visible: Vec<Flag> = persistent_flags(default_output)
+        .into_iter()
+        .filter(|flag| !matches!(flag.name, "access-token" | "base-uri" | "analytics-opt-out"))
+        .collect();
+    resource_help_without_local_flags(
+        "Show information about the identity associated with the current access token.",
+        "ldcli whoami [flags]",
+        &visible,
+    )
+}
+
 /// `config`'s help appends the list of settings to its long description.
 pub fn config_help(default_output: &'static str) -> String {
     let mut long =

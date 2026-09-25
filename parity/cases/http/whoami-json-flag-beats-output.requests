@@ -1,0 +1,4 @@
+GET /api/v2/caller-identity
+authorization: [ACCESS_TOKEN]
+content-type: application/json
+user-agent: launchdarkly-cli/vtest

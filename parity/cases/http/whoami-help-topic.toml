@@ -1,11 +1,11 @@
-id = "ldcli__whoami"
-argv = ["whoami", "--help"]
+id = "whoami-help-topic"
+argv = ["help", "whoami"]
 declare = ["config:ldcli/config.yml"]
 rust = true
 
 [expect]
 status = 0
-stdout_file = "ldcli__whoami.stdout"
+stdout_file = "whoami-help-topic.stdout"
 
 [expect.files]
 "config:ldcli/config.yml" = "{}\n"

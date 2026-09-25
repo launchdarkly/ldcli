@@ -1,0 +1,14 @@
+id = "config-list-minted-token-is-redacted"
+argv = ["config", "--list", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "access-token: {{ACCESS_TOKEN}}\nproject: p\n"
+
+[expect]
+status = 0
+stdout_file = "config-list-minted-token-is-redacted.stdout"
+
+[expect.files]
+"config:ldcli/config.yml" = "access-token: [ACCESS_TOKEN]\nproject: p\n"

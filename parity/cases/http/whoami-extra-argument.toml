@@ -1,0 +1,15 @@
+id = "whoami-extra-argument"
+argv = ["whoami", "extra"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[env]
+LD_ACCESS_TOKEN = "{{ACCESS_TOKEN}}"
+
+[expect]
+status = 1
+stdout_file = "whoami-extra-argument.stdout"
+stderr_file = "whoami-extra-argument.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

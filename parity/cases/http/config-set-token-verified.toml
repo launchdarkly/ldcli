@@ -1,0 +1,18 @@
+id = "config-set-token-verified"
+argv = ["config", "--set", "access-token", "{{ACCESS_TOKEN}}", "--base-uri", "{{BASE_URI}}", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[[http]]
+method = "HEAD"
+path = "/api/v2/account"
+status = 204
+body = ""
+
+[expect]
+status = 0
+stdout_file = "config-set-token-verified.stdout"
+requests_file = "config-set-token-verified.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "access-token: [ACCESS_TOKEN]\n"

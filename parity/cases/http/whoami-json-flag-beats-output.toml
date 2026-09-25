@@ -1,0 +1,33 @@
+id = "whoami-json-flag-beats-output"
+argv = ["whoami", "--base-uri", "{{BASE_URI}}", "-o", "plaintext", "--json"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[env]
+LD_ACCESS_TOKEN = "{{ACCESS_TOKEN}}"
+
+[[http]]
+method = "GET"
+path = "/api/v2/caller-identity"
+status = 200
+body = "{\n  \"accountId\": \"acct-1\",\n  \"authKind\": \"token\",\n  \"memberId\": \"member-1\",\n  \"tokenId\": \"token-1\",\n  \"tokenKind\": \"personal\",\n  \"tokenName\": \"ci token\",\n  \"scopes\": [\n    \"writer\"\n  ],\n  \"serviceToken\": false\n}"
+
+[[http]]
+method = "GET"
+path = "/api/v2/members/member-1"
+status = 200
+body = "{\"_id\": \"member-1\", \"email\": \"ada@example.com\", \"firstName\": \"Ada\", \"lastName\": \"Lovelace\", \"role\": \"admin\"}"
+
+[[http]]
+method = "GET"
+path = "/api/v2/account"
+status = 200
+body = "{\"organization\": \"Analytical Engines\"}"
+
+[expect]
+status = 0
+stdout_file = "whoami-json-flag-beats-output.stdout"
+requests_file = "whoami-json-flag-beats-output.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

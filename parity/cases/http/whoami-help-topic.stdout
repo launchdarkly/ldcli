@@ -1,0 +1,10 @@
+Show information about the identity associated with the current access token.
+
+Usage:
+  ldcli whoami [flags]
+
+Global flags:
+  -h, --help                  Get help about any command
+      --fields strings   Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)
+      --json             Output JSON format (shorthand for --output json)
+  -o, --output string    Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise) (default "json")

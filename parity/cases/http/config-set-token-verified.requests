@@ -1,0 +1,4 @@
+HEAD /api/v2/account
+authorization: [ACCESS_TOKEN]
+content-type: application/json
+user-agent: launchdarkly-cli/vtest

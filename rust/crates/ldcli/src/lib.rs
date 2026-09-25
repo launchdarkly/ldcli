@@ -14,3 +14,4 @@ pub mod help;
 pub mod http;
 pub mod output;
 pub mod settings;
+pub mod whoami;

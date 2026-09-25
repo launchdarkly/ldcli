@@ -1,0 +1,18 @@
+id = "config-set-token-with-other-keys"
+argv = ["config", "--set", "project", "p", "access-token", "{{ACCESS_TOKEN}}", "--base-uri", "{{BASE_URI}}", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[[http]]
+method = "HEAD"
+path = "/api/v2/account"
+status = 200
+body = ""
+
+[expect]
+status = 0
+stdout_file = "config-set-token-with-other-keys.stdout"
+requests_file = "config-set-token-with-other-keys.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "access-token: [ACCESS_TOKEN]\nproject: p\n"

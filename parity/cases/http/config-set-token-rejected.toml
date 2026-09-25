@@ -1,0 +1,22 @@
+id = "config-set-token-rejected"
+argv = ["config", "--set", "access-token", "{{ACCESS_TOKEN}}", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "project: kept\n"
+
+[[http]]
+method = "HEAD"
+path = "/api/v2/account"
+status = 401
+body = ""
+
+[expect]
+status = 1
+stdout_file = "config-set-token-rejected.stdout"
+stderr_file = "config-set-token-rejected.stderr"
+requests_file = "config-set-token-rejected.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "project: kept\n"

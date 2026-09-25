@@ -1,0 +1,12 @@
+id = "whoami-no-token"
+argv = ["whoami"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[expect]
+status = 1
+stdout_file = "whoami-no-token.stdout"
+stderr_file = "whoami-no-token.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

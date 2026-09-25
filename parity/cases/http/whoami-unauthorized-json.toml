@@ -1,0 +1,22 @@
+id = "whoami-unauthorized-json"
+argv = ["whoami", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[env]
+LD_ACCESS_TOKEN = "{{ACCESS_TOKEN}}"
+
+[[http]]
+method = "GET"
+path = "/api/v2/caller-identity"
+status = 401
+body = "{\"code\": \"unauthorized\", \"message\": \"Invalid access token\"}"
+
+[expect]
+status = 1
+stdout_file = "whoami-unauthorized-json.stdout"
+stderr_file = "whoami-unauthorized-json.stderr"
+requests_file = "whoami-unauthorized-json.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

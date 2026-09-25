@@ -1,0 +1,21 @@
+id = "whoami-service-token-without-member"
+argv = ["whoami", "--base-uri", "{{BASE_URI}}", "-o", "plaintext"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[env]
+LD_ACCESS_TOKEN = "{{ACCESS_TOKEN}}"
+
+[[http]]
+method = "GET"
+path = "/api/v2/caller-identity"
+status = 200
+body = "{\"accountId\": \"acct-1\", \"clientId\": \"client-9\", \"serviceToken\": true, \"tokenKind\": \"personal\"}"
+
+[expect]
+status = 0
+stdout_file = "whoami-service-token-without-member.stdout"
+requests_file = "whoami-service-token-without-member.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

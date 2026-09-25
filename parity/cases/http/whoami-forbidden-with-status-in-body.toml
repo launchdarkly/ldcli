@@ -1,0 +1,22 @@
+id = "whoami-forbidden-with-status-in-body"
+argv = ["whoami", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[env]
+LD_ACCESS_TOKEN = "{{ACCESS_TOKEN}}"
+
+[[http]]
+method = "GET"
+path = "/api/v2/caller-identity"
+status = 403
+body = "{\"message\": \"nope\", \"statusCode\": 403}"
+
+[expect]
+status = 1
+stdout_file = "whoami-forbidden-with-status-in-body.stdout"
+stderr_file = "whoami-forbidden-with-status-in-body.stderr"
+requests_file = "whoami-forbidden-with-status-in-body.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

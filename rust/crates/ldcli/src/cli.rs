@@ -12,6 +12,7 @@
 
 use crate::config_cmd::{self, ConfigArgs, ConfigContext};
 use crate::flags::{persistent_flags, Flag};
+use crate::whoami::{self, WhoamiContext};
 use crate::{config, help, settings};
 use clap::error::{ContextKind, ContextValue, ErrorKind};
 use clap::parser::ValueSource;
@@ -57,6 +58,20 @@ fn config_command() -> Command {
     command.arg(Arg::new("args").num_args(0..).action(ArgAction::Append))
 }
 
+fn whoami_command() -> Command {
+    Command::new("whoami")
+        .disable_help_flag(true)
+        .disable_version_flag(true)
+        .arg(flag_arg(&Flag {
+            name: "help",
+            shorthand: Some('h'),
+            usage: "help for whoami",
+            kind: crate::flags::FlagKind::Bool,
+        }))
+        // Collected so that a stray argument gets Cobra's NoArgs message.
+        .arg(Arg::new("args").num_args(0..).action(ArgAction::Append))
+}
+
 pub fn build_command(flags: &[Flag]) -> Command {
     let mut command = Command::new("ldcli")
         .disable_help_flag(true)
@@ -69,7 +84,9 @@ pub fn build_command(flags: &[Flag]) -> Command {
     for flag in crate::flags::implicit_flags() {
         command = command.arg(flag_arg(&flag));
     }
-    command.subcommand(config_command())
+    command
+        .subcommand(config_command())
+        .subcommand(whoami_command())
 }
 
 pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
@@ -97,11 +114,13 @@ pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
     match matches.subcommand() {
         None => Outcome::Stdout(help::help_string(default_output)),
         Some(("config", sub)) => run_config(sub, version, env, default_output),
+        Some(("whoami", sub)) => run_whoami(sub, version, env, default_output),
         Some(("help", sub)) => {
             let topics = external_args(sub);
             match topics.iter().map(String::as_str).collect::<Vec<_>>()[..] {
                 [] => Outcome::Stdout(help::help_string(default_output)),
                 ["config"] => Outcome::Stdout(help::config_help(default_output)),
+                ["whoami"] => Outcome::Stdout(help::whoami_help(default_output)),
                 _ => Outcome::StderrOk(format!(
                     "{}{}",
                     help::unknown_help_topic(&topics),
@@ -147,15 +166,42 @@ fn run_config(
     )
 }
 
+fn run_whoami(
+    sub: &ArgMatches,
+    version: &str,
+    env: &Env<'_>,
+    default_output: &'static str,
+) -> Outcome {
+    if sub.get_flag("help") {
+        return Outcome::Stdout(help::whoami_help(default_output));
+    }
+    if let Some(extra) = sub
+        .get_many::<String>("args")
+        .and_then(|mut args| args.next())
+    {
+        return Outcome::Failure(format!("unknown command {extra:?} for \"ldcli whoami\"\n"));
+    }
+    let path = config::config_file(env.var).unwrap_or_default();
+    let resolved = Resolved::new(sub, env, &path, default_output);
+    let output = settings::output_kind(sub.get_flag("json"), &resolved.output);
+    whoami::run(&WhoamiContext {
+        access_token: &resolved.access_token,
+        base_uri: &resolved.base_uri,
+        output: &output,
+        version,
+    })
+}
+
 /// Settings resolved by precedence for one invocation.
 struct Resolved {
     output: String,
     base_uri: String,
+    access_token: String,
 }
 
 impl Resolved {
     fn new(matches: &ArgMatches, env: &Env<'_>, path: &PathBuf, default_output: &str) -> Self {
-        let on_command_line: BTreeMap<String, String> = ["output", "base-uri"]
+        let on_command_line: BTreeMap<String, String> = ["output", "base-uri", "access-token"]
             .into_iter()
             .filter(|name| matches.value_source(name) == Some(ValueSource::CommandLine))
             .filter_map(|name| {
@@ -171,6 +217,7 @@ impl Resolved {
         Self {
             output: resolve("output", default_output),
             base_uri: resolve("base-uri", settings::BASE_URI_DEFAULT),
+            access_token: resolve("access-token", ""),
         }
     }
 }

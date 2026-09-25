@@ -1,0 +1,14 @@
+GET /api/v2/caller-identity
+authorization: [ACCESS_TOKEN]
+content-type: application/json
+user-agent: launchdarkly-cli/vtest
+---
+GET /api/v2/members/member-1
+authorization: [ACCESS_TOKEN]
+content-type: application/json
+user-agent: launchdarkly-cli/vtest
+---
+GET /api/v2/account
+authorization: [ACCESS_TOKEN]
+content-type: application/json
+user-agent: launchdarkly-cli/vtest

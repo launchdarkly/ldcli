@@ -1,0 +1,22 @@
+id = "whoami-non-json-error-body"
+argv = ["whoami", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[env]
+LD_ACCESS_TOKEN = "{{ACCESS_TOKEN}}"
+
+[[http]]
+method = "GET"
+path = "/api/v2/caller-identity"
+status = 502
+body = "upstream timed out"
+
+[expect]
+status = 1
+stdout_file = "whoami-non-json-error-body.stdout"
+stderr_file = "whoami-non-json-error-body.stderr"
+requests_file = "whoami-non-json-error-body.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
