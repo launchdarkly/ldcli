@@ -1,0 +1,29 @@
+id = "login-base-uri-from-config"
+argv = ["login"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[seed]
+"config:ldcli/config.yml" = "base-uri: {{BASE_URI}}\nproject: kept\n"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization/token"
+status = 200
+body = "{\"accessToken\": \"{{ACCESS_TOKEN}}\"}"
+
+[expect]
+status = 0
+stdout_file = "login-base-uri-from-config.stdout"
+stderr_file = "login-base-uri-from-config.stderr"
+requests_file = "login-base-uri-from-config.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "access-token: [ACCESS_TOKEN]\nbase-uri: [BASE_URI]\nproject: kept\n"

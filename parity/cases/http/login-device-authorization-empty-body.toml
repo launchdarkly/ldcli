@@ -1,0 +1,20 @@
+id = "login-device-authorization-empty-body"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = ""
+
+[expect]
+status = 1
+stdout_file = "login-device-authorization-empty-body.stdout"
+stderr_file = "login-device-authorization-empty-body.stderr"
+requests_file = "login-device-authorization-empty-body.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

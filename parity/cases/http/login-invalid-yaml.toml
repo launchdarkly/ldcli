@@ -1,0 +1,15 @@
+id = "login-invalid-yaml"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "output: [unclosed\n"
+
+[expect]
+status = 1
+stdout_file = "login-invalid-yaml.stdout"
+stderr_file = "login-invalid-yaml.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "output: [unclosed\n"

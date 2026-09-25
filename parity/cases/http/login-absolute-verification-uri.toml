@@ -1,0 +1,26 @@
+id = "login-absolute-verification-uri"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"https://example.test/confirm auth/../ok?from=cli#done\"}"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization/token"
+status = 400
+body = "{\"code\": \"access_denied\"}"
+
+[expect]
+status = 1
+stdout_file = "login-absolute-verification-uri.stdout"
+stderr_file = "login-absolute-verification-uri.stderr"
+requests_file = "login-absolute-verification-uri.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

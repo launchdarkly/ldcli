@@ -4,7 +4,9 @@
 //! command list is locked by `cmd/templates_test.go`, so the list here is a
 //! port of that literal rather than a walk of the command tree.
 
-use crate::flags::{flag_usages, implicit_flags, persistent_flags, trim_trailing_whitespace, Flag};
+use crate::flags::{
+    flag_usages, implicit_flags, persistent_flags, trim_trailing_whitespace, Flag, FlagKind,
+};
 
 pub const LONG: &str = "LaunchDarkly CLI to control your feature flags";
 
@@ -138,6 +140,26 @@ pub fn whoami_help(default_output: &'static str) -> String {
         "Show information about the identity associated with the current access token.",
         "ldcli whoami [flags]",
         &visible,
+    )
+}
+
+/// The `-h, --help` flag Cobra adds to each command.
+pub fn help_flag(usage: &'static str) -> Flag {
+    Flag {
+        name: "help",
+        shorthand: Some('h'),
+        usage,
+        kind: FlagKind::Bool,
+    }
+}
+
+/// `login` has no long description, so Cobra falls back to the short one.
+pub fn login_help(default_output: &'static str) -> String {
+    subcommand_help(
+        "Log in to your LaunchDarkly account to set up the CLI",
+        "ldcli login [flags]",
+        &[help_flag("help for login")],
+        &persistent_flags(default_output),
     )
 }
 

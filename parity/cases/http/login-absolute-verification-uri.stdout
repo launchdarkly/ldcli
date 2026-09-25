@@ -1,0 +1,4 @@
+Your code is [USER_CODE]
+This code verifies your authentication with LaunchDarkly.
+Opening your browser to [BASE_URI]/https:/example.test/ok%3Ffrom=cli%23done to finish verifying your login.
+If your browser does not open automatically, you can paste the above URL into your browser.

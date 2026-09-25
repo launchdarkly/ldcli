@@ -1,0 +1,26 @@
+id = "login-token-response-not-json"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization/token"
+status = 200
+body = "not json"
+
+[expect]
+status = 1
+stdout_file = "login-token-response-not-json.stdout"
+stderr_file = "login-token-response-not-json.stderr"
+requests_file = "login-token-response-not-json.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

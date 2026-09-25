@@ -15,9 +15,11 @@ const VERSION: &str = match option_env!("LDCLI_VERSION") {
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let var = |name: &str| std::env::var_os(name);
+    let stdout = |text: &str| print(&mut std::io::stdout(), text);
     let env = cli::Env {
         var: &var,
         stdout_is_terminal: std::io::stdout().is_terminal(),
+        stdout: &stdout,
     };
 
     // Go does this before it parses argv, so even a failed parse leaves the

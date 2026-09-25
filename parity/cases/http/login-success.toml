@@ -1,0 +1,26 @@
+id = "login-success"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization/token"
+status = 200
+body = "{\"accessToken\": \"{{ACCESS_TOKEN}}\"}"
+
+[expect]
+status = 0
+stdout_file = "login-success.stdout"
+stderr_file = "login-success.stderr"
+requests_file = "login-success.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "access-token: [ACCESS_TOKEN]\n"

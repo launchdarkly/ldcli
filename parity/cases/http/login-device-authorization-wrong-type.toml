@@ -1,0 +1,20 @@
+id = "login-device-authorization-wrong-type"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": \"soon\", \"userCode\": 42, \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[expect]
+status = 1
+stdout_file = "login-device-authorization-wrong-type.stdout"
+stderr_file = "login-device-authorization-wrong-type.stderr"
+requests_file = "login-device-authorization-wrong-type.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

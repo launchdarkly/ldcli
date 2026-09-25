@@ -1,0 +1,26 @@
+id = "login-token-code-in-other-case"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization/token"
+status = 400
+body = "{\"CODE\": \"access_denied\"}"
+
+[expect]
+status = 1
+stdout_file = "login-token-code-in-other-case.stdout"
+stderr_file = "login-token-code-in-other-case.stderr"
+requests_file = "login-token-code-in-other-case.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

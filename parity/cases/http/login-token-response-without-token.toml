@@ -1,0 +1,29 @@
+id = "login-token-response-without-token"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[seed]
+"config:ldcli/config.yml" = "project: kept\n"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization/token"
+status = 200
+body = "{}"
+
+[expect]
+status = 0
+stdout_file = "login-token-response-without-token.stdout"
+stderr_file = "login-token-response-without-token.stderr"
+requests_file = "login-token-response-without-token.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "project: kept\n"

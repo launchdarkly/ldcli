@@ -1,0 +1,26 @@
+id = "login-unknown-error-code"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization/token"
+status = 400
+body = "{\"code\": \"slow_down\", \"message\": \"Polling too fast\"}"
+
+[expect]
+status = 1
+stdout_file = "login-unknown-error-code.stdout"
+stderr_file = "login-unknown-error-code.stderr"
+requests_file = "login-unknown-error-code.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

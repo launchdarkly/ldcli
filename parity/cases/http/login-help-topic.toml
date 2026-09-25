@@ -1,11 +1,11 @@
-id = "ldcli__login"
-argv = ["login", "--help"]
+id = "login-help-topic"
+argv = ["help", "login"]
 declare = ["config:ldcli/config.yml"]
 rust = true
 
 [expect]
 status = 0
-stdout_file = "ldcli__login.stdout"
+stdout_file = "login-help-topic.stdout"
 
 [expect.files]
 "config:ldcli/config.yml" = "{}\n"

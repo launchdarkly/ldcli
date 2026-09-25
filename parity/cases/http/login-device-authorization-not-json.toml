@@ -1,0 +1,20 @@
+id = "login-device-authorization-not-json"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "<html>maintenance</html>"
+
+[expect]
+status = 1
+stdout_file = "login-device-authorization-not-json.stdout"
+stderr_file = "login-device-authorization-not-json.stderr"
+requests_file = "login-device-authorization-not-json.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

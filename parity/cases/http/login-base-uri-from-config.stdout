@@ -1,0 +1,5 @@
+Your code is [USER_CODE]
+This code verifies your authentication with LaunchDarkly.
+Opening your browser to [BASE_URI][VERIFICATION_URI] to finish verifying your login.
+If your browser does not open automatically, you can paste the above URL into your browser.
+Your token has been written to the configuration file

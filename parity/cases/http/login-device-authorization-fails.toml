@@ -1,0 +1,20 @@
+id = "login-device-authorization-fails"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 500
+body = "{\"message\": \"device authorization is down\"}"
+
+[expect]
+status = 1
+stdout_file = "login-device-authorization-fails.stdout"
+stderr_file = "login-device-authorization-fails.stderr"
+requests_file = "login-device-authorization-fails.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

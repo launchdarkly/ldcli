@@ -1,0 +1,1 @@
+{"code":"not_found","message":"Not Found","statusCode":404,"suggestion":"Resource not found. Verify the project key, flag key, or environment key. Use `ldcli projects list` or `ldcli flags list` to see available resources."}

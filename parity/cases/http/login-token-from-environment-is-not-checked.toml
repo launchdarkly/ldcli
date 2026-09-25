@@ -1,0 +1,29 @@
+id = "login-token-from-environment-is-not-checked"
+argv = ["login", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[env]
+LD_ACCESS_TOKEN = "{{ACCESS_TOKEN}}"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization/token"
+status = 400
+body = "{\"code\": \"expired_token\"}"
+
+[expect]
+status = 1
+stdout_file = "login-token-from-environment-is-not-checked.stdout"
+stderr_file = "login-token-from-environment-is-not-checked.stderr"
+requests_file = "login-token-from-environment-is-not-checked.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"

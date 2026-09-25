@@ -12,6 +12,7 @@
 
 use crate::config_cmd::{self, ConfigArgs, ConfigContext};
 use crate::flags::{persistent_flags, Flag};
+use crate::login::{self, LoginContext};
 use crate::whoami::{self, WhoamiContext};
 use crate::{config, help, settings};
 use clap::error::{ContextKind, ContextValue, ErrorKind};
@@ -24,6 +25,9 @@ use std::path::PathBuf;
 pub struct Env<'a> {
     pub var: &'a dyn Fn(&str) -> Option<OsString>,
     pub stdout_is_terminal: bool,
+    /// Writes to stdout at once, for output that has to appear before the
+    /// command finishes. Everything else goes in the `Outcome`.
+    pub stdout: &'a dyn Fn(&str),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -58,17 +62,14 @@ fn config_command() -> Command {
     command.arg(Arg::new("args").num_args(0..).action(ArgAction::Append))
 }
 
-fn whoami_command() -> Command {
-    Command::new("whoami")
+/// A subcommand with only a help flag of its own. Stray arguments are
+/// collected: `whoami` rejects them with Cobra's NoArgs message, and the
+/// others accept them as Cobra's legacy argument check does.
+fn plain_command(name: &'static str, help_usage: &'static str) -> Command {
+    Command::new(name)
         .disable_help_flag(true)
         .disable_version_flag(true)
-        .arg(flag_arg(&Flag {
-            name: "help",
-            shorthand: Some('h'),
-            usage: "help for whoami",
-            kind: crate::flags::FlagKind::Bool,
-        }))
-        // Collected so that a stray argument gets Cobra's NoArgs message.
+        .arg(flag_arg(&help::help_flag(help_usage)))
         .arg(Arg::new("args").num_args(0..).action(ArgAction::Append))
 }
 
@@ -86,7 +87,8 @@ pub fn build_command(flags: &[Flag]) -> Command {
     }
     command
         .subcommand(config_command())
-        .subcommand(whoami_command())
+        .subcommand(plain_command("login", "help for login"))
+        .subcommand(plain_command("whoami", "help for whoami"))
 }
 
 pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
@@ -114,12 +116,14 @@ pub fn run(argv: &[String], version: &str, env: &Env<'_>) -> Outcome {
     match matches.subcommand() {
         None => Outcome::Stdout(help::help_string(default_output)),
         Some(("config", sub)) => run_config(sub, version, env, default_output),
+        Some(("login", sub)) => run_login(sub, version, env, default_output),
         Some(("whoami", sub)) => run_whoami(sub, version, env, default_output),
         Some(("help", sub)) => {
             let topics = external_args(sub);
             match topics.iter().map(String::as_str).collect::<Vec<_>>()[..] {
                 [] => Outcome::Stdout(help::help_string(default_output)),
                 ["config"] => Outcome::Stdout(help::config_help(default_output)),
+                ["login"] => Outcome::Stdout(help::login_help(default_output)),
                 ["whoami"] => Outcome::Stdout(help::whoami_help(default_output)),
                 _ => Outcome::StderrOk(format!(
                     "{}{}",
@@ -164,6 +168,29 @@ fn run_config(
             help: help::config_help(default_output),
         },
     )
+}
+
+fn run_login(
+    sub: &ArgMatches,
+    version: &str,
+    env: &Env<'_>,
+    default_output: &'static str,
+) -> Outcome {
+    if sub.get_flag("help") {
+        return Outcome::Stdout(help::login_help(default_output));
+    }
+    let path = config::config_file(env.var).unwrap_or_default();
+    let resolved = Resolved::new(sub, env, &path, default_output);
+    login::run(&LoginContext {
+        config_path: &path,
+        base_uri: &resolved.base_uri,
+        version,
+        path: (env.var)("PATH"),
+        device_name: login::device_name(),
+        interval: login::TOKEN_INTERVAL,
+        max_attempts: login::MAX_FETCH_TOKEN_ATTEMPTS,
+        stdout: env.stdout,
+    })
 }
 
 fn run_whoami(
@@ -301,6 +328,7 @@ mod tests {
         Env {
             var: &no_env,
             stdout_is_terminal: false,
+            stdout: &|_| {},
         }
     }
 
@@ -415,6 +443,7 @@ mod tests {
             &Env {
                 var: &no_env,
                 stdout_is_terminal: true,
+                stdout: &|_| {},
             },
         );
         match on_terminal {
@@ -449,6 +478,7 @@ mod tests {
                 &Env {
                     var: &lookup,
                     stdout_is_terminal: false,
+                    stdout: &|_| {},
                 },
             )
         };

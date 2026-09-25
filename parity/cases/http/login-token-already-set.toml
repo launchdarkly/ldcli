@@ -1,0 +1,21 @@
+id = "login-token-already-set"
+argv = ["login", "stray", "--base-uri", "{{BASE_URI}}"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+
+[seed]
+"config:ldcli/config.yml" = "access-token: {{ACCESS_TOKEN}}\n"
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[expect]
+status = 1
+stdout_file = "login-token-already-set.stdout"
+stderr_file = "login-token-already-set.stderr"
+
+[expect.files]
+"config:ldcli/config.yml" = "access-token: [ACCESS_TOKEN]\n"

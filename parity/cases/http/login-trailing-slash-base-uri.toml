@@ -1,0 +1,20 @@
+id = "login-trailing-slash-base-uri"
+argv = ["login", "--base-uri", "{{BASE_URI}}/"]
+declare = ["config:ldcli/config.yml"]
+rust = true
+redact = ["hostname"]
+
+[[http]]
+method = "POST"
+path = "/internal/device-authorization"
+status = 200
+body = "{\"deviceCode\": \"{{DEVICE_CODE}}\", \"expiresIn\": 900, \"userCode\": \"{{USER_CODE}}\", \"verificationUri\": \"{{VERIFICATION_URI}}\"}"
+
+[expect]
+status = 1
+stdout_file = "login-trailing-slash-base-uri.stdout"
+stderr_file = "login-trailing-slash-base-uri.stderr"
+requests_file = "login-trailing-slash-base-uri.requests"
+
+[expect.files]
+"config:ldcli/config.yml" = "{}\n"
