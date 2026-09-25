@@ -1,77 +1,72 @@
 # ldcli surfaces for Dependabot verification
 
-Read this after classifying the PR. It is a lookup table, not a second policy. The policy lives in `dependabot-upgrade-verification.md`.
+This is a lookup table for [`dependabot-upgrade-verification.md`](dependabot-upgrade-verification.md). The procedures and rules live there. Paths and packages here were accurate when written. Confirm them with a search before relying on them.
 
-## What CI already runs
+## What CI runs
 
-| Workflow | Trigger | What it proves |
+Read `.github/workflows/` for the current list. The two that matter for dependency bumps:
+
+| Workflow | What it proves | What it does not |
 | --- | --- | --- |
-| `.github/workflows/go.yml` | every PR | `go build .`, pre-commit, `go test ./...` |
-| `.github/workflows/dev-server-ui.yml` | every PR | `npm ci`, lint, prettier, `npm test`, `npm run build`, no leftover UI diff |
-| `.github/workflows/dependency-scan.yml` | scheduled / selected | security scan, not product behavior |
+| `go.yml` | `go build .`, pre-commit hooks, `go test ./...` | Never runs the built binary or the dev-server over HTTP |
+| `dev-server-ui.yml` | `npm ci`, lint, Prettier, `npm test`, `npm run build`, and that the build leaves no diff in the checked-in `dist/` | Never loads the UI in a browser |
 
-CI does **not** start `ldcli`, does **not** open the embedded UI, and does **not** talk to LaunchDarkly.
+Neither workflow talks to LaunchDarkly.
 
-## How to boot the product locally
+## Dev-server facts
 
-```bash
-make build
-./ldcli dev-server start --port 8765 --access-token dummy-for-local-smoke
-```
+- `dev-server start` requires `--access-token`. `cmd/root.go` exempts only a short list of commands from that requirement, and `dev-server` is not on it.
+- Default port `8765` (`cmd/cliflags`). Verification runs use a different port.
+- Databases: `$XDG_STATE_HOME/ldcli/dev_server.db` and `dev_server_events.db` (`internal/dev_server/dev_server.go`).
+- Config: `$XDG_CONFIG_HOME/ldcli/config.yml` (`internal/config`). It is created if missing.
+- Analytics: sent from `internal/analytics` unless `--analytics-opt-out` or `LD_ANALYTICS_OPT_OUT=true` is set.
+- The UI is served at `/ui` from the checked-in `internal/dev_server/ui/dist/` through `go:embed` (`internal/dev_server/ui/asset_handler.go`). Routes are defined in `internal/dev_server/ui/src/App.tsx`.
+- UI runtime dependency bumps historically needed a rebuilt `dist/index.html` committed alongside the lockfile change.
+- Check how much the Vitest suite in `internal/dev_server/ui/src/__tests__/` covers before treating `npm test` as UI coverage.
 
-- `--access-token` is required on `dev-server start` (not in `authExemptCommands` in `cmd/root.go`). A dummy value is fine if you omit `--project` and `--source`.
-- Default port: `8765` (`cmd/cliflags.PortDefault`).
-- SQLite paths: XDG state `ldcli/dev_server.db` and `ldcli/dev_server_events.db` (`internal/dev_server/dev_server.go`). On Linux that is typically `~/.local/state/ldcli/`.
-- UI: `http://127.0.0.1:8765/ui` (redirects to `/ui/flags`). A successful empty boot returns HTTP 200 and a large single-file HTML bundle.
-- The binary serves `internal/dev_server/ui/dist` via `//go:embed` (`internal/dev_server/ui/asset_handler.go`). An npm bump is not in the shipped UI until you `npm run build` **and** `make build`.
-- Project sync only happens if both `--project` and the source-environment flag are set. Without a real token, start with no project flags and exercise the empty UI / local store.
-- Stale Dependabot branches are common (rebases get disabled after 30 days). Count commits behind `main` before treating a smoke as evidence about current `cmd/`.
+## Package → mode
 
-UI routes (`internal/dev_server/ui/src/App.tsx`):
+### Go modules (repo root)
 
-| Route | Page |
+| Package | First-party surface | Mode |
+| --- | --- | --- |
+| `github.com/spf13/cobra` | Every command in `cmd/` | `CLI_SMOKE` |
+| `github.com/spf13/pflag` | Flag sets; wrapped usage in `cmd/templates.go` | `CLI_SMOKE` |
+| `github.com/spf13/viper` | Flag, env (`LD_` prefix), and config binding | `CLI_SMOKE`, including one env var and one config value |
+| `golang.org/x/term` | `GetSize` for help wrapping; `IsTerminal` for output defaults and prompts | `CLI_SMOKE`, piped and real TTY |
+| `github.com/charmbracelet/bubbletea`, `bubbles`, `lipgloss` | Interactive TUI flows (`cmd/setup`, `internal/quickstart`) | `CLI_SMOKE` in a real TTY; escalate if you cannot get one |
+| `github.com/charmbracelet/glamour` | Markdown rendering of resource command help (`cmd/resources`) | `CLI_SMOKE`: `--help` for a few resource commands |
+| `github.com/mattn/go-sqlite3` | `internal/dev_server/db`, `events_db`, `db/backup` | `STORE_SMOKE` (CGO) |
+| `github.com/gorilla/mux`, `gorilla/handlers` | Dev-server routing, CORS, logging | `STORE_SMOKE`, plus one `/dev` API request |
+| `github.com/launchdarkly/go-server-sdk/*`, `go-sdk-common` | Dev-server SDK adapters and model (`internal/dev_server`), `internal/setup`, `sdk_active` | `STORE_SMOKE` plus `CLI_SMOKE`; project sync needs a real token, so record that as residual risk |
+| `go.uber.org/mock` | `tools.go` and generated mocks | `TEST_ONLY` |
+| `github.com/oapi-codegen/*`, `github.com/getkin/kin-openapi` | Code generation for the dev-server API and resource commands | `BUILD_ONLY`; escalate if regenerated output would change |
+| `golang.org/x/net`, `x/oauth2`, `x/sys`, other `x/*` | Usually transitive | Search first; `NO_EXTRA` if nothing in first-party code imports it |
+
+### npm: `internal/dev_server/ui`
+
+| Package | Mode |
 | --- | --- |
-| `/ui/flags` | Flags + project/environment selectors |
-| `/ui/events` | Events table |
-| `/ui/debug-sessions` | Debug sessions |
-| `/ui/debug-sessions/:key/events` | Session events |
+| `react`, `react-dom`, `react-router` | `UI_COMPUTER_USE` |
+| `@launchpad-ui/*` | `UI_COMPUTER_USE`; look for unstyled or missing components |
+| `launchdarkly-js-client-sdk` | `UI_COMPUTER_USE` |
+| `lodash`, `fuzzysort`, `react-window` | `UI_COMPUTER_USE`: flags list, search, long lists |
+| `vite`, `vite-plugin-*`, `rollup`, `typescript` | `BUILD_ONLY`, plus a `dist/` diff check |
+| `vitest`, `@testing-library/*` | `TEST_ONLY` |
+| `prettier`, `eslint`, `eslint-plugin-*`, `typescript-eslint` | `BUILD_ONLY` |
+| Lockfile-only transitive packages | `NO_EXTRA`, unless a search finds a first-party import |
 
-Vitest coverage today is thin (`SubmitButton` only). A passing `npm test` is not a UI smoke test.
+### npm: repo root
 
-## Ecosystem → mode
+| Package | Mode |
+| --- | --- |
+| `@go-task/go-npm` | `INSTALL_SMOKE`. The root package only wraps the release binary for `npm install -g @launchdarkly/ldcli`. |
 
-ldcli Dependabot covers `gomod` (repo root), `npm` (`/` and `/internal/dev_server/ui`), `github-actions`, and `docker`.
+### GitHub Actions and Docker
 
-### Go modules
-
-| Package | First-party surface | Mode | Extra check |
-| --- | --- | --- | --- |
-| `github.com/spf13/cobra` | Every command under `cmd/` | `CLI_SMOKE` | Built binary help tree + `go test ./cmd/...` |
-| `github.com/spf13/pflag` | Flag sets, usage wrapping in `cmd/templates.go` | `CLI_SMOKE` | Same as cobra; watch `ParseErrorsWhitelist` / `ParseErrorsAllowlist` breaks |
-| `github.com/spf13/viper` | Flag/env/config binding | `CLI_SMOKE` | `ldcli config` + a command that reads a bound flag |
-| `golang.org/x/term` | `cmd/templates.go` `GetSize`; `cmd/root.go` / `cmd/setup` / analytics `IsTerminal` | `CLI_SMOKE` | Piped help (fallback 80) + TTY help if computer use can open a terminal |
-| `github.com/mattn/go-sqlite3` | `internal/dev_server/db/sqlite.go`, `events_db/sqlite.go`, `db/backup` | `STORE_SMOKE` | Store tests + `dev-server start` + UI load + db file created. CGO required |
-| `go.uber.org/mock` | `tools.go` + generated mocks under `internal/dev_server/**/mocks` | `TEST_ONLY` | `go test ./...`; computer use adds nothing |
-| `github.com/oapi-codegen/oapi-codegen` | generated API server | `ESCALATE` if the bump wants regenerate; else `BUILD_ONLY` | Do not silently regenerate `resource_cmds.go` / `server.gen.go` |
-| `golang.org/x/net` | transitive + any direct HTTP | `CLI_SMOKE` if imported by first-party net code; else `NO_EXTRA` | Changelog for HTTP/2 / proxy CVEs; no UI |
-
-### npm (`internal/dev_server/ui`)
-
-| Package | Mode | Extra check |
-| --- | --- | --- |
-| `react`, `react-dom`, `react-router` | `UI_COMPUTER_USE` | Rebuild embed, boot server, click all three nav routes. A router major is `ESCALATE` until the app still renders |
-| `@launchpad-ui/core`, `components`, `icons`, `tokens` | `UI_COMPUTER_USE` | Same; look for unstyled / missing primitives |
-| `launchdarkly-js-client-sdk` | `UI_COMPUTER_USE` | UI must still boot; client-side evaluate may be empty without a client-side ID |
-| `lodash`, `fuzzysort`, `react-window` | `UI_COMPUTER_USE` | Flags list / search / virtualized rows |
-| `vite`, `vite-plugin-*`, `rollup`, `typescript` | `BUILD_ONLY` | `npm run build` |
-| `vitest`, `@testing-library/react` | `TEST_ONLY` | `npm test` |
-| `prettier`, `eslint`, `typescript-eslint` | `BUILD_ONLY` | lint/format scripts already in UI CI — extra check is only if you suspect the hook itself broke |
-| lockfile-only transitive (`ws`, `picomatch`, `dompurify` if not imported) | `NO_EXTRA` unless first-party code imports it | Confirm with grep before skipping |
-
-### GitHub Actions / Docker
-
-| Package | Mode | Extra check |
-| --- | --- | --- |
-| `actions/checkout`, `actions/setup-go`, `actions/setup-node`, `actions/setup-python` | `CI_ONLY` | Read the workflow. Majors that change default Node/Go setup are `ESCALATE` |
-| `googleapis/release-please-action` | `CI_ONLY` | Do not run a release |
-| `alpine` in `Dockerfile.goreleaser` | `CI_ONLY` | Optional: `docker build` if Docker is available; otherwise changelog + escalate native deps |
+| Package | Mode |
+| --- | --- |
+| `actions/*` | `CI_ONLY`; majors are an escalation trigger |
+| `googleapis/release-please-action` | `CI_ONLY`. Never trigger a release. |
+| `launchdarkly/gh-actions/*` | `CI_ONLY` |
+| Base image in `Dockerfile.goreleaser` | `CI_ONLY`; run `docker build` if Docker is available |

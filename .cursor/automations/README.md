@@ -1,15 +1,12 @@
 # Agent automations
 
-Prompts in this directory are meant to be pasted into a Cursor Automation or handed to a verification agent.
+Prompts for maintainer-run agents. Contributors do not need them to work on ldcli.
 
 ## Dependabot upgrade verification
 
-**Prompt to paste:** [`dependabot-upgrade-verification.md`](dependabot-upgrade-verification.md)
+- **Prompt:** [`dependabot-upgrade-verification.md`](dependabot-upgrade-verification.md)
+- **Lookup table:** [`ldcli-surfaces.md`](ldcli-surfaces.md)
 
-**Repo lookup table:** [`ldcli-surfaces.md`](ldcli-surfaces.md) — the prompt tells the agent to read this when it is present.
+The agent produces a report on whether a Dependabot PR was exercised beyond CI. It never approves, merges, or pushes. It runs `ldcli` with analytics opted out and with temporary state and config directories, so it is safe to run on a workstation.
 
-Suggested automation setup:
-
-- **Trigger:** Dependabot PR opened or updated on `launchdarkly/ldcli`, or a manual mention with a PR URL.
-- **Goal:** Produce a dependency upgrade report. Include video only when a user-visible surface was actually exercised.
-- **Do not:** auto-approve or auto-merge.
+Suggested trigger: a Dependabot PR opened or updated, or a manual request with a PR URL. Posting the report as a PR comment is optional. The repository is public, so anything posted is public.
