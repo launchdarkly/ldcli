@@ -15,6 +15,9 @@ pub struct Case {
     pub declare: Vec<String>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    /// Files written into the sandbox before the run, keyed like `declare`.
+    #[serde(default)]
+    pub seed: BTreeMap<String, String>,
     /// Redaction rules this case needs, by name. Empty means the output is
     /// deterministic and every byte is compared.
     #[serde(default)]
@@ -46,6 +49,8 @@ struct CaseFile {
     declare: Vec<String>,
     #[serde(default)]
     env: BTreeMap<String, String>,
+    #[serde(default)]
+    seed: BTreeMap<String, String>,
     #[serde(default)]
     redact: Vec<String>,
     #[serde(default)]
@@ -82,6 +87,7 @@ pub fn load_case(path: &Path) -> Result<Case> {
         argv: parsed.argv,
         declare: parsed.declare,
         env: parsed.env,
+        seed: parsed.seed,
         redact: parsed.redact,
         rust: parsed.rust,
         expect: Expectation {
@@ -142,6 +148,12 @@ pub fn save_case(path: &Path, case: &Case) -> Result<()> {
         body.push_str("\n[env]\n");
         for (key, value) in &case.env {
             body.push_str(&format!("{key} = {}\n", toml_basic(value)));
+        }
+    }
+    if !case.seed.is_empty() {
+        body.push_str("\n[seed]\n");
+        for (key, value) in &case.seed {
+            body.push_str(&format!("{} = {}\n", toml_basic(key), toml_basic(value)));
         }
     }
     body.push_str("\n[expect]\n");
@@ -241,6 +253,7 @@ mod tests {
             argv: vec!["config".into(), "--help".into()],
             declare: vec!["config:ldcli/config.yml".into()],
             env: BTreeMap::new(),
+            seed: BTreeMap::new(),
             redact: vec!["hostname".into()],
             rust: false,
             expect: Expectation {
@@ -267,6 +280,7 @@ mod tests {
             argv: vec!["--help".into()],
             declare: vec![],
             env: BTreeMap::new(),
+            seed: BTreeMap::new(),
             redact: vec![],
             rust: false,
             expect: Expectation::default(),

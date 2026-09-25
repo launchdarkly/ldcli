@@ -15,6 +15,8 @@ pub struct RunRequest<'a> {
     pub argv: &'a [String],
     pub declare: &'a [String],
     pub extra_env: &'a BTreeMap<String, String>,
+    /// Files to write before the run, keyed `config:<path>` or `state:<path>`.
+    pub seed: &'a BTreeMap<String, String>,
     pub opt_out_update_check: bool,
 }
 
@@ -48,6 +50,14 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
         &work,
     ] {
         fs::create_dir_all(dir).map_err(|err| anyhow!("mkdir {}: {err}", dir.display()))?;
+    }
+    for (key, contents) in request.seed {
+        let path = seed_path(key, &config_home, &state_home)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|err| anyhow!("mkdir {}: {err}", parent.display()))?;
+        }
+        fs::write(&path, contents).map_err(|err| anyhow!("seed {key}: {err}"))?;
     }
 
     // A relative program path is resolved against the child's current_dir on
@@ -139,6 +149,22 @@ pub fn run_command(request: &RunRequest<'_>) -> Result<RunResult> {
         state_home,
         sandbox_root,
     })
+}
+
+/// Resolve a `config:` or `state:` key inside the sandbox. A key that would
+/// climb out of it is refused.
+fn seed_path(key: &str, config_home: &Path, state_home: &Path) -> Result<PathBuf> {
+    let (root, rel) = if let Some(rel) = key.strip_prefix("config:") {
+        (config_home, rel)
+    } else if let Some(rel) = key.strip_prefix("state:") {
+        (state_home, rel)
+    } else {
+        return Err(anyhow!("seed key {key} must start with config: or state:"));
+    };
+    if rel.is_empty() || rel.starts_with('/') || rel.split('/').any(|part| part == "..") {
+        return Err(anyhow!("seed key {key} must stay inside the sandbox"));
+    }
+    Ok(root.join(rel))
 }
 
 fn snapshot(
@@ -236,6 +262,7 @@ mod tests {
             argv: &[],
             declare: &declare,
             extra_env: &env_a,
+            seed: &BTreeMap::new(),
             opt_out_update_check: true,
         })
         .unwrap();
@@ -244,6 +271,7 @@ mod tests {
             argv: &[],
             declare: &declare,
             extra_env: &env_b,
+            seed: &BTreeMap::new(),
             opt_out_update_check: true,
         })
         .unwrap();
@@ -272,6 +300,7 @@ mod tests {
             argv: &[],
             declare: &[],
             extra_env: &env,
+            seed: &BTreeMap::new(),
             opt_out_update_check: true,
         })
         .unwrap();
@@ -283,5 +312,42 @@ mod tests {
             "{:?}",
             result.undeclared
         );
+    }
+
+    #[test]
+    fn a_seeded_file_is_in_place_before_the_run_and_cannot_escape() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = script(
+            dir.path(),
+            "#!/bin/sh\ncat \"$XDG_CONFIG_HOME/ldcli/config.yml\"\n",
+        );
+        let declare = vec!["config:ldcli/config.yml".to_string()];
+        let seed = BTreeMap::from([(
+            "config:ldcli/config.yml".to_string(),
+            "output: markdown\n".to_string(),
+        )]);
+        let env = BTreeMap::new();
+        let result = run_command(&RunRequest {
+            bin: &bin,
+            argv: &[],
+            declare: &declare,
+            extra_env: &env,
+            seed: &seed,
+            opt_out_update_check: true,
+        })
+        .unwrap();
+        assert_eq!(result.stdout, "output: markdown\n");
+
+        let escape = BTreeMap::from([("config:../outside".to_string(), "x".to_string())]);
+        let err = run_command(&RunRequest {
+            bin: &bin,
+            argv: &[],
+            declare: &declare,
+            extra_env: &env,
+            seed: &escape,
+            opt_out_update_check: true,
+        })
+        .unwrap_err();
+        assert!(err.to_string().contains("inside the sandbox"), "{err}");
     }
 }

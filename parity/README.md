@@ -65,6 +65,17 @@ Ask for `version` only on a case whose output carries a build version that the t
 
 `declare` paths use `config:` and `state:` prefixes, relative to `XDG_CONFIG_HOME` and `XDG_STATE_HOME`.
 
+A `[seed]` table writes files into the sandbox before the run, keyed the same way. A case that starts from an existing config file seeds it and declares it, and the harness then compares the bytes each binary leaves behind:
+
+```toml
+declare = ["config:ldcli/config.yml"]
+
+[seed]
+"config:ldcli/config.yml" = "output: markdown\nproject: proj\n"
+```
+
+A seed key that would leave the sandbox is refused.
+
 Set `rust = true` once the Rust binary is supposed to match that case.
 
 ## Add an exemption

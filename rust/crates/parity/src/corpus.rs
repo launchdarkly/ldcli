@@ -74,6 +74,7 @@ pub fn execute_case(bin: &Path, case: &Case, secrets: &Redactor) -> Result<(RunR
         argv: &case.argv,
         declare: &case.declare,
         extra_env: &case.env,
+        seed: &case.seed,
         opt_out_update_check: true,
     })?;
     let redactor = redactor_for(&result.sandbox_root, secrets, rules);
@@ -311,6 +312,7 @@ pub fn seed_missing_help(commands: &[String], cases_dir: &Path) -> Result<Vec<Pa
             argv: help_argv(command),
             declare: vec!["config:ldcli/config.yml".into()],
             env: BTreeMap::new(),
+            seed: BTreeMap::new(),
             redact: Vec::new(),
             rust: false,
             expect: Expectation::default(),
@@ -358,7 +360,7 @@ pub fn run_exit0_substitutes(
 ) -> Result<Vec<CaseFailure>> {
     let mut failures = Vec::new();
     let declare = vec!["config:ldcli/config.yml".to_string()];
-    let env = BTreeMap::new();
+    let empty = BTreeMap::new();
     for exemption in exemptions {
         if exemption.substitute != "exit-0" || (opted_in_only && !exemption.rust) {
             continue;
@@ -373,7 +375,8 @@ pub fn run_exit0_substitutes(
                 bin,
                 argv: &argv,
                 declare: &declare,
-                extra_env: &env,
+                extra_env: &empty,
+                seed: &empty,
                 opt_out_update_check: true,
             })?;
             // Script bytes are not compared. Exit status is the assertion.
@@ -442,6 +445,7 @@ mod tests {
             argv: vec!["--help".into()],
             declare: vec!["config:ldcli/config.yml".into()],
             env: BTreeMap::new(),
+            seed: BTreeMap::new(),
             redact: Vec::new(),
             rust: false,
             expect: Expectation {
