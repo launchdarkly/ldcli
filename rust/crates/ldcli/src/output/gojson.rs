@@ -149,19 +149,32 @@ fn newline(out: &mut String, current: &str, indent: Option<&str>) {
     }
 }
 
+/// A JSON string the way `json.Marshal` writes one.
+pub fn quote(s: &str) -> String {
+    let mut out = String::new();
+    write_string(&mut out, s);
+    out
+}
+
 fn write_string(out: &mut String, s: &str) {
     out.push('"');
     for ch in s.chars() {
         match ch {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
+            // Go 1.22 and later write these two short forms.
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
-            // Go escapes these so the output is safe to embed in HTML.
+            // Go escapes these so the output is safe to embed in HTML, and the
+            // two separators so it is safe to embed in JavaScript.
             '<' => out.push_str("\\u003c"),
             '>' => out.push_str("\\u003e"),
             '&' => out.push_str("\\u0026"),
+            '\u{2028}' => out.push_str("\\u2028"),
+            '\u{2029}' => out.push_str("\\u2029"),
             c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
             c => out.push(c),
         }
@@ -208,6 +221,14 @@ mod tests {
         assert_eq!(
             marshal(&value),
             r#"{"href":"/api/v2/flags?limit=2\u0026offset=0","tag":"\u003cb\u003e"}"#
+        );
+    }
+
+    #[test]
+    fn control_characters_and_line_separators_are_escaped_like_go() {
+        assert_eq!(
+            quote("a\u{8}b\u{c}c\u{2028}d\u{2029}e\u{1}\u{7f}\u{e9}"),
+            "\"a\\bb\\fc\\u2028d\\u2029e\\u0001\u{7f}\u{e9}\""
         );
     }
 
