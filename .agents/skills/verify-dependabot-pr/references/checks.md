@@ -6,7 +6,9 @@ packages, run every check those packages need.
 ## Contents
 
 - What CI already runs
+- How old CI's results are
 - Before any Go check
+- Before any npm check
 - CLI_SMOKE
 - STORE_SMOKE
 - UI_COMPUTER_USE
@@ -23,14 +25,33 @@ Read `.github/workflows/` for the current list. The ones that matter here:
 - `dev-server-ui.yml` runs lint, Prettier, the Vitest suite, and a production
   build, then fails if any of that changed a checked-in file. It never opens
   the UI in a browser.
-- `dependency-scan.yml` lists ldcli's dependencies and checks them against
-  LaunchDarkly's dependency policy. If it fails on the PR, include that in the
-  report.
+- `dependency-scan.yml` lists ldcli's Go and npm dependencies and checks them
+  against LaunchDarkly's dependency policy. It doesn't read the Dockerfile. If
+  it fails on the PR, include that in the report, after checking whether it
+  passes on recent `main` runs (rule 3).
 
 None of them talk to LaunchDarkly.
 
+Only the workflows above, plus the PR title lint, run on pull requests. Check
+each workflow's `on:` block rather than trusting this list:
+`release-please.yml` runs on pushes to `main`, `manual-publish.yml` only when
+someone starts it, and `check-openapi-updates.yml` on a schedule. When a PR
+changes one of those, a green CI run says nothing about the change.
+
 The Vitest suite in `internal/dev_server/ui/src/__tests__/` is small. Look at
 what it covers before counting `npm test` as coverage of the UI.
+
+## How old CI's results are
+
+CI ran against the `main` the PR was branched from. `prepare-tree.sh` prints
+how many commits `main` has moved since. If it's more than a handful, or the
+commits touch the same manifests, CI's results describe a tree that no longer
+exists: rerun the relevant workflow's steps on the merged tree.
+
+When CI failed, find the step that failed with
+`gh run view <run-id> --json jobs`. GitHub deletes old run logs, so
+`gh run view --log-failed` can return HTTP 410. The step name is still
+available, and rerunning that step locally shows the error.
 
 ## Before any Go check
 
@@ -38,6 +59,21 @@ Use the Go version the tree's `go.mod` asks for. If your installed Go is older,
 Go tries to download the right one. When `go.mod` names only a minor version
 (such as `go 1.25`), that download can fail with "toolchain not available". Set
 `GOTOOLCHAIN` to a specific release instead, for example `GOTOOLCHAIN=go1.25.9`.
+
+Run Go tests in a shell where `isolate.sh` is in effect. Several tests in
+`cmd/` assume no `LD_` variables are set, and fail or panic when a real
+`LD_ACCESS_TOKEN` or `LD_PROJECT` is present.
+
+## Before any npm check
+
+Use the Node version `dev-server-ui.yml` sets up (`node-version`, currently
+`lts/*`), because npm versions resolve peer dependencies differently. After
+switching, run `node --version` and `npm --version`: another `node` earlier
+on `PATH` can win over the one you installed.
+
+Run `npm ci` first. If it fails with `ERESOLVE`, the upgrade is blocked (rule
+3). Quote the `While resolving` and `Conflicting peer dependency` lines in the
+report, and don't run the rest of the check.
 
 ## CLI_SMOKE
 
@@ -130,12 +166,33 @@ Run only the tool that changed, for example `npm run build`, `npm run lint`,
 generator bump (`oapi-codegen`, `kin-openapi`), escalate if the generated files
 would change. Don't open a browser.
 
+For a UI build tool (`vite`, `rollup`, their plugins), run `npm run build` and
+then `git status --short`. If `dist/` changed, the PR needs a rebuilt `dist/`
+before it can land (rule 3).
+
 ## CI_ONLY and NO_EXTRA
 
 For GitHub Actions, the Docker base image, and packages ldcli doesn't import
 directly.
 
-Don't start ldcli. Read the release notes and the workflow or Dockerfile. For a
-major Actions bump, check for changed defaults such as the Node runtime or
-renamed inputs. Never trigger a release workflow. If Docker is available,
-`docker build` is a reasonable extra check for a base image bump.
+Don't start ldcli, except inside the Docker image below. Read the release notes
+and the workflow or Dockerfile. Never trigger a release workflow.
+
+For an Actions bump:
+
+- Check the `on:` block of every workflow the PR changes. If none of them run on
+  pull requests, CI didn't exercise the change; say so, and list the first real
+  run (the next push to `main`, or the next release) under what's still
+  unverified.
+- Compare the inputs each workflow passes (`with:`) against the new version's
+  `action.yml`, and look for changed defaults such as the Node runtime. For a
+  SHA-pinned action, read `action.yml` at the new SHA.
+- If `actionlint` is installed, run it on the changed workflows.
+
+For a Docker base image bump, if Docker is available, build the image and run
+it once. The Dockerfile copies a prebuilt `ldcli`, so build that first, and
+pass the opt-outs in, because the container doesn't inherit your shell:
+
+    make build
+    docker build -f Dockerfile.goreleaser -t ldcli-verify .
+    docker run --rm -e LD_ANALYTICS_OPT_OUT=true -e LD_UPDATE_CHECK_OPT_OUT=true ldcli-verify --version

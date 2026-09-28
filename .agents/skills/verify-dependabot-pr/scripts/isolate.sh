@@ -1,19 +1,34 @@
+# shellcheck shell=bash
 # Sets up an isolated environment for running ldcli during verification.
 # Source it from bash; don't execute it:
 #
 #   source scripts/isolate.sh
 #
 # ldcli otherwise sends usage analytics to LaunchDarkly, checks GitHub for
-# updates, and reads and writes the real config file and dev-server databases
-# under the user's XDG directories.
+# updates, reads and writes the real config file and dev-server databases
+# under the user's XDG directories, and picks up any LD_ variables (such as a
+# real access token) already set in the environment.
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   echo "isolate.sh sets variables in your shell, so source it instead: source $0" >&2
   exit 1
 fi
 
+# ldcli reads every LD_ variable as a flag value, and its tests assume none are set.
+_isolate_cleared=""
+for _isolate_var in $(compgen -e | grep '^LD_' || true); do
+  unset "$_isolate_var"
+  _isolate_cleared="$_isolate_cleared $_isolate_var"
+done
+unset _isolate_var
+
 export LD_ANALYTICS_OPT_OUT=true
 export LD_UPDATE_CHECK_OPT_OUT=true
+
+# gh keeps its login under XDG_CONFIG_HOME, which is about to change.
+if [ -z "${GH_CONFIG_DIR:-}" ]; then
+  export GH_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/gh"
+fi
 
 if [ -z "${SMOKE_DIR:-}" ] || [ ! -d "$SMOKE_DIR" ]; then
   SMOKE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ldcli-verify.XXXXXX")"
@@ -50,4 +65,7 @@ echo "  LD_UPDATE_CHECK_OPT_OUT=$LD_UPDATE_CHECK_OPT_OUT"
 echo "  SMOKE_DIR=$SMOKE_DIR"
 echo "  XDG_STATE_HOME=$XDG_STATE_HOME"
 echo "  XDG_CONFIG_HOME=$XDG_CONFIG_HOME"
+echo "  GH_CONFIG_DIR=$GH_CONFIG_DIR"
 echo "  SMOKE_PORT=$SMOKE_PORT"
+echo "  Cleared from the environment:${_isolate_cleared:- nothing}"
+unset _isolate_cleared
