@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Removes everything a verification run created: the temporary worktree, the
-# refs prepare-tree.sh fetched, any dev-server still running on SMOKE_PORT, and
-# SMOKE_DIR itself.
+# refs prepare-tree.sh and other-prs.sh fetched, any dev-server still running
+# on SMOKE_PORT, and SMOKE_DIR itself.
 #
 #   scripts/cleanup.sh
 #
@@ -44,3 +44,5 @@ chmod -R u+w "$SMOKE_DIR" 2>/dev/null || true
 rm -rf "$SMOKE_DIR"
 
 echo "Removed $SMOKE_DIR, the verification worktree, and refs/verify/*."
+echo "Your shell still points at the deleted directory. Start a new shell, or run:"
+echo "  unset SMOKE_DIR SMOKE_PORT XDG_STATE_HOME XDG_CONFIG_HOME GH_CONFIG_DIR LD_ANALYTICS_OPT_OUT LD_UPDATE_CHECK_OPT_OUT"
