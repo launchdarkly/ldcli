@@ -89,15 +89,10 @@ Installed via `make install-hooks`. Checks:
 
 The Cloud Agent environment ships Go 1.25 (required by `go.mod`; installed at `/usr/local/go`) and Node 22, and pre-builds the `ldcli` binary plus the dev-server UI `node_modules`.
 
-**LaunchDarkly targeting via injected secrets.** The environment injects these as env vars so `ldcli` auto-targets a LaunchDarkly staging instance and project with no flags or config file (Viper reads them natively):
-- `LD_ACCESS_TOKEN` — API access token
-- `LD_BASE_URI` — instance base URI (maps to the `base-uri` setting)
-- `LD_PROJECT` — default project key (maps to the `project` setting)
+**LaunchDarkly targeting via the environment.** The CLI reads its settings from `LD_`-prefixed environment variables (Viper, prefix `LD_`, with `-` mapped to `_`), so it adapts to whatever LaunchDarkly config the environment provides — there is nothing repo-specific to hardcode. When the environment supplies the relevant values (an access token plus, optionally, a base URI and default project), `ldcli` auto-targets that instance/project with no flags and no config file, e.g. `./ldcli projects get`, `./ldcli environments list`, `./ldcli flags list`, and `dev-server` can start. Rely on the environment for these values; don't persist them into `$XDG_CONFIG_HOME/ldcli/config.yml`.
 
-With these set, live read-only commands work directly, e.g. `./ldcli projects get`, `./ldcli environments list`, `./ldcli flags list`. `dev-server` can also start since a token is present. Do not write these values into `$XDG_CONFIG_HOME/ldcli/config.yml`; leave them in the environment so they are never persisted to disk. (`LD_SERVER_URL` / `LD_PROJECT_NAME` may also be present as aliases but are not read by the CLI.)
-
-**Running the Go unit tests.** A few tests assert unauthenticated behavior (`cmd/flags`, `cmd/setup`, `cmd/whoami`), so `go test ./...` / `make test` fail while `LD_ACCESS_TOKEN`/`LD_BASE_URI`/`LD_PROJECT` are set. Run the offline suite with those vars unset:
+**Running the Go unit tests.** A few tests assert unauthenticated behavior (`cmd/flags`, `cmd/setup`, `cmd/whoami`), so `go test ./...` / `make test` fail when LaunchDarkly credentials are present in the environment. Rather than naming specific variables, strip whatever `LD_`-prefixed variables are set for the test run:
 
 ```bash
-env -u LD_ACCESS_TOKEN -u LD_BASE_URI -u LD_PROJECT -u LD_SERVER_URL -u LD_PROJECT_NAME go test ./...
+env $(env | grep -oE '^LD_[A-Za-z0-9_]+' | sed 's/^/-u /') go test ./...
 ```
