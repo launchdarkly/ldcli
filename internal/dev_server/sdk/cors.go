@@ -1,17 +1,21 @@
 package sdk
 
 import (
+	"net/http"
+
 	"github.com/gorilla/handlers"
 )
 
-var CorsHeaders = handlers.CORS(
-	handlers.AllowedOrigins([]string{"*"}),
-	handlers.AllowedMethods([]string{"GET"}),
-	handlers.AllowCredentials(),
-	handlers.ExposedHeaders([]string{"Date"}),
-	handlers.AllowedHeaders([]string{"Cache-Control", "Content-Type", "Content-Length", "Accept-Encoding", "X-LaunchDarkly-Event-Schema", "X-LaunchDarkly-User-Agent", "X-LaunchDarkly-Payload-ID", "X-LaunchDarkly-Wrapper", "X-LaunchDarkly-Tags"}),
-	handlers.MaxAge(300),
-)
+func CorsHeadersForMethods(methods ...string) func(http.Handler) http.Handler {
+	return handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}),
+		handlers.AllowedMethods(methods),
+		handlers.AllowCredentials(),
+		handlers.ExposedHeaders([]string{"Date"}),
+		handlers.AllowedHeaders([]string{"Cache-Control", "Content-Type", "Content-Length", "Accept-Encoding", "X-LaunchDarkly-Event-Schema", "X-LaunchDarkly-User-Agent", "X-LaunchDarkly-Payload-ID", "X-LaunchDarkly-Wrapper", "X-LaunchDarkly-Tags"}),
+		handlers.MaxAge(300),
+	)
+}
 
 // ClientFdv2CorsHeaders is the CORS configuration for the client-side FDv2 endpoints.
 // Unlike the FDv1 client-side routes these accept POST and REPORT as well as GET, and

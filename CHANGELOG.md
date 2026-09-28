@@ -1,5 +1,65 @@
 # Changelog
 
+## [3.12.0](https://github.com/launchdarkly/ldcli/compare/v3.11.0...v3.12.0) (2026-09-19)
+
+
+### Features
+
+* add command to check for updates ([#706](https://github.com/launchdarkly/ldcli/issues/706)) ([bebc758](https://github.com/launchdarkly/ldcli/commit/bebc7589d751d96315eab8af6a30d2ab8a1778c7))
+* **dev-server:** add --sdk-init-timeout flag to control SDK init timeout ([#801](https://github.com/launchdarkly/ldcli/issues/801)) ([34eef80](https://github.com/launchdarkly/ldcli/commit/34eef80aaff72e24ecd80e49fa4cd38a3b7a5cd0))
+
+
+### Bug Fixes
+
+* pass allowed methods to CORS middleware ([#670](https://github.com/launchdarkly/ldcli/issues/670)) ([945917d](https://github.com/launchdarkly/ldcli/commit/945917d0cafa90ead0c0e4ce9bde8099473d8243))
+* redact access token in config command output ([#787](https://github.com/launchdarkly/ldcli/issues/787)) ([41caa77](https://github.com/launchdarkly/ldcli/commit/41caa77e0a3224f5b91a471b60b16c226a666f21))
+
+## [3.11.0](https://github.com/launchdarkly/ldcli/compare/v3.10.0...v3.11.0) (2026-08-22)
+
+
+### Features
+
+* **setup:** Add new wizard `setup` command to the CLI ([#776](https://github.com/launchdarkly/ldcli/issues/776)) ([af9301d](https://github.com/launchdarkly/ldcli/commit/af9301daf34951f32e491cb4f6778446058f0c9a))
+
+
+### Bug Fixes
+
+* **deps:** resolve HIGH & CRITICAL Dependabot alerts ([#777](https://github.com/launchdarkly/ldcli/issues/777)) ([72f321c](https://github.com/launchdarkly/ldcli/commit/72f321c1bc743db868b86d8252815cf64a10d792))
+
+
+### Performance Improvements
+
+* Speed up dev server startup (two flavors: parallelism and streaming) ([#739](https://github.com/launchdarkly/ldcli/issues/739)) ([285d0db](https://github.com/launchdarkly/ldcli/commit/285d0dbf384ee574ca43334c43c986dfcde831e2))
+
+## [3.10.0](https://github.com/launchdarkly/ldcli/compare/v3.9.0...v3.10.0) (2026-08-05)
+
+
+### Features
+
+* **symbols:** derive the upload endpoint from --base-uri ([#773](https://github.com/launchdarkly/ldcli/issues/773)) ([f8ee593](https://github.com/launchdarkly/ldcli/commit/f8ee593562104296ba673166df53a689685d49c4))
+
+## [3.9.0](https://github.com/launchdarkly/ldcli/compare/v3.8.0...v3.9.0) (2026-08-05)
+
+
+### Features
+
+* **symbols:** key Android uploads by R8's map id, and upload dSYMs from an Xcode build ([#769](https://github.com/launchdarkly/ldcli/issues/769)) ([e361fa6](https://github.com/launchdarkly/ldcli/commit/e361fa6a2f651bbff90dcc9f8b5995470693d463))
+
+## [3.8.0](https://github.com/launchdarkly/ldcli/compare/v3.7.0...v3.8.0) (2026-08-01)
+
+
+### Features
+
+* **symbols:** build the R8 mapping index in the CLI ([#768](https://github.com/launchdarkly/ldcli/issues/768)) ([8693730](https://github.com/launchdarkly/ldcli/commit/8693730eb9930ad5a55626ad82dfc7a6316d934a))
+* **symbols:** zero-config Android uploads, and gzip what an upload sends ([#767](https://github.com/launchdarkly/ldcli/issues/767)) ([edcf301](https://github.com/launchdarkly/ldcli/commit/edcf3018f84e6b3c48e0e749eda5f5a5c18898a8))
+
+## [3.7.0](https://github.com/launchdarkly/ldcli/compare/v3.6.0...v3.7.0) (2026-07-31)
+
+
+### Features
+
+* **symbols:** skip uploading symbols LaunchDarkly already has ([#765](https://github.com/launchdarkly/ldcli/issues/765)) ([5dfc7a7](https://github.com/launchdarkly/ldcli/commit/5dfc7a717f43cf21ed03c8d4ff2be5e6631668cf))
+
 ## [3.6.0](https://github.com/launchdarkly/ldcli/compare/v3.5.0...v3.6.0) (2026-07-28)
 
 

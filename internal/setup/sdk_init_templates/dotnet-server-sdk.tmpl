@@ -1,0 +1,11 @@
+using LaunchDarkly.Sdk;
+using LaunchDarkly.Sdk.Server;
+// --- init ---
+var ldClient = new LdClient("{{.SDKKey}}");
+
+var context = Context.Builder("example-user-key")
+    .Name("Example User")
+    .Build();
+
+var flagValue = ldClient.BoolVariation("{{.FlagKey}}", context, false);
+Console.WriteLine($"Flag '{{.FlagKey}}' is {flagValue}");

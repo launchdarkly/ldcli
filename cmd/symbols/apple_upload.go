@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +20,10 @@ const appleSymbolsIDPrefix = "_sym/apple/id"
 // uploaded artifacts carry a human-recognizable file extension. It has no role
 // in lookup (maps are keyed by UUID); the backend appends the same extension.
 const appleSymbolExt = ".dsymmap"
+
+// kindSources marks an appleSymbolMap that carries packed sources rather than a
+// symbol map.
+const kindSources = "sources"
 
 // appleSymbolMap is one compiled artifact ready to upload: an architecture's
 // .dsymmap symbol map, or (with --include-sources) its .srcbundle sources.
@@ -46,13 +49,26 @@ func (m appleSymbolMap) label() string {
 // When includeSources is set, each image's referenced source files are packed
 // into a .srcbundle and uploaded alongside its map so the UI can show source
 // context around native frames.
-func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources bool) error {
-	images, err := findDSYMImages(path)
+//
+// With skipExisting, an unchanged binary keeps its UUID, so re-running this sends
+// nothing. Source bundles borrow that UUID rather than being keyed by their own
+// contents — sources unreadable on the machine that uploaded first must still be able
+// to overwrite — so those are skipped only when their digest matches what is stored.
+func uploadAppleDSYMs(apiKey, projectID string, upload appleUpload, backendURL string, includeSources, skipExisting bool) error {
+	images, err := findDSYMImages(upload.Path)
 	if err != nil {
 		return fmt.Errorf("failed to find dSYM files: %w", err)
 	}
 	if len(images) == 0 {
-		return fmt.Errorf("no .dSYM bundles found in %s, is this the correct path?", path)
+		if upload.FromXcode {
+			// Running from a build that produced no dSYM is ordinary — a Debug
+			// build's debug information stays in the binary — and a build phase
+			// that fails the build over it would be a phase every project has to
+			// guard. There is nothing to upload, which is not the same as an error.
+			fmt.Printf("This build produced no dSYM, so there is nothing to upload. Set Debug Information Format to \"DWARF with dSYM File\" for the configurations you ship.\n")
+			return nil
+		}
+		return fmt.Errorf("no .dSYM bundles found in %s, is this the correct path?", upload.Path)
 	}
 
 	maps, err := buildAppleMaps(images, includeSources)
@@ -64,11 +80,21 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources
 	}
 
 	keys := make([]string, len(maps))
+	digests := make([]string, len(maps))
+	bodies := make([]uploadBody, len(maps))
 	for i, m := range maps {
 		keys[i] = m.Key
+		// Compressed here rather than at the point of sending, so a digest below
+		// describes the bytes that get stored.
+		bodies[i] = compressBody(m.Data)
+		if m.Kind == kindSources {
+			// Sources are keyed by their image's UUID rather than by their own
+			// contents, so only a digest can show that re-sending them is a no-op.
+			digests[i] = contentDigest(bodies[i].Data)
+		}
 	}
 
-	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, backendURL)
+	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, digests, backendURL, skipExisting)
 	if err != nil {
 		return fmt.Errorf("failed to get upload URLs: %w", err)
 	}
@@ -78,13 +104,19 @@ func uploadAppleDSYMs(apiKey, projectID, path, backendURL string, includeSources
 		return fmt.Errorf("expected %d upload URLs but received %d", len(maps), len(uploadURLs))
 	}
 
+	skipped := 0
 	for i, m := range maps {
-		if err := uploadBytes(m.Data, uploadURLs[i], m.label()); err != nil {
+		if alreadyUploaded(uploadURLs[i]) {
+			fmt.Printf("Skipping %s, already uploaded\n", m.label())
+			skipped++
+			continue
+		}
+		if err := uploadBytes(bodies[i], uploadURLs[i], m.label()); err != nil {
 			return fmt.Errorf("failed to upload symbol map for %s: %w", m.UUID, err)
 		}
 	}
 
-	fmt.Println("Successfully uploaded all symbols")
+	reportUploadSummary(skipped)
 	return nil
 }
 
@@ -139,7 +171,7 @@ func buildAppleMaps(images []string, includeSources bool) ([]appleSymbolMap, err
 				UUID: a.UUID,
 				Arch: arch,
 				Data: srcData,
-				Kind: "sources",
+				Kind: kindSources,
 			})
 			fmt.Printf("Built source bundle for %s (%s, %d files, %d bytes)\n", a.UUID, arch, nFiles, len(srcData))
 		}
@@ -225,23 +257,19 @@ func archLabel(cpuType uint32) string {
 	}
 }
 
-func uploadBytes(data []byte, uploadURL, name string) error {
-	req, err := http.NewRequest("PUT", uploadURL, bytes.NewReader(data))
-	if err != nil {
+// uploadBytes sends an artifact built in memory. It takes an already-compressed
+// body rather than raw bytes so that a caller which sends a digest hashes exactly
+// what gets stored; see compress.go.
+func uploadBytes(body uploadBody, uploadURL, name string) error {
+	if err := putObject(uploadURL, bytes.NewReader(body.Data), int64(len(body.Data)), body.Encoding); err != nil {
 		return err
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
+	if body.Encoding == gzipEncoding {
+		fmt.Printf("[LaunchDarkly] Uploaded symbol map %s (%s gzipped to %s)\n",
+			name, byteSize(int64(body.RawSize)), byteSize(int64(len(body.Data))))
+		return nil
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("upload failed with status code: %d", resp.StatusCode)
-	}
-
-	fmt.Printf("[LaunchDarkly] Uploaded symbol map %s\n", name)
+	fmt.Printf("[LaunchDarkly] Uploaded symbol map %s (%s)\n", name, byteSize(int64(len(body.Data))))
 	return nil
 }

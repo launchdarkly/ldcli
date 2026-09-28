@@ -39,21 +39,24 @@ func BindRoutes(router *mux.Router) {
 	router.PathPrefix("/msdk/evalx").Handler(GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(GetClientFlags)))
 
 	evalRouter := router.PathPrefix("/eval").Subrouter()
-	evalRouter.Use(CorsHeaders)
+	evalRouterMethods := []string{http.MethodGet, methodReport}
+	evalRouter.Use(CorsHeadersForMethods(evalRouterMethods...))
 	evalRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
 	evalRouter.PathPrefix("/{envId}").
-		Methods(http.MethodGet, methodReport, http.MethodOptions).
+		Methods(append(evalRouterMethods, http.MethodOptions)...).
 		HandlerFunc(StreamClientFlags)
 
 	goalsRouter := router.Path("/sdk/goals/{envId}").Subrouter()
-	goalsRouter.Use(CorsHeaders)
+	goalsRouterMethods := []string{http.MethodGet}
+	goalsRouter.Use(CorsHeadersForMethods(goalsRouterMethods...))
 	goalsRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
-	goalsRouter.Methods(http.MethodGet, http.MethodOptions).HandlerFunc(ConstantResponseHandler(http.StatusOK, "[]"))
+	goalsRouter.Methods(append(goalsRouterMethods, http.MethodOptions)...).HandlerFunc(ConstantResponseHandler(http.StatusOK, "[]"))
 
 	evalXRouter := router.PathPrefix("/sdk/evalx/{envId}").Subrouter()
-	evalXRouter.Use(CorsHeaders)
+	evalXRouterMethods := []string{http.MethodGet, methodReport}
+	evalXRouter.Use(CorsHeadersForMethods(evalXRouterMethods...))
 	evalXRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
-	evalXRouter.Methods(http.MethodGet, http.MethodOptions, methodReport).HandlerFunc(GetClientFlags)
+	evalXRouter.Methods(append(evalXRouterMethods, http.MethodOptions)...).HandlerFunc(GetClientFlags)
 
 	// FDv2 unifies the browser and mobile client-side endpoints, so these four routes
 	// replace the /eval/{envId}, /meval, /sdk/evalx/{envId} and /msdk/evalx families above.

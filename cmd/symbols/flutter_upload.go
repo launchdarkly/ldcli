@@ -44,7 +44,10 @@ type flutterUpload struct {
 // uploadFlutterSymbols discovers app.*.symbols files under path, compiles each
 // to a .dartmap, and uploads it to the Id lane (and the Version lane when
 // appVersion is set).
-func uploadFlutterSymbols(apiKey, projectID, path, appVersion, backendURL string) error {
+//
+// With skipExisting only the Id-lane copy can be skipped: a rebuild under the same
+// --app-version must still replace what that version resolves to.
+func uploadFlutterSymbols(apiKey, projectID, path, appVersion, backendURL string, skipExisting bool) error {
 	uploads, err := buildFlutterMaps(path, appVersion)
 	if err != nil {
 		return err
@@ -55,7 +58,9 @@ func uploadFlutterSymbols(apiKey, projectID, path, appVersion, backendURL string
 		keys[i] = u.Key
 	}
 
-	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, backendURL)
+	// No digests: every key here is either the dartmap's own build id or a Version
+	// Lane copy, which the backend re-presigns so it can overwrite.
+	uploadURLs, err := getSymbolUploadUrls(apiKey, projectID, keys, nil, backendURL, skipExisting)
 	if err != nil {
 		return fmt.Errorf("failed to get upload URLs: %w", err)
 	}
@@ -64,13 +69,21 @@ func uploadFlutterSymbols(apiKey, projectID, path, appVersion, backendURL string
 		return fmt.Errorf("expected %d upload URLs but received %d", len(uploads), len(uploadURLs))
 	}
 
+	skipped := 0
 	for i, u := range uploads {
-		if err := uploadBytes(u.Data, uploadURLs[i], u.Label); err != nil {
+		if alreadyUploaded(uploadURLs[i]) {
+			fmt.Printf("Skipping %s, already uploaded\n", u.Label)
+			skipped++
+			continue
+		}
+		// Nothing here carries a digest, so unlike the Apple uploader this can wait
+		// until a map is known to be going, and skip the work for one that isn't.
+		if err := uploadBytes(compressBody(u.Data), uploadURLs[i], u.Label); err != nil {
 			return fmt.Errorf("failed to upload symbol map %s: %w", u.Label, err)
 		}
 	}
 
-	fmt.Println("Successfully uploaded all symbols")
+	reportUploadSummary(skipped)
 	return nil
 }
 
