@@ -31,14 +31,17 @@ updating.
 
 | Package | What it does in ldcli | Check |
 | --- | --- | --- |
-| `react`, `react-dom`, `react-router` | Renders the UI and its pages | UI_COMPUTER_USE |
-| `@launchpad-ui/*` | LaunchDarkly's UI components | UI_COMPUTER_USE; look for unstyled or missing components |
-| `launchdarkly-js-client-sdk` | Flag evaluation inside the UI | UI_COMPUTER_USE |
-| `lodash`, `fuzzysort`, `react-window` | Flag list, search, and long lists | UI_COMPUTER_USE, using those three features |
+| `react`, `react-dom`, `react-router` | Renders the UI and its pages | UI_COMPUTER_USE. A new `react-router` major can require a newer `react`; compare its peer requirement with `react` in `package.json` first |
+| `@launchpad-ui/*` | LaunchDarkly's UI components | UI_COMPUTER_USE; look for unstyled or missing components. `core` and `components` share `react-aria` packages, so upgrading one alone can fail `npm ci`. Both declare a `react` peer requirement |
+| `launchdarkly-js-client-sdk` | Only its TypeScript types (`LDFlagSet`, `LDFlagValue`); the UI never calls the SDK | BUILD_ONLY, because `npm run build` type-checks. Use UI_COMPUTER_USE if a search shows the UI calling it |
+| `fuzzysort` | Flag search | UI_COMPUTER_USE, searching the flag list |
+| `lodash` | `isEqual` when comparing a flag's override with its variations | UI_COMPUTER_USE, overriding a flag and resetting it |
+| `react-window` | Listed in `package.json`, but not imported | NO_EXTRA, unless a search finds it imported |
 | `vite`, `vite-plugin-*`, `rollup`, `typescript` | Builds the checked-in `dist/` bundle | BUILD_ONLY, and check whether `dist/` changed |
 | `vitest`, `@testing-library/*` | The UI's tests. `@testing-library/react` is listed under `dependencies`, but it's only used in tests. | TEST_ONLY |
 | `prettier`, `eslint`, `eslint-plugin-*`, `typescript-eslint` | Formatting and linting | BUILD_ONLY |
 | Packages that only appear in the lockfile | Pulled in by other packages | NO_EXTRA, unless a search finds ldcli importing them |
+| Grouped or security updates (`npm_and_yarn`, `go_modules` groups) | Can upgrade parent packages to reach a fixed version, so the PR changes more than its title says | Use the row for every direct dependency `scripts/other-prs.sh` lists for the PR, and escalate if the title doesn't name them |
 
 ## npm: the repo root
 
