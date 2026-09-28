@@ -72,6 +72,11 @@ npm run build   # Production build (checked into repo)
 - Go tests use `testify` for assertions and `go.uber.org/mock` for mocking
 - Mock generation via `mockgen`
 - Test data in `cmd/resources/test_data/` and `cmd/config/testdata/`
+- Tests assume no `LD_` environment variables are set. A real `LD_ACCESS_TOKEN` or `LD_PROJECT` in your shell makes some `cmd/` tests fail or panic.
+
+## Dependabot PRs
+
+To verify a Dependabot PR, follow `.agents/skills/verify-dependabot-pr/SKILL.md`.
 
 ## Pre-commit Hooks
 
