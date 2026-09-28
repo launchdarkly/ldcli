@@ -84,3 +84,20 @@ Installed via `make install-hooks`. Checks:
 
 - Go: `golangci-lint` (v1.63.4) via pre-commit
 - Frontend: ESLint + Prettier
+
+## Cursor Cloud specific instructions
+
+The Cloud Agent environment ships Go 1.25 (required by `go.mod`; installed at `/usr/local/go`) and Node 22, and pre-builds the `ldcli` binary plus the dev-server UI `node_modules`.
+
+**LaunchDarkly targeting via injected secrets.** The environment injects these as env vars so `ldcli` auto-targets a LaunchDarkly staging instance and project with no flags or config file (Viper reads them natively):
+- `LD_ACCESS_TOKEN` — API access token
+- `LD_BASE_URI` — instance base URI (maps to the `base-uri` setting)
+- `LD_PROJECT` — default project key (maps to the `project` setting)
+
+With these set, live read-only commands work directly, e.g. `./ldcli projects get`, `./ldcli environments list`, `./ldcli flags list`. `dev-server` can also start since a token is present. Do not write these values into `$XDG_CONFIG_HOME/ldcli/config.yml`; leave them in the environment so they are never persisted to disk. (`LD_SERVER_URL` / `LD_PROJECT_NAME` may also be present as aliases but are not read by the CLI.)
+
+**Running the Go unit tests.** A few tests assert unauthenticated behavior (`cmd/flags`, `cmd/setup`, `cmd/whoami`), so `go test ./...` / `make test` fail while `LD_ACCESS_TOKEN`/`LD_BASE_URI`/`LD_PROJECT` are set. Run the offline suite with those vars unset:
+
+```bash
+env -u LD_ACCESS_TOKEN -u LD_BASE_URI -u LD_PROJECT -u LD_SERVER_URL -u LD_PROJECT_NAME go test ./...
+```
