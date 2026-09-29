@@ -65,13 +65,19 @@ ROTATION_SETS = [
 LIMITS = {"procedural": 20, "descriptive": 25}
 
 
+def _newlines(text):
+    return "\n" * text.count("\n")
+
+
 def strip_code(text):
-    text = re.sub(r"```.*?```", " ", text, flags=re.S)
+    # ldcli change: each replacement keeps the newlines that it removes, so the line
+    # numbers from lint_detail() match the original text after code blocks and tables.
+    text = re.sub(r"```.*?```", lambda m: " " + _newlines(m.group(0)), text, flags=re.S)
     text = re.sub(r"`[^`\n]+`", " CODESPAN ", text)  # one word per Rule 8.6
     text = re.sub(r"^#+\s.*$", " ", text, flags=re.M)  # headings exempt (titles, 8.6)
     text = re.sub(r"https?://\S+", " URL ", text)
-    text = re.sub(r"^\s*\|[\s:|-]+\|\s*$", " ", text, flags=re.M)  # table separator rows
-    text = re.sub(r"^\s*\|(.*)\|\s*$", lambda m: ". ".join(c.strip() for c in m.group(1).split("|") if c.strip()) + ". ", text, flags=re.M)  # each cell is its own unit, still linted
+    text = re.sub(r"^(\s*)\|[\s:|-]+\|\s*$", lambda m: _newlines(m.group(1)) + " " + _newlines(m.group(0)[len(m.group(1)):]), text, flags=re.M)  # table separator rows
+    text = re.sub(r"^(\s*)\|(.*)\|(\s*)$", lambda m: _newlines(m.group(1)) + ". ".join(c.strip() for c in m.group(2).split("|") if c.strip()) + ". " + _newlines(m.group(3)), text, flags=re.M)  # each cell is its own unit, still linted
     return text
 
 
