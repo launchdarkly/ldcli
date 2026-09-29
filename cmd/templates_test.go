@@ -19,6 +19,7 @@ func TestGetUsageTemplate_ListsTopLevelCommands(t *testing.T) {
 		"login",
 		"signup",
 		"dev-server",
+		"sync",
 		"flags",
 		"environments",
 		"projects",
