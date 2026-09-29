@@ -41,7 +41,7 @@
 //	✅	/sdk/poll	GET	sdk.	Polling endpoint for server-side SDKs
 //	✅	/sdk/stream	GET	stream.	SSE stream for server-side SDKs
 //	✅	/sdk/poll/eval/{contextBase64}	GET	clientsdk.	Polling endpoint returning evaluation results for a context
-//	✅	/sdk/poll/eval	POST, REPORT	clientsdk.	Same as above, but the request body is the evaluation context JSON object (not in base64)
+//	✅	/sdk/poll/eval	POST	clientsdk.	Same as above, but the request body is the evaluation context JSON object (not in base64)
 //	✅	/sdk/stream/eval/{contextBase64}	GET	clientstream.	SSE stream of evaluation results for a context
-//	✅	/sdk/stream/eval	POST, REPORT	clientstream.	Same as above, but the request body is the evaluation context JSON object (not in base64)
+//	✅	/sdk/stream/eval	POST	clientstream.	Same as above, but the request body is the evaluation context JSON object (not in base64)
 package sdk

@@ -60,9 +60,11 @@ func BindRoutes(router *mux.Router) {
 
 	// FDv2 unifies the browser and mobile client-side endpoints, so these four routes
 	// replace the /eval/{envId}, /meval, /sdk/evalx/{envId} and /msdk/evalx families above.
-	bindClientFdv2Route(router, "/sdk/poll/eval", PollClientV2, http.MethodPost, methodReport)
+	// Unlike those families, FDv2 does not accept REPORT: client-side SDKs send the
+	// context in a POST body instead.
+	bindClientFdv2Route(router, "/sdk/poll/eval", PollClientV2, http.MethodPost)
 	bindClientFdv2Route(router, "/sdk/poll/eval/{context}", PollClientV2, http.MethodGet)
-	bindClientFdv2Route(router, "/sdk/stream/eval", StreamClientV2, http.MethodPost, methodReport)
+	bindClientFdv2Route(router, "/sdk/stream/eval", StreamClientV2, http.MethodPost)
 	bindClientFdv2Route(router, "/sdk/stream/eval/{context}", StreamClientV2, http.MethodGet)
 }
 

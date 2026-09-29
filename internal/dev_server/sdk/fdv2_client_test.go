@@ -25,7 +25,7 @@ import (
 )
 
 // exampleContextJSON is the evaluation context a client-side SDK sends, in the form it
-// sends it: a JSON object in a POST or REPORT body, or base64url-encoded in a GET path.
+// sends it: a JSON object in a POST body, or base64url-encoded in a GET path.
 const exampleContextJSON = `{"kind":"user","key":"board cat"}`
 
 func exampleContextBase64() string {
@@ -142,19 +142,17 @@ func TestPollClientV2Handler(t *testing.T) {
 		assert.JSONEq(t, `{"flagVersion":4,"value":true,"variation":0,"trackEvents":false}`, string(put.Object))
 	})
 
-	for _, method := range []string{http.MethodPost, methodReport} {
-		t.Run(method+" with the context in the body returns a full payload", func(t *testing.T) {
-			expectProject()
+	t.Run("POST with the context in the body returns a full payload", func(t *testing.T) {
+		expectProject()
 
-			rec := serve(router, request(method, "/sdk/poll/eval", exampleContextJSON, withAuthHeader))
+		rec := serve(router, request(http.MethodPost, "/sdk/poll/eval", exampleContextJSON, withAuthHeader))
 
-			require.Equal(t, http.StatusOK, rec.Code)
-			var resp subsystems.PollingPayload
-			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-			require.Len(t, resp.Events, 3)
-			assertServerIntentEvent(t, resp.Events[0], exampleProjectKey, 3, subsystems.IntentTransferFull, fdv2ReasonPayloadMissing)
-		})
-	}
+		require.Equal(t, http.StatusOK, rec.Code)
+		var resp subsystems.PollingPayload
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+		require.Len(t, resp.Events, 3)
+		assertServerIntentEvent(t, resp.Events[0], exampleProjectKey, 3, subsystems.IntentTransferFull, fdv2ReasonPayloadMissing)
+	})
 
 	t.Run("an up-to-date basis returns a none intent", func(t *testing.T) {
 		expectProject()
@@ -191,6 +189,18 @@ func TestPollClientV2Handler(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 	})
+}
+
+func TestClientFdv2RejectsReport(t *testing.T) {
+	router, _, _ := newClientFdv2TestRouter(t)
+
+	for _, path := range []string{"/sdk/poll/eval", "/sdk/stream/eval"} {
+		t.Run(path, func(t *testing.T) {
+			rec := serve(router, request(methodReport, path, exampleContextJSON, withAuthHeader))
+
+			assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
+		})
+	}
 }
 
 func TestClientFdv2Credentials(t *testing.T) {
@@ -324,15 +334,26 @@ func TestClientFdv2Cors(t *testing.T) {
 			assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
 		})
 
-		t.Run("preflights REPORT "+path, func(t *testing.T) {
+		t.Run("refuses a REPORT preflight on "+path, func(t *testing.T) {
 			rec := serve(router, request(http.MethodOptions, path, "", func(r *http.Request) {
 				r.Header.Set("Origin", "http://localhost:3000")
 				r.Header.Set("Access-Control-Request-Method", methodReport)
 			}))
 
-			// REPORT is not a CORS-safelisted method, so it must be named explicitly.
+			assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
+			assert.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
+		})
+
+		t.Run("allows the Authorization header in a preflight on "+path, func(t *testing.T) {
+			rec := serve(router, request(http.MethodOptions, path, "", func(r *http.Request) {
+				r.Header.Set("Origin", "http://localhost:3000")
+				r.Header.Set("Access-Control-Request-Method", method)
+				r.Header.Set("Access-Control-Request-Headers", "Authorization")
+			}))
+
 			assert.Equal(t, http.StatusOK, rec.Code)
-			assert.Equal(t, methodReport, rec.Header().Get("Access-Control-Allow-Methods"))
+			assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+			assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Authorization")
 		})
 	}
 

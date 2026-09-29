@@ -5,7 +5,7 @@ import (
 )
 
 // PollClientV2 serves the FDv2 polling endpoints for client-side SDKs:
-// POST or REPORT /sdk/poll/eval and GET /sdk/poll/eval/{context}.
+// POST /sdk/poll/eval and GET /sdk/poll/eval/{context}.
 //
 // FDv2 unifies the browser and mobile endpoints that FDv1 kept separate, so this one
 // handler replaces both /sdk/evalx/{envId} and /msdk/evalx.
