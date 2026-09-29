@@ -172,6 +172,29 @@ func replacementPaths(replacements []stagedVariation) []string {
 	return paths
 }
 
+// ReplaceFileAtomically replaces an existing file only when its content still
+// matches the caller's snapshot. The replacement is durably staged beside the
+// destination before one atomic rename publishes it.
+func ReplaceFileAtomically(path, displayPath string, originalContent, replacementContent []byte, mode os.FileMode) error {
+	replacement := stagedVariation{
+		relativePath: displayPath, destinationPath: path, originalContent: originalContent,
+		replacementContent: replacementContent, mode: mode,
+	}
+	stagedPath, err := stageReplacement(replacement)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(stagedPath) }()
+
+	if err := verifyReplacementSources([]stagedVariation{replacement}); err != nil {
+		return err
+	}
+	if err := os.Rename(stagedPath, path); err != nil {
+		return fmt.Errorf("replace file %s: %w", displayPath, err)
+	}
+	return nil
+}
+
 // stageReplacement durably writes one temporary file beside its destination,
 // preserving the destination's permission bits.
 func stageReplacement(replacement stagedVariation) (string, error) {
