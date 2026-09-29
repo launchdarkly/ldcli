@@ -143,7 +143,8 @@ func choiceLabel[T any](choice Choice[T]) string {
 // formTheme applies the subdued sync palette consistently to every form.
 func formTheme() *huh.Theme {
 	theme := huh.ThemeBase()
-	accent := lipgloss.Color("170")
+	accent := lipgloss.AdaptiveColor{Light: "24", Dark: "67"}
+	buttonText := lipgloss.AdaptiveColor{Light: "255", Dark: "0"}
 
 	theme.Focused.Title = theme.Focused.Title.Foreground(accent).Bold(true)
 	theme.Focused.SelectSelector = theme.Focused.SelectSelector.Foreground(accent)
@@ -152,7 +153,7 @@ func formTheme() *huh.Theme {
 	theme.Focused.SelectedPrefix = theme.Focused.SelectedPrefix.Foreground(accent)
 	theme.Focused.FocusedButton = theme.Focused.FocusedButton.
 		Background(accent).
-		Foreground(lipgloss.Color("0"))
+		Foreground(buttonText)
 
 	return theme
 }
