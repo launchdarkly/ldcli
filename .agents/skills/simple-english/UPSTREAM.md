@@ -18,7 +18,10 @@ These files are copies of upstream files:
 | `scripts/slop.tsv` | `evals/slop.tsv` |
 | `LICENSE` | `LICENSE` |
 
-One copy has a change. In `scripts/ste_lint.py`, the `strip_code` function keeps the newlines that it removes. In the upstream version, each line number after a code block or a table is too small. The hook compares these line numbers with `git diff`, so the numbers must be correct. The change does not change the violation counts.
+Two copies have a change:
+
+- In `scripts/ste_lint.py`, the `strip_code` function keeps the newlines that it removes. In the upstream version, each line number after a code block or a table is too small. The hook compares these line numbers with `git diff`, so the numbers must be correct. The change does not change the violation counts.
+- In `references/rule-catalog.md`, the blank line at the end of the file is removed. The `end-of-file-fixer` pre-commit hook of this repository requires one newline at the end of each file.
 
 ## Files for this repository
 
@@ -27,7 +30,7 @@ One copy has a change. In `scripts/ste_lint.py`, the `strip_code` function keeps
 ## Update the copy
 
 1. Copy the upstream files in the table above into this folder.
-2. If the upstream `strip_code` function does not keep newlines, apply the change to `scripts/ste_lint.py` again.
+2. Apply the two changes above again, if the upstream files still need them.
 3. Change the commit at the top of this file.
 4. Run `python3 .agents/skills/simple-english/scripts/test_hook.py`.
 5. Run `python3 .agents/skills/simple-english/scripts/ste_lint.py --self-test`.
