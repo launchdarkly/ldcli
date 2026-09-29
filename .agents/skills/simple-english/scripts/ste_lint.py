@@ -1,0 +1,372 @@
+#!/usr/bin/env python3
+"""Deterministic ASD-STE100 violation counter for benchmark runs.
+
+Counts mechanical violations that a regex can catch: sentence length,
+contractions, banned modals, perfect tenses, "-ing" clauses, semicolons,
+em-dashes, Latin abbreviations, slop words, trailing conditions, synonym
+rotation.
+
+Known ceiling: this is a regex pass, not a grammar parser. It undercounts
+(no passive-voice detection, no part-of-speech checks) and it can miscount
+sentence bounds in unusual markdown. Numbers from this tool are comparable
+between two texts run through the same version; they are not a compliance
+verdict. No tool can guarantee STE compliance.
+
+Usage:
+  python3 ste_lint.py --type procedural file.md
+  cat text.md | python3 ste_lint.py --type descriptive -
+  python3 ste_lint.py --self-test
+"""
+import json
+import pathlib
+import re
+import sys
+from collections import Counter
+
+BANNED_MODALS = re.compile(r"\b(should|would|may|might|could)\b", re.I)
+PERFECT = re.compile(r"\b(has|have|had)\s+been\b|\b(has|have)\s+\w+ed\b", re.I)
+CONTRACTION = re.compile(r"\b\w+(n't|'ll|'re|'ve|'d)\b|\bit's\b|\byou're\b", re.I)
+ING_CLAUSE = re.compile(r",\s*(mak|allow|enabl|ensur|highlight|creat|provid|offer|help|reduc|improv|lead|caus|result)ing\b", re.I)
+LATIN = re.compile(r"\b(e\.g\.|i\.e\.|etc\.?)(?=[\s,)]|$)", re.I)
+SLOP_CORE = re.compile(
+    r"\b(simply|seamlessly|effortlessly|robust|leverag\w*|utiliz\w*|"
+    r"comprehensive|powerful|blazingly|streamlin\w*|facilitat\w*|"
+    r"performant|plethora|myriad|delve|crucial|pivotal)\b", re.I)
+SLOP_TSV = pathlib.Path(__file__).resolve().parent / "slop.tsv"
+
+
+def slop_pattern():
+    """Union of the measured core list and evals/slop.tsv (term, count, swap).
+
+    The TSV is the 69-term LLM-tell lexicon: words named by 8 or more of 122
+    published ban lists. Falls back to the core list when the file is absent.
+    """
+    terms = []
+    if SLOP_TSV.exists():
+        for line in SLOP_TSV.read_text(encoding="utf-8").splitlines():
+            term = line.split("\t")[0].strip().lower()
+            if term:
+                terms.append(re.escape(term).replace(r"\ ", r"\s+") + r"\w*")
+    if not terms:
+        return SLOP_CORE
+    return re.compile(SLOP_CORE.pattern[:-len(r")\b")] + "|" + "|".join(terms) + r")\b", re.I)
+
+
+SLOP = slop_pattern()
+# Linear scan; lint() checks ">= 4 chars before the match" instead of the old
+# prefix pattern, whose backtracking was quadratic on long sentences
+# (a punctuation-free 8,000-word input took ~7s; now sub-millisecond).
+TRAILING_COND = re.compile(r"\s(if|when)\s", re.I)
+DASH = re.compile(r"—|(?<!\d)–(?!\d)|(?<= )--(?= )|(?<=[^\s\d]{2}) - (?=[^\s\d]{2})")
+ROTATION_SETS = [
+    ("check-verify", re.compile(r"\b(check|verify|confirm|validate|ensure)\w*\b", re.I)),
+    ("config-settings", re.compile(r"\b(config|configuration|settings)\b", re.I)),
+]
+LIMITS = {"procedural": 20, "descriptive": 25}
+
+
+def strip_code(text):
+    text = re.sub(r"```.*?```", " ", text, flags=re.S)
+    text = re.sub(r"`[^`\n]+`", " CODESPAN ", text)  # one word per Rule 8.6
+    text = re.sub(r"^#+\s.*$", " ", text, flags=re.M)  # headings exempt (titles, 8.6)
+    text = re.sub(r"https?://\S+", " URL ", text)
+    text = re.sub(r"^\s*\|[\s:|-]+\|\s*$", " ", text, flags=re.M)  # table separator rows
+    text = re.sub(r"^\s*\|(.*)\|\s*$", lambda m: ". ".join(c.strip() for c in m.group(1).split("|") if c.strip()) + ". ", text, flags=re.M)  # each cell is its own unit, still linted
+    return text
+
+
+def sentences(text):
+    # Append ". " to each item so items become their own sentence units instead of merging.
+    text = re.sub(r"^\s*([-*]|\d+\.)\s+(.*?)([.!?:])?\s*$", lambda m: m.group(2) + (m.group(3) or ".") + " ", text, flags=re.M)
+    parts = re.split(r"(?<=[.!?:])\s+", text)
+    return [p.strip() for p in parts if len(p.strip().split()) >= 2]
+
+
+def lint_detail(text, text_type):
+    """Every hit lint() counts, with its matched text and line number.
+
+    strip_code() keeps every original newline (it blanks or rewrites text in
+    place, never deletes a line), so a line number counted in the stripped
+    body is the same line number in the caller's original text. Locating a
+    whole sentence uses its start offset in body, found once per sentence
+    with str.find(), which is safe here because sentences() never returns
+    the same sentence text twice for two different source positions in a
+    single lint pass (each split fragment keeps its surrounding words).
+    """
+    body = strip_code(text)
+    limit = LIMITS[text_type]
+    hits = []
+
+    def add(category, m, snippet=None):
+        line = body.count("\n", 0, m.start()) + 1
+        hits.append({"category": category, "text": (snippet or m.group(0)).strip(), "line": line})
+
+    def locate(sentence, search_from):
+        """The sentence's start offset in body, at or after search_from."""
+        start = body.find(sentence, search_from)
+        return start if start != -1 else search_from
+
+    def add_sentence(category, sentence, start):
+        line = body.count("\n", 0, start) + 1
+        text_out = sentence if len(sentence) <= 80 else sentence[:80] + "…"
+        hits.append({"category": category, "text": text_out, "line": line})
+
+    pos = 0
+    for s in sentences(body):
+        pos = locate(s, pos)
+        n = len(s.split())
+        if n > limit:
+            add_sentence("sentence_over_limit", s, pos)
+        m = TRAILING_COND.search(s)
+        if m:
+            line_start = s.rfind("\n", 0, m.start()) + 1
+            if m.start() - line_start >= 4 and not re.match(r"^(if|when)\b", s, re.I):
+                add_sentence("trailing_condition", s, pos)
+        pos += max(len(s), 1)
+
+    for m in CONTRACTION.finditer(body):
+        add("contraction", m)
+    for m in BANNED_MODALS.finditer(body):
+        add("banned_modal", m)
+    for m in PERFECT.finditer(body):
+        add("perfect_tense", m)
+    for m in ING_CLAUSE.finditer(body):
+        add("ing_clause", m)
+    for m in re.finditer(";", body):
+        add("semicolon", m)
+    for m in DASH.finditer(body):
+        add("em_dash", m)
+    for m in LATIN.finditer(body):
+        add("latin_abbrev", m)
+    for m in SLOP.finditer(body):
+        add("slop_word", m)
+    for name, rx in ROTATION_SETS:
+        seen = {}
+        for m in rx.finditer(body):
+            stem = m.group(1).lower().rstrip("s")
+            seen.setdefault(stem, m)
+        for m in list(seen.values())[1:]:
+            add("synonym_rotation", m, f"{m.group(0)} ({name})")
+
+    return sorted(hits, key=lambda h: h["line"])
+
+
+def lint(text, text_type):
+    body = strip_code(text)
+    sents = sentences(body)
+    limit = LIMITS[text_type]
+    counts = {}
+    lengths = [len(s.split()) for s in sents]
+    counts["sentence_over_limit"] = sum(1 for n in lengths if n > limit)
+    counts["contraction"] = len(CONTRACTION.findall(body))
+    counts["banned_modal"] = len(BANNED_MODALS.findall(body))
+    counts["perfect_tense"] = len([m for m in PERFECT.finditer(body)])
+    counts["ing_clause"] = len(ING_CLAUSE.findall(body))
+    counts["semicolon"] = body.count(";")
+    counts["em_dash"] = len(DASH.findall(body))
+    counts["latin_abbrev"] = len(LATIN.findall(body))
+    counts["slop_word"] = len(SLOP.findall(body))
+    def trailing_cond(s):
+        m = TRAILING_COND.search(s)
+        if not m:
+            return False
+        # The whitespace before "if" may be a newline (a wrapped sentence), but
+        # the 4-char prefix must sit on the same line as that whitespace. A
+        # heading, a blank line, then "If ..." is condition-first, not trailing.
+        line_start = s.rfind("\n", 0, m.start()) + 1
+        return m.start() - line_start >= 4 and not re.match(r"^(if|when)\b", s, re.I)
+
+    counts["trailing_condition"] = sum(1 for s in sents if trailing_cond(s))
+    rotation = 0
+    for _, rx in ROTATION_SETS:
+        stems = {m.group(1).lower().rstrip("s") for m in rx.finditer(body)}
+        if len(stems) > 1:
+            rotation += len(stems) - 1
+    counts["synonym_rotation"] = rotation
+    words = max(1, len(body.split()))
+    total = sum(counts.values())
+    return {
+        "type": text_type,
+        "words": words,
+        "sentences": len(sents),
+        "mean_sentence_words": round(sum(lengths) / max(1, len(lengths)), 1),
+        "longest_sentence_words": max(lengths, default=0),
+        "violations": counts,
+        "violations_total": total,
+        "violations_per_100w": round(100.0 * total / words, 2),
+    }
+
+
+SLOP_FIXTURE = """Leveraging our robust retry mechanism, failed uploads are automatically
+reattempted, ensuring data integrity is maintained throughout the entire process which has
+been designed from the ground up to gracefully handle even the most challenging network
+interruptions. You should verify your credentials; it's also worth checking the settings,
+e.g. the timeout config. Contact support if the problem persists."""
+
+CLEAN_FIXTURE = """The system retries a failed upload automatically. This process keeps the data correct.
+
+If failures continue, make sure that your credentials are correct. If the problem continues, contact support."""
+
+TABLE_FIXTURE = """\
+| Column A | Column B | Column C |
+|----------|----------|----------|
+| Cell one that is very long and has many words | Cell two that is also quite long | Cell three |
+| More data here in this cell | And more data here too | And even more here |
+"""
+
+LIST_FIXTURE = """\
+The following items are available:
+
+- First item without a period at the end of the line
+- Second item without a period at the end of the line
+- Third item without a period at the end of the line
+
+Following prose sentence.
+"""
+
+LABEL_LIST_FIXTURE = """\
+**Helix owns:**
+
+- Learner authentication and session management
+- Identity verification and multi-factor authentication
+- Privacy controls and consent management
+"""
+
+# Only the first three dashes must be flagged as logic junctions.
+DASH_FIXTURE = """The deploy failed — the disk was full.
+The upload failed -- the token expired.
+The retry failed - the port was closed.
+Do not use --force against production.
+The window is 5 - 10 minutes.
+The range is 5–10 minutes, over the 2024–2025 season.
+Write x - y = z on the board.
+Use the `--config sqlpipe.yaml` flag.
+Remove the panel:
+   -   Loosen the four bolts.
+"""
+
+
+BOLD = re.compile(r"\*\*[^*\n]+\*\*")
+HEADER = re.compile(r"^#{1,6}\s", re.M)
+BULLET = re.compile(r"^\s*([-*+]|\d+[.)])\s", re.M)
+
+
+def reader_check(text):
+    """What a reader sees in a chat reply.
+
+    `sentences` counts list items and table rows as sentences, but it is a report, not a
+    limit: the reply register sets no sentence cap, so it is not part of `visible_total`.
+    """
+    text = text.replace("\r\n", "\n")
+    prose = re.sub(r"```.*?```", " ", text, flags=re.S)
+    prose = re.sub(r"`[^`\n]+`", " CODESPAN ", prose)
+    prose_no_md = re.sub(r"^\s*(#{1,6}\s|[-*+]\s|\d+[.)]\s|\|)", "", prose, flags=re.M)
+    prose_no_md = re.sub(r"^\s*[\s:|-]+$", "", prose_no_md, flags=re.M)  # table separator rows
+    sents = [p for p in re.split(r"(?<=[.!?])[\"')\]]*\s+|\n+", prose_no_md) if len(p.strip().split()) >= 2]
+    counts = {
+        "sentences": len(sents),
+        "em_dash": len(DASH.findall(prose)),
+        "bold_spans": len(BOLD.findall(prose)),
+        "headers": len(HEADER.findall(prose)),
+        "bullets": len(BULLET.findall(prose)),
+        "contraction": len(CONTRACTION.findall(prose)),
+    }
+    words = max(1, len(prose_no_md.split()))
+    visible = counts["em_dash"] + counts["bold_spans"] + counts["headers"] + counts["bullets"]
+    return {"type": "reply", "words": words, "counts": counts, "visible_total": visible}
+
+
+REPLY_FIXTURE = """**Yes** — it is bad.
+
+## Why
+- Lag grows.
+- Users wait.
+
+Check it now. Then scale."""
+
+
+def self_test():
+    slop = lint(SLOP_FIXTURE, "procedural")
+    clean = lint(CLEAN_FIXTURE, "procedural")
+    dashes = lint(DASH_FIXTURE, "procedural")
+    assert slop["violations"]["sentence_over_limit"] >= 1, slop
+    assert slop["violations"]["banned_modal"] >= 1, slop
+    assert slop["violations"]["contraction"] >= 1, slop
+    assert slop["violations"]["perfect_tense"] >= 1, slop
+    assert slop["violations"]["ing_clause"] >= 1, slop
+    assert slop["violations"]["semicolon"] == 1, slop
+    assert slop["violations"]["latin_abbrev"] >= 1, slop
+    assert slop["violations"]["slop_word"] >= 2, slop
+    assert slop["violations"]["trailing_condition"] >= 1, slop
+    assert slop["violations"]["synonym_rotation"] >= 1, slop
+    assert clean["violations_total"] == 0, clean
+    assert lint("We delve into the landscape.", "descriptive")["violations"]["slop_word"] == 2
+    assert dashes["violations"]["em_dash"] == 3, dashes
+    r = reader_check(REPLY_FIXTURE)["counts"]
+    assert (r["sentences"], r["em_dash"], r["bold_spans"], r["headers"], r["bullets"]) == (5, 1, 1, 1, 2), r
+    assert reader_check("Yes. It is bad because lag grows. Scale now.")["visible_total"] == 0
+    tricky = "He said \"stop now.\" Then (it broke.) All done.\n\n```\n# not a header\n**not bold**\n- not a bullet\n```\n"
+    t = reader_check(tricky)["counts"]
+    assert (t["sentences"], t["headers"], t["bold_spans"], t["bullets"]) == (3, 0, 0, 0), t
+    cell = lint("| Column | Value |\n|---|---|\n| You should restart it | ok |\n", "descriptive")["violations"]
+    assert cell["banned_modal"] == 1 and cell["sentence_over_limit"] == 0, cell
+    assert sentences("- Loosen the bolts.\n- Then go on") == ["Loosen the bolts.", "Then go on."]
+    assert "visible_total" in reader_check("Yes.") and "violations_total" in lint("Yes.", "descriptive")
+    # Table rows and list items must not produce false sentence_over_limit hits.
+    assert lint(TABLE_FIXTURE, "descriptive")["violations"]["sentence_over_limit"] == 0, \
+        "table rows produced false sentence_over_limit"
+    assert lint(LIST_FIXTURE, "descriptive")["violations"]["sentence_over_limit"] == 0, \
+        "bullet list produced false sentence_over_limit"
+    assert lint(LABEL_LIST_FIXTURE, "descriptive")["violations"]["sentence_over_limit"] == 0, \
+        "bold label + list produced false sentence_over_limit"
+    # A genuine long prose sentence must still flag.
+    long_prose = "a " * 30  # 30 repetitions of the same word, one space each
+    assert lint(long_prose, "descriptive")["violations"]["sentence_over_limit"] >= 1, \
+        "genuine long sentence was not flagged"
+    detail = lint_detail(SLOP_FIXTURE, "procedural")
+    assert len(detail) == slop["violations_total"], (len(detail), slop["violations_total"])
+    assert all(h["line"] >= 1 and h["text"] for h in detail), detail
+    detail_counts = Counter(h["category"] for h in detail)
+    assert detail_counts == {k: v for k, v in slop["violations"].items() if v}, (detail_counts, slop["violations"])
+    print("self-test OK:", slop["violations_total"], "violations in slop fixture, 0 in clean")
+
+
+USAGE = "usage: ste_lint.py [--type procedural|descriptive|reply] [--gate] (FILE|-) | --self-test"
+
+
+def main():
+    args = sys.argv[1:]
+    if "--self-test" in args:
+        self_test()
+        return 0
+    gate = "--gate" in args
+    if gate:
+        args.remove("--gate")
+    text_type = "descriptive"
+    if "--type" in args:
+        i = args.index("--type")
+        if i + 1 >= len(args):
+            sys.exit("missing value after --type\n" + USAGE)
+        text_type = args[i + 1]
+        del args[i:i + 2]
+    if text_type != "reply" and text_type not in LIMITS:
+        sys.exit("unknown --type %r (expected procedural or descriptive)\n%s" % (text_type, USAGE))
+    if len(args) != 1:
+        sys.exit(USAGE)
+    src = args[0]
+    if src == "-":
+        text = sys.stdin.read()
+    else:
+        try:
+            with open(src, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError as err:
+            sys.exit(str(err))
+    report = reader_check(text) if text_type == "reply" else lint(text, text_type)
+    print(json.dumps(report, indent=2))
+    total = report["visible_total"] if text_type == "reply" else report["violations_total"]
+    return 1 if gate and total else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
