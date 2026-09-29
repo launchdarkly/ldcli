@@ -250,7 +250,7 @@ func TestClientFdv2Credentials(t *testing.T) {
 }
 
 func TestClientFdv2ContextValidation(t *testing.T) {
-	router, _, _ := newClientFdv2TestRouter(t)
+	router, store, _ := newClientFdv2TestRouter(t)
 
 	t.Run("rejects a path segment that is not base64", func(t *testing.T) {
 		rec := serve(router, request(http.MethodGet, "/sdk/poll/eval/not-valid-base64!", "", withAuthHeader))
@@ -258,17 +258,26 @@ func TestClientFdv2ContextValidation(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 
-	t.Run("rejects base64 that does not decode to a context", func(t *testing.T) {
+	t.Run("rejects base64 that does not decode to JSON", func(t *testing.T) {
 		encoded := base64.RawURLEncoding.EncodeToString([]byte("not json"))
 		rec := serve(router, request(http.MethodGet, "/sdk/poll/eval/"+encoded, "", withAuthHeader))
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 
-	t.Run("rejects a context that is well-formed JSON but not a valid context", func(t *testing.T) {
-		rec := serve(router, request(http.MethodPost, "/sdk/poll/eval", `{"kind":"user"}`, withAuthHeader))
+	t.Run("rejects a body that is not JSON", func(t *testing.T) {
+		rec := serve(router, request(http.MethodPost, "/sdk/poll/eval", `{"kind":"user",`, withAuthHeader))
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	// The context is never used, so it is not held to the rules for a valid context.
+	t.Run("accepts well-formed JSON that is not a complete context", func(t *testing.T) {
+		expectEmptyProject(store, exampleProjectKey)
+
+		rec := serve(router, request(http.MethodPost, "/sdk/poll/eval", `{"kind":"user"}`, withAuthHeader))
+
+		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
 	t.Run("rejects an empty body", func(t *testing.T) {

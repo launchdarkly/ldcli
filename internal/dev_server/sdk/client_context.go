@@ -9,27 +9,26 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/pkg/errors"
 )
 
-// maxClientContextBytes caps how much of a POST or REPORT body is read while looking
-// for the evaluation context. Real contexts are orders of magnitude smaller.
+// maxClientContextBytes caps how much of a POST body is read while looking for the
+// evaluation context. Real contexts are orders of magnitude smaller.
 const maxClientContextBytes = 1 << 20
 
 // contextPathVar is the mux variable holding the base64url-encoded context that GET
 // variants of the client-side FDv2 endpoints carry in their path.
 const contextPathVar = "context"
 
-// ParseClientContext validates the evaluation context a client-side SDK sends with an
-// FDv2 request: base64url-encoded in the path for GET, or as the raw request body for
-// POST and REPORT.
+// ValidateClientContext checks that the evaluation context a client-side SDK sends with
+// an FDv2 request is well-formed JSON: base64url-encoded in the path for GET, or as the
+// raw request body for POST.
 //
 // The dev server does not support targeting. It serves the same variation of a flag no
-// matter who is evaluating, so the context is parsed only to reject malformed requests
-// the way the real service would, and is then discarded. See
+// matter who is evaluating, so the context is never used and is not checked against the
+// rules for a valid context. See
 // https://launchdarkly.com/docs/guides/flags/ldcli-dev-server-reference.
-func ParseClientContext(handler http.Handler) http.Handler {
+func ValidateClientContext(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if err := validateClientContext(writer, request); err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
@@ -45,7 +44,7 @@ func validateClientContext(writer http.ResponseWriter, request *http.Request) er
 		if err != nil {
 			return errors.Wrap(err, "context in path is not valid base64")
 		}
-		return parseClientContext(decoded)
+		return validateContextJSON(decoded)
 	}
 
 	body, err := io.ReadAll(http.MaxBytesReader(writer, request.Body, maxClientContextBytes))
@@ -55,7 +54,7 @@ func validateClientContext(writer http.ResponseWriter, request *http.Request) er
 	// The body is consumed here but the handlers downstream don't need the context, so
 	// hand back a replayable copy rather than an exhausted reader.
 	request.Body = io.NopCloser(bytes.NewReader(body))
-	return parseClientContext(body)
+	return validateContextJSON(body)
 }
 
 // decodeBase64Context decodes the context segment of a GET request path. Client-side
@@ -69,10 +68,9 @@ func decodeBase64Context(encoded string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(normalized)
 }
 
-func parseClientContext(data []byte) error {
-	var context ldcontext.Context
-	if err := json.Unmarshal(data, &context); err != nil {
-		return errors.Wrap(err, "unable to parse evaluation context")
+func validateContextJSON(data []byte) error {
+	if !json.Valid(data) {
+		return errors.New("evaluation context is not valid JSON")
 	}
-	return errors.Wrap(context.Err(), "invalid evaluation context")
+	return nil
 }

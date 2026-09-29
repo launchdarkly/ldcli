@@ -71,11 +71,11 @@ func BindRoutes(router *mux.Router) {
 // bindClientFdv2Route registers a client-side FDv2 route along with the three pieces of
 // middleware the protocol requires of every one of them: CORS (including the OPTIONS
 // preflight, which the gorilla handler answers before the rest of the chain runs),
-// credential resolution, and evaluation context validation.
+// credential resolution, and a check that the evaluation context is well-formed JSON.
 func bindClientFdv2Route(router *mux.Router, path string, handler http.HandlerFunc, methods ...string) {
 	route := router.Path(path).Subrouter()
 	route.Use(ClientFdv2CorsHeaders)
 	route.Use(GetProjectKeyFromClientCredential)
-	route.Use(ParseClientContext)
+	route.Use(ValidateClientContext)
 	route.Methods(append(methods, http.MethodOptions)...).HandlerFunc(handler)
 }
