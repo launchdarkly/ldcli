@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.13.0](https://github.com/launchdarkly/ldcli/compare/v3.12.0...v3.13.0) (2026-09-29)
+
+
+### Features
+
+* **sync:** add prompt reference workspaces ([#817](https://github.com/launchdarkly/ldcli/issues/817)) ([040479a](https://github.com/launchdarkly/ldcli/commit/040479a73715d5cd34c61559bd632162e08145a3))
+* **sync:** add the prompt sync command ([#814](https://github.com/launchdarkly/ldcli/issues/814)) ([9c9183e](https://github.com/launchdarkly/ldcli/commit/9c9183e0905a1f3c21c13383935e9d55236375b9))
+* **sync:** bootstrap prompt workspaces ([#812](https://github.com/launchdarkly/ldcli/issues/812)) ([c64ed62](https://github.com/launchdarkly/ldcli/commit/c64ed62e8c8eb43983f6fa8ce08b5ccc60620a2e))
+* **sync:** establish prompt sync foundations ([#810](https://github.com/launchdarkly/ldcli/issues/810)) ([568dff6](https://github.com/launchdarkly/ldcli/commit/568dff64bbee5b02bf19aa230951ca8910d3e22f))
+* **sync:** link and detach prompt resources ([#819](https://github.com/launchdarkly/ldcli/issues/819)) ([dfd82b2](https://github.com/launchdarkly/ldcli/commit/dfd82b25883f4ae6ee53072e5fc1c14f94669a1c))
+* **sync:** orchestrate prompt synchronization ([#820](https://github.com/launchdarkly/ldcli/issues/820)) ([dfbfa1b](https://github.com/launchdarkly/ldcli/commit/dfbfa1b55b6bf59a090d19fbd95cbe42de1b871a))
+* **sync:** persist local prompt workspaces ([#811](https://github.com/launchdarkly/ldcli/issues/811)) ([f0155d5](https://github.com/launchdarkly/ldcli/commit/f0155d58e876915bbf2f56ad1bcf41a4bf30a938))
+* **sync:** persist prompt sync manifests ([#818](https://github.com/launchdarkly/ldcli/issues/818)) ([d70eb9e](https://github.com/launchdarkly/ldcli/commit/d70eb9e62c155df8ee2bc60d97cda425dabf8c61))
+* **sync:** reconcile prompt variation changes ([#813](https://github.com/launchdarkly/ldcli/issues/813)) ([f9365cf](https://github.com/launchdarkly/ldcli/commit/f9365cf000a320acfdc7ecd7e7d6af82f522c894))
+
 ## [3.12.0](https://github.com/launchdarkly/ldcli/compare/v3.11.0...v3.12.0) (2026-09-19)
 
 
