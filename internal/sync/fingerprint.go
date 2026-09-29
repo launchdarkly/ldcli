@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 const variationFingerprintSchema = "launchdarkly.config.variation/v1"
@@ -26,13 +25,13 @@ func FingerprintVariation(projectKey, lookupKey string, variation Variation) (st
 	}
 	switch normalized.Mode {
 	case VariationModeAgent:
-		normalized.Instructions = strings.TrimSpace(normalized.Instructions)
+		normalized.Instructions = NormalizePromptText(normalized.Instructions)
 		normalized.Messages = nil
 	case VariationModeCompletion:
 		normalized.Instructions = ""
 		normalized.Messages = append([]Message(nil), normalized.Messages...)
 		for index := range normalized.Messages {
-			normalized.Messages[index].Content = strings.TrimSpace(normalized.Messages[index].Content)
+			normalized.Messages[index].Content = NormalizePromptText(normalized.Messages[index].Content)
 		}
 	}
 

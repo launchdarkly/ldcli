@@ -3,6 +3,7 @@ module github.com/launchdarkly/ldcli
 go 1.25
 
 require (
+	github.com/adrg/frontmatter v0.2.0
 	github.com/adrg/xdg v0.5.3
 	github.com/atotto/clipboard v0.1.4
 	github.com/blacktop/go-dwarf v1.0.14
@@ -42,6 +43,7 @@ require (
 )
 
 require (
+	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -106,4 +108,5 @@ require (
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

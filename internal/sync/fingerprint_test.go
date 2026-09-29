@@ -68,6 +68,45 @@ func TestFingerprintVariationNormalizesRenderedPromptWhitespace(t *testing.T) {
 	require.Equal(t, "\n  Be concise.  \n", completion.Messages[0].Content)
 }
 
+func TestFingerprintVariationNormalizesPromptLineEndings(t *testing.T) {
+	tests := map[string]struct {
+		windows Variation
+		unix    Variation
+	}{
+		"agent": {
+			windows: Variation{
+				Mode: VariationModeAgent, Key: "agent", Name: "Agent",
+				Instructions: "First line.\r\nSecond line.\rThird line.",
+			},
+			unix: Variation{
+				Mode: VariationModeAgent, Key: "agent", Name: "Agent",
+				Instructions: "First line.\nSecond line.\nThird line.",
+			},
+		},
+		"completion": {
+			windows: Variation{
+				Mode: VariationModeCompletion, Key: "completion", Name: "Completion",
+				Messages: []Message{{Role: "system", Content: "First line.\r\nSecond line.\rThird line."}},
+			},
+			unix: Variation{
+				Mode: VariationModeCompletion, Key: "completion", Name: "Completion",
+				Messages: []Message{{Role: "system", Content: "First line.\nSecond line.\nThird line."}},
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			windowsFingerprint, err := FingerprintVariation("project", "config/"+name, test.windows)
+			require.NoError(t, err)
+			unixFingerprint, err := FingerprintVariation("project", "config/"+name, test.unix)
+			require.NoError(t, err)
+
+			require.Equal(t, unixFingerprint, windowsFingerprint)
+		})
+	}
+}
+
 func TestValidateDirectAPIVariationSupportsModelConfigVersion(t *testing.T) {
 	base := Variation{Mode: VariationModeAgent, Key: "default", Name: "Default"}
 
