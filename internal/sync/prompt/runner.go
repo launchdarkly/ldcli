@@ -293,6 +293,9 @@ func loadWorkspacePlan(repositoryRoot string, baseline syncmanifest.Manifest, cl
 	if err != nil {
 		return Plan{}, err
 	}
+	if err := resolveVariationModelConfigs(localResources, client.ModelConfig); err != nil {
+		return Plan{}, err
+	}
 
 	resourceIDs := make(map[ResourceID]struct{}, len(localResources)+len(baseline.Resources))
 	for _, resource := range localResources {
