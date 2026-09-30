@@ -107,6 +107,67 @@ func TestFingerprintVariationNormalizesPromptLineEndings(t *testing.T) {
 	}
 }
 
+func TestFingerprintVariationNormalizesModelDefaults(t *testing.T) {
+	withoutDefaults := Variation{
+		Mode: VariationModeAgent,
+		Key:  "agent",
+		Name: "Agent",
+		Model: map[string]any{
+			"modelName": "claude",
+			"metadata":  map[string]any{},
+			"retries":   1,
+		},
+	}
+	withDefaults := withoutDefaults
+	withDefaults.Model = map[string]any{
+		"modelName":  "claude",
+		"parameters": map[string]any{},
+		"custom":     map[string]any{},
+		"metadata":   map[string]any{},
+		"retries":    1.0,
+	}
+
+	withoutDefaultsFingerprint, err := FingerprintVariation("project", "config/agent", withoutDefaults)
+	require.NoError(t, err)
+	withDefaultsFingerprint, err := FingerprintVariation("project", "config/agent", withDefaults)
+	require.NoError(t, err)
+
+	require.Equal(t, withoutDefaultsFingerprint, withDefaultsFingerprint)
+	require.Contains(t, withDefaults.Model, "parameters")
+	require.Contains(t, withDefaults.Model, "custom")
+}
+
+func TestFingerprintVariationPreservesMeaningfulModelChanges(t *testing.T) {
+	base := Variation{
+		Mode: VariationModeAgent,
+		Key:  "agent",
+		Name: "Agent",
+		Model: map[string]any{
+			"modelName": "claude",
+		},
+	}
+	withEmptyMetadata := base
+	withEmptyMetadata.Model = map[string]any{
+		"modelName": "claude",
+		"metadata":  map[string]any{},
+	}
+	withMetadata := base
+	withMetadata.Model = map[string]any{
+		"modelName": "claude",
+		"metadata":  map[string]any{"region": "us-east"},
+	}
+
+	baseFingerprint, err := FingerprintVariation("project", "config/agent", base)
+	require.NoError(t, err)
+	emptyMetadataFingerprint, err := FingerprintVariation("project", "config/agent", withEmptyMetadata)
+	require.NoError(t, err)
+	metadataFingerprint, err := FingerprintVariation("project", "config/agent", withMetadata)
+	require.NoError(t, err)
+
+	require.NotEqual(t, baseFingerprint, emptyMetadataFingerprint)
+	require.NotEqual(t, emptyMetadataFingerprint, metadataFingerprint)
+}
+
 func TestValidateDirectAPIVariationSupportsModelConfigVersion(t *testing.T) {
 	base := Variation{Mode: VariationModeAgent, Key: "default", Name: "Default"}
 
