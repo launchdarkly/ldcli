@@ -128,6 +128,21 @@ func TestRunnerWatchDoesNotRunInitialSync(t *testing.T) {
 	assert.True(t, watchCalled)
 }
 
+func TestOptionsForWatchSyncPreservesYes(t *testing.T) {
+	ctx := context.Background()
+	for _, yes := range []bool{false, true} {
+		options := optionsForWatchSync(ctx, Options{
+			Add: true, Format: syncreference.PlainMarkdown, Link: "prompt.md", Yes: yes,
+		})
+
+		assert.False(t, options.Add)
+		assert.Empty(t, options.Format)
+		assert.Empty(t, options.Link)
+		assert.Equal(t, yes, options.Yes)
+		assert.Equal(t, ctx, options.Context)
+	}
+}
+
 func TestRunnerLinksBeforeWatching(t *testing.T) {
 	root := initGitRepository(t)
 	runner := NewRunner(noopResourceClient{})
