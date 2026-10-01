@@ -15,6 +15,10 @@ import (
 func TestResolveVariationModelConfigs(t *testing.T) {
 	versioned := testVariation("versioned")
 	versioned.ModelConfigKey = "custom-model"
+	versioned.Model = map[string]any{
+		"parameters": map[string]any{"temperature": 0.8},
+		"custom":     map[string]any{"region": "us-east"},
+	}
 	unversioned := testVariation("unversioned")
 	unversioned.Key = "global"
 	unversioned.ModelConfigKey = "global-model"
@@ -31,7 +35,7 @@ func TestResolveVariationModelConfigs(t *testing.T) {
 	}
 	var requested []string
 
-	err := resolveVariationModelConfigs(resources, func(projectKey, modelConfigKey string) (syncapi.ModelConfig, error) {
+	followLatest, err := resolveVariationModelConfigs(resources, func(projectKey, modelConfigKey string) (syncapi.ModelConfig, error) {
 		assert.Equal(t, "production", projectKey)
 		requested = append(requested, modelConfigKey)
 		return map[string]syncapi.ModelConfig{
@@ -42,14 +46,18 @@ func TestResolveVariationModelConfigs(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"custom-model", "global-model"}, requested)
+	require.Equal(t, map[ResourceID]struct{}{
+		{Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/versioned"}: {},
+		{Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/global"}:    {},
+	}, followLatest)
 
 	var resolvedVersioned syncdomain.Variation
 	require.NoError(t, json.Unmarshal(resources[0].Payload, &resolvedVersioned))
 	assert.Equal(t, 4, resolvedVersioned.ModelConfigVersion)
 	assert.Equal(t, map[string]any{
 		"modelName":  "claude-4",
-		"parameters": map[string]any{"temperature": 0.2},
-		"custom":     map[string]any{},
+		"parameters": map[string]any{"temperature": 0.8},
+		"custom":     map[string]any{"region": "us-east"},
 	}, resolvedVersioned.Model)
 
 	var resolvedUnversioned syncdomain.Variation
@@ -65,7 +73,7 @@ func TestResolveVariationModelConfigsRejectsUnknownConfig(t *testing.T) {
 	variation := testVariation("local")
 	variation.ModelConfigKey = "missing"
 
-	err := resolveVariationModelConfigs(
+	_, err := resolveVariationModelConfigs(
 		[]syncdomain.SyncedResource{syncedVariation(t, "production", "support/default", variation)},
 		func(string, string) (syncapi.ModelConfig, error) {
 			return syncapi.ModelConfig{}, errors.New("model config not found")

@@ -144,6 +144,13 @@ func verifyLocalResult(repositoryRoot string, resource PlannedResource) error {
 	expectedFingerprint := resource.ServerFingerprint
 	if resource.Action == ActionDeleteLocal {
 		expectedFingerprint = ""
+	} else if resource.Action == ActionUpdateLocal && resource.Local != nil && resource.LocalFollowsLatestModelConfig {
+		expected := *resource.Server
+		expected.ModelConfigVersion = 0
+		expectedFingerprint, err = syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, expected)
+		if err != nil {
+			return err
+		}
 	}
 	if actualFingerprint != expectedFingerprint {
 		return fmt.Errorf("local variation did not match the expected state after sync")
