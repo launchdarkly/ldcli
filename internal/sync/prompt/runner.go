@@ -293,7 +293,8 @@ func loadWorkspacePlan(repositoryRoot string, baseline syncmanifest.Manifest, cl
 	if err != nil {
 		return Plan{}, err
 	}
-	if err := resolveVariationModelConfigs(localResources, client.ModelConfig); err != nil {
+	followLatest, err := resolveVariationModelConfigs(localResources, client.ModelConfig)
+	if err != nil {
 		return Plan{}, err
 	}
 
@@ -313,7 +314,11 @@ func loadWorkspacePlan(repositoryRoot string, baseline syncmanifest.Manifest, cl
 		}
 		serverResources[id] = resource
 	}
-	return BuildPlan(baseline, localResources, serverResources), nil
+	plan := BuildPlan(baseline, localResources, serverResources)
+	for index := range plan.Resources {
+		_, plan.Resources[index].LocalFollowsLatestModelConfig = followLatest[plan.Resources[index].ID]
+	}
+	return plan, nil
 }
 
 // samePlanState reports whether every reviewed decision still has the same inputs.
@@ -338,5 +343,6 @@ func samePlannedResourceState(reviewed, current PlannedResource) bool {
 		reviewed.LocalFingerprint == current.LocalFingerprint &&
 		reviewed.ServerFingerprint == current.ServerFingerprint &&
 		reviewed.ServerMode == current.ServerMode &&
-		reviewed.Upsert == current.Upsert
+		reviewed.Upsert == current.Upsert &&
+		reviewed.LocalFollowsLatestModelConfig == current.LocalFollowsLatestModelConfig
 }

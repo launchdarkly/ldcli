@@ -3,6 +3,7 @@ package prompt
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -17,8 +18,12 @@ type modelConfigID struct {
 
 // resolveVariationModelConfigs prepares compiled variations for planning.
 // An omitted version follows the latest versioned model config.
-func resolveVariationModelConfigs(resources []syncdomain.SyncedResource, getModelConfig modelConfigGetter) error {
+func resolveVariationModelConfigs(
+	resources []syncdomain.SyncedResource,
+	getModelConfig modelConfigGetter,
+) (map[ResourceID]struct{}, error) {
 	modelConfigs := make(map[modelConfigID]syncapi.ModelConfig)
+	followLatest := make(map[ResourceID]struct{})
 
 	for index := range resources {
 		resource := &resources[index]
@@ -28,11 +33,14 @@ func resolveVariationModelConfigs(resources []syncdomain.SyncedResource, getMode
 
 		var variation syncdomain.Variation
 		if err := json.Unmarshal(resource.Payload, &variation); err != nil {
-			return fmt.Errorf("decode local variation %q: %w", resource.LookupKey, err)
+			return nil, fmt.Errorf("decode local variation %q: %w", resource.LookupKey, err)
 		}
 		if variation.ModelConfigKey == "" || variation.ModelConfigVersion != 0 {
 			continue
 		}
+		followLatest[ResourceID{
+			Kind: resource.Kind, ProjectKey: resource.ProjectKey, LookupKey: resource.LookupKey,
+		}] = struct{}{}
 
 		id := modelConfigID{projectKey: resource.ProjectKey, configKey: variation.ModelConfigKey}
 		modelConfig, ok := modelConfigs[id]
@@ -40,7 +48,7 @@ func resolveVariationModelConfigs(resources []syncdomain.SyncedResource, getMode
 			var err error
 			modelConfig, err = getModelConfig(id.projectKey, id.configKey)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			modelConfigs[id] = modelConfig
 		}
@@ -49,13 +57,15 @@ func resolveVariationModelConfigs(resources []syncdomain.SyncedResource, getMode
 		}
 
 		variation.ModelConfigVersion = modelConfig.Version
-		variation.Model = modelConfig.VariationModel()
+		resolvedModel := modelConfig.VariationModel()
+		maps.Copy(resolvedModel, variation.Model)
+		variation.Model = resolvedModel
 		payload, err := json.Marshal(variation)
 		if err != nil {
-			return fmt.Errorf("encode resolved variation %q: %w", resource.LookupKey, err)
+			return nil, fmt.Errorf("encode resolved variation %q: %w", resource.LookupKey, err)
 		}
 		resource.Payload = payload
 	}
 
-	return nil
+	return followLatest, nil
 }

@@ -241,6 +241,37 @@ func TestPromptPullsServerChangeAndAdvancesManifest(t *testing.T) {
 	assertManifestFingerprint(t, root, server)
 }
 
+func TestPromptPullPreservesFollowLatestModelConfig(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	baseline.ModelConfigKey = "gemini"
+	baseline.ModelConfigVersion = 4
+	baseline.Model = map[string]any{"modelName": "gemini"}
+
+	local := baseline
+	local.ModelConfigVersion = 0
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, baseline)
+
+	server := baseline
+	server.Name = "Server"
+	api := &directAPI{
+		variation:    pointer(server),
+		modelConfigs: []syncapi.ModelConfig{{Key: "gemini", ID: "gemini", Version: 4}},
+	}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	requireLocalModelConfigVersion(t, root, 0)
+	assertManifestFingerprint(t, root, server)
+
+	api.requests = nil
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	requireOnlyReads(t, api.requests)
+}
+
 func TestPromptPushesLinkedFileContent(t *testing.T) {
 	root := initRepository(t)
 	local := variation("Linked")
