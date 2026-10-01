@@ -2,12 +2,29 @@ package prompt
 
 import (
 	"bytes"
+	"context"
+	"io"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type notifyingWriter struct {
+	io.Writer
+	once    sync.Once
+	written chan struct{}
+}
+
+func (writer *notifyingWriter) Write(data []byte) (int, error) {
+	if bytes.Contains(data, []byte("Sync these changes?")) {
+		writer.once.Do(func() { close(writer.written) })
+	}
+	return writer.Writer.Write(data)
+}
 
 func TestConfirmApply(t *testing.T) {
 	tests := []struct {
@@ -36,6 +53,63 @@ func TestConfirmApply(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReviewAndConfirmPlanStopsWhenWatchContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	input, inputWriter := io.Pipe()
+	defer input.Close()
+	defer inputWriter.Close()
+
+	promptStarted := make(chan struct{})
+	output := &notifyingWriter{Writer: io.Discard, written: promptStarted}
+	results := make(chan struct {
+		confirmed bool
+		err       error
+	}, 1)
+	go func() {
+		confirmed, err := reviewAndConfirmPlan(Options{
+			Watch: true, Context: ctx, Input: input, ErrorOutput: output,
+		}, Plan{Resources: []PlannedResource{{
+			ID: testResourceID(), Action: ActionArchiveServer,
+		}}}, true)
+		results <- struct {
+			confirmed bool
+			err       error
+		}{confirmed: confirmed, err: err}
+	}()
+
+	select {
+	case <-promptStarted:
+	case <-time.After(time.Second):
+		t.Fatal("confirmation prompt was not written")
+	}
+	cancel()
+
+	select {
+	case result := <-results:
+		require.False(t, result.confirmed)
+		require.ErrorIs(t, result.err, context.Canceled)
+	case <-time.After(time.Second):
+		_, err := io.WriteString(inputWriter, "yes\n")
+		require.NoError(t, err)
+		result := <-results
+		t.Fatalf("confirmation remained blocked after cancellation and later returned confirmed=%v, err=%v", result.confirmed, result.err)
+	}
+}
+
+func TestReviewAndConfirmPlanRejectsConfirmationWhenWatchContextIsAlreadyCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	confirmed, err := reviewAndConfirmPlan(Options{
+		Watch: true, Context: ctx, Input: strings.NewReader("yes\n"), ErrorOutput: io.Discard,
+	}, Plan{Resources: []PlannedResource{{
+		ID: testResourceID(), Action: ActionArchiveServer,
+	}}}, true)
+
+	require.False(t, confirmed)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {

@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -28,7 +29,7 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 		return true, nil
 	}
 
-	confirmed, err := confirmApply(options.Input, options.ErrorOutput, interactive)
+	confirmed, err := confirmApplyWithContext(options.Context, options.Input, options.ErrorOutput, interactive)
 	if err != nil {
 		return false, err
 	}
@@ -39,6 +40,39 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 }
 
 type terminalCheck func(io.Reader, io.Writer) bool
+
+type confirmationResult struct {
+	confirmed bool
+	err       error
+}
+
+func confirmApplyWithContext(ctx context.Context, input io.Reader, prompt io.Writer, interactive bool) (bool, error) {
+	if ctx == nil {
+		return confirmApply(input, prompt, interactive)
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+
+	// io.Reader has no context-aware read contract. Isolate the blocking read
+	// so cancellation can return immediately; the buffered channel lets the
+	// reader finish without waiting for a receiver after the caller exits.
+	result := make(chan confirmationResult, 1)
+	go func() {
+		confirmed, err := confirmApply(input, prompt, interactive)
+		result <- confirmationResult{confirmed: confirmed, err: err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return false, ctx.Err()
+	case confirmation := <-result:
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		return confirmation.confirmed, confirmation.err
+	}
+}
 
 // confirmApply asks an interactive user to approve planned changes.
 func confirmApply(input io.Reader, prompt io.Writer, interactive bool) (bool, error) {
