@@ -158,12 +158,7 @@ func (runner Runner) Run(options Options) error {
 		ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 		defer stop()
 
-		syncOptions := options
-		syncOptions.Add = false
-		syncOptions.Format = ""
-		syncOptions.Link = ""
-		syncOptions.Yes = true
-		syncOptions.Context = ctx
+		syncOptions := optionsForWatchSync(ctx, options)
 		// Watch owns the retry loop. Each callback still runs the exact same
 		// plan, review, revalidation, and execution pipeline as a normal sync.
 		return runner.watch(ctx, workspace.root, watchDebounce, func(watcher *sourceWatcher) error {
@@ -173,6 +168,16 @@ func (runner Runner) Run(options Options) error {
 	}
 
 	return runner.runWorkspaceSync(options, workspace)
+}
+
+// optionsForWatchSync clears one-time actions while preserving explicit user
+// choices such as --yes for each sync triggered by the watcher.
+func optionsForWatchSync(ctx context.Context, options Options) Options {
+	options.Add = false
+	options.Format = ""
+	options.Link = ""
+	options.Context = ctx
+	return options
 }
 
 // runWorkspaceSync plans, reviews, revalidates, and executes one workspace sync.
