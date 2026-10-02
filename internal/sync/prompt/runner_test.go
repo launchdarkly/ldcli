@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,9 +16,11 @@ import (
 
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	syncdetach "github.com/launchdarkly/ldcli/internal/sync/detach"
 	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
+	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
@@ -205,6 +208,18 @@ func TestValidateOptions(t *testing.T) {
 	require.ErrorContains(t, validateOptions(Options{Link: "prompt.md"}), "--link requires --format")
 	require.ErrorContains(t, validateOptions(Options{Watch: true, DryRun: true}), "--watch cannot be used with --dry-run")
 	require.ErrorContains(t, validateOptions(Options{Detach: true, Add: true}), "--detach cannot be combined")
+	require.ErrorContains(t, validateOptions(Options{
+		Attachment: &AttachmentRequest{Kind: syncdomain.AttachmentTool}, Watch: true,
+	}), "attachment options cannot be combined")
+	require.ErrorContains(t, validateOptions(Options{
+		Attachment: &AttachmentRequest{Kind: "invalid"},
+	}), "attachment kind")
+	require.NoError(t, validateOptions(Options{
+		Attachment: &AttachmentRequest{
+			Kind: syncdomain.AttachmentTool, Key: "search", ProjectKey: "project", Variation: "config/default",
+		},
+		Yes: true,
+	}))
 }
 
 func TestSamePlannedResourceStateDetectsChangedAttachmentPins(t *testing.T) {
@@ -222,6 +237,83 @@ func TestSamePlannedResourceStateDetectsChangedAttachmentPins(t *testing.T) {
 	assert.False(t, samePlannedResourceState(reviewed, current))
 }
 
+func TestAttachToVariationPreservesExistingSharedAttachmentEdits(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	localDescription, serverDescription := "Local edit", "Server content"
+	tool := syncdomain.Tool{Key: "search", Description: &localDescription, Schema: map[string]any{"type": "object"}}
+	first := testVariation("first")
+	first.Key = "first"
+	first.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	first.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &tool}}
+	second := testVariation("second")
+	second.Key = "second"
+	_, err := store.Add([]synclocal.VariationFile{
+		{ProjectKey: "project", ConfigKey: "config", Variation: first},
+		{ProjectKey: "project", ConfigKey: "config", Variation: second},
+	})
+	require.NoError(t, err)
+
+	transport := &attachmentMutationAPI{
+		current: syncdomain.Tool{Key: "search", Description: &serverDescription, Schema: map[string]any{"type": "object"}},
+		version: 2,
+	}
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+	err = attachToVariation(store, client, attachOptions{
+		RepositoryRoot: root,
+		ProjectKey:     "project",
+		VariationID:    "config/second",
+		Kind:           syncdomain.AttachmentTool,
+		Key:            "search",
+	})
+
+	require.NoError(t, err)
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	for _, resource := range resources {
+		require.Len(t, resource.Attachments, 1)
+		assert.Equal(t, localDescription, *resource.Attachments[0].Tool.Description)
+	}
+}
+
+func TestEmptyAttachmentSearchReturnsNoResults(t *testing.T) {
+	client := syncapi.NewClient(emptyAttachmentClient{}, "token", "https://example.com")
+
+	attachments, totalCount, err := searchAttachmentPage(client, "project", syncdomain.AttachmentTool, "missing", 25, 0)
+
+	require.NoError(t, err)
+	assert.Empty(t, attachments)
+	assert.Zero(t, totalCount)
+}
+
+func TestToolSearchPageReturnsTrueLatestVersion(t *testing.T) {
+	transport := &toolSearchClient{}
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+
+	attachments, totalCount, err := searchAttachmentPage(client, "project", syncdomain.AttachmentTool, "old description", 25, 0)
+
+	require.NoError(t, err)
+	require.Len(t, attachments, 1)
+	assert.Equal(t, 3, attachments[0].Version)
+	assert.Equal(t, 1, totalCount)
+	assert.Equal(t, 2, transport.requests)
+}
+
+func TestAddAttachmentContentPreservesOtherKinds(t *testing.T) {
+	skill := syncdomain.Skill{Key: "support", Markdown: "# Support"}
+	variation := syncdomain.Variation{
+		Skills:      []syncdomain.AttachmentRef{{Key: "support"}},
+		Attachments: []syncdomain.Attachment{{Kind: syncdomain.AttachmentSkill, Skill: &skill}},
+	}
+	tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+
+	addAttachmentContent(&variation, syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Version: 3, Tool: &tool})
+
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "support"}}, variation.Skills)
+	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search"}}, variation.Tools)
+	assert.Len(t, variation.Attachments, 2)
+}
+
 type noopResourceClient struct{}
 
 var _ resources.Client = noopResourceClient{}
@@ -231,6 +323,35 @@ func (noopResourceClient) MakeRequest(string, string, string, string, url.Values
 }
 
 func (noopResourceClient) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+type emptyAttachmentClient struct{}
+
+func (emptyAttachmentClient) MakeRequest(string, string, string, string, url.Values, []byte, bool) ([]byte, error) {
+	return []byte(`{"items":[],"totalCount":0}`), nil
+}
+
+func (emptyAttachmentClient) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+type toolSearchClient struct {
+	requests int
+}
+
+func (client *toolSearchClient) MakeRequest(_ string, _ string, path string, _ string, _ url.Values, _ []byte, _ bool) ([]byte, error) {
+	client.requests++
+	if strings.HasSuffix(path, "/ai-tools") {
+		return []byte(`{
+			"items":[{"key":"search","description":"old description","schema":{},"version":2}],
+			"totalCount":1
+		}`), nil
+	}
+	return []byte(`{"key":"search","description":"new description","schema":{},"version":3}`), nil
+}
+
+func (*toolSearchClient) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
 	return nil, nil
 }
 
