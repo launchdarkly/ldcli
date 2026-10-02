@@ -24,6 +24,14 @@ import (
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
+// AttachmentRequest identifies one tool or skill to attach to a managed variation.
+type AttachmentRequest struct {
+	Kind       syncdomain.AttachmentKind
+	Key        string
+	ProjectKey string
+	Variation  string
+}
+
 // Options contains command input and streams for one prompt synchronization.
 type Options struct {
 	WorkingDirectory string
@@ -31,6 +39,7 @@ type Options struct {
 	BaseURI          string
 	OutputKind       string
 	Add              bool
+	Attachment       *AttachmentRequest
 	Detach           bool
 	DryRun           bool
 	Format           string
@@ -133,6 +142,27 @@ func (runner Runner) Run(options Options) error {
 		return err
 	}
 
+	if options.Attachment != nil {
+		if !localDirectoryExists {
+			return fmt.Errorf("attach a tool or skill after synchronizing at least one variation")
+		}
+		if err := attachToVariation(workspace.local, apiClient, attachOptions{
+			RepositoryRoot: workspace.root,
+			ProjectKey:     options.Attachment.ProjectKey,
+			VariationID:    options.Attachment.Variation,
+			Kind:           options.Attachment.Kind,
+			Key:            options.Attachment.Key,
+			Interactive:    runner.isTerminal(options.Input, options.ErrorOutput),
+			Input:          options.Input,
+			Output:         options.Output,
+		}); err != nil {
+			if errors.Is(err, errAttachmentCanceled) {
+				return nil
+			}
+			return err
+		}
+	}
+
 	if !localDirectoryExists || options.Add {
 		if err := runner.bootstrap(syncbootstrap.Options{
 			Catalog:     apiClient,
@@ -182,6 +212,7 @@ func (runner Runner) Run(options Options) error {
 // choices such as --yes for each sync triggered by the watcher.
 func optionsForWatchSync(ctx context.Context, options Options) Options {
 	options.Add = false
+	options.Attachment = nil
 	options.Format = ""
 	options.Link = ""
 	options.Context = ctx
@@ -278,6 +309,13 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace) 
 // validateOptions rejects command modes whose side effects or UX conflict.
 func validateOptions(options Options) error {
 	switch {
+	case options.Attachment != nil &&
+		options.Attachment.Kind != syncdomain.AttachmentTool &&
+		options.Attachment.Kind != syncdomain.AttachmentSkill:
+		return fmt.Errorf("attachment kind must be tool or skill")
+	case options.Attachment != nil &&
+		(options.Add || options.Detach || options.DryRun || options.Link != "" || options.Format != "" || options.Watch):
+		return fmt.Errorf("attachment options cannot be combined with other sync actions")
 	case options.Detach && (options.Add || options.DryRun || options.Link != "" || options.Format != "" || options.Watch || options.Yes):
 		return fmt.Errorf("--detach cannot be combined with other sync actions")
 	case options.Link == "" && options.Format != "":
