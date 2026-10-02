@@ -242,6 +242,115 @@ func TestPromptFirstSyncCreatesUpsertVariation(t *testing.T) {
 	requireOnlyReads(t, api.requests)
 }
 
+func TestPromptAttachesLatestToolToManagedVariation(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	tool := syncdomain.Tool{
+		Key: "search", Description: pointer("Search documentation"),
+		Schema: map[string]any{"type": "object"},
+	}
+	api := &directAPI{
+		variation: pointer(baseline),
+		tools: map[string]versionedTool{
+			"search": {Tool: tool, Version: 4},
+		},
+	}
+
+	_, _, err := runPrompt(
+		t,
+		root,
+		api,
+		"--attach-tool=search",
+		"--project=production",
+		"--variation=support/default",
+		"--yes",
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 4}}, api.variation.Tools)
+
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Len(t, resources[0].Attachments, 1)
+	assert.Equal(t, "search", resources[0].Attachments[0].Key())
+	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "tools", "search.json"))
+	require.NoError(t, err)
+
+	expected := baseline
+	expected.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	expected.Attachments = []syncdomain.Attachment{toolAttachment(tool, 0)}
+	assertManifestFingerprint(t, root, expected)
+}
+
+func TestPromptAttachesLatestSkillAsMarkdownFile(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	description := "Customer support guidance"
+	markdown := "Follow the support process.\n"
+	skill := syncdomain.Skill{Key: "support", Name: "Support", Description: description, Markdown: markdown}
+	api := &directAPI{
+		variation: pointer(baseline),
+		skills: map[string]versionedSkill{
+			"support": {Skill: skill, Version: 3},
+		},
+	}
+
+	_, _, err := runPrompt(
+		t,
+		root,
+		api,
+		"--attach-skill=support",
+		"--project=production",
+		"--variation=support/default",
+		"--yes",
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, []syncdomain.AttachmentRef{{Key: "support", Version: 3}}, api.variation.Skills)
+	content, err := os.ReadFile(filepath.Join(
+		root, ".launchdarkly", "production", "skills", "support.md",
+	))
+	require.NoError(t, err)
+	assert.Equal(t, "---\nkey: support\ndescription: Customer support guidance\n---\n\nFollow the support process.\n", string(content))
+}
+
+func TestPromptRejectsSkillAttachmentForCompletionVariation(t *testing.T) {
+	root := initRepository(t)
+	completion := variation("Completion")
+	completion.Mode = syncdomain.VariationModeCompletion
+	completion.Instructions = ""
+	completion.Messages = []syncdomain.Message{{Role: "system", Content: "Help"}}
+	writeVariation(t, root, completion, true)
+	skill := syncdomain.Skill{Key: "support", Name: "Support", Markdown: "# Support\n"}
+	api := &directAPI{
+		skills: map[string]versionedSkill{
+			"support": {Skill: skill, Version: 3},
+		},
+	}
+
+	_, _, err := runPrompt(
+		t,
+		root,
+		api,
+		"--attach-skill=support",
+		"--project=production",
+		"--variation=support/default",
+		"--yes",
+	)
+
+	require.ErrorContains(t, err, "skills can only be attached to agent-mode configs")
+	assert.Empty(t, api.requests)
+	resources, compileErr := synclocal.CompileWorkspace(root)
+	require.NoError(t, compileErr)
+	require.Len(t, resources, 1)
+	assert.Empty(t, resources[0].Attachments)
+}
+
 func TestPromptCreatesMissingToolWhenUpsertIsEnabled(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
