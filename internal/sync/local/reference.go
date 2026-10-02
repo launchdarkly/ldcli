@@ -137,17 +137,26 @@ func SourceFiles(repositoryRoot string) ([]string, error) {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), variationFileSuffix) {
+		if entry.IsDir() {
 			return nil
 		}
 
-		// Add the managed file before attempting to parse it. A malformed file
-		// must remain watched so correcting its syntax can trigger another sync.
 		relative, err := filepath.Rel(repositoryRoot, filePath)
 		if err != nil {
 			return err
 		}
-		files = append(files, filepath.ToSlash(relative))
+		managedRelative, err := filepath.Rel(managedRoot, filePath)
+		if err != nil {
+			return err
+		}
+		// Every file below a project is a potential current or future sync
+		// input. Root-level files are package-owned metadata such as the manifest.
+		if filepath.Dir(managedRelative) != "." {
+			files = append(files, filepath.ToSlash(relative))
+		}
+		if !strings.HasSuffix(entry.Name(), variationFileSuffix) {
+			return nil
+		}
 
 		content, err := os.ReadFile(filePath)
 		if err != nil {
@@ -156,7 +165,10 @@ func SourceFiles(repositoryRoot string) ([]string, error) {
 		// Reference discovery is best effort. The compiler will report detailed
 		// syntax errors; the watcher only needs valid references it can follow.
 		var metadata variationFrontMatter
-		if _, err := parseYAMLFrontMatter(content, &metadata); err == nil && metadata.Ref != nil && validateReference(*metadata.Ref) == nil {
+		if _, err := parseYAMLFrontMatter(content, &metadata); err != nil {
+			return nil
+		}
+		if metadata.Ref != nil && validateReference(*metadata.Ref) == nil {
 			files = append(files, metadata.Ref.File)
 		}
 		return nil

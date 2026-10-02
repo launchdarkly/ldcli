@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +13,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
 
 type notifyingWriter struct {
@@ -50,6 +55,58 @@ func TestConfirmApply(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.Contains(t, prompt.String(), "Sync these changes?")
+			}
+		})
+	}
+}
+
+func TestCleanupOrphanedAttachmentsRequiresConfirmationUnlessYes(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		yes       bool
+		wantExist bool
+		message   string
+	}{
+		{name: "declined", input: "n\n", wantExist: true, message: "files kept"},
+		{name: "yes flag", yes: true, message: "Deleted unreferenced attachment files"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			store := synclocal.NewStore(root)
+			tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+			variation := syncdomain.Variation{
+				Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Default",
+				Tools: []syncdomain.AttachmentRef{{Key: tool.Key}},
+				Attachments: []syncdomain.Attachment{{
+					Kind: syncdomain.AttachmentTool, Tool: &tool,
+				}},
+			}
+			_, err := store.Add([]synclocal.VariationFile{{
+				ProjectKey: "project", ConfigKey: "config", Variation: variation,
+			}})
+			require.NoError(t, err)
+			variation.Tools = nil
+			variation.Attachments = nil
+			_, err = store.ReplaceVariations([]synclocal.VariationReplacement{{
+				ProjectKey: "project", ConfigKey: "config", Variation: variation,
+			}})
+			require.NoError(t, err)
+
+			var output bytes.Buffer
+			err = cleanupOrphanedAttachments(Options{
+				Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,
+			}, store, true)
+
+			require.NoError(t, err)
+			_, statErr := os.Stat(filepath.Join(root, ".launchdarkly", "project", "tools", "search.json"))
+			assert.Equal(t, test.wantExist, statErr == nil)
+			assert.Contains(t, output.String(), `Tool "search"`)
+			assert.Contains(t, output.String(), test.message)
+			if test.yes {
+				assert.NotContains(t, output.String(), "Delete these unreferenced local files?")
 			}
 		})
 	}

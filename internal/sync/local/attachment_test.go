@@ -200,6 +200,70 @@ func TestReplaceVariationsLeavesAttachmentUnchangedWhenPreflightFails(t *testing
 	assert.Equal(t, oldDescription, *attachment.Tool.Description)
 }
 
+func TestOrphanedAttachmentsRequireEveryLocalReferenceToBeRemoved(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(root)
+	tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+	first, second := localVariation("first"), localVariation("second")
+	for _, variation := range []*VariationFile{&first, &second} {
+		variation.Variation.Tools = []syncdomain.AttachmentRef{{Key: tool.Key}}
+		variation.Variation.Attachments = []syncdomain.Attachment{{
+			Kind: syncdomain.AttachmentTool, Tool: &tool,
+		}}
+	}
+	_, err := store.Add([]VariationFile{first, second})
+	require.NoError(t, err)
+
+	first.Variation.Tools = nil
+	first.Variation.Attachments = nil
+	_, err = store.ReplaceVariations([]VariationReplacement{{
+		ProjectKey: first.ProjectKey, ConfigKey: first.ConfigKey, Variation: first.Variation,
+	}})
+	require.NoError(t, err)
+	orphaned, err := store.OrphanedAttachments()
+	require.NoError(t, err)
+	assert.Empty(t, orphaned)
+
+	second.Variation.Tools = nil
+	second.Variation.Attachments = nil
+	_, err = store.ReplaceVariations([]VariationReplacement{{
+		ProjectKey: second.ProjectKey, ConfigKey: second.ConfigKey, Variation: second.Variation,
+	}})
+	require.NoError(t, err)
+	orphaned, err = store.OrphanedAttachments()
+	require.NoError(t, err)
+	require.Equal(t, []OrphanedAttachment{{
+		ProjectKey: "project", Kind: syncdomain.AttachmentTool, Key: "search", Path: "project/tools/search.json",
+	}}, orphaned)
+
+	deleted, err := store.DeleteAttachments(orphaned)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"project/tools/search.json"}, deleted)
+	_, statErr := os.Stat(filepath.Join(root, ".launchdarkly", "project", "tools", "search.json"))
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
+func TestOrphanedAttachmentsFindsFlatSkillFile(t *testing.T) {
+	root := t.TempDir()
+	skillPath := filepath.Join(root, ".launchdarkly", "project", "skills", "support.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(skillPath), 0o755))
+	require.NoError(t, os.WriteFile(skillPath, []byte("# Support\n"), 0o644))
+
+	store := NewStore(root)
+	orphaned, err := store.OrphanedAttachments()
+
+	require.NoError(t, err)
+	require.Equal(t, []OrphanedAttachment{{
+		ProjectKey: "project", Kind: syncdomain.AttachmentSkill, Key: "support", Path: "project/skills/support.md",
+	}}, orphaned)
+
+	deleted, err := store.DeleteAttachments(orphaned)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"project/skills/support.md"}, deleted)
+	_, statErr := os.Stat(skillPath)
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
 func TestCompileWorkspaceRejectsAttachmentSymlink(t *testing.T) {
 	root := t.TempDir()
 	wrapperPath := filepath.Join(root, ".launchdarkly", "project", "configs", "config", "default.prompt.md")

@@ -188,6 +188,7 @@ func TestRunWorkspaceSyncAppliesConflictChoiceAfterRevalidation(t *testing.T) {
 			Output: &output, ErrorOutput: &output,
 		},
 		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -212,6 +213,7 @@ func TestRunWorkspaceSyncAbortsConflictWithoutWriting(t *testing.T) {
 			Output: &output, ErrorOutput: &output,
 		},
 		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -237,6 +239,7 @@ func TestRunWorkspaceSyncAbortsAttachmentConflictWithoutWriting(t *testing.T) {
 			Output: &output, ErrorOutput: &output,
 		},
 		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -267,6 +270,7 @@ func TestRunWorkspaceSyncUsesLaunchDarklyForAttachmentConflict(t *testing.T) {
 			Output: &output, ErrorOutput: &output,
 		},
 		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		nil,
 	)
 
 	require.NoError(t, err)
