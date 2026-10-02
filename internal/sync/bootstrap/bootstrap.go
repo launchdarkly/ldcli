@@ -19,8 +19,8 @@ import (
 
 // Catalog lists projects and configs available for bootstrap.
 type Catalog interface {
-	Projects() ([]syncapi.Project, error)
-	Configs(projectKey string) ([]syncapi.Config, error)
+	SearchProjects(query string, limit, offset int) (syncapi.Page[syncapi.Project], error)
+	SearchConfigs(projectKey, query string, modes []syncdomain.VariationMode, limit, offset int) (syncapi.Page[syncapi.Config], error)
 }
 
 // ManifestStore persists the synchronization baseline after local files are written.
@@ -61,33 +61,36 @@ func Run(options Options) error {
 // selectVariationFiles guides the user from project to config to variations
 // and converts the selections into local wrapper definitions.
 func selectVariationFiles(options Options) ([]synclocal.VariationFile, bool, error) {
-	console := syncconsole.New(options.Output)
-	_ = console.Line("Loading LaunchDarkly projects...")
-	projects, err := options.Catalog.Projects()
-	if err != nil {
-		return nil, false, err
-	}
-	project, canceled, err := syncinteractive.Select(
-		options.Input,
-		options.Output,
-		"Choose a LaunchDarkly project",
-		projectChoices(projects),
-	)
+	project, canceled, err := syncinteractive.SearchSelect(syncinteractive.SearchOptions[syncapi.Project]{
+		Input:             options.Input,
+		Output:            options.Output,
+		SearchTitle:       "Search LaunchDarkly projects",
+		SearchPlaceholder: "Project name or key",
+		SelectTitle:       "Choose a LaunchDarkly project",
+		ItemName:          "projects",
+		Fetch: func(query string, limit, offset int) ([]syncapi.Project, int, error) {
+			page, err := options.Catalog.SearchProjects(query, limit, offset)
+			return page.Items, page.TotalCount, err
+		},
+		Choice: projectChoice,
+	})
 	if err != nil || canceled {
 		return nil, canceled, err
 	}
 
-	_ = console.Line("Loading configs...")
-	configs, err := options.Catalog.Configs(project.Key)
-	if err != nil {
-		return nil, false, err
-	}
-	config, canceled, err := syncinteractive.Select(
-		options.Input,
-		options.Output,
-		"Choose a config",
-		configChoices(configs),
-	)
+	config, canceled, err := syncinteractive.SearchSelect(syncinteractive.SearchOptions[syncapi.Config]{
+		Input:             options.Input,
+		Output:            options.Output,
+		SearchTitle:       "Search LaunchDarkly configs",
+		SearchPlaceholder: "Config name or key",
+		SelectTitle:       "Choose a config",
+		ItemName:          "configs",
+		Fetch: func(query string, limit, offset int) ([]syncapi.Config, int, error) {
+			page, err := options.Catalog.SearchConfigs(project.Key, query, nil, limit, offset)
+			return page.Items, page.TotalCount, err
+		},
+		Choice: configChoice,
+	})
 	if err != nil || canceled {
 		return nil, canceled, err
 	}
@@ -164,32 +167,24 @@ func variationChoices(
 			continue
 		}
 		choices = append(choices, syncinteractive.Choice[syncdomain.Variation]{
-			Title: variation.Name, Description: variation.Key, Value: variation,
+			Title: variation.Name, Description: "Key: " + variation.Key, Value: variation,
 		})
 	}
 	return choices, existingCount, nil
 }
 
-// projectChoices adapts API projects to the shared interactive choice model.
-func projectChoices(projects []syncapi.Project) []syncinteractive.Choice[syncapi.Project] {
-	choices := make([]syncinteractive.Choice[syncapi.Project], 0, len(projects))
-	for _, project := range projects {
-		choices = append(choices, syncinteractive.Choice[syncapi.Project]{
-			Title: project.Name, Description: project.Key, Value: project,
-		})
+// projectChoice keeps the readable project name above its stable key.
+func projectChoice(project syncapi.Project) syncinteractive.Choice[syncapi.Project] {
+	return syncinteractive.Choice[syncapi.Project]{
+		Title: project.Name, Description: "Key: " + project.Key, Value: project,
 	}
-	return choices
 }
 
-// configChoices adapts configs to labels that include both identity and mode.
-func configChoices(configs []syncapi.Config) []syncinteractive.Choice[syncapi.Config] {
-	choices := make([]syncinteractive.Choice[syncapi.Config], 0, len(configs))
-	for _, config := range configs {
-		choices = append(choices, syncinteractive.Choice[syncapi.Config]{
-			Title: config.Name, Description: fmt.Sprintf("%s · %s", config.Key, config.Mode), Value: config,
-		})
+// configChoice includes both the stable config identity and its mode.
+func configChoice(config syncapi.Config) syncinteractive.Choice[syncapi.Config] {
+	return syncinteractive.Choice[syncapi.Config]{
+		Title: config.Name, Description: fmt.Sprintf("Key: %s · Mode: %s", config.Key, config.Mode), Value: config,
 	}
-	return choices
 }
 
 // finishSelection validates the selected variations, renders dry-run previews,

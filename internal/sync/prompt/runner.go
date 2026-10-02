@@ -87,7 +87,7 @@ func (runner Runner) Run(options Options) error {
 		local:    synclocal.NewStore(resolvedWorkspace.Root),
 		manifest: syncmanifest.NewStore(resolvedWorkspace.Root),
 	}
-	catalog := syncapi.NewCatalogClient(runner.client, options.AccessToken, options.BaseURI)
+	apiClient := syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI)
 
 	if options.Detach {
 		return runner.detach(syncdetach.Options{
@@ -100,7 +100,7 @@ func (runner Runner) Run(options Options) error {
 	}
 	if options.Link != "" {
 		path, err := runner.link(synclink.Options{
-			Catalog:          catalog,
+			Catalog:          apiClient,
 			Store:            workspace.local,
 			RepositoryRoot:   workspace.root,
 			WorkingDirectory: options.WorkingDirectory,
@@ -128,7 +128,7 @@ func (runner Runner) Run(options Options) error {
 
 	if !localDirectoryExists || options.Add {
 		if err := runner.bootstrap(syncbootstrap.Options{
-			Catalog:  catalog,
+			Catalog:  apiClient,
 			Store:    workspace.local,
 			Manifest: workspace.manifest,
 			Input:    options.Input,
