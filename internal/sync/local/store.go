@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"syscall"
 
@@ -75,23 +74,6 @@ func (store Store) Exists() (bool, error) {
 		return false, fmt.Errorf("%s exists but is not a directory", store.root)
 	}
 	return true, nil
-}
-
-// ProjectKeys returns locally managed project keys in deterministic order.
-func (store Store) ProjectKeys() ([]string, error) {
-	entries, err := os.ReadDir(store.root)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", store.root, err)
-	}
-
-	var keys []string
-	for _, entry := range entries {
-		if entry.IsDir() {
-			keys = append(keys, entry.Name())
-		}
-	}
-	slices.Sort(keys)
-	return keys, nil
 }
 
 // VariationExists reports whether one local variation wrapper exists.

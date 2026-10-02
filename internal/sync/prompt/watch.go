@@ -319,9 +319,8 @@ func (watcher *sourceWatcher) relevant(event fsnotify.Event) bool {
 		if info, err := os.Stat(name); err == nil && info.IsDir() && watcher.shouldWatchDirectory(name) {
 			return true
 		}
-		// New resource kinds may use different filenames. Treat any new file in
-		// a project subtree as relevant so watch mode does not need to know each
-		// resource format. Root-level files are sync metadata such as the manifest.
+		// Treat new files in project subtrees as relevant so future managed
+		// resource kinds begin working without watcher-specific changes.
 		if watcher.insideManagedRoot(name) {
 			relative, err := filepath.Rel(watcher.managedRoot, name)
 			return err == nil && filepath.Dir(relative) != "."

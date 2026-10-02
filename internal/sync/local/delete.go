@@ -26,9 +26,7 @@ func (store Store) DeleteVariations(resources []VariationDeletion) ([]string, er
 	if err := stageDeletions(deletions); err != nil {
 		return nil, err
 	}
-	if err := commitDeletions(store.root, deletions); err != nil {
-		return nil, err
-	}
+	commitDeletions(store.root, deletions)
 	return deletionPaths(deletions), nil
 }
 
@@ -107,21 +105,15 @@ func reserveBackupPath(originalPath string) (string, error) {
 	return backupPath, nil
 }
 
-// commitDeletions removes staged backups and restores every remaining backup
-// if cleanup cannot continue.
-func commitDeletions(root string, deletions []stagedDeletion) error {
-	for index, deletion := range deletions {
-		if err := os.Remove(deletion.backupPath); err != nil {
-			// Backups deleted earlier are already committed. Restore every
-			// remaining backup so no additional resources are lost.
-			return errors.Join(
-				fmt.Errorf("finish deleting variation %s: %w", deletion.relativePath, err),
-				rollbackDeletions(deletions[index:]),
-			)
+// commitDeletions treats the completed batch rename as the commit point.
+// Backup cleanup is best effort because restoring only part of the batch would
+// make the visible workspace inconsistent again.
+func commitDeletions(root string, deletions []stagedDeletion) {
+	for _, deletion := range deletions {
+		if err := os.Remove(deletion.backupPath); err == nil {
+			removeEmptyParentsThroughRoot(root, filepath.Dir(deletion.originalPath))
 		}
-		removeEmptyParentsThroughRoot(root, filepath.Dir(deletion.originalPath))
 	}
-	return nil
 }
 
 // deletionPaths returns the stable repository-relative paths reported to callers.
