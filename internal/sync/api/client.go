@@ -98,7 +98,7 @@ func (client Client) ModelConfig(projectKey, modelConfigKey string) (ModelConfig
 
 // ReadVariation returns one variation and its parent config mode.
 func (client Client) ReadVariation(projectKey, configKey, variationKey string) (VariationState, error) {
-	config, err := NewCatalogClient(client.transport, client.accessToken, client.baseURI).Config(projectKey, configKey)
+	config, err := client.Config(projectKey, configKey)
 	if err != nil {
 		return VariationState{}, err
 	}
@@ -266,14 +266,27 @@ func (client Client) variationEndpoint(projectKey, configKey string, path ...str
 // response. Errors without a status code may represent a committed write whose
 // response was lost, so the reconciliation layer verifies those with a read.
 func newMutationError(action, variationKey string, err error) error {
-	var response struct {
-		StatusCode int `json:"statusCode"`
-	}
-	definitiveResponse := json.Unmarshal([]byte(err.Error()), &response) == nil && response.StatusCode != 0
+	return newResourceMutationError(action, "config variation", variationKey, err)
+}
+
+func newResourceMutationError(action, resource, key string, err error) error {
+	_, definitiveResponse := responseStatusCode(err)
 
 	return mutationError{
 		err:       err,
-		message:   fmt.Sprintf("%s config variation %q: %s", action, variationKey, err),
+		message:   fmt.Sprintf("%s %s %q: %s", action, resource, key, err),
 		uncertain: !definitiveResponse,
 	}
+}
+
+func responseStatusCode(err error) (int, bool) {
+	for current := err; current != nil; current = errors.Unwrap(current) {
+		var response struct {
+			StatusCode int `json:"statusCode"`
+		}
+		if json.Unmarshal([]byte(current.Error()), &response) == nil && response.StatusCode != 0 {
+			return response.StatusCode, true
+		}
+	}
+	return 0, false
 }
