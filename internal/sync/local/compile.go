@@ -3,9 +3,11 @@ package local
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -41,9 +43,36 @@ func Compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
 // CompileWorkspace compiles local resources and safely resolves references
 // within the Git repository.
 func CompileWorkspace(repositoryRoot string) ([]syncdomain.SyncedResource, error) {
-	return compile(os.DirFS(repositoryRoot), func(reference Reference) ([]byte, error) {
-		return readWorkspaceReference(repositoryRoot, reference)
+	root, err := filepath.EvalSymlinks(repositoryRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve repository root: %w", err)
+	}
+	return compile(workspaceFS{root: root}, func(reference Reference) ([]byte, error) {
+		return readWorkspaceReference(root, reference)
 	})
+}
+
+// workspaceFS rejects symlinks anywhere in a managed path. Managed files are
+// owned by sync and must not redirect reads outside (or elsewhere within) the
+// repository.
+type workspaceFS struct {
+	root string
+}
+
+func (fsys workspaceFS) Open(name string) (fs.File, error) {
+	if !fs.ValidPath(name) {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	}
+
+	target := filepath.Join(fsys.root, filepath.FromSlash(name))
+	resolved, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return nil, err
+	}
+	if filepath.Clean(resolved) != filepath.Clean(target) {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: errors.New("symbolic links are not supported")}
+	}
+	return os.Open(target)
 }
 
 // compile walks every managed project and delegates reference loading to the
@@ -119,6 +148,9 @@ func compileProjectVariations(
 			RelPath:       relPath,
 			Data:          data,
 			ReadReference: readReference,
+			ReadAttachment: func(kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
+				return readAttachment(fsys, projectKey, kind, key)
+			},
 		})
 		if err != nil {
 			// Preserve the managed path so users can locate malformed content

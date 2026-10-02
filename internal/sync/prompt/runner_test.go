@@ -207,6 +207,21 @@ func TestValidateOptions(t *testing.T) {
 	require.ErrorContains(t, validateOptions(Options{Detach: true, Add: true}), "--detach cannot be combined")
 }
 
+func TestSamePlannedResourceStateDetectsChangedAttachmentPins(t *testing.T) {
+	reviewedVariation := testVariation("reviewed")
+	reviewedVariation.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	currentVariation := reviewedVariation
+	currentVariation.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 2}}
+	reviewed := PlannedResource{
+		ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/default"},
+		Action: ActionUpdateServer, Server: &reviewedVariation, ServerHasStaleAttachmentPins: true,
+	}
+	current := reviewed
+	current.Server = &currentVariation
+
+	assert.False(t, samePlannedResourceState(reviewed, current))
+}
+
 type noopResourceClient struct{}
 
 var _ resources.Client = noopResourceClient{}

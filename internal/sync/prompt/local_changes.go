@@ -15,7 +15,7 @@ func applyLocalChange(store synclocal.Store, resource PlannedResource) error {
 
 	switch resource.Action {
 	case ActionUpdateLocal:
-		variation := *resource.Server
+		variation := variationPinnedToLatest(*resource.Server)
 		if resource.Local != nil && resource.LocalFollowsLatestModelConfig {
 			variation.ModelConfigVersion = 0
 		}
