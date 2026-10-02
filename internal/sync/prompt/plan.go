@@ -38,17 +38,19 @@ type ServerResource struct {
 // PlannedResource contains the compared local/server state and the action
 // selected for one resource.
 type PlannedResource struct {
-	ID                  ResourceID
-	Action              Action
-	Upsert              bool
-	BaselineFingerprint string
-	LocalFingerprint    string
-	ServerFingerprint   string
-	ServerMode          syncdomain.VariationMode
-	Local               *syncdomain.Variation
-	Server              *syncdomain.Variation
-	Diff                variationDiffFields
-	Error               string
+	ID                           ResourceID
+	Action                       Action
+	Upsert                       bool
+	BaselineFingerprint          string
+	LocalFingerprint             string
+	ServerFingerprint            string
+	ServerMode                   syncdomain.VariationMode
+	Local                        *syncdomain.Variation
+	Server                       *syncdomain.Variation
+	ServerHasStaleAttachmentPins bool
+	Diff                         variationDiffFields
+	Error                        string
+	changedAttachments           []attachmentID
 }
 
 // Plan contains sync decisions in deterministic resource order.
@@ -71,6 +73,9 @@ func BuildPlan(baseline syncmanifest.Manifest, local []syncdomain.SyncedResource
 
 	baselineByID := make(map[ResourceID]string, len(baseline.Resources))
 	for _, resource := range baseline.Resources {
+		if resource.ResourceKind != syncdomain.KindVariation {
+			continue
+		}
 		id := resource.ID()
 		baselineByID[id] = resource.Fingerprint
 		resourceIDs[id] = struct{}{}
@@ -114,6 +119,7 @@ func buildPlannedResource(
 			resource.Action, resource.Error = ActionError, fmt.Sprintf("decode local variation: %s", err)
 			return resource
 		}
+		variation.Attachments = localResource.Attachments
 		if variation.Mode != serverResource.ConfigMode {
 			resource.Action = ActionError
 			resource.Error = fmt.Sprintf("local mode %q does not match config mode %q", variation.Mode, serverResource.ConfigMode)
@@ -139,11 +145,109 @@ func buildPlannedResource(
 	}
 
 	resource.Action = chooseAction(tracked, resource)
+	currentPins, latestPins, stalePins := attachmentPinDiff(resource.Server)
+	resource.ServerHasStaleAttachmentPins = stalePins
+	if resource.ServerHasStaleAttachmentPins &&
+		(resource.Action == ActionInSync || resource.Action == ActionUpdateManifest) {
+		resource.Action = ActionUpdateServer
+	}
 	if resource.Action == ActionError {
 		resource.Error = "variation does not exist in LaunchDarkly; set upsert: true to create it"
 	}
-	resource.Diff = variationDiff(resource.Server, resource.Local)
+	// Diffs explain semantic changes. API-added defaults can make the raw JSON
+	// differ even when the canonical fingerprints—and therefore behavior—match.
+	if resource.LocalFingerprint != resource.ServerFingerprint {
+		resource.Diff = variationDiff(resource.Server, resource.Local)
+	}
+	resource.changedAttachments = changedAttachmentIDs(resource)
+	if resource.Action != ActionConflict && stalePins {
+		if resource.Diff == nil {
+			resource.Diff = variationDiffFields{}
+		}
+		resource.Diff["attachment versions"] = variationFieldDiff{Before: currentPins, After: latestPins}
+	}
 	return resource
+}
+
+// changedAttachmentIDs returns shared dependencies whose canonical local and
+// server content differs for this variation.
+func changedAttachmentIDs(resource PlannedResource) []attachmentID {
+	var conflicts []attachmentID
+	for _, kind := range []syncdomain.AttachmentKind{syncdomain.AttachmentTool, syncdomain.AttachmentSkill} {
+		for _, key := range changedAttachmentKeys(resource.Server, resource.Local, kind) {
+			conflicts = append(conflicts, attachmentID{
+				projectKey: resource.ID.ProjectKey,
+				kind:       kind,
+				key:        key,
+			})
+		}
+	}
+	return conflicts
+}
+
+// changedAttachmentKeys compares one attachment kind by stable key.
+func changedAttachmentKeys(before, after *syncdomain.Variation, kind syncdomain.AttachmentKind) []string {
+	beforeByKey := attachmentsByKey(before, kind)
+	afterByKey := attachmentsByKey(after, kind)
+	keys := make([]string, 0, len(beforeByKey)+len(afterByKey))
+
+	for key, attachment := range beforeByKey {
+		other, exists := afterByKey[key]
+		if !exists || !sameAttachmentContent(attachment, other) {
+			keys = append(keys, key)
+		}
+	}
+	for key := range afterByKey {
+		if _, exists := beforeByKey[key]; !exists {
+			keys = append(keys, key)
+		}
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+// attachmentsByKey indexes hydrated canonical content for comparison.
+func attachmentsByKey(variation *syncdomain.Variation, kind syncdomain.AttachmentKind) map[string]syncdomain.Attachment {
+	attachments := map[string]syncdomain.Attachment{}
+	if variation == nil {
+		return attachments
+	}
+	for _, attachment := range variation.Attachments {
+		if attachment.Kind == kind {
+			attachments[attachment.Key()] = attachment
+		}
+	}
+	return attachments
+}
+
+// attachmentPinDiff reports server references that do not use the latest
+// hydrated version.
+func attachmentPinDiff(variation *syncdomain.Variation) (json.RawMessage, json.RawMessage, bool) {
+	if variation == nil {
+		return nil, nil, false
+	}
+	current := map[string]map[string]int{"tools": {}, "skills": {}}
+	latest := map[string]map[string]int{"tools": {}, "skills": {}}
+	for _, ref := range variation.Tools {
+		if attachment, ok := variation.Attachment(syncdomain.AttachmentTool, ref.Key); ok &&
+			attachment.Version != ref.Version {
+			current["tools"][ref.Key] = ref.Version
+			latest["tools"][ref.Key] = attachment.Version
+		}
+	}
+	for _, ref := range variation.Skills {
+		if attachment, ok := variation.Attachment(syncdomain.AttachmentSkill, ref.Key); ok &&
+			attachment.Version != ref.Version {
+			current["skills"][ref.Key] = ref.Version
+			latest["skills"][ref.Key] = attachment.Version
+		}
+	}
+	if len(current["tools"]) == 0 && len(current["skills"]) == 0 {
+		return nil, nil, false
+	}
+	currentJSON, _ := json.Marshal(current)
+	latestJSON, _ := json.Marshal(latest)
+	return currentJSON, latestJSON, true
 }
 
 // RequiresConfirmation reports whether the plan changes local or server
@@ -256,19 +360,68 @@ func variationDiff(before, after *syncdomain.Variation) variationDiffFields {
 	if before == nil && after == nil {
 		return nil
 	}
-	beforeJSON, _ := json.Marshal(before)
-	afterJSON, _ := json.Marshal(after)
+
+	fields := variationDiffFields{}
+	beforeJSON, _ := json.Marshal(variationForDiff(before))
+	afterJSON, _ := json.Marshal(variationForDiff(after))
 	if before == nil {
 		beforeJSON = nil
 	}
 	if after == nil {
 		afterJSON = nil
 	}
-	if string(beforeJSON) == string(afterJSON) {
-		return nil
+	if string(beforeJSON) != string(afterJSON) {
+		fields["variation"] = variationFieldDiff{Before: beforeJSON, After: afterJSON}
 	}
 
-	return variationDiffFields{
-		"variation": {Before: beforeJSON, After: afterJSON},
+	beforeTools, beforeSkills := attachmentDiffValues(before)
+	afterTools, afterSkills := attachmentDiffValues(after)
+	if string(beforeTools) != string(afterTools) {
+		fields["tools"] = variationFieldDiff{Before: beforeTools, After: afterTools}
 	}
+	if string(beforeSkills) != string(afterSkills) {
+		fields["skills"] = variationFieldDiff{Before: beforeSkills, After: afterSkills}
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	return fields
+}
+
+func variationForDiff(variation *syncdomain.Variation) *syncdomain.Variation {
+	if variation == nil {
+		return nil
+	}
+	normalized := *variation
+	// Attachments have their own content-aware diff. Omitting their references
+	// here prevents the same attach or detach operation appearing twice.
+	normalized.Tools = nil
+	normalized.Skills = nil
+	return &normalized
+}
+
+func attachmentDiffValues(variation *syncdomain.Variation) (json.RawMessage, json.RawMessage) {
+	if variation == nil {
+		return nil, nil
+	}
+
+	var tools []syncdomain.Tool
+	var skills []syncdomain.Skill
+	for _, attachment := range variation.Attachments {
+		canonical := syncdomain.CanonicalAttachment(attachment)
+		if canonical.Tool != nil {
+			tools = append(tools, *canonical.Tool)
+		} else if canonical.Skill != nil {
+			skills = append(skills, *canonical.Skill)
+		}
+	}
+
+	var toolJSON, skillJSON json.RawMessage
+	if len(tools) != 0 {
+		toolJSON, _ = json.Marshal(tools)
+	}
+	if len(skills) != 0 {
+		skillJSON, _ = json.Marshal(skills)
+	}
+	return toolJSON, skillJSON
 }

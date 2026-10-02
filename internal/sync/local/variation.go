@@ -20,10 +20,11 @@ const (
 )
 
 type localFile struct {
-	ProjectKey    string
-	RelPath       string
-	Data          []byte
-	ReadReference func(Reference) ([]byte, error)
+	ProjectKey     string
+	RelPath        string
+	Data           []byte
+	ReadReference  func(Reference) ([]byte, error)
+	ReadAttachment func(syncdomain.AttachmentKind, string) (syncdomain.Attachment, error)
 }
 
 type variationFrontMatter struct {
@@ -99,6 +100,10 @@ func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
 		}
 	}
 
+	if err := hydrateLocalAttachments(&variation, file); err != nil {
+		return syncdomain.SyncedResource{}, err
+	}
+
 	payload, err := marshalPayload(variation)
 	if err != nil {
 		return syncdomain.SyncedResource{}, err
@@ -107,12 +112,39 @@ func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
 	configKey := path.Dir(file.RelPath)
 
 	return syncdomain.SyncedResource{
-		Kind:       syncdomain.KindVariation,
-		ProjectKey: file.ProjectKey,
-		LookupKey:  configKey + "/" + meta.Key,
-		Payload:    payload,
-		Upsert:     meta.Upsert,
+		Kind:        syncdomain.KindVariation,
+		ProjectKey:  file.ProjectKey,
+		LookupKey:   configKey + "/" + meta.Key,
+		Payload:     payload,
+		Attachments: variation.Attachments,
+		Upsert:      meta.Upsert,
 	}, nil
+}
+
+// hydrateLocalAttachments resolves key-only wrapper references into the
+// canonical dependency content included in variation fingerprints.
+func hydrateLocalAttachments(variation *syncdomain.Variation, file localFile) error {
+	if err := variation.NormalizeAttachments(); err != nil {
+		return err
+	}
+
+	variation.Attachments = make([]syncdomain.Attachment, 0, len(variation.Tools)+len(variation.Skills))
+	for _, ref := range variation.Tools {
+		attachment, err := file.ReadAttachment(syncdomain.AttachmentTool, ref.Key)
+		if err != nil {
+			return err
+		}
+		variation.Attachments = append(variation.Attachments, attachment)
+	}
+
+	for _, ref := range variation.Skills {
+		attachment, err := file.ReadAttachment(syncdomain.AttachmentSkill, ref.Key)
+		if err != nil {
+			return err
+		}
+		variation.Attachments = append(variation.Attachments, attachment)
+	}
+	return nil
 }
 
 // validateVariation checks the file format and binds the declared key to the filename.

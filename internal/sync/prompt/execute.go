@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
@@ -11,6 +12,151 @@ import (
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
+
+// attachmentResolver versions shared dependencies once per execution and
+// reuses both successful results and failures across every consumer.
+type attachmentResolver struct {
+	client   syncapi.Client
+	resolved map[attachmentID]syncdomain.Attachment
+	failures map[attachmentID]error
+}
+
+func newAttachmentResolver(client syncapi.Client) *attachmentResolver {
+	return &attachmentResolver{
+		client:   client,
+		resolved: make(map[attachmentID]syncdomain.Attachment),
+		failures: make(map[attachmentID]error),
+	}
+}
+
+func (resolver *attachmentResolver) resolveVariation(projectKey string, variation syncdomain.Variation) (syncdomain.Variation, error) {
+	// A value copy still shares slice backing arrays with the reviewed plan;
+	// clone pins before assigning server versions so review state stays immutable.
+	variation.Tools = slices.Clone(variation.Tools)
+	variation.Skills = slices.Clone(variation.Skills)
+	if err := resolver.resolveReferences(projectKey, syncdomain.AttachmentTool, variation.Tools, variation); err != nil {
+		return syncdomain.Variation{}, err
+	}
+	if err := resolver.resolveReferences(projectKey, syncdomain.AttachmentSkill, variation.Skills, variation); err != nil {
+		return syncdomain.Variation{}, err
+	}
+	return variation, nil
+}
+
+func (resolver *attachmentResolver) resolveReferences(
+	projectKey string,
+	kind syncdomain.AttachmentKind,
+	references []syncdomain.AttachmentRef,
+	variation syncdomain.Variation,
+) error {
+	for index := range references {
+		local, ok := variation.Attachment(kind, references[index].Key)
+		if !ok {
+			return fmt.Errorf("%s %q content is missing", kind, references[index].Key)
+		}
+		resolved, err := resolver.resolve(projectKey, local)
+		if err != nil {
+			return err
+		}
+		references[index].Version = resolved.Version
+	}
+	return nil
+}
+
+func (resolver *attachmentResolver) resolve(projectKey string, local syncdomain.Attachment) (syncdomain.Attachment, error) {
+	id := attachmentID{projectKey: projectKey, kind: local.Kind, key: local.Key()}
+	if err, failed := resolver.failures[id]; failed {
+		return syncdomain.Attachment{}, err
+	}
+	if attachment, ok := resolver.resolved[id]; ok {
+		return attachment, nil
+	}
+
+	remote, err := resolver.client.ReadAttachment(projectKey, local.Kind, local.Key())
+	var mutationErr error
+	switch {
+	case err == nil && sameAttachmentContent(local, remote):
+		resolver.resolved[id] = remote
+		return remote, nil
+	case err == nil:
+		mutationErr = resolver.client.UpdateAttachment(projectKey, local)
+	case syncapi.IsNotFound(err) && local.Kind == syncdomain.AttachmentTool && local.Upsert:
+		mutationErr = resolver.client.CreateAttachment(projectKey, local)
+	case syncapi.IsNotFound(err) && local.Kind == syncdomain.AttachmentTool:
+		err = fmt.Errorf(
+			"tool %q does not exist in LaunchDarkly; add \"upsert\": true to its local JSON file to create it during sync",
+			local.Key(),
+		)
+		resolver.failures[id] = err
+		return syncdomain.Attachment{}, err
+	default:
+		resolver.failures[id] = err
+		return syncdomain.Attachment{}, err
+	}
+
+	if mutationErr != nil && !syncapi.MutationMayHaveSucceeded(mutationErr) {
+		resolver.failures[id] = mutationErr
+		return syncdomain.Attachment{}, mutationErr
+	}
+
+	// Version allocation belongs to LaunchDarkly, so trust only a subsequent
+	// read. It also verifies writes whose response was lost or malformed.
+	observed, err := resolver.client.ReadAttachment(projectKey, local.Kind, local.Key())
+	if err != nil {
+		err = errors.Join(mutationErr, err)
+		resolver.failures[id] = err
+		return syncdomain.Attachment{}, err
+	}
+	if !sameAttachmentContent(local, observed) {
+		err = mutationErr
+		if err == nil {
+			err = fmt.Errorf("%s %q changed concurrently", local.Kind, local.Key())
+		}
+		resolver.failures[id] = err
+		return syncdomain.Attachment{}, err
+	}
+	resolver.resolved[id] = observed
+	return observed, nil
+}
+
+func sameAttachmentContent(left, right syncdomain.Attachment) bool {
+	leftJSON, _ := json.Marshal(syncdomain.CanonicalAttachment(left))
+	rightJSON, _ := json.Marshal(syncdomain.CanonicalAttachment(right))
+	return string(leftJSON) == string(rightJSON)
+}
+
+// variationForServerUpdate distinguishes omitted attachment fields from an
+// explicit request to detach every existing item.
+func variationForServerUpdate(local syncdomain.Variation, server *syncdomain.Variation) syncdomain.Variation {
+	if server == nil {
+		return local
+	}
+	if local.Tools == nil && len(server.Tools) != 0 {
+		local.Tools = []syncdomain.AttachmentRef{}
+	}
+	if local.Skills == nil && len(server.Skills) != 0 {
+		local.Skills = []syncdomain.AttachmentRef{}
+	}
+	return local
+}
+
+func variationPinnedToLatest(variation syncdomain.Variation) syncdomain.Variation {
+	// A value copy still shares slice backing arrays with the reviewed plan;
+	// clone pins before assigning latest versions.
+	variation.Tools = slices.Clone(variation.Tools)
+	variation.Skills = slices.Clone(variation.Skills)
+	for index := range variation.Tools {
+		if attachment, ok := variation.Attachment(syncdomain.AttachmentTool, variation.Tools[index].Key); ok {
+			variation.Tools[index].Version = attachment.Version
+		}
+	}
+	for index := range variation.Skills {
+		if attachment, ok := variation.Attachment(syncdomain.AttachmentSkill, variation.Skills[index].Key); ok {
+			variation.Skills[index].Version = attachment.Version
+		}
+	}
+	return variation
+}
 
 // executePlan applies each independently executable resource and advances the
 // manifest only for resources that succeed.
@@ -22,12 +168,20 @@ func executePlan(
 	plan Plan,
 	localFiles localFileResourcesByID,
 ) ([]ResourceOutcome, syncmanifest.Manifest, error) {
+	// Conflict resolution is a plan-wide decision. Refuse every mutation until
+	// all conflicts have a direction so a shared attachment cannot advance
+	// while one of its consumers remains unresolved.
+	if err := plan.BlockingError(); err != nil {
+		return nil, manifest, err
+	}
+
 	// Keep the reviewed baseline immutable while successful resources advance
 	// the result manifest independently.
 	manifest.Resources = append([]syncmanifest.Resource(nil), manifest.Resources...)
 
 	outcomes := make([]ResourceOutcome, 0, len(plan.Resources))
 	var failures []error
+	attachments := newAttachmentResolver(client)
 
 	for _, resource := range plan.Resources {
 		outcome := ResourceOutcome{ID: resource.ID, Action: resource.Action, Status: OutcomeSucceeded}
@@ -40,7 +194,14 @@ func executePlan(
 		case ActionRemoveManifest:
 			manifest.Remove(resource.ID)
 		case ActionCreateServer, ActionUpdateServer, ActionArchiveServer, ActionUpdateLocal, ActionDeleteLocal:
-			if err := applyResourceChange(repositoryRoot, localStore, client, resource, localFiles[resource.ID]); err != nil {
+			if err := applyResourceChange(
+				repositoryRoot,
+				localStore,
+				client,
+				attachments,
+				resource,
+				localFiles[resource.ID],
+			); err != nil {
 				outcome.Status, outcome.Error = OutcomeFailed, err.Error()
 				failures = append(failures, fmt.Errorf("%s/%s: %w", resource.ID.ProjectKey, resource.ID.LookupKey, err))
 				break
@@ -50,10 +211,57 @@ func executePlan(
 			outcome.Status, outcome.Error = OutcomeSkipped, "resource is not executable"
 		}
 
+		if outcome.Status == OutcomeSucceeded {
+			if variation := attachmentManifestState(resource); variation != nil {
+				if err := manifest.SetAttachments(resource.ID.ProjectKey, variation.Attachments); err != nil {
+					outcome.Status, outcome.Error = OutcomeFailed, err.Error()
+					failures = append(failures, err)
+				}
+			}
+		}
 		outcomes = append(outcomes, outcome)
 	}
 
+	if len(failures) == 0 {
+		if err := pruneAttachmentManifest(repositoryRoot, &manifest); err != nil {
+			failures = append(failures, err)
+		}
+	}
 	return outcomes, manifest, errors.Join(failures...)
+}
+
+func attachmentManifestState(resource PlannedResource) *syncdomain.Variation {
+	switch resource.Action {
+	case ActionInSync, ActionUpdateManifest, ActionCreateServer, ActionUpdateServer:
+		return resource.Local
+	case ActionUpdateLocal:
+		return resource.Server
+	default:
+		return nil
+	}
+}
+
+func pruneAttachmentManifest(repositoryRoot string, manifest *syncmanifest.Manifest) error {
+	resources, err := synclocal.CompileWorkspace(repositoryRoot)
+	if errors.Is(err, synclocal.ErrNoDirectory) {
+		resources = nil
+		err = nil
+	}
+	if err != nil {
+		return err
+	}
+	referenced := make(map[syncdomain.ResourceID]struct{})
+	for _, resource := range resources {
+		for _, attachment := range resource.Attachments {
+			referenced[syncdomain.ResourceID{
+				Kind:       syncdomain.Kind(attachment.Kind),
+				ProjectKey: resource.ProjectKey,
+				LookupKey:  attachment.Key(),
+			}] = struct{}{}
+		}
+	}
+	manifest.RemoveUnreferencedAttachments(referenced)
+	return nil
 }
 
 // applyResourceChange applies one local or server mutation from the plan
@@ -62,11 +270,12 @@ func applyResourceChange(
 	repositoryRoot string,
 	localStore synclocal.Store,
 	client syncapi.Client,
+	attachments *attachmentResolver,
 	resource PlannedResource,
 	localFile syncdomain.SyncedResource,
 ) error {
 	if changesServer(resource.Action) {
-		return applyServerChange(client, resource)
+		return applyServerChange(client, attachments, resource)
 	}
 	if resource.Action == ActionUpdateLocal {
 		variation, err := variationForLocalFile(*resource.Server, resource.Local, localFile)
@@ -78,7 +287,17 @@ func applyResourceChange(
 	if err := applyLocalChange(localStore, resource); err != nil {
 		return err
 	}
-	return verifyLocalResult(repositoryRoot, resource)
+	if err := verifyLocalResult(repositoryRoot, resource); err != nil {
+		return err
+	}
+	if resource.ServerHasStaleAttachmentPins && resource.Server != nil {
+		configKey, _, err := splitVariationLookupKey(resource.ID.LookupKey)
+		if err != nil {
+			return err
+		}
+		return client.UpdateVariation(resource.ID.ProjectKey, configKey, variationPinnedToLatest(*resource.Server))
+	}
+	return nil
 }
 
 // recordSuccessfulChange updates the manifest to the state selected by the
@@ -96,7 +315,7 @@ func recordSuccessfulChange(manifest *syncmanifest.Manifest, resource PlannedRes
 
 // applyServerChange performs one variation mutation through the existing
 // public config APIs.
-func applyServerChange(client syncapi.Client, resource PlannedResource) error {
+func applyServerChange(client syncapi.Client, attachments *attachmentResolver, resource PlannedResource) error {
 	configKey, variationKey, err := splitVariationLookupKey(resource.ID.LookupKey)
 	if err != nil {
 		return err
@@ -105,9 +324,20 @@ func applyServerChange(client syncapi.Client, resource PlannedResource) error {
 	var mutationErr error
 	switch resource.Action {
 	case ActionCreateServer:
-		mutationErr = client.CreateVariation(resource.ID.ProjectKey, configKey, *resource.Local)
+		variation, err := attachments.resolveVariation(resource.ID.ProjectKey, *resource.Local)
+		if err != nil {
+			return err
+		}
+		mutationErr = client.CreateVariation(resource.ID.ProjectKey, configKey, variation)
 	case ActionUpdateServer:
-		mutationErr = client.UpdateVariation(resource.ID.ProjectKey, configKey, *resource.Local)
+		variation, err := attachments.resolveVariation(
+			resource.ID.ProjectKey,
+			variationForServerUpdate(*resource.Local, resource.Server),
+		)
+		if err != nil {
+			return err
+		}
+		mutationErr = client.UpdateVariation(resource.ID.ProjectKey, configKey, variation)
 	case ActionArchiveServer:
 		mutationErr = client.ArchiveVariation(resource.ID.ProjectKey, configKey, variationKey)
 	}
@@ -127,6 +357,9 @@ func applyServerChange(client syncapi.Client, resource PlannedResource) error {
 
 	actualFingerprint := ""
 	if state.Exists {
+		if err := hydrateServerAttachments(client, resource.ID.ProjectKey, &state.Variation); err != nil {
+			return errors.Join(mutationErr, err)
+		}
 		actualFingerprint, readErr = syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, state.Variation)
 		if readErr != nil {
 			return errors.Join(mutationErr, readErr)
@@ -188,13 +421,15 @@ func readLocalFingerprint(repositoryRoot string, id ResourceID) (string, error) 
 		if err := json.Unmarshal(resource.Payload, &variation); err != nil {
 			return "", err
 		}
+		variation.Attachments = resource.Attachments
 		return syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, variation)
 	}
 	return "", nil
 }
 
-// readServerResource reads one supported resource from LaunchDarkly.
-func readServerResource(client syncapi.Client, id ResourceID) (ServerResource, error) {
+// readServerResource reads one supported resource and hydrates its shared
+// dependencies through the plan-local cache.
+func readServerResource(client syncapi.Client, attachments *attachmentHydrator, id ResourceID) (ServerResource, error) {
 	if id.Kind != syncdomain.KindVariation {
 		return ServerResource{}, fmt.Errorf("unsupported sync resource kind %q", id.Kind)
 	}
@@ -209,6 +444,9 @@ func readServerResource(client syncapi.Client, id ResourceID) (ServerResource, e
 
 	resource := ServerResource{ConfigMode: state.ConfigMode}
 	if state.Exists {
+		if err := attachments.hydrate(id.ProjectKey, &state.Variation); err != nil {
+			return ServerResource{}, err
+		}
 		resource.Variation = &state.Variation
 	}
 	return resource, nil

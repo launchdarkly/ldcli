@@ -27,22 +27,26 @@ type VariationState struct {
 }
 
 type createVariationRequest struct {
-	Key                string               `json:"key"`
-	Name               string               `json:"name"`
-	Instructions       string               `json:"instructions,omitempty"`
-	ModelConfigKey     string               `json:"modelConfigKey,omitempty"`
-	ModelConfigVersion int                  `json:"modelConfigVersion,omitempty"`
-	Model              map[string]any       `json:"model,omitempty"`
-	Messages           []syncdomain.Message `json:"messages,omitempty"`
+	Key                string                     `json:"key"`
+	Name               string                     `json:"name"`
+	Instructions       string                     `json:"instructions,omitempty"`
+	ModelConfigKey     string                     `json:"modelConfigKey,omitempty"`
+	ModelConfigVersion int                        `json:"modelConfigVersion,omitempty"`
+	Model              map[string]any             `json:"model,omitempty"`
+	Messages           []syncdomain.Message       `json:"messages,omitempty"`
+	Tools              []syncdomain.AttachmentRef `json:"tools,omitempty"`
+	Skills             []syncdomain.AttachmentRef `json:"skills,omitempty"`
 }
 
 type updateVariationRequest struct {
-	Name               string                `json:"name"`
-	Instructions       *string               `json:"instructions,omitempty"`
-	ModelConfigKey     string                `json:"modelConfigKey"`
-	ModelConfigVersion int                   `json:"modelConfigVersion,omitempty"`
-	Model              map[string]any        `json:"model"`
-	Messages           *[]syncdomain.Message `json:"messages,omitempty"`
+	Name               string                      `json:"name"`
+	Instructions       *string                     `json:"instructions,omitempty"`
+	ModelConfigKey     string                      `json:"modelConfigKey"`
+	ModelConfigVersion int                         `json:"modelConfigVersion,omitempty"`
+	Model              map[string]any              `json:"model"`
+	Messages           *[]syncdomain.Message       `json:"messages,omitempty"`
+	Tools              *[]syncdomain.AttachmentRef `json:"tools,omitempty"`
+	Skills             *[]syncdomain.AttachmentRef `json:"skills,omitempty"`
 }
 
 type mutationError struct {
@@ -133,6 +137,8 @@ func (client Client) CreateVariation(projectKey, configKey string, variation syn
 		ModelConfigKey:     variation.ModelConfigKey,
 		ModelConfigVersion: variation.ModelConfigVersion,
 		Model:              variation.Model,
+		Tools:              variation.Tools,
+		Skills:             variation.Skills,
 	}
 	if variation.Mode == syncdomain.VariationModeAgent {
 		request.Instructions = variation.Instructions
@@ -181,6 +187,12 @@ func (client Client) UpdateVariation(projectKey, configKey string, variation syn
 		ModelConfigKey:     variation.ModelConfigKey,
 		ModelConfigVersion: variation.ModelConfigVersion,
 		Model:              model,
+	}
+	if variation.Tools != nil {
+		request.Tools = &variation.Tools
+	}
+	if variation.Skills != nil {
+		request.Skills = &variation.Skills
 	}
 
 	// Agent and completion configs reject fields owned by the other mode, even

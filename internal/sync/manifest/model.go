@@ -56,6 +56,55 @@ func (manifest *Manifest) SetFingerprint(id syncdomain.ResourceID, fingerprint s
 	})
 }
 
+// SetAttachments records the canonical state of shared dependencies once,
+// regardless of how many variations reference them.
+func (manifest *Manifest) SetAttachments(projectKey string, attachments []syncdomain.Attachment) error {
+	return manifest.setAttachments(projectKey, attachments, true)
+}
+
+// SetAttachmentsIfMissing establishes baselines for newly tracked
+// dependencies without advancing existing baselines past unsynchronized edits.
+func (manifest *Manifest) SetAttachmentsIfMissing(projectKey string, attachments []syncdomain.Attachment) error {
+	return manifest.setAttachments(projectKey, attachments, false)
+}
+
+// setAttachments writes canonical dependency baselines with explicit overwrite behavior.
+func (manifest *Manifest) setAttachments(projectKey string, attachments []syncdomain.Attachment, overwrite bool) error {
+	for _, attachment := range attachments {
+		id := syncdomain.ResourceID{
+			Kind:       syncdomain.Kind(attachment.Kind),
+			ProjectKey: projectKey,
+			LookupKey:  attachment.Key(),
+		}
+		if !overwrite && manifest.has(id) {
+			continue
+		}
+		fingerprint, err := syncdomain.FingerprintAttachment(projectKey, attachment)
+		if err != nil {
+			return err
+		}
+		manifest.SetFingerprint(id, fingerprint)
+	}
+	return nil
+}
+
+// has reports whether one resource identity is already tracked.
+func (manifest Manifest) has(id syncdomain.ResourceID) bool {
+	return slices.ContainsFunc(manifest.Resources, func(resource Resource) bool { return resource.ID() == id })
+}
+
+// RemoveUnreferencedAttachments removes dependency baselines that no managed
+// variation references after a successful synchronization.
+func (manifest *Manifest) RemoveUnreferencedAttachments(referenced map[syncdomain.ResourceID]struct{}) {
+	manifest.Resources = slices.DeleteFunc(manifest.Resources, func(resource Resource) bool {
+		if resource.ResourceKind != syncdomain.KindTool && resource.ResourceKind != syncdomain.KindSkill {
+			return false
+		}
+		_, ok := referenced[resource.ID()]
+		return !ok
+	})
+}
+
 // Remove deletes one resource from the manifest.
 func (manifest *Manifest) Remove(id syncdomain.ResourceID) {
 	for index, resource := range manifest.Resources {

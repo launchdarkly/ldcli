@@ -15,7 +15,7 @@ func applyLocalChange(store synclocal.Store, resource PlannedResource) error {
 
 	switch resource.Action {
 	case ActionUpdateLocal:
-		variation := *resource.Server
+		variation := variationPinnedToLatest(*resource.Server)
 		if resource.Local == nil {
 			_, err := store.Add([]synclocal.VariationFile{{
 				ProjectKey: resource.ID.ProjectKey,
