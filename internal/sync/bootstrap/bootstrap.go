@@ -23,6 +23,10 @@ type Catalog interface {
 	SearchConfigs(projectKey, query string, modes []syncdomain.VariationMode, limit, offset int) (syncapi.Page[syncapi.Config], error)
 }
 
+type AttachmentReader interface {
+	ReadAttachment(projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error)
+}
+
 // ManifestStore persists the synchronization baseline after local files are written.
 type ManifestStore interface {
 	Load() (syncmanifest.Manifest, bool, error)
@@ -31,13 +35,14 @@ type ManifestStore interface {
 
 // Options contains the dependencies and streams for one bootstrap flow.
 type Options struct {
-	Catalog  Catalog
-	Store    synclocal.Store
-	Manifest ManifestStore
-	Input    io.Reader
-	Output   io.Writer
-	Initial  bool
-	DryRun   bool
+	Catalog     Catalog
+	Attachments AttachmentReader
+	Store       synclocal.Store
+	Manifest    ManifestStore
+	Input       io.Reader
+	Output      io.Writer
+	Initial     bool
+	DryRun      bool
 }
 
 // Run interactively selects prompt variations and writes their local wrappers.
@@ -131,6 +136,9 @@ func selectVariationFiles(options Options) ([]synclocal.VariationFile, bool, err
 
 	files := make([]synclocal.VariationFile, 0, len(variations))
 	for _, variation := range variations {
+		if err := hydrateAttachments(options.Attachments, project.Key, &variation); err != nil {
+			return nil, false, err
+		}
 		files = append(files, synclocal.VariationFile{
 			ProjectKey: project.Key,
 			ConfigKey:  config.Key,
@@ -139,6 +147,26 @@ func selectVariationFiles(options Options) ([]synclocal.VariationFile, bool, err
 		})
 	}
 	return files, false, nil
+}
+
+func hydrateAttachments(reader AttachmentReader, projectKey string, variation *syncdomain.Variation) error {
+	for index := range variation.Tools {
+		attachment, err := reader.ReadAttachment(projectKey, syncdomain.AttachmentTool, variation.Tools[index].Key)
+		if err != nil {
+			return err
+		}
+		variation.Tools[index].Version = attachment.Version
+		variation.SetAttachment(attachment)
+	}
+	for index := range variation.Skills {
+		attachment, err := reader.ReadAttachment(projectKey, syncdomain.AttachmentSkill, variation.Skills[index].Key)
+		if err != nil {
+			return err
+		}
+		variation.Skills[index].Version = attachment.Version
+		variation.SetAttachment(attachment)
+	}
+	return variation.NormalizeAttachments()
 }
 
 // variationChoices returns unsynchronized variations in stable display order
@@ -194,13 +222,13 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 		writeNoChangeSummary(options.Output, options.DryRun)
 		return nil
 	}
-	for _, file := range files {
-		if err := syncdomain.ValidateDirectAPIVariation(file.Variation); err != nil {
-			return err
-		}
-	}
 	if options.DryRun {
-		previews, err := options.Store.RenderVariations(files)
+		for _, file := range files {
+			if err := syncdomain.ValidateDirectAPIVariation(file.Variation); err != nil {
+				return err
+			}
+		}
+		previews, err := options.Store.RenderResources(files)
 		if err != nil {
 			return err
 		}
@@ -221,40 +249,30 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 		manifest.SetFingerprint(syncdomain.ResourceID{
 			Kind: syncdomain.KindVariation, ProjectKey: file.ProjectKey, LookupKey: lookupKey,
 		}, fingerprint)
+		if err := manifest.SetAttachmentsIfMissing(file.ProjectKey, file.Variation.Attachments); err != nil {
+			return err
+		}
 	}
 
-	var paths []string
+	var creation synclocal.Creation
 	if options.Initial {
-		paths, err = options.Store.Bootstrap(files)
+		creation, err = options.Store.BootstrapResources(files)
 	} else {
-		paths, err = options.Store.Add(files)
+		creation, err = options.Store.AddResources(files)
 	}
 	if err != nil {
 		return err
 	}
 	// The manifest is written last so it never claims a wrapper exists before
-	// that wrapper reaches disk. Roll back the wrappers if persistence fails.
+	// that wrapper reaches disk. Roll back every file this operation created if
+	// persistence fails, including shared dependencies that did not exist before.
 	if err := options.Manifest.Write(manifest); err != nil {
-		return errors.Join(err, rollbackVariationFiles(options.Store, files))
+		return errors.Join(err, options.Store.RollbackCreation(creation))
 	}
 
-	writeSummary(options.Output, options.Initial, len(paths))
+	writeSummary(options.Output, options.Initial, len(creation.VariationPaths))
 
 	return nil
-}
-
-// rollbackVariationFiles removes wrappers created by a failed bootstrap or add.
-func rollbackVariationFiles(store synclocal.Store, files []synclocal.VariationFile) error {
-	deletions := make([]synclocal.VariationDeletion, 0, len(files))
-	for _, file := range files {
-		deletions = append(deletions, synclocal.VariationDeletion{
-			ProjectKey:   file.ProjectKey,
-			ConfigKey:    file.ConfigKey,
-			VariationKey: file.Variation.Key,
-		})
-	}
-	_, err := store.DeleteVariations(deletions)
-	return err
 }
 
 // writeNoChangeSummary explains that every available variation is already local.

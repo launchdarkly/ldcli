@@ -85,6 +85,44 @@ func TestBuildPlanFirstSync(t *testing.T) {
 	}
 }
 
+func TestBuildPlanDoesNotTreatManifestAttachmentsAsIndependentTargets(t *testing.T) {
+	manifest := syncmanifest.New()
+	manifest.Resources = []syncmanifest.Resource{{
+		ResourceKind: syncdomain.KindTool,
+		ProjectKey:   "project",
+		LookupKey:    "search",
+		Fingerprint:  "sha256:ignored",
+	}}
+
+	plan := BuildPlan(manifest, nil, nil)
+
+	require.Empty(t, plan.Resources)
+}
+
+func TestBuildPlanOmitsDiffForEquivalentAPIDefaults(t *testing.T) {
+	local := testVariation("example")
+	local.Model = map[string]any{"modelName": "gpt-5"}
+	server := local
+	server.Model = map[string]any{
+		"modelName":  "gpt-5",
+		"custom":     map[string]any{},
+		"parameters": map[string]any{},
+	}
+
+	id := testResourceID()
+	fingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, server)
+	require.NoError(t, err)
+	manifest := syncmanifest.New()
+	manifest.SetFingerprint(id, fingerprint)
+
+	plan := BuildPlan(manifest, localResources(&local, false), map[ResourceID]ServerResource{
+		id: {Variation: &server, ConfigMode: syncdomain.VariationModeAgent},
+	})
+
+	require.Equal(t, ActionInSync, plan.Resources[0].Action)
+	require.Empty(t, plan.Resources[0].Diff)
+}
+
 func TestBuildPlanRejectsParentConfigModeMismatch(t *testing.T) {
 	local := testVariation("local")
 	id := testResourceID()

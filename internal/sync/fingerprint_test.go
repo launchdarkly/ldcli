@@ -168,6 +168,121 @@ func TestFingerprintVariationPreservesMeaningfulModelChanges(t *testing.T) {
 	require.NotEqual(t, emptyMetadataFingerprint, metadataFingerprint)
 }
 
+func TestFingerprintVariationTracksAttachmentContentButNotRuntimeVersions(t *testing.T) {
+	description := "Search documentation"
+	variation := Variation{
+		Mode: VariationModeAgent, Key: "default", Name: "Default",
+		Tools: []AttachmentRef{{Key: "search", Version: 2}},
+		Attachments: []Attachment{{
+			Kind: AttachmentTool,
+			Tool: &Tool{Key: "search", Description: &description, Schema: map[string]any{"type": "object"}},
+		}},
+	}
+	original, err := FingerprintVariation("project", "config/default", variation)
+	require.NoError(t, err)
+
+	variation.Tools[0].Version = 3
+	variation.Attachments[0].Upsert = true
+	repinned, err := FingerprintVariation("project", "config/default", variation)
+	require.NoError(t, err)
+	require.Equal(t, original, repinned)
+
+	updatedDescription := "Search all documentation"
+	variation.Attachments[0].Tool.Description = &updatedDescription
+	updated, err := FingerprintVariation("project", "config/default", variation)
+	require.NoError(t, err)
+	require.NotEqual(t, original, updated)
+}
+
+func TestFingerprintVariationTracksEditableSkillContentButNotServerOwnedName(t *testing.T) {
+	description := "Support guidance"
+	variation := Variation{
+		Mode: VariationModeAgent, Key: "default", Name: "Default",
+		Skills: []AttachmentRef{{Key: "support"}},
+		Attachments: []Attachment{{
+			Kind:  AttachmentSkill,
+			Skill: &Skill{Key: "support", Name: "Support", Description: description, Markdown: "# Support\n"},
+		}},
+	}
+	original, err := FingerprintVariation("project", "config/default", variation)
+	require.NoError(t, err)
+
+	variation.Attachments[0].Skill.Name = "Renamed"
+	nameChanged, err := FingerprintVariation("project", "config/default", variation)
+	require.NoError(t, err)
+	require.Equal(t, original, nameChanged)
+
+	updatedDescription := "Updated support guidance"
+	variation.Attachments[0].Skill.Description = updatedDescription
+	descriptionChanged, err := FingerprintVariation("project", "config/default", variation)
+	require.NoError(t, err)
+	require.NotEqual(t, original, descriptionChanged)
+
+	variation.Attachments[0].Skill.Markdown = "# Updated support\n"
+	contentChanged, err := FingerprintVariation("project", "config/default", variation)
+	require.NoError(t, err)
+	require.NotEqual(t, original, contentChanged)
+}
+
+func TestFingerprintVariationNormalizesEmptySkillDescription(t *testing.T) {
+	variation := Variation{
+		Mode: VariationModeAgent, Key: "default", Name: "Default",
+		Skills: []AttachmentRef{{Key: "support"}},
+		Attachments: []Attachment{{
+			Kind:  AttachmentSkill,
+			Skill: &Skill{Key: "support", Markdown: "# Support\n"},
+		}},
+	}
+	withoutDescription, err := FingerprintVariation("project", "config/default", variation)
+	require.NoError(t, err)
+
+	variation.Attachments[0].Skill.Description = ""
+	withEmptyDescription, err := FingerprintVariation("project", "config/default", variation)
+	require.NoError(t, err)
+
+	require.Equal(t, withoutDescription, withEmptyDescription)
+}
+
+func TestFingerprintAttachmentTracksCanonicalContentOnly(t *testing.T) {
+	description := "Search documentation"
+	tool := Attachment{
+		Kind: AttachmentTool, Version: 2,
+		Tool: &Tool{Key: "search", Description: &description, Schema: map[string]any{"type": "object"}},
+	}
+	originalTool, err := FingerprintAttachment("project", tool)
+	require.NoError(t, err)
+
+	tool.Version = 3
+	tool.Upsert = true
+	repinnedTool, err := FingerprintAttachment("project", tool)
+	require.NoError(t, err)
+	require.Equal(t, originalTool, repinnedTool)
+
+	updatedDescription := "Search all documentation"
+	tool.Tool.Description = &updatedDescription
+	updatedTool, err := FingerprintAttachment("project", tool)
+	require.NoError(t, err)
+	require.NotEqual(t, originalTool, updatedTool)
+
+	skill := Attachment{
+		Kind: AttachmentSkill, Version: 2,
+		Skill: &Skill{Key: "support", Name: "Support", Description: "Support guidance", Markdown: "# Support\n"},
+	}
+	originalSkill, err := FingerprintAttachment("project", skill)
+	require.NoError(t, err)
+
+	skill.Version = 3
+	skill.Skill.Name = "Renamed"
+	repinnedSkill, err := FingerprintAttachment("project", skill)
+	require.NoError(t, err)
+	require.Equal(t, originalSkill, repinnedSkill)
+
+	skill.Skill.Markdown = "# Updated support\n"
+	updatedSkill, err := FingerprintAttachment("project", skill)
+	require.NoError(t, err)
+	require.NotEqual(t, originalSkill, updatedSkill)
+}
+
 func TestValidateDirectAPIVariationSupportsModelConfigVersion(t *testing.T) {
 	base := Variation{Mode: VariationModeAgent, Key: "default", Name: "Default"}
 
@@ -178,4 +293,13 @@ func TestValidateDirectAPIVariationSupportsModelConfigVersion(t *testing.T) {
 	withOutput := base
 	withOutput.OutputFormat = map[string]any{"type": "json"}
 	require.ErrorContains(t, ValidateDirectAPIVariation(withOutput), "outputFormat")
+}
+
+func TestValidateDirectAPIVariationRejectsSkillsForCompletionMode(t *testing.T) {
+	variation := Variation{
+		Mode: VariationModeCompletion, Key: "default", Name: "Default",
+		Skills: []AttachmentRef{{Key: "support"}},
+	}
+
+	require.ErrorContains(t, ValidateDirectAPIVariation(variation), "skills can only be attached to agent-mode configs")
 }

@@ -2,6 +2,8 @@ package sync
 
 import (
 	"encoding/json"
+	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -13,6 +15,8 @@ type Kind string
 
 const (
 	KindVariation Kind = "variation"
+	KindTool      Kind = "tool"
+	KindSkill     Kind = "skill"
 )
 
 // ResourceID uniquely identifies a synchronized resource.
@@ -35,11 +39,12 @@ func CompareResourceIDs(left, right ResourceID) int {
 
 // SyncedResource contains one compiled local resource.
 type SyncedResource struct {
-	Kind       Kind
-	ProjectKey string
-	LookupKey  string
-	Payload    json.RawMessage
-	Upsert     bool
+	Kind        Kind
+	ProjectKey  string
+	LookupKey   string
+	Payload     json.RawMessage
+	Attachments []Attachment
+	Upsert      bool
 }
 
 // VariationMode identifies how a prompt variation stores its content.
@@ -135,13 +140,82 @@ func NormalizePromptText(content string) string {
 
 // Variation is the common prompt variation representation used by sync.
 type Variation struct {
-	Mode               VariationMode  `json:"mode" yaml:"mode"`
-	Key                string         `json:"key" yaml:"key"`
-	Name               string         `json:"name" yaml:"name"`
-	Instructions       string         `json:"instructions,omitempty" yaml:"-"`
-	ModelConfigKey     string         `json:"modelConfigKey,omitempty" yaml:"modelConfigKey,omitempty"`
-	ModelConfigVersion int            `json:"modelConfigVersion,omitempty" yaml:"modelConfigVersion,omitempty"`
-	Model              map[string]any `json:"model,omitempty" yaml:"model,omitempty"`
-	OutputFormat       map[string]any `json:"outputFormat,omitempty" yaml:"outputFormat,omitempty"`
-	Messages           []Message      `json:"messages,omitempty" yaml:"-"`
+	Mode               VariationMode   `json:"mode" yaml:"mode"`
+	Key                string          `json:"key" yaml:"key"`
+	Name               string          `json:"name" yaml:"name"`
+	Instructions       string          `json:"instructions,omitempty" yaml:"-"`
+	ModelConfigKey     string          `json:"modelConfigKey,omitempty" yaml:"modelConfigKey,omitempty"`
+	ModelConfigVersion int             `json:"modelConfigVersion,omitempty" yaml:"modelConfigVersion,omitempty"`
+	Model              map[string]any  `json:"model,omitempty" yaml:"model,omitempty"`
+	OutputFormat       map[string]any  `json:"outputFormat,omitempty" yaml:"outputFormat,omitempty"`
+	Messages           []Message       `json:"messages,omitempty" yaml:"-"`
+	Tools              []AttachmentRef `json:"tools,omitempty" yaml:"tools,omitempty"`
+	Skills             []AttachmentRef `json:"skills,omitempty" yaml:"skills,omitempty"`
+	Attachments        []Attachment    `json:"-" yaml:"-"`
+}
+
+// NormalizeAttachments validates, sorts, and de-duplicates attachment keys so
+// local ordering never produces fingerprint drift.
+func (variation *Variation) NormalizeAttachments() error {
+	if err := normalizeAttachmentRefs(AttachmentTool, variation.Tools); err != nil {
+		return err
+	}
+	if err := normalizeAttachmentRefs(AttachmentSkill, variation.Skills); err != nil {
+		return err
+	}
+	if err := validateAttachmentMode(*variation); err != nil {
+		return err
+	}
+
+	slices.SortFunc(variation.Tools, func(a, b AttachmentRef) int { return strings.Compare(a.Key, b.Key) })
+	slices.SortFunc(variation.Skills, func(a, b AttachmentRef) int { return strings.Compare(a.Key, b.Key) })
+	slices.SortFunc(variation.Attachments, func(a, b Attachment) int {
+		if result := strings.Compare(string(a.Kind), string(b.Kind)); result != 0 {
+			return result
+		}
+		return strings.Compare(a.Key(), b.Key())
+	})
+	return nil
+}
+
+// Attachment returns canonical content and the latest observed version for one reference.
+func (variation Variation) Attachment(kind AttachmentKind, key string) (Attachment, bool) {
+	for _, attachment := range variation.Attachments {
+		if attachment.Kind == kind && attachment.Key() == key {
+			return attachment, true
+		}
+	}
+	return Attachment{}, false
+}
+
+// SetAttachment inserts or replaces one canonical dependency.
+func (variation *Variation) SetAttachment(attachment Attachment) {
+	for index := range variation.Attachments {
+		if variation.Attachments[index].Kind == attachment.Kind && variation.Attachments[index].Key() == attachment.Key() {
+			variation.Attachments[index] = attachment
+			return
+		}
+	}
+	variation.Attachments = append(variation.Attachments, attachment)
+}
+
+func normalizeAttachmentRefs(kind AttachmentKind, refs []AttachmentRef) error {
+	seen := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		if strings.TrimSpace(ref.Key) == "" {
+			return fmt.Errorf("%s key is required", kind)
+		}
+		if _, duplicate := seen[ref.Key]; duplicate {
+			return fmt.Errorf("%s key %q is duplicated", kind, ref.Key)
+		}
+		seen[ref.Key] = struct{}{}
+	}
+	return nil
+}
+
+func validateAttachmentMode(variation Variation) error {
+	if variation.Mode == VariationModeCompletion && len(variation.Skills) != 0 {
+		return fmt.Errorf("skills can only be attached to agent-mode configs")
+	}
+	return nil
 }

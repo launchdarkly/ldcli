@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
@@ -32,6 +33,11 @@ type conflictChoice struct {
 	sourcesChanged bool
 }
 
+type conflictGroup struct {
+	resources  []PlannedResource
+	attachment bool
+}
+
 // resolveConflicts shows each conflict and asks which side should win.
 func resolveConflicts(
 	options Options,
@@ -40,12 +46,7 @@ func resolveConflicts(
 	interactive bool,
 	watched *watchedSources,
 ) (conflictResolutionResult, error) {
-	var conflicts []PlannedResource
-	for _, resource := range plan.Resources {
-		if resource.Action == ActionConflict {
-			conflicts = append(conflicts, resource)
-		}
-	}
+	conflicts := groupConflicts(plan)
 	if len(conflicts) == 0 {
 		return conflictResolutionResult{}, nil
 	}
@@ -55,11 +56,27 @@ func resolveConflicts(
 		)
 	}
 
-	result := conflictResolutionResult{resolutions: make(map[ResourceID]conflictResolution, len(conflicts))}
-	for _, resource := range conflicts {
-		conflict := Plan{Resources: []PlannedResource{resource}}
+	result := conflictResolutionResult{resolutions: make(map[ResourceID]conflictResolution)}
+	for _, group := range conflicts {
+		visible := make([]PlannedResource, 0, len(group.resources))
+		for _, resource := range group.resources {
+			if len(resource.Diff) != 0 {
+				visible = append(visible, resource)
+			}
+		}
+		if len(visible) == 0 {
+			visible = append(visible, group.resources[0])
+		}
+		conflict := Plan{Resources: visible}
 		if err := writePlanReview(options.ErrorOutput, "plaintext", conflict, terminalWidth(options.ErrorOutput)); err != nil {
 			return conflictResolutionResult{}, err
+		}
+		if group.attachment && len(group.resources) > 1 {
+			console := syncconsole.New(options.ErrorOutput)
+			_ = console.Printf("This attachment conflict affects %d variations:\n", len(group.resources))
+			for _, resource := range group.resources {
+				_ = console.Printf("- %s/%s\n", resource.ID.ProjectKey, resource.ID.LookupKey)
+			}
 		}
 
 		choice, err := readConflictChoice(options, reader, watched)
@@ -74,9 +91,54 @@ func resolveConflicts(
 			result.aborted = true
 			return result, nil
 		}
-		result.resolutions[resource.ID] = choice.resolution
+		for _, resource := range group.resources {
+			result.resolutions[resource.ID] = choice.resolution
+		}
 	}
 	return result, nil
+}
+
+// groupConflicts presents one choice for each connected set of variations that
+// share a changed dependency, including conflicts with other local edits.
+func groupConflicts(plan Plan) []conflictGroup {
+	var groups []conflictGroup
+	visited := make([]bool, len(plan.Resources))
+	for start := range plan.Resources {
+		if visited[start] || plan.Resources[start].Action != ActionConflict {
+			continue
+		}
+		visited[start] = true
+		indices := []int{start}
+		for next := 0; next < len(indices); next++ {
+			for candidate := range plan.Resources {
+				if visited[candidate] ||
+					plan.Resources[candidate].Action == ActionError ||
+					!sharesChangedAttachment(plan.Resources[indices[next]], plan.Resources[candidate]) {
+					continue
+				}
+				visited[candidate] = true
+				indices = append(indices, candidate)
+			}
+		}
+
+		group := conflictGroup{attachment: len(indices) > 1}
+		for _, index := range indices {
+			group.resources = append(group.resources, plan.Resources[index])
+		}
+		groups = append(groups, group)
+	}
+	return groups
+}
+
+// sharesChangedAttachment identifies variations that must resolve their shared
+// dependency in the same direction.
+func sharesChangedAttachment(left, right PlannedResource) bool {
+	for _, leftID := range left.changedAttachments {
+		if slices.Contains(right.changedAttachments, leftID) {
+			return true
+		}
+	}
+	return false
 }
 
 // readConflictChoice waits for a regular terminal choice or a watch-aware
@@ -89,11 +151,7 @@ func readConflictChoice(options Options, reader io.Reader, watched *watchedSourc
 }
 
 // promptConflictResolution asks which side should win one conflict.
-func promptConflictResolution(
-	ctx context.Context,
-	input io.Reader,
-	output io.Writer,
-) (conflictChoice, error) {
+func promptConflictResolution(ctx context.Context, input io.Reader, output io.Writer) (conflictChoice, error) {
 	resolution, canceled, err := syncinteractive.SelectContext(
 		ctx,
 		input,
@@ -193,13 +251,16 @@ func (watched watchedSources) WaitForChange(ctx context.Context) error {
 	}
 }
 
-// applyConflictResolutions replaces conflict actions with the selected direction.
+// applyConflictResolutions applies one direction to every resource in each
+// conflict group, including non-conflicted consumers of a shared attachment.
 func applyConflictResolutions(plan Plan, resolutions map[ResourceID]conflictResolution) Plan {
+	// Clone the resource slice before changing actions so the reviewed plan
+	// remains an immutable record for post-review revalidation.
 	resolved := Plan{Resources: append([]PlannedResource(nil), plan.Resources...)}
 	for index := range resolved.Resources {
 		resource := &resolved.Resources[index]
 		resolution, ok := resolutions[resource.ID]
-		if !ok || resource.Action != ActionConflict {
+		if !ok {
 			continue
 		}
 		resource.Action = resolvedConflictAction(*resource, resolution)
