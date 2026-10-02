@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/charmbracelet/lipgloss"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
 
@@ -122,34 +123,53 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 	}
 
 	currentProject := ""
+	currentConfig := ""
 	for _, resource := range plan.Resources {
 		if resource.ID.ProjectKey != currentProject {
 			if currentProject != "" {
 				_ = console.Line("")
 			}
 			currentProject = resource.ID.ProjectKey
+			currentConfig = ""
 			if outputKind == "markdown" {
 				_ = console.Printf("## Project `%s`\n", currentProject)
 			} else {
-				_ = console.Printf("Project: %s\n", currentProject)
+				_ = console.Printf("%s\n", reviewHeading("Project: "+currentProject, width))
 			}
 		}
 
 		if outputKind == "markdown" {
 			_ = console.Printf(
-				"\n### `%s`\n\nAction: **%s**\n",
+				"\n### Variation `%s`\n\nAction: **%s**\n",
 				resource.ID.LookupKey,
 				actionDescription(resource.Action),
 			)
 		} else {
-			_ = console.Printf(
-				"\n%s\n  Action: %s\n",
-				resource.ID.LookupKey,
-				actionDescription(resource.Action),
-			)
+			configKey, variationKey, err := splitVariationLookupKey(resource.ID.LookupKey)
+			if err == nil {
+				if configKey != currentConfig {
+					currentConfig = configKey
+					_ = console.Printf("\n  %s\n", reviewHeading("Config: "+configKey, width))
+				}
+				_ = console.Printf(
+					"\n    %s\n      Action: %s\n",
+					reviewHeading("Variation: "+variationKey, width),
+					actionDescription(resource.Action),
+				)
+			} else {
+				_ = console.Printf(
+					"\n  %s\n    Action: %s\n",
+					reviewHeading("Variation: "+resource.ID.LookupKey, width),
+					actionDescription(resource.Action),
+				)
+			}
 		}
 		if resource.Error != "" {
-			_ = console.Printf("  Error: %s\n", resource.Error)
+			if outputKind == "markdown" {
+				_ = console.Printf("Error: %s\n", resource.Error)
+			} else {
+				_ = console.Printf("      Error: %s\n", resource.Error)
+			}
 		}
 		if len(resource.Diff) != 0 {
 			rendered, err := renderVariationDiff(resource.Diff, outputKind, width, diffPresentation(resource.Action))
@@ -160,6 +180,13 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 		}
 	}
 	return nil
+}
+
+func reviewHeading(value string, width int) string {
+	if width <= 0 {
+		return value
+	}
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("67")).Bold(true).Render(value)
 }
 
 // actionDescription translates internal reconciliation actions into user-facing language.

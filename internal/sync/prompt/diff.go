@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	"github.com/pmezard/go-difflib/difflib"
 	"golang.org/x/term"
 )
@@ -22,18 +24,21 @@ type variationFieldDiff struct {
 
 type variationDiffFields map[string]variationFieldDiff
 
+type renderedDiffSection struct {
+	title  string
+	change string
+	before string
+	after  string
+}
+
+const (
+	diffSectionIndent = 6
+	diffBodyIndent    = 8
+)
+
 // renderVariationDiff formats structured field changes as terminal or Markdown
 // unified diffs, choosing side-by-side output when the terminal is wide enough.
-func renderVariationDiff(
-	fields variationDiffFields,
-	outputKind string,
-	width int,
-	presentation variationDiffPresentation,
-) (string, error) {
-	fields, err := collapseWholeVariationDiff(fields)
-	if err != nil {
-		return "", err
-	}
+func renderVariationDiff(fields variationDiffFields, outputKind string, width int, presentation variationDiffPresentation) (string, error) {
 	keys := make([]string, 0, len(fields))
 	for key := range fields {
 		keys = append(keys, key)
@@ -46,113 +51,180 @@ func renderVariationDiff(
 		if presentation.reverse {
 			diff.Before, diff.After = diff.After, diff.Before
 		}
-		before, err := formatDiffValue(diff.Before, presentation.beforeLabel, "")
+		sections, err := diffSections(key, diff, presentation)
 		if err != nil {
 			return "", err
 		}
-		after, err := formatDiffValue(diff.After, presentation.afterLabel, presentation.missingAfter)
-		if err != nil {
-			return "", err
-		}
-		change := "changed"
-		if len(diff.Before) == 0 {
-			change = "added"
-		}
-		if len(diff.After) == 0 {
-			change = "removed"
-		}
-
-		diffLines, err := unifiedDiffLines(
-			before,
-			after,
-			presentation.beforeLabel,
-			presentation.afterLabel,
-		)
-		if err != nil {
-			return "", err
-		}
-		if outputKind == "markdown" {
-			_, _ = fmt.Fprintf(&rendered, "\n#### %s (%s)\n\n", key, change)
-			_, _ = fmt.Fprintf(
-				&rendered,
-				"```diff\n%s\n```\n",
-				strings.Join(diffLines, "\n"),
-			)
-			continue
-		}
-		_, _ = fmt.Fprintf(&rendered, "\n  %s (%s)\n", key, change)
-		if width >= 100 {
-			rendered.WriteString(renderSideBySideUnifiedDiff(diffLines, width))
-		} else {
-			rendered.WriteString(renderUnifiedDiff(diffLines, width > 0))
+		for _, section := range sections {
+			diffLines, err := unifiedDiffLines(section.before, section.after, presentation.beforeLabel, presentation.afterLabel)
+			if err != nil {
+				return "", err
+			}
+			if key == "tools" || key == "skills" {
+				diffLines = slices.DeleteFunc(diffLines, func(line string) bool {
+					return strings.HasPrefix(line, "@@")
+				})
+			}
+			if outputKind == "markdown" {
+				_, _ = fmt.Fprintf(&rendered, "\n#### %s (%s)\n\n", section.title, section.change)
+				_, _ = fmt.Fprintf(&rendered, "```diff\n%s\n```\n", strings.Join(diffLines, "\n"))
+				continue
+			}
+			sectionTitle := fmt.Sprintf("%s (%s)", section.title, section.change)
+			if width > 0 {
+				sectionTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("67")).Bold(true).Render(sectionTitle)
+			}
+			_, _ = fmt.Fprintf(&rendered, "\n%s%s\n\n", strings.Repeat(" ", diffSectionIndent), sectionTitle)
+			if width >= 100 {
+				rendered.WriteString(renderSideBySideUnifiedDiff(diffLines, width))
+			} else {
+				rendered.WriteString(renderUnifiedDiff(diffLines, width > 0))
+			}
 		}
 	}
 	return rendered.String(), nil
 }
 
-// collapseWholeVariationDiff combines field-level all-add or all-remove
-// changes into one resource-level diff without rewrapping an existing resource.
-func collapseWholeVariationDiff(
-	fields map[string]variationFieldDiff,
-) (map[string]variationFieldDiff, error) {
-	if len(fields) == 0 {
-		return fields, nil
-	}
-	if _, alreadyWholeVariation := fields["variation"]; alreadyWholeVariation && len(fields) == 1 {
-		return fields, nil
-	}
-
-	allAdded := true
-	allRemoved := true
-	for _, diff := range fields {
-		allAdded = allAdded && len(diff.Before) == 0
-		allRemoved = allRemoved && len(diff.After) == 0
-	}
-	if !allAdded && !allRemoved {
-		return fields, nil
+func diffSections(field string, diff variationFieldDiff, presentation variationDiffPresentation) ([]renderedDiffSection, error) {
+	switch field {
+	case "tools":
+		return attachmentDiffSections[syncdomain.Tool]("Tool", diff, func(tool syncdomain.Tool) string { return tool.Key }, formatToolDetails)
+	case "skills":
+		return attachmentDiffSections[syncdomain.Skill](
+			"Skill",
+			diff,
+			func(skill syncdomain.Skill) string { return skill.Key },
+			formatSkillDetails,
+		)
 	}
 
-	values := make(map[string]json.RawMessage, len(fields))
-	for key, diff := range fields {
-		if allAdded {
-			values[key] = diff.After
-		} else {
-			values[key] = diff.Before
+	before, err := formatDiffValue(diff.Before, presentation.beforeLabel, "")
+	if err != nil {
+		return nil, err
+	}
+	after, err := formatDiffValue(diff.After, presentation.afterLabel, presentation.missingAfter)
+	if err != nil {
+		return nil, err
+	}
+	return []renderedDiffSection{{
+		title: diffFieldTitle(field), change: diffChangeKind(diff.Before, diff.After),
+		before: before, after: after,
+	}}, nil
+}
+
+func attachmentDiffSections[T any](
+	kind string,
+	diff variationFieldDiff,
+	key func(T) string,
+	format func(T) string,
+) ([]renderedDiffSection, error) {
+	before, err := decodeAttachmentDiffItems[T](diff.Before)
+	if err != nil {
+		return nil, fmt.Errorf("format %s diff: %w", strings.ToLower(kind), err)
+	}
+	after, err := decodeAttachmentDiffItems[T](diff.After)
+	if err != nil {
+		return nil, fmt.Errorf("format %s diff: %w", strings.ToLower(kind), err)
+	}
+
+	beforeByKey := make(map[string]T, len(before))
+	afterByKey := make(map[string]T, len(after))
+	keys := make([]string, 0, len(before)+len(after))
+	for _, item := range before {
+		beforeByKey[key(item)] = item
+		keys = append(keys, key(item))
+	}
+	for _, item := range after {
+		afterByKey[key(item)] = item
+		if _, exists := beforeByKey[key(item)]; !exists {
+			keys = append(keys, key(item))
 		}
 	}
-	value, err := json.Marshal(values)
-	if err != nil {
-		return nil, fmt.Errorf("combine variation diff: %w", err)
-	}
+	slices.Sort(keys)
 
-	combined := variationFieldDiff{}
-	if allAdded {
-		combined.After = value
-	} else {
-		combined.Before = value
+	sections := make([]renderedDiffSection, 0, len(keys))
+	for _, itemKey := range keys {
+		beforeItem, beforeExists := beforeByKey[itemKey]
+		afterItem, afterExists := afterByKey[itemKey]
+		if beforeExists && afterExists && reflect.DeepEqual(beforeItem, afterItem) {
+			continue
+		}
+
+		beforeValue, afterValue := "(not attached)", "(not attached)"
+		if beforeExists {
+			beforeValue = format(beforeItem)
+		}
+		if afterExists {
+			afterValue = format(afterItem)
+		}
+		sections = append(sections, renderedDiffSection{
+			title:  fmt.Sprintf("%s %q", kind, itemKey),
+			change: attachmentChangeKind(beforeExists, afterExists),
+			before: beforeValue,
+			after:  afterValue,
+		})
 	}
-	return map[string]variationFieldDiff{"variation": combined}, nil
+	return sections, nil
+}
+
+func decodeAttachmentDiffItems[T any](value json.RawMessage) ([]T, error) {
+	if len(value) == 0 || bytes.Equal(value, []byte("null")) {
+		return nil, nil
+	}
+	var items []T
+	if err := json.Unmarshal(value, &items); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func diffChangeKind(before, after json.RawMessage) string {
+	switch {
+	case len(before) == 0:
+		return "added"
+	case len(after) == 0:
+		return "removed"
+	default:
+		return "changed"
+	}
+}
+
+func attachmentChangeKind(before, after bool) string {
+	switch {
+	case !before:
+		return "added"
+	case !after:
+		return "removed"
+	default:
+		return "changed"
+	}
 }
 
 // unifiedDiffLines delegates line-level comparison to go-difflib while keeping
 // labels and context consistent across output modes.
-func unifiedDiffLines(
-	before string,
-	after string,
-	beforeLabel string,
-	afterLabel string,
-) ([]string, error) {
+func unifiedDiffLines(before, after, beforeLabel, afterLabel string) ([]string, error) {
 	diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
 		A:        diffInputLines(before),
 		B:        diffInputLines(after),
 		FromFile: beforeLabel,
 		ToFile:   afterLabel,
-		Context:  3,
+		Context:  1,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build variation diff: %w", err)
 	}
 	return strings.Split(strings.TrimSuffix(diff, "\n"), "\n"), nil
+}
+
+func diffFieldTitle(field string) string {
+	switch field {
+	case "variation":
+		return "Variation content"
+	case "attachment versions":
+		return "Attachment versions for this variation"
+	default:
+		return field
+	}
 }
 
 // diffInputLines gives every logical line the terminator expected by difflib.
@@ -171,6 +243,8 @@ func renderUnifiedDiff(lines []string, color bool) string {
 	for index := 0; index < len(lines); {
 		change := scanDiffChange(lines, index)
 		if len(change.removed) != 0 && len(change.added) != 0 {
+			// Clone scanned lines before styling so later rendering still sees
+			// the original diff text.
 			styledRemoved := append([]string(nil), change.removed...)
 			styledAdded := append([]string(nil), change.added...)
 			pairs := min(len(change.removed), len(change.added))
@@ -189,14 +263,15 @@ func renderUnifiedDiff(lines []string, color bool) string {
 				styledAdded[index] = styleDiffLine(styledAdded[index], color)
 			}
 			for _, line := range append(styledRemoved, styledAdded...) {
-				_, _ = fmt.Fprintf(&rendered, "    %s\n", line)
+				_, _ = fmt.Fprintf(&rendered, "%s%s\n", strings.Repeat(" ", diffBodyIndent), line)
 			}
 			index = change.next
 			continue
 		}
 		_, _ = fmt.Fprintf(
 			&rendered,
-			"    %s\n",
+			"%s%s\n",
+			strings.Repeat(" ", diffBodyIndent),
 			styleDiffLine(lines[index], color),
 		)
 		index++
@@ -212,10 +287,9 @@ func renderSideBySideUnifiedDiff(lines []string, width int) string {
 	}
 
 	const (
-		indentWidth = 4
-		columnGap   = 2
+		columnGap = 2
 	)
-	columnWidth := (width - indentWidth - columnGap) / 2
+	columnWidth := (width - diffBodyIndent - columnGap) / 2
 	cellStyle := lipgloss.NewStyle().Width(columnWidth)
 
 	var rendered strings.Builder
@@ -231,7 +305,7 @@ func renderSideBySideUnifiedDiff(lines []string, width int) string {
 		_, _ = fmt.Fprintf(
 			&rendered,
 			"%s\n",
-			indentBlock(row, indentWidth),
+			indentBlock(row, diffBodyIndent),
 		)
 	}
 
@@ -240,7 +314,8 @@ func renderSideBySideUnifiedDiff(lines []string, width int) string {
 		if strings.HasPrefix(lines[index], "@@") {
 			_, _ = fmt.Fprintf(
 				&rendered,
-				"    %s\n",
+				"%s%s\n",
+				strings.Repeat(" ", diffBodyIndent),
 				styleDiffLine(lines[index], true),
 			)
 			index++
@@ -359,12 +434,7 @@ func renderChangedLinePair(before, after string) (string, string) {
 
 // changedParts separates two lines into their shared prefix, changed middle,
 // and shared suffix using runes rather than bytes.
-func changedParts(before, after string) (
-	prefix string,
-	removed string,
-	added string,
-	suffix string,
-) {
+func changedParts(before, after string) (prefix, removed, added, suffix string) {
 	beforeRunes := []rune(before)
 	afterRunes := []rune(after)
 	prefixLength := 0
@@ -406,6 +476,92 @@ func formatDiffValue(value json.RawMessage, label string, missingValue string) (
 		return "", fmt.Errorf("format variation diff: %w", err)
 	}
 	return formatted.String(), nil
+}
+
+func formatToolDetails(tool syncdomain.Tool) string {
+	var rendered strings.Builder
+	if tool.Description != nil && *tool.Description != "" {
+		_, _ = fmt.Fprintf(&rendered, "Description: %s", *tool.Description)
+	}
+	writeDiffValue(&rendered, "Schema", tool.Schema, 0)
+	if len(tool.CustomParameters) != 0 {
+		writeDiffValue(&rendered, "Custom parameters", tool.CustomParameters, 0)
+	}
+	if len(tool.Tags) != 0 {
+		writeDiffValue(&rendered, "Tags", tool.Tags, 0)
+	}
+	return strings.TrimPrefix(rendered.String(), "\n")
+}
+
+func formatSkillDetails(skill syncdomain.Skill) string {
+	var rendered strings.Builder
+	if skill.Description != "" {
+		_, _ = fmt.Fprintf(&rendered, "Description: %s", skill.Description)
+	}
+	if skill.Markdown != "" {
+		if rendered.Len() > 0 {
+			rendered.WriteString("\n")
+		}
+		rendered.WriteString("Markdown:\n")
+		rendered.WriteString(indentBlock(strings.TrimSpace(skill.Markdown), 2))
+	}
+	if rendered.Len() == 0 {
+		return "(attached)"
+	}
+	return rendered.String()
+}
+
+func writeDiffValue(rendered *strings.Builder, label string, value any, indent int) {
+	padding := strings.Repeat(" ", indent)
+	switch value := value.(type) {
+	case map[string]any:
+		if len(value) == 0 {
+			_, _ = fmt.Fprintf(rendered, "\n%s%s: {}", padding, label)
+			return
+		}
+		_, _ = fmt.Fprintf(rendered, "\n%s%s:", padding, label)
+		writeDiffMap(rendered, value, indent+2)
+	case []string:
+		_, _ = fmt.Fprintf(rendered, "\n%s%s:", padding, label)
+		for _, item := range value {
+			_, _ = fmt.Fprintf(rendered, "\n%s- %s", strings.Repeat(" ", indent+2), item)
+		}
+	default:
+		_, _ = fmt.Fprintf(rendered, "\n%s%s: %v", padding, label, value)
+	}
+}
+
+func writeDiffMap(rendered *strings.Builder, values map[string]any, indent int) {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+
+	padding := strings.Repeat(" ", indent)
+	for _, key := range keys {
+		value := values[key]
+		switch nested := value.(type) {
+		case map[string]any:
+			if len(nested) == 0 {
+				_, _ = fmt.Fprintf(rendered, "\n%s%s: {}", padding, key)
+				continue
+			}
+			_, _ = fmt.Fprintf(rendered, "\n%s%s:", padding, key)
+			writeDiffMap(rendered, nested, indent+2)
+		case []any:
+			if len(nested) == 0 {
+				_, _ = fmt.Fprintf(rendered, "\n%s%s: []", padding, key)
+				continue
+			}
+			_, _ = fmt.Fprintf(rendered, "\n%s%s:", padding, key)
+			for _, item := range nested {
+				_, _ = fmt.Fprintf(rendered, "\n%s- %v", strings.Repeat(" ", indent+2), item)
+			}
+		default:
+			_, _ = fmt.Fprintf(rendered, "\n%s%s: %v", padding, key, value)
+		}
+	}
 }
 
 // terminalWidth returns zero for redirected output or unavailable terminal metadata.
