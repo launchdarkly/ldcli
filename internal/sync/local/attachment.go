@@ -3,10 +3,13 @@ package local
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -30,6 +33,21 @@ type toolFile struct {
 type skillFrontMatter struct {
 	Key         string  `yaml:"key"`
 	Description *string `yaml:"description"`
+}
+
+// OrphanedAttachment identifies a managed dependency file that no local
+// variation references.
+type OrphanedAttachment struct {
+	ProjectKey string
+	Kind       syncdomain.AttachmentKind
+	Key        string
+	Path       string
+}
+
+type attachmentFileID struct {
+	projectKey string
+	kind       syncdomain.AttachmentKind
+	key        string
 }
 
 // readTool loads and validates the deterministic local file for one tool key.
@@ -272,6 +290,129 @@ func (store Store) AttachVariation(projectKey, configKey string, variation syncd
 		Variation:  variation,
 	}})
 	return err
+}
+
+// OrphanedAttachments returns managed tool and skill files that are no longer
+// referenced by any local variation.
+func (store Store) OrphanedAttachments() ([]OrphanedAttachment, error) {
+	resources, err := CompileWorkspace(store.repositoryRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	referenced := make(map[attachmentFileID]struct{})
+	for _, resource := range resources {
+		for _, attachment := range resource.Attachments {
+			referenced[attachmentFileID{
+				projectKey: resource.ProjectKey,
+				kind:       attachment.Kind,
+				key:        attachment.Key(),
+			}] = struct{}{}
+		}
+	}
+
+	var orphaned []OrphanedAttachment
+	err = filepath.WalkDir(store.root, func(filePath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		relativePath, err := filepath.Rel(store.root, filePath)
+		if err != nil {
+			return err
+		}
+		attachment, ok := attachmentFromPath(filepath.ToSlash(relativePath))
+		if !ok {
+			return nil
+		}
+		id := attachmentFileID{
+			projectKey: attachment.ProjectKey,
+			kind:       attachment.Kind,
+			key:        attachment.Key,
+		}
+		if _, exists := referenced[id]; !exists {
+			orphaned = append(orphaned, attachment)
+		}
+		return nil
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find unreferenced attachments: %w", err)
+	}
+	slices.SortFunc(orphaned, func(left, right OrphanedAttachment) int {
+		if result := strings.Compare(left.ProjectKey, right.ProjectKey); result != 0 {
+			return result
+		}
+		if result := strings.Compare(string(left.Kind), string(right.Kind)); result != 0 {
+			return result
+		}
+		return strings.Compare(left.Key, right.Key)
+	})
+	return orphaned, nil
+}
+
+// DeleteAttachments transactionally removes confirmed local attachment files.
+func (store Store) DeleteAttachments(attachments []OrphanedAttachment) ([]string, error) {
+	deletions := make([]stagedDeletion, 0, len(attachments))
+	seen := make(map[string]struct{}, len(attachments))
+	for _, attachment := range attachments {
+		relativePath, err := attachmentPath(attachment.ProjectKey, attachment.Kind, attachment.Key)
+		if err != nil {
+			return nil, err
+		}
+		if relativePath != attachment.Path {
+			return nil, fmt.Errorf("attachment path %q does not match %q", attachment.Path, relativePath)
+		}
+		if _, duplicate := seen[relativePath]; duplicate {
+			return nil, fmt.Errorf("attachment %q was selected more than once", relativePath)
+		}
+		seen[relativePath] = struct{}{}
+
+		absolutePath := filepath.Join(store.root, filepath.FromSlash(relativePath))
+		if err := rejectSymlinkedPath(store.root, absolutePath); err != nil {
+			return nil, err
+		}
+		info, err := os.Lstat(absolutePath)
+		if err != nil {
+			return nil, fmt.Errorf("inspect attachment %s: %w", relativePath, err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("attachment %s is not a regular file", relativePath)
+		}
+		deletions = append(deletions, stagedDeletion{
+			relativePath: relativePath,
+			originalPath: absolutePath,
+		})
+	}
+
+	if err := stageDeletions(deletions); err != nil {
+		return nil, err
+	}
+	commitDeletions(store.root, deletions)
+	return deletionPaths(deletions), nil
+}
+
+func attachmentFromPath(filePath string) (OrphanedAttachment, bool) {
+	parts := strings.Split(filePath, "/")
+	if len(parts) == 3 && parts[1] == toolsDir && strings.HasSuffix(parts[2], toolFileSuffix) {
+		key := strings.TrimSuffix(parts[2], toolFileSuffix)
+		expected, err := attachmentPath(parts[0], syncdomain.AttachmentTool, key)
+		return OrphanedAttachment{
+			ProjectKey: parts[0], Kind: syncdomain.AttachmentTool, Key: key, Path: filePath,
+		}, err == nil && expected == filePath
+	}
+	if len(parts) == 3 && parts[1] == skillsDir && strings.HasSuffix(parts[2], skillFileSuffix) {
+		key := strings.TrimSuffix(parts[2], skillFileSuffix)
+		expected, err := attachmentPath(parts[0], syncdomain.AttachmentSkill, key)
+		return OrphanedAttachment{
+			ProjectKey: parts[0], Kind: syncdomain.AttachmentSkill, Key: key, Path: filePath,
+		}, err == nil && expected == filePath
+	}
+	return OrphanedAttachment{}, false
 }
 
 func attachmentPath(projectKey string, kind syncdomain.AttachmentKind, key string) (string, error) {

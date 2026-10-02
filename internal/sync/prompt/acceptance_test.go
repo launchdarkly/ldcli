@@ -459,6 +459,38 @@ func TestPromptPullsLatestToolAndAdvancesVariationPin(t *testing.T) {
 	assertManifestFingerprint(t, root, expected)
 }
 
+func TestPromptDeletesUnreferencedLocalToolWithYes(t *testing.T) {
+	root := initRepository(t)
+	tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+	baseline := variation("Baseline")
+	baseline.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 2}}
+	baseline.Attachments = []syncdomain.Attachment{toolAttachment(tool, 2)}
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	serverVariation := baseline
+	serverVariation.Attachments = nil
+	api := &directAPI{
+		variation: &serverVariation,
+		tools: map[string]versionedTool{
+			"search": {Tool: tool, Version: 2},
+		},
+	}
+	detached := variation("Baseline")
+	_, err := synclocal.NewStore(root).ReplaceVariations([]synclocal.VariationReplacement{{
+		ProjectKey: "production", ConfigKey: "support", Variation: detached,
+	}})
+	require.NoError(t, err)
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Empty(t, api.variation.Tools)
+	assert.Contains(t, api.tools, "search")
+	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "tools", "search.json"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	assertManifestFingerprint(t, root, detached)
+}
+
 func TestPromptUpdateResolvesOmittedModelConfigVersionToLatest(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Matching")

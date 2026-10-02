@@ -50,7 +50,6 @@ type Options struct {
 	Input            io.Reader
 	Output           io.Writer
 	ErrorOutput      io.Writer
-	watcher          *sourceWatcher
 }
 
 type bootstrapRunner func(syncbootstrap.Options) error
@@ -202,12 +201,11 @@ func (runner Runner) Run(options Options) error {
 		// Watch owns the retry loop. Each callback still runs the exact same
 		// plan, review, revalidation, and execution pipeline as a normal sync.
 		return runner.watch(ctx, workspace.root, watchDebounce, func(watcher *sourceWatcher) error {
-			syncOptions.watcher = watcher
-			return runner.runWorkspaceSync(syncOptions, workspace)
+			return runner.runWorkspaceSync(syncOptions, workspace, watcher)
 		}, options.ErrorOutput)
 	}
 
-	return runner.runWorkspaceSync(options, workspace)
+	return runner.runWorkspaceSync(options, workspace, nil)
 }
 
 // optionsForWatchSync clears one-time actions while preserving explicit user
@@ -222,18 +220,15 @@ func optionsForWatchSync(ctx context.Context, options Options) Options {
 }
 
 // runWorkspaceSync plans, reviews, revalidates, and executes one workspace sync.
-func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace) error {
+func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, watcher *sourceWatcher) error {
 	var watched *watchedSources
-	if options.Watch {
-		if options.watcher == nil {
-			return fmt.Errorf("watch mode requires an initialized file watcher")
-		}
+	if watcher != nil {
 		snapshot, err := sourceSnapshot(workspace.root)
 		if err != nil {
 			return err
 		}
 		watched = &watchedSources{
-			watcher:  options.watcher,
+			watcher:  watcher,
 			snapshot: snapshot,
 			debounce: watchDebounce,
 		}
@@ -272,8 +267,14 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace) 
 
 	resolvedPlan := applyConflictResolutions(reviewedPlan, conflictResult.resolutions)
 	shouldContinue, err := reviewAndConfirmPlan(options, resolvedPlan, interactive)
-	if err != nil || !shouldContinue {
+	if err != nil {
 		return err
+	}
+	if !shouldContinue {
+		if !resolvedPlan.HasChanges() {
+			return cleanupOrphanedAttachments(options, workspace.local, interactive)
+		}
+		return nil
 	}
 
 	// Re-read both sides after review so no action uses stale state.
@@ -311,6 +312,9 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace) 
 	}
 	if err := writeOutcomeOutput(options.Output, options.OutputKind, outcomes); err != nil {
 		executionErr = errors.Join(executionErr, err)
+	}
+	if executionErr == nil {
+		executionErr = cleanupOrphanedAttachments(options, workspace.local, interactive)
 	}
 	return executionErr
 }
