@@ -43,6 +43,13 @@ func NewDevServerCmd(client resources.Client, analyticsTrackerFn analytics.Track
 	_ = viper.BindPFlag(cliflags.DevStreamURIFlag, cmd.PersistentFlags().Lookup(cliflags.DevStreamURIFlag))
 
 	cmd.PersistentFlags().String(
+		cliflags.HostFlag,
+		cliflags.HostDefault,
+		cliflags.HostFlagDescription,
+	)
+	_ = viper.BindPFlag(cliflags.HostFlag, cmd.PersistentFlags().Lookup(cliflags.HostFlag))
+
+	cmd.PersistentFlags().String(
 		cliflags.PortFlag,
 		cliflags.PortDefault,
 		cliflags.PortFlagDescription,
