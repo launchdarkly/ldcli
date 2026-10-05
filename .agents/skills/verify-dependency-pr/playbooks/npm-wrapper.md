@@ -8,6 +8,8 @@ The root package publishes `@launchdarkly/ldcli` to npm. Its only dependency is 
 
 ## Impact analysis
 
+- **The lockfile is not published.** Users get whatever go-npm version satisfies the `package.json` range (`^0.2.0`). A lockfile-only bump changes what CI and the check install, but not what users install. Only a range change in `package.json` reaches users.
+
 - Read the go-npm changelog. Look at changes to `goBinary` templating (`{{version}}`, `{{platform}}`, `{{arch}}`), the archive formats it extracts, the platform and arch names it maps (darwin/linux/windows, amd64/arm64/386), and its `engines`.
 - Check that the release asset names produced by `.goreleaser.yaml` (`archives.name_template`) still match what the new go-npm expects.
 - Publishing goes through `scripts/publish-npm.sh` and `.github/actions/publish-npm` with npm trusted publishing (npm ≥11.5.1). The bump must not need different publish flags.

@@ -40,18 +40,24 @@ The runner runs each script twice: once with `SIDE=base` and `WT=<base worktree>
 
 Useful helpers: `detail "markdown line"` (shown in the comment), `detail_block file [lines]`, `recommend "action"`, `run cmd…` (echoes the command to the log), `build_ldcli <path>`, `ensure_ui_deps`, `free_port`, `updates_for <ecosystem>`, `$UI_DIR_REL`.
 
-For Go-level behavior, the most reliable pattern is a throwaway test file. Copy it into the package under test, run only that test, then delete it:
+For Go-level behavior, the most reliable pattern is a throwaway test file. Copy it into the package under test, run only that test, then delete it. This is the check used for go-sqlite3 1.14.52 (#829). It measured 2.03 extra allocations per row on the old version and 0.03 on the new one, so it is proven:
 
 ```bash
 #!/usr/bin/env bash
 source "$VERIFY_ROOT/lib/check.sh"
-cp "$(dirname "$0")/sqlite_probe_test.go.txt" "$WT/internal/dev_server/db/zz_verify_probe_test.go"
-trap 'rm -f "$WT/internal/dev_server/db/zz_verify_probe_test.go"' EXIT
-if (cd "$WT" && run go test -count=1 -run '^TestVerifyProbe$' ./internal/dev_server/db/); then
-  pass "cached statement sees the new column"
-fi
-fail "cached statement returns stale columns"
+dst="$WT/internal/dev_server/events_db/zz_verify_alloc_test.go"
+cp "$(dirname "$0")/events_query_alloc_test.go.txt" "$dst"
+trap 'rm -f "$dst"' EXIT
+out=$(cd "$WT" && go test -count=1 -run '^TestVerifyQueryEventsCancellationOverhead$' -v ./internal/dev_server/events_db/ 2>&1)
+rc=$?
+echo "$out"
+measured=$(grep -m1 '^allocs:' <<<"$out")
+[ -n "$measured" ] || fail "test did not run: $(tail -n1 <<<"$out")"
+[ $rc -eq 0 ] && pass "no per-row allocations under a cancellable context ($measured)"
+fail "allocates per row under a cancellable context ($measured)"
 ```
+
+The test itself runs `QueryEvents` over 500 rows with `context.Background()` and again with a cancellable context, using `testing.AllocsPerRun`, and fails when the difference is more than 0.5 allocations per row. Measure the difference against a control, not an absolute number, so that unrelated allocations cancel out.
 
 (Name helper files `*.txt` so `go` tooling never picks them up from the generated dir.)
 
