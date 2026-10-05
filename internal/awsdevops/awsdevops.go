@@ -64,6 +64,7 @@ type IAMAPI interface {
 	DetachRolePolicy(context.Context, *iam.DetachRolePolicyInput, ...func(*iam.Options)) (*iam.DetachRolePolicyOutput, error)
 	GetRole(context.Context, *iam.GetRoleInput, ...func(*iam.Options)) (*iam.GetRoleOutput, error)
 	PutRolePolicy(context.Context, *iam.PutRolePolicyInput, ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
+	UpdateAssumeRolePolicy(context.Context, *iam.UpdateAssumeRolePolicyInput, ...func(*iam.Options)) (*iam.UpdateAssumeRolePolicyOutput, error)
 }
 
 // STSAPI is the subset of the STS API this package uses.
@@ -155,7 +156,7 @@ func (e *noCredsErr) Error() string {
 	return fmt.Sprintf("%s: %s", e.msg, e.cause)
 }
 
-func (e *noCredsErr) Unwrap() error    { return e.cause }
+func (e *noCredsErr) Unwrap() error        { return e.cause }
 func (e *noCredsErr) Is(target error) bool { return target == ErrNoCredentials }
 
 // noCredentialsError builds the surfaced message for a credential-resolution
@@ -187,7 +188,7 @@ func noCredentialsError(profile string, cause error) error {
 		}
 	default:
 		return &noCredsErr{
-			msg: "no AWS credentials found. Authenticate first (for example `aws sso login --profile my-profile` or exporting AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN), then re-run this command",
+			msg:   "no AWS credentials found. Authenticate first (for example `aws sso login --profile my-profile` or exporting AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN), then re-run this command",
 			cause: cause,
 		}
 	}

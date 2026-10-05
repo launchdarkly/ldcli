@@ -66,6 +66,9 @@ func Teardown(ctx context.Context, clients Clients, opts TeardownOptions) error 
 	}
 
 	for _, serviceID := range serviceIDs {
+		if err := DisassociateEverywhere(ctx, clients, serviceID, logf); err != nil {
+			return err
+		}
 		if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
 			ServiceId: aws.String(serviceID),
 		}); err != nil {
@@ -88,14 +91,40 @@ func Teardown(ctx context.Context, clients Clients, opts TeardownOptions) error 
 	return nil
 }
 
-func teardownAgentSpace(ctx context.Context, clients Clients, agentSpaceID string, logf func(string, ...any)) error {
-	associations, err := clients.Agent.ListAssociations(ctx, &devopsagent.ListAssociationsInput{
-		AgentSpaceId: aws.String(agentSpaceID),
-	})
+// DisassociateEverywhere removes a service from every agent space that uses
+// it, which AWS requires before the service can be deregistered.
+func DisassociateEverywhere(ctx context.Context, clients Clients, serviceID string, logf func(string, ...any)) error {
+	spaces, err := listAgentSpaces(ctx, clients)
 	if err != nil {
-		return fmt.Errorf("unable to list associations for agent space %s: %w", agentSpaceID, err)
+		return err
 	}
-	for _, association := range associations.Associations {
+	for _, space := range spaces {
+		agentSpaceID := aws.ToString(space.AgentSpaceId)
+		associationID, err := FindAssociation(ctx, clients, agentSpaceID, serviceID)
+		if err != nil {
+			return err
+		}
+		if associationID == "" {
+			continue
+		}
+		if _, err := clients.Agent.DisassociateService(ctx, &devopsagent.DisassociateServiceInput{
+			AgentSpaceId:  aws.String(agentSpaceID),
+			AssociationId: aws.String(associationID),
+		}); err != nil {
+			return fmt.Errorf("unable to disassociate service %s from agent space %s: %w", serviceID, agentSpaceID, err)
+		}
+		logf("Disassociated service %s from agent space %s", serviceID, agentSpaceID)
+	}
+
+	return nil
+}
+
+func teardownAgentSpace(ctx context.Context, clients Clients, agentSpaceID string, logf func(string, ...any)) error {
+	associations, err := listAssociations(ctx, clients, agentSpaceID)
+	if err != nil {
+		return err
+	}
+	for _, association := range associations {
 		if _, err := clients.Agent.DisassociateService(ctx, &devopsagent.DisassociateServiceInput{
 			AgentSpaceId:  aws.String(agentSpaceID),
 			AssociationId: association.AssociationId,
@@ -105,13 +134,11 @@ func teardownAgentSpace(ctx context.Context, clients Clients, agentSpaceID strin
 		logf("Disassociated %s", aws.ToString(association.ServiceId))
 	}
 
-	assets, err := clients.Agent.ListAssets(ctx, &devopsagent.ListAssetsInput{
-		AgentSpaceId: aws.String(agentSpaceID),
-	})
+	assets, err := listAssets(ctx, clients, agentSpaceID)
 	if err != nil {
-		return fmt.Errorf("unable to list assets for agent space %s: %w", agentSpaceID, err)
+		return err
 	}
-	for _, asset := range sortAssetsForDeletion(assets.Items) {
+	for _, asset := range sortAssetsForDeletion(assets) {
 		if _, err := clients.Agent.DeleteAsset(ctx, &devopsagent.DeleteAssetInput{
 			AgentSpaceId: aws.String(agentSpaceID),
 			AssetId:      asset.AssetId,
@@ -132,43 +159,31 @@ func teardownAgentSpace(ctx context.Context, clients Clients, agentSpaceID strin
 }
 
 func listAgentSpaceIDs(ctx context.Context, clients Clients) ([]string, error) {
-	var (
-		ids       []string
-		nextToken *string
-	)
-	for {
-		spaces, err := clients.Agent.ListAgentSpaces(ctx, &devopsagent.ListAgentSpacesInput{NextToken: nextToken})
-		if err != nil {
-			return nil, fmt.Errorf("unable to list agent spaces: %w", err)
-		}
-		for _, space := range spaces.AgentSpaces {
-			ids = append(ids, aws.ToString(space.AgentSpaceId))
-		}
-		if spaces.NextToken == nil {
-			return ids, nil
-		}
-		nextToken = spaces.NextToken
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
 	}
+
+	ids := make([]string, 0, len(spaces))
+	for _, space := range spaces {
+		ids = append(ids, aws.ToString(space.AgentSpaceId))
+	}
+
+	return ids, nil
 }
 
 func listServiceIDs(ctx context.Context, clients Clients) ([]string, error) {
-	var (
-		ids       []string
-		nextToken *string
-	)
-	for {
-		services, err := clients.Agent.ListServices(ctx, &devopsagent.ListServicesInput{NextToken: nextToken})
-		if err != nil {
-			return nil, fmt.Errorf("unable to list registered services: %w", err)
-		}
-		for _, service := range services.Services {
-			ids = append(ids, aws.ToString(service.ServiceId))
-		}
-		if services.NextToken == nil {
-			return ids, nil
-		}
-		nextToken = services.NextToken
+	services, err := listServices(ctx, clients)
+	if err != nil {
+		return nil, err
 	}
+
+	ids := make([]string, 0, len(services))
+	for _, service := range services {
+		ids = append(ids, aws.ToString(service.ServiceId))
+	}
+
+	return ids, nil
 }
 
 // sortAssetsForDeletion puts memory stores last, since AWS refuses to delete a

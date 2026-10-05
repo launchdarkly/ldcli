@@ -100,14 +100,15 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return printJSON(cmd, result)
 	}
 
+	var mcpErr error
 	if result.MCPServiceID == "" {
-		connectMCPServer(cmd, clients, opts, &result)
+		mcpErr = connectMCPServer(cmd, clients, opts, &result)
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Manage it in the AWS console at:\n  %s\n", awsdevops.ConsoleURL(result.Region))
 
-	return nil
+	return mcpErr
 }
 
 // connectMCPServer collects a LaunchDarkly service token and registers the MCP
@@ -117,7 +118,7 @@ func connectMCPServer(
 	clients awsdevops.Clients,
 	opts awsdevops.SetupOptions,
 	result *awsdevops.SetupResult,
-) {
+) error {
 	tokenURL := awsdevops.AccessTokenURL(opts.LDBaseURI)
 	if !canPrompt() {
 		_, _ = fmt.Fprintf(
@@ -127,7 +128,7 @@ func connectMCPServer(
 			tokenURL,
 		)
 
-		return
+		return nil
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
@@ -135,12 +136,10 @@ func connectMCPServer(
 	opts.LDAccessToken = readSecret(cmd.InOrStdin())
 	_, _ = fmt.Fprintln(cmd.OutOrStdout())
 	if opts.LDAccessToken == "" {
-		return
+		return nil
 	}
 
-	if err := awsdevops.RegisterMCPServer(cmd.Context(), clients, opts, result); err != nil {
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", err)
-	}
+	return awsdevops.RegisterMCPServer(cmd.Context(), clients, opts, result)
 }
 
 func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {

@@ -154,10 +154,8 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	result.OperatorAppURL = aws.ToString(operatorApp.OperatorAppUrl)
 	logf("Operator app available at %s", result.OperatorAppURL)
 
-	if opts.LDAccessToken != "" {
-		if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
-			return result, err
-		}
+	if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
+		return result, err
 	}
 
 	return result, nil
@@ -268,7 +266,12 @@ func registerMCPServer(
 	if err != nil {
 		return err
 	}
-	if existing != "" && !opts.ReplaceMCPToken {
+	if existing == "" && opts.LDAccessToken == "" {
+		// Nothing to reuse and no token to register with; the caller collects
+		// one and calls RegisterMCPServer afterwards.
+		return nil
+	}
+	if existing != "" && (!opts.ReplaceMCPToken || opts.LDAccessToken == "") {
 		result.MCPServiceID = existing
 		logf(
 			"Reusing the %s MCP server already registered on this account (%s); it keeps the access "+
@@ -280,6 +283,9 @@ func registerMCPServer(
 		return associateMCPServer(ctx, clients, result, logf)
 	}
 	if existing != "" {
+		if err := DisassociateEverywhere(ctx, clients, existing, logf); err != nil {
+			return err
+		}
 		if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
 			ServiceId: aws.String(existing),
 		}); err != nil {
@@ -462,6 +468,15 @@ func ensureRole(ctx context.Context, client IAMAPI, name, trustPolicy, policyARN
 			return "", fmt.Errorf("unable to read the existing %s role: %w", name, getErr)
 		}
 		arn = aws.ToString(existing.Role.Arn)
+
+		// A role left over from a setup in another region trusts only that
+		// region's agent spaces, so the trust policy has to be refreshed.
+		if _, err := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
+			RoleName:       aws.String(name),
+			PolicyDocument: aws.String(trustPolicy),
+		}); err != nil {
+			return "", fmt.Errorf("unable to update the trust policy on the %s role: %w", name, err)
+		}
 	default:
 		return "", fmt.Errorf("unable to create the %s role: %w", name, err)
 	}

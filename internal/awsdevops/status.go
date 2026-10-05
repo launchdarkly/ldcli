@@ -68,11 +68,11 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 		})
 	}
 
-	services, err := clients.Agent.ListServices(ctx, &devopsagent.ListServicesInput{})
+	services, err := listServices(ctx, clients)
 	if err != nil {
-		return status, fmt.Errorf("unable to list registered services: %w", err)
+		return status, err
 	}
-	for _, service := range services.Services {
+	for _, service := range services {
 		status.Services = append(status.Services, ServiceStatus{
 			ServiceID:   aws.ToString(service.ServiceId),
 			ServiceType: string(service.ServiceType),
@@ -82,12 +82,12 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 
 	spaceIDs := []string{agentSpaceID}
 	if agentSpaceID == "" {
-		spaces, err := clients.Agent.ListAgentSpaces(ctx, &devopsagent.ListAgentSpacesInput{})
+		spaces, err := listAgentSpaces(ctx, clients)
 		if err != nil {
-			return status, fmt.Errorf("unable to list agent spaces: %w", err)
+			return status, err
 		}
 		spaceIDs = nil
-		for _, space := range spaces.AgentSpaces {
+		for _, space := range spaces {
 			spaceIDs = append(spaceIDs, aws.ToString(space.AgentSpaceId))
 		}
 	}
@@ -103,13 +103,11 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 			OperatorAppURL: OperatorAppURL(id),
 		}
 
-		associations, err := clients.Agent.ListAssociations(ctx, &devopsagent.ListAssociationsInput{
-			AgentSpaceId: aws.String(id),
-		})
+		associations, err := listAssociations(ctx, clients, id)
 		if err != nil {
-			return status, fmt.Errorf("unable to list associations for agent space %s: %w", id, err)
+			return status, err
 		}
-		for _, association := range associations.Associations {
+		for _, association := range associations {
 			spaceStatus.Associations = append(spaceStatus.Associations, AssociationStatus{
 				AssociationID: aws.ToString(association.AssociationId),
 				ServiceID:     aws.ToString(association.ServiceId),
