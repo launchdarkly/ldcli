@@ -115,6 +115,9 @@ check "passes on old version → does not count → incomplete" "not-discriminat
 out=$(verdict "[$(chk a pass)]" '[]' high "$(jq '. + {no_local_proof: "runs only in release workflows"}' <<<"$REACHABLE")" '[]' "$SQL")
 check "reachable change with no possible local proof → a decision, not incomplete" "needs-human 0" "$(v '"\(.verdict) \(.incomplete | length)"')"
 
+out=$(verdict "[$(chk ci decide)]" '[]' high "$(jq '. + {no_local_proof: "runs only in release workflows"}' <<<"$REACHABLE")" '[]' "$SQL")
+check "no-local-proof reason joins an existing question instead of a second one" "1 true" "$(v '"\(.decisions | length) \(.decisions[0].evidence | index("runs only in release workflows") != null)"')"
+
 out=$(verdict "[$(chk a pass)]" "[$(gen g1 guard pass fail)]" low)
 check "guard regresses → block" "regression block" "$(v '"\(.generated_checks[0].outcome) \(.verdict)"')"
 

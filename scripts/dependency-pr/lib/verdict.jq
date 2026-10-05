@@ -82,6 +82,14 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
            recipe: null} )
     ] as $decisions
 
+  # A reachable change that no local check can prove is a decision. If a check
+  # already asks a question, add the reason to its evidence instead of asking twice.
+  | ($decisions | map(select(.source == "impact" and (.question | startswith("Accept the upstream behavior changes"))))) as $nlp
+  | ($decisions | map(select((.source == "impact" and (.question | startswith("Accept the upstream behavior changes"))) | not))) as $others
+  | (if ($nlp | length) > 0 and ($others | length) > 0
+     then ($others | .[0].evidence += $nlp[0].evidence)
+     else $decisions end) as $decisions
+
   | [ ( $checks[] | select(.outcome == "error")
         | {source: .id, reason: "\(.title): the check crashed (\(.pr.summary))"} ),
       ( $checks[] | select(.outcome == "incomplete" and .required)
