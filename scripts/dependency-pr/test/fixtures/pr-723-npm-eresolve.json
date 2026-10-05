@@ -1,0 +1,11 @@
+{
+  "pr": 723,
+  "why": "#723 (@launchpad-ui/core 0.49.22 → 0.59.17) fails npm ci with ERESOLVE because of peer dependencies. It has stayed open since June.",
+  "head": "1944946e22761a738421a096676246ad08cbba76",
+  "base": "6c1740f8932352cdc2696e7aee20dfef676abfac",
+  "expect": {
+    "verdict": "block",
+    "checks": {"ui-npm-ci": "regression"},
+    "blocks_contain": ["ERESOLVE"]
+  }
+}
