@@ -19,6 +19,7 @@ Commands:
   {{rpad "login" 29}} Log in to your LaunchDarkly account
   {{rpad "signup" 29}} Create a new LaunchDarkly account
   {{rpad "dev-server" 29}} Run a development server to serve flags locally
+  {{rpad "sync" 29}} Synchronize local resources with LaunchDarkly
 
 Common resource commands:
   {{rpad "flags" 29}} List, create, and modify feature flags and their targeting
