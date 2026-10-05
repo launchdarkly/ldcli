@@ -246,7 +246,7 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 		// Version-lane copy when --app-version is set.
 		if symbolType == typeFlutter {
 			fmt.Printf("Starting to upload %s symbols from %s\n", symbolType, path)
-			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl, skipExisting)
+			return uploadFlutterSymbols(viper.GetString(cliflags.AccessTokenFlag), projectResult.ID, path, appVersion, backendUrl, viper.GetBool(includeSourcesFlag), viper.GetString(sourcePathFlag), skipExisting)
 		}
 
 		// Android takes a dedicated path as well: the R8 mapping is compiled into the
@@ -745,12 +745,12 @@ func initFlags(cmd *cobra.Command) {
 	cmd.Flags().String(backendUrlFlag, "", fmt.Sprintf("An optional backend url for self-hosted deployments. Defaults to the observability API of whichever instance --%s names (%s for the default)", cliflags.BaseURIFlag, defaultBackendUrl))
 	_ = viper.BindPFlag(backendUrlFlag, cmd.Flags().Lookup(backendUrlFlag))
 
-	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also upload your source files so the errors page can show source context around native frames (%s and %s). Your source is stored in LaunchDarkly", typeAppleDSYM, typeAndroid))
+	cmd.Flags().Bool(includeSourcesFlag, false, fmt.Sprintf("Also upload your source files so the errors page can show source context around native frames (%s, %s, and %s). Your source is stored in LaunchDarkly", typeAppleDSYM, typeAndroid, typeFlutter))
 	_ = viper.BindPFlag(includeSourcesFlag, cmd.Flags().Lookup(includeSourcesFlag))
 
 	cmd.Flags().Bool(noSkipExistingFlag, false, "Re-upload symbols even when LaunchDarkly already has them. By default a symbols-id file that is already stored is skipped, since its id is derived from its contents")
 	_ = viper.BindPFlag(noSkipExistingFlag, cmd.Flags().Lookup(noSkipExistingFlag))
 
-	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to scan for .java/.kt sources when using --%s with --type %s", includeSourcesFlag, typeAndroid))
+	cmd.Flags().String(sourcePathFlag, defaultPath, fmt.Sprintf("Directory to resolve your sources from when using --%s: the tree to scan for .java/.kt with --type %s, or your Flutter project root (the directory holding pubspec.yaml, which names the package your .dart files are compiled under) with --type %s", includeSourcesFlag, typeAndroid, typeFlutter))
 	_ = viper.BindPFlag(sourcePathFlag, cmd.Flags().Lookup(sourcePathFlag))
 }
