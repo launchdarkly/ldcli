@@ -15,7 +15,6 @@ if [ "${PIPESTATUS[0]}" -ne 0 ]; then
   grep -E '\.go:[0-9]+' "$ARTIFACTS/vet.out" | sed -E 's/:[0-9]+:[0-9]+:/:/' | sort -u >"$ARTIFACTS/vet.errs"
   fingerprint_file "$ARTIFACTS/vet.errs"
   detail_block "$ARTIFACTS/vet.out" 30
-  severity attention
   fail "go vet reports $(wc -l <"$ARTIFACTS/vet.errs") finding(s)"
 fi
 pass "go build ./... and go vet ./... succeed"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 source "$VERIFY_ROOT/lib/check.sh"
-ensure_ui_deps || skip "npm ci failed; cannot lint"
+ensure_ui_deps || incomplete "npm ci failed, so eslint did not run"
 cd "$WT/$UI_DIR_REL" || exit 1
 
 run npm run lint 2>&1 | tee "$ARTIFACTS/lint.out"

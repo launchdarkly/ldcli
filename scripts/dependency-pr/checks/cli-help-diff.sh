@@ -7,7 +7,7 @@ for side in base pr; do
   wt="$BASE_WT"
   [ "$side" = pr ] && wt="$PR_WT"
   if ! (cd "$wt" && run go build -o "$ARTIFACTS/ldcli-$side" .); then
-    skip "could not build the $side binary"
+    incomplete "could not build the $side binary"
   fi
   help_dump "$ARTIFACTS/ldcli-$side" "$ARTIFACTS/help-$side"
 done
@@ -24,4 +24,4 @@ n_sections=$(printf '%s\n' "$sections" | grep -c .)
 detail "- Help text changed for: $(printf '%s\n' "$sections" | head -n 15 | paste -sd, -)"
 detail_block "$ARTIFACTS/help.diff" 60
 fingerprint_file "$ARTIFACTS/help.diff"
-warn "Help output differs for $n_sections command(s)${removed:+; removed: $removed}${added:+; added: $added}"
+decide "Accept these changes to the CLI help and flags (see the diff)?" "Help output differs for $n_sections command(s)${removed:+; removed: $removed}${added:+; added: $added}"

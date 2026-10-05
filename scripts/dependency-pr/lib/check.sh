@@ -10,9 +10,15 @@
 #   PROFILE         "fast" or "full"
 #   VERIFY_ROOT     scripts/dependency-pr
 #
-# Protocol: finish by calling exactly one of pass/fail/warn/skip. A script that
-# exits without doing so (crash, timeout, `set -e` abort) is recorded as
-# "error". Everything printed to stdout/stderr goes to the check's log.
+# Protocol: finish with exactly one of these. A script that exits without one
+# (crash, timeout, `set -e` abort) is recorded as "error".
+#   pass "summary"                the check found no problem
+#   info "summary"                no problem, but the summary is worth showing
+#   fail "summary"                the PR must not merge as it is (add `recommend` for the fix)
+#   decide "question" "evidence"  only a person can make this choice; ask one exact question
+#   incomplete "reason"           the check could not run here (missing tool, no network)
+#   skip "reason"                 the check does not apply to this PR
+# Everything printed to stdout/stderr goes to the check's log.
 
 : "${ARTIFACTS:?ARTIFACTS must be set by the runner}"
 : "${WT:?WT must be set by the runner}"
@@ -25,15 +31,32 @@ _finish() {
   exit 0
 }
 pass() { _finish pass "$@"; }
+info() { _finish info "$@"; }
 fail() { _finish fail "$@"; }
-warn() { _finish warn "$@"; }
 skip() { _finish skip "$@"; }
+incomplete() { _finish incomplete "$@"; }
+decide() {
+  printf '%s\n' "$1" >"$ARTIFACTS/question"
+  shift
+  _finish decide "$@"
+}
 
-# Overrides the registry's on_fail severity for this run ("block" or "attention").
-severity() { printf '%s\n' "$1" >"$ARTIFACTS/severity"; }
-
-# Suggested follow-up action shown in the comment (e.g. rebuild-dist).
+# The fix for a failure, shown in the comment.
 recommend() { printf '%s\n' "$*" >>"$ARTIFACTS/recommendations"; }
+
+# A machine-applicable fix for a failure, copied into result.json so that a
+# later step (apply-fixes.sh) can run it, commit the expected paths, and
+# re-run verify.sh. Only record deterministic, mechanical commands.
+#   fix_recipe <id> <command run from the repo root> <expected path>...
+# Set FIX_NEEDS_DECISION=1 when a person must approve the fix first.
+# Set FIX_KIND=comment when the fix is a PR comment (e.g. "@dependabot rebase").
+fix_recipe() {
+  local id="$1" cmd="$2"
+  shift 2
+  jq -n --arg id "$id" --arg cmd "$cmd" --arg decision "${FIX_NEEDS_DECISION:-0}" --arg kind "${FIX_KIND:-commit}" \
+    '{id: $id, kind: $kind, command: $cmd, paths: $ARGS.positional, needs_decision: ($decision == "1")}' \
+    --args "$@" >"$ARTIFACTS/fix.json"
+}
 
 # Markdown lines shown under the check in the comment's details section.
 detail() { printf '%s\n' "$*" >>"$ARTIFACTS/details.md"; }

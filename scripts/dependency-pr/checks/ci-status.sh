@@ -23,9 +23,9 @@ if [ -n "$failing" ]; then
   fail "Failing on PR head $head: $failing"
 fi
 if [ -n "$pending" ]; then
-  warn "Still pending on PR head $head: $pending"
+  incomplete "CI is still running on PR head $head: $pending"
 fi
 if [ "$total" -eq 0 ]; then
-  warn "No CI checks reported on PR head $head"
+  incomplete "No CI results on PR head $head"
 fi
 pass "All $total CI checks green on PR head $head"

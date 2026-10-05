@@ -3,7 +3,7 @@ source "$VERIFY_ROOT/lib/check.sh"
 cd "$WT" || exit 1
 
 if ! command -v golangci-lint >/dev/null 2>&1; then
-  skip "golangci-lint not installed (CI runs v1.63.4 through pre-commit)"
+  incomplete "golangci-lint is not installed (CI runs v1.63.4 through pre-commit)"
 fi
 run golangci-lint run ./... 2>&1 | tee "$ARTIFACTS/lint.out"
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then

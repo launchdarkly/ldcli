@@ -13,7 +13,6 @@ if [ "${PIPESTATUS[0]}" -ne 0 ]; then
   fingerprint_file "$ARTIFACTS/generate.errs"
   detail_block "$ARTIFACTS/generate.out" 30
   restore_tree
-  severity block
   fail "go generate fails"
 fi
 
@@ -39,9 +38,10 @@ fingerprint "$(cat "$ARTIFACTS/drift.stat" "$ARTIFACTS/rebuild.errs" 2>/dev/null
 restore_tree
 
 if [ "$build_ok" = false ]; then
-  severity block
   recommend "Regenerate (\`make generate\`) in this PR and bump the generator's runtime library alongside it (e.g. oapi-codegen with oapi-codegen/runtime) so the regenerated code compiles."
   fail "go generate rewrites $n_files file(s) and the regenerated code does not compile"
 fi
 recommend "Run \`make generate\` and commit the regenerated files."
+# shellcheck disable=SC2046
+fix_recipe go-generate "go generate ./..." $(awk '{print $2}' "$ARTIFACTS/drift.files")
 fail "go generate rewrites $n_files file(s); regenerated code compiles"

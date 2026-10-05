@@ -2,7 +2,7 @@
 # Compares reachable vulnerabilities between base and PR. Needs network for the vuln DB.
 source "$VERIFY_ROOT/lib/check.sh"
 
-bin=$(go_tool golang.org/x/vuln/cmd/govulncheck v1.1.4) || skip "could not install govulncheck"
+bin=$(go_tool golang.org/x/vuln/cmd/govulncheck v1.1.4) || incomplete "could not install govulncheck"
 vulns() { (cd "$1" && "$bin" ./...); }
 
 vulns "$BASE_WT" >"$ARTIFACTS/base.out" 2>&1
@@ -13,7 +13,7 @@ cat "$ARTIFACTS/pr.out"
 # govulncheck exits 3 when vulnerabilities are found; anything else non-zero is a tool failure.
 for rc in $rc_base $rc_pr; do
   if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
-    skip "govulncheck could not run (exit $rc); see log"
+    incomplete "govulncheck could not run (exit $rc); see log"
   fi
 done
 

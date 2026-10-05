@@ -184,6 +184,6 @@ def manifest_file: test("^go\\.(mod|sum)$|(^|/)package(-lock)?\\.json$|^\\.githu
     group: ($ndirect > 1 or (($pr.title // "") | test("group"; "i"))),
     security: ((($pr.title // "") + " " + ($pr.body // "")) | test("GHSA-|CVE-[0-9]{4}-|\\[security\\]"; "i")),
     tier: $tier,
-    tags: ($updates | map(.tags[]) | unique),
+    tags: (($updates | map(.tags[])) + (if $godir.from != $godir.to or $tool.from != $tool.to then ["go-directive"] else [] end) | unique),
     tier_reasons: $reasons
   }' >"$OUT"

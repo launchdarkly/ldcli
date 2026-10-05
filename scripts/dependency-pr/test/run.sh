@@ -34,93 +34,124 @@ check "major is breaking" true "$(breaking 1.8.10 2.3.2)"
 
 # ---- verdict rules
 
-res() { jq -c -n "$1"; }
 verdict() {
-  # verdict <checks-json> <generated-json> <tier> [impact-json]
-  jq -n -L "$LIB" --argjson checks "$1" --argjson gen "$2" --arg tier "$3" --argjson impact "${4:-null}" '
+  # verdict <checks-json> <generated-json> <tier> [impact-json] [tags-json] [direct-updates-json]
+  jq -n -L "$LIB" --argjson checks "$1" --argjson gen "$2" --arg tier "$3" --argjson impact "${4:-null}" \
+    --argjson tags "${5:-[]}" --argjson updates "${6:-[]}" '
     include "verdict";
-    build_result({head_sha: "abc"}; {tier: $tier, tier_reasons: ["test"], updates: [], ecosystems: ["gomod"], tags: []};
+    build_result({head_sha: "abc"}; {tier: $tier, tier_reasons: ["test"], updates: $updates, ecosystems: ["gomod"], tags: $tags};
                  $checks; $gen; $impact; "fast"; "now")'
 }
 chk() {
-  # chk <id> <on_fail> <pr-status> [base-status] [pr-fp] [base-fp]
-  jq -n --arg id "$1" --arg sev "$2" --arg p "$3" --arg b "${4:-}" --arg pf "${5:-}" --arg bf "${6:-}" '
-    {id: $id, title: $id, on_fail: $sev, required: true,
-     pr: {status: $p, summary: "s", fingerprint: (if $pf == "" then null else $pf end)},
-     base: (if $b == "" then null else {status: $b, summary: "s", fingerprint: (if $bf == "" then null else $bf end)} end)}'
+  # chk <id> <pr-status> [base-status] [pr-fp] [base-fp] [extra-json]
+  jq -n --arg id "$1" --arg p "$2" --arg b "${3:-}" --arg pf "${4:-}" --arg bf "${5:-}" --argjson extra "${6:-{\}}" '
+    {id: $id, title: $id, required: true,
+     pr: {status: $p, summary: "s", question: (if $p == "decide" then "Accept \($id)?" else null end),
+          fingerprint: (if $pf == "" then null else $pf end), recommendations: ["fix \($id)"],
+          fix: (if $p == "fail" then {id: "fix-\($id)", kind: "commit", command: "make \($id)", paths: ["x"], needs_decision: false} else null end)},
+     base: (if $b == "" then null else {status: $b, summary: "s", fingerprint: (if $bf == "" then null else $bf end)} end)} + $extra'
 }
 gen() {
   # gen <id> <kind> <base-status> <pr-status>
   jq -n --arg id "$1" --arg k "$2" --arg b "$3" --arg p "$4" \
-    '{id: $id, title: $id, kind: $k, severity: "attention", base: {status: $b, summary: "s"}, pr: {status: $p, summary: "s"}}'
+    '{id: $id, title: $id, kind: $k, base: {status: $b, summary: "s"}, pr: {status: $p, summary: "s"}}'
 }
-IMPACT='{"summary": "reviewed", "findings": []}'
+v() { jq -r "$1" <<<"$out"; }
+SQL='[{"name": "github.com/mattn/go-sqlite3", "direct": true}]'
+REVIEWED='{"summary": "r", "changelog": [{"package": "github.com/mattn/go-sqlite3", "notes": "n"}], "behavior_changes_reachable": false, "findings": []}'
+REACHABLE='{"summary": "r", "changelog": [{"package": "github.com/mattn/go-sqlite3", "notes": "n"}], "behavior_changes_reachable": true, "findings": []}'
 
-out=$(verdict "[$(chk a block pass)]" '[]' low)
-check "all pass, low tier → safe" "safe-to-merge 0" "$(jq -r '"\(.verdict) \(.exit_code)"' <<<"$out")"
+out=$(verdict "[$(chk a pass)]" '[]' low)
+check "all pass, low tier → safe" "safe-to-merge 0" "$(v '"\(.verdict) \(.exit_code)"')"
 
-out=$(verdict "[$(chk drift attention fail fail fp1 fp1)]" '[]' low)
-check "same failure on base → pre-existing" "pre-existing safe-to-merge" "$(jq -r '"\(.checks[0].outcome) \(.verdict)"' <<<"$out")"
+out=$(verdict "[$(chk drift fail fail fp1 fp1)]" '[]' low)
+check "same failure on base → pre-existing, safe" "pre-existing safe-to-merge" "$(v '"\(.checks[0].outcome) \(.verdict)"')"
 
-out=$(verdict "[$(chk drift attention fail fail fp1 fp2)]" '[]' low)
-check "different failure on base → changed" "changed needs-human" "$(jq -r '"\(.checks[0].outcome) \(.verdict)"' <<<"$out")"
+out=$(verdict "[$(chk build fail fail fp1 fp1 '{"gate": true}')]" '[]' low)
+check "gate failing the same way on base → incomplete, never safe" "incomplete 2" "$(v '"\(.verdict) \(.exit_code)"')"
 
-out=$(verdict "[$(chk build block fail pass fp1)]" '[]' low)
-check "block check regresses → block" "regression block 1" "$(jq -r '"\(.checks[0].outcome) \(.verdict) \(.exit_code)"' <<<"$out")"
+out=$(verdict "[$(chk release-snapshot fail fail fp1 fp1 '{"required": false, "required_for_tags": ["cgo"]}')]" '[]' low null '["cgo"]')
+check "false-safe case: tag gate fails on both (e.g. image pull) → incomplete" "incomplete" "$(v .verdict)"
 
-out=$(verdict "[$(chk tidy attention fail pass fp1)]" '[]' low)
-check "attention check regresses → needs-human" "needs-human" "$(jq -r '.verdict' <<<"$out")"
+out=$(verdict "[$(chk release-snapshot incomplete "" "" "" '{"required": false, "required_for_tags": ["cgo"]}')]" '[]' low null '["cgo"]')
+check "tag gate could not run → incomplete" "incomplete" "$(v .verdict)"
 
-out=$(verdict "[$(chk smoke block error)]" '[]' low)
-check "check error → exit 2" "needs-human 2" "$(jq -r '"\(.verdict) \(.exit_code)"' <<<"$out")"
+out=$(verdict "[$(chk release-snapshot skip "" "" "" '{"required": false, "required_for_tags": ["cgo"]}' | jq '.pr.profile_skipped = true')]" '[]' low null '["tui"]')
+check "tag gate not needed for other tags → safe" "safe-to-merge" "$(v .verdict)"
 
-out=$(verdict "[$(chk docker block skip)]" '[]' low)
-check "required check skipped → needs-human" "needs-human" "$(jq -r '.verdict' <<<"$out")"
+out=$(verdict "[$(chk drift fail fail fp1 fp2)]" '[]' low)
+check "different failure on base → changed, block" "changed block" "$(v '"\(.checks[0].outcome) \(.verdict)"')"
 
-out=$(verdict "[$(chk a block pass)]" "[$(gen g1 discriminating fail pass)]" medium "$IMPACT")
-check "medium + impact + proven check → safe" "proven true safe-to-merge" "$(jq -r '"\(.generated_checks[0].outcome) \(.generated_checks[0].counted) \(.verdict)"' <<<"$out")"
+out=$(verdict "[$(chk tidy fail pass fp1)]" '[]' low)
+check "regression → block with fix recipe" "block 1 fix-tidy" "$(v '"\(.verdict) \(.exit_code) \(.fixes[0].id)"')"
 
-out=$(verdict "[$(chk a block pass)]" "[$(gen g1 discriminating pass pass)]" medium "$IMPACT")
-check "passes on old version → does not count" "not-discriminating false needs-human" "$(jq -r '"\(.generated_checks[0].outcome) \(.generated_checks[0].counted) \(.verdict)"' <<<"$out")"
+out=$(verdict "[$(chk help decide)]" '[]' low)
+check "decide → needs-human with the exact question" "needs-human Accept help?" "$(v '"\(.verdict) \(.decisions[0].question)"')"
 
-out=$(verdict "[$(chk a block pass)]" "[$(gen g1 discriminating fail pass)]" medium)
-check "medium without impact review → needs-human" "needs-human" "$(jq -r '.verdict' <<<"$out")"
+out=$(verdict "[$(chk smoke error)]" '[]' low)
+check "check crash → incomplete, exit 2" "incomplete 2" "$(v '"\(.verdict) \(.exit_code)"')"
 
-out=$(verdict "[$(chk a block pass)]" "[$(gen g1 guard pass fail)]" low)
-check "guard regresses → finding" "regression needs-human" "$(jq -r '"\(.generated_checks[0].outcome) \(.verdict)"' <<<"$out")"
+out=$(verdict "[$(chk docker incomplete)]" '[]' low)
+check "required check did not run → incomplete" "incomplete" "$(v .verdict)"
 
-out=$(verdict "[$(chk a block pass)]" "[$(gen g1 guard fail fail)]" low)
-check "guard failing on base → invalid, ignored" "invalid safe-to-merge" "$(jq -r '"\(.generated_checks[0].outcome) \(.verdict)"' <<<"$out")"
+out=$(verdict "[$(chk audit incomplete "" "" "" '{"required": false}')]" '[]' low)
+check "optional check did not run → safe, listed as not run" "safe-to-merge 1" "$(v '"\(.verdict) \(.not_run | length)"')"
 
-out=$(verdict "[$(chk a block pass)]" '[]' high "$IMPACT")
-check "high tier → needs-human" "needs-human" "$(jq -r '.verdict' <<<"$out")"
+out=$(verdict "[$(chk a pass)]" '[]' medium null '[]' "$SQL")
+check "medium tier without impact review → incomplete" "incomplete" "$(v .verdict)"
 
-out=$(verdict "[$(chk a block pass)]" '[]' low '{"findings": [{"severity": "block", "text": "breaking API used"}]}')
-check "agent block finding → block" "block" "$(jq -r '.verdict' <<<"$out")"
+out=$(verdict "[$(chk a pass)]" '[]' medium '{"summary": "r", "changelog": [], "findings": []}' '[]' "$SQL")
+check "impact review must cover each direct update and state reachability" "incomplete 2" "$(v '"\(.verdict) \(.incomplete | length)"')"
 
-out=$(verdict "[$(chk a block pass)]" '[]' low '{"tier": "high", "findings": []}')
-check "agent can raise the tier" "high needs-human" "$(jq -r '"\(.tier) \(.verdict)"' <<<"$out")"
+out=$(verdict "[$(chk a pass)]" '[]' medium "$REVIEWED" '[]' "$SQL")
+check "medium, reviewed, changes not reachable → safe" "safe-to-merge" "$(v .verdict)"
 
-snap=$(jq -n '{id: "release-snapshot", title: "release", on_fail: "block", required: false, required_for_tags: ["cgo"],
-               pr: {status: "skip", summary: "runs with --profile full", profile_skipped: true}, base: null}')
-tagged() {
-  jq -n -L "$LIB" --argjson checks "[$snap]" --argjson tags "$1" '
-    include "verdict";
-    build_result({}; {tier: "low", tier_reasons: [], updates: [], ecosystems: ["gomod"], tags: $tags}; $checks; []; null; "fast"; "now") | .verdict'
-}
-check "tag-required check skipped for a cgo update → needs-human" '"needs-human"' "$(tagged '["cgo"]')"
-check "tag-required check skipped for other updates → ignored" '"safe-to-merge"' "$(tagged '["tui"]')"
+out=$(verdict "[$(chk a pass)]" "[$(gen g1 discriminating fail pass)]" medium "$REACHABLE" '[]' "$SQL")
+check "reachable change + proven check → safe" "proven true safe-to-merge" "$(v '"\(.generated_checks[0].outcome) \(.generated_checks[0].counted) \(.verdict)"')"
+
+out=$(verdict "[$(chk a pass)]" "[$(gen g1 discriminating pass pass)]" medium "$REACHABLE" '[]' "$SQL")
+check "passes on old version → does not count → incomplete" "not-discriminating false incomplete" "$(v '"\(.generated_checks[0].outcome) \(.generated_checks[0].counted) \(.verdict)"')"
+
+out=$(verdict "[$(chk a pass)]" "[$(gen g1 guard pass fail)]" low)
+check "guard regresses → block" "regression block" "$(v '"\(.generated_checks[0].outcome) \(.verdict)"')"
+
+out=$(verdict "[$(chk a pass)]" "[$(gen g1 guard fail fail)]" low)
+check "guard failing on base → invalid → incomplete" "invalid incomplete" "$(v '"\(.generated_checks[0].outcome) \(.verdict)"')"
+
+out=$(verdict "[$(chk a pass)]" '[]' high "$REVIEWED" '[]' "$SQL")
+check "high tier alone does not ask a person" "safe-to-merge" "$(v .verdict)"
+
+out=$(verdict "[$(chk a pass)]" '[]' low '{"findings": [{"severity": "block", "text": "breaking API used"}]}')
+check "agent block finding → block" "block" "$(v .verdict)"
+
+out=$(verdict "[$(chk a pass)]" '[]' low '{"findings": [{"severity": "decide", "text": "t", "question": "Accept X?"}]}')
+check "agent decision → needs-human with its question" "needs-human Accept X?" "$(v '"\(.verdict) \(.decisions[0].question)"')"
+
+out=$(verdict "[$(chk a pass)]" '[]' low '{"tier": "high", "findings": []}')
+check "agent can raise the tier" "high incomplete" "$(v '"\(.tier) \(.verdict)"')"
+
+out=$(verdict "[$(chk b fail pass), $(chk h decide), $(chk d incomplete)]" '[]' low)
+check "block beats needs-human beats incomplete" "block 1 1 1" "$(v '"\(.verdict) \(.blocks | length) \(.decisions | length) \(.incomplete | length)"')"
 
 # ---- rendering
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-verdict "[$(chk drift attention fail fail fp1 fp1)]" "[$(gen g1 discriminating fail pass)]" medium "$IMPACT" |
+render() {
   jq '.pr += {base_ref: "main", base_sha: "def", merge: {status: "merged"}} | .classification += {go_directive: {}}' >"$tmp/result.json"
-"$ROOT/render-comment.sh" "$tmp/result.json" >"$tmp/comment.md"
-check "comment has marker" 1 "$(grep -c '^<!-- ldcli-dependency-verify -->$' "$tmp/comment.md")"
-check "comment lists pre-existing issue" 1 "$(grep -c 'Already failing on `main`' "$tmp/comment.md")"
-check "comment shows proven generated check" 1 "$(grep -c 'proven (fails on base, passes on PR)' "$tmp/comment.md")"
+  "$ROOT/render-comment.sh" "$tmp/result.json"
+}
+verdict "[$(chk drift fail fail fp1 fp1), $(chk help decide), $(chk docker incomplete)]" "[$(gen g1 discriminating fail pass)]" medium "$REVIEWED" '[]' "$SQL" | render >"$tmp/c1.md"
+check "comment has marker" 1 "$(grep -c '^<!-- ldcli-dependency-verify -->$' "$tmp/c1.md")"
+check "comment headline" 1 "$(grep -c '^## Dependency verification: NEEDS A HUMAN DECISION$' "$tmp/c1.md")"
+check "comment asks the exact question" 1 "$(grep -c '^1\. \*\*Accept help?\*\*$' "$tmp/c1.md")"
+check "comment lists incomplete items separately" 1 "$(grep -c '^### Incomplete verification$' "$tmp/c1.md")"
+check "comment lists pre-existing issue" 1 "$(grep -c 'Already failing on `main`' "$tmp/c1.md")"
+check "comment shows proven generated check" 1 "$(grep -c 'proven (fails on base, passes on PR)' "$tmp/c1.md")"
+verdict "[$(chk tidy fail pass fp1)]" '[]' low | render >"$tmp/c2.md"
+check "block comment shows the mechanical fix" 1 "$(grep -c 'Mechanical fix: `make tidy`' "$tmp/c2.md")"
+verdict "[$(chk a pass)]" '[]' low | render >"$tmp/c3.md"
+check "safe comment says no decision is necessary" 1 "$(grep -c 'No decision is necessary' "$tmp/c3.md")"
 
 echo
 if [ "$failures" -gt 0 ]; then

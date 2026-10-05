@@ -1,42 +1,50 @@
 # jq module: turns check records, classification, and agent notes into a verdict.
 # Use with: jq -L "$VERIFY_ROOT/lib" 'include "verdict"; ...'
+#
+# Verdicts, strongest first:
+#   block          the PR must not merge as it is (breakage, or a fix is required)
+#   needs-human    verification is complete, but a person must answer a specific question
+#   incomplete     a required check, gate, or review did not run or proved nothing; a rerun or the agent closes it, not a person
+#
+# A gate (registry "gate": true, or a matched "required_for_tags") must pass.
+# "pre-existing" or "incomplete" never satisfies a gate.
+#   safe-to-merge  every required check ran and passed
 include "semver";
 
-def nonpass: . == "fail" or . == "warn";
+def nonpass: . == "fail" or . == "decide";
 
-# Baseline check outcome. A failure that also fails on base with the same
-# fingerprint is pre-existing and does not count against the PR.
+# A failure that also happens on base with the same fingerprint is
+# pre-existing and does not count against the PR.
 def baseline_outcome:
   .pr.status as $p | (.base.status // null) as $b
-  | if $p == "pass" then "pass"
-    elif $p == "skip" then "skip"
-    elif $p == "error" then "error"
+  | if ($p | IN("pass", "info", "skip", "incomplete", "error")) then $p
     elif $b == null then $p
-    elif $b == "pass" then "regression"
+    elif ($b | IN("pass", "info")) then "regression"
     elif ($b | nonpass) then
       (if (.pr.fingerprint // .pr.summary) == (.base.fingerprint // .base.summary)
        then "pre-existing" else "changed" end)
     else "base-inconclusive"
     end;
 
-# Generated check outcome. A discriminating check counts ("proven") only when
-# it fails on the old version and passes on the new one.
+# A discriminating check counts ("proven") only when it fails on the old
+# version and passes on the new one.
 def generated_outcome:
   .pr.status as $p | .base.status as $b
-  | if $p == "error" or $b == "error" then "error"
-    elif $p == "skip" or $b == "skip" then "skip"
+  | def passed: IN("pass", "info");
+    if $p == "error" or $b == "error" then "error"
+    elif ($p | IN("skip", "incomplete")) or ($b | IN("skip", "incomplete")) then "incomplete"
     elif .kind == "discriminating" then
-      (if ($b | nonpass) and $p == "pass" then "proven"
-       elif $b == "pass" and $p == "pass" then "not-discriminating"
-       elif $b == "pass" then "regression"
+      (if ($b | passed | not) and ($p | passed) then "proven"
+       elif ($b | passed) and ($p | passed) then "not-discriminating"
+       elif ($b | passed) then "regression"
        else "fails-both" end)
     else
-      (if $b == "pass" and $p == "pass" then "holds"
-       elif $b == "pass" then "regression"
+      (if ($b | passed) and ($p | passed) then "holds"
+       elif ($b | passed) then "regression"
        else "invalid" end)
     end;
 
-def level_for($sev): if $sev == "block" then "block" else "needs-human" end;
+def tag_required($cls): [ (.required_for_tags // [])[] | select(. as $t | $cls.tags | index($t) != null) ];
 
 def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
   ($checks | map(. + {outcome: baseline_outcome})) as $checks
@@ -44,64 +52,87 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
   | ($gen | map(select(.counted)) | length) as $proven
   | (if $impact != null and ($impact.tier // null) != null
      then max_tier($cls.tier; $impact.tier) else $cls.tier end) as $tier
-  | [
-      ( $checks[]
-        | select(.outcome | IN("fail", "warn", "regression", "changed", "base-inconclusive"))
-        | {level: (if .pr.status == "fail" then level_for(.pr.severity // .on_fail) else "needs-human" end),
-           source: .id,
-           text: ("\(.title): \(.pr.summary)"
-                  + (if .outcome == "changed" then " (also fails on base, but this PR changes the result)"
-                     elif .outcome == "base-inconclusive" then " (could not compare with base)"
-                     else "" end))} ),
-      ( $checks[] | select(.outcome == "error")
-        | {level: "needs-human", source: .id, text: "Verifier error in \(.id): \(.pr.summary)"} ),
-      ( $checks[] | select(.outcome == "skip" and .required and ((.pr.profile_skipped // false) | not))
-        | {level: "needs-human", source: .id, text: "Required check not run (\(.id)): \(.pr.summary)"} ),
-      ( $checks[] | select(.outcome == "skip" and (.required | not))
-        | [ (.required_for_tags // [])[] | select(. as $t | $cls.tags | index($t) != null) ] as $hit
-        | select(($hit | length) > 0)
-        | {level: "needs-human", source: .id,
-           text: "\(.title) not run (\(.pr.summary)); it is required for \($hit | join(", ")) updates"} ),
+  | ($cls.updates | map(select(.direct)) | map(.name)) as $direct
+
+  | [ ( $checks[]
+        | select(.pr.status == "fail" and (.outcome | IN("pre-existing") | not))
+        | {source: .id, title,
+           problem: (.pr.summary
+                     + (if .outcome == "changed" then " (base fails too, but this PR changes the result)"
+                        elif .outcome == "base-inconclusive" then " (could not compare with base)"
+                        else "" end)),
+           fix: (.pr.recommendations // []), recipe: .pr.fix} ),
       ( $gen[] | select(.outcome == "regression")
-        | {level: level_for(.severity // "attention"), source: "generated:\(.id)",
-           text: "Generated check regressed: \(.title): \(.pr.summary)"} ),
-      ( $gen[] | select(.outcome == "fails-both")
-        | {level: "needs-human", source: "generated:\(.id)",
-           text: "Generated check fails on both versions: \(.title): \(.pr.summary)"} ),
-      ( $gen[] | select(.outcome == "error")
-        | {level: "needs-human", source: "generated:\(.id)", text: "Generated check errored: \(.id)"} ),
-      ( if $tier == "high" then
-          {level: "needs-human", source: "risk",
-           text: "High risk tier: \(($cls.tier_reasons + (($impact.tier_reasons) // [])) | join("; "))"}
-        else empty end ),
-      ( if $tier == "medium" and $impact == null then
-          {level: "needs-human", source: "risk", text: "Medium risk tier and no agent impact review recorded (agent/impact.json)"}
-        else empty end ),
-      ( if $tier == "medium" and $proven == 0 then
-          {level: "needs-human", source: "risk",
-           text: "Medium risk tier and no generated check has proven itself (it must fail on the old version and pass on the new one)"}
-        else empty end ),
-      ( ($impact.findings // [])[] | select(.severity == "block" or .severity == "warn")
-        | {level: (if .severity == "block" then "block" else "needs-human" end), source: "impact", text: .text} )
-    ] as $reasons
-  | (if any($reasons[]; .level == "block") then "block"
-     elif ($reasons | length) > 0 then "needs-human"
+        | {source: "generated:\(.id)", title, problem: .pr.summary,
+           fix: (.pr.recommendations // []), recipe: null} ),
+      ( ($impact.findings // [])[] | select(.severity == "block")
+        | {source: "impact", title: "Impact review", problem: .text, fix: [], recipe: null} )
+    ] as $blocks
+
+  | [ ( $checks[]
+        | select(.pr.status == "decide" and .outcome != "pre-existing")
+        | {source: .id, question: (.pr.question // .title), evidence: ([.pr.summary] + (.pr.recommendations // [])),
+           recipe: .pr.fix} ),
+      ( ($impact.findings // [])[] | select(.severity == "decide" or .severity == "warn")
+        | {source: "impact", question: (.question // .text), evidence: ([.text] + (.evidence // []) | unique),
+           recipe: null} )
+    ] as $decisions
+
+  | [ ( $checks[] | select(.outcome == "error")
+        | {source: .id, reason: "\(.title): the check crashed (\(.pr.summary))"} ),
+      ( $checks[] | select(.outcome == "incomplete" and .required)
+        | {source: .id, reason: "\(.title): \(.pr.summary)"} ),
+      ( $checks[] | select((.outcome == "incomplete" or (.pr.profile_skipped // false)) and (.required | not))
+        | tag_required($cls) as $hit | select(($hit | length) > 0)
+        | {source: .id,
+           reason: "\(.title): \(.pr.summary). This check is required for \($hit | join(", ")) updates."} ),
+      ( $checks[] | select(.outcome == "pre-existing" and ((.gate // false) or ((tag_required($cls) | length) > 0)))
+        | {source: .id,
+           reason: "\(.title) failed the same way on base and on the PR, so this gate does not show that the update works (\(.pr.summary))"} ),
+      ( $gen[] | select(.outcome | IN("error", "incomplete", "fails-both", "invalid"))
+        | {source: "generated:\(.id)",
+           reason: (({"error": "the generated check crashed",
+                     "incomplete": "the generated check could not run",
+                     "fails-both": "the discriminating check fails on both versions; fix the check or the analysis",
+                     "invalid": "the guard fails on base; fix the check"}[.outcome]) + " (\(.title))")} ),
+      ( if $tier != "low" then
+          ( if $impact == null then
+              {source: "impact", reason: "The \($tier)-risk update needs an impact review (agent/impact.json): upstream notes, reach into ldcli, and breaking changes"}
+            else
+              ( [ $direct[] | select(. as $n | ($impact.changelog // []) | map(.package) | index($n) | not) ] as $missing
+                | if ($missing | length) > 0 then
+                    {source: "impact", reason: "The impact review does not cover these direct updates: \($missing | join(", "))"}
+                  else empty end ),
+              ( if ($impact | has("behavior_changes_reachable") | not) then
+                  {source: "impact", reason: "The impact review must state behavior_changes_reachable (true or false)"}
+                elif $impact.behavior_changes_reachable == true and $proven == 0 then
+                  {source: "impact", reason: "The impact review found upstream behavior changes that reach ldcli, but no generated check proved one (it must fail on the old version and pass on the new one)"}
+                else empty end )
+            end )
+        else empty end )
+    ] as $incomplete
+
+  | [ $checks[] | select((.outcome == "incomplete" or (.pr.profile_skipped // false)) and (.required | not) and ((tag_required($cls) | length) == 0))
+      | {source: .id, reason: "\(.title): \(.pr.summary)"} ] as $not_run
+
+  | (if ($blocks | length) > 0 then "block"
+     elif ($decisions | length) > 0 then "needs-human"
+     elif ($incomplete | length) > 0 then "incomplete"
      else "safe-to-merge" end) as $verdict
-  | ([$checks[], $gen[]] | any(.outcome == "error")) as $infra
   | {
-      schema: 1,
+      schema: 2,
       generated_at: $generated_at,
       profile: $profile,
       pr: $meta,
       classification: $cls,
       tier: $tier,
       verdict: $verdict,
-      exit_code: (if $infra then 2 elif $verdict == "safe-to-merge" then 0 else 1 end),
-      reasons: $reasons,
-      recommendations: (
-        [ ($checks[] | select(.outcome | IN("pass", "pre-existing", "skip") | not) | (.pr.recommendations // [])[]),
-          ($gen[] | select(.outcome == "regression") | (.pr.recommendations // [])[]),
-          (($impact.recommendations // [])[]) ] | unique),
+      exit_code: ({"safe-to-merge": 0, "needs-human": 1, "block": 1, "incomplete": 2}[$verdict]),
+      blocks: $blocks,
+      decisions: $decisions,
+      incomplete: $incomplete,
+      not_run: $not_run,
+      fixes: [ $blocks[], $decisions[] | .recipe | select(. != null) ] | unique_by(.id),
       pre_existing: [ $checks[] | select(.outcome == "pre-existing") | {id, title, summary: .pr.summary} ],
       checks: $checks,
       generated_checks: $gen,

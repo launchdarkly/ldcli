@@ -8,12 +8,12 @@ audit() {
          vulns: ((.vulnerabilities // {}) | to_entries
                  | map({key: .key, value: .value.severity}) | from_entries)}'
 }
-audit "$BASE_WT" >"$ARTIFACTS/base.json" || skip "npm audit unavailable on base"
-audit "$PR_WT" >"$ARTIFACTS/pr.json" || skip "npm audit unavailable on PR"
+audit "$BASE_WT" >"$ARTIFACTS/base.json" || incomplete "npm audit did not run on base"
+audit "$PR_WT" >"$ARTIFACTS/pr.json" || incomplete "npm audit did not run on the PR"
 cat "$ARTIFACTS/pr.json"
 for s in base pr; do
   err=$(jq -r '.error // empty' "$ARTIFACTS/$s.json")
-  [ -n "$err" ] && skip "npm audit failed on $s: $err"
+  [ -n "$err" ] && incomplete "npm audit failed on $s: $err"
 done
 
 jq -n --slurpfile b "$ARTIFACTS/base.json" --slurpfile p "$ARTIFACTS/pr.json" '
@@ -32,5 +32,5 @@ serious=$(jq -r '.new_serious | join(", ")' "$ARTIFACTS/delta.json")
 new=$(jq -r '.new | join(", ")' "$ARTIFACTS/delta.json")
 read -r tb tp < <(jq -r '"\(.total_base) \(.total_pr)"' "$ARTIFACTS/delta.json")
 [ -n "$serious" ] && fail "New high/critical advisories: $serious"
-[ -n "$new" ] && warn "New advisories: $new"
+[ -n "$new" ] && decide "Accept these new advisories in runtime UI dependencies: $new?" "npm audit (runtime dependencies only) reports advisories on the PR that base does not have: $new"
 pass "No new advisories (base $tb, PR $tp affected packages)"

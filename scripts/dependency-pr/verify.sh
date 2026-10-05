@@ -13,6 +13,9 @@
 #   --phase P           all (default) | generated (re-run generated checks only, reusing
 #                       the worktrees and baseline results) | render (recompute verdict and comment)
 #   --only IDS          comma-separated baseline check ids to run (debugging)
+#   --head-sha SHA      verify this commit as the PR head (replay of a past state)
+#   --base-sha SHA      use this commit as the base instead of the base branch tip
+#   --no-pr-meta        do not read PR metadata (title, CI results) from GitHub
 #   -h, --help
 #
 # Outputs (in the out dir): result.json, comment.md, logs/<side>/<check>.log,
@@ -20,15 +23,18 @@
 # Generated per-PR checks are read from <out-dir>/generated/checks.json and the
 # agent's impact review from <out-dir>/agent/impact.json, when present.
 #
-# Exit: 0 safe to merge, 1 needs a human or block, 2 verifier/infra error.
-# Never pushes, comments, approves, or merges. Posting is post-comment.sh.
+# Verdicts: safe-to-merge, needs-human (a specific decision), block (must fix),
+# incomplete (a required check or review did not run; rerun or finish the review).
+# Exit: 0 safe to merge, 1 needs-human or block, 2 incomplete or verifier error.
+# This script does not push, comment, approve, or merge. The caller runs
+# post-comment.sh to post the comment.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 
 PR="" BRANCH="" REPO="launchdarkly/ldcli" REMOTE="origin" BASE_BRANCH="main"
-OUT="" PROFILE="fast" PHASE="all" ONLY=""
+OUT="" PROFILE="fast" PHASE="all" ONLY="" HEAD_PIN="" BASE_PIN="" NO_PR_META=false
 
 usage() { sed -n '2,/^set -uo/p' "$0" | sed '$d; s/^# \{0,1\}//'; }
 
@@ -43,6 +49,9 @@ while [ $# -gt 0 ]; do
     --profile) PROFILE="${2:?}"; shift 2 ;;
     --phase) PHASE="${2:?}"; shift 2 ;;
     --only) ONLY="${2:?}"; shift 2 ;;
+    --head-sha) HEAD_PIN="${2:?}"; shift 2 ;;
+    --base-sha) BASE_PIN="${2:?}"; shift 2 ;;
+    --no-pr-meta) NO_PR_META=true; shift ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die_infra "unknown argument: $1" ;;
   esac
@@ -80,14 +89,21 @@ fetch_with_retry() {
   return 1
 }
 
+ensure_commit() {
+  # ensure_commit <sha> <ref>: makes the commit available locally and points <ref> at it.
+  git -C "$REPO_ROOT" cat-file -e "$1^{commit}" 2>/dev/null || fetch_with_retry "$1" ||
+    die_infra "could not fetch commit $1 from $REMOTE"
+  git -C "$REPO_ROOT" update-ref "$2" "$1"
+}
+
 setup_refs() {
   local gh_json="$STATE/gh-pr.json"
   echo 'null' >"$gh_json"
-  if [ -z "$PR" ] && command -v gh >/dev/null 2>&1; then
+  if [ -z "$PR" ] && [ "$NO_PR_META" != true ] && command -v gh >/dev/null 2>&1; then
     PR=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
     [ -n "$PR" ] && log "branch $BRANCH has open PR #$PR"
   fi
-  if [ -n "$PR" ]; then
+  if [ -n "$PR" ] && [ "$NO_PR_META" != true ]; then
     require_tools gh
     gh pr view "$PR" --repo "$REPO" \
       --json number,url,title,body,author,headRefName,headRefOid,baseRefName,labels,statusCheckRollup,state,isDraft \
@@ -95,24 +111,33 @@ setup_refs() {
     [ -n "$BRANCH" ] || BASE_BRANCH=$(jq -r '.baseRefName' "$gh_json")
   fi
 
-  local head_src="refs/pull/$PR/head"
-  [ -n "$BRANCH" ] && head_src="refs/heads/$BRANCH"
-  log "fetching $head_src and $BASE_BRANCH from $REMOTE"
-  if ! fetch_with_retry "+$head_src:$REF_NS/head" "+refs/heads/$BASE_BRANCH:$REF_NS/base"; then
-    if [ -n "$BRANCH" ] && git -C "$REPO_ROOT" rev-parse -q --verify "$BRANCH^{commit}" >/dev/null &&
-      git -C "$REPO_ROOT" rev-parse -q --verify "$BASE_BRANCH^{commit}" >/dev/null; then
-      log "using local refs for $BRANCH and $BASE_BRANCH"
-      git -C "$REPO_ROOT" update-ref "$REF_NS/head" "$BRANCH"
-      git -C "$REPO_ROOT" update-ref "$REF_NS/base" "$BASE_BRANCH"
-    else
-      die_infra "could not fetch $head_src / $BASE_BRANCH from $REMOTE"
+  if [ -n "$HEAD_PIN" ]; then
+    ensure_commit "$HEAD_PIN" "$REF_NS/head"
+  else
+    local head_src="refs/pull/$PR/head"
+    [ -n "$BRANCH" ] && head_src="refs/heads/$BRANCH"
+    log "fetching $head_src from $REMOTE"
+    if ! fetch_with_retry "+$head_src:$REF_NS/head"; then
+      if [ -n "$BRANCH" ] && git -C "$REPO_ROOT" rev-parse -q --verify "$BRANCH^{commit}" >/dev/null; then
+        log "using the local branch $BRANCH"
+        git -C "$REPO_ROOT" update-ref "$REF_NS/head" "$BRANCH"
+      else
+        die_infra "could not fetch $head_src from $REMOTE"
+      fi
     fi
+  fi
+  if [ -n "$BASE_PIN" ]; then
+    ensure_commit "$BASE_PIN" "$REF_NS/base"
+  elif ! fetch_with_retry "+refs/heads/$BASE_BRANCH:$REF_NS/base"; then
+    git -C "$REPO_ROOT" rev-parse -q --verify "$BASE_BRANCH^{commit}" >/dev/null || die_infra "could not fetch $BASE_BRANCH from $REMOTE"
+    log "using the local branch $BASE_BRANCH"
+    git -C "$REPO_ROOT" update-ref "$REF_NS/base" "$BASE_BRANCH"
   fi
   HEAD_SHA=$(git -C "$REPO_ROOT" rev-parse "$REF_NS/head")
   BASE_SHA=$(git -C "$REPO_ROOT" rev-parse "$REF_NS/base")
   local expected
   expected=$(jq -r '.headRefOid // empty' "$gh_json")
-  if [ -n "$expected" ] && [ "$expected" != "$HEAD_SHA" ]; then
+  if [ -z "$HEAD_PIN" ] && [ -n "$expected" ] && [ "$expected" != "$HEAD_SHA" ]; then
     log "warning: PR head moved during setup ($expected → $HEAD_SHA); verifying $HEAD_SHA"
   fi
 }
@@ -152,7 +177,8 @@ setup_worktrees() {
 write_meta() {
   jq -n \
     --slurpfile gh "$STATE/gh-pr.json" \
-    --arg mode "$([ -n "$BRANCH" ] && echo branch || echo pr)" \
+    --arg mode "$(if [ -n "$HEAD_PIN" ]; then echo replay; elif [ -n "$BRANCH" ]; then echo branch; else echo pr; fi)" \
+    --arg pr_ref "$PR" \
     --arg repo "$REPO" --arg branch "$BRANCH" --arg base_ref "$BASE_BRANCH" \
     --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg mb "$MERGE_BASE" \
     --arg base_tested "$BASE_TESTED" --arg pr_tested "$PR_TESTED" \
@@ -161,6 +187,7 @@ write_meta() {
     | {
         mode: $mode, repo: $repo,
         number: ($g.number // null), url: ($g.url // null),
+        pr_ref: (if $pr_ref == "" then null else ($pr_ref | tonumber) end),
         title: ($g.title // null), body: ($g.body // null),
         author: ($g.author.login // null), state: ($g.state // null),
         labels: (($g.labels // []) | map(.name)),
@@ -210,12 +237,14 @@ run_one() {
   fi
   jq -n --arg status "$status" --arg summary "$summary" \
     --arg log "${logf#"$OUT"/}" --argjson duration "$(($(now_s) - start))" \
-    --arg severity "$(cat "$art/severity" 2>/dev/null)" \
+    --arg question "$(cat "$art/question" 2>/dev/null)" \
+    --slurpfile fix <(cat "$art/fix.json" 2>/dev/null || echo null) \
     --arg fingerprint "$(cat "$art/fingerprint" 2>/dev/null)" \
     --rawfile details <(cat "$art/details.md" 2>/dev/null) \
     --rawfile recs <(cat "$art/recommendations" 2>/dev/null) '
     {status: $status, summary: $summary, log: $log, duration_s: $duration,
-     severity: (if $severity == "" then null else $severity end),
+     question: (if $question == "" then null else $question end),
+     fix: $fix[0],
      fingerprint: (if $fingerprint == "" then null else $fingerprint end),
      details: (if $details == "" then null else $details end),
      recommendations: ($recs | split("\n") | map(select(length > 0)))}' >"$art/result.json"
@@ -257,7 +286,7 @@ run_baseline() {
     fi
     run_one checks "$id" "$script" pr "$timeout"
     status=$(jq -r '.status' "$STATE/checks/$id/pr/result.json")
-    if [ "$(jq -r '.compare_base // false' <<<"$c")" = true ] && { [ "$status" = fail ] || [ "$status" = warn ]; }; then
+    if [ "$(jq -r '.compare_base // false' <<<"$c")" = true ] && { [ "$status" = fail ] || [ "$status" = decide ]; }; then
       run_one checks "$id" "$script" base "$timeout"
     fi
   done

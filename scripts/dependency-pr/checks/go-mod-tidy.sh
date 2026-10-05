@@ -15,6 +15,7 @@ if ! git diff --quiet -- go.mod go.sum; then
   n=$(grep -c '^[+-][^+-]' "$ARTIFACTS/tidy.patch")
   restore_tree
   recommend "Run \`go mod tidy\` and commit go.mod/go.sum."
+  fix_recipe go-mod-tidy "go mod tidy" go.mod go.sum
   fail "go mod tidy changes go.mod/go.sum ($n lines)"
 fi
 restore_tree
