@@ -16,9 +16,9 @@ import {
   Stack,
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Icon } from '@launchpad-ui/icons';
-import { apiRoute, sortFlags } from './util.ts';
+import { apiRoute } from './util.ts';
 import { FlagVariation } from './api.ts';
 import VariationValues from './Flag.tsx';
 import fuzzysort from 'fuzzysort';
@@ -41,7 +41,6 @@ function Flags({
   setOverrides,
 }: FlagProps) {
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
-  const [onlyShowLocal, setOnlyShowLocal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const flagsPerPage = 20;
@@ -51,28 +50,15 @@ function Flags({
     [overrides],
   );
 
-  const localFlagsPresent = useMemo(
-    () =>
-      !!flags && Object.keys(overrides).some((flagKey) => !(flagKey in flags)),
-    [flags, overrides],
-  );
-
-  const showOnlyOverrides = onlyShowOverrides && !!overridesPresent;
-  const showOnlyLocal = onlyShowLocal && localFlagsPresent;
-
-  const allFlags = useMemo(() => {
-    if (!flags) return null;
-    const localFlags = Object.fromEntries(
-      Object.entries(overrides)
-        .filter(([flagKey]) => !(flagKey in flags))
-        .map(([flagKey, { value }]) => [flagKey, { value }]),
-    );
-    return sortFlags({ ...flags, ...localFlags });
-  }, [flags, overrides]);
+  useEffect(() => {
+    if (!overridesPresent && onlyShowOverrides) {
+      setOnlyShowOverrides(false);
+    }
+  }, [overridesPresent, onlyShowOverrides]);
 
   const filteredFlags = useMemo(() => {
-    if (!allFlags) return [];
-    const flagEntries = Object.entries(allFlags);
+    if (!flags) return [];
+    const flagEntries = Object.entries(flags);
     return flagEntries
       .filter((entry) => {
         if (!searchTerm) return true;
@@ -93,24 +79,13 @@ function Flags({
         const [flagKey] = entry;
         const hasOverride = flagKey in overrides;
 
-        if (showOnlyOverrides && !hasOverride) {
-          return false;
-        }
-
-        if (showOnlyLocal && (!flags || flagKey in flags)) {
+        if (onlyShowOverrides && !hasOverride) {
           return false;
         }
 
         return true;
       });
-  }, [
-    allFlags,
-    flags,
-    searchTerm,
-    showOnlyOverrides,
-    showOnlyLocal,
-    overrides,
-  ]);
+  }, [flags, searchTerm, onlyShowOverrides, overrides]);
 
   const paginatedFlags = useMemo(() => {
     const startIndex = currentPage * flagsPerPage;
@@ -238,11 +213,11 @@ function Flags({
       >
         <Label
           htmlFor="only-show-overrides"
-          className={`only-show-overrides-label${overridesPresent ? '' : ' disabled'}`}
+          className="only-show-overrides-label"
         >
           <Checkbox
             id="only-show-overrides"
-            isSelected={showOnlyOverrides}
+            isSelected={onlyShowOverrides}
             onChange={(newValue) => {
               setOnlyShowOverrides(newValue);
             }}
@@ -254,26 +229,6 @@ function Flags({
           />
           Only show flags with overrides
         </Label>
-        {localFlagsPresent && (
-          <Label
-            htmlFor="only-show-local"
-            className="only-show-overrides-label"
-            style={{ marginLeft: '1.5rem', marginRight: 'auto' }}
-          >
-            <Checkbox
-              id="only-show-local"
-              isSelected={showOnlyLocal}
-              onChange={(newValue) => {
-                setOnlyShowLocal(newValue);
-              }}
-              style={{
-                display: 'inline-block',
-                marginRight: '.25rem',
-              }}
-            />
-            Only show local flags
-          </Label>
-        )}
         <Button
           variant="destructive"
           isDisabled={!overridesPresent}

@@ -28,11 +28,6 @@ body,
   align-items: center;
 }
 
-.only-show-overrides-label.disabled {
-  color: var(--lp-color-text-interactive-disabled);
-  cursor: not-allowed;
-}
-
 ul.flags-list {
   margin: 0;
   padding: 0;

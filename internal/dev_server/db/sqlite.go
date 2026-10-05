@@ -91,14 +91,6 @@ func (s *Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool
 			_ = tx.Rollback()
 		}
 	}()
-	previousFlagsStateJson := "{}"
-	err = tx.QueryRowContext(ctx, `SELECT flag_state FROM projects WHERE key = ?`, project.Key).Scan(&previousFlagsStateJson)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		return false, errors.Wrap(err, "unable to read flag state when updating project")
-	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE projects
 		SET flag_state = ?, last_sync_time = ?, context=?, source_environment_key=?
@@ -125,10 +117,8 @@ func (s *Sqlite) UpdateProject(ctx context.Context, project model.Project) (bool
 	// Prune overrides for flags no longer in the project. Key off flag_state (always fully populated from the SDK), not available_variations, which lags the background fill in streaming mode and would wrongly wipe overrides.
 	_, err = tx.ExecContext(ctx, `
 		DELETE FROM overrides
-		WHERE project_key = ?
-			AND flag_key IN (SELECT key FROM json_each(?))
-			AND flag_key NOT IN (SELECT key FROM json_each(?))
-	`, project.Key, previousFlagsStateJson, string(flagsStateJson))
+		WHERE project_key = ? AND flag_key NOT IN (SELECT key FROM json_each(?))
+	`, project.Key, string(flagsStateJson))
 	if err != nil {
 		return false, err
 	}

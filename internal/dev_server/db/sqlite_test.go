@@ -452,33 +452,4 @@ func TestDBFunctions(t *testing.T) {
 		require.Len(t, overrides, 1)
 		assert.Equal(t, override, overrides[0])
 	})
-
-	t.Run("UpdateProject keeps overrides for flags that were never in the project", func(t *testing.T) {
-		project := projects[2]
-
-		override, err := store.UpsertOverride(ctx, model.Override{
-			ProjectKey: project.Key,
-			FlagKey:    "local-only-flag",
-			Value:      ldvalue.String("on"),
-			Active:     true,
-			Version:    1,
-		})
-		require.NoError(t, err)
-
-		project.AllFlagsState = model.FlagsState{
-			"flag-2": model.FlagState{Value: ldvalue.Bool(true), Version: 1},
-		}
-		project.AvailableVariations = []model.FlagVariation{
-			{
-				FlagKey: "flag-2",
-			},
-		}
-		updated, err := store.UpdateProject(ctx, project)
-		require.NoError(t, err)
-		require.True(t, updated)
-
-		overrides, err := store.GetOverridesForProject(ctx, project.Key)
-		require.NoError(t, err)
-		assert.Contains(t, overrides, override)
-	})
 }
