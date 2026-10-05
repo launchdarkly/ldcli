@@ -52,6 +52,9 @@ for name in "${names[@]}"; do
         (if $e.verdict_not and $r.verdict == $e.verdict_not then "verdict must not be \($e.verdict_not)" else empty end),
         (($e.checks // {}) | to_entries[] | select($outcomes[.key] != .value)
           | "check \(.key): \($outcomes[.key] // "not run"), expected \(.value)"),
+        (($e.summaries_contain // {}) | to_entries[] as $s
+          | select(([$r.checks[] | select(.id == $s.key) | .pr.summary] | join("\n")) | contains($s.value) | not)
+          | "check \($s.key) summary does not mention \"\($s.value)\""),
         (($e.blocks_contain // [])[] as $s | select(([$r.blocks[] | .problem + " " + (.fix | join(" "))] | join("\n")) | contains($s) | not)
           | "no block mentions \"\($s)\""),
         (($e.decisions_contain // [])[] as $s | select(([$r.decisions[].question] | join("\n")) | contains($s) | not)
