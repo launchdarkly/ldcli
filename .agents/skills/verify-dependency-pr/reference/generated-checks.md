@@ -13,13 +13,13 @@
   "schema": 1,
   "checks": [
     {
-      "id": "sqlite-cached-stmt-schema-change",
-      "title": "Cached prepared statement sees a column added after it was prepared",
+      "id": "events-query-cancellation-overhead",
+      "title": "Debug-events query adds no per-row goroutine/allocations under a request context",
       "kind": "discriminating",
-      "rationale": "1.14.52 replaces the schema probe for cached statements (mattn/go-sqlite3#1454); the dev server reuses statements across schema migrations.",
-      "script": "sqlite-cached-stmt-schema-change.sh",
+      "rationale": "go-sqlite3 1.14.51 stopped spawning a goroutine + channel per row when ctx.Done() != nil; events_db.QueryEvents iterates rows under the HTTP request context.",
+      "script": "events-query-cancellation-overhead.sh",
       "severity": "attention",
-      "timeout": 600
+      "timeout": 300
     }
   ]
 }
