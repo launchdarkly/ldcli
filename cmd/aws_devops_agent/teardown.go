@@ -3,6 +3,7 @@ package awsdevopsagent
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -77,18 +78,13 @@ func confirmTeardown(cmd *cobra.Command, accountID, region string) error {
 		)
 	}
 
-	keys := newKeyReader(cmd.InOrStdin())
-	defer keys.close()
-	out := keys.writer(cmd.OutOrStdout())
 	_, _ = fmt.Fprintf(
-		out,
-		"This removes every agent space, registered service and IAM role in account %s (%s).\nPress y to continue: ",
+		cmd.OutOrStdout(),
+		"This removes every agent space, registered service and IAM role in account %s (%s).\nType y to continue: ",
 		accountID,
 		region,
 	)
-	key := keys.next()
-	_, _ = fmt.Fprintln(out)
-	if key != 'y' && key != 'Y' {
+	if !strings.EqualFold(readLine(cmd.InOrStdin()), "y") {
 		return errors.New("teardown cancelled")
 	}
 

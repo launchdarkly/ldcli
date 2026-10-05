@@ -36,25 +36,12 @@ type AgentSpaceStatus struct {
 	Name           string              `json:"name"`
 	OperatorAppURL string              `json:"operatorAppUrl"`
 	Associations   []AssociationStatus `json:"associations,omitempty"`
-	Assets         []AssetStatus       `json:"assets,omitempty"`
 }
 
 type AssociationStatus struct {
 	AssociationID string `json:"associationId"`
 	ServiceID     string `json:"serviceId"`
 	Status        string `json:"status,omitempty"`
-}
-
-type AssetStatus struct {
-	AssetID   string `json:"assetId"`
-	AssetType string `json:"assetType"`
-}
-
-// managedAssetTypes are the asset types setup creates; agent spaces also hold
-// memory and artifact assets the agent manages itself.
-var managedAssetTypes = map[string]bool{
-	skillAssetType:       true,
-	customAgentAssetType: true,
 }
 
 // GetStatus reports the IAM roles and agent spaces in the caller's account. It
@@ -127,20 +114,6 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 				AssociationID: aws.ToString(association.AssociationId),
 				ServiceID:     aws.ToString(association.ServiceId),
 				Status:        string(association.Status),
-			})
-		}
-
-		assets, err := clients.Agent.ListAssets(ctx, &devopsagent.ListAssetsInput{AgentSpaceId: aws.String(id)})
-		if err != nil {
-			return status, fmt.Errorf("unable to list assets for agent space %s: %w", id, err)
-		}
-		for _, asset := range assets.Items {
-			if !managedAssetTypes[aws.ToString(asset.AssetType)] {
-				continue
-			}
-			spaceStatus.Assets = append(spaceStatus.Assets, AssetStatus{
-				AssetID:   aws.ToString(asset.AssetId),
-				AssetType: aws.ToString(asset.AssetType),
 			})
 		}
 

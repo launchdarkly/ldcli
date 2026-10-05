@@ -125,15 +125,11 @@ The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`,
 
 `setup` is safe to re-run: it reuses the IAM roles, the agent space matching `--agent-space-name`, the account and MCP associations on it, and any LaunchDarkly MCP server already registered on the account. Pass `--new-agent-space` to create an additional agent space instead.
 
-`--access-token` is optional. The first available token — the flag, then `LD_ACCESS_TOKEN`, then the one already in your ldcli configuration — is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a [service token](https://launchdarkly.com/docs/home/account/api-create) whose permissions match what you want the agent to do. AWS keeps it until the MCP server is re-registered, so a session token written by `ldcli login` eventually expires and the agent then fails with `unauthorized` errors. Re-run with `--access-token <token> --replace-mcp-token` to re-register an MCP server with a different token. By default the agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`. Use `--mcp-read-only-tools` and `--mcp-mutative-tools` to change that.
+`--access-token` is optional. The first available token — the flag, then `LD_ACCESS_TOKEN`, then the one already in your ldcli configuration — is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a [service token](https://launchdarkly.com/docs/home/account/api-create) whose permissions match what you want the agent to do. AWS keeps it until the MCP server is re-registered, so a session token written by `ldcli login` eventually expires and the agent then fails with `unauthorized` errors. Re-run with `--access-token <token> --replace-mcp-token` to re-register an MCP server with a different token. The agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`.
 
-With no token configured at all, `setup` pauses at the LaunchDarkly page where you create a service token and connects the MCP server with the token you paste there, so you do not need one ready beforehand. Pressing Enter without a token skips the step, which `--skip-mcp-server` also does up front.
+With no token configured at all, `setup` prints the LaunchDarkly page where you create a service token and connects the MCP server with the token you paste there, so you do not need one ready beforehand. Pressing Enter without a token skips the step, as does running without a terminal.
 
-`setup` ends by printing the operator app URL, `https://<agent-space-id>.aidevops.global.app.aws`, which is where you use the agent, together with the AWS console page that manages it. Pass `--no-wait` to skip every pause and list the remaining manual steps instead, for example in CI:
-
-```sh-session
-ldcli aws-devops-agent setup --no-wait --access-token <token>
-```
+`setup` ends by printing the operator app URL, `https://<agent-space-id>.aidevops.global.app.aws`, which is where you use the agent, together with the AWS console page that manages it.
 
 `ldcli aws-devops-agent status` shows what exists. `ldcli aws-devops-agent teardown` removes everything in the account and region — every agent space, every registered service including the MCP server, and the IAM roles — after asking you to confirm (`--force` skips the prompt, and is required when there is no terminal). `--agent-space-id <agent-space-id>` and `--service-id <service-id>` narrow it to those resources, and `--delete-roles` adds the IAM roles back to a narrowed teardown.
 

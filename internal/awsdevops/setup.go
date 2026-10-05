@@ -9,7 +9,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
-	"github.com/aws/aws-sdk-go-v2/service/devopsagent/document"
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
@@ -37,47 +36,33 @@ const (
 	MCPServerName     = "LaunchDarkly"
 	MCPServerEndpoint = "https://mcp.launchdarkly.com/mcp/launchdarkly"
 
-	skillAssetType       = "skill"
-	customAgentAssetType = "custom_agent"
 	memoryStoreAssetType = "memory_store"
+
+	agentSpaceDescription = "Managed by the LaunchDarkly CLI"
 )
 
-// DefaultMCPReadOnlyTools and DefaultMCPMutativeTools are the LaunchDarkly MCP
-// tools enabled when the caller does not choose their own. The agent invokes
-// read-only tools without asking for approval, so anything that changes flag
-// state has to be classified explicitly.
+// The agent invokes read-only tools without asking for approval, so anything
+// that changes flag state has to be classified explicitly.
 var (
-	DefaultMCPReadOnlyTools = []string{"list-projects", "list-flags", "get-flag"}
-	DefaultMCPMutativeTools = []string{"toggle-flag"}
+	mcpReadOnlyTools = []string{"list-projects", "list-flags", "get-flag"}
+	mcpMutativeTools = []string{"toggle-flag"}
 )
 
-// SetupOptions describes what to provision. Zero values mean "skip that step".
+// SetupOptions describes what to provision.
 type SetupOptions struct {
-	AgentSpaceID          string
-	AgentSpaceName        string
-	AgentSpaceDescription string
-	NewAgentSpace         bool
+	AgentSpaceID   string
+	AgentSpaceName string
+	NewAgentSpace  bool
 
 	AuthFlow        string
 	IdcInstanceARN  string
 	IssuerURL       string
 	IdpClientID     string
 	IdpClientSecret string
-	SkipOperatorApp bool
 
-	LDBaseURI        string
-	LDAccessToken    string
-	SkipMCPServer    bool
-	ReplaceMCPToken  bool
-	MCPServiceID     string
-	MCPReadOnlyTools []string
-	MCPMutativeTools []string
-
-	SkillName        string
-	SkillBody        string
-	CustomAgentName  string
-	CustomAgentTools []string
-	Schedule         string
+	LDBaseURI       string
+	LDAccessToken   string
+	ReplaceMCPToken bool
 
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)
@@ -86,38 +71,19 @@ type SetupOptions struct {
 // SetupResult holds the identifiers of everything the setup touched. Callers
 // need these to tear the environment back down.
 type SetupResult struct {
-	AccountID            string       `json:"accountId"`
-	Region               string       `json:"region"`
-	AgentSpaceID         string       `json:"agentSpaceId,omitempty"`
-	AgentSpaceRoleARN    string       `json:"agentSpaceRoleArn,omitempty"`
-	OperatorAppRoleARN   string       `json:"operatorAppRoleArn,omitempty"`
-	AWSAssociationID     string       `json:"awsAssociationId,omitempty"`
-	OperatorAppURL       string       `json:"operatorAppUrl,omitempty"`
-	MCPServiceID         string       `json:"mcpServiceId,omitempty"`
-	MCPAssociationID     string       `json:"mcpAssociationId,omitempty"`
-	MCPAuthorizationURL  string       `json:"mcpAuthorizationUrl,omitempty"`
-	SkillAssetID         string       `json:"skillAssetId,omitempty"`
-	CustomAgentAssetID   string       `json:"customAgentAssetId,omitempty"`
-	TriggerID            string       `json:"triggerId,omitempty"`
-	RemainingManualSteps []ManualStep `json:"remainingManualSteps,omitempty"`
+	AccountID          string `json:"accountId"`
+	Region             string `json:"region"`
+	AgentSpaceID       string `json:"agentSpaceId,omitempty"`
+	AgentSpaceRoleARN  string `json:"agentSpaceRoleArn,omitempty"`
+	OperatorAppRoleARN string `json:"operatorAppRoleArn,omitempty"`
+	AWSAssociationID   string `json:"awsAssociationId,omitempty"`
+	OperatorAppURL     string `json:"operatorAppUrl,omitempty"`
+	MCPServiceID       string `json:"mcpServiceId,omitempty"`
+	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 }
 
-// ManualStep pairs a step AWS only exposes in a browser with the page to open.
-type ManualStep struct {
-	Kind        ManualStepKind `json:"kind"`
-	Description string         `json:"description"`
-	URL         string         `json:"url"`
-}
-
-type ManualStepKind string
-
-const (
-	ManualStepOAuthConsent ManualStepKind = "oauthConsent"
-	ManualStepMCPServer    ManualStepKind = "mcpServer"
-)
-
-// Setup provisions the IAM roles, agent space, service associations and assets
-// the AWS DevOps Agent needs to manage LaunchDarkly flags.
+// Setup provisions the IAM roles, agent space, service associations and the
+// MCP server the AWS DevOps Agent needs to manage LaunchDarkly flags.
 func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
 	logf := opts.Logf
 	if logf == nil {
@@ -137,13 +103,11 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	}
 	logf("Agent space role ready: %s", result.AgentSpaceRoleARN)
 
-	if !opts.SkipOperatorApp {
-		result.OperatorAppRoleARN, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, clients.Region)
-		if err != nil {
-			return result, err
-		}
-		logf("Operator app role ready: %s", result.OperatorAppRoleARN)
+	result.OperatorAppRoleARN, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, clients.Region)
+	if err != nil {
+		return result, err
 	}
+	logf("Operator app role ready: %s", result.OperatorAppRoleARN)
 
 	result.AgentSpaceID = opts.AgentSpaceID
 	if result.AgentSpaceID == "" && !opts.NewAgentSpace {
@@ -159,7 +123,7 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	if result.AgentSpaceID == "" {
 		space, err := clients.Agent.CreateAgentSpace(ctx, &devopsagent.CreateAgentSpaceInput{
 			Name:        aws.String(opts.AgentSpaceName),
-			Description: aws.String(opts.AgentSpaceDescription),
+			Description: aws.String(agentSpaceDescription),
 		})
 		if err != nil {
 			return result, fmt.Errorf("unable to create the agent space: %w", err)
@@ -183,95 +147,18 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		logf("Associated account %s with the agent space", accountID)
 	}
 
-	if !opts.SkipOperatorApp {
-		operatorApp, err := clients.Agent.EnableOperatorApp(ctx, operatorAppInput(result.AgentSpaceID, result.OperatorAppRoleARN, opts))
-		if err != nil {
-			return result, fmt.Errorf("unable to enable the operator app: %w", err)
-		}
-		result.OperatorAppURL = aws.ToString(operatorApp.OperatorAppUrl)
-		logf("Operator app available at %s", result.OperatorAppURL)
+	operatorApp, err := clients.Agent.EnableOperatorApp(ctx, operatorAppInput(result.AgentSpaceID, result.OperatorAppRoleARN, opts))
+	if err != nil {
+		return result, fmt.Errorf("unable to enable the operator app: %w", err)
 	}
+	result.OperatorAppURL = aws.ToString(operatorApp.OperatorAppUrl)
+	logf("Operator app available at %s", result.OperatorAppURL)
 
-	if !opts.SkipMCPServer && (opts.LDAccessToken != "" || opts.MCPServiceID != "") {
+	if opts.LDAccessToken != "" {
 		if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
 			return result, err
 		}
 	}
-
-	if opts.SkillBody != "" {
-		skill, err := clients.Agent.CreateAsset(ctx, &devopsagent.CreateAssetInput{
-			AgentSpaceId: aws.String(result.AgentSpaceID),
-			AssetType:    aws.String(skillAssetType),
-			Metadata: document.NewLazyDocument(map[string]any{
-				"name":        opts.SkillName,
-				"agent_types": []string{"GENERIC"},
-			}),
-			Content: &agenttypes.AssetContentMemberFile{
-				Value: agenttypes.AssetFileContent{
-					Path: aws.String("SKILL.md"),
-					Body: &agenttypes.AssetFileBodyMemberText{Value: opts.SkillBody},
-				},
-			},
-		})
-		if err != nil {
-			return result, fmt.Errorf("unable to create the skill asset: %w", err)
-		}
-		result.SkillAssetID = aws.ToString(skill.Asset.AssetId)
-		logf("Created skill %s (%s)", opts.SkillName, result.SkillAssetID)
-	}
-
-	if opts.CustomAgentName != "" {
-		metadata := map[string]any{"name": opts.CustomAgentName}
-		if result.SkillAssetID != "" {
-			metadata["skills"] = []string{result.SkillAssetID}
-		}
-		if len(opts.CustomAgentTools) > 0 {
-			metadata["tools"] = opts.CustomAgentTools
-		}
-		agent, err := clients.Agent.CreateAsset(ctx, &devopsagent.CreateAssetInput{
-			AgentSpaceId: aws.String(result.AgentSpaceID),
-			AssetType:    aws.String(customAgentAssetType),
-			Metadata:     document.NewLazyDocument(metadata),
-			Content: &agenttypes.AssetContentMemberFile{
-				Value: agenttypes.AssetFileContent{
-					Path: aws.String("AGENT.md"),
-					Body: &agenttypes.AssetFileBodyMemberText{
-						Value: fmt.Sprintf("# %s\n", opts.CustomAgentName),
-					},
-				},
-			},
-		})
-		if err != nil {
-			return result, fmt.Errorf("unable to create the custom agent asset: %w", err)
-		}
-		result.CustomAgentAssetID = aws.ToString(agent.Asset.AssetId)
-		logf("Created custom agent %s (%s)", opts.CustomAgentName, result.CustomAgentAssetID)
-	}
-
-	if opts.Schedule != "" {
-		if result.CustomAgentAssetID == "" {
-			return result, errors.New("--schedule requires --custom-agent-name so the trigger has an agent to run")
-		}
-		trigger, err := clients.Agent.CreateTrigger(ctx, &devopsagent.CreateTriggerInput{
-			AgentSpaceId: aws.String(result.AgentSpaceID),
-			Type:         aws.String("TIME_BASED"),
-			Status:       aws.String("Active"),
-			Condition: &agenttypes.TriggerConditionMemberSchedule{
-				Value: agenttypes.ScheduleCondition{Expression: aws.String(opts.Schedule)},
-			},
-			Action: document.NewLazyDocument(map[string]any{
-				"actionType": "create:task",
-				"task":       map[string]any{"agent": "custom:" + result.CustomAgentAssetID},
-			}),
-		})
-		if err != nil {
-			return result, fmt.Errorf("unable to schedule the custom agent: %w", err)
-		}
-		result.TriggerID = aws.ToString(trigger.Trigger.TriggerId)
-		logf("Scheduled %s on %s", opts.CustomAgentName, opts.Schedule)
-	}
-
-	result.RemainingManualSteps = remainingManualSteps(opts, result)
 
 	return result, nil
 }
@@ -377,16 +264,11 @@ func registerMCPServer(
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
-	existing := opts.MCPServiceID
-	if existing == "" {
-		var err error
-		existing, err = FindMCPServer(ctx, clients)
-		if err != nil {
-			return err
-		}
+	existing, err := FindMCPServer(ctx, clients)
+	if err != nil {
+		return err
 	}
-	replacingToken := opts.ReplaceMCPToken && opts.LDAccessToken != ""
-	if existing != "" && !replacingToken {
+	if existing != "" && !opts.ReplaceMCPToken {
 		result.MCPServiceID = existing
 		logf(
 			"Reusing the %s MCP server already registered on this account (%s); it keeps the access "+
@@ -395,7 +277,7 @@ func registerMCPServer(
 			existing,
 		)
 
-		return associateMCPServer(ctx, clients, opts, result, logf)
+		return associateMCPServer(ctx, clients, result, logf)
 	}
 	if existing != "" {
 		if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
@@ -432,18 +314,12 @@ func registerMCPServer(
 
 		return fmt.Errorf(
 			"an MCP server named %s already exists on this account but is not visible to ListServices, "+
-				"so it cannot be associated automatically: associate it with agent space %s in the console, "+
-				"or re-run with --skip-mcp-server",
+				"so it cannot be associated automatically: associate it with agent space %s in the console",
 			MCPServerName,
 			result.AgentSpaceID,
 		)
 	}
 
-	// RegisterService returns a service ID or an additional step, never both.
-	if oauth, ok := registration.AdditionalStep.(*agenttypes.AdditionalServiceRegistrationStepMemberOauth); ok {
-		result.MCPAuthorizationURL = aws.ToString(oauth.Value.AuthorizationUrl)
-		return nil
-	}
 	result.MCPServiceID = aws.ToString(registration.ServiceId)
 	logf(
 		"Registered the %s MCP server (%s) against the LaunchDarkly account the access token belongs to",
@@ -451,13 +327,12 @@ func registerMCPServer(
 		result.MCPServiceID,
 	)
 
-	return associateMCPServer(ctx, clients, opts, result, logf)
+	return associateMCPServer(ctx, clients, result, logf)
 }
 
 func associateMCPServer(
 	ctx context.Context,
 	clients Clients,
-	opts SetupOptions,
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
@@ -476,7 +351,7 @@ func associateMCPServer(
 		AgentSpaceId: aws.String(result.AgentSpaceID),
 		ServiceId:    aws.String(result.MCPServiceID),
 		Configuration: &agenttypes.ServiceConfigurationMemberMcpserver{
-			Value: mcpServerConfiguration(opts),
+			Value: mcpServerConfiguration(),
 		},
 	})
 	if err != nil {
@@ -491,15 +366,8 @@ func associateMCPServer(
 // mcpServerConfiguration builds the tool allowlist. AWS has no "allow all
 // tools" option, and an unclassified tool is treated as read-only, which the
 // agent may invoke without approval.
-func mcpServerConfiguration(opts SetupOptions) agenttypes.MCPServerConfiguration {
-	readOnly := opts.MCPReadOnlyTools
-	if readOnly == nil {
-		readOnly = DefaultMCPReadOnlyTools
-	}
-	mutative := opts.MCPMutativeTools
-	if mutative == nil {
-		mutative = DefaultMCPMutativeTools
-	}
+func mcpServerConfiguration() agenttypes.MCPServerConfiguration {
+	readOnly, mutative := mcpReadOnlyTools, mcpMutativeTools
 
 	config := agenttypes.MCPServerConfiguration{
 		Tools:       make([]string, 0, len(readOnly)+len(mutative)),
@@ -618,29 +486,6 @@ func isNoSuchEntity(err error) bool {
 	var noSuchEntity *iamtypes.NoSuchEntityException
 
 	return errors.As(err, &noSuchEntity)
-}
-
-func remainingManualSteps(opts SetupOptions, result SetupResult) []ManualStep {
-	var steps []ManualStep
-	if result.MCPAuthorizationURL != "" {
-		steps = append(steps, ManualStep{
-			Kind:        ManualStepOAuthConsent,
-			Description: "Approve the LaunchDarkly MCP server OAuth consent screen, then re-run setup",
-			URL:         result.MCPAuthorizationURL,
-		})
-	}
-	if !opts.SkipMCPServer && opts.LDAccessToken == "" && result.MCPServiceID == "" {
-		steps = append(steps, ManualStep{
-			Kind: ManualStepMCPServer,
-			Description: fmt.Sprintf(
-				"Create a LaunchDarkly service token to connect the MCP server (%s)",
-				MCPServerEndpoint,
-			),
-			URL: AccessTokenURL(opts.LDBaseURI),
-		})
-	}
-
-	return steps
 }
 
 // ConsoleURL is the AWS DevOps Agent console for a region.
