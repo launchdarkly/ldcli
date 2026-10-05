@@ -121,6 +121,9 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	}
 	addr := net.JoinHostPort(host, serverParams.Port)
 	log.Printf("Server running on %s", addr)
+	if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
+		log.Printf("The dev server now listens on %s by default, so other machines and containers can't reach it. Pass --host 0.0.0.0 to accept their connections", host)
+	}
 	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
 
 	server := http.Server{
