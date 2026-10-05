@@ -54,6 +54,6 @@ fi
 
 if [ ${#problems[@]} -gt 0 ]; then
   fingerprint "$(printf '%s\n' "${problems[@]}" | sed -E 's/\([0-9]+ KB\)//')"
-  fail "$(IFS='; '; echo "${problems[*]}")"
+  fail "$(join_by '; ' "${problems[@]}")"
 fi
 pass "--version, --help for $n_cmds commands, dev-server UI and API all OK"

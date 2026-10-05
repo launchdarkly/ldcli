@@ -41,6 +41,6 @@ problems=()
 if [ ${#problems[@]} -gt 0 ]; then
   fingerprint "$untested|$unfetched"
   [ -n "$untested" ] && recommend "Dry-run the release path the bumped action affects (e.g. manual-publish with dry-run) or review the action's changelog for those workflows."
-  warn "$(IFS='; '; echo "${problems[*]}")"
+  warn "$(join_by '; ' "${problems[@]}")"
 fi
 pass "Every usage runs on pull_request CI; inputs compatible"

@@ -101,6 +101,16 @@ check "agent block finding → block" "block" "$(jq -r '.verdict' <<<"$out")"
 out=$(verdict "[$(chk a block pass)]" '[]' low '{"tier": "high", "findings": []}')
 check "agent can raise the tier" "high needs-human" "$(jq -r '"\(.tier) \(.verdict)"' <<<"$out")"
 
+snap=$(jq -n '{id: "release-snapshot", title: "release", on_fail: "block", required: false, required_for_tags: ["cgo"],
+               pr: {status: "skip", summary: "runs with --profile full", profile_skipped: true}, base: null}')
+tagged() {
+  jq -n -L "$LIB" --argjson checks "[$snap]" --argjson tags "$1" '
+    include "verdict";
+    build_result({}; {tier: "low", tier_reasons: [], updates: [], ecosystems: ["gomod"], tags: $tags}; $checks; []; null; "fast"; "now") | .verdict'
+}
+check "tag-required check skipped for a cgo update → needs-human" '"needs-human"' "$(tagged '["cgo"]')"
+check "tag-required check skipped for other updates → ignored" '"safe-to-merge"' "$(tagged '["tui"]')"
+
 # ---- rendering
 
 tmp=$(mktemp -d)

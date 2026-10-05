@@ -57,6 +57,11 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
         | {level: "needs-human", source: .id, text: "Verifier error in \(.id): \(.pr.summary)"} ),
       ( $checks[] | select(.outcome == "skip" and .required and ((.pr.profile_skipped // false) | not))
         | {level: "needs-human", source: .id, text: "Required check not run (\(.id)): \(.pr.summary)"} ),
+      ( $checks[] | select(.outcome == "skip" and (.required | not))
+        | [ (.required_for_tags // [])[] | select(. as $t | $cls.tags | index($t) != null) ] as $hit
+        | select(($hit | length) > 0)
+        | {level: "needs-human", source: .id,
+           text: "\(.title) not run (\(.pr.summary)); it is required for \($hit | join(", ")) updates"} ),
       ( $gen[] | select(.outcome == "regression")
         | {level: level_for(.severity // "attention"), source: "generated:\(.id)",
            text: "Generated check regressed: \(.title): \(.pr.summary)"} ),

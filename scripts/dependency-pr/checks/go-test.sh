@@ -13,4 +13,6 @@ if [ "$rc" -ne 0 ]; then
   detail_block "$ARTIFACTS/failures" 30
   fail "$(grep -c '^FAIL\s' "$ARTIFACTS/failures") package(s) failing: $(grep '^FAIL\s' "$ARTIFACTS/failures" | awk '{print $2}' | sed 's#github.com/launchdarkly/ldcli/##' | paste -sd, -)"
 fi
-pass "$pkgs packages pass"
+cached=$(grep -cE '^ok\s.*\(cached\)' "$ARTIFACTS/test.out")
+[ "$cached" -gt 0 ] || cached=""
+pass "$pkgs packages pass${cached:+ ($cached served from the go test cache)}"

@@ -56,9 +56,31 @@ detail_block() {
 fingerprint() { printf '%s' "$*" | sha256sum | cut -c1-16 >"$ARTIFACTS/fingerprint"; }
 fingerprint_file() { sha256sum <"$1" | cut -c1-16 >"$ARTIFACTS/fingerprint"; }
 
+join_by() {
+  local sep="$1" out="" item
+  shift
+  for item in "$@"; do out="${out:+$out$sep}$item"; done
+  printf '%s' "$out"
+}
+
 run() {
-  printf '+ %s\n' "$*"
+  printf '+ %s\n' "$*" >&2
   "$@"
+}
+
+# go_tool <module/cmd/path> <version>: prints the path of a pinned Go tool,
+# installing it once into a shared cache so its download output stays out of
+# check results.
+go_tool() {
+  local pkg="$1" version="$2" name dir
+  name="$(basename "$pkg")"
+  command -v "$name" >/dev/null 2>&1 && { command -v "$name"; return 0; }
+  dir="${XDG_CACHE_HOME:-$HOME/.cache}/ldcli-verify/bin/$name-$version"
+  if [ ! -x "$dir/$name" ]; then
+    mkdir -p "$dir"
+    GOBIN="$dir" go install "$pkg@$version" >&2 || return 1
+  fi
+  printf '%s\n' "$dir/$name"
 }
 
 # Updates of one ecosystem from classification.json as compact JSON lines.

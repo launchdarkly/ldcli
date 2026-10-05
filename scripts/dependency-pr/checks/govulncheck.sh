@@ -2,14 +2,8 @@
 # Compares reachable vulnerabilities between base and PR. Needs network for the vuln DB.
 source "$VERIFY_ROOT/lib/check.sh"
 
-GOVULNCHECK_VERSION="v1.1.4"
-vulns() {
-  if command -v govulncheck >/dev/null 2>&1; then
-    (cd "$1" && govulncheck ./...)
-  else
-    (cd "$1" && go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" ./...)
-  fi
-}
+bin=$(go_tool golang.org/x/vuln/cmd/govulncheck v1.1.4) || skip "could not install govulncheck"
+vulns() { (cd "$1" && "$bin" ./...); }
 
 vulns "$BASE_WT" >"$ARTIFACTS/base.out" 2>&1
 rc_base=$?

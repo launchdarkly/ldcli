@@ -29,6 +29,6 @@ case "$author" in
 esac
 
 if [ ${#problems[@]} -gt 0 ]; then
-  warn "$(IFS='; '; echo "${problems[*]}")"
+  warn "$(join_by '; ' "${problems[@]}")"
 fi
 pass "Merges cleanly into $base_ref; only dependency manifests changed"

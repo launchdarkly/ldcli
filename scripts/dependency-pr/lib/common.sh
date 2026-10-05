@@ -31,6 +31,7 @@ hermetic_env_args() {
     args+=("-u" "$v")
   done < <(env | sed -n 's/^\(LD_[A-Za-z0-9_]*\)=.*/\1/p')
   args+=(
+    "GH_CONFIG_DIR=${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}"
     "XDG_CONFIG_HOME=$sandbox/config"
     "XDG_STATE_HOME=$sandbox/state"
     "XDG_DATA_HOME=$sandbox/data"

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "_doc": "Baseline checks in execution order. when: ecosystems that trigger the check ('any' = always). packages: optional regex on updated package names. on_fail: block | attention. compare_base: re-run on base when the PR result is fail/warn to detect pre-existing issues. required: a skip counts as unverified (needs a human). profile: fast (default) or full.",
+  "_doc": "Baseline checks in execution order. when: ecosystems that trigger the check ('any' = always). packages: optional regex on updated package names. on_fail: block | attention. compare_base: re-run on base when the PR result is fail/warn to detect pre-existing issues. required: a skip counts as unverified (needs a human). required_for_tags: like required, but only when an update carries one of these risk tags. profile: fast (default) or full.",
   "checks": [
     { "id": "pr-state", "title": "PR merges cleanly and only touches dependency manifests", "script": "pr-state.sh", "when": ["any"], "on_fail": "attention", "compare_base": false, "required": false, "timeout": 60 },
     { "id": "ci-status", "title": "CI rollup on the PR head", "script": "ci-status.sh", "when": ["any"], "on_fail": "attention", "compare_base": false, "required": false, "timeout": 60 },
@@ -11,7 +11,7 @@
     { "id": "go-build-vet", "title": "go build and go vet", "script": "go-build-vet.sh", "when": ["gomod"], "on_fail": "block", "compare_base": true, "required": true, "timeout": 900 },
     { "id": "go-test", "title": "go test ./... (hermetic env)", "script": "go-test.sh", "when": ["gomod"], "on_fail": "block", "compare_base": true, "required": true, "timeout": 1200 },
     { "id": "go-generate-drift", "title": "go generate leaves no diff and regenerated code builds", "script": "go-generate-drift.sh", "when": ["gomod"], "on_fail": "attention", "compare_base": true, "required": true, "timeout": 900 },
-    { "id": "release-snapshot", "title": "All release targets cross-compile in goreleaser-cross (CGO)", "script": "release-snapshot.sh", "when": ["gomod"], "on_fail": "block", "compare_base": true, "required": false, "profile": "full", "timeout": 2400 },
+    { "id": "release-snapshot", "title": "All release targets cross-compile in goreleaser-cross (CGO)", "script": "release-snapshot.sh", "when": ["gomod"], "on_fail": "block", "compare_base": true, "required": false, "required_for_tags": ["cgo"], "profile": "full", "timeout": 2400 },
     { "id": "govulncheck", "title": "govulncheck: no new reachable vulnerabilities", "script": "govulncheck.sh", "when": ["gomod"], "on_fail": "attention", "compare_base": false, "required": false, "profile": "full", "timeout": 900 },
     { "id": "golangci-lint", "title": "golangci-lint (pre-commit config)", "script": "golangci-lint.sh", "when": ["gomod"], "on_fail": "attention", "compare_base": true, "required": false, "profile": "full", "timeout": 900 },
 
