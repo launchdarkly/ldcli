@@ -25,20 +25,26 @@ func TestLimitRequestBody(t *testing.T) {
 	}))
 
 	tests := []struct {
-		name   string
-		method string
-		path   string
-		size   int
-		want   int
+		name        string
+		method      string
+		path        string
+		contentType string
+		size        int
+		want        int
 	}{
-		{"at default limit", http.MethodPost, "/bulk", maxRequestBodyBytes, http.StatusOK},
-		{"over default limit", http.MethodPost, "/bulk", maxRequestBodyBytes + 1, http.StatusRequestEntityTooLarge},
-		{"backup restore above default limit", http.MethodPost, backupPath, maxRequestBodyBytes + 1, http.StatusOK},
-		{"backup restore over backup limit", http.MethodPost, backupPath, maxBackupBodyBytes + 1, http.StatusRequestEntityTooLarge},
+		{"at default limit", http.MethodPost, "/bulk", "text/plain", maxRequestBodyBytes, http.StatusOK},
+		{"over default limit", http.MethodPost, "/bulk", "text/plain", maxRequestBodyBytes + 1, http.StatusRequestEntityTooLarge},
+		{"backup restore above default limit", http.MethodPost, backupPath, backupContentType, maxRequestBodyBytes + 1, http.StatusOK},
+		{"backup restore over backup limit", http.MethodPost, backupPath, backupContentType, maxBackupBodyBytes + 1, http.StatusRequestEntityTooLarge},
+		{"backup restore with simple content type", http.MethodPost, backupPath, "text/plain", 1, http.StatusUnsupportedMediaType},
+		{"backup restore without content type", http.MethodPost, backupPath, "", 1, http.StatusUnsupportedMediaType},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(strings.Repeat("a", tt.size)))
+			if tt.contentType != "" {
+				req.Header.Set("Content-Type", tt.contentType)
+			}
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 			assert.Equal(t, tt.want, rec.Code)
