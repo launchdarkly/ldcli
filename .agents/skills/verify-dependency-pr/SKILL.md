@@ -1,11 +1,11 @@
 ---
 name: verify-dependency-pr
-description: Verify a Dependabot (or other dependency-update) PR on ldcli the way a careful human reviewer would, and produce a verdict comment (safe to merge / needs human / block). Use when asked to verify, review, triage, or check a dependency bump PR, or when an automation hands you a Dependabot PR number.
+description: Verify a Dependabot (or other dependency-update) PR on ldcli the way a careful human reviewer would, and produce a verdict comment (safe to merge / needs human / block). Use to verify, review, triage, or check a dependency bump PR given its number or branch.
 ---
 
 # Verify a dependency PR
 
-You produce evidence and a verdict comment. You **never approve, request changes, merge, push to the PR branch, or post the comment unless the user explicitly asks you to post it.** Posting is a separate step (`post-comment.sh`).
+You produce evidence and a verdict comment. You **never approve, request changes, merge, or push to the PR branch.** Verification writes files only; posting the comment is a separate step (`post-comment.sh`) that the caller runs.
 
 All paths are relative to the repo root. Output goes to `.verify-out/pr-<N>/` (gitignored).
 
@@ -78,9 +78,9 @@ This runs every generated check on base and on the PR, merges in `agent/impact.j
 
 ### 5. Report
 
-Give the user the verdict, the reasons, and the path to `comment.md`. Point out pre-existing problems on main separately. Suggest promoting a generated check when it would catch the same class of problem on future bumps (see "Promotion" in the reference).
+Report the verdict, the reasons, and the path to `comment.md`. Point out pre-existing problems on main separately. Suggest promoting a generated check when it would catch the same class of problem on future bumps (see "Promotion" in the reference).
 
-Post only when asked:
+To post, the caller runs:
 
 ```bash
 scripts/dependency-pr/post-comment.sh --out-dir .verify-out/pr-<N> --dry-run   # then without --dry-run
