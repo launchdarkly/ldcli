@@ -49,7 +49,6 @@ func TestSetupReplacesTheMCPServerTokenWhenAsked(t *testing.T) {
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName:  "launchdarkly",
 		AuthFlow:        "iam",
-		SkipOperatorApp: true,
 		LDAccessToken:   "api-token",
 		ReplaceMCPToken: true,
 	})

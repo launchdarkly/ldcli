@@ -66,9 +66,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			_, _ = fmt.Fprintln(out, strings.TrimRight(fmt.Sprintf(
 				"    association %s: %s %s", association.AssociationID, association.ServiceID, association.Status), " "))
 		}
-		for _, asset := range space.Assets {
-			_, _ = fmt.Fprintf(out, "    asset %s: %s\n", asset.AssetID, asset.AssetType)
-		}
 	}
 	_, _ = fmt.Fprintf(out, "\nAWS DevOps Agent console: %s\n", awsdevops.ConsoleURL(status.Region))
 

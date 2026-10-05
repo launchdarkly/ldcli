@@ -42,8 +42,6 @@ var (
 type AgentAPI interface {
 	AssociateService(context.Context, *devopsagent.AssociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.AssociateServiceOutput, error)
 	CreateAgentSpace(context.Context, *devopsagent.CreateAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAgentSpaceOutput, error)
-	CreateAsset(context.Context, *devopsagent.CreateAssetInput, ...func(*devopsagent.Options)) (*devopsagent.CreateAssetOutput, error)
-	CreateTrigger(context.Context, *devopsagent.CreateTriggerInput, ...func(*devopsagent.Options)) (*devopsagent.CreateTriggerOutput, error)
 	DeleteAgentSpace(context.Context, *devopsagent.DeleteAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.DeleteAgentSpaceOutput, error)
 	DeleteAsset(context.Context, *devopsagent.DeleteAssetInput, ...func(*devopsagent.Options)) (*devopsagent.DeleteAssetOutput, error)
 	DeregisterService(context.Context, *devopsagent.DeregisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error)

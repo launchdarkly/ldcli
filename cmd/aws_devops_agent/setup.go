@@ -15,26 +15,14 @@ import (
 )
 
 const (
-	agentSpaceNameFlag        = "agent-space-name"
-	agentSpaceDescriptionFlag = "agent-space-description"
-	newAgentSpaceFlag         = "new-agent-space"
-	authFlowFlag              = "auth-flow"
-	idcInstanceARNFlag        = "idc-instance-arn"
-	issuerURLFlag             = "issuer-url"
-	idpClientIDFlag           = "idp-client-id"
-	idpClientSecretFlag       = "idp-client-secret"
-	skipOperatorAppFlag       = "skip-operator-app"
-	skipMCPServerFlag         = "skip-mcp-server"
-	replaceMCPTokenFlag       = "replace-mcp-token"
-	mcpServiceIDFlag          = "mcp-service-id"
-	mcpReadOnlyToolsFlag      = "mcp-read-only-tools"
-	mcpMutativeToolsFlag      = "mcp-mutative-tools"
-	skillNameFlag             = "skill-name"
-	skillFileFlag             = "skill-file"
-	customAgentNameFlag       = "custom-agent-name"
-	customAgentToolsFlag      = "custom-agent-tools"
-	scheduleFlag              = "schedule"
-	noWaitFlag                = "no-wait"
+	agentSpaceNameFlag  = "agent-space-name"
+	newAgentSpaceFlag   = "new-agent-space"
+	authFlowFlag        = "auth-flow"
+	idcInstanceARNFlag  = "idc-instance-arn"
+	issuerURLFlag       = "issuer-url"
+	idpClientIDFlag     = "idp-client-id"
+	idpClientSecretFlag = "idp-client-secret"
+	replaceMCPTokenFlag = "replace-mcp-token"
 )
 
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
@@ -49,13 +37,10 @@ along with anything already attached to it. The run ends with the operator app
 URL, where the agent is used.
 
 The MCP server is connected with --access-token, or with the token in your
-ldcli configuration when you do not pass one. With neither, setup pauses at the
-LaunchDarkly page where you create a service token and uses the token you
-paste. AWS keeps that token and the agent acts as its account and role, so a
-session token from 'ldcli login' stops working once it expires.
-
-In a terminal, setup pauses on each browser step with the page to open and
-resumes once you are done. Pass --no-wait to only list them.`,
+ldcli configuration when you do not pass one. With neither, setup asks for a
+LaunchDarkly service token. AWS keeps that token and the agent acts as its
+account and role, so a session token from 'ldcli login' stops working once it
+expires.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -65,25 +50,13 @@ resumes once you are done. Pass --no-wait to only list them.`,
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
 	cmd.Flags().String(agentSpaceIDFlag, "", "Existing agent space to add to instead of creating one")
 	cmd.Flags().String(agentSpaceNameFlag, "launchdarkly", "Name of the agent space to create")
-	cmd.Flags().String(agentSpaceDescriptionFlag, "Managed by the LaunchDarkly CLI", "Description of the agent space to create")
 	cmd.Flags().Bool(newAgentSpaceFlag, false, "Create another agent space instead of reusing the one matching --agent-space-name")
 	cmd.Flags().String(authFlowFlag, "iam", "Operator app sign-in method: iam, idc or idp")
 	cmd.Flags().String(idcInstanceARNFlag, "", "IAM Identity Center instance ARN, required when --auth-flow=idc")
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientIDFlag, "", "OIDC client ID, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
-	cmd.Flags().Bool(skipOperatorAppFlag, false, "Skip the operator app role and web app")
-	cmd.Flags().Bool(skipMCPServerFlag, false, "Skip registering the LaunchDarkly MCP server, without listing it as a manual step")
 	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses the token passed with --access-token")
-	cmd.Flags().String(mcpServiceIDFlag, "", "Service ID of an MCP server already registered on the account to associate instead of registering one")
-	cmd.Flags().StringSlice(mcpReadOnlyToolsFlag, awsdevops.DefaultMCPReadOnlyTools, "LaunchDarkly MCP tools the agent may call without approval")
-	cmd.Flags().StringSlice(mcpMutativeToolsFlag, awsdevops.DefaultMCPMutativeTools, "LaunchDarkly MCP tools that change flag state and need approval")
-	cmd.Flags().String(skillNameFlag, "launchdarkly", "Name of the skill asset to create from --skill-file")
-	cmd.Flags().String(skillFileFlag, "", "Path to a SKILL.md to upload as a skill asset")
-	cmd.Flags().String(customAgentNameFlag, "", "Create a custom agent with this name")
-	cmd.Flags().StringSlice(customAgentToolsFlag, nil, "Tools the custom agent may use")
-	cmd.Flags().String(scheduleFlag, "", "Cron or rate expression to run the custom agent on, for example 'rate(1 day)'")
-	cmd.Flags().Bool(noWaitFlag, false, "List the browser-only steps instead of pausing on each one")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -127,49 +100,62 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return printJSON(cmd, result)
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nAgent space %s is ready in %s (account %s).\n", result.AgentSpaceID, result.Region, result.AccountID)
-	remaining := result.RemainingManualSteps
-	if !mustBool(cmd, noWaitFlag) && canPrompt() {
-		remaining = walkManualSteps(cmd, clients, opts, &result)
-	}
-	if len(remaining) > 0 {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nSteps AWS cannot automate:")
-		for _, step := range remaining {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n    %s\n", step.Description, step.URL)
-		}
+	if result.MCPServiceID == "" {
+		connectMCPServer(cmd, clients, opts, &result)
 	}
 
-	if result.OperatorAppURL != "" {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)
-	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Manage it in the AWS console at:\n  %s\n", awsdevops.ConsoleURL(result.Region))
 
 	return nil
 }
 
+// connectMCPServer collects a LaunchDarkly service token and registers the MCP
+// server with it, for a run that started without a token to register.
+func connectMCPServer(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	opts awsdevops.SetupOptions,
+	result *awsdevops.SetupResult,
+) {
+	tokenURL := awsdevops.AccessTokenURL(opts.LDBaseURI)
+	if !canPrompt() {
+		_, _ = fmt.Fprintf(
+			cmd.ErrOrStderr(),
+			"The LaunchDarkly MCP server is not connected. Create a service token at %s, "+
+				"then re-run setup with --access-token\n",
+			tokenURL,
+		)
+
+		return
+	}
+
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
+	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Paste the token, or press Enter to skip: ")
+	opts.LDAccessToken = readSecret(cmd.InOrStdin())
+	_, _ = fmt.Fprintln(cmd.OutOrStdout())
+	if opts.LDAccessToken == "" {
+		return
+	}
+
+	if err := awsdevops.RegisterMCPServer(cmd.Context(), clients, opts, result); err != nil {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", err)
+	}
+}
+
 func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 	opts := awsdevops.SetupOptions{
-		AgentSpaceID:          mustString(cmd, agentSpaceIDFlag),
-		AgentSpaceName:        mustString(cmd, agentSpaceNameFlag),
-		AgentSpaceDescription: mustString(cmd, agentSpaceDescriptionFlag),
-		AuthFlow:              strings.ToLower(mustString(cmd, authFlowFlag)),
-		IdcInstanceARN:        mustString(cmd, idcInstanceARNFlag),
-		IssuerURL:             mustString(cmd, issuerURLFlag),
-		IdpClientID:           mustString(cmd, idpClientIDFlag),
-		IdpClientSecret:       mustString(cmd, idpClientSecretFlag),
-		NewAgentSpace:         mustBool(cmd, newAgentSpaceFlag),
-		SkipOperatorApp:       mustBool(cmd, skipOperatorAppFlag),
-		LDBaseURI:             viper.GetString(cliflags.BaseURIFlag),
-		LDAccessToken:         viper.GetString(cliflags.AccessTokenFlag),
-		SkipMCPServer:         mustBool(cmd, skipMCPServerFlag),
-		ReplaceMCPToken:       mustBool(cmd, replaceMCPTokenFlag),
-		MCPServiceID:          mustString(cmd, mcpServiceIDFlag),
-		MCPReadOnlyTools:      mustStringSlice(cmd, mcpReadOnlyToolsFlag),
-		MCPMutativeTools:      mustStringSlice(cmd, mcpMutativeToolsFlag),
-		SkillName:             mustString(cmd, skillNameFlag),
-		CustomAgentName:       mustString(cmd, customAgentNameFlag),
-		CustomAgentTools:      mustStringSlice(cmd, customAgentToolsFlag),
-		Schedule:              mustString(cmd, scheduleFlag),
+		AgentSpaceID:    mustString(cmd, agentSpaceIDFlag),
+		AgentSpaceName:  mustString(cmd, agentSpaceNameFlag),
+		AuthFlow:        strings.ToLower(mustString(cmd, authFlowFlag)),
+		IdcInstanceARN:  mustString(cmd, idcInstanceARNFlag),
+		IssuerURL:       mustString(cmd, issuerURLFlag),
+		IdpClientID:     mustString(cmd, idpClientIDFlag),
+		IdpClientSecret: mustString(cmd, idpClientSecretFlag),
+		NewAgentSpace:   mustBool(cmd, newAgentSpaceFlag),
+		LDBaseURI:       viper.GetString(cliflags.BaseURIFlag),
+		LDAccessToken:   viper.GetString(cliflags.AccessTokenFlag),
+		ReplaceMCPToken: mustBool(cmd, replaceMCPTokenFlag),
 	}
 
 	switch opts.AuthFlow {
@@ -184,14 +170,6 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		}
 	default:
 		return opts, fmt.Errorf("--%s must be iam, idc or idp", authFlowFlag)
-	}
-
-	if path := mustString(cmd, skillFileFlag); path != "" {
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return opts, fmt.Errorf("unable to read %s: %w", path, err)
-		}
-		opts.SkillBody = string(body)
 	}
 
 	return opts, nil
