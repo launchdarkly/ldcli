@@ -75,7 +75,7 @@ func TestLogsQuery(t *testing.T) {
 
 		req := (*requests)[len(*requests)-1]
 		assert.Equal(t, "api-abc123", req.Header.Get("Gonfalon-Authorization"))
-		assert.Equal(t, projectID, req.Header.Get("x-project-id"))
+		assert.Equal(t, projectID, req.Header.Get("x-ld-project-id"))
 		assert.Equal(t, projectID, req.Variables["project_id"])
 		assert.EqualValues(t, 50, req.Variables["limit"], "limit is capped")
 		assert.Equal(t, "DESC", req.Variables["direction"])

@@ -57,7 +57,7 @@ func (c Client) Do(projectID, query string, variables map[string]interface{}) (j
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Gonfalon-Authorization", AuthHeader(c.AccessToken))
-	req.Header.Set("x-project-id", projectID)
+	req.Header.Set("x-ld-project-id", projectID)
 	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.CLIVersion))
 
 	httpClient := c.HTTPClient
