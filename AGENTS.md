@@ -134,7 +134,13 @@ It does **not** check `go fmt`, `go mod tidy`, or the UI build. Run `go mod tidy
 
 ## Dependency PR Verification
 
-To verify a Dependabot PR, follow the `verify-dependency-pr` skill (`.agents/skills/verify-dependency-pr/SKILL.md`). Entry point: `scripts/dependency-pr/verify.sh --pr <N>` (or `make verify-dependency-pr ARGS="--pr <N>"`). It writes `.verify-out/pr-<N>/{result.json,comment.md}` and never posts anything. `post-comment.sh` is the only script that comments, and the agent never approves or merges. Unit tests: `scripts/dependency-pr/test/run.sh`.
+To verify a Dependabot PR, follow the `verify-dependency-pr` skill (`.agents/skills/verify-dependency-pr/SKILL.md`). The skill holds the verification to the standard of a diligent reviewer, so that a person only answers specific decisions.
+
+- Run `scripts/dependency-pr/verify.sh --pr <N>`, or `make verify-dependency-pr ARGS="--pr <N>"`.
+- The script writes `.verify-out/pr-<N>/result.json` and `comment.md`. It does not post, approve, or merge.
+- The verdict is `safe-to-merge`, `needs-human` (with one question for each decision), `block` (with the fix), or `incomplete` (a check did not run).
+- The caller runs `post-comment.sh` to post the comment.
+- Unit tests: `scripts/dependency-pr/test/run.sh`. Replays of past PRs (needs network): `scripts/dependency-pr/test/replay.sh`.
 
 ## Linting
 

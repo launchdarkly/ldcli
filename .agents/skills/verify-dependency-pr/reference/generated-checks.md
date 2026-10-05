@@ -1,11 +1,13 @@
 # Generated checks: format and rules
 
+A generated check is a check that the agent writes for one PR. The runner runs it on the base version and on the PR version.
+
 ## Layout
 
 ```
 .verify-out/pr-<N>/generated/
   checks.json          manifest
-  <id>.sh              one script per check
+  <id>.sh              one script for each check
 ```
 
 ```json
@@ -14,11 +16,10 @@
   "checks": [
     {
       "id": "events-query-cancellation-overhead",
-      "title": "Debug-events query adds no per-row goroutine/allocations under a request context",
+      "title": "Debug-events query adds no per-row allocations under a request context",
       "kind": "discriminating",
-      "rationale": "go-sqlite3 1.14.51 stopped spawning a goroutine + channel per row when ctx.Done() != nil; events_db.QueryEvents iterates rows under the HTTP request context.",
+      "rationale": "go-sqlite3 1.14.51 stopped starting a goroutine and a channel for each row when ctx.Done() != nil. events_db.QueryEvents reads rows under the HTTP request context.",
       "script": "events-query-cancellation-overhead.sh",
-      "severity": "attention",
       "timeout": 300
     }
   ]
@@ -26,21 +27,20 @@
 ```
 
 - `id`: kebab-case, unique.
-- `kind`: `discriminating` (expected: fails on base, passes on PR) or `guard` (expected: passes on both).
-- `severity`: what a regression means, either `attention` (needs human, the default) or `block`.
-- `timeout`: seconds (default 600).
+- `kind`: `discriminating` (expected to fail on base and pass on the PR) or `guard` (expected to pass on both).
+- `timeout`: seconds. The default is 600.
 
 ## Script contract
 
-The runner runs each script twice: once with `SIDE=base` and `WT=<base worktree>`, once with `SIDE=pr` and `WT=<pr worktree>`. In both runs the working directory is `$WT`, `LD_*` is unset, and the XDG config, state, and data dirs are private. The scripts must:
+The runner runs each script two times: one time with `SIDE=base` and `WT=<base worktree>`, and one time with `SIDE=pr` and `WT=<pr worktree>`. In both runs, the working directory is `$WT`, the `LD_*` variables are not set, and the XDG configuration, state, and data directories are private. Each script must obey these rules:
 
-1. `source "$VERIFY_ROOT/lib/check.sh"`
-2. Do their work against `$WT` only. Write scratch files under `$ARTIFACTS`, never into the worktree. If you must touch the worktree, call `restore_tree` before finishing.
-3. Finish with exactly one of `pass "summary"`, `fail "summary"`, `warn "summary"`, or `skip "reason"`. If the script exits without one of these (a crash or timeout), the result is recorded as `error`.
+1. Start with `source "$VERIFY_ROOT/lib/check.sh"`.
+2. Work on `$WT` only. Write temporary files in `$ARTIFACTS`, not in the worktree. If the script changes the worktree, call `restore_tree` before it finishes.
+3. Finish with one of `pass`, `fail`, `incomplete`, or `skip`. If a tool is missing or the network fails, use `incomplete`, not `fail`. If the script stops without one of these (a crash or a timeout), the runner records `error`.
 
-Useful helpers: `detail "markdown line"` (shown in the comment), `detail_block file [lines]`, `recommend "action"`, `run cmd…` (echoes the command to the log), `build_ldcli <path>`, `ensure_ui_deps`, `free_port`, `updates_for <ecosystem>`, `$UI_DIR_REL`.
+Helpers: `detail "markdown line"` (shown in the comment), `detail_block file [lines]`, `recommend "action"`, `run cmd…` (writes the command to the log), `build_ldcli <path>`, `ensure_ui_deps`, `free_port`, `updates_for <ecosystem>`, `$UI_DIR_REL`.
 
-For Go-level behavior, the most reliable pattern is a throwaway test file. Copy it into the package under test, run only that test, then delete it. This is the check used for go-sqlite3 1.14.52 (#829). It measured 2.03 extra allocations per row on the old version and 0.03 on the new one, so it is proven:
+For Go behavior, a temporary test file works best. Copy it into the package under test, run only that test, and then delete it. This is the check for go-sqlite3 1.14.52 (#829). It measured 2.03 extra allocations for each row on the old version and 0.03 on the new version, so it is proven:
 
 ```bash
 #!/usr/bin/env bash
@@ -57,38 +57,39 @@ measured=$(grep -m1 '^allocs:' <<<"$out")
 fail "allocates per row under a cancellable context ($measured)"
 ```
 
-The test itself runs `QueryEvents` over 500 rows with `context.Background()` and again with a cancellable context, using `testing.AllocsPerRun`, and fails when the difference is more than 0.5 allocations per row. Measure the difference against a control, not an absolute number, so that unrelated allocations cancel out.
+The test runs `QueryEvents` on 500 rows two times: one time with `context.Background()` and one time with a context that can be cancelled. It uses `testing.AllocsPerRun`, and it fails if the difference is more than 0.5 allocations for each row. Measure a difference against a control, not an absolute number. Then unrelated allocations cancel out.
 
-(Name helper files `*.txt` so `go` tooling never picks them up from the generated dir.)
+Give helper files the extension `.txt`, so that Go tools do not read them from the generated directory.
 
-For CLI behavior, build with `build_ldcli "$ARTIFACTS/ldcli"` and assert on output. For the dev server, start it as `binary-smoke.sh` does: a free port, `--access-token verify-smoke-placeholder`, and `XDG_STATE_HOME` under `$ARTIFACTS`.
+For CLI behavior, build with `build_ldcli "$ARTIFACTS/ldcli"` and test the output. For the dev server, start it as `binary-smoke.sh` does: a free port, `--access-token verify-smoke-placeholder`, and `XDG_STATE_HOME` in `$ARTIFACTS`.
 
 ## Rules
 
-1. **It must fail on the old version before it counts.** The runner enforces this. A discriminating check counts only with outcome `proven` (base fails, PR passes). If it passes on both, it is reported as "does not count". If you expected it to discriminate, the check probably doesn't reach the changed code; rework it.
-2. **Behavior, not versions.** `sqlite_version() >= 3.50` or "package.json says 2.3.2" proves nothing about ldcli. Exercise code paths that ldcli uses.
-3. **Reachability first.** Every check must name the ldcli code path it covers in `rationale`. If the changed code is unreachable from ldcli, write a guard for the ldcli behavior closest to it (or none), and state the unreachability in `impact.json`.
-4. **Deterministic and quiet.** No sleeps-as-synchronization, no reliance on wall-clock time, no network unless the summary says so. Two runs must give the same result.
-5. **Don't weaken the baseline.** Generated checks add to the baseline; they never replace or skip baseline checks.
-6. **Fix broken checks instead of dropping them.** `error` and `invalid` (a guard that fails on base) are bugs in the check.
+1. A check must fail on the old version before it counts. The runner applies this rule. A discriminating check counts only with the outcome `proven`. If it passes on both versions, it does not count. Then the check probably does not reach the changed code. Change the check.
+2. Test behavior, not versions. `sqlite_version() >= 3.50` or "package.json says 2.3.2" proves nothing about ldcli. Run code paths that ldcli uses.
+3. Name the ldcli code path that the check covers in `rationale`. If the changed code is not reachable from ldcli, set `behavior_changes_reachable` to false in `impact.json`, and give the reason.
+4. Make each check deterministic. Do not use sleeps to wait for events. Do not depend on the clock. Do not use the network, unless the summary says so. Two runs must give the same result.
+5. Generated checks add to the baseline. They do not replace or skip baseline checks.
+6. Fix a broken check. Do not delete it. The outcomes `error`, `invalid`, and `fails-both` make the verdict `incomplete`.
 
 ## Outcomes
 
-| kind | base | PR | outcome | effect |
+| Kind | Base | PR | Outcome | Effect on the verdict |
 |---|---|---|---|---|
-| discriminating | fail | pass | proven | counts (enables "safe" for the medium tier) |
-| discriminating | pass | pass | not-discriminating | does not count |
-| discriminating | pass | fail | regression | finding (per `severity`) |
-| discriminating | fail | fail | fails-both | needs human |
-| guard | pass | pass | holds | supporting only |
-| guard | pass | fail | regression | finding (per `severity`) |
-| guard | fail | any | invalid | discarded; fix the check |
+| discriminating | fail | pass | proven | Counts as proof of a reachable change |
+| discriminating | pass | pass | not-discriminating | Does not count |
+| discriminating | pass | fail | regression | block |
+| discriminating | fail | fail | fails-both | incomplete: fix the check or the analysis |
+| guard | pass | pass | holds | Supports the review, but is not proof |
+| guard | pass | fail | regression | block |
+| guard | fail | any | invalid | incomplete: fix the check |
+| any | error, skip, or incomplete | any | error or incomplete | incomplete |
 
 ## Promotion into the baseline
 
-Promote a check when it would catch a *class* of problem on future bumps, for example "regenerated oapi code builds" or "dev-server DB round-trip with the new sqlite". Don't promote checks that are about one version.
+Promote a check if it can find the same type of problem in future updates. Examples are "the regenerated oapi code builds" and "the dev-server database works with the new SQLite". Do not promote a check that is about one version.
 
-1. Copy the script to `scripts/dependency-pr/checks/<id>.sh`. Replace hard-coded versions or packages with values read from `$CLASSIFICATION` (`updates_for gomod`, and so on).
-2. Add an entry to `scripts/dependency-pr/checks/registry.json` with `when` (ecosystems), an optional `packages` regex (for example `"^github.com/mattn/go-sqlite3$"`), `on_fail`, `compare_base: true`, and `required`.
-3. Promoted checks run on the PR side and are re-run on base when they fail, so they act as guards and pre-existing failures are recognized.
-4. Open a normal PR. A human reviews the promotion, never the verifier on its own.
+1. Copy the script to `scripts/dependency-pr/checks/<id>.sh`. Replace fixed versions and package names with values from `$CLASSIFICATION` (`updates_for gomod`, and so on).
+2. Add an entry to `scripts/dependency-pr/checks/registry.json` with `when` (ecosystems), an optional `packages` regex (for example `"^github.com/mattn/go-sqlite3$"`), `compare_base: true`, `required`, and `gate` if the check must pass.
+3. If a failure has a mechanical fix, record it with `fix_recipe`.
+4. Open a normal PR. A person reviews the promotion.

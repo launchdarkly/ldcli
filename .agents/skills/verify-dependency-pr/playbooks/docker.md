@@ -1,18 +1,24 @@
 # Playbook: Docker base image (`Dockerfile.goreleaser`)
 
-The published image is `FROM alpine:<tag>` plus the static `ldcli` binary from goreleaser. Images are built only at release (`.goreleaser.yaml` `dockers`, through the publish composite). PR CI never builds the image.
+The published image is `FROM alpine:<tag>` plus the static `ldcli` binary from goreleaser. The release builds the images. PR CI does not build them.
 
-## Baseline (from `verify.sh`)
+## Diligent reviewer standard
 
-`docker-image` checks that the new tag resolves on Docker Hub. When Docker is available, it also builds `Dockerfile.goreleaser` with a static, CGO-free `ldcli` and runs `--version` inside the image. Without Docker it is **skipped**. It is a required check, so the verdict becomes "needs human" with the reason spelled out. `binary-smoke` runs too.
+1. The new tag exists.
+2. The release image builds from the PR with a binary made as the release makes it: CGO for SQLite, musl, static link.
+3. In the image, `ldcli --version` runs, HTTPS to LaunchDarkly works with the CA bundle of the image, and the dev server starts and serves its API. The dev server uses SQLite, so this step tests CGO on musl.
+4. The changes between the two base image versions are known (musl, CA bundle, busybox, end of support).
 
-## Impact analysis
+## What the baseline checks
 
-- Read the Alpine release notes for each minor between `from` and `to`: musl changes, removed packages, CA bundle, and busybox. ldcli is statically linked, so it only needs the kernel ABI and `/etc/ssl` certificates (for HTTPS to LaunchDarkly).
-- Check the support status: Alpine branches get about 2 years of security fixes. Moving off an EOL branch (3.19 went EOL in 2025-11) is a security improvement worth saying out loud.
-- If a scanner is available, compare CVE counts for the old and new image: `docker scout cves alpine:<tag>`, or `trivy image`.
+`docker-image` (gate) covers items 1 to 3. It needs Docker and `musl-gcc` (package `musl-tools`). If one of them is missing, or if a registry lookup or image pull fails, the check reports `incomplete`, not `fail`. `binary-smoke` also runs.
 
-## Generated-check ideas (need Docker)
+## What the agent must do
 
-- Guard: in the built image, `ldcli --version` works, `ldcli flags list --help` works, and `wget -q -O- https://app.launchdarkly.com` (busybox) validates TLS against the image's CA bundle.
-- Guard: with the full profile, the multi-arch images (`linux/arm64`, `arm/v7`, `386`) build in `release-snapshot`.
+- Read the Alpine release notes for each minor version in the range. ldcli links statically, so it needs only the kernel interface and the certificates in `/etc/ssl`.
+- Write down the support status. Alpine branches get security fixes for about two years. A move away from a branch that has no more support is a security improvement.
+- If a scanner is available (`docker scout cves`, `trivy image`), compare the CVE counts of the old and new image.
+
+## When to ask a person
+
+If the image builds and runs and the impact review is complete, the PR can be safe to merge. Ask a person only if the new base image changes what users see, for example a removed shell or a different user.

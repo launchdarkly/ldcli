@@ -1,26 +1,38 @@
 # Playbook: GitHub Actions (`.github/workflows`, `.github/actions`)
 
-## Baseline (from `verify.sh`)
+## Diligent reviewer standard
 
-- `actions-pinning` enforces SEC-7924 (#668). Third-party actions must be pinned to a 40-character commit SHA with a `# vX.Y.Z` comment. Actions owned by `actions/`, `github/`, and `launchdarkly/` are exempt; that matches the current repo.
-- `actionlint` (v1.7.7, through `go run` when it isn't installed).
-- `actions-coverage` lists every usage of each bumped action and whether the calling workflow triggers on `pull_request`. Composite actions are traced back to their callers. For majors it fetches upstream `action.yml` at both refs and compares inputs: inputs that were removed but are still passed, new required inputs, and runtime changes (for example `node20 → node24`).
+1. Each third-party action uses a full commit SHA with a version comment (SEC-7924, #668).
+2. The workflows pass `actionlint`.
+3. For each updated action, the inputs that the repository passes still exist, and no new required input is missing. The outputs that later steps read still exist.
+4. Changed input defaults, the runtime (for example `node20` to `node24`), and the runner requirements are known.
+5. The `permissions` blocks of the workflows did not change, or the change is approved.
+6. PR CI runs each workflow that uses the action. For a workflow that runs only at release, a person accepts the risk.
+7. The upstream release notes between the two versions are known.
 
-## Key fact
+## What the baseline checks
 
-**A green PR only proves something about workflows that run on `pull_request`.** On this repo that is `go.yml`, `dev-server-ui.yml`, `dependency-scan.yml`, and `lint-pr-title.yml`. `release-please.yml`, `manual-publish.yml`, `check-openapi-updates.yml`, and the `publish` / `publish-npm` composites never run on a PR, so a bump there is unverified by CI (#722 release-please v5, #718).
+| Statement | Check |
+|---|---|
+| 1 | `actions-pinning`. Actions from `actions/`, `github/`, and `launchdarkly/` are exempt, as in the current repository. |
+| 2 | `actionlint` (v1.7.7, installed through `go install` when it is missing) |
+| 3, 4, 5 | `actions-coverage`. It reads the upstream `action.yml` at both refs, traces composite actions back to the workflows that call them, and compares the `permissions` blocks on base and PR. If the interface does not match, the PR is blocked. |
+| 6 | `actions-coverage`. A breaking update that a workflow without a `pull_request` trigger uses becomes a decision. |
+| 7 | `upstream-changes` |
 
-## Impact analysis
+PR CI runs only `go.yml`, `dev-server-ui.yml`, `dependency-scan.yml`, and `lint-pr-title.yml`. `release-please.yml`, `manual-publish.yml`, `check-openapi-updates.yml`, and the `publish` and `publish-npm` composite actions do not run on a PR.
 
-- Read the release notes for every major between `from` and `to` (`gh release list -R <owner>/<repo>`, `gh release view <tag> -R …`). Note runtime requirements (node24 needs runner ≥2.327.1, which GitHub-hosted runners satisfy), changed defaults (for example `actions/checkout`'s `persist-credentials` handling), and removed or renamed inputs and outputs.
-- Check the outputs the repo consumes (`steps.<id>.outputs.*`). The input diff doesn't cover outputs: `rg 'steps\.[a-z_-]+\.outputs' .github`.
-- Dependabot doesn't scan `.github/actions/*` composites, so a bump to `actions/checkout` leaves the composites on the old version. Note any version skew this creates.
-- release-please majors: compare `release-please-config.json` and `.release-please-manifest.json` against the new version's config schema, and the outputs used in `release-please.yml` (`release_created`, `tag_name`, …).
+## What the agent must do
 
-## Generated-check ideas
+- Read the release notes of each major version in the range. Note new runner minimum versions, changed defaults, and changed credential or token behavior.
+- Look at the steps that use the action in workflows that PR CI does not run. Make sure that their inputs, outputs, and side effects (for example `git push` after `actions/checkout`) still work. Put each check that you can write as a guard in `generated/`.
+- Dependabot does not scan the composite actions in `.github/actions/`. Note any version difference that the update creates between a workflow and a composite action.
+- For release-please majors, compare `release-please-config.json` and `.release-please-manifest.json` with the configuration schema of the new version, and the outputs that `release-please.yml` reads.
 
-- Guard: the workflow's inputs and outputs used by later steps still exist in the new `action.yml` (when `actions-coverage` could not fetch it, do this by hand with `gh api`).
-- Discriminating, for a bug-fix bump: if the old version had a known bug that the repo works around, check that the workaround is now unnecessary (and recommend removing it).
-- No local check can run a release workflow. Recommend a `manual-publish` dry run (`dry-run: true`) after merge, or before it on a branch, as the reviewer's action.
+## When to ask a person
 
-Majors are high tier, which means "needs human". Minor or patch bumps of actions used only by PR-triggered workflows can be "safe to merge" once CI on the PR is green.
+- A breaking update is used in workflows that PR CI does not run. Ask: "Accept <action> <version> in <workflows>, which PR CI does not run?" Give the interface comparison, the runtime change, and the guard results as evidence.
+- A workflow `permissions` block changed.
+- A non-breaking update changes the default of an input that the repository does not set.
+
+No local check can run a release workflow. The comment can recommend a `manual-publish` dry run (`dry-run: true`) as follow-up.

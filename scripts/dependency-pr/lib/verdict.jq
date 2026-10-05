@@ -73,6 +73,10 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
         | select(.pr.status == "decide" and .outcome != "pre-existing")
         | {source: .id, question: (.pr.question // .title), evidence: ([.pr.summary] + (.pr.recommendations // [])),
            recipe: .pr.fix} ),
+      ( if $tier != "low" and ($impact.behavior_changes_reachable // false) and $proven == 0 and (($impact.no_local_proof // "") != "") then
+          {source: "impact", question: "Accept the upstream behavior changes that reach ldcli, which no local check can prove?",
+           evidence: ([$impact.no_local_proof] + [($impact.changelog // [])[] | "\(.package) \(.range // ""): \(.notes)"]), recipe: null}
+        else empty end ),
       ( ($impact.findings // [])[] | select(.severity == "decide" or .severity == "warn")
         | {source: "impact", question: (.question // .text), evidence: ([.text] + (.evidence // []) | unique),
            recipe: null} )
@@ -105,7 +109,7 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
                   else empty end ),
               ( if ($impact | has("behavior_changes_reachable") | not) then
                   {source: "impact", reason: "The impact review must state behavior_changes_reachable (true or false)"}
-                elif $impact.behavior_changes_reachable == true and $proven == 0 then
+                elif $impact.behavior_changes_reachable == true and $proven == 0 and (($impact.no_local_proof // "") == "") then
                   {source: "impact", reason: "The impact review found upstream behavior changes that reach ldcli, but no generated check proved one (it must fail on the old version and pass on the new one)"}
                 else empty end )
             end )

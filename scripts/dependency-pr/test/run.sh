@@ -112,6 +112,9 @@ check "reachable change + proven check → safe" "proven true safe-to-merge" "$(
 out=$(verdict "[$(chk a pass)]" "[$(gen g1 discriminating pass pass)]" medium "$REACHABLE" '[]' "$SQL")
 check "passes on old version → does not count → incomplete" "not-discriminating false incomplete" "$(v '"\(.generated_checks[0].outcome) \(.generated_checks[0].counted) \(.verdict)"')"
 
+out=$(verdict "[$(chk a pass)]" '[]' high "$(jq '. + {no_local_proof: "runs only in release workflows"}' <<<"$REACHABLE")" '[]' "$SQL")
+check "reachable change with no possible local proof → a decision, not incomplete" "needs-human 0" "$(v '"\(.verdict) \(.incomplete | length)"')"
+
 out=$(verdict "[$(chk a pass)]" "[$(gen g1 guard pass fail)]" low)
 check "guard regresses → block" "regression block" "$(v '"\(.generated_checks[0].outcome) \(.verdict)"')"
 

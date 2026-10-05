@@ -1,33 +1,54 @@
-# Playbook: Go modules (`go.mod` / `go.sum`)
+# Playbook: Go modules (`go.mod` and `go.sum`)
 
-## Baseline (from `verify.sh`)
+## Diligent reviewer standard
 
-`go-mod-tidy`, `go-directive`, `go-build-vet`, `go-test`, `go-generate-drift`, `binary-smoke`, `cli-help-diff`. With `--profile full` you also get `release-snapshot` (goreleaser-cross, needs Docker), `govulncheck`, and `golangci-lint`.
+A diligent reviewer makes sure that these statements are true for a Go update:
 
-Gaps these cover that PR CI does not: tidy cleanliness, codegen drift and whether the regenerated code compiles (the #720 class), a dev-server start, help-text changes, and, with the full profile, every CGO release target.
+1. ldcli builds, passes `go vet`, and passes its tests with the new version.
+2. `go mod tidy` and `go generate ./...` make no change. If a generator changed, the regenerated code builds.
+3. The binary runs. All commands print help, and the dev server serves its UI and API.
+4. Every release target compiles. The release uses CGO for SQLite on linux (musl, static), windows (mingw), and macOS (osxcross).
+5. The upstream changes between the two versions are known. Each breaking change, security fix, and behavior change is mapped to ldcli code, or is shown to be not reachable.
+6. Each new or changed module that goes into the binary is known, and its license is in the policy.
+7. A go or toolchain directive change works with every tool that CI and the release use.
+8. No new reachable vulnerability appears.
 
-## Impact analysis
+## What the baseline checks
 
-- **Is it direct?** `.classification.updates[].direct`. For an indirect bump, find who pulls it in with `go mod why -m <module>` (run in `work/pr`).
-- **Where it's used:** `rg -l '"<module>' --glob '*.go'`, plus `go list -deps ./... | rg '^<module>'`.
-- **The go directive:** if `go-directive` fails, the new version needs a newer Go. CI follows go.mod (`go-version-file`), golangci-lint is pinned at v1.63.4 in `.pre-commit-config.yaml`, and the goreleaser-cross image is pinned by digest. All three must support the new Go.
-- **Stale branch:** in a conflicting or old PR, look for transitive pins that would now be downgrades (`downgrades` check). A rebase usually fixes this.
+| Statement | Check |
+|---|---|
+| 1 | `go-build-vet`, `go-test` (both are gates) |
+| 2 | `go-mod-tidy`, `go-generate-drift` |
+| 3 | `binary-smoke` (gate), `cli-help-diff` |
+| 4 | `release-snapshot` (full profile, needs Docker and access to the goreleaser-cross image). It is a gate for updates with the `cgo` or `go-directive` tag. |
+| 5 | `upstream-changes` collects the notes and the compare link. The agent does the mapping. |
+| 6 | `transitive-changes`, `license-changes` |
+| 7 | `go-directive`, plus `golangci-lint` and `release-snapshot` as gates when the tag `go-directive` is set |
+| 8 | `govulncheck` |
 
-## Area guide (tags from `risk-map.json`)
+## What the agent must do
 
-| Tag / module | What to check | Generated-check ideas |
+- Read the notes in `state/checks/upstream-changes/pr/notes/`. If a module has no notes, read the compare diff. Look at the API changes in the packages that ldcli imports.
+- Find the ldcli code that uses the module: `rg -l '"<module>' --glob '*.go'`. For an indirect update, find the reason with `go mod why -m <module>` in `work/pr`.
+- For each changed transitive module in the `transitive-changes` details, find what pulls it in, and say if it changes behavior that ldcli uses.
+- If a directive change appears, read the release notes of the new Go version for changes that affect ldcli.
+
+## Risk areas
+
+| Tag or module | What to look at | Generated-check ideas |
 |---|---|---|
-| `codegen`: oapi-codegen, kin-openapi, strcase | The generator and its runtime must move together (`oapi-codegen/runtime`). `go-generate-drift` must not get worse than on base. | Regenerate in `work/pr`, build, and run `go test ./internal/dev_server/api/...`. Diff the generated command list (`ldcli __complete ""`). |
-| `mocks`: go.uber.org/mock | The mocks are committed. A regen diff means the mock format changed. | Regenerate the mocks and run `go test ./internal/dev_server/...`. |
-| `cgo`, `dev-server`: mattn/go-sqlite3 | CGO; the release cross-compiles (run `--profile full` with Docker). The dev server keeps state in SQLite: `internal/dev_server/db`, `events_db`, `db/backup`. | A throwaway test in `internal/dev_server/db` that covers the changed driver behavior (prepared statements, backups, type mapping) and is written to fail on the old version. Backup/restore round-trip through `db/backup`. |
-| `ld-sdk`: go-server-sdk, go-sdk-common, eval | The dev server proxies SDK streaming and evaluation (`internal/dev_server/sdk`, `adapters`). | Start the dev server, add a project from a fixture (`dev-server import-project`), and evaluate through `/sdk/...` endpoints. |
-| `setup`: sdk-meta | Feeds the SDK lists and snippets used by `setup`/quickstart. | Compare the SDK list output between base and PR. Check that every SDK ID referenced in `internal/` and `cmd/` still exists. |
-| `cli-surface`: cobra, pflag, viper, mapstructure | Flag parsing, `LD_*` env precedence, usage templates. `cli-help-diff` shows rendering changes. | Config precedence: flag beats `LD_*` env, which beats the config file, for `--base-uri`. Run `cmd/...` tests with `-count=1`. |
-| `tui`: charmbracelet/* | Interactive flows have little test coverage. | Non-TTY output of `setup`/`quickstart` help; `go test ./internal/quickstart/... ./internal/setup/...`. |
-| api-client-go | Generated resource commands call it. | `go test ./cmd/resources/... ./internal/resources/...`; regenerate and diff. |
+| `codegen`: oapi-codegen, kin-openapi, strcase | The generator and its runtime library must change together (for example `oapi-codegen/runtime`). `go-generate-drift` must not become worse than on base. | Regenerate in `work/pr`, build, and run `go test ./internal/dev_server/api/...`. |
+| `mocks`: go.uber.org/mock | The repository commits the mocks. A diff after regeneration means that the mock format changed. | Regenerate the mocks and run `go test ./internal/dev_server/...`. |
+| `cgo`, `dev-server`: mattn/go-sqlite3 | The dev server stores its state in SQLite: `internal/dev_server/db`, `events_db`, `db/backup`. | A temporary test in the affected package. For example, the #829 check measures allocations per row in `events_db.QueryEvents`. |
+| `ld-sdk`: go-server-sdk, go-sdk-common | The dev server forwards SDK streams and evaluations (`internal/dev_server/sdk`, `adapters`). | Start the dev server, import a project from a fixture, and evaluate a flag through the `/sdk` endpoints. |
+| `setup`: sdk-meta | It supplies the SDK lists for `setup` and quickstart. | Compare the SDK list output on base and PR. Make sure that each SDK ID that ldcli uses still exists. |
+| `cli-surface`: cobra, pflag, viper, mapstructure | Flag parsing, the order of `LD_*` variables and the configuration file, and the usage templates. `cli-help-diff` shows the help changes. | A test of the configuration order for `--base-uri`: the flag first, then `LD_*`, then the file. |
+| `tui`: charmbracelet | The interactive flows have few tests. | Help output and output without a terminal for `setup` and quickstart. |
 
-## Common verdict notes
+## When to ask a person
 
-- A patch bump with green baseline, low tier, and no reach into ldcli's code paths is "safe to merge".
-- Medium tier (for example sqlite, SDKs, cobra) needs at least one proven discriminating check and an impact review.
-- A pre-existing `go-generate-drift` (from #720) is not the PR's fault. Mention it once and don't let it block.
+- `cli-help-diff` shows a change in help text or flags. Ask if the change is acceptable.
+- A new module or a changed module has a license outside the policy, or its license changed.
+- The impact review finds a behavior change that ldcli users will see. Ask if the change is acceptable, and state the change.
+
+A pre-existing `go-generate-drift` failure (from #720) is not caused by the PR. The comment lists it once. It does not block the PR.
