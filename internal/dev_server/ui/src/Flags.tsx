@@ -16,7 +16,7 @@ import {
   Stack,
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { apiRoute, sortFlags } from './util.ts';
 import { FlagVariation } from './api.ts';
@@ -56,6 +56,18 @@ function Flags({
       !!flags && Object.keys(overrides).some((flagKey) => !(flagKey in flags)),
     [flags, overrides],
   );
+
+  useEffect(() => {
+    if (!overridesPresent) {
+      setOnlyShowOverrides(false);
+    }
+  }, [overridesPresent]);
+
+  useEffect(() => {
+    if (flags && !localFlagsPresent) {
+      setOnlyShowLocal(false);
+    }
+  }, [flags, localFlagsPresent]);
 
   const showOnlyOverrides = onlyShowOverrides && !!overridesPresent;
   const showOnlyLocal = onlyShowLocal && localFlagsPresent;
