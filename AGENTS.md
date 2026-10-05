@@ -13,7 +13,7 @@ make build              # Build binary as ./ldcli
 make test               # Run all tests (go test ./...)
 go test ./path/to/pkg   # Run tests for a specific package
 make generate           # Regenerate code from OpenAPI spec (go generate ./...)
-make vendor             # Tidy and vendor dependencies
+make vendor             # go mod tidy + go mod vendor (vendor/ is not committed; usually you only want go mod tidy)
 make install-hooks      # Install git pre-commit hooks
 make openapi-spec-update # Download latest OpenAPI spec and regenerate code
 ```
@@ -72,13 +72,19 @@ npm run build   # Production build (checked into repo)
 - Go tests use `testify` for assertions and `go.uber.org/mock` for mocking
 - Mock generation via `mockgen`
 - Test data in `cmd/resources/test_data/` and `cmd/config/testdata/`
+- `LD_*` environment variables and `~/.config/ldcli/config.yml` leak into `cmd/` tests and make some of them fail (e.g. `cmd/setup`, `cmd/whoami`). Run tests with `LD_*` unset and `XDG_CONFIG_HOME` pointed at an empty directory.
 
 ## Pre-commit Hooks
 
-Installed via `make install-hooks`. Checks:
-- `go fmt` formatting
-- `go.mod`/`go.sum` tidiness
-- Dev server UI tests and build (requires npm)
+Installed via `make install-hooks`. `.pre-commit-config.yaml` runs only:
+- `golangci-lint` v1.63.4 (default linters, no `.golangci.yml`)
+- `end-of-file-fixer`
+
+It does **not** check `go fmt`, `go mod tidy`, or the UI build. Run `go mod tidy` yourself; `scripts/dependency-pr/verify.sh` checks tidiness, codegen drift, and UI `dist/` drift.
+
+## Dependency PR Verification
+
+To verify a Dependabot PR, follow the `verify-dependency-pr` skill (`.agents/skills/verify-dependency-pr/SKILL.md`). Entry point: `scripts/dependency-pr/verify.sh --pr <N>` (or `make verify-dependency-pr ARGS="--pr <N>"`). It writes `.verify-out/pr-<N>/{result.json,comment.md}` and never posts anything. `post-comment.sh` is the only script that comments, and the agent never approves or merges. Unit tests: `scripts/dependency-pr/test/run.sh`.
 
 ## Linting
 
