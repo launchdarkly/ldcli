@@ -423,6 +423,39 @@ func TestSetupDisassociatesTheMCPServerBeforeReplacingItsToken(t *testing.T) {
 	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
 }
 
+func TestSetupReconnectsOtherSpacesAfterReplacingTheMCPToken(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{
+			{AgentSpaceId: aws.String("space-1")},
+			{AgentSpaceId: aws.String("space-2")},
+		},
+		services: []agenttypes.RegisteredService{{
+			ServiceId: aws.String("mcp-existing"),
+			Name:      aws.String("LaunchDarkly"),
+		}},
+		associations: []agenttypes.Association{{
+			AssociationId: aws.String("assoc-mcp-existing"),
+			ServiceId:     aws.String("mcp-existing"),
+		}},
+	}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceID:    "space-1",
+		AuthFlow:        "iam",
+		LDAccessToken:   "api-token",
+		ReplaceMCPToken: true,
+	})
+	require.NoError(t, err)
+
+	associated := []string{}
+	for _, in := range agent.associationInputs {
+		if aws.ToString(in.ServiceId) == "mcp-1" {
+			associated = append(associated, aws.ToString(in.AgentSpaceId))
+		}
+	}
+	assert.Equal(t, []string{"space-1", "space-2"}, associated)
+}
+
 func TestTeardownDisassociatesAServiceBeforeDeregisteringIt(t *testing.T) {
 	agent := &fakeAgent{
 		agentSpaces: []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}},

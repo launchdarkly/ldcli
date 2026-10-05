@@ -66,7 +66,7 @@ func Teardown(ctx context.Context, clients Clients, opts TeardownOptions) error 
 	}
 
 	for _, serviceID := range serviceIDs {
-		if err := DisassociateEverywhere(ctx, clients, serviceID, logf); err != nil {
+		if _, err := DisassociateEverywhere(ctx, clients, serviceID, logf); err != nil {
 			return err
 		}
 		if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
@@ -92,17 +92,26 @@ func Teardown(ctx context.Context, clients Clients, opts TeardownOptions) error 
 }
 
 // DisassociateEverywhere removes a service from every agent space that uses
-// it, which AWS requires before the service can be deregistered.
-func DisassociateEverywhere(ctx context.Context, clients Clients, serviceID string, logf func(string, ...any)) error {
+// it, which AWS requires before the service can be deregistered. It returns
+// the agent spaces it was removed from, so a caller re-registering the service
+// can reconnect them.
+func DisassociateEverywhere(
+	ctx context.Context,
+	clients Clients,
+	serviceID string,
+	logf func(string, ...any),
+) ([]string, error) {
 	spaces, err := listAgentSpaces(ctx, clients)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	var detached []string
 	for _, space := range spaces {
 		agentSpaceID := aws.ToString(space.AgentSpaceId)
 		associationID, err := FindAssociation(ctx, clients, agentSpaceID, serviceID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if associationID == "" {
 			continue
@@ -111,12 +120,13 @@ func DisassociateEverywhere(ctx context.Context, clients Clients, serviceID stri
 			AgentSpaceId:  aws.String(agentSpaceID),
 			AssociationId: aws.String(associationID),
 		}); err != nil {
-			return fmt.Errorf("unable to disassociate service %s from agent space %s: %w", serviceID, agentSpaceID, err)
+			return nil, fmt.Errorf("unable to disassociate service %s from agent space %s: %w", serviceID, agentSpaceID, err)
 		}
 		logf("Disassociated service %s from agent space %s", serviceID, agentSpaceID)
+		detached = append(detached, agentSpaceID)
 	}
 
-	return nil
+	return detached, nil
 }
 
 func teardownAgentSpace(ctx context.Context, clients Clients, agentSpaceID string, logf func(string, ...any)) error {

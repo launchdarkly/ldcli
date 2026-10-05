@@ -282,8 +282,10 @@ func registerMCPServer(
 
 		return associateMCPServer(ctx, clients, result, logf)
 	}
+	var detached []string
 	if existing != "" {
-		if err := DisassociateEverywhere(ctx, clients, existing, logf); err != nil {
+		detached, err = DisassociateEverywhere(ctx, clients, existing, logf)
+		if err != nil {
 			return err
 		}
 		if _, err := clients.Agent.DeregisterService(ctx, &devopsagent.DeregisterServiceInput{
@@ -333,7 +335,23 @@ func registerMCPServer(
 		result.MCPServiceID,
 	)
 
-	return associateMCPServer(ctx, clients, result, logf)
+	if err := associateMCPServer(ctx, clients, result, logf); err != nil {
+		return err
+	}
+
+	// The deregistered service was account-level, so reconnect the other agent
+	// spaces that were using it before the token was replaced.
+	for _, agentSpaceID := range detached {
+		if agentSpaceID == result.AgentSpaceID {
+			continue
+		}
+		if _, err := associateMCPServerWith(ctx, clients, agentSpaceID, result.MCPServiceID); err != nil {
+			return err
+		}
+		logf("Re-associated the %s MCP server with agent space %s", MCPServerName, agentSpaceID)
+	}
+
+	return nil
 }
 
 func associateMCPServer(
@@ -353,20 +371,33 @@ func associateMCPServer(
 		return nil
 	}
 
+	associationID, err := associateMCPServerWith(ctx, clients, result.AgentSpaceID, result.MCPServiceID)
+	if err != nil {
+		return err
+	}
+	result.MCPAssociationID = associationID
+	logf("Associated the %s MCP server with the agent space", MCPServerName)
+
+	return nil
+}
+
+func associateMCPServerWith(ctx context.Context, clients Clients, agentSpaceID, serviceID string) (string, error) {
 	association, err := clients.Agent.AssociateService(ctx, &devopsagent.AssociateServiceInput{
-		AgentSpaceId: aws.String(result.AgentSpaceID),
-		ServiceId:    aws.String(result.MCPServiceID),
+		AgentSpaceId: aws.String(agentSpaceID),
+		ServiceId:    aws.String(serviceID),
 		Configuration: &agenttypes.ServiceConfigurationMemberMcpserver{
 			Value: mcpServerConfiguration(),
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("unable to associate the LaunchDarkly MCP server with the agent space: %w", err)
+		return "", fmt.Errorf(
+			"unable to associate the LaunchDarkly MCP server with agent space %s: %w",
+			agentSpaceID,
+			err,
+		)
 	}
-	result.MCPAssociationID = aws.ToString(association.Association.AssociationId)
-	logf("Associated the %s MCP server with the agent space", MCPServerName)
 
-	return nil
+	return aws.ToString(association.Association.AssociationId), nil
 }
 
 // mcpServerConfiguration builds the tool allowlist. AWS has no "allow all
