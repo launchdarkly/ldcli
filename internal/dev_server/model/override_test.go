@@ -49,26 +49,16 @@ func TestUpsertOverride(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("flag not in project is overridden as a new flag", func(t *testing.T) {
-		emptyProj := model.Project{
+	t.Run("Returns error if flag does not exist in project", func(t *testing.T) {
+		badProj := model.Project{
 			Key:           projKey,
 			AllFlagsState: model.FlagsState{},
 		}
-		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(&emptyProj, nil)
-		store.EXPECT().UpsertOverride(gomock.Any(), override).Return(override, nil)
-		store.EXPECT().IncrementProjectPayloadVersion(gomock.Any(), projKey).Return(1, nil)
-		observer.
-			EXPECT().
-			Handle(model.OverrideEvent{
-				FlagKey:        flagKey,
-				ProjectKey:     projKey,
-				FlagState:      model.FlagState{Value: ldvalue.Bool(true), Version: 1, TrackEvents: true},
-				PayloadVersion: 1,
-			})
+		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(&badProj, nil)
 
-		o, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
-		assert.Nil(t, err)
-		assert.Equal(t, override, o)
+		_, err := model.UpsertOverride(ctx, projKey, flagKey, ldValue)
+		assert.Error(t, err)
+		assert.ErrorAs(t, err, &model.ErrNotFound{})
 	})
 
 	t.Run("store fails to upsert, returns error", func(t *testing.T) {
@@ -154,26 +144,6 @@ func TestDeleteOverride(t *testing.T) {
 			})
 
 		err := model.DeleteOverride(ctx, projKey, flagKey)
-		assert.Nil(t, err)
-	})
-
-	t.Run("flag not in project is removed with a full sync", func(t *testing.T) {
-		localFlagKey := "local-only"
-		store.EXPECT().GetDevProject(gomock.Any(), projKey).Return(project, nil)
-		store.EXPECT().DeactivateOverride(gomock.Any(), projKey, localFlagKey).Return(2, nil)
-		store.EXPECT().IncrementProjectPayloadVersion(gomock.Any(), projKey).Return(3, nil)
-		store.EXPECT().GetOverridesForProject(gomock.Any(), projKey).Return(model.Overrides{
-			{ProjectKey: projKey, FlagKey: localFlagKey, Value: ldValue, Active: false, Version: 2},
-		}, nil)
-		observer.
-			EXPECT().
-			Handle(model.SyncEvent{
-				ProjectKey:     projKey,
-				AllFlagsState:  project.AllFlagsState,
-				PayloadVersion: 3,
-			})
-
-		err := model.DeleteOverride(ctx, projKey, localFlagKey)
 		assert.Nil(t, err)
 	})
 }

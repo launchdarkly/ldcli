@@ -242,21 +242,4 @@ func TestGetFlagStateWithOverridesForProject(t *testing.T) {
 		assert.True(t, overriddenFlag.Value.BoolValue())
 		assert.Equal(t, 2, overriddenFlag.Version)
 	})
-
-	t.Run("Includes active overrides for flags not in the project", func(t *testing.T) {
-		overrides := model.Overrides{
-			{ProjectKey: proj.Key, FlagKey: "local-only", Value: ldvalue.String("on"), Active: true, Version: 3},
-			{ProjectKey: proj.Key, FlagKey: "removed", Value: ldvalue.Bool(true), Active: false, Version: 2},
-		}
-
-		store.EXPECT().GetOverridesForProject(gomock.Any(), proj.Key).Return(overrides, nil)
-
-		withOverrides, err := proj.GetFlagStateWithOverridesForProject(ctx)
-		assert.Nil(t, err)
-
-		assert.Equal(t, model.FlagsState{
-			flagKey:      model.FlagState{Value: ldvalue.Bool(false), Version: 1},
-			"local-only": model.FlagState{Value: ldvalue.String("on"), Version: 3, TrackEvents: true},
-		}, withOverrides)
-	})
 }
