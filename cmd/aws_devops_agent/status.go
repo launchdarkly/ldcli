@@ -22,6 +22,7 @@ func NewStatusCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	}
 
 	cmd.Flags().String(regionFlag, "", "AWS region to inspect. Defaults to the region of the current AWS session")
+	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
 	cmd.Flags().String(agentSpaceIDFlag, "", "Inspect a single agent space instead of every agent space")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -30,7 +31,7 @@ func NewStatusCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	clients, err := awsdevops.NewClients(cmd.Context(), mustString(cmd, regionFlag))
+	clients, err := awsdevops.NewClients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
 	if err != nil {
 		return err
 	}

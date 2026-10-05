@@ -32,6 +32,7 @@ for confirmation. The flags narrow it to part of that.`,
 	}
 
 	cmd.Flags().String(regionFlag, "", "AWS region to tear down in. Defaults to the region of the current AWS session")
+	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
 	cmd.Flags().String(agentSpaceIDFlag, "", "Agent space to empty and delete")
 	cmd.Flags().StringSlice(serviceIDFlag, nil, "Registered services to deregister, such as the LaunchDarkly MCP server")
 	cmd.Flags().Bool(deleteRolesFlag, false, "Also delete the IAM roles setup created")
@@ -43,7 +44,7 @@ for confirmation. The flags narrow it to part of that.`,
 }
 
 func runTeardown(cmd *cobra.Command, args []string) error {
-	clients, err := awsdevops.NewClients(cmd.Context(), mustString(cmd, regionFlag))
+	clients, err := awsdevops.NewClients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
 	if err != nil {
 		return err
 	}

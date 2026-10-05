@@ -17,6 +17,7 @@ import (
 
 const (
 	regionFlag       = "region"
+	profileFlag      = "profile"
 	agentSpaceIDFlag = "agent-space-id"
 )
 

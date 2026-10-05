@@ -62,6 +62,7 @@ resumes once you are done. Pass --no-wait to only list them.`,
 	}
 
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
+	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
 	cmd.Flags().String(agentSpaceIDFlag, "", "Existing agent space to add to instead of creating one")
 	cmd.Flags().String(agentSpaceNameFlag, "launchdarkly", "Name of the agent space to create")
 	cmd.Flags().String(agentSpaceDescriptionFlag, "Managed by the LaunchDarkly CLI", "Description of the agent space to create")
@@ -95,7 +96,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	clients, err := awsdevops.NewClients(cmd.Context(), mustString(cmd, regionFlag))
+	clients, err := awsdevops.NewClients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
 	if err != nil {
 		return err
 	}

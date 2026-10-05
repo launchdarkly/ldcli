@@ -3,6 +3,8 @@ package awsdevops_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -556,7 +558,7 @@ func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {
 }
 
 func TestNewClientsRejectsUnsupportedRegion(t *testing.T) {
-	_, err := awsdevops.NewClients(context.Background(), "us-east-2")
+	_, err := awsdevops.NewClients(context.Background(), "us-east-2", "")
 
 	assert.ErrorContains(t, err, "AWS DevOps Agent is not available in us-east-2")
 }
@@ -570,7 +572,57 @@ func TestNewClientsRequiresCredentials(t *testing.T) {
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 
-	_, err := awsdevops.NewClients(context.Background(), "us-east-1")
+	_, err := awsdevops.NewClients(context.Background(), "us-east-1", "")
 
 	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
+	assert.ErrorContains(t, err, "Authenticate first")
+}
+
+func TestNewClientsSuggestsSelectingAProfile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config")
+	require.NoError(t, os.WriteFile(configPath, []byte(
+		"[profile dev]\nregion = us-east-1\n\n[profile prod]\nregion = us-west-2\n\n[sso-session corp]\nsso_region = us-east-1\n",
+	), 0o600))
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	t.Setenv("AWS_SESSION_TOKEN", "")
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_CONFIG_FILE", configPath)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
+	_, err := awsdevops.NewClients(context.Background(), "us-east-1", "")
+
+	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
+	assert.ErrorContains(t, err, "no AWS profile selected")
+	assert.ErrorContains(t, err, "--profile")
+	assert.ErrorContains(t, err, "dev")
+	assert.ErrorContains(t, err, "prod")
+	assert.NotContains(t, err.Error(), "corp")
+}
+
+func TestNewClientsNamesTheSelectedProfile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config")
+	// The profile exists but has no usable credentials (no static keys, no
+	// SSO config), so the SDK loads it and then fails to resolve credentials.
+	require.NoError(t, os.WriteFile(configPath, []byte(
+		"[profile my-profile]\nregion = us-east-1\n",
+	), 0o600))
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	t.Setenv("AWS_SESSION_TOKEN", "")
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_CONFIG_FILE", configPath)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
+	_, err := awsdevops.NewClients(context.Background(), "us-east-1", "my-profile")
+
+	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
+	assert.ErrorContains(t, err, `profile "my-profile"`)
+	assert.ErrorContains(t, err, "aws sso login --profile my-profile")
 }
