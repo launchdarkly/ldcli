@@ -106,6 +106,7 @@ LaunchDarkly CLI commands:
 
 - `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
 - `dev-server` lets you start a local server and retrieve flag values from a LaunchDarkly source environment so you can test your code locally. For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
+- `observability` (alias `o11y`) queries logs, traces, error groups, sessions, and aggregated metrics, and manages observability dashboards and alerts. For example, `ldcli observability logs query --project default --query 'level=error' --start-date 1h`.
 
 ### Resource Commands
 

@@ -23,6 +23,7 @@ import (
 	flagscmd "github.com/launchdarkly/ldcli/cmd/flags"
 	logincmd "github.com/launchdarkly/ldcli/cmd/login"
 	memberscmd "github.com/launchdarkly/ldcli/cmd/members"
+	observabilitycmd "github.com/launchdarkly/ldcli/cmd/observability"
 	resourcecmd "github.com/launchdarkly/ldcli/cmd/resources"
 	sdkactivecmd "github.com/launchdarkly/ldcli/cmd/sdk_active"
 	setupcmd "github.com/launchdarkly/ldcli/cmd/setup"
@@ -300,6 +301,7 @@ func NewRootCommand(
 	cmd.AddCommand(signupcmd.NewSignupCmd(analyticsTrackerFn))
 	cmd.AddCommand(resourcecmd.NewResourcesCmd())
 	cmd.AddCommand(devcmd.NewDevServerCmd(clients.ResourcesClient, analyticsTrackerFn, clients.DevClient))
+	cmd.AddCommand(observabilitycmd.NewObservabilityCmd(clients.ResourcesClient, analyticsTrackerFn, version))
 	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	cmd.AddCommand(symbolscmd.NewSymbolsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	cmd.AddCommand(synccmd.NewSyncCmd(clients.ResourcesClient, analyticsTrackerFn))

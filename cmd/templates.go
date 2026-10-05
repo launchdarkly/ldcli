@@ -27,6 +27,7 @@ Common resource commands:
   {{rpad "projects" 29}} List, create, and manage projects
   {{rpad "members" 29}} Invite new members to an account
   {{rpad "segments" 29}} List, create, modify, and delete segments
+  {{rpad "observability" 29}} Query logs, traces, errors, and sessions; manage dashboards and alerts
   {{rpad "sourcemaps" 29}} Manage sourcemaps for error monitoring
   {{rpad "symbols" 29}} Manage symbol files for error monitoring
   {{rpad "..." 29}} To see more resource commands, run 'ldcli resources'
