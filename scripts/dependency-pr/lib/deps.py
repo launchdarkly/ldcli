@@ -4,6 +4,7 @@
 Usage:
   deps.py transitive <base-wt> <pr-wt> <ecosystem>
   deps.py licenses   <base-wt> <pr-wt> <ecosystem> <license-policy.json>
+  deps.py forced     <pr-wt> <disclosed.json> <candidates.json>   (Go modules only)
 ecosystem: gomod | npm-ui | npm-wrapper. Prints JSON.
 
 For Go, the graph is the set of modules compiled into ldcli (go list -deps),
@@ -182,7 +183,8 @@ def licenses(base, pr, eco, policy):
                 continue
             new, new_file = go_license(pr, name, p[name])
             old = go_license(base, name, b[name])[0] if name in b else None
-            findings.append({"package": f"{name}@{p[name]}", "from": old, "to": new, "file": new_file})
+            findings.append({"package": f"{name}@{p[name]}", "name": name, "version": p[name],
+                             "from": old, "to": new, "file": new_file, "dev": False})
     else:
         b, p = npm_entries(base, eco), npm_entries(pr, eco)
         old_by_name = {}
@@ -190,7 +192,9 @@ def licenses(base, pr, eco, policy):
             old_by_name.setdefault(e["name"], e["license"])
         for key in sorted(set(p) - set(b)):
             e = p[key]
-            findings.append({"package": key, "from": old_by_name.get(e["name"]), "to": e["license"] or "unknown", "file": None})
+            findings.append({"package": key, "name": e["name"], "version": e["version"],
+                             "from": old_by_name.get(e["name"]), "to": e["license"] or "unknown", "file": None,
+                             "dev": e["dev"]})
     for f in findings:
         f["changed"] = f["from"] is not None and f["from"] != f["to"]
         f["allowed"] = allowed(f["to"], policy)
@@ -199,8 +203,53 @@ def licenses(base, pr, eco, policy):
             "all": findings}
 
 
+def forced(pr, disclosed, candidates):
+    """For each candidate Go module update, finds a disclosed update that needs
+    at least the candidate's new version through the PR's module graph (e.g.
+    go.uber.org/mock v0.6.0 → x/tools → x/net → golang.org/x/term v0.34.0)."""
+    edges = {}
+    for line in run(["go", "mod", "graph"], pr).splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            edges.setdefault(parts[0], []).append(parts[1])
+    out = {}
+    for root in disclosed:
+        start = f"{root['name']}@{root['to']}"
+        seen, queue, parent = {start}, [start], {}
+        while queue:
+            node = queue.pop(0)
+            for dep in edges.get(node, []):
+                if dep in seen:
+                    continue
+                seen.add(dep)
+                parent[dep] = node
+                queue.append(dep)
+        for c in candidates:
+            if c["name"] in out:
+                continue
+            for node in seen:
+                name, _, version = node.rpartition("@")
+                if name == c["name"] and vkey(version) >= vkey(c["to"]):
+                    path, n = [], node
+                    while n != start:
+                        n = parent[n]
+                        path.append(n)
+                    out[c["name"]] = {"by": f"{root['name']} {root['to']}", "requires": version,
+                                      "via": [p.replace("@", " ") for p in reversed(path[:-1])]}
+                    break
+    return out
+
+
 def main():
-    cmd, base, pr, eco = sys.argv[1:5]
+    cmd = sys.argv[1]
+    if cmd == "forced":
+        with open(sys.argv[3]) as f:
+            disclosed = json.load(f)
+        with open(sys.argv[4]) as f:
+            candidates = json.load(f)
+        json.dump(forced(sys.argv[2], disclosed, candidates), sys.stdout, indent=2)
+        return
+    base, pr, eco = sys.argv[2:5]
     if cmd == "transitive":
         result = transitive(base, pr, eco)
     elif cmd == "licenses":
