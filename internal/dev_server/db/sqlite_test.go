@@ -406,7 +406,10 @@ func TestDBFunctions(t *testing.T) {
 		require.Len(t, overrides, 1)
 		assert.Equal(t, override, overrides[0])
 
-		// update the project to remove flag-1
+		// update the project so flag-1 is no longer part of the flag state
+		project.AllFlagsState = model.FlagsState{
+			"flag-2": model.FlagState{Value: ldvalue.Bool(true), Version: 1},
+		}
 		project.AvailableVariations = []model.FlagVariation{
 			{
 				FlagKey: "flag-2",
@@ -420,5 +423,33 @@ func TestDBFunctions(t *testing.T) {
 		overrides, err = store.GetOverridesForProject(ctx, project.Key)
 		require.NoError(t, err)
 		require.Len(t, overrides, 0)
+	})
+
+	t.Run("UpdateProject keeps overrides when variations are empty but the flag still exists", func(t *testing.T) {
+		// Streaming startup leaves variations empty until the background fill runs; a resync in that window must keep overrides for flags still in the flag state.
+		project := projects[2]
+
+		override, err := store.UpsertOverride(ctx, model.Override{
+			ProjectKey: project.Key,
+			FlagKey:    "flag-1",
+			Value:      ldvalue.Bool(false),
+			Active:     true,
+			Version:    1,
+		})
+		require.NoError(t, err)
+
+		project.AllFlagsState = model.FlagsState{
+			"flag-1": model.FlagState{Value: ldvalue.Bool(true), Version: 1},
+		}
+		project.AvailableVariations = nil // fill hasn't populated variations yet
+
+		updated, err := store.UpdateProject(ctx, project)
+		require.NoError(t, err)
+		require.True(t, updated)
+
+		overrides, err := store.GetOverridesForProject(ctx, project.Key)
+		require.NoError(t, err)
+		require.Len(t, overrides, 1)
+		assert.Equal(t, override, overrides[0])
 	})
 }

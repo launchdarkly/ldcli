@@ -28,8 +28,10 @@ func (c *MockClient) List(
 	ctx context.Context,
 	accessToken,
 	baseURI string,
+	limit,
+	offset int64,
 ) ([]byte, error) {
-	args := c.Called(accessToken, baseURI)
+	args := c.Called(accessToken, baseURI, limit, offset)
 
 	return args.Get(0).([]byte), args.Error(1)
 }

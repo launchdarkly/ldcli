@@ -6,6 +6,56 @@ This file provides guidance to AI coding agents when working with code in this r
 
 LaunchDarkly CLI (`ldcli`) — a Go CLI for managing LaunchDarkly feature flags. Built with Cobra/Viper, distributed via Homebrew, Docker, NPM, and GitHub Releases.
 
+## Writing Style: Simple English
+
+Write all prose in Simple English. Simple English is plain English that follows the rules of ASD-STE100 Simplified Technical English. The full rules are in [`.agents/skills/simple-english/SKILL.md`](.agents/skills/simple-english/SKILL.md). Read that file before you write or rewrite a document.
+
+The rules apply to this text:
+
+- Replies to the user
+- Markdown files, such as `README.md` and `CONTRIBUTING.md`
+- Pull request titles and descriptions
+- Commit messages
+- New code comments, CLI help text, and error messages
+
+Do not change these items:
+
+- Code, identifiers, commands, flags, file paths, and quoted errors
+- Generated files, such as `CHANGELOG.md` and `cmd/resources/resource_cmds.go`
+- Text that your task does not touch
+
+Agents break these rules most often:
+
+1. Write short sentences. Use 20 words at most for an instruction and 25 words at most for a description.
+2. Use active voice and simple tenses. Write `The command deleted the row`, not `The row has been deleted`.
+3. Use `can`, `will`, or `must`. Do not use `should`, `would`, `may`, `might`, or `could`.
+4. Put a condition before its command: "If the build fails, read the log."
+5. Use one word for one meaning in a document. For example, use `configuration` every time, not `config` in one place and `settings` in another.
+6. Define a technical term the first time that you use it.
+7. Do not use contractions, semicolons, or em dashes.
+8. State facts. Do not add words such as `robust`, `seamless`, or `crucial`.
+9. In a reply, put the answer in the first sentence. Write prose, with no headers, bold text, lists, or tables.
+
+### Agent Hooks
+
+Hooks load these rules at the start of a session. They also lint the Markdown files that an agent writes. The hooks are advisory, so they never block an action. Each hook runs `.agents/skills/simple-english/scripts/hook.py`, which needs `python3`.
+
+| Tool | Configuration | What the hooks do |
+| --- | --- | --- |
+| Cursor | `.cursor/hooks.json` | Load the rules at session start. Lint each Markdown file after a write. |
+| Claude Code | `.claude/settings.json` | Load the rules at session start. Lint each Markdown file after a write. Report bold text, headers, lists, and em dashes in each reply. |
+| Codex | `.codex/hooks.json` | Load the rules at session start. |
+
+These limits apply:
+
+- Cursor Cloud Agents do not run session start hooks. They get the rules from this file, and the Markdown lint still runs.
+- Cursor also runs the hooks in `.claude/settings.json`. The script finds this case and runs only the Cursor hooks.
+- Codex runs project hooks only in a trusted project. Codex also asks you to approve each hook. Open `/hooks` to approve it.
+- The lint reports only the lines that differ from the last commit. A new file gets a full lint.
+- The lint skips `CHANGELOG.md`, the skill folder, and files outside the repository.
+
+To turn off the hooks, set `SIMPLE_ENGLISH_HOOKS=off`. To test the hooks, run `python3 .agents/skills/simple-english/scripts/test_hook.py`. The file `.agents/skills/simple-english/UPSTREAM.md` gives the source of the skill and the steps to update it.
+
 ## Common Commands
 
 ```bash
