@@ -20,7 +20,7 @@ All paths are relative to the repository root. Output goes to `.verify-out/pr-<N
 | `incomplete` | A required check, gate, or review did not run, or proved nothing. A rerun or more agent work closes it, not a person. | 2 |
 | `safe-to-merge` | Every required check and review ran and passed. | 0 |
 
-A gate is a check that must pass, for example the build or the tests. A failure that also happens on base is "pre-existing" and does not count against the PR. A pre-existing failure never satisfies a gate.
+A gate is a check that must pass, for example the build or the tests. A failure that also happens on base is "pre-existing" and does not count against the PR. Some checks list separate findings: actionlint, golangci-lint, prettier, and `npm ls`. If each finding of the PR also occurs on base, the failure is pre-existing. A pre-existing failure never satisfies a gate.
 
 ## The diligent reviewer standard
 
@@ -67,7 +67,7 @@ Open the playbook for each ecosystem in `.classification.ecosystems`:
 
 For each direct update, do these steps:
 
-1. Read the upstream notes. The `upstream-changes` check saves them in `state/checks/upstream-changes/pr/notes/`, and its details give the compare link. Also read the PR body. If no notes exist, read the upstream diff from the compare link.
+1. Read the upstream notes. The `upstream-changes` check saves them in `state/checks/upstream-changes/pr/notes/`, and its details give the compare link. For an npm package in a monorepo, the notes come from the package `CHANGELOG.md`. For `golang.org/x/*` modules, the notes are the commit messages. Also read the PR body. If the `pr-disclosure` check names direct updates that the body does not name, review those updates the same as the others. If no notes exist, read the upstream diff from the compare link.
 2. Find breaking changes, security fixes, deprecations, new minimum versions (Go, Node, runner), new peer requirements, and license changes.
 3. Find where ldcli uses the dependency. For Go, use `rg -l '"<module>' --glob '*.go'` and `go list -deps ./... | rg <module>`. For the UI, use `rg "from '<pkg>" internal/dev_server/ui/src`.
 4. Map each upstream change to the ldcli code that it reaches. A change that no ldcli code reaches is "not reachable".

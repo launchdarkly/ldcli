@@ -16,7 +16,7 @@
 |---|---|
 | 1 | `actions-pinning`. Actions from `actions/`, `github/`, and `launchdarkly/` are exempt, as in the current repository. |
 | 2 | `actionlint` (v1.7.7, installed through `go install` when it is missing) |
-| 3, 4, 5 | `actions-coverage`. It reads the upstream `action.yml` at both refs, traces composite actions back to the workflows that call them, and compares the `permissions` blocks on base and PR. If the interface does not match, the PR is blocked. |
+| 3, 4, 5 | `actions-coverage`. It reads the upstream `action.yml` at both refs and traces composite actions back to the workflows that call them. It also compares the `permissions` blocks on base and PR. If the interface does not match, the PR is blocked. If workflows pin the action at different old refs (v4 and v5), the check compares each old ref with the new ref. An output that no version declares is set at run time, so the check cannot compare it. The details name it. |
 | 6 | `actions-coverage`. A breaking update that a workflow without a `pull_request` trigger uses becomes a decision. |
 | 7 | `upstream-changes` |
 

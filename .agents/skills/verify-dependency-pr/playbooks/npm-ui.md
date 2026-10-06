@@ -22,8 +22,8 @@ A diligent reviewer makes sure that these statements are true for a UI update:
 | 3 | `ui-build-drift`. If it fails, `result.json` has the fix recipe `ui-dist-rebuild`. |
 | 4 | `binary-smoke`. It runs after `ui-build-drift`, so it embeds the new build. |
 | 5 | `ui-dep-usage`. Its details also list `engines`, peer dependencies, and deprecation notes. |
-| 6 | `upstream-changes` collects the notes. The agent does the mapping. |
-| 7 | `transitive-changes`, `license-changes` |
+| 6 | `upstream-changes` collects the notes. For a monorepo package (react-router, `@launchpad-ui/*`), the notes come from the package `CHANGELOG.md`. The agent does the mapping. `pr-disclosure` names the direct updates that a grouped PR does not list in its description. |
+| 7 | `transitive-changes`, `license-changes`. An install script that the package already had on base is not new. |
 | 8 | `ui-npm-audit` |
 
 ## Known failure modes

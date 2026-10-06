@@ -21,7 +21,7 @@ A diligent reviewer makes sure that these statements are true for a Go update:
 | 2 | `go-mod-tidy`, `go-generate-drift` |
 | 3 | `binary-smoke` (gate), `cli-help-diff` |
 | 4 | `release-snapshot` (full profile, needs Docker). It is a gate for updates with the `cgo` or `go-directive` tag. If the private release image cannot be pulled, the check uses the public `goreleaser/goreleaser-cross:v1.24.2` image and musl.cc toolchains, both pinned. The summary names the image, and the details list the fidelity gaps. |
-| 5 | `upstream-changes` collects the notes and the compare link. The agent does the mapping. |
+| 5 | `upstream-changes` collects the notes and the compare link. For `golang.org/x/*` modules, it uses the `github.com/golang` mirror, and the notes are the commit messages. The agent does the mapping. |
 | 6 | `transitive-changes`, `license-changes` |
 | 7 | `go-directive`, plus `golangci-lint` and `release-snapshot` as gates when the tag `go-directive` is set |
 | 8 | `govulncheck` |
