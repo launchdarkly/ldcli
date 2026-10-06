@@ -1,8 +1,10 @@
 package awsdevopsagent
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -32,9 +34,11 @@ func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 		Long: `Create the IAM roles, agent space, AWS account association, operator app and
 LaunchDarkly MCP server connection the AWS DevOps Agent needs.
 
-Re-running is safe: setup reuses the agent space matching --agent-space-name
-along with anything already attached to it. The run ends with the operator app
-URL, where the agent is used.
+When the account already has agent spaces, setup asks which one to connect
+LaunchDarkly to and only registers the MCP server on it, leaving the rest of
+that space as it is. Pass --agent-space-id to pick one without being asked, or
+--new-agent-space to provision another space. The run ends with the operator
+app URL, where the agent is used.
 
 The MCP server is connected with --access-token, or with the token in your
 ldcli configuration when you do not pass one. With neither, setup asks for a
@@ -48,9 +52,9 @@ expires.`,
 
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
-	cmd.Flags().String(agentSpaceIDFlag, "", "Existing agent space to add to instead of creating one")
+	cmd.Flags().String(agentSpaceIDFlag, "", "Connect LaunchDarkly to this existing agent space instead of asking which one to use")
 	cmd.Flags().String(agentSpaceNameFlag, "launchdarkly", "Name of the agent space to create")
-	cmd.Flags().Bool(newAgentSpaceFlag, false, "Create another agent space instead of reusing the one matching --agent-space-name")
+	cmd.Flags().Bool(newAgentSpaceFlag, false, "Provision a new agent space instead of asking which existing one to use")
 	cmd.Flags().String(authFlowFlag, "iam", "Operator app sign-in method: iam, idc or idp")
 	cmd.Flags().String(idcInstanceARNFlag, "", "IAM Identity Center instance ARN, required when --auth-flow=idc")
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
@@ -91,7 +95,17 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	result, err := awsdevops.Setup(cmd.Context(), clients, opts)
+	provision, err := resolveAgentSpace(cmd, clients, &opts, plaintext)
+	if err != nil {
+		return err
+	}
+
+	run := awsdevops.Setup
+	if !provision {
+		run = awsdevops.ConnectExisting
+	}
+
+	result, err := run(cmd.Context(), clients, opts)
 	if err != nil {
 		return err
 	}
@@ -109,6 +123,111 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Manage it in the AWS console at:\n  %s\n", awsdevops.ConsoleURL(result.Region))
 
 	return mcpErr
+}
+
+// resolveAgentSpace decides whether this run provisions an agent space or
+// connects LaunchDarkly to one the account already has, asking which one when
+// the flags leave the choice open. It reports whether to provision, and sets
+// opts.AgentSpaceID when it does not.
+func resolveAgentSpace(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	opts *awsdevops.SetupOptions,
+	plaintext bool,
+) (bool, error) {
+	if opts.NewAgentSpace {
+		return true, nil
+	}
+	if opts.AgentSpaceID != "" {
+		return false, nil
+	}
+
+	spaces, err := awsdevops.AgentSpaces(cmd.Context(), clients)
+	if err != nil {
+		return false, err
+	}
+	if len(spaces) == 0 {
+		return true, nil
+	}
+
+	if !plaintext || !canPrompt() {
+		// Reuse the space this command provisions by name, so an unattended
+		// re-run stays idempotent, but never guess between spaces someone
+		// else set up.
+		for _, space := range spaces {
+			if strings.EqualFold(space.Name, opts.AgentSpaceName) {
+				return true, nil
+			}
+		}
+
+		return false, fmt.Errorf(
+			"this AWS account already has agent spaces in %s (%s); pass --%s to connect "+
+				"LaunchDarkly to one of them, or --%s to provision another",
+			clients.Region,
+			strings.Join(agentSpaceLabels(spaces), ", "),
+			agentSpaceIDFlag,
+			newAgentSpaceFlag,
+		)
+	}
+
+	choice, err := selectAgentSpace(cmd, spaces, clients.Region)
+	if err != nil {
+		return false, err
+	}
+	if choice == "" {
+		return true, nil
+	}
+	opts.AgentSpaceID = choice
+
+	return false, nil
+}
+
+// selectAgentSpace asks which agent space to connect LaunchDarkly to, and
+// returns an empty string when the answer is to provision a new one.
+func selectAgentSpace(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary, region string) (string, error) {
+	out := cmd.OutOrStdout()
+	_, _ = fmt.Fprintf(out, "\nThis AWS account already runs the DevOps Agent in %s:\n\n", region)
+	for i, space := range spaces {
+		_, _ = fmt.Fprintf(out, "  %d) %s (%s)\n", i+1, space.Name, space.AgentSpaceID)
+	}
+	_, _ = fmt.Fprintf(out, "  n) provision a new agent space\n\n")
+
+	// One reader for the whole prompt, so a retry does not lose input the
+	// previous read already buffered.
+	reader := bufio.NewReader(cmd.InOrStdin())
+	for {
+		_, _ = fmt.Fprint(out, "Which one should LaunchDarkly connect to? [1]: ")
+		line, err := reader.ReadString('\n')
+		if err != nil && line == "" {
+			return "", fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
+		}
+
+		answer := strings.TrimSpace(line)
+		switch {
+		case answer == "":
+			return spaces[0].AgentSpaceID, nil
+		case strings.EqualFold(answer, "n"):
+			return "", nil
+		}
+
+		choice, err := strconv.Atoi(answer)
+		if err != nil || choice < 1 || choice > len(spaces) {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Enter a number between 1 and %d, or n\n", len(spaces))
+
+			continue
+		}
+
+		return spaces[choice-1].AgentSpaceID, nil
+	}
+}
+
+func agentSpaceLabels(spaces []awsdevops.AgentSpaceSummary) []string {
+	labels := make([]string, 0, len(spaces))
+	for _, space := range spaces {
+		labels = append(labels, fmt.Sprintf("%s %s", space.Name, space.AgentSpaceID))
+	}
+
+	return labels
 }
 
 // connectMCPServer collects a LaunchDarkly service token and registers the MCP

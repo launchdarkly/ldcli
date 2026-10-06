@@ -123,7 +123,11 @@ ldcli aws-devops-agent setup
 
 The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ca-central-1`, `sa-east-1`, `ap-south-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1`, `eu-west-1` and `eu-west-2`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
 
-`setup` is safe to re-run: it reuses the IAM roles, the agent space matching `--agent-space-name`, the account and MCP associations on it, and any LaunchDarkly MCP server already registered on the account. Pass `--new-agent-space` to create an additional agent space instead.
+If the account already runs the AWS DevOps Agent, `setup` lists its agent spaces and asks which one to connect LaunchDarkly to. It then only registers and associates the LaunchDarkly MCP server on the space you pick, leaving its IAM roles, account association and operator app sign-in configuration alone. Pass `--agent-space-id <id>` to pick one without being asked, or `--new-agent-space` to provision another space.
+
+Without a terminal — in CI, or with `--output json` — `setup` reuses the space matching `--agent-space-name` so an unattended re-run stays idempotent, and fails asking for `--agent-space-id` or `--new-agent-space` when the only spaces are ones it did not create.
+
+Otherwise `setup` is safe to re-run: it reuses the IAM roles, the agent space, the account and MCP associations on it, and any LaunchDarkly MCP server already registered on the account.
 
 `--access-token` is optional. The first available token — the flag, then `LD_ACCESS_TOKEN`, then the one already in your ldcli configuration — is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a [service token](https://launchdarkly.com/docs/home/account/api-create) whose permissions match what you want the agent to do. AWS keeps it until the MCP server is re-registered, so a session token written by `ldcli login` eventually expires and the agent then fails with `unauthorized` errors. Re-run with `--access-token <token> --replace-mcp-token` to re-register an MCP server with a different token. The agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`.
 
