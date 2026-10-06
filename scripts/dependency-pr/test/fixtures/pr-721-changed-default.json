@@ -1,0 +1,13 @@
+{
+  "pr": 721,
+  "why": "#721 moves actions/setup-python from v3 to v6 in go.yml, which runs on PR CI. v6 has no default python-version (v3 had 3.x), so CI uses the runner's Python. On 2026-10-06 the verifier blocked it because the PR removes an actionlint finding, and it asked about workflows that PR CI does not run. It must ask only about the changed default.",
+  "head": "0676ba11ec77192b32941a3fa127d748d151ebc4",
+  "base": "9197f925f3ce12da4eb7864a0644451d12977788",
+  "agent_inputs": "agent-inputs/pr-721",
+  "expect": {
+    "verdict": "needs-human",
+    "checks": {"actionlint": "pre-existing", "actions-coverage": "decide"},
+    "decisions_contain": ["changed input defaults of actions/setup-python", "python-version: 3.x → none"],
+    "decisions_exclude": ["workflows that PR CI does not run"]
+  }
+}

@@ -159,6 +159,124 @@ check "block comment shows the mechanical fix" 1 "$(grep -c 'Mechanical fix: `ma
 verdict "[$(chk a pass)]" '[]' low | render >"$tmp/c3.md"
 check "safe comment says no decision is necessary" 1 "$(grep -c 'No decision is necessary' "$tmp/c3.md")"
 
+# ---- findings subsets
+
+fnd() {
+  # fnd <pr-findings-json> <base-findings-json>: an actionlint-like check that fails on both sides
+  jq -n --argjson p "$1" --argjson b "$2" \
+    '{id: "actionlint", title: "actionlint", required: false,
+      pr: {status: "fail", summary: "p", fingerprint: "fp-p", findings: $p, recommendations: []},
+      base: {status: "fail", summary: "b", fingerprint: "fp-b", findings: $b}}'
+}
+out=$(verdict "[$(fnd '["a", "c"]' '["a", "b", "c"]')]" '[]' low)
+check "PR findings are a subset of base → pre-existing, safe" "pre-existing safe-to-merge" "$(v '"\(.checks[0].outcome) \(.verdict)"')"
+out=$(verdict "[$(fnd '["a", "d"]' '["a", "b", "c"]')]" '[]' low)
+check "PR adds a finding → changed, block" "changed block" "$(v '"\(.checks[0].outcome) \(.verdict)"')"
+
+# ---- check scripts, with stub tools and no network
+
+# run_check <script> <worktree> [env...]: runs one check, prints "status|summary|question"
+run_check() {
+  local script="$1" wt="$2" art
+  shift 2
+  art=$(mktemp -d "$tmp/art.XXXX")
+  (cd "$wt" && env WT="$wt" SIDE=pr BASE_WT="${BASE_WT:-$wt}" PR_WT="$wt" ARTIFACTS="$art" VERIFY_ROOT="$ROOT" \
+    PR_META="${PR_META:-/dev/null}" CLASSIFICATION="${CLASSIFICATION:-/dev/null}" PROFILE=full "$@" \
+    bash "$ROOT/checks/$script.sh") >"$art/log" 2>&1
+  printf '%s|%s|%s' "$(cat "$art/status" 2>/dev/null)" "$(cat "$art/summary" 2>/dev/null)" "$(cat "$art/question" 2>/dev/null)"
+}
+stub() {
+  # stub <dir> <name> <script body>
+  mkdir -p "$1"
+  printf '#!/usr/bin/env bash\n%s\n' "$3" >"$1/$2"
+  chmod +x "$1/$2"
+}
+
+wt="$tmp/wt" && mkdir -p "$wt"
+stub "$tmp/bin-lock" golangci-lint 'echo "level=error msg=\"Running error: context loading failed\""; echo "Error: parallel golangci-lint is running"; exit 3'
+out=$(run_check golangci-lint "$wt" PATH="$tmp/bin-lock:$PATH")
+check "golangci-lint lock contention → incomplete, not a failing block" "incomplete" "${out%%|*}"
+stub "$tmp/bin-lint" golangci-lint 'echo "cmd/a.go:3:1: unused variable (unused)"; exit 1'
+out=$(run_check golangci-lint "$wt" PATH="$tmp/bin-lint:$PATH")
+check "golangci-lint finding → fail" "fail|golangci-lint reports 1 finding(s)" "${out%|*}"
+
+mkdir -p "$wt/internal/dev_server/ui"
+stub "$tmp/bin-npm" npm 'cat <<"LOG"
+npm warn ERESOLVE overriding peer dependency
+npm warn Could not resolve dependency:
+npm warn peer react@"18.2.0" from @launchpad-ui/overlay@0.3.30
+npm error code ERESOLVE
+npm error ERESOLVE could not resolve
+npm error Could not resolve dependency:
+npm error peer react@">=19.2.7" from react-router@8.0.1
+LOG
+[ "$1" = ci ] && exit 1; echo 10.9.0'
+out=$(run_check ui-npm-ci "$wt" PATH="$tmp/bin-npm:$PATH")
+check "ui-npm-ci names the conflict from npm error lines, not npm warn lines" \
+  'fail|npm ci fails with ERESOLVE peer conflict: peer react@">=19.2.7" from react-router@8.0.1' "${out%|*}"
+
+lock() {
+  # lock <dir> <esbuild-version> <esbuild-script> <extra-package-json-or-empty>
+  mkdir -p "$1/internal/dev_server/ui"
+  jq -n --arg v "$2" --argjson s "$3" --argjson extra "${4:-{\}}" \
+    '{packages: ({"": {}, "node_modules/esbuild": {version: $v, hasInstallScript: $s}} + $extra)}' \
+    >"$1/internal/dev_server/ui/package-lock.json"
+}
+lock "$tmp/lb" 0.25.5 true
+lock "$tmp/lp" 0.28.1 true '{"node_modules/newpkg": {"version": "1.0.0", "hasInstallScript": true}}'
+check "install scripts: a package that already had one on base is not new" '["newpkg@1.0.0"]' \
+  "$(python3 "$LIB/deps.py" transitive "$tmp/lb" "$tmp/lp" npm-ui | jq -c '.install_scripts')"
+
+jq -n '{title: "chore(deps): bump the npm_and_yarn group across 1 directory with 2 updates",
+        body: "Bumps the npm_and_yarn group with 2 updates: [dompurify](https://github.com/cure53/DOMPurify) and [uuid](https://github.com/uuidjs/uuid).\nUpdates `dompurify` from 3.2.4 to 3.4.13"}' >"$tmp/meta.json"
+jq -n '{group: true, security: false, direct_update_count: 3, updates: [
+          {name: "dompurify", direct: true, from: "3.2.4", to: "3.4.13", semver: "minor", ecosystem: "npm-ui"},
+          {name: "uuid", direct: true, from: "9.0.1", to: null, semver: "removed", ecosystem: "npm-ui"},
+          {name: "react-router", direct: true, from: "7.18.2", to: "8.3.0", semver: "major", ecosystem: "npm-ui"},
+          {name: "react-router-dom", direct: false, from: "7.18.2", to: "8.3.0", semver: "major", ecosystem: "npm-ui"}]}' >"$tmp/cls.json"
+out=$(run_check pr-disclosure "$wt" PR_META="$tmp/meta.json" CLASSIFICATION="$tmp/cls.json")
+check "pr-disclosure asks about the direct update that the description does not name" \
+  "decide|Accept the 1 direct update(s) that the PR description does not name: react-router 7.18.2 → 8.3.0 (major)?" \
+  "$(cut -d'|' -f1,3 <<<"$out")"
+jq '.updates |= map(select(.name != "react-router")) | .direct_update_count = 2' "$tmp/cls.json" >"$tmp/cls2.json"
+out=$(run_check pr-disclosure "$wt" PR_META="$tmp/meta.json" CLASSIFICATION="$tmp/cls2.json")
+check "pr-disclosure passes when the description names every direct update" "pass" "${out%%|*}"
+
+jq -n '{merge: {status: "conflict", conflicts: ["go.mod"]}, behind_by: 5, author: "app/dependabot", base_ref: "main"}' >"$tmp/pr-conflict.json"
+run_check pr-state "$wt" PR_META="$tmp/pr-conflict.json" CLASSIFICATION="$tmp/cls.json" >/dev/null
+details=$(cat "$(ls -dt "$tmp"/art.* | head -n1)/details.md")
+check "pr-state does not say a conflicting PR was merged into main" "0" "$(grep -c 'merged into' <<<"$details")"
+
+# Workflows pin setup-go at v4 and v5. The PR moves both to v6, so the old version is v4.
+for side in b p; do mkdir -p "$tmp/gh-$side/.github/workflows"; done
+printf 'on: pull_request\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-go@v4\n' >"$tmp/gh-b/.github/workflows/a.yml"
+printf 'on: pull_request\njobs:\n  b:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-go@v5\n' >"$tmp/gh-b/.github/workflows/b.yml"
+printf 'on: pull_request\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-go@v6\n' >"$tmp/gh-p/.github/workflows/a.yml"
+cp "$tmp/gh-p/.github/workflows/a.yml" "$tmp/gh-p/.github/workflows/b.yml"
+sed -i 's/  a:/  b:/' "$tmp/gh-p/.github/workflows/b.yml"
+printf '.github/workflows/a.yml\n.github/workflows/b.yml\n' >"$tmp/changed.txt"
+echo '{}' >"$tmp/pr0.json"
+"$LIB/classify.sh" "$tmp/gh-b" "$tmp/gh-p" "$tmp/changed.txt" "$tmp/pr0.json" "$tmp/cls-gh.json" 2>"$tmp/classify.err"
+check "classify: mixed old refs use the lowest replaced ref" "v4 v6 v4,v5" \
+  "$(jq -r '.updates[0] | "\(.from) \(.to) \([.replaced[].ref] | join(","))"' "$tmp/cls-gh.json" 2>/dev/null)"
+
+# A stub gh serves action.yml for each ref. v6 drops the python-version default
+# and, like release-please-action, sets an output that no version declares.
+mkdir -p "$tmp/yml"
+printf 'inputs:\n  go-version:\n    default: "1.x"\n  cache:\n    default: true\nruns:\n  using: node16\n' >"$tmp/yml/v4"
+printf 'inputs:\n  go-version:\n    default: "1.x"\n  cache:\n    default: true\nruns:\n  using: node20\n' >"$tmp/yml/v5"
+printf 'inputs:\n  go-version:\n    description: x\n  cache:\n    default: true\nruns:\n  using: node24\n' >"$tmp/yml/v6"
+stub "$tmp/bin-gh" gh "ref=\"\${2##*ref=}\"; f=\"$tmp/yml/\$ref\"; [ -f \"\$f\" ] || exit 1; base64 -w0 \"\$f\""
+out=$(BASE_WT="$tmp/gh-b" run_check actions-coverage "$tmp/gh-p" PATH="$tmp/bin-gh:$PATH" CLASSIFICATION="$tmp/cls-gh.json")
+check "actions-coverage: an empty field does not shift the runtime, and every old ref is compared" \
+  "decide|Accept the changed input defaults of actions/setup-go (go-version: 1.x → none)?" "$(cut -d'|' -f1,3 <<<"$out")"
+check "actions-coverage evidence names the runtimes of both old refs" 1 \
+  "$(grep -c 'v4, v5 → v6: inputs and outputs that the repo uses are unchanged; runtime node16, node20 → node24' <<<"$out")"
+
+printf 'on: push\njobs:\n  r:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-go@v6\n        id: rp\n      - run: echo ${{ steps.rp.outputs.release_created }}\n' >"$tmp/gh-p/.github/workflows/b.yml"
+out=$(BASE_WT="$tmp/gh-b" run_check actions-coverage "$tmp/gh-p" PATH="$tmp/bin-gh:$PATH" CLASSIFICATION="$tmp/cls-gh.json")
+check "actions-coverage: an output that no version declares is not reported as removed" "decide" "${out%%|*}"
+
 echo
 if [ "$failures" -gt 0 ]; then
   echo "$failures test(s) failed"

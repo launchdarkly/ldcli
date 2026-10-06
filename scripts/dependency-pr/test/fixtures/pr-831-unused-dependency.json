@@ -6,6 +6,6 @@
   "expect": {
     "verdict": "needs-human",
     "checks": {"ui-dep-usage": "decide", "ui-build-drift": "pass"},
-    "decisions_contain": ["Remove @types/react-window react-window"]
+    "decisions_contain": ["Remove @types/react-window and react-window from package.json instead of updating them?"]
   }
 }

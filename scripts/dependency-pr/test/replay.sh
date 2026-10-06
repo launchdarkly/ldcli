@@ -33,9 +33,13 @@ for name in "${names[@]}"; do
   fi
   envargs=()
   while IFS= read -r kv; do [ -n "$kv" ] && envargs+=("$kv"); done < <(jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' "$fx")
+  # A fixture can pin the PR title and body (pr_meta) for checks that read them.
+  meta=(--no-pr-meta)
+  pr_meta=$(jq -r '.pr_meta // empty' "$fx")
+  [ -n "$pr_meta" ] && meta=(--pr-meta "$FIXTURES/$pr_meta")
   start=$(date +%s)
   env "${envargs[@]}" "$ROOT/verify.sh" --pr "$(jq -r .pr "$fx")" --head-sha "$(jq -r .head "$fx")" \
-    --base-sha "$(jq -r .base "$fx")" --no-pr-meta --profile "$(jq -r '.profile // "fast"' "$fx")" \
+    --base-sha "$(jq -r .base "$fx")" "${meta[@]}" --profile "$(jq -r '.profile // "fast"' "$fx")" \
     --out-dir "$dir" >"$dir/verify.log" 2>&1
   code=$?
   secs=$(($(date +%s) - start))
@@ -61,7 +65,13 @@ for name in "${names[@]}"; do
           | "no decision mentions \"\($s)\""),
         (($e.incomplete_contain // [])[] as $s | select(([$r.incomplete[].reason] | join("\n")) | contains($s) | not)
           | "no incomplete item mentions \"\($s)\""),
-        (($e.fixes // [])[] as $id | select([$r.fixes[].id] | index($id) | not) | "no fix recipe \($id)")
+        (($e.fixes // [])[] as $id | select([$r.fixes[].id] | index($id) | not) | "no fix recipe \($id)"),
+        (($e.decisions_exclude // [])[] as $s | select(([$r.decisions[].question] | join("\n")) | contains($s))
+          | "a decision mentions \"\($s)\""),
+        (($e.updates // {}) | to_entries[] as $u
+          | ([$r.classification.updates[] | select(.name == $u.key)] | first) as $got
+          | select($got == null or ($u.value | to_entries | any(.value != $got[.key])))
+          | "update \($u.key): \(if $got == null then "not found" else ($u.value | keys | map("\(.) \($got[.] | tostring)") | join(", ")) end), expected \($u.value | to_entries | map("\(.key) \(.value | tostring)") | join(", "))")
       ] | .[]' "$dir/result.json")
   verdict=$(jq -r .verdict "$dir/result.json")
   if [ -z "$problems" ]; then
