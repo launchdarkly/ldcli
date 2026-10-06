@@ -7,7 +7,7 @@ run npm ls --all >/dev/null 2>"$ARTIFACTS/ls.err"
 if [ $? -ne 0 ]; then
   cat "$ARTIFACTS/ls.err"
   grep -E 'npm error (invalid|missing|extraneous|peer)' "$ARTIFACTS/ls.err" | sed -E "s#$WT/##g" | sort -u >"$ARTIFACTS/problems"
-  fingerprint_file "$ARTIFACTS/problems"
+  findings_file "$ARTIFACTS/problems"
   detail_block "$ARTIFACTS/problems" 20
   recommend "Fix the dependency tree (coordinated upgrade or a scoped \`overrides\` entry) so that \`npm ls --all\` reports no new problems."
   fail "npm ls reports $(wc -l <"$ARTIFACTS/problems") problem(s): $(head -n2 "$ARTIFACTS/problems" | sed -E 's/^npm error //; s# /?internal/dev_server/ui/node_modules/[^ ]*##' | paste -sd';' -)"

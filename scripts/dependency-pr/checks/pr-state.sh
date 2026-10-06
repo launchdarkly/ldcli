@@ -6,16 +6,17 @@ behind=$(jq -r '.behind_by // 0' "$PR_META")
 author=$(jq -r '.author // ""' "$PR_META")
 base_ref=$(jq -r '.base_ref' "$PR_META")
 
-if [ "$behind" -gt 0 ]; then
-  detail "- Branch is $behind commit(s) behind \`$base_ref\`; checks ran on the PR merged into the current \`$base_ref\`."
-fi
-
 if [ "$merge_status" = "conflict" ]; then
   files=$(jq -r '.merge.conflicts | join(", ")' "$PR_META")
-  detail "- Conflicting files: $files. Checks ran on the PR head as-is, compared with its merge base."
+  [ "$behind" -gt 0 ] && detail "- Branch is $behind commit(s) behind \`$base_ref\`."
+  detail "- Conflicting files: $files. The PR does not merge into \`$base_ref\`, so the checks ran on the PR head as it is, compared with its merge base."
   recommend "Rebase the PR (comment \`@dependabot rebase\`) to resolve conflicts with \`$base_ref\`."
   FIX_KIND=comment fix_recipe dependabot-rebase "@dependabot rebase"
   fail "Conflicts with $base_ref ($files)"
+fi
+
+if [ "$behind" -gt 0 ]; then
+  detail "- Branch is $behind commit(s) behind \`$base_ref\`. The checks ran on the PR merged into the current \`$base_ref\`."
 fi
 
 # Generated outputs are compared with a fresh build by the drift checks, so

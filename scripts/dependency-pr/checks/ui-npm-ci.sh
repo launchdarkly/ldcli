@@ -11,7 +11,10 @@ if [ "${PIPESTATUS[0]}" -ne 0 ]; then
   fingerprint_file "$ARTIFACTS/npm-ci.errs"
   detail_block "$ARTIFACTS/npm-ci.errs" 25
   if grep -q ERESOLVE "$ARTIFACTS/npm-ci.out"; then
-    conflict=$(grep -m1 -E 'Could not resolve dependency|Conflicting peer dependency' -A2 "$ARTIFACTS/npm-ci.out" | grep -oE '(peer )?[@a-z0-9/._-]+@"?[^ "]+"?( from [@a-z0-9/._-]+@[^ ]+)?' | head -n2 | paste -sd' ' -)
+    # Only "npm error" lines describe the conflict that stopped the install.
+    # npm also prints "npm warn" lines with the same wording for conflicts it
+    # could work around (#729 named the wrong peer).
+    conflict=$(grep -E '^npm error' "$ARTIFACTS/npm-ci.out" | grep -m1 -E 'Could not resolve dependency|Conflicting peer dependency' -A2 | grep -oE '(peer )?[@a-z0-9/._-]+@"?[^ "]+"?( from [@a-z0-9/._-]+@[^ ]+)?' | head -n2 | paste -sd' ' -)
     recommend "Resolve the peer-dependency conflict with a coordinated upgrade or a scoped \`overrides\` entry (see #777), or close in favor of a focused PR."
     fail "npm ci fails with ERESOLVE peer conflict${conflict:+: $conflict}"
   fi

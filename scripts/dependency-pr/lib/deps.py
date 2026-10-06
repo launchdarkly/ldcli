@@ -160,13 +160,16 @@ def transitive(base, pr, eco):
         new = sorted(p[k]["version"] for k in added if p[k]["name"] == name)
         changed.append({"name": name, "from": ", ".join(old), "to": ", ".join(new), "semver": semver(old[-1], new[-1])})
     changed_names = {c["name"] for c in changed}
+    # A version change of a package that already ran an install script on base
+    # (esbuild in #779) adds no new script to approve.
+    scripted_b = {e["name"] for e in b.values() if e["install_script"]}
     return {
         "ecosystem": eco, "scope": "package-lock.json",
         "added": [k for k in added if p[k]["name"] not in changed_names],
         "new_packages": sorted({p[k]["name"] for k in added if p[k]["name"] not in names_b}),
         "removed": [k for k in removed if b[k]["name"] not in changed_names],
         "changed": changed,
-        "install_scripts": [k for k in added if p[k]["install_script"]],
+        "install_scripts": [k for k in added if p[k]["install_script"] and p[k]["name"] not in scripted_b],
     }
 
 

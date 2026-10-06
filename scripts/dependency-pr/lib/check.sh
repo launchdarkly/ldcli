@@ -78,6 +78,13 @@ detail_block() {
 # Keep it free of absolute paths, timings, and line numbers that can shift.
 fingerprint() { printf '%s' "$*" | sha256sum | cut -c1-16 >"$ARTIFACTS/fingerprint"; }
 fingerprint_file() { sha256sum <"$1" | cut -c1-16 >"$ARTIFACTS/fingerprint"; }
+# For a failure that is a set of independent findings (one per line, without
+# line numbers): if every PR finding also fails on base, the verdict counts the
+# failure as pre-existing, even when the PR removes some findings.
+findings_file() {
+  sort -u "$1" >"$ARTIFACTS/findings.list"
+  fingerprint_file "$ARTIFACTS/findings.list"
+}
 
 join_by() {
   local sep="$1" out="" item

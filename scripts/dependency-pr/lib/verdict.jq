@@ -14,14 +14,20 @@ include "semver";
 def nonpass: . == "fail" or . == "decide";
 
 # A failure that also happens on base with the same fingerprint is
-# pre-existing and does not count against the PR.
+# pre-existing and does not count against the PR. For a check that lists
+# independent findings, a PR whose findings all fail on base too is also
+# pre-existing (the PR can remove findings, but adds none).
+def findings_subset:
+  ((.pr.findings // []) | length) > 0 and (.base.findings // null) != null
+  and (((.pr.findings // []) - .base.findings) | length) == 0;
+
 def baseline_outcome:
   .pr.status as $p | (.base.status // null) as $b
   | if ($p | IN("pass", "info", "skip", "incomplete", "error")) then $p
     elif $b == null then $p
     elif ($b | IN("pass", "info")) then "regression"
     elif ($b | nonpass) then
-      (if (.pr.fingerprint // .pr.summary) == (.base.fingerprint // .base.summary)
+      (if (.pr.fingerprint // .pr.summary) == (.base.fingerprint // .base.summary) or findings_subset
        then "pre-existing" else "changed" end)
     else "base-inconclusive"
     end;

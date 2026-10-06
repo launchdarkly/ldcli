@@ -22,7 +22,7 @@ done < <(rg --no-line-number --with-filename -o -g '*.yml' -g '*.yaml' \
 
 if [ -s "$ARTIFACTS/violations" ]; then
   sort -u -o "$ARTIFACTS/violations" "$ARTIFACTS/violations"
-  fingerprint_file "$ARTIFACTS/violations"
+  findings_file "$ARTIFACTS/violations"
   detail_block "$ARTIFACTS/violations" 20
   recommend "Pin third-party actions to a full commit SHA with a \`# vX.Y.Z\` comment."
   fail "$(wc -l <"$ARTIFACTS/violations") unpinned third-party action reference(s)"

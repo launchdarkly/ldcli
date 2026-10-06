@@ -58,8 +58,15 @@ while IFS= read -r u; do
 done < <(updates_for npm-ui | jq -c 'select(.direct)')
 
 if [ ${#unused[@]} -gt 0 ]; then
-  recommend "Remove unused dependencies instead of bumping them: ${unused[*]}"
+  # "a", "a and b", "a, b, and c"
+  names="${unused[0]}" it="it"
+  if [ ${#unused[@]} -eq 2 ]; then
+    names="${unused[0]} and ${unused[1]}" it="them"
+  elif [ ${#unused[@]} -gt 2 ]; then
+    names="$(join_by ', ' "${unused[@]:0:${#unused[@]}-1}"), and ${unused[-1]}" it="them"
+  fi
+  recommend "Remove unused dependencies instead of bumping them: $names"
   FIX_NEEDS_DECISION=1 fix_recipe ui-remove-unused "cd internal/dev_server/ui && npm uninstall ${unused[*]} && npm run build" internal/dev_server/ui/package.json internal/dev_server/ui/package-lock.json internal/dev_server/ui/dist/
-  decide "Remove ${unused[*]} from package.json instead of updating it?" "Nothing in src/, the build configuration, or the package scripts uses ${unused[*]}. The update has no effect at run time."
+  decide "Remove $names from package.json instead of updating $it?" "Nothing in src/, the build configuration, or the package scripts uses $names. The update has no effect at run time."
 fi
 pass "All updated direct dependencies are used"

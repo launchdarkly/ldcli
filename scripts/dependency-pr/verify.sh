@@ -34,7 +34,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 
 PR="" BRANCH="" REPO="launchdarkly/ldcli" REMOTE="origin" BASE_BRANCH="main"
-OUT="" PROFILE="fast" PHASE="all" ONLY="" HEAD_PIN="" BASE_PIN="" NO_PR_META=false
+OUT="" PROFILE="fast" PROFILE_SET=false PHASE="all" ONLY="" HEAD_PIN="" BASE_PIN="" NO_PR_META=false
 
 usage() { sed -n '2,/^set -uo/p' "$0" | sed '$d; s/^# \{0,1\}//'; }
 
@@ -46,7 +46,7 @@ while [ $# -gt 0 ]; do
     --remote) REMOTE="${2:?}"; shift 2 ;;
     --base) BASE_BRANCH="${2:?}"; shift 2 ;;
     --out-dir) OUT="${2:?}"; shift 2 ;;
-    --profile) PROFILE="${2:?}"; shift 2 ;;
+    --profile) PROFILE="${2:?}"; PROFILE_SET=true; shift 2 ;;
     --phase) PHASE="${2:?}"; shift 2 ;;
     --only) ONLY="${2:?}"; shift 2 ;;
     --head-sha) HEAD_PIN="${2:?}"; shift 2 ;;
@@ -240,12 +240,14 @@ run_one() {
     --arg question "$(cat "$art/question" 2>/dev/null)" \
     --slurpfile fix <(cat "$art/fix.json" 2>/dev/null || echo null) \
     --arg fingerprint "$(cat "$art/fingerprint" 2>/dev/null)" \
+    --rawfile findings <(cat "$art/findings.list" 2>/dev/null) \
     --rawfile details <(cat "$art/details.md" 2>/dev/null) \
     --rawfile recs <(cat "$art/recommendations" 2>/dev/null) '
     {status: $status, summary: $summary, log: $log, duration_s: $duration,
      question: (if $question == "" then null else $question end),
      fix: $fix[0],
      fingerprint: (if $fingerprint == "" then null else $fingerprint end),
+     findings: (if $findings == "" then null else ($findings | split("\n") | map(select(length > 0))) end),
      details: (if $details == "" then null else $details end),
      recommendations: ($recs | split("\n") | map(select(length > 0)))}' >"$art/result.json"
   log "  $id ($side): $status${summary:+ — $summary} [$(($(now_s) - start))s]"
@@ -362,6 +364,26 @@ finalize() {
   exit "$code"
 }
 
+# The generated and render phases reuse the baseline results, so the result
+# must carry the profile that the baseline ran with.
+use_baseline_profile() {
+  local baseline
+  baseline=$(cat "$STATE/profile" 2>/dev/null || true)
+  if [ -z "$baseline" ] && [ -d "$STATE/checks" ]; then
+    # Older baselines did not save the profile: a full-profile check that ran means full.
+    if cat "$STATE"/checks/*/pr/result.json 2>/dev/null | jq -se 'any(.[]; .profile_skipped == true)' >/dev/null; then
+      baseline=fast
+    elif cat "$STATE"/checks/*/entry.json 2>/dev/null | jq -se 'any(.[]; .profile == "full")' >/dev/null; then
+      baseline=full
+    fi
+  fi
+  [ -n "$baseline" ] || return 0
+  if [ "$PROFILE_SET" = true ] && [ "$PROFILE" != "$baseline" ]; then
+    log "warning: the baseline ran with --profile $baseline; ignoring --profile $PROFILE"
+  fi
+  PROFILE="$baseline"
+}
+
 # ---------------------------------------------------------------- main
 
 case "$PHASE" in
@@ -374,11 +396,13 @@ case "$PHASE" in
     "$VERIFY_ROOT/lib/classify.sh" "$BASE_WT" "$PR_WT" "$STATE/changed-files.txt" "$STATE/pr.json" "$STATE/classification.json" ||
       die_infra "classification failed"
     log "ecosystems: $(jq -r '.ecosystems | join(", ")' "$STATE/classification.json"); tier: $(jq -r '.tier' "$STATE/classification.json")"
+    printf '%s\n' "$PROFILE" >"$STATE/profile"
     run_baseline
     run_generated
     finalize
     ;;
   generated)
+    use_baseline_profile
     [ -d "$PR_WT" ] && [ -d "$BASE_WT" ] || die_infra "worktrees missing in $WORK; run with --phase all first"
     expected=$(jq -r '.tested.pr' "$STATE/pr.json")
     [ "$(git -C "$PR_WT" rev-parse HEAD)" = "$expected" ] || die_infra "PR worktree HEAD changed since the baseline run"
@@ -386,6 +410,7 @@ case "$PHASE" in
     finalize
     ;;
   render)
+    use_baseline_profile
     finalize
     ;;
 esac
