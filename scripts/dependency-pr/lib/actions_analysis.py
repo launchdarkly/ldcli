@@ -120,32 +120,50 @@ def main():
                         "runs_on_pr": any(on_pr.get(w, False) for w in wf_list),
                         "runners": sorted({str(r) for w in wf_list for r in runners.get(w, set())}),
                     })
-        entry = {"name": name, "from": u.get("from"), "to": u.get("to"), "breaking": bool(u.get("breaking")), "usages": usages}
+        entry = {"name": name, "from": u.get("from"), "to": u.get("to"), "breaking": bool(u.get("breaking")), "usages": usages,
+                 "replaced": [r["version"] for r in u.get("replaced") or []]}
 
-        if u.get("from_refs") and u.get("to_refs"):
-            old = gh_action_yml(name, u["from_refs"][-1])
-            new = gh_action_yml(name, u["to_refs"][-1])
-            if old is None or new is None:
+        # Every old ref that the PR replaces is compared with the new ref (a repo
+        # can pin v4 in one workflow and v5 in another).
+        old_refs = [r["ref"] for r in u.get("replaced") or []] or ([u["from_ref"]] if u.get("from_ref") else [])
+        new_ref = u.get("to_ref")
+        if old_refs and new_ref:
+            olds = [gh_action_yml(name, r) for r in old_refs]
+            new = gh_action_yml(name, new_ref)
+            if new is None or any(o is None for o in olds):
                 entry["upstream"] = {"status": "unavailable"}
             else:
-                old_in, new_in = old.get("inputs") or {}, new.get("inputs") or {}
-                old_out, new_out = old.get("outputs") or {}, new.get("outputs") or {}
+                new_in, new_out = new.get("inputs") or {}, new.get("outputs") or {}
                 provided = {k for us in usages for k in us["with"]}
                 read = {o for us in usages for o in us["outputs_read"]}
                 default = lambda spec: (spec or {}).get("default") if isinstance(spec, dict) else None
+                defaults_changed, new_required, outputs_missing = [], set(), set()
+                for old in olds:
+                    old_in, old_out = old.get("inputs") or {}, old.get("outputs") or {}
+                    new_required |= {k for k, v in new_in.items()
+                                     if k not in old_in and isinstance(v, dict) and v.get("required")
+                                     and "default" not in v and k not in provided}
+                    for k, v in sorted(new_in.items()):
+                        change = {"input": k, "from": default(old_in.get(k)), "to": default(v)}
+                        if k in old_in and k not in provided and str(change["from"]) != str(change["to"]) \
+                                and change not in defaults_changed:
+                            defaults_changed.append(change)
+                    # An output that neither action.yml declares is set at run time
+                    # (release-please-action), so only a declared output can go missing.
+                    outputs_missing |= {o for o in read if o in old_out and o not in new_out}
+                old_runtimes = sorted({str((o.get("runs") or {}).get("using")) for o in olds})
                 entry["upstream"] = {
                     "status": "ok",
+                    "compared_refs": old_refs,
                     "inputs_used": sorted(provided),
-                    "removed_but_used": sorted(k for k in provided if k not in new_in),
-                    "new_required": sorted(k for k, v in new_in.items()
-                                           if k not in old_in and isinstance(v, dict) and v.get("required")
-                                           and "default" not in v and k not in provided),
-                    "defaults_changed": [{"input": k, "from": default(old_in.get(k)), "to": default(v)}
-                                         for k, v in sorted(new_in.items())
-                                         if k in old_in and k not in provided and str(default(old_in[k])) != str(default(v))],
+                    "removed_but_used": sorted(k for k in provided
+                                               if k not in new_in and any(k in (o.get("inputs") or {}) for o in olds)),
+                    "new_required": sorted(new_required),
+                    "defaults_changed": defaults_changed,
                     "outputs_read": sorted(read),
-                    "outputs_missing": sorted(o for o in read if o not in new_out),
-                    "runs_using": [str((old.get("runs") or {}).get("using")), str((new.get("runs") or {}).get("using"))],
+                    "outputs_undeclared": sorted(o for o in read if o not in new_out and all(o not in (x.get("outputs") or {}) for x in olds)),
+                    "outputs_missing": sorted(outputs_missing),
+                    "runs_using": [", ".join(old_runtimes), str((new.get("runs") or {}).get("using"))],
                 }
         entry["self_hosted_runners"] = sorted({r for us in usages for r in us["runners"] if not GITHUB_HOSTED.match(r)})
         report.append(entry)

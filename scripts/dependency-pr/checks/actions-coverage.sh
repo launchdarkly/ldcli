@@ -16,7 +16,7 @@ R="$ARTIFACTS/report.json"
 detail "| Action | Change | Used in | Runs on PR CI? | Upstream action.yml |"
 detail "|---|---|---|---|---|"
 jq -r '.actions[] |
-  "| `\(.name)` | \(.from // "∅") → \(.to // "∅") | \([.usages[].file] | unique | join(", ")) | \(
+  "| `\(.name)` | \(if (.replaced | length) > 1 then (.replaced | join(", ")) else (.from // "∅") end) → \(.to // "∅") | \([.usages[].file] | unique | join(", ")) | \(
     if (.usages | length) == 0 then "n/a"
     elif all(.usages[]; .runs_on_pr) then "yes"
     elif any(.usages[]; .runs_on_pr) then "partly, not " + ([.usages[] | select(.runs_on_pr | not) | .workflows[]] | unique | join(", "))
@@ -26,7 +26,9 @@ jq -r '.actions[] |
     else ("inputs used: " + (if (.upstream.inputs_used | length) > 0 then (.upstream.inputs_used | join(", ")) else "none" end)
           + "; outputs read: " + (if (.upstream.outputs_read | length) > 0 then (.upstream.outputs_read | join(", ")) else "none" end)
           + "; runtime " + (.upstream.runs_using | join(" → "))
-          + (if (.upstream.defaults_changed | length) > 0 then "; changed defaults: " + ([.upstream.defaults_changed[] | "\(.input) \(.from) → \(.to)"] | join(", ")) else "" end)) end) |"' "$R" >>"$ARTIFACTS/details.md"
+          + (if (.upstream.defaults_changed | length) > 0 then "; changed defaults: " + ([.upstream.defaults_changed[] | "\(.input) \(.from // "none") → \(.to // "none")"] | join(", ")) else "" end)) end) |"' "$R" >>"$ARTIFACTS/details.md"
+jq -r '.actions[] | select(.upstream.status == "ok" and ((.upstream.outputs_undeclared // []) | length) > 0)
+  | "- `\(.name)` does not declare the outputs \(.upstream.outputs_undeclared | join(", ")) in either version. The action sets them at run time, so this check cannot compare them."' "$R" >>"$ARTIFACTS/details.md"
 jq -r '.permissions_changes[] | "- permissions changed in \(.where): `\(.from)` → `\(.to)`"' "$R" >>"$ARTIFACTS/details.md"
 
 broken=$(jq -r '[.actions[] | select(.upstream.status == "ok") | .name as $n | .upstream
@@ -44,7 +46,9 @@ questions=()
 evidence=()
 perm=$(jq -r '[.permissions_changes[] | "\(.where): \(.from) → \(.to)"] | join("; ")' "$R")
 [ -n "$perm" ] && questions+=("accept the workflow permission changes ($perm)")
-while IFS=$'\t' read -r name from to untested runtime defaults selfhosted; do
+# Fields are joined with the unit separator, not a tab. Tab is IFS whitespace,
+# so read would merge empty fields and shift the later fields left.
+while IFS=$'\x1f' read -r name from to untested runtime defaults selfhosted; do
   [ -n "$name" ] || continue
   ev="$name $from → $to: inputs and outputs that the repo uses are unchanged; runtime $runtime${defaults:+; changed defaults: $defaults}${selfhosted:+; non-standard runner labels: $selfhosted}"
   evidence+=("$ev")
@@ -54,11 +58,11 @@ while IFS=$'\t' read -r name from to untested runtime defaults selfhosted; do
     questions+=("accept the changed input defaults of $name ($defaults)")
   fi
 done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking or (.upstream.defaults_changed | length) > 0) |
-  [.name, .from, .to,
+  [.name, (if (.replaced | length) > 1 then (.replaced | join(", ")) else .from end), .to,
    ([.usages[] | select(.runs_on_pr | not) | .workflows[]] | unique | map(sub("^\\.github/workflows/"; "")) | join(", ")),
    (.upstream.runs_using | join(" → ")),
-   ([.upstream.defaults_changed[] | "\(.input): \(.from) → \(.to)"] | join(", ")),
-   (.self_hosted_runners | join(", "))] | @tsv' "$R")
+   ([.upstream.defaults_changed[] | "\(.input): \(.from // "none") → \(.to // "none")"] | join(", ")),
+   (.self_hosted_runners | join(", "))] | map(. // "" | tostring) | join("\u001f")' "$R")
 
 if [ ${#questions[@]} -gt 0 ]; then
   fingerprint "${questions[*]}"

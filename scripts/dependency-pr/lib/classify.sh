@@ -52,7 +52,8 @@ actions_json() {
     split("\n") | map(select(length > 0) | split("\t"))
     | map({name: .[0], ref: .[1],
            version: (if (.[1] | test("^[0-9a-f]{40}$")) and ((.[2] // "") != "") then .[2] else .[1] end)})
-    | group_by(.name) | map({key: .[0].name, value: {refs: (map(.ref) | unique), versions: (map(.version) | unique)}})
+    | group_by(.name) | map({key: .[0].name, value: {refs: (map(.ref) | unique), versions: (map(.version) | unique),
+                                                      pairs: (map({ref, version}) | unique)}})
     | from_entries'
 }
 
@@ -90,7 +91,9 @@ jq -n -L "$VERIFY_ROOT/lib" \
   --slurpfile dockb "$TMP/docker.base.json" --slurpfile dockp "$TMP/docker.pr.json" '
 include "semver";
 
-def maxv: sort_by(vparse | if . == null then [-1] else .nums end) | last;
+def vsort: sort_by(vparse | if . == null then [-1] else .nums end);
+def maxv: vsort | last;
+def vsort_pairs: sort_by(.version | vparse | if . == null then [-1] else .nums end);
 
 def go_updates:
   def reqmap: (.Require // []) | map({key: .Path, value: {v: .Version, indirect: (.Indirect // false)}}) | from_entries;
@@ -108,12 +111,22 @@ def npm_updates($eco; $b; $p):
     | {ecosystem: $eco, name: $k, from: $b.lock[$k], to: $p.lock[$k],
        direct: ($rt or $dv), dev: ($dv and ($rt | not))} ];
 
+# A workflow can pin one action at several refs (v4 in one file, v5 in
+# another). "replaced" holds every old ref that the PR removes, lowest version
+# first, and "from" is the lowest of them, so the compared range covers all.
 def action_updates:
   $actb[0] as $b | $actp[0] as $p
   | [ (($b | keys) + ($p | keys) | unique)[] as $k
       | select($b[$k].refs != $p[$k].refs)
+      | ($b[$k].pairs // []) as $bp | ($p[$k].pairs // []) as $pp
+      | ($pp | map(.ref)) as $prefs
+      | ($bp | map(select(.ref as $r | $prefs | index($r) | not)) | vsort_pairs) as $replaced
+      | (if ($replaced | length) > 0 then $replaced[0] else ($bp | vsort_pairs | last) end) as $old
+      | ($pp | vsort_pairs | last) as $new
       | {ecosystem: "github-actions", name: $k,
-         from: (($b[$k].versions // []) | maxv), to: (($p[$k].versions // []) | maxv),
+         from: ($old.version // null), to: ($new.version // null),
+         from_ref: ($old.ref // null), to_ref: ($new.ref // null),
+         replaced: $replaced,
          from_all: ($b[$k].versions // []), to_all: ($p[$k].versions // []),
          from_refs: ($b[$k].refs // []), to_refs: ($p[$k].refs // []),
          direct: true, dev: false} ];
