@@ -6,8 +6,17 @@
   "agent_inputs": "agent-inputs/pr-721",
   "expect": {
     "verdict": "needs-human",
-    "checks": {"actionlint": "pre-existing", "actions-coverage": "decide"},
-    "decisions_contain": ["changed input defaults of actions/setup-python", "python-version: 3.x → none"],
-    "decisions_exclude": ["workflows that PR CI does not run"]
+    "checks": {
+      "actionlint": "pre-existing",
+      "actions-coverage": "decide"
+    },
+    "decisions_contain": [
+      "changed input defaults of actions/setup-python",
+      "python-version: 3.x → none"
+    ],
+    "decisions_exclude": [
+      "workflows that PR CI does not run",
+      "token"
+    ]
   }
 }

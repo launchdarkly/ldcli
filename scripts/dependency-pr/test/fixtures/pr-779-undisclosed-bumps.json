@@ -7,8 +7,23 @@
   "agent_inputs": "agent-inputs/pr-779",
   "expect": {
     "verdict": "block",
-    "checks": {"pr-disclosure": "decide", "ui-npm-ci": "regression"},
-    "decisions_contain": ["@launchpad-ui/components", "launchdarkly-js-client-sdk", "react-router", "vite"],
-    "decisions_exclude": ["esbuild"]
+    "checks": {
+      "pr-disclosure": "decide",
+      "ui-npm-ci": "regression"
+    },
+    "decisions_contain": [
+      "@launchpad-ui/components",
+      "launchdarkly-js-client-sdk",
+      "react-router",
+      "vite",
+      "Accept MPL-2.0 for lightningcss 1.33.0 and 11 lightningcss-* package(s) (dev-only build tools)?"
+    ],
+    "decisions_exclude": [
+      "esbuild"
+    ],
+    "summaries_contain": {
+      "upstream-changes": "full range for 4 of 4",
+      "ui-npm-audit": "GHSA-"
+    }
   }
 }

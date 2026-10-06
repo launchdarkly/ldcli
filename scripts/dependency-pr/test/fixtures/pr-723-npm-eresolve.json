@@ -1,11 +1,22 @@
 {
   "pr": 723,
-  "why": "#723 (@launchpad-ui/core 0.49.22 → 0.59.17) fails npm ci with ERESOLVE because of peer dependencies. It has stayed open since June.",
+  "why": "#723 (@launchpad-ui/core 0.49.22 → 0.59.17) fails npm ci with ERESOLVE because of peer dependencies. It has stayed open since June. npm audit flags @launchpad-ui/core only through navigation and react-router, whose advisories base has too, so there is no new advisory. GitHub has no tag for core 0.59.17, so the notes come from the CHANGELOG on the default branch.",
   "head": "1944946e22761a738421a096676246ad08cbba76",
   "base": "6c1740f8932352cdc2696e7aee20dfef676abfac",
   "expect": {
     "verdict": "block",
-    "checks": {"ui-npm-ci": "regression"},
-    "blocks_contain": ["ERESOLVE"]
+    "checks": {
+      "ui-npm-ci": "regression",
+      "ui-npm-audit": "pass"
+    },
+    "blocks_contain": [
+      "ERESOLVE"
+    ],
+    "decisions_exclude": [
+      "Accept these new advisories"
+    ],
+    "summaries_contain": {
+      "upstream-changes": "full range for 1 of 1"
+    }
   }
 }

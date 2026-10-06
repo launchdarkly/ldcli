@@ -263,19 +263,147 @@ check "classify: mixed old refs use the lowest replaced ref" "v4 v6 v4,v5" \
 # A stub gh serves action.yml for each ref. v6 drops the python-version default
 # and, like release-please-action, sets an output that no version declares.
 mkdir -p "$tmp/yml"
-printf 'inputs:\n  go-version:\n    default: "1.x"\n  cache:\n    default: true\nruns:\n  using: node16\n' >"$tmp/yml/v4"
+printf 'inputs:\n  go-version:\n    default: "1.x"\n  token:\n    default: ${{ github.token }}\n  cache:\n    default: true\nruns:\n  using: node16\n' >"$tmp/yml/v4"
 printf 'inputs:\n  go-version:\n    default: "1.x"\n  cache:\n    default: true\nruns:\n  using: node20\n' >"$tmp/yml/v5"
-printf 'inputs:\n  go-version:\n    description: x\n  cache:\n    default: true\nruns:\n  using: node24\n' >"$tmp/yml/v6"
+# v6 writes the token default with a GitHub Enterprise Server fallback. On
+# github.com it gives the same value, so it is not a changed default.
+cat >"$tmp/yml/v6" <<'YML'
+inputs:
+  go-version:
+    description: x
+  token:
+    default: ${{ github.server_url == 'https://github.com' && github.token || '' }}
+  cache:
+    default: true
+runs:
+  using: node24
+YML
 stub "$tmp/bin-gh" gh "ref=\"\${2##*ref=}\"; f=\"$tmp/yml/\$ref\"; [ -f \"\$f\" ] || exit 1; base64 -w0 \"\$f\""
 out=$(BASE_WT="$tmp/gh-b" run_check actions-coverage "$tmp/gh-p" PATH="$tmp/bin-gh:$PATH" CLASSIFICATION="$tmp/cls-gh.json")
 check "actions-coverage: an empty field does not shift the runtime, and every old ref is compared" \
-  "decide|Accept the changed input defaults of actions/setup-go (go-version: 1.x → none)?" "$(cut -d'|' -f1,3 <<<"$out")"
+  "decide|Accept the changed input defaults of actions/setup-go in a.yml, b.yml (go-version: 1.x → none)?" "$(cut -d'|' -f1,3 <<<"$out")"
 check "actions-coverage evidence names the runtimes of both old refs" 1 \
   "$(grep -c 'v4, v5 → v6: inputs and outputs that the repo uses are unchanged; runtime node16, node20 → node24' <<<"$out")"
 
 printf 'on: push\njobs:\n  r:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-go@v6\n        id: rp\n      - run: echo ${{ steps.rp.outputs.release_created }}\n' >"$tmp/gh-p/.github/workflows/b.yml"
 out=$(BASE_WT="$tmp/gh-b" run_check actions-coverage "$tmp/gh-p" PATH="$tmp/bin-gh:$PATH" CLASSIFICATION="$tmp/cls-gh.json")
 check "actions-coverage: an output that no version declares is not reported as removed" "decide" "${out%%|*}"
+
+# ---- second 2026-10-06 run
+
+# Bug 1: names in bot-generated blocks (Cursor Bugbot summary) or in quoted
+# upstream notes (<details>) do not disclose an update.
+jq -n '{title: "chore(deps): bump the npm_and_yarn group across 1 directory with 2 updates",
+        body: ("Bumps the npm_and_yarn group with 2 updates: [dompurify](https://github.com/cure53/DOMPurify) and [uuid](https://github.com/uuidjs/uuid).\n"
+               + "<details>\n<summary>Commits</summary>\nAlso see react-router.\n</details>\n"
+               + "<!-- CURSOR_SUMMARY -->\n> It also moves **`react-router`** to 8.3.0.\n<!-- /CURSOR_SUMMARY -->\n")}' >"$tmp/meta-bot.json"
+out=$(run_check pr-disclosure "$wt" PR_META="$tmp/meta-bot.json" CLASSIFICATION="$tmp/cls.json")
+check "pr-disclosure ignores names in the Bugbot summary and in quoted notes" \
+  "decide|Accept the 1 direct update(s) that the PR description does not name: react-router 7.18.2 → 8.3.0 (major)?" \
+  "$(cut -d'|' -f1,3 <<<"$out")"
+
+# Bug 2: a direct update that a named update forces is not a decision, and a
+# single update is not "grouped".
+jq -n '{title: "chore(deps): bump go.uber.org/mock from 0.5.2 to 0.6.0", body: "Bumps [go.uber.org/mock](https://github.com/uber/mock) from 0.5.2 to 0.6.0."}' >"$tmp/meta-mock.json"
+jq -n '{group: true, security: false, direct_update_count: 2, updates: [
+          {name: "go.uber.org/mock", direct: true, from: "v0.5.2", to: "v0.6.0", semver: "minor", ecosystem: "gomod"},
+          {name: "golang.org/x/term", direct: true, from: "v0.33.0", to: "v0.34.0", semver: "minor", ecosystem: "gomod"}]}' >"$tmp/cls-mock.json"
+stub "$tmp/bin-go" go 'cat <<"G"
+example.com/ldcli go.uber.org/mock@v0.6.0
+example.com/ldcli golang.org/x/term@v0.34.0
+go.uber.org/mock@v0.6.0 golang.org/x/tools@v0.36.0
+golang.org/x/tools@v0.36.0 golang.org/x/net@v0.43.0
+golang.org/x/net@v0.43.0 golang.org/x/term@v0.34.0
+G'
+out=$(run_check pr-disclosure "$wt" PR_META="$tmp/meta-mock.json" CLASSIFICATION="$tmp/cls-mock.json" PATH="$tmp/bin-go:$PATH")
+check "pr-disclosure: an update that a named update forces is a note, not a decision" "info" "${out%%|*}"
+check "pr-disclosure names the module path that forces the update" 1 \
+  "$(grep -c 'golang.org/x/term v0.33.0 → v0.34.0, required by go.uber.org/mock v0.6.0 through golang.org/x/tools v0.36.0, golang.org/x/net v0.43.0' <<<"$out")"
+check "pr-disclosure does not call a single update grouped" 0 "$(grep -c 'grouped' <<<"$out")"
+
+# Bug 3: npm audit compares advisory IDs. A package that is flagged only
+# "via" another package (@launchpad-ui/core in #723) has no new advisory.
+for side in auditbase auditpr; do mkdir -p "$tmp/$side/internal/dev_server/ui"; done
+adv() { jq -n --arg id "$1" '{name: "react-router", url: "https://github.com/advisories/\($id)", severity: "high", title: "t", source: 1}'; }
+jq -n --argjson a "$(adv GHSA-aaaa-bbbb-cccc)" '{vulnerabilities: {"react-router": {severity: "high", via: [$a]},
+  "@launchpad-ui/navigation": {severity: "moderate", via: ["react-router"]}}}' >"$tmp/audit-base.json"
+jq --argjson a "$(adv GHSA-aaaa-bbbb-cccc)" '.vulnerabilities["@launchpad-ui/core"] = {severity: "moderate", via: ["@launchpad-ui/navigation"]}' \
+  "$tmp/audit-base.json" >"$tmp/audit-pr.json"
+jq --argjson a "$(adv GHSA-dddd-eeee-ffff)" '.vulnerabilities["react-router"].via += [$a]' "$tmp/audit-pr.json" >"$tmp/audit-pr-new.json"
+stub "$tmp/bin-audit" npm "case \"\$PWD\" in *auditbase/*) cat '$tmp/audit-base.json' ;; *) cat \"\${AUDIT_PR:-$tmp/audit-pr.json}\" ;; esac"
+out=$(BASE_WT="$tmp/auditbase" run_check ui-npm-audit "$tmp/auditpr" PATH="$tmp/bin-audit:$PATH")
+check "ui-npm-audit: a new path to an old advisory is not a new advisory" "pass" "${out%%|*}"
+out=$(BASE_WT="$tmp/auditbase" run_check ui-npm-audit "$tmp/auditpr" PATH="$tmp/bin-audit:$PATH" AUDIT_PR="$tmp/audit-pr-new.json")
+check "ui-npm-audit: a new advisory ID fails" "fail|New high/critical advisories: GHSA-dddd-eeee-ffff (react-router, high)" "${out%|*}"
+
+# Bug 4: note coverage. A CHANGELOG that stops before the old version is
+# partial. A version without a tag reads the CHANGELOG on the default branch.
+# The release scan goes past 3 pages when it has not reached the old version.
+out=$(python3 -B - "$LIB" <<'PY'
+import base64, sys
+sys.path.insert(0, sys.argv[1])
+import upstream
+vite = "## 8.2.1\n- fix\n## 8.1.0\n- feat\n## 8.0.0\n- breaking\n### 7.3.x (2025)\nsee 7.3 changelog\n"
+core = "## 0.59.18\n- a\n## 0.59.17\n- b\n## 0.52.0\n- Remove pagination package\n## 0.49.22\n- c\n"
+def content(t):
+    return {"content": base64.b64encode(t.encode()).decode()}
+def releases(page):
+    if page > 5:
+        return []
+    if page < 5:
+        return [{"tag_name": f"x@9.{page}.{i}", "body": ""} for i in range(100)]
+    return [{"tag_name": "v1.3.0", "body": "three"}, {"tag_name": "v1.2.0", "body": "two"}, {"tag_name": "v1.0.0", "body": "old"}]
+def fake(path):
+    if path.startswith("repos/v/v/contents/packages/vite/CHANGELOG.md"):
+        return content(vite)
+    if path == "repos/l/l/contents/packages/core/CHANGELOG.md":
+        return content(core)
+    if path.startswith("repos/r/r/releases"):
+        return releases(int(path.split("&page=")[1]))
+    return None
+upstream.gh_json = fake
+_, cov = upstream.changelog_section("v/v", "packages/vite/CHANGELOG.md", "6.4.3", "8.2.1", "v8.2.1")
+print(cov["status"], cov["lowest"])
+text, cov = upstream.changelog_section("l/l", "packages/core/CHANGELOG.md", "0.49.22", "0.59.17", "@launchpad-ui/core@0.59.17")
+print(cov["status"], "0.52.0" in text, "0.49.22" in text)
+src, text, cov = upstream.release_notes("r/r", "1.0.0", "1.3.0", "v1.3.0")
+print(src, cov["status"], cov["lowest"])
+PY
+)
+check "upstream: a CHANGELOG that stops before the old version is partial" "partial 8.0.0" "$(sed -n 1p <<<"$out")"
+check "upstream: a version without a tag reads the CHANGELOG on the default branch" "full True False" "$(sed -n 2p <<<"$out")"
+check "upstream: the release scan goes past 3 pages" "release notes full 1.2.0" "$(sed -n 3p <<<"$out")"
+
+# Bug 6: one license question per package family, which says dev-only.
+lic() {
+  # lic <dir> <package>...: a lockfile with MPL-2.0 dev packages
+  local d="$1" p
+  shift
+  mkdir -p "$d/internal/dev_server/ui"
+  for p in "$@"; do printf '%s\n' "$p"; done | jq -R -s 'split("\n") | map(select(length > 0))
+    | {packages: ({"": {}} + (map({key: "node_modules/\(.)", value: {version: "1.33.0", license: "MPL-2.0", dev: true}}) | from_entries))}' \
+    >"$d/internal/dev_server/ui/package-lock.json"
+}
+lic "$tmp/lb2"
+lic "$tmp/lp2" lightningcss lightningcss-darwin-arm64 lightningcss-linux-x64-gnu
+jq -n '{ecosystems: ["npm-ui"]}' >"$tmp/cls-npm.json"
+out=$(BASE_WT="$tmp/lb2" run_check license-changes "$tmp/lp2" CLASSIFICATION="$tmp/cls-npm.json")
+check "license-changes asks one short question per package family" \
+  "decide|Accept MPL-2.0 for lightningcss 1.33.0 and 2 lightningcss-* package(s) (dev-only build tools)?" "$(cut -d'|' -f1,3 <<<"$out")"
+
+# Bug 7: a guard regression already shows that the change reaches ldcli.
+out=$(verdict "[$(chk a pass)]" "[$(gen g1 guard pass fail)]" medium "$REACHABLE" '[]' "$SQL")
+check "a guard regression replaces the missing discriminating proof" "block 0" "$(v '"\(.verdict) \(.incomplete | length)"')"
+
+# Bug 9: govulncheck lists fixed advisories at each level and the reachable ones that stay.
+gv() { jq -nc --arg id "$1" --arg f "$2" '{finding: {osv: $id, trace: [({module: "golang.org/x/net"} + (if $f == "fn" then {package: "p", function: "F"} elif $f == "pkg" then {package: "p"} else {} end))]}}'; }
+{ gv GO-1 fn; gv GO-2 pkg; gv GO-3 mod; } >"$tmp/gv-base.json"
+gv GO-1 fn >"$tmp/gv-pr.json"
+stub "$tmp/bin-gv" govulncheck "case \"\$PWD\" in *gvbase*) cat '$tmp/gv-base.json' ;; *) cat '$tmp/gv-pr.json' ;; esac"
+mkdir -p "$tmp/gvbase" "$tmp/gvpr"
+out=$(BASE_WT="$tmp/gvbase" run_check govulncheck "$tmp/gvpr" PATH="$tmp/bin-gv:$PATH")
+check "govulncheck reports fixed advisories by level and the reachable ones that stay" \
+  "pass|No new reachable vulnerabilities; fixes 2 advisories (1 imported package, 1 required module); still reachable: GO-1" "${out%|*}"
 
 echo
 if [ "$failures" -gt 0 ]; then
