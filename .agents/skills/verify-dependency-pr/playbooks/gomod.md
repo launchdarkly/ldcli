@@ -24,7 +24,7 @@ A diligent reviewer makes sure that these statements are true for a Go update:
 | 5 | `upstream-changes` collects the notes and the compare link. For `golang.org/x/*` modules, it uses the `github.com/golang` mirror, and the notes are the commit messages. The agent does the mapping. |
 | 6 | `transitive-changes`, `license-changes` |
 | 7 | `go-directive`, plus `golangci-lint` and `release-snapshot` as gates when the tag `go-directive` is set |
-| 8 | `govulncheck` |
+| 8 | `govulncheck`. Only a new reachable advisory fails. The details list the advisories that the PR fixes (reachable, in an imported package, or in a required module) and the reachable advisories that stay. |
 
 ## What the agent must do
 
