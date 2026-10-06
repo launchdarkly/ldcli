@@ -87,7 +87,16 @@ def resolve(update, wt):
                 meta[side] = {"repository.url": meta[side]}
         repo = github_repo(meta["to"].get("repository.url"))
         subdir = (meta["to"].get("repository.directory") or "").strip("/") or None
-        tag = lambda v: f"{name}@{v}" if subdir else f"v{v}"
+
+        def tag(v):
+            # Without gitHead, use the first tag form that exists: "<name>@1.2.3"
+            # (react-router, @launchpad-ui/*), "v1.2.3" (vite), or "1.2.3".
+            forms = ([f"{name}@{v}"] if subdir else []) + [f"v{v}", v]
+            if repo:
+                for t in forms:
+                    if sh(["gh", "api", f"repos/{repo}/git/ref/tags/{t}", "--jq", ".ref"]):
+                        return t
+            return forms[0]
         return repo, meta["from"].get("gitHead") or tag(frm), meta["to"].get("gitHead") or tag(to), subdir
     if eco == "github-actions":
         repo = "/".join(name.split("/")[:2])
