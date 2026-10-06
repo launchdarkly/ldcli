@@ -33,7 +33,9 @@ if [ -s "$ARTIFACTS/undisclosed" ]; then
   list=$(paste -sd';' "$ARTIFACTS/undisclosed" | sed 's/;/; /g')
   findings_file "$ARTIFACTS/undisclosed"
   recommend "If these updates are not wanted, close the PR and update the disclosed packages in a focused PR."
+  named="$((total - n)) of them"
+  [ "$n" -eq "$total" ] && named="none of them"
   decide "Accept the $n direct update(s) that the PR description does not name: $list?" \
-    "This $kind changes $total direct dependencies. The title and body name $((total - n)) of them."
+    "This $kind changes $total direct dependencies. The title and body name $named."
 fi
 pass "The PR description names all $total direct updates of this $kind"
