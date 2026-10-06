@@ -99,7 +99,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	provision, err := resolveAgentSpace(cmd, clients, &opts, plaintext)
+	provision, err := resolveAgentSpace(cmd, clients, &opts, plaintext && canPrompt())
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func resolveAgentSpace(
 	cmd *cobra.Command,
 	clients awsdevops.Clients,
 	opts *awsdevops.SetupOptions,
-	plaintext bool,
+	interactive bool,
 ) (bool, error) {
 	if opts.NewAgentSpace {
 		return true, nil
@@ -154,7 +154,7 @@ func resolveAgentSpace(
 		return true, nil
 	}
 
-	if !plaintext || !canPrompt() {
+	if !interactive {
 		// Reuse the space this command provisions by name, so an unattended
 		// re-run stays idempotent, but never guess between spaces someone
 		// else set up.
@@ -179,6 +179,8 @@ func resolveAgentSpace(
 		return false, err
 	}
 	if choice == "" {
+		opts.NewAgentSpace = true
+
 		return true, nil
 	}
 	opts.AgentSpaceID = choice
@@ -194,7 +196,8 @@ func selectAgentSpace(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary, 
 	for i, space := range spaces {
 		_, _ = fmt.Fprintf(out, "  %d) %s (%s)\n", i+1, space.Name, space.AgentSpaceID)
 	}
-	_, _ = fmt.Fprintf(out, "  n) provision a new agent space\n\n")
+	newSpaceChoice := len(spaces) + 1
+	_, _ = fmt.Fprintf(out, "  %d) provision a new agent space\n\n", newSpaceChoice)
 
 	// One reader for the whole prompt, so a retry does not lose input the
 	// previous read already buffered.
@@ -207,18 +210,18 @@ func selectAgentSpace(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary, 
 		}
 
 		answer := strings.TrimSpace(line)
-		switch {
-		case answer == "":
+		if answer == "" {
 			return spaces[0].AgentSpaceID, nil
-		case strings.EqualFold(answer, "n"):
-			return "", nil
 		}
 
 		choice, err := strconv.Atoi(answer)
-		if err != nil || choice < 1 || choice > len(spaces) {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Enter a number between 1 and %d, or n\n", len(spaces))
+		if err != nil || choice < 1 || choice > newSpaceChoice {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Enter a number between 1 and %d\n", newSpaceChoice)
 
 			continue
+		}
+		if choice == newSpaceChoice {
+			return "", nil
 		}
 
 		return spaces[choice-1].AgentSpaceID, nil

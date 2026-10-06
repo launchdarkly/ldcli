@@ -103,16 +103,17 @@ func TestSelectAgentSpaceAsksAgainAfterAnInvalidAnswer(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "space-1", chosen)
-	assert.Equal(t, 2, strings.Count(out.String(), "Enter a number between 1 and 2"))
+	assert.Equal(t, 2, strings.Count(out.String(), "Enter a number between 1 and 3"))
 }
 
-func TestSelectAgentSpaceProvisionsANewSpaceOnN(t *testing.T) {
-	cmd, _ := testCmd("n\n")
+func TestSelectAgentSpaceProvisionsANewSpaceOnTheLastChoice(t *testing.T) {
+	cmd, out := testCmd("3\n")
 
 	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1")
 	require.NoError(t, err)
 
 	assert.Empty(t, chosen)
+	assert.Contains(t, out.String(), "3) provision a new agent space")
 }
 
 func TestSelectAgentSpaceFailsWithoutAnAnswer(t *testing.T) {
@@ -131,7 +132,7 @@ func TestResolveAgentSpaceProvisionsWhenTheAccountHasNone(t *testing.T) {
 	cmd, _ := testCmd("")
 	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly"}
 
-	provision, err := resolveAgentSpace(cmd, newStubClients(), &opts, true)
+	provision, err := resolveAgentSpace(cmd, newStubClients(), &opts, false)
 	require.NoError(t, err)
 
 	assert.True(t, provision)
@@ -142,7 +143,7 @@ func TestResolveAgentSpaceTakesTheFlaggedSpace(t *testing.T) {
 	cmd, _ := testCmd("")
 	opts := awsdevops.SetupOptions{AgentSpaceID: "space-2", AgentSpaceName: "launchdarkly"}
 
-	provision, err := resolveAgentSpace(cmd, newStubClients(), &opts, true)
+	provision, err := resolveAgentSpace(cmd, newStubClients(), &opts, false)
 	require.NoError(t, err)
 
 	assert.False(t, provision)
@@ -158,7 +159,7 @@ func TestResolveAgentSpaceReusesTheOwnSpaceWithoutATerminal(t *testing.T) {
 		Name:         aws.String("launchdarkly"),
 	})
 
-	provision, err := resolveAgentSpace(cmd, clients, &opts, true)
+	provision, err := resolveAgentSpace(cmd, clients, &opts, false)
 	require.NoError(t, err)
 
 	assert.True(t, provision)
@@ -172,8 +173,41 @@ func TestResolveAgentSpaceFailsOnSomeoneElsesSpaceWithoutATerminal(t *testing.T)
 		Name:         aws.String("platform"),
 	})
 
-	_, err := resolveAgentSpace(cmd, clients, &opts, true)
+	_, err := resolveAgentSpace(cmd, clients, &opts, false)
 
 	assert.ErrorContains(t, err, "platform space-2")
 	assert.ErrorContains(t, err, "--agent-space-id")
+}
+
+func TestResolveAgentSpaceAsksAndConnectsToTheChosenSpace(t *testing.T) {
+	cmd, _ := testCmd("1\n")
+	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly"}
+	clients := newStubClients(agenttypes.AgentSpace{
+		AgentSpaceId: aws.String("space-2"),
+		Name:         aws.String("platform"),
+	})
+
+	provision, err := resolveAgentSpace(cmd, clients, &opts, true)
+	require.NoError(t, err)
+
+	assert.False(t, provision)
+	assert.Equal(t, "space-2", opts.AgentSpaceID)
+}
+
+func TestResolveAgentSpaceProvisionsANewSpaceWhenAsked(t *testing.T) {
+	cmd, _ := testCmd("2\n")
+	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly"}
+	clients := newStubClients(agenttypes.AgentSpace{
+		AgentSpaceId: aws.String("space-1"),
+		Name:         aws.String("launchdarkly"),
+	})
+
+	provision, err := resolveAgentSpace(cmd, clients, &opts, true)
+	require.NoError(t, err)
+
+	assert.True(t, provision)
+	assert.Empty(t, opts.AgentSpaceID)
+	// Without this the matching name makes Setup reuse the space the answer
+	// declined.
+	assert.True(t, opts.NewAgentSpace)
 }
