@@ -133,6 +133,14 @@ With no token configured at all, `setup` prints the LaunchDarkly page where you 
 
 `ldcli aws-devops-agent status` shows what exists in the account and region.
 
+The unit tests run against fake AWS clients, so they stay green if the AWS DevOps Agent API changes. A smoke test runs the real thing against an AWS account instead:
+
+```sh-session
+AWS_REGION=us-east-1 LD_ACCESS_TOKEN=<service token> go test -tags awslive -timeout 20m ./internal/awsdevops/
+```
+
+It reuses one `ldcli-smoke-test` agent space, so running it repeatedly also checks that `setup` is idempotent. The nightly `AWS DevOps Agent smoke test` workflow runs it when the sandbox role is configured.
+
 ### Resource Commands
 
 Resource commands mirror the LaunchDarkly API and make requests for a given resource. To see a full list of resources supported by the CLI, enter `ldcli --help` into your terminal.

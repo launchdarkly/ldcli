@@ -1,0 +1,45 @@
+# Runs `ldcli aws-devops-agent setup` against a real AWS account, which is the
+# only check that catches the AWS DevOps Agent API changing under us: the unit
+# tests run against fakes and stay green when upstream breaks.
+name: AWS DevOps Agent smoke test
+
+on:
+  schedule:
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    # TODO: set this to the sandbox account's role and drop the guard below.
+    env:
+      AWS_ROLE_ARN: ${{ vars.AWS_DEVOPS_AGENT_SMOKE_ROLE_ARN }}
+      AWS_REGION: us-east-1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for a sandbox account
+        id: guard
+        run: echo "configured=${{ env.AWS_ROLE_ARN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v4
+        if: steps.guard.outputs.configured == 'true'
+        with:
+          go-version-file: go.mod
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.guard.outputs.configured == 'true'
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Smoke test
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          LD_ACCESS_TOKEN: ${{ secrets.LD_ACCESS_TOKEN }}
+        run: go test -tags awslive -timeout 20m -v ./internal/awsdevops/
