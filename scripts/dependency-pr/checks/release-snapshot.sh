@@ -25,7 +25,9 @@ MUSL_TOOLCHAINS=(
 if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   incomplete "Docker is not available, so the goreleaser-cross build did not run"
 fi
-release_image="${VERIFY_GORELEASER_IMAGE:-$(rg -o --no-filename 'ghcr\.io/launchdarkly/goreleaser-cross@sha256:[0-9a-f]{64}' .github/actions/publish/action.yml | head -n1)}"
+# Trees from before #629 (a conflicting PR is tested at its old head) use a tag
+# such as :v1.24.2 instead of a digest.
+release_image="${VERIFY_GORELEASER_IMAGE:-$(rg -o --no-filename 'ghcr\.io/launchdarkly/goreleaser-cross(@sha256:[0-9a-f]{64}|:[A-Za-z0-9._-]+)' .github/actions/publish/action.yml | head -n1)}"
 [ -n "$release_image" ] || incomplete "could not find the goreleaser-cross image in .github/actions/publish/action.yml"
 
 # musl_root: prints a directory that holds the merged musl.cc cross toolchains.

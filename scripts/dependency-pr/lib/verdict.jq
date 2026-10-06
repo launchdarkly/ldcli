@@ -123,7 +123,12 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
                   else empty end ),
               ( if ($impact | has("behavior_changes_reachable") | not) then
                   {source: "impact", reason: "The impact review must state behavior_changes_reachable (true or false)"}
-                elif $impact.behavior_changes_reachable == true and $proven == 0 and (($impact.no_local_proof // "") == "") then
+                # A guard regression or a failing gate (npm ci, build) already shows that the
+                # change reaches ldcli, and no discriminating check can pass on a PR that does not install.
+                elif $impact.behavior_changes_reachable == true and $proven == 0 and (($impact.no_local_proof // "") == "")
+                     and ([$gen[] | select(.outcome == "regression")] | length) == 0
+                     and ([$checks[] | select((.outcome | IN("regression", "changed"))
+                                              and ((.gate // false) or ((tag_required($cls) | length) > 0)))] | length) == 0 then
                   {source: "impact", reason: "The impact review found upstream behavior changes that reach ldcli, but no generated check proved one (it must fail on the old version and pass on the new one)"}
                 else empty end )
             end )

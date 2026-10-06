@@ -66,6 +66,19 @@ def permissions(wt):
     return out
 
 
+def on_github_com(value):
+    """A default as github.com evaluates it. Actions write GHES fallbacks as
+    `github.server_url == 'https://github.com' && X || Y`, which is X there."""
+    if not isinstance(value, str):
+        return value
+    m = re.fullmatch(r"\$\{\{\s*(.*?)\s*\}\}", value.strip(), re.S)
+    if not m:
+        return value.strip()
+    expr = m.group(1)
+    ghes = re.fullmatch(r"github\.server_url\s*==\s*'https://github\.com'\s*&&\s*(.+?)\s*\|\|\s*.+", expr, re.S)
+    return "${{ " + (ghes.group(1) if ghes else expr).strip() + " }}"
+
+
 def gh_action_yml(name, ref):
     parts = name.split("/")
     repo, sub = "/".join(parts[:2]), "/".join(parts[2:])
@@ -137,7 +150,7 @@ def main():
                 provided = {k for us in usages for k in us["with"]}
                 read = {o for us in usages for o in us["outputs_read"]}
                 default = lambda spec: (spec or {}).get("default") if isinstance(spec, dict) else None
-                defaults_changed, new_required, outputs_missing = [], set(), set()
+                defaults_changed, defaults_same, new_required, outputs_missing = [], [], set(), set()
                 for old in olds:
                     old_in, old_out = old.get("inputs") or {}, old.get("outputs") or {}
                     new_required |= {k for k, v in new_in.items()
@@ -145,8 +158,12 @@ def main():
                                      and "default" not in v and k not in provided}
                     for k, v in sorted(new_in.items()):
                         change = {"input": k, "from": default(old_in.get(k)), "to": default(v)}
-                        if k in old_in and k not in provided and str(change["from"]) != str(change["to"]) \
-                                and change not in defaults_changed:
+                        if k not in old_in or k in provided or str(change["from"]) == str(change["to"]):
+                            continue
+                        if str(on_github_com(change["from"])) == str(on_github_com(change["to"])):
+                            if change not in defaults_same:
+                                defaults_same.append(change)
+                        elif change not in defaults_changed:
                             defaults_changed.append(change)
                     # An output that neither action.yml declares is set at run time
                     # (release-please-action), so only a declared output can go missing.
@@ -160,6 +177,7 @@ def main():
                                                if k not in new_in and any(k in (o.get("inputs") or {}) for o in olds)),
                     "new_required": sorted(new_required),
                     "defaults_changed": defaults_changed,
+                    "defaults_same_on_github_com": defaults_same,
                     "outputs_read": sorted(read),
                     "outputs_undeclared": sorted(o for o in read if o not in new_out and all(o not in (x.get("outputs") or {}) for x in olds)),
                     "outputs_missing": sorted(outputs_missing),
