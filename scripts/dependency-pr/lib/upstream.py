@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 KEYWORDS = {
-    "breaking": r"breaking|backwards?[- ]incompatible|\bmajor change|\bremoved?\b.*\b(api|support|option|method|function)|\brewrite\b",
+    "breaking": r"breaking|backwards?[- ]incompatible|\bmajor change|\bremoved?\b.*\b(api|support|options?|methods?|functions?|packages?|components?|exports?|props?|inputs?|outputs?)\b|\brewrite\b",
     "security": r"security|vulnerab|\bcve-\d|\bghsa-",
     "deprecation": r"deprecat",
     "requirements": r"minimum (go|node|version)|requires? (go|node)|engines|drop(ped|s)? support|node ?\d\d",
@@ -96,6 +96,7 @@ def resolve(update, wt):
                 for t in forms:
                     if sh(["gh", "api", f"repos/{repo}/git/ref/tags/{t}", "--jq", ".ref"]):
                         return t
+                return None
             return forms[0]
         return repo, meta["from"].get("gitHead") or tag(frm), meta["to"].get("gitHead") or tag(to), subdir
     if eco == "github-actions":
@@ -105,59 +106,96 @@ def resolve(update, wt):
     return None, None, None, None
 
 
+HEAD_VERSION = re.compile(r"^#+\s.*?\bv?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)")
+MAX_CHANGELOG_LINES = 6000
+MAX_RELEASE_PAGES = 10
+
+
 def changelog_section(repo, path, frm, to, to_tag):
-    data = gh_json(f"repos/{repo}/contents/{path}?ref={to_tag}") if to_tag else None
+    """Returns (text, coverage). The section starts at the heading of `to` and
+    ends at the first release heading at or below `frm`. coverage is
+    {"status": "full" | "partial", "lowest": <lowest version in the text>}."""
+    data = None
+    # A monorepo can publish a version without a tag (@launchpad-ui/core
+    # 0.59.17). The default branch has the same CHANGELOG with newer entries.
+    for ref in ([to_tag] if to_tag else []) + [None]:
+        data = gh_json(f"repos/{repo}/contents/{path}" + (f"?ref={ref}" if ref else ""))
+        if data and "content" in data:
+            break
     if not data or "content" not in data:
-        return ""
+        return "", None
     text = base64.b64decode(data["content"]).decode("utf-8", "replace").splitlines()
-    start = next((i for i, l in enumerate(text) if l.startswith("#") and to.lstrip("v") in l), None)
-    end = next((i for i, l in enumerate(text) if start is not None and i > start and l.startswith("#") and frm.lstrip("v") in l), None)
-    return "\n".join(text[start:end if end else start + 400]) if start is not None else ""
+    want = to.lstrip("v")
+    start = next((i for i, l in enumerate(text) if HEAD_VERSION.match(l) and HEAD_VERSION.match(l).group(1) == want), None)
+    if start is None:
+        start = next((i for i, l in enumerate(text) if l.startswith("#") and want in l), None)
+    if start is None:
+        return "", None
+    lo, lowest = vtuple(frm), want
+    for i in range(start + 1, min(len(text), start + MAX_CHANGELOG_LINES)):
+        m = HEAD_VERSION.match(text[i])
+        if not m:
+            continue
+        if lo and vtuple(m.group(1)) <= lo:
+            return "\n".join(text[start:i]), {"status": "full", "lowest": lowest}
+        lowest = m.group(1)
+    end = min(len(text), start + MAX_CHANGELOG_LINES)
+    return "\n".join(text[start:end]), {"status": "partial", "lowest": lowest}
 
 
 def release_notes(repo, frm, to, to_tag, name=None, subdir=None):
+    """Returns (source, text, coverage)."""
     # In a monorepo, the package CHANGELOG has the per-version notes. The GitHub
     # releases can only link to it (react-router) or tag other packages.
     if subdir:
-        text = changelog_section(repo, f"{subdir}/CHANGELOG.md", frm, to, to_tag)
+        text, cov = changelog_section(repo, f"{subdir}/CHANGELOG.md", frm, to, to_tag)
         if text:
-            return f"{subdir}/CHANGELOG.md", text
+            return f"{subdir}/CHANGELOG.md", text, cov
     lo, hi = vtuple(frm), vtuple(to)
     want_prefix = split_tag(to_tag)[0] if to_tag and not re.fullmatch(r"[0-9a-f]{40}", to_tag) else None
     pkg_prefix = f"{name}@" if subdir and name else None
-    notes = []
-    for page in (1, 2, 3):
+    notes, reached, exhausted = [], False, False
+    for page in range(1, MAX_RELEASE_PAGES + 1):
         releases = gh_json(f"repos/{repo}/releases?per_page=100&page={page}") or []
         for rel in releases:
             tag = rel.get("tag_name") or ""
             if pkg_prefix and not tag.startswith(pkg_prefix):
                 continue
             prefix, version = split_tag(tag)
-            v = vtuple(version)
-            if not v or not lo or not hi or not (lo < v <= hi):
-                continue
             if want_prefix is not None and prefix != want_prefix:
                 continue
-            notes.append((v, f"## {tag}\n\n{rel.get('body') or ''}\n"))
+            v = vtuple(version)
+            if not v or not lo or not hi:
+                continue
+            if v <= lo:
+                reached = True
+            elif v <= hi:
+                notes.append((v, version, f"## {tag}\n\n{rel.get('body') or ''}\n"))
         if len(releases) < 100:
+            exhausted = True
+            break
+        if reached:
             break
     if notes:
-        return "release notes", "\n".join(n for _, n in sorted(notes, reverse=True))
+        notes.sort(reverse=True)
+        cov = {"status": "full" if reached or exhausted else "partial", "lowest": notes[-1][1]}
+        return "release notes", "\n".join(n for _, _, n in notes), cov
     for path in ("CHANGELOG.md", "CHANGES.md", "HISTORY.md"):
-        text = changelog_section(repo, path, frm, to, to_tag)
+        text, cov = changelog_section(repo, path, frm, to, to_tag)
         if text:
-            return path, text
-    return None, ""
+            return path, text, cov
+    return None, "", None
 
 
 def commit_log(cmp):
     """Commit subjects from a compare result, for repositories without notes (golang.org/x/*)."""
     commits = (cmp or {}).get("commits") or []
     if not commits:
-        return ""
+        return "", None
     lines = [f"- {c['sha'][:7]} {(c.get('commit') or {}).get('message', '').splitlines()[0]}" for c in commits]
     head = f"## Commits ({len(commits)} of {cmp.get('total_commits')})"
-    return head + "\n\n" + "\n".join(reversed(lines)) + "\n"
+    status = "full" if len(commits) >= (cmp.get("total_commits") or 0) else "partial"
+    return head + "\n\n" + "\n".join(reversed(lines)) + "\n", {"status": status, "lowest": None}
 
 
 def main():
@@ -172,18 +210,24 @@ def main():
         entry = {"name": u["name"], "ecosystem": u["ecosystem"], "from": u["from"], "to": u["to"]}
         repo, from_ref, to_ref, subdir = resolve(u, wt)
         entry["repo"] = repo
+        entry["notes_coverage"] = "none"
         if repo:
-            cmp = gh_json(f"repos/{repo}/compare/{from_ref}...{to_ref}")
+            missing = [v for v, r in ((u["from"], from_ref), (u["to"], to_ref)) if not r]
+            if missing:
+                entry["tags_missing"] = missing
+            cmp = gh_json(f"repos/{repo}/compare/{from_ref}...{to_ref}") if from_ref and to_ref else None
             if cmp:
                 entry["compare_url"] = cmp.get("html_url")
                 entry["commits"] = cmp.get("total_commits")
                 entry["files_changed"] = len(cmp.get("files") or [])
             npm_subdir = subdir if u["ecosystem"] in ("npm-ui", "npm-wrapper") else None
-            source, text = release_notes(repo, u["from"], u["to"], to_ref, u["name"], npm_subdir)
+            source, text, cov = release_notes(repo, u["from"], u["to"], to_ref, u["name"], npm_subdir)
             if not text and u["ecosystem"] == "gomod":
-                text = commit_log(cmp)
+                text, cov = commit_log(cmp)
                 source = "commit messages" if text else None
             entry["notes_source"] = source
+            entry["notes_coverage"] = (cov or {}).get("status", "none")
+            entry["notes_lowest"] = (cov or {}).get("lowest")
             if text:
                 fname = re.sub(r"[^A-Za-z0-9._-]", "_", u["name"]) + ".md"
                 with open(os.path.join(notes_dir, fname), "w") as f:
