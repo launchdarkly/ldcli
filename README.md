@@ -121,7 +121,7 @@ export AWS_PROFILE=my-profile AWS_REGION=us-east-1
 ldcli aws-devops-agent setup
 ```
 
-The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1` and `eu-west-1`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
+The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ca-central-1`, `sa-east-1`, `ap-south-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1`, `eu-west-1` and `eu-west-2`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
 
 `setup` is safe to re-run: it reuses the IAM roles, the agent space matching `--agent-space-name`, the account and MCP associations on it, and any LaunchDarkly MCP server already registered on the account. Pass `--new-agent-space` to create an additional agent space instead.
 
@@ -131,7 +131,7 @@ With no token configured at all, `setup` prints the LaunchDarkly page where you 
 
 `setup` ends by printing the operator app URL, `https://<agent-space-id>.aidevops.global.app.aws`, which is where you use the agent, together with the AWS console page that manages it.
 
-`ldcli aws-devops-agent status` shows what exists. `ldcli aws-devops-agent teardown` removes everything in the account and region — every agent space, every registered service including the MCP server, and the IAM roles — after asking you to confirm (`--force` skips the prompt, and is required when there is no terminal). `--agent-space-id <agent-space-id>` and `--service-id <service-id>` narrow it to those resources, and `--delete-roles` adds the IAM roles back to a narrowed teardown.
+`ldcli aws-devops-agent status` shows what exists in the account and region.
 
 ### Resource Commands
 

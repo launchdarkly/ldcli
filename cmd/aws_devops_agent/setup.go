@@ -202,12 +202,3 @@ func mustBool(cmd *cobra.Command, name string) bool {
 
 	return value
 }
-
-func mustStringSlice(cmd *cobra.Command, name string) []string {
-	value, err := cmd.Flags().GetStringSlice(name)
-	if err != nil {
-		panic(err)
-	}
-
-	return value
-}

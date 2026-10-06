@@ -36,7 +36,6 @@ are available.`,
 
 	cmd.AddCommand(NewSetupCmd(analyticsTrackerFn))
 	cmd.AddCommand(NewStatusCmd(analyticsTrackerFn))
-	cmd.AddCommand(NewTeardownCmd(analyticsTrackerFn))
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
 	return cmd

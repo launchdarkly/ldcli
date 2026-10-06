@@ -11,7 +11,7 @@ import (
 )
 
 // The DevOps Agent list APIs page at 100 items, so every caller has to follow
-// NextToken: a partial list would leave resources behind on teardown.
+// NextToken: a partial list hides resources that already exist.
 
 func listServices(ctx context.Context, clients Clients) ([]agenttypes.RegisteredService, error) {
 	var (
@@ -65,27 +65,6 @@ func listAssociations(ctx context.Context, clients Clients, agentSpaceID string)
 		associations = append(associations, page.Associations...)
 		if page.NextToken == nil {
 			return associations, nil
-		}
-		nextToken = page.NextToken
-	}
-}
-
-func listAssets(ctx context.Context, clients Clients, agentSpaceID string) ([]agenttypes.Asset, error) {
-	var (
-		assets    []agenttypes.Asset
-		nextToken *string
-	)
-	for {
-		page, err := clients.Agent.ListAssets(ctx, &devopsagent.ListAssetsInput{
-			AgentSpaceId: aws.String(agentSpaceID),
-			NextToken:    nextToken,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("unable to list assets for agent space %s: %w", agentSpaceID, err)
-		}
-		assets = append(assets, page.Items...)
-		if page.NextToken == nil {
-			return assets, nil
 		}
 		nextToken = page.NextToken
 	}

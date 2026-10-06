@@ -36,8 +36,6 @@ const (
 	MCPServerName     = "LaunchDarkly"
 	MCPServerEndpoint = "https://mcp.launchdarkly.com/mcp/launchdarkly"
 
-	memoryStoreAssetType = "memory_store"
-
 	agentSpaceDescription = "Managed by the LaunchDarkly CLI"
 )
 
@@ -68,8 +66,7 @@ type SetupOptions struct {
 	Logf func(format string, args ...any)
 }
 
-// SetupResult holds the identifiers of everything the setup touched. Callers
-// need these to tear the environment back down.
+// SetupResult holds the identifiers of everything the setup touched.
 type SetupResult struct {
 	AccountID          string `json:"accountId"`
 	Region             string `json:"region"`
@@ -284,7 +281,7 @@ func registerMCPServer(
 	}
 	var detached []string
 	if existing != "" {
-		detached, err = DisassociateEverywhere(ctx, clients, existing, logf)
+		detached, err = disassociateEverywhere(ctx, clients, existing, logf)
 		if err != nil {
 			return err
 		}
@@ -352,6 +349,44 @@ func registerMCPServer(
 	}
 
 	return nil
+}
+
+// disassociateEverywhere removes a service from every agent space that uses
+// it, which AWS requires before the service can be deregistered. It returns
+// the agent spaces it was removed from, so the re-registered service can be
+// reconnected to them.
+func disassociateEverywhere(
+	ctx context.Context,
+	clients Clients,
+	serviceID string,
+	logf func(string, ...any),
+) ([]string, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
+	}
+
+	var detached []string
+	for _, space := range spaces {
+		agentSpaceID := aws.ToString(space.AgentSpaceId)
+		associationID, err := FindAssociation(ctx, clients, agentSpaceID, serviceID)
+		if err != nil {
+			return nil, err
+		}
+		if associationID == "" {
+			continue
+		}
+		if _, err := clients.Agent.DisassociateService(ctx, &devopsagent.DisassociateServiceInput{
+			AgentSpaceId:  aws.String(agentSpaceID),
+			AssociationId: aws.String(associationID),
+		}); err != nil {
+			return nil, fmt.Errorf("unable to disassociate service %s from agent space %s: %w", serviceID, agentSpaceID, err)
+		}
+		logf("Disassociated service %s from agent space %s", serviceID, agentSpaceID)
+		detached = append(detached, agentSpaceID)
+	}
+
+	return detached, nil
 }
 
 func associateMCPServer(
@@ -526,12 +561,6 @@ func isAlreadyExists(err error) bool {
 	var alreadyExists *iamtypes.EntityAlreadyExistsException
 
 	return errors.As(err, &alreadyExists)
-}
-
-func isNoSuchEntity(err error) bool {
-	var noSuchEntity *iamtypes.NoSuchEntityException
-
-	return errors.As(err, &noSuchEntity)
 }
 
 // ConsoleURL is the AWS DevOps Agent console for a region.

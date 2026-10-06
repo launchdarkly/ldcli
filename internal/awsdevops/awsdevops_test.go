@@ -23,18 +23,15 @@ import (
 const testAccountID = "123456789012"
 
 type fakeAgent struct {
-	calls              []string
-	services           []agenttypes.RegisteredService
-	associationInputs  []*devopsagent.AssociateServiceInput
-	registerOutput     *devopsagent.RegisterServiceOutput
-	associations       []agenttypes.Association
-	agentSpaces        []agenttypes.AgentSpace
-	assets             []agenttypes.Asset
-	disassociatedIDs   []string
-	deletedAssetIDs    []string
-	deregisteredIDs    []string
-	deletedAgentSpaces []string
-	associateFailures  int
+	calls             []string
+	services          []agenttypes.RegisteredService
+	associationInputs []*devopsagent.AssociateServiceInput
+	registerOutput    *devopsagent.RegisterServiceOutput
+	associations      []agenttypes.Association
+	agentSpaces       []agenttypes.AgentSpace
+	disassociatedIDs  []string
+	deregisteredIDs   []string
+	associateFailures int
 	// paginate makes every list API return one item per page, so callers are
 	// exercised against the NextToken AWS sends for a long list.
 	paginate bool
@@ -82,20 +79,6 @@ func (f *fakeAgent) CreateAgentSpace(_ context.Context, _ *devopsagent.CreateAge
 	return &devopsagent.CreateAgentSpaceOutput{
 		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1")},
 	}, nil
-}
-
-func (f *fakeAgent) DeleteAgentSpace(_ context.Context, in *devopsagent.DeleteAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.DeleteAgentSpaceOutput, error) {
-	f.calls = append(f.calls, "DeleteAgentSpace")
-	f.deletedAgentSpaces = append(f.deletedAgentSpaces, aws.ToString(in.AgentSpaceId))
-
-	return &devopsagent.DeleteAgentSpaceOutput{}, nil
-}
-
-func (f *fakeAgent) DeleteAsset(_ context.Context, in *devopsagent.DeleteAssetInput, _ ...func(*devopsagent.Options)) (*devopsagent.DeleteAssetOutput, error) {
-	f.calls = append(f.calls, "DeleteAsset")
-	f.deletedAssetIDs = append(f.deletedAssetIDs, aws.ToString(in.AssetId))
-
-	return &devopsagent.DeleteAssetOutput{}, nil
 }
 
 func (f *fakeAgent) DeregisterService(_ context.Context, in *devopsagent.DeregisterServiceInput, _ ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error) {
@@ -146,12 +129,6 @@ func (f *fakeAgent) ListServices(_ context.Context, in *devopsagent.ListServices
 	return &devopsagent.ListServicesOutput{Services: items, NextToken: next}, nil
 }
 
-func (f *fakeAgent) ListAssets(_ context.Context, in *devopsagent.ListAssetsInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAssetsOutput, error) {
-	items, next := page(f.assets, in.NextToken, f.paginate)
-
-	return &devopsagent.ListAssetsOutput{Items: items, NextToken: next}, nil
-}
-
 func (f *fakeAgent) ListAssociations(_ context.Context, in *devopsagent.ListAssociationsInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAssociationsOutput, error) {
 	items, next := page(f.associations, in.NextToken, f.paginate)
 
@@ -168,14 +145,11 @@ func (f *fakeAgent) RegisterService(_ context.Context, _ *devopsagent.RegisterSe
 }
 
 type fakeIAM struct {
-	existingRoles   map[string]bool
-	createdRoles    []string
-	attachedPolicy  map[string]string
-	inlinePolicies  map[string]string
-	trustPolicies   map[string]string
-	deletedRoles    []string
-	detachedPolicy  []string
-	deletedInlinePs []string
+	existingRoles  map[string]bool
+	createdRoles   []string
+	attachedPolicy map[string]string
+	inlinePolicies map[string]string
+	trustPolicies  map[string]string
 }
 
 func newFakeIAM() *fakeIAM {
@@ -205,24 +179,6 @@ func (f *fakeIAM) CreateRole(_ context.Context, in *iam.CreateRoleInput, _ ...fu
 	return &iam.CreateRoleOutput{
 		Role: &iamtypes.Role{Arn: aws.String("arn:aws:iam::" + testAccountID + ":role/" + name)},
 	}, nil
-}
-
-func (f *fakeIAM) DeleteRole(_ context.Context, in *iam.DeleteRoleInput, _ ...func(*iam.Options)) (*iam.DeleteRoleOutput, error) {
-	f.deletedRoles = append(f.deletedRoles, aws.ToString(in.RoleName))
-
-	return &iam.DeleteRoleOutput{}, nil
-}
-
-func (f *fakeIAM) DeleteRolePolicy(_ context.Context, in *iam.DeleteRolePolicyInput, _ ...func(*iam.Options)) (*iam.DeleteRolePolicyOutput, error) {
-	f.deletedInlinePs = append(f.deletedInlinePs, aws.ToString(in.PolicyName))
-
-	return &iam.DeleteRolePolicyOutput{}, nil
-}
-
-func (f *fakeIAM) DetachRolePolicy(_ context.Context, in *iam.DetachRolePolicyInput, _ ...func(*iam.Options)) (*iam.DetachRolePolicyOutput, error) {
-	f.detachedPolicy = append(f.detachedPolicy, aws.ToString(in.PolicyArn))
-
-	return &iam.DetachRolePolicyOutput{}, nil
 }
 
 func (f *fakeIAM) GetRole(_ context.Context, in *iam.GetRoleInput, _ ...func(*iam.Options)) (*iam.GetRoleOutput, error) {
@@ -456,52 +412,6 @@ func TestSetupReconnectsOtherSpacesAfterReplacingTheMCPToken(t *testing.T) {
 	assert.Equal(t, []string{"space-1", "space-2"}, associated)
 }
 
-func TestTeardownDisassociatesAServiceBeforeDeregisteringIt(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}},
-		associations: []agenttypes.Association{{
-			AssociationId: aws.String("assoc-mcp-1"),
-			ServiceId:     aws.String("mcp-1"),
-		}},
-	}
-
-	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.TeardownOptions{
-		ServiceIDs: []string{"mcp-1"},
-	}))
-
-	assert.Equal(t, []string{"assoc-mcp-1"}, agent.disassociatedIDs)
-	assert.Equal(t, []string{"mcp-1"}, agent.deregisteredIDs)
-	assert.Less(t, indexOf(agent.calls, "DisassociateService"), indexOf(agent.calls, "DeregisterService"))
-}
-
-func TestTeardownFollowsEveryListPage(t *testing.T) {
-	agent := &fakeAgent{
-		paginate: true,
-		agentSpaces: []agenttypes.AgentSpace{
-			{AgentSpaceId: aws.String("space-1")},
-			{AgentSpaceId: aws.String("space-2")},
-		},
-		services: []agenttypes.RegisteredService{
-			{ServiceId: aws.String("svc-1")},
-			{ServiceId: aws.String("mcp-1")},
-		},
-		associations: []agenttypes.Association{
-			{AssociationId: aws.String("assoc-1"), ServiceId: aws.String("aws")},
-			{AssociationId: aws.String("assoc-2"), ServiceId: aws.String("mcp-1")},
-		},
-		assets: []agenttypes.Asset{
-			{AssetId: aws.String("asset-1"), AssetType: aws.String("skill")},
-			{AssetId: aws.String("asset-2"), AssetType: aws.String("skill")},
-		},
-	}
-
-	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.TeardownOptions{}))
-
-	assert.Equal(t, []string{"space-1", "space-2"}, agent.deletedAgentSpaces)
-	assert.Equal(t, []string{"svc-1", "mcp-1"}, agent.deregisteredIDs)
-	assert.Equal(t, []string{"asset-1", "asset-2", "asset-1", "asset-2"}, agent.deletedAssetIDs)
-}
-
 func TestStatusFollowsEveryListPage(t *testing.T) {
 	agent := &fakeAgent{
 		paginate: true,
@@ -537,83 +447,9 @@ func indexOf(calls []string, name string) int {
 	return -1
 }
 
-func TestTeardownEmptiesAgentSpaceBeforeDeletingIt(t *testing.T) {
-	agent := &fakeAgent{
-		associations: []agenttypes.Association{{AssociationId: aws.String("assoc-1"), ServiceId: aws.String("aws")}},
-		assets:       []agenttypes.Asset{{AssetId: aws.String("asset-1")}},
-	}
-	iamClient := newFakeIAM()
-
-	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, iamClient), awsdevops.TeardownOptions{
-		AgentSpaceID: "space-1",
-		ServiceIDs:   []string{"mcp-1"},
-		DeleteRoles:  true,
-	}))
-
-	assert.Equal(
-		t,
-		[]string{"DisassociateService", "DeleteAsset", "DeleteAgentSpace", "DeregisterService"},
-		agent.calls,
-	)
-	assert.Equal(t, []string{"mcp-1"}, agent.deregisteredIDs)
-	assert.Equal(t, []string{awsdevops.AgentSpaceRoleName, awsdevops.OperatorAppRoleName}, iamClient.deletedRoles)
-	assert.Equal(t, []string{awsdevops.ServiceLinkedRolePolicyName}, iamClient.deletedInlinePs)
-}
-
-func TestTeardownDeletesMemoryStoresLast(t *testing.T) {
-	agent := &fakeAgent{
-		assets: []agenttypes.Asset{
-			{AssetId: aws.String("store-1"), AssetType: aws.String("memory_store")},
-			{AssetId: aws.String("memory-1"), AssetType: aws.String("memory")},
-			{AssetId: aws.String("skill-1"), AssetType: aws.String("skill")},
-		},
-	}
-
-	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.TeardownOptions{
-		AgentSpaceID: "space-1",
-	}))
-
-	assert.Equal(t, []string{"memory-1", "skill-1", "store-1"}, agent.deletedAssetIDs)
-}
-
-func TestTeardownWithoutOptionsRemovesEverything(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{
-			{AgentSpaceId: aws.String("space-1")},
-			{AgentSpaceId: aws.String("space-2")},
-		},
-		services: []agenttypes.RegisteredService{
-			{ServiceId: aws.String("svc-1"), ServiceType: agenttypes.ServiceGitlab},
-			{ServiceId: aws.String("mcp-1"), ServiceType: agenttypes.ServiceMcpServer},
-		},
-	}
-	iamClient := newFakeIAM()
-
-	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, iamClient), awsdevops.TeardownOptions{}))
-
-	assert.Equal(t, []string{"space-1", "space-2"}, agent.deletedAgentSpaces)
-	assert.Equal(t, []string{"svc-1", "mcp-1"}, agent.deregisteredIDs)
-	assert.Equal(t, []string{awsdevops.AgentSpaceRoleName, awsdevops.OperatorAppRoleName}, iamClient.deletedRoles)
-}
-
-func TestTeardownStillRemovesEverythingWithDeleteRoles(t *testing.T) {
-	agent := &fakeAgent{
-		agentSpaces: []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}},
-		services:    []agenttypes.RegisteredService{{ServiceId: aws.String("mcp-1")}},
-	}
-
-	require.NoError(t, awsdevops.Teardown(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.TeardownOptions{
-		DeleteRoles: true,
-	}))
-
-	assert.Equal(t, []string{"space-1"}, agent.deletedAgentSpaces)
-	assert.Equal(t, []string{"mcp-1"}, agent.deregisteredIDs)
-}
-
 func TestStatusReportsMissingRoles(t *testing.T) {
 	agent := &fakeAgent{
 		associations: []agenttypes.Association{{AssociationId: aws.String("assoc-1"), ServiceId: aws.String("aws")}},
-		assets:       []agenttypes.Asset{{AssetId: aws.String("asset-1"), AssetType: aws.String("skill")}},
 	}
 	iamClient := newFakeIAM()
 	iamClient.existingRoles[awsdevops.AgentSpaceRoleName] = true
