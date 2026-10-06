@@ -136,6 +136,7 @@ Be helpful.
 func TestFinishSelectionWritesInitialManifest(t *testing.T) {
 	root := t.TempDir()
 	var output bytes.Buffer
+	manifestStore := &memoryManifestStore{manifest: syncmanifest.New()}
 	variation := syncdomain.Variation{
 		Mode: syncdomain.VariationModeAgent, Key: "variation", Name: "Variation", Instructions: "Be helpful.",
 		Tools: []syncdomain.AttachmentRef{{Key: "search"}},
@@ -150,7 +151,7 @@ func TestFinishSelectionWritesInitialManifest(t *testing.T) {
 
 	err := finishSelection(Options{
 		Store:    synclocal.NewStore(root),
-		Manifest: syncmanifest.NewStore(root),
+		Manifest: manifestStore,
 		Output:   &output,
 		Initial:  true,
 	}, []synclocal.VariationFile{
@@ -159,9 +160,8 @@ func TestFinishSelectionWritesInitialManifest(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	manifest, exists, err := syncmanifest.NewStore(root).Load()
+	manifest, err := manifestStore.Load([]string{"project"})
 	require.NoError(t, err)
-	require.True(t, exists)
 	require.Len(t, manifest.Resources, 3)
 	attachmentFingerprint, err := syncdomain.FingerprintAttachment("project", variation.Attachments[0])
 	require.NoError(t, err)
@@ -179,7 +179,7 @@ func TestFinishSelectionWritesInitialManifest(t *testing.T) {
 func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 	root := t.TempDir()
 	store := synclocal.NewStore(root)
-	manifestStore := syncmanifest.NewStore(root)
+	manifestStore := &memoryManifestStore{manifest: syncmanifest.New()}
 	localAttachment := syncdomain.Attachment{
 		Kind: syncdomain.AttachmentTool,
 		Tool: &syncdomain.Tool{
@@ -235,9 +235,8 @@ func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 	}
 	require.NotEmpty(t, expectedFingerprint)
 
-	manifest, exists, err := manifestStore.Load()
+	manifest, err := manifestStore.Load([]string{"project"})
 	require.NoError(t, err)
-	require.True(t, exists)
 	for _, resource := range manifest.Resources {
 		if resource.ResourceKind == syncdomain.KindVariation && resource.LookupKey == "config/second" {
 			assert.Equal(t, expectedFingerprint, resource.Fingerprint)
@@ -250,7 +249,7 @@ func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 func TestFinishSelectionAddsMultipleVersionedVariationsToExistingManifest(t *testing.T) {
 	root := t.TempDir()
 	store := synclocal.NewStore(root)
-	manifestStore := syncmanifest.NewStore(root)
+	manifestStore := &memoryManifestStore{manifest: syncmanifest.New()}
 	first := syncdomain.Variation{
 		Mode: syncdomain.VariationModeAgent, Key: "first", Name: "First", Instructions: "First.",
 	}
@@ -275,9 +274,8 @@ func TestFinishSelectionAddsMultipleVersionedVariationsToExistingManifest(t *tes
 		{ProjectKey: "project", ConfigKey: "config", Variation: third},
 	}))
 
-	manifest, exists, err := manifestStore.Load()
+	manifest, err := manifestStore.Load([]string{"project"})
 	require.NoError(t, err)
-	require.True(t, exists)
 	require.Len(t, manifest.Resources, 3)
 	assert.Equal(t, "config/first", manifest.Resources[0].LookupKey)
 	assert.Equal(t, "config/second", manifest.Resources[1].LookupKey)
@@ -402,10 +400,27 @@ func (*fakeCatalog) SearchConfigs(string, string, []syncdomain.VariationMode, in
 
 type failingManifestStore struct{}
 
-func (failingManifestStore) Load() (syncmanifest.Manifest, bool, error) {
-	return syncmanifest.New(), false, nil
+func (failingManifestStore) Load([]string) (syncmanifest.Manifest, error) {
+	return syncmanifest.New(), nil
 }
 
-func (failingManifestStore) Write(syncmanifest.Manifest) error {
-	return errors.New("write manifest")
+func (failingManifestStore) Update(syncmanifest.Manifest, syncmanifest.Manifest) (syncmanifest.Manifest, error) {
+	return syncmanifest.Manifest{}, errors.New("write manifest")
+}
+
+type memoryManifestStore struct {
+	manifest syncmanifest.Manifest
+}
+
+func (store *memoryManifestStore) Load([]string) (syncmanifest.Manifest, error) {
+	return store.manifest, nil
+}
+
+func (store *memoryManifestStore) Update(
+	_ syncmanifest.Manifest,
+	next syncmanifest.Manifest,
+) (syncmanifest.Manifest, error) {
+	next.Sort()
+	store.manifest = next
+	return next, nil
 }

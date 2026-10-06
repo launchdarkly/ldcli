@@ -2,12 +2,14 @@ package prompt_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -30,6 +32,7 @@ type directAPI struct {
 	modelConfigs   []syncapi.ModelConfig
 	tools          map[string]versionedTool
 	skills         map[string]versionedSkill
+	manifest       *syncapi.SyncManifest
 	requests       []string
 }
 
@@ -55,11 +58,14 @@ func (api *directAPI) MakeRequest(
 	method string,
 	path string,
 	_ string,
-	_ url.Values,
+	query url.Values,
 	body []byte,
 	_ bool,
 ) ([]byte, error) {
 	api.requests = append(api.requests, method+" "+path)
+	if strings.HasSuffix(path, "/configs/sync/manifests") {
+		return handleManifestRequest(api.manifest, method, query, body)
+	}
 	if strings.HasSuffix(path, "/ai-tools") && method == http.MethodPost {
 		var tool versionedTool
 		if err := json.Unmarshal(body, &tool.Tool); err != nil {
@@ -200,7 +206,6 @@ func TestPromptDryRunUsesOnlyExistingReadAPI(t *testing.T) {
 	require.NotEmpty(t, api.requests)
 	for _, request := range api.requests {
 		assert.True(t, strings.HasPrefix(request, "GET "), request)
-		assert.NotContains(t, request, "/sync/")
 	}
 }
 
@@ -668,6 +673,10 @@ func TestPromptServerDeletionLeavesReferencedFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Keep this file\n", string(content))
 	resources, err := synclocal.CompileWorkspace(root)
+	if errors.Is(err, synclocal.ErrNoDirectory) {
+		resources = nil
+		err = nil
+	}
 	require.NoError(t, err)
 	assert.Empty(t, resources)
 }
@@ -677,7 +686,11 @@ func TestPromptPropagatesTrackedLocalDeletion(t *testing.T) {
 	baseline := variation("Baseline")
 	writeVariation(t, root, baseline, false)
 	writeManifest(t, root, baseline)
-	_, err := synclocal.NewStore(root).DeleteVariations([]synclocal.VariationDeletion{{
+	command := exec.Command("git", "add", ".launchdarkly")
+	command.Dir = root
+	output, err := command.CombinedOutput()
+	require.NoError(t, err, "%s", output)
+	_, err = synclocal.NewStore(root).DeleteVariations([]synclocal.VariationDeletion{{
 		ProjectKey: "production", ConfigKey: "support", VariationKey: "default",
 	}})
 	require.NoError(t, err)
@@ -688,10 +701,7 @@ func TestPromptPropagatesTrackedLocalDeletion(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, api.variation)
 	assert.Equal(t, "archived", api.variationState)
-	manifest, exists, err := syncmanifest.NewStore(root).Load()
-	require.NoError(t, err)
-	require.True(t, exists)
-	assert.Empty(t, manifest.Resources)
+	assert.Empty(t, manifestsByRoot[root].Items)
 }
 
 func TestPromptPropagatesTrackedServerDeletion(t *testing.T) {
@@ -705,12 +715,13 @@ func TestPromptPropagatesTrackedServerDeletion(t *testing.T) {
 
 	require.NoError(t, err)
 	resources, err := synclocal.Compile(os.DirFS(root))
+	if errors.Is(err, synclocal.ErrNoDirectory) {
+		resources = nil
+		err = nil
+	}
 	require.NoError(t, err)
 	assert.Empty(t, resources)
-	manifest, exists, err := syncmanifest.NewStore(root).Load()
-	require.NoError(t, err)
-	require.True(t, exists)
-	assert.Empty(t, manifest.Resources)
+	assert.Empty(t, manifestsByRoot[root].Items)
 }
 
 func TestPromptRejectsDivergentChangesWithoutMutation(t *testing.T) {
@@ -787,7 +798,7 @@ func (api *changingReadAPI) MakeRequest(
 	body []byte,
 	beta bool,
 ) ([]byte, error) {
-	if method == "GET" {
+	if method == "GET" && !strings.Contains(path, "/configs/sync/manifests") {
 		api.reads++
 		if api.reads == 2 {
 			api.variation = pointer(variation("Concurrent"))
@@ -816,11 +827,10 @@ func TestPromptRecordsPartialSuccessAndConvergesOnNextRun(t *testing.T) {
 	require.ErrorContains(t, err, "second")
 	assert.Contains(t, stdout, `"status": "succeeded"`)
 	assert.Contains(t, stdout, `"status": "failed"`)
-	manifest, _, loadErr := syncmanifest.NewStore(root).Load()
-	require.NoError(t, loadErr)
-	require.Len(t, manifest.Resources, 2)
-	assert.Equal(t, fingerprint(t, firstLocal), manifest.Resources[0].Fingerprint)
-	assert.Equal(t, fingerprint(t, secondBaseline), manifest.Resources[1].Fingerprint)
+	manifest := manifestsByRoot[root]
+	require.Len(t, manifest.Items, 2)
+	assert.Equal(t, fingerprint(t, firstLocal), manifest.Items[0].Fingerprint)
+	assert.Equal(t, fingerprint(t, secondBaseline), manifest.Items[1].Fingerprint)
 
 	api.failKey = ""
 	_, _, err = runPrompt(t, root, api, "--yes")
@@ -832,6 +842,7 @@ func TestPromptRecordsPartialSuccessAndConvergesOnNextRun(t *testing.T) {
 type multiDirectAPI struct {
 	variations map[string]syncdomain.Variation
 	failKey    string
+	manifest   *syncapi.SyncManifest
 	requests   []string
 }
 
@@ -840,11 +851,14 @@ func (api *multiDirectAPI) MakeRequest(
 	method string,
 	path string,
 	_ string,
-	_ url.Values,
+	query url.Values,
 	body []byte,
 	_ bool,
 ) ([]byte, error) {
 	api.requests = append(api.requests, method+" "+path)
+	if strings.HasSuffix(path, "/configs/sync/manifests") {
+		return handleManifestRequest(api.manifest, method, query, body)
+	}
 	if method == "GET" {
 		variations := make([]syncdomain.Variation, 0, len(api.variations))
 		for _, variation := range api.variations {
@@ -884,11 +898,32 @@ func (*multiDirectAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byt
 	return nil, nil
 }
 
+var manifestsByRoot = map[string]*syncapi.SyncManifest{}
+
 func runPrompt(t *testing.T, root string, client resources.Client, arguments ...string) (string, string, error) {
 	t.Helper()
 	t.Chdir(root)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	args := []string{"sync", "prompt", "--access-token", "token", "--base-uri", "https://example.test"}
+	manifest := manifestsByRoot[root]
+	if manifest == nil {
+		manifest = &syncapi.SyncManifest{Source: "git:example/repo", Items: []syncapi.SyncManifestResource{}}
+		manifestsByRoot[root] = manifest
+	}
+	switch api := client.(type) {
+	case *directAPI:
+		api.manifest = manifest
+	case *multiDirectAPI:
+		api.manifest = manifest
+	case *ambiguousWriteAPI:
+		api.manifest = manifest
+	case *changingReadAPI:
+		api.manifest = manifest
+	}
+	args := []string{
+		"sync", "prompt",
+		"--access-token", "token",
+		"--base-uri", "https://example.test",
+	}
 	args = append(args, arguments...)
 	stdout, stderr, err := cmd.CallCmdCapturingStderr(
 		t,
@@ -899,13 +934,84 @@ func runPrompt(t *testing.T, root string, client resources.Client, arguments ...
 	return string(stdout), string(stderr), err
 }
 
+func handleManifestRequest(
+	manifest *syncapi.SyncManifest,
+	method string,
+	query url.Values,
+	body []byte,
+) ([]byte, error) {
+	if method == http.MethodGet {
+		if manifest.Source == "" {
+			manifest.Source = query.Get("source")
+		}
+		return json.Marshal(manifest)
+	}
+
+	var request struct {
+		Source    string                         `json:"source"`
+		Upserts   []syncapi.SyncManifestUpsert   `json:"upserts"`
+		Deletions []syncapi.SyncManifestDeletion `json:"deletions"`
+	}
+	if err := json.Unmarshal(body, &request); err != nil {
+		return nil, err
+	}
+	items := make(map[syncdomain.ResourceID]syncapi.SyncManifestResource, len(manifest.Items))
+	for _, item := range manifest.Items {
+		items[syncdomain.ResourceID{Kind: item.ResourceKind, LookupKey: item.ResourceLookupKey}] = item
+	}
+	for _, upsert := range request.Upserts {
+		id := syncdomain.ResourceID{Kind: upsert.ResourceKind, LookupKey: upsert.ResourceLookupKey}
+		version := 1
+		if current, ok := items[id]; ok {
+			if current.Version != upsert.Version {
+				return nil, fmt.Errorf(`{"code":"conflict","statusCode":409}`)
+			}
+			version = current.Version + 1
+		} else if upsert.Version != 0 {
+			return nil, fmt.Errorf(`{"code":"conflict","statusCode":409}`)
+		}
+		items[id] = syncapi.SyncManifestResource{
+			ResourceKind:      upsert.ResourceKind,
+			ResourceLookupKey: upsert.ResourceLookupKey,
+			Fingerprint:       upsert.Fingerprint,
+			Version:           version,
+		}
+	}
+	for _, deletion := range request.Deletions {
+		id := syncdomain.ResourceID{Kind: deletion.ResourceKind, LookupKey: deletion.ResourceLookupKey}
+		current, ok := items[id]
+		if !ok || current.Version != deletion.Version {
+			return nil, fmt.Errorf(`{"code":"conflict","statusCode":409}`)
+		}
+		delete(items, id)
+	}
+
+	manifest.Source = request.Source
+	manifest.Items = manifest.Items[:0]
+	for _, item := range items {
+		manifest.Items = append(manifest.Items, item)
+	}
+	slices.SortFunc(manifest.Items, func(left, right syncapi.SyncManifestResource) int {
+		return syncdomain.CompareResourceIDs(
+			syncdomain.ResourceID{Kind: left.ResourceKind, LookupKey: left.ResourceLookupKey},
+			syncdomain.ResourceID{Kind: right.ResourceKind, LookupKey: right.ResourceLookupKey},
+		)
+	})
+	return json.Marshal(manifest)
+}
+
 func initRepository(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	command := exec.Command("git", "init", "--quiet")
-	command.Dir = root
-	output, err := command.CombinedOutput()
-	require.NoError(t, err, "%s", output)
+	for _, args := range [][]string{
+		{"init", "--quiet"},
+		{"remote", "add", "origin", "git@example:repo.git"},
+	} {
+		command := exec.Command("git", args...)
+		command.Dir = root
+		output, err := command.CombinedOutput()
+		require.NoError(t, err, "%s", output)
+	}
 	return root
 }
 
@@ -970,7 +1076,16 @@ func writeManifestResources(t *testing.T, root string, values ...syncdomain.Vari
 			Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/" + value.Key,
 		}, fingerprint(t, value))
 	}
-	require.NoError(t, syncmanifest.NewStore(root).Write(manifest))
+	remote := &syncapi.SyncManifest{Source: "git:example/repo"}
+	for _, resource := range manifest.Resources {
+		remote.Items = append(remote.Items, syncapi.SyncManifestResource{
+			ResourceKind:      resource.ResourceKind,
+			ResourceLookupKey: resource.LookupKey,
+			Fingerprint:       resource.Fingerprint,
+			Version:           1,
+		})
+	}
+	manifestsByRoot[root] = remote
 }
 
 func assertManifestFingerprint(t *testing.T, root string, value syncdomain.Variation) {
@@ -979,20 +1094,24 @@ func assertManifestFingerprint(t *testing.T, root string, value syncdomain.Varia
 
 func assertManifestFingerprints(t *testing.T, root string, values ...syncdomain.Variation) {
 	t.Helper()
-	manifest, exists, err := syncmanifest.NewStore(root).Load()
-	require.NoError(t, err)
-	require.True(t, exists)
+	manifest := manifestsByRoot[root]
+	require.NotNil(t, manifest)
 	variations := make(map[string]string)
 	attachments := make(map[syncdomain.ResourceID]string)
-	for _, resource := range manifest.Resources {
+	for _, resource := range manifest.Items {
 		if resource.ResourceKind == syncdomain.KindVariation {
-			variations[resource.LookupKey] = resource.Fingerprint
+			variations[resource.ResourceLookupKey] = resource.Fingerprint
 		} else {
-			attachments[resource.ID()] = resource.Fingerprint
+			attachments[syncdomain.ResourceID{
+				Kind:       resource.ResourceKind,
+				ProjectKey: "production",
+				LookupKey:  resource.ResourceLookupKey,
+			}] = resource.Fingerprint
 		}
 	}
 	require.Len(t, variations, len(values))
 	expectedAttachments := make(map[syncdomain.ResourceID]string)
+	var err error
 	for _, value := range values {
 		assert.Equal(t, fingerprint(t, value), variations["support/"+value.Key])
 		for _, attachment := range value.Attachments {
@@ -1021,7 +1140,12 @@ func requireOnlyReads(t *testing.T, requests []string) {
 	t.Helper()
 	require.NotEmpty(t, requests)
 	for _, request := range requests {
-		require.True(t, strings.HasPrefix(request, "GET "), request)
+		require.True(
+			t,
+			strings.HasPrefix(request, "GET ") ||
+				(strings.HasPrefix(request, "PATCH ") && strings.HasSuffix(request, "/configs/sync/manifests")),
+			request,
+		)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -362,7 +363,6 @@ func divergentPlan(t *testing.T) Plan {
 	require.NoError(t, err)
 
 	manifest := syncmanifest.Manifest{
-		FormatVersion: syncmanifest.FormatVersion,
 		Resources: []syncmanifest.Resource{{
 			ResourceKind: id.Kind,
 			ProjectKey:   id.ProjectKey,
@@ -375,11 +375,16 @@ func divergentPlan(t *testing.T) Plan {
 	})
 }
 
-func writeConflictWorkspace(t *testing.T, root string, baseline, local syncdomain.Variation) (synclocal.Store, syncmanifest.Store) {
+func writeConflictWorkspace(t *testing.T, root string, baseline, local syncdomain.Variation) (synclocal.Store, manifestStore) {
 	t.Helper()
 
+	command := exec.Command("git", "init", "--quiet")
+	command.Dir = root
+	output, err := command.CombinedOutput()
+	require.NoError(t, err, "%s", output)
+
 	localStore := synclocal.NewStore(root)
-	_, err := localStore.Add([]synclocal.VariationFile{{
+	_, err = localStore.Add([]synclocal.VariationFile{{
 		ProjectKey: "production", ConfigKey: "support", Upsert: true, Variation: local,
 	}})
 	require.NoError(t, err)
@@ -387,14 +392,28 @@ func writeConflictWorkspace(t *testing.T, root string, baseline, local syncdomai
 	id := testResourceID()
 	fingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, baseline)
 	require.NoError(t, err)
-	manifestStore := syncmanifest.NewStore(root)
-	require.NoError(t, manifestStore.Write(syncmanifest.Manifest{
-		FormatVersion: syncmanifest.FormatVersion,
+	manifestStore := &memoryManifestStore{manifest: syncmanifest.Manifest{
 		Resources: []syncmanifest.Resource{{
 			ResourceKind: id.Kind, ProjectKey: id.ProjectKey, LookupKey: id.LookupKey, Fingerprint: fingerprint,
 		}},
-	}))
+	}}
 	return localStore, manifestStore
+}
+
+type memoryManifestStore struct {
+	manifest syncmanifest.Manifest
+}
+
+func (store *memoryManifestStore) Load([]string) (syncmanifest.Manifest, error) {
+	return store.manifest, nil
+}
+
+func (store *memoryManifestStore) Update(
+	_ syncmanifest.Manifest,
+	next syncmanifest.Manifest,
+) (syncmanifest.Manifest, error) {
+	store.manifest = next
+	return next, nil
 }
 
 type conflictAPI struct {

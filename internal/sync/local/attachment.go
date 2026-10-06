@@ -296,6 +296,10 @@ func (store Store) AttachVariation(projectKey, configKey string, variation syncd
 // referenced by any local variation.
 func (store Store) OrphanedAttachments() ([]OrphanedAttachment, error) {
 	resources, err := CompileWorkspace(store.repositoryRoot)
+	if errors.Is(err, ErrNoDirectory) {
+		resources = nil
+		err = nil
+	}
 	if err != nil {
 		return nil, err
 	}

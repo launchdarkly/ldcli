@@ -18,7 +18,6 @@ import (
 func TestExecutePlanDoesNotMutateReviewedManifest(t *testing.T) {
 	id := ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation"}
 	reviewedManifest := syncmanifest.Manifest{
-		FormatVersion: syncmanifest.FormatVersion,
 		Resources: []syncmanifest.Resource{{
 			ResourceKind: id.Kind,
 			ProjectKey:   id.ProjectKey,

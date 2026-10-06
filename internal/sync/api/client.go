@@ -26,6 +26,41 @@ type VariationState struct {
 	ConfigMode syncdomain.VariationMode
 }
 
+// SyncManifest is the complete synchronization baseline for one project and source.
+type SyncManifest struct {
+	Source string                 `json:"source"`
+	Items  []SyncManifestResource `json:"items"`
+}
+
+// SyncManifestResource is one versioned baseline entry returned by LaunchDarkly.
+type SyncManifestResource struct {
+	ResourceKind      syncdomain.Kind `json:"resourceKind"`
+	ResourceLookupKey string          `json:"resourceLookupKey"`
+	Fingerprint       string          `json:"fingerprint"`
+	Version           int             `json:"version"`
+}
+
+// SyncManifestUpsert creates or updates one baseline entry.
+type SyncManifestUpsert struct {
+	ResourceKind      syncdomain.Kind `json:"resourceKind"`
+	ResourceLookupKey string          `json:"resourceLookupKey"`
+	Fingerprint       string          `json:"fingerprint"`
+	Version           int             `json:"version"`
+}
+
+// SyncManifestDeletion removes one baseline entry at its expected version.
+type SyncManifestDeletion struct {
+	ResourceKind      syncdomain.Kind `json:"resourceKind"`
+	ResourceLookupKey string          `json:"resourceLookupKey"`
+	Version           int             `json:"version"`
+}
+
+type patchSyncManifestRequest struct {
+	Source    string                 `json:"source"`
+	Upserts   []SyncManifestUpsert   `json:"upserts"`
+	Deletions []SyncManifestDeletion `json:"deletions"`
+}
+
 type createVariationRequest struct {
 	Key                string                     `json:"key"`
 	Name               string                     `json:"name"`
@@ -79,6 +114,82 @@ func NewClient(transport resources.Client, accessToken, baseURI string) Client {
 		accessToken: accessToken,
 		baseURI:     baseURI,
 	}
+}
+
+// GetSyncManifest returns the synchronization baseline for one project and source.
+func (client Client) GetSyncManifest(projectKey, source string) (SyncManifest, error) {
+	endpoint, err := client.syncManifestEndpoint(projectKey)
+	if err != nil {
+		return SyncManifest{}, err
+	}
+
+	response, err := client.transport.MakeRequest(
+		client.accessToken,
+		http.MethodGet,
+		endpoint,
+		"",
+		url.Values{"source": []string{source}},
+		nil,
+		false,
+	)
+	if err != nil {
+		return SyncManifest{}, fmt.Errorf("get sync manifest for project %q: %w", projectKey, err)
+	}
+
+	var manifest SyncManifest
+	if err := json.Unmarshal(response, &manifest); err != nil {
+		return SyncManifest{}, fmt.Errorf("decode sync manifest for project %q: %w", projectKey, err)
+	}
+	return manifest, nil
+}
+
+// PatchSyncManifest applies versioned baseline changes and returns the refreshed manifest.
+func (client Client) PatchSyncManifest(
+	projectKey string,
+	source string,
+	upserts []SyncManifestUpsert,
+	deletions []SyncManifestDeletion,
+) (SyncManifest, error) {
+	endpoint, err := client.syncManifestEndpoint(projectKey)
+	if err != nil {
+		return SyncManifest{}, err
+	}
+	if upserts == nil {
+		upserts = []SyncManifestUpsert{}
+	}
+	if deletions == nil {
+		deletions = []SyncManifestDeletion{}
+	}
+	body, err := json.Marshal(patchSyncManifestRequest{
+		Source: source, Upserts: upserts, Deletions: deletions,
+	})
+	if err != nil {
+		return SyncManifest{}, fmt.Errorf("encode sync manifest changes for project %q: %w", projectKey, err)
+	}
+
+	response, err := client.transport.MakeRequest(
+		client.accessToken,
+		http.MethodPatch,
+		endpoint,
+		"application/json",
+		nil,
+		body,
+		false,
+	)
+	if err != nil {
+		return SyncManifest{}, newResourceMutationError("update", "sync manifest for project", projectKey, err)
+	}
+
+	var manifest SyncManifest
+	if err := json.Unmarshal(response, &manifest); err != nil {
+		return SyncManifest{}, newResourceMutationError(
+			"decode updated",
+			"sync manifest for project",
+			projectKey,
+			err,
+		)
+	}
+	return manifest, nil
 }
 
 // ModelConfig returns the latest version of one model config.
@@ -274,6 +385,19 @@ func (client Client) variationEndpoint(projectKey, configKey string, path ...str
 	return endpoint, nil
 }
 
+func (client Client) syncManifestEndpoint(projectKey string) (string, error) {
+	endpoint, err := url.JoinPath(
+		client.baseURI,
+		"api/v2/projects",
+		projectKey,
+		"configs/sync/manifests",
+	)
+	if err != nil {
+		return "", fmt.Errorf("build sync manifest endpoint: %w", err)
+	}
+	return endpoint, nil
+}
+
 // newMutationError records whether a failed request received a definitive API
 // response. Errors without a status code may represent a committed write whose
 // response was lost, so the reconciliation layer verifies those with a read.
@@ -301,4 +425,10 @@ func responseStatusCode(err error) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// IsConflict reports whether a wrapped LaunchDarkly API error has a 409 status.
+func IsConflict(err error) bool {
+	status, ok := responseStatusCode(err)
+	return ok && status == http.StatusConflict
 }

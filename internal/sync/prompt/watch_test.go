@@ -428,7 +428,7 @@ func TestSourceWatcherRecognizesNewManagedResourceKinds(t *testing.T) {
 
 	require.True(t, watcher.relevant(fsnotify.Event{Name: resourceFile, Op: fsnotify.Create}))
 	require.False(t, watcher.relevant(fsnotify.Event{
-		Name: filepath.Join(managedRoot, "manifest.yaml"),
+		Name: filepath.Join(managedRoot, "README.md"),
 		Op:   fsnotify.Create,
 	}))
 }

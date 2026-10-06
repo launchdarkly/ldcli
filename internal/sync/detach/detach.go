@@ -18,18 +18,24 @@ import (
 // Resource identifies one local or manifested resource that can be detached.
 type Resource = syncdomain.ResourceID
 
+type ManifestStore interface {
+	Load(projectKeys []string) (syncmanifest.Manifest, error)
+	Update(previous, next syncmanifest.Manifest) (syncmanifest.Manifest, error)
+}
+
 // Options contains the local stores and streams used by detach.
 type Options struct {
 	RepositoryRoot string
 	Store          synclocal.Store
-	Manifest       syncmanifest.Store
+	Manifest       ManifestStore
+	ProjectKeys    []string
 	Input          io.Reader
 	Output         io.Writer
 }
 
 // Run lets the user select resources and removes their local sync state.
 func Run(options Options) error {
-	resources, manifest, manifestExists, err := loadResources(options.RepositoryRoot, options.Manifest)
+	resources, manifest, err := loadResources(options.RepositoryRoot, options.Manifest, options.ProjectKeys)
 	if err != nil {
 		return err
 	}
@@ -62,7 +68,7 @@ func Run(options Options) error {
 	if canceled {
 		return nil
 	}
-	if err := detachResources(options, manifest, manifestExists, selected); err != nil {
+	if err := detachResources(options, manifest, selected); err != nil {
 		return err
 	}
 
@@ -75,10 +81,14 @@ func Run(options Options) error {
 }
 
 // loadResources returns the union of local wrappers and manifested resources.
-func loadResources(repositoryRoot string, manifestStore syncmanifest.Store) ([]Resource, syncmanifest.Manifest, bool, error) {
-	manifest, manifestExists, err := manifestStore.Load()
+func loadResources(
+	repositoryRoot string,
+	manifestStore ManifestStore,
+	projectKeys []string,
+) ([]Resource, syncmanifest.Manifest, error) {
+	manifest, err := manifestStore.Load(projectKeys)
 	if err != nil {
-		return nil, syncmanifest.Manifest{}, false, err
+		return nil, syncmanifest.Manifest{}, err
 	}
 
 	resources := make(map[Resource]struct{}, len(manifest.Resources))
@@ -90,7 +100,7 @@ func loadResources(repositoryRoot string, manifestStore syncmanifest.Store) ([]R
 
 	files, err := synclocal.SourceFiles(repositoryRoot)
 	if err != nil {
-		return nil, syncmanifest.Manifest{}, false, err
+		return nil, syncmanifest.Manifest{}, err
 	}
 	for _, file := range files {
 		resource, ok := resourceFromWrapperPath(file)
@@ -104,7 +114,7 @@ func loadResources(repositoryRoot string, manifestStore syncmanifest.Store) ([]R
 		result = append(result, resource)
 	}
 	slices.SortFunc(result, syncdomain.CompareResourceIDs)
-	return result, manifest, manifestExists, nil
+	return result, manifest, nil
 }
 
 // resourceFromWrapperPath derives a variation identity without parsing its contents.
@@ -121,7 +131,7 @@ func resourceFromWrapperPath(file string) (Resource, bool) {
 }
 
 // detachResources removes selected resources from the manifest before deleting local wrappers.
-func detachResources(options Options, original syncmanifest.Manifest, manifestExists bool, selected []Resource) error {
+func detachResources(options Options, original syncmanifest.Manifest, selected []Resource) error {
 	selectedSet := make(map[Resource]struct{}, len(selected))
 	for _, resource := range selected {
 		selectedSet[resource] = struct{}{}
@@ -149,7 +159,8 @@ func detachResources(options Options, original syncmanifest.Manifest, manifestEx
 		}
 		updated.RemoveUnreferencedAttachments(referenced)
 	}
-	if err := options.Manifest.Write(updated); err != nil {
+	persisted, err := options.Manifest.Update(original, updated)
+	if err != nil {
 		return err
 	}
 
@@ -164,7 +175,7 @@ func detachResources(options Options, original syncmanifest.Manifest, manifestEx
 		}
 		exists, err := options.Store.VariationExists(resource.ProjectKey, configKey, variationKey)
 		if err != nil {
-			return errors.Join(err, restoreManifest(options.Manifest, original, manifestExists))
+			return errors.Join(err, restoreManifest(options.Manifest, persisted, original))
 		}
 		if exists {
 			deletions = append(deletions, synclocal.VariationDeletion{
@@ -174,7 +185,7 @@ func detachResources(options Options, original syncmanifest.Manifest, manifestEx
 	}
 
 	if _, err := options.Store.DeleteVariations(deletions); err != nil {
-		return errors.Join(err, restoreManifest(options.Manifest, original, manifestExists))
+		return errors.Join(err, restoreManifest(options.Manifest, persisted, original))
 	}
 	if err := options.Store.RemoveEmptyDirectories(); err != nil {
 		return err
@@ -183,9 +194,7 @@ func detachResources(options Options, original syncmanifest.Manifest, manifestEx
 }
 
 // restoreManifest restores the manifest when local wrapper deletion fails.
-func restoreManifest(store syncmanifest.Store, manifest syncmanifest.Manifest, existed bool) error {
-	if existed {
-		return store.Write(manifest)
-	}
-	return store.Remove()
+func restoreManifest(store ManifestStore, current, original syncmanifest.Manifest) error {
+	_, err := store.Update(current, original)
+	return err
 }
