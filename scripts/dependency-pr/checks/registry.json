@@ -3,6 +3,7 @@
   "_doc": "Baseline checks in execution order. when: ecosystems that trigger the check ('any' = always). packages: optional regex on updated package names. compare_base: when the PR result is fail or decide, run the check on base too, to find pre-existing problems. required: if the check does not run, the verdict is 'incomplete'. gate: the check must pass; a pre-existing failure does not satisfy it. required_for_tags: required and a gate, but only when an update has one of these risk tags. profile: fast (default) or full.",
   "checks": [
     { "id": "pr-state", "title": "PR merges cleanly and changes only dependency files", "script": "pr-state.sh", "when": ["any"], "compare_base": false, "required": false, "timeout": 60 },
+    { "id": "pr-disclosure", "title": "The PR description names every direct update", "script": "pr-disclosure.sh", "when": ["any"], "compare_base": false, "required": false, "timeout": 60 },
     { "id": "ci-status", "title": "CI results on the PR head", "script": "ci-status.sh", "when": ["any"], "compare_base": false, "required": false, "timeout": 60 },
     { "id": "downgrades", "title": "No dependency goes to a lower version than base", "script": "downgrades.sh", "when": ["any"], "compare_base": false, "required": false, "timeout": 60 },
     { "id": "upstream-changes", "title": "Upstream release notes and diff of each direct update", "script": "upstream-changes.sh", "when": ["gomod", "npm-ui", "npm-wrapper", "github-actions"], "compare_base": false, "required": false, "timeout": 300 },

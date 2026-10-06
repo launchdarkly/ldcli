@@ -16,6 +16,8 @@
 #   --head-sha SHA      verify this commit as the PR head (replay of a past state)
 #   --base-sha SHA      use this commit as the base instead of the base branch tip
 #   --no-pr-meta        do not read PR metadata (title, CI results) from GitHub
+#   --pr-meta FILE      read PR metadata from FILE (the `gh pr view --json` shape) instead
+#                       of GitHub; without statusCheckRollup, ci-status does not apply
 #   -h, --help
 #
 # Outputs (in the out dir): result.json, comment.md, logs/<side>/<check>.log,
@@ -34,7 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 
 PR="" BRANCH="" REPO="launchdarkly/ldcli" REMOTE="origin" BASE_BRANCH="main"
-OUT="" PROFILE="fast" PROFILE_SET=false PHASE="all" ONLY="" HEAD_PIN="" BASE_PIN="" NO_PR_META=false
+OUT="" PROFILE="fast" PROFILE_SET=false PHASE="all" ONLY="" HEAD_PIN="" BASE_PIN="" NO_PR_META=false PR_META_FILE=""
 
 usage() { sed -n '2,/^set -uo/p' "$0" | sed '$d; s/^# \{0,1\}//'; }
 
@@ -52,6 +54,7 @@ while [ $# -gt 0 ]; do
     --head-sha) HEAD_PIN="${2:?}"; shift 2 ;;
     --base-sha) BASE_PIN="${2:?}"; shift 2 ;;
     --no-pr-meta) NO_PR_META=true; shift ;;
+    --pr-meta) PR_META_FILE="${2:?}"; shift 2 ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die_infra "unknown argument: $1" ;;
   esac
@@ -103,7 +106,10 @@ setup_refs() {
     PR=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
     [ -n "$PR" ] && log "branch $BRANCH has open PR #$PR"
   fi
-  if [ -n "$PR" ] && [ "$NO_PR_META" != true ]; then
+  if [ -n "$PR_META_FILE" ]; then
+    jq -e 'type == "object"' "$PR_META_FILE" >/dev/null || die_infra "$PR_META_FILE is not a JSON object"
+    jq '.' "$PR_META_FILE" >"$gh_json"
+  elif [ -n "$PR" ] && [ "$NO_PR_META" != true ]; then
     require_tools gh
     gh pr view "$PR" --repo "$REPO" \
       --json number,url,title,body,author,headRefName,headRefOid,baseRefName,labels,statusCheckRollup,state,isDraft \
@@ -195,7 +201,7 @@ write_meta() {
         base_ref: $base_ref, base_sha: $base, merge_base: $mb, behind_by: $behind,
         merge: {status: $merge, conflicts: $conflicts},
         tested: {base: $base_tested, pr: $pr_tested},
-        ci: (if $g == null then null
+        ci: (if $g == null or ($g | has("statusCheckRollup") | not) then null
              else ($g.statusCheckRollup // []) | map({name: (.name // .context), status, conclusion, state, workflow: .workflowName})
              end)
       }' >"$STATE/pr.json"
