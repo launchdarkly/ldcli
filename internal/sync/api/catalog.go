@@ -3,20 +3,24 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 
-	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
-
-const catalogPageLimit = 25
 
 // Project is the project metadata needed by interactive sync flows.
 type Project struct {
 	Key  string `json:"key"`
 	Name string `json:"name"`
+}
+
+// Page is one server-filtered page of catalog resources.
+type Page[T any] struct {
+	Items      []T `json:"items"`
+	TotalCount int `json:"totalCount"`
 }
 
 // ModelConfig contains the model settings assigned to a new variation.
@@ -85,40 +89,35 @@ func (config *Config) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// CatalogClient lists resources used by bootstrap and link flows.
-type CatalogClient struct {
-	transport   resources.Client
-	accessToken string
-	baseURI     string
-}
-
-// NewCatalogClient creates a client for sync catalog reads.
-func NewCatalogClient(transport resources.Client, accessToken, baseURI string) CatalogClient {
-	return CatalogClient{
-		transport:   transport,
-		accessToken: accessToken,
-		baseURI:     baseURI,
-	}
-}
-
-// Projects returns projects ordered by name.
-func (client CatalogClient) Projects() ([]Project, error) {
+// SearchProjects returns one name-sorted API page filtered by project name or key.
+func (client Client) SearchProjects(query string, limit, offset int) (Page[Project], error) {
 	endpoint, err := url.JoinPath(client.baseURI, "api/v2/projects")
 	if err != nil {
-		return nil, fmt.Errorf("build projects endpoint: %w", err)
+		return Page[Project]{}, fmt.Errorf("build projects endpoint: %w", err)
 	}
 
-	return listCatalog[Project](
-		client,
-		endpoint,
-		"projects",
-		false,
-		url.Values{"sort": {"name"}},
-	)
+	values := url.Values{
+		"limit":  {strconv.Itoa(limit)},
+		"offset": {strconv.Itoa(offset)},
+		"sort":   {"name"},
+	}
+	if query != "" {
+		values.Set("filter", "query:"+query)
+	}
+	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", values, nil, false)
+	if err != nil {
+		return Page[Project]{}, fmt.Errorf("search projects: %w", err)
+	}
+
+	var page Page[Project]
+	if err := json.Unmarshal(response, &page); err != nil {
+		return Page[Project]{}, fmt.Errorf("decode projects response: %w", err)
+	}
+	return page, nil
 }
 
 // ModelConfigs returns model configs available to one project.
-func (client CatalogClient) ModelConfigs(projectKey string) ([]ModelConfig, error) {
+func (client Client) ModelConfigs(projectKey string) ([]ModelConfig, error) {
 	endpoint, err := url.JoinPath(client.baseURI, "api/v2/projects", projectKey, "ai-configs/model-configs")
 	if err != nil {
 		return nil, fmt.Errorf("build model configs endpoint: %w", err)
@@ -145,38 +144,51 @@ func (client CatalogClient) ModelConfigs(projectKey string) ([]ModelConfig, erro
 	return modelConfigs, nil
 }
 
-// Configs returns the agent and completion configs in one project.
-func (client CatalogClient) Configs(projectKey string) ([]Config, error) {
+// SearchConfigs returns one name-sorted page of agent and completion configs.
+func (client Client) SearchConfigs(projectKey, query string, modes []syncdomain.VariationMode, limit, offset int) (Page[Config], error) {
 	endpoint, err := url.JoinPath(client.baseURI, "api/v2/projects", projectKey, "ai-configs")
 	if err != nil {
-		return nil, fmt.Errorf("build configs endpoint: %w", err)
+		return Page[Config]{}, fmt.Errorf("build configs endpoint: %w", err)
 	}
 
-	configs, err := listCatalog[Config](
-		client,
-		endpoint,
-		"configs",
-		false,
-		url.Values{
-			"sort":   {"name"},
-			"filter": {`mode anyOf ["agent","completion"]`},
-		},
-	)
+	if len(modes) == 0 {
+		modes = []syncdomain.VariationMode{syncdomain.VariationModeAgent, syncdomain.VariationModeCompletion}
+	}
+	modeValues := make([]string, len(modes))
+	for index, mode := range modes {
+		modeValues[index] = strconv.Quote(string(mode))
+	}
+
+	filter := "mode anyOf [" + strings.Join(modeValues, ",") + "]"
+	if query != "" {
+		filter = "query equals " + strconv.Quote(query) + ", " + filter
+	}
+
+	values := url.Values{
+		"filter": {filter},
+		"limit":  {strconv.Itoa(limit)},
+		"offset": {strconv.Itoa(offset)},
+		"sort":   {"name"},
+	}
+	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", values, nil, false)
 	if err != nil {
-		return nil, err
+		return Page[Config]{}, fmt.Errorf("search configs: %w", err)
 	}
 
-	for index := range configs {
-		if err := configs[index].applyMode(); err != nil {
-			return nil, err
+	var page Page[Config]
+	if err := json.Unmarshal(response, &page); err != nil {
+		return Page[Config]{}, fmt.Errorf("decode configs response: %w", err)
+	}
+	for index := range page.Items {
+		if err := page.Items[index].applyMode(); err != nil {
+			return Page[Config]{}, err
 		}
 	}
-
-	return configs, nil
+	return page, nil
 }
 
 // Config returns one config with its variation modes normalized.
-func (client CatalogClient) Config(projectKey, configKey string) (Config, error) {
+func (client Client) Config(projectKey, configKey string) (Config, error) {
 	endpoint, err := url.JoinPath(client.baseURI, "api/v2/projects", projectKey, "ai-configs", configKey)
 	if err != nil {
 		return Config{}, fmt.Errorf("build config endpoint: %w", err)
@@ -225,51 +237,4 @@ func (config *Config) applyMode() error {
 	}
 
 	return nil
-}
-
-type catalogPage[T any] struct {
-	Items      []T `json:"items"`
-	TotalCount int `json:"totalCount"`
-}
-
-// listCatalog retrieves every page from a list endpoint while preserving the
-// server's requested sort order.
-func listCatalog[T any](
-	client CatalogClient,
-	endpoint string,
-	resourceName string,
-	beta bool,
-	baseQuery url.Values,
-) ([]T, error) {
-	var items []T
-
-	for offset := 0; ; offset += catalogPageLimit {
-		query := maps.Clone(baseQuery)
-		query.Set("limit", fmt.Sprintf("%d", catalogPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
-
-		response, err := client.transport.MakeRequest(
-			client.accessToken,
-			http.MethodGet,
-			endpoint,
-			"",
-			query,
-			nil,
-			beta,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list %s: %w", resourceName, err)
-		}
-
-		var page catalogPage[T]
-		if err := json.Unmarshal(response, &page); err != nil {
-			return nil, fmt.Errorf("decode %s response: %w", resourceName, err)
-		}
-
-		items = append(items, page.Items...)
-		if len(page.Items) < catalogPageLimit ||
-			(page.TotalCount > 0 && len(items) >= page.TotalCount) {
-			return items, nil
-		}
-	}
 }

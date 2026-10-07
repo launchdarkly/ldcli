@@ -266,12 +266,12 @@ type fakeCatalog struct{}
 
 var _ Catalog = &fakeCatalog{}
 
-func (*fakeCatalog) Projects() ([]syncapi.Project, error) {
-	return nil, nil
+func (*fakeCatalog) SearchProjects(string, int, int) (syncapi.Page[syncapi.Project], error) {
+	return syncapi.Page[syncapi.Project]{}, nil
 }
 
-func (*fakeCatalog) Configs(string) ([]syncapi.Config, error) {
-	return nil, nil
+func (*fakeCatalog) SearchConfigs(string, string, []syncdomain.VariationMode, int, int) (syncapi.Page[syncapi.Config], error) {
+	return syncapi.Page[syncapi.Config]{}, nil
 }
 
 type failingManifestStore struct{}

@@ -66,6 +66,65 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+// AttachmentKind identifies a versioned resource referenced by a variation.
+type AttachmentKind string
+
+const (
+	AttachmentTool  AttachmentKind = "tool"
+	AttachmentSkill AttachmentKind = "skill"
+)
+
+// AttachmentRef is the stable local reference and exact API pin for one
+// variation attachment. Local files persist only the key.
+type AttachmentRef struct {
+	Key     string `json:"key" yaml:"key"`
+	Version int    `json:"version,omitempty" yaml:"-"`
+}
+
+// Tool is the canonical, version-independent content of an AI tool.
+type Tool struct {
+	Key              string         `json:"key" yaml:"key"`
+	Description      *string        `json:"description,omitempty" yaml:"description,omitempty"`
+	Schema           map[string]any `json:"schema" yaml:"schema"`
+	CustomParameters map[string]any `json:"customParameters,omitempty" yaml:"customParameters,omitempty"`
+	Tags             []string       `json:"tags,omitempty" yaml:"tags,omitempty"`
+}
+
+// Skill carries one Markdown file plus catalog metadata used for display.
+// Local synchronization owns Key, Description, and Markdown; Name remains
+// server-owned.
+type Skill struct {
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Markdown    string `json:"markdown"`
+}
+
+// Attachment pairs canonical content with the latest version observed from
+// LaunchDarkly. Exactly one type-specific payload is present.
+type Attachment struct {
+	Kind    AttachmentKind
+	Version int
+	Upsert  bool
+	Tool    *Tool
+	Skill   *Skill
+}
+
+// Key returns the stable key of the type-specific attachment payload.
+func (attachment Attachment) Key() string {
+	switch attachment.Kind {
+	case AttachmentTool:
+		if attachment.Tool != nil {
+			return attachment.Tool.Key
+		}
+	case AttachmentSkill:
+		if attachment.Skill != nil {
+			return attachment.Skill.Key
+		}
+	}
+	return ""
+}
+
 // NormalizePromptText gives semantically equivalent prompt text one stable
 // representation across API responses, local files, and operating systems.
 func NormalizePromptText(content string) string {

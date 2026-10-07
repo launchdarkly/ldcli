@@ -23,8 +23,8 @@ import (
 
 // Catalog lists the LaunchDarkly resources required to link a prompt.
 type Catalog interface {
-	Projects() ([]syncapi.Project, error)
-	Configs(projectKey string) ([]syncapi.Config, error)
+	SearchProjects(query string, limit, offset int) (syncapi.Page[syncapi.Project], error)
+	SearchConfigs(projectKey, query string, modes []syncdomain.VariationMode, limit, offset int) (syncapi.Page[syncapi.Config], error)
 	ModelConfigs(projectKey string) ([]syncapi.ModelConfig, error)
 }
 
@@ -69,33 +69,40 @@ func Run(options Options) (string, error) {
 	}
 
 	console := syncconsole.New(options.Output)
-	_ = console.Line("Loading LaunchDarkly projects...")
-	projects, err := options.Catalog.Projects()
-	if err != nil {
-		return "", err
-	}
-	project, canceled, err := syncinteractive.Select(
-		options.Input,
-		options.Output,
-		"Choose a LaunchDarkly project",
-		projectChoices(projects),
-	)
+	project, canceled, err := syncinteractive.SearchSelect(syncinteractive.SearchOptions[syncapi.Project]{
+		Input:             options.Input,
+		Output:            options.Output,
+		SearchTitle:       "Search LaunchDarkly projects",
+		SearchPlaceholder: "Project name or key",
+		SelectTitle:       "Choose a LaunchDarkly project",
+		ItemName:          "projects",
+		Fetch: func(query string, limit, offset int) ([]syncapi.Project, int, error) {
+			page, err := options.Catalog.SearchProjects(query, limit, offset)
+			return page.Items, page.TotalCount, err
+		},
+		Choice: projectChoice,
+	})
 	if err != nil || canceled {
 		return "", err
 	}
 
-	_ = console.Line("Loading configs...")
-	configs, err := options.Catalog.Configs(project.Key)
-	if err != nil {
-		return "", err
+	var configModes []syncdomain.VariationMode
+	if prompt.parsed.Mode != "" {
+		configModes = []syncdomain.VariationMode{syncdomain.VariationMode(prompt.parsed.Mode)}
 	}
-	configs = configsForPrompt(configs, prompt.parsed)
-	config, canceled, err := syncinteractive.Select(
-		options.Input,
-		options.Output,
-		"Choose a config",
-		configChoices(configs),
-	)
+	config, canceled, err := syncinteractive.SearchSelect(syncinteractive.SearchOptions[syncapi.Config]{
+		Input:             options.Input,
+		Output:            options.Output,
+		SearchTitle:       "Search LaunchDarkly configs",
+		SearchPlaceholder: "Config name or key",
+		SelectTitle:       "Choose a config",
+		ItemName:          "configs",
+		Fetch: func(query string, limit, offset int) ([]syncapi.Config, int, error) {
+			page, err := options.Catalog.SearchConfigs(project.Key, query, configModes, limit, offset)
+			return page.Items, page.TotalCount, err
+		},
+		Choice: configChoice,
+	})
 	if err != nil || canceled {
 		return "", err
 	}
@@ -293,20 +300,6 @@ func readLinkedPrompt(options Options) (linkedPrompt, error) {
 	return linkedPrompt{reference: reference, parsed: prompt, originalContent: content, content: content}, nil
 }
 
-// configsForPrompt limits destinations when the adapter supplied a mode.
-func configsForPrompt(configs []syncapi.Config, prompt adapters.Prompt) []syncapi.Config {
-	if prompt.Mode == "" {
-		return configs
-	}
-	result := make([]syncapi.Config, 0, len(configs))
-	for _, config := range configs {
-		if string(config.Mode) == string(prompt.Mode) {
-			result = append(result, config)
-		}
-	}
-	return result
-}
-
 // validateDerivedKey ensures a filename-derived key is also a safe path segment.
 func validateDerivedKey(key string) error {
 	switch {
@@ -339,26 +332,18 @@ func displayName(key string) string {
 	return string(runes)
 }
 
-// projectChoices adapts projects to interactive labels.
-func projectChoices(projects []syncapi.Project) []syncinteractive.Choice[syncapi.Project] {
-	choices := make([]syncinteractive.Choice[syncapi.Project], 0, len(projects))
-	for _, project := range projects {
-		choices = append(choices, syncinteractive.Choice[syncapi.Project]{
-			Title: project.Name, Description: project.Key, Value: project,
-		})
+// projectChoice keeps the readable project name above its stable key.
+func projectChoice(project syncapi.Project) syncinteractive.Choice[syncapi.Project] {
+	return syncinteractive.Choice[syncapi.Project]{
+		Title: project.Name, Description: "Key: " + project.Key, Value: project,
 	}
-	return choices
 }
 
-// configChoices adapts configs to labels that expose key and mode.
-func configChoices(configs []syncapi.Config) []syncinteractive.Choice[syncapi.Config] {
-	choices := make([]syncinteractive.Choice[syncapi.Config], 0, len(configs))
-	for _, config := range configs {
-		choices = append(choices, syncinteractive.Choice[syncapi.Config]{
-			Title: config.Name, Description: fmt.Sprintf("%s · %s", config.Key, config.Mode), Value: config,
-		})
+// configChoice includes both the stable config identity and its mode.
+func configChoice(config syncapi.Config) syncinteractive.Choice[syncapi.Config] {
+	return syncinteractive.Choice[syncapi.Config]{
+		Title: config.Name, Description: fmt.Sprintf("Key: %s · Mode: %s", config.Key, config.Mode), Value: config,
 	}
-	return choices
 }
 
 // modelConfigChoices adapts model configs to interactive labels.
@@ -366,7 +351,7 @@ func modelConfigChoices(configs []syncapi.ModelConfig) []syncinteractive.Choice[
 	choices := make([]syncinteractive.Choice[syncapi.ModelConfig], 0, len(configs))
 	for _, config := range configs {
 		choices = append(choices, syncinteractive.Choice[syncapi.ModelConfig]{
-			Title: config.Name, Description: config.Key, Value: config,
+			Title: config.Name, Description: "Key: " + config.Key, Value: config,
 		})
 	}
 	return choices
