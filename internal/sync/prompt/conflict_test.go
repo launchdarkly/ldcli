@@ -61,20 +61,58 @@ func TestApplyConflictResolutionsDoesNotChangeReviewedPlan(t *testing.T) {
 
 func TestApplyLocalChangeRestoresMissingConflictFile(t *testing.T) {
 	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	oldDescription := "Old local content"
+	existing := testVariation("Existing")
+	existing.Key = "existing"
+	existing.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	existing.Attachments = []syncdomain.Attachment{{
+		Kind: syncdomain.AttachmentTool,
+		Tool: &syncdomain.Tool{
+			Key:         "search",
+			Description: &oldDescription,
+			Schema:      map[string]any{"type": "object"},
+		},
+	}}
+	_, err := store.Add([]synclocal.VariationFile{{
+		ProjectKey: "production",
+		ConfigKey:  "support",
+		Variation:  existing,
+	}})
+	require.NoError(t, err)
+
+	serverDescription := "Current server content"
 	server := testVariation("server")
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 2}}
+	server.Attachments = []syncdomain.Attachment{{
+		Kind:    syncdomain.AttachmentTool,
+		Version: 2,
+		Tool: &syncdomain.Tool{
+			Key:         "search",
+			Description: &serverDescription,
+			Schema:      map[string]any{"type": "object"},
+		},
+	}}
 	resource := PlannedResource{
 		ID:     testResourceID(),
 		Action: ActionUpdateLocal,
 		Server: &server,
 	}
 
-	require.NoError(t, applyLocalChange(synclocal.NewStore(root), resource))
+	require.NoError(t, applyLocalChange(store, resource))
 
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
-	require.Len(t, resources, 1)
-	assert.Equal(t, resource.ID.LookupKey, resources[0].LookupKey)
-	assert.True(t, resources[0].Upsert)
+	require.Len(t, resources, 2)
+	var restored syncdomain.SyncedResource
+	for _, localResource := range resources {
+		if localResource.LookupKey == resource.ID.LookupKey {
+			restored = localResource
+		}
+	}
+	assert.True(t, restored.Upsert)
+	require.Len(t, restored.Attachments, 1)
+	assert.Equal(t, serverDescription, *restored.Attachments[0].Tool.Description)
 }
 
 func TestWriteConflictChoice(t *testing.T) {

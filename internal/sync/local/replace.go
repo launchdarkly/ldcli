@@ -51,6 +51,23 @@ func (store Store) prepareReplacements(resources []VariationReplacement) ([]stag
 
 	for _, resource := range resources {
 		existing, err := store.inspectVariation(resource.ProjectKey, resource.ConfigKey, resource.Variation.Key)
+		if err != nil && resource.CreateIfMissing && errors.Is(err, os.ErrNotExist) {
+			absolutePath, pathErr := store.variationPath(resource.ProjectKey, resource.ConfigKey, resource.Variation.Key)
+			if pathErr != nil {
+				return nil, pathErr
+			}
+			relativePath, pathErr := filepath.Rel(store.root, absolutePath)
+			if pathErr != nil {
+				return nil, fmt.Errorf("resolve variation path %q: %w", resource.Variation.Key, pathErr)
+			}
+			existing = existingVariation{
+				relativePath: filepath.ToSlash(relativePath),
+				absolutePath: absolutePath,
+				mode:         0o644,
+				frontMatter:  variationFrontMatter{Upsert: true},
+			}
+			err = nil
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +94,7 @@ func (store Store) prepareReplacements(resources []VariationReplacement) ([]stag
 			originalContent:    existing.content,
 			replacementContent: content,
 			mode:               existing.mode,
-			originalExists:     true,
+			originalExists:     existing.exists,
 			report:             true,
 		})
 

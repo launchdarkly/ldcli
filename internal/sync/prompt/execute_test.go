@@ -155,6 +155,89 @@ func TestAttachmentVersioningDoesNotMutateReviewedVariation(t *testing.T) {
 	assert.Equal(t, 2, pinned.Tools[0].Version)
 }
 
+func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	authored := testVariation("Local")
+	authored.ModelConfigKey = "claude"
+	authored.Model = map[string]any{"temperature": 0.2}
+	authored.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	authored.Attachments = []syncdomain.Attachment{{
+		Kind:    syncdomain.AttachmentTool,
+		Version: 1,
+		Tool:    &syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+	}}
+	_, err := store.Add([]synclocal.VariationFile{{
+		ProjectKey: "production",
+		ConfigKey:  "support",
+		Variation:  authored,
+	}})
+	require.NoError(t, err)
+
+	canonicalLocal := authored
+	canonicalLocal.ModelConfigVersion = 7
+	canonicalLocal.Model = map[string]any{"modelName": "claude-sonnet", "temperature": 0.2}
+	server := canonicalLocal
+	server.Name = "Server"
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments[0].Version = 2
+	localPayload, err := json.Marshal(authored)
+	require.NoError(t, err)
+	resource := PlannedResource{
+		ID:                           testResourceID(),
+		Action:                       ActionUpdateLocal,
+		Local:                        &canonicalLocal,
+		Server:                       &server,
+		ServerHasStaleAttachmentPins: true,
+	}
+	transport := &variationUpdateAPI{}
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+
+	err = applyResourceChange(
+		root,
+		store,
+		client,
+		newAttachmentResolver(client),
+		resource,
+		syncdomain.SyncedResource{Payload: localPayload},
+	)
+
+	require.NoError(t, err)
+	var request struct {
+		ModelConfigVersion int                        `json:"modelConfigVersion"`
+		Model              map[string]any             `json:"model"`
+		Tools              []syncdomain.AttachmentRef `json:"tools"`
+	}
+	require.NoError(t, json.Unmarshal(transport.body, &request))
+	assert.Equal(t, 7, request.ModelConfigVersion)
+	assert.Equal(t, map[string]any{"modelName": "claude-sonnet", "temperature": 0.2}, request.Model)
+	require.Len(t, request.Tools, 1)
+	assert.Equal(t, 2, request.Tools[0].Version)
+}
+
+type variationUpdateAPI struct {
+	body []byte
+}
+
+func (api *variationUpdateAPI) MakeRequest(
+	_ string,
+	method string,
+	_ string,
+	_ string,
+	_ url.Values,
+	body []byte,
+	_ bool,
+) ([]byte, error) {
+	if method == "PATCH" {
+		api.body = body
+	}
+	return []byte(`{}`), nil
+}
+
+func (*variationUpdateAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
 type attachmentMutationAPI struct {
 	current   syncdomain.Tool
 	version   int

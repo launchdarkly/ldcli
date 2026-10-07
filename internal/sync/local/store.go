@@ -24,11 +24,12 @@ type VariationFile struct {
 	Variation  syncdomain.Variation
 }
 
-// VariationReplacement identifies an existing wrapper and its replacement state.
+// VariationReplacement identifies a wrapper and the state to write.
 type VariationReplacement struct {
-	ProjectKey string
-	ConfigKey  string
-	Variation  syncdomain.Variation
+	ProjectKey      string
+	ConfigKey       string
+	CreateIfMissing bool
+	Variation       syncdomain.Variation
 }
 
 // VariationDeletion identifies an existing wrapper to remove.
@@ -176,6 +177,7 @@ type existingVariation struct {
 	absolutePath string
 	content      []byte
 	mode         os.FileMode
+	exists       bool
 	frontMatter  variationFrontMatter
 }
 
@@ -212,6 +214,7 @@ func (store Store) inspectVariation(projectKey, configKey, variationKey string) 
 		absolutePath: absolutePath,
 		content:      content,
 		mode:         info.Mode().Perm(),
+		exists:       true,
 		frontMatter:  frontMatter,
 	}, nil
 }

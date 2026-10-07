@@ -277,6 +277,9 @@ func applyResourceChange(
 	if changesServer(resource.Action) {
 		return applyServerChange(client, attachments, resource)
 	}
+	// Local files can omit inherited model fields. Keep the complete server
+	// form for any attachment pin refresh that follows the local write.
+	serverVariation := resource.Server
 	if resource.Action == ActionUpdateLocal {
 		variation, err := variationForLocalFile(*resource.Server, resource.Local, localFile)
 		if err != nil {
@@ -290,12 +293,12 @@ func applyResourceChange(
 	if err := verifyLocalResult(repositoryRoot, resource); err != nil {
 		return err
 	}
-	if resource.ServerHasStaleAttachmentPins && resource.Server != nil {
+	if resource.ServerHasStaleAttachmentPins && serverVariation != nil {
 		configKey, _, err := splitVariationLookupKey(resource.ID.LookupKey)
 		if err != nil {
 			return err
 		}
-		return client.UpdateVariation(resource.ID.ProjectKey, configKey, variationPinnedToLatest(*resource.Server))
+		return client.UpdateVariation(resource.ID.ProjectKey, configKey, variationPinnedToLatest(*serverVariation))
 	}
 	return nil
 }
