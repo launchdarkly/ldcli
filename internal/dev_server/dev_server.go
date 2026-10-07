@@ -71,6 +71,7 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	})
 	r := mux.NewRouter()
 	r.Use(handlers.RecoveryHandler(handlers.PrintRecoveryStack(true)))
+	r.Use(limitRequestBody)
 	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI, serverParams.SdkInitTimeout))
 	r.Use(model.EventStoreMiddleware(sqlEventStore))
 	r.Use(model.StoreMiddleware(sqlStore))
