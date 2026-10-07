@@ -97,6 +97,26 @@ func TestBuildPlanRejectsParentConfigModeMismatch(t *testing.T) {
 	require.Contains(t, plan.Resources[0].Error, "does not match config mode")
 }
 
+func TestPlanHasDestructiveActions(t *testing.T) {
+	tests := map[string]struct {
+		action      Action
+		destructive bool
+	}{
+		"create server":  {action: ActionCreateServer},
+		"update server":  {action: ActionUpdateServer},
+		"archive server": {action: ActionArchiveServer, destructive: true},
+		"update local":   {action: ActionUpdateLocal},
+		"delete local":   {action: ActionDeleteLocal, destructive: true},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			plan := Plan{Resources: []PlannedResource{{Action: test.action}}}
+			require.Equal(t, test.destructive, plan.HasDestructiveActions())
+		})
+	}
+}
+
 func testResourceID() ResourceID {
 	return ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default"}
 }
