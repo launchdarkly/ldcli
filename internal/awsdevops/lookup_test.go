@@ -2,6 +2,7 @@ package awsdevops_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -14,13 +15,7 @@ import (
 
 func TestSetupReusesAnAlreadyRegisteredMCPServer(t *testing.T) {
 	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{
-			{
-				ServiceId:   aws.String("mcp-1"),
-				ServiceType: agenttypes.ServiceMcpServer,
-				Name:        aws.String(awsdevops.MCPServerName),
-			},
-		},
+		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
@@ -37,18 +32,13 @@ func TestSetupReusesAnAlreadyRegisteredMCPServer(t *testing.T) {
 
 func TestSetupReplacesTheMCPServerTokenWhenAsked(t *testing.T) {
 	agent := &fakeAgent{
-		services: []agenttypes.RegisteredService{
-			{
-				ServiceId:   aws.String("mcp-1"),
-				ServiceType: agenttypes.ServiceMcpServer,
-				Name:        aws.String(awsdevops.MCPServerName),
-			},
-		},
+		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceName:  "launchdarkly",
 		AuthFlow:        "iam",
+		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
 		LDAccessToken:   "api-token",
 		ReplaceMCPToken: true,
 	})
@@ -74,7 +64,11 @@ func TestFindMCPServerMatchesOnTheEndpointInTheServiceDetails(t *testing.T) {
 		},
 	}
 
-	serviceID, err := awsdevops.FindMCPServer(context.Background(), newTestClients(agent, newFakeIAM()))
+	serviceID, err := awsdevops.FindMCPServer(
+		context.Background(),
+		newTestClients(agent, newFakeIAM()),
+		awsdevops.MCPServerEndpoint,
+	)
 	require.NoError(t, err)
 
 	assert.Equal(t, "mcp-2", serviceID)

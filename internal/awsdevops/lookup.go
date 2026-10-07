@@ -70,16 +70,16 @@ func listAssociations(ctx context.Context, clients Clients, agentSpaceID string)
 	}
 }
 
-// FindMCPServer returns the ID of the LaunchDarkly MCP server if one is
-// already registered on the account. AWS keeps MCP servers at the account
-// level, so a second agent space reuses the existing registration.
-func FindMCPServer(ctx context.Context, clients Clients) (string, error) {
+// FindMCPServer returns the ID of the MCP server registered at endpoint, if the
+// account has one. AWS keeps MCP servers at the account level, so a second
+// agent space reuses the existing registration.
+func FindMCPServer(ctx context.Context, clients Clients, endpoint string) (string, error) {
 	services, err := listServices(ctx, clients)
 	if err != nil {
 		return "", err
 	}
 	for _, service := range services {
-		if isLaunchDarklyMCPServer(service) {
+		if mcpEndpointOf(service) == endpoint {
 			return aws.ToString(service.ServiceId), nil
 		}
 	}
@@ -119,21 +119,16 @@ func FindAssociation(ctx context.Context, clients Clients, agentSpaceID, service
 	return "", nil
 }
 
-// isLaunchDarklyMCPServer matches on the name AWS reports at either level, and
-// on the endpoint, since MCP servers carry their name in the type-specific
-// details rather than the top-level field.
-func isLaunchDarklyMCPServer(service agenttypes.RegisteredService) bool {
-	if strings.EqualFold(aws.ToString(service.Name), MCPServerName) {
-		return true
-	}
-
+// mcpEndpointOf returns the endpoint a registered MCP server serves, which is
+// what identifies a registration: the name is the customer's to choose, so a
+// self-hosted LaunchDarkly MCP server can carry ours.
+func mcpEndpointOf(service agenttypes.RegisteredService) string {
 	details, ok := service.AdditionalServiceDetails.(*agenttypes.AdditionalServiceDetailsMemberMcpserver)
 	if !ok {
-		return false
+		return ""
 	}
 
-	return strings.EqualFold(aws.ToString(details.Value.Name), MCPServerName) ||
-		aws.ToString(details.Value.Endpoint) == MCPServerEndpoint
+	return aws.ToString(details.Value.Endpoint)
 }
 
 // serviceName prefers the name AWS keeps in the type-specific details, which is

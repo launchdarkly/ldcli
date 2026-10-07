@@ -23,6 +23,8 @@ const (
 	idpClientIDFlag     = "idp-client-id"
 	idpClientSecretFlag = "idp-client-secret"
 	replaceMCPTokenFlag = "replace-mcp-token"
+	mcpServiceIDFlag    = "mcp-service-id"
+	mcpEndpointFlag     = "mcp-endpoint"
 )
 
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
@@ -57,6 +59,8 @@ expires.`,
 	cmd.Flags().String(idpClientIDFlag, "", "OIDC client ID, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
 	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses the token passed with --access-token")
+	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to use, instead of the one registered at --mcp-endpoint")
+	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register and look the server up by. Defaults to "+awsdevops.MCPServerEndpoint)
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -155,6 +159,8 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		LDBaseURI:       viper.GetString(cliflags.BaseURIFlag),
 		LDAccessToken:   viper.GetString(cliflags.AccessTokenFlag),
 		ReplaceMCPToken: mustBool(cmd, replaceMCPTokenFlag),
+		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
+		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
 	}
 
 	switch opts.AuthFlow {

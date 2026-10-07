@@ -23,6 +23,11 @@ const (
 
 	ServiceLinkedRolePolicyName = "AllowCreateServiceLinkedRoles"
 
+	// ManagedTagKey marks the roles this CLI created, so a re-run never
+	// rewrites a role of the same name that belongs to the customer.
+	ManagedTagKey   = "ldcli:managed"
+	ManagedTagValue = "aws-devops-agent"
+
 	// awsServiceID is the well-known service identifier for the agent's own
 	// AWS account association.
 	awsServiceID = "aws"
@@ -62,6 +67,14 @@ type SetupOptions struct {
 	LDAccessToken   string
 	ReplaceMCPToken bool
 
+	// MCPServiceID, when set, is the registration to reuse or replace instead
+	// of the one found by endpoint.
+	MCPServiceID string
+	// MCPEndpoint overrides the LaunchDarkly MCP endpoint, for an account
+	// running the open-source MCP server itself. The endpoint identifies the
+	// registration, so a self-hosted one is never confused with ours.
+	MCPEndpoint string
+
 	// Logf, when set, reports progress as each step completes.
 	Logf func(format string, args ...any)
 }
@@ -94,13 +107,13 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 
 	result := SetupResult{AccountID: accountID, Region: clients.Region}
 
-	result.AgentSpaceRoleARN, err = ensureAgentSpaceRole(ctx, clients.IAM, accountID, clients.Region)
+	result.AgentSpaceRoleARN, err = ensureAgentSpaceRole(ctx, clients.IAM, accountID, logf)
 	if err != nil {
 		return result, err
 	}
 	logf("Agent space role ready: %s", result.AgentSpaceRoleARN)
 
-	result.OperatorAppRoleARN, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, clients.Region)
+	result.OperatorAppRoleARN, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, logf)
 	if err != nil {
 		return result, err
 	}
@@ -158,6 +171,32 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	return result, nil
 }
 
+// mcpEndpoint is the endpoint the MCP server is registered at and found by.
+func (o SetupOptions) mcpEndpoint() string {
+	if o.MCPEndpoint != "" {
+		return o.MCPEndpoint
+	}
+
+	return MCPServerEndpoint
+}
+
+// registrationFailed names the agent spaces a failed token replacement left
+// without an MCP server: the old registration is already gone by then, and its
+// token cannot be read back, so only a re-run with a working token restores them.
+func registrationFailed(err error, detached []string) error {
+	if len(detached) == 0 {
+		return fmt.Errorf("unable to register the LaunchDarkly MCP server: %w", err)
+	}
+
+	return fmt.Errorf(
+		"unable to register the LaunchDarkly MCP server: %w. The previous registration was already "+
+			"removed, so agent spaces %s have no LaunchDarkly MCP server: re-run setup with "+
+			"--access-token <token> to restore them",
+		err,
+		strings.Join(detached, ", "),
+	)
+}
+
 // associateAWSAccount retries while AWS still rejects the agent space role:
 // a freshly created role takes a while to become assumable.
 func associateAWSAccount(
@@ -208,6 +247,7 @@ func registerWithRetry(
 	clients Clients,
 	input *devopsagent.RegisterServiceInput,
 	logf func(string, ...any),
+	endpoint string,
 ) (*devopsagent.RegisterServiceOutput, error) {
 	deadline := time.Now().Add(roleAssumableTimeout)
 	wait := roleAssumableFirstWait
@@ -217,7 +257,7 @@ func registerWithRetry(
 			return registration, err
 		}
 		if first {
-			logf("AWS could not reach %s, retrying", MCPServerEndpoint)
+			logf("AWS could not reach %s, retrying", endpoint)
 		}
 
 		select {
@@ -259,9 +299,14 @@ func registerMCPServer(
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
-	existing, err := FindMCPServer(ctx, clients)
-	if err != nil {
-		return err
+	endpoint := opts.mcpEndpoint()
+	existing := opts.MCPServiceID
+	if existing == "" {
+		found, err := FindMCPServer(ctx, clients, endpoint)
+		if err != nil {
+			return err
+		}
+		existing = found
 	}
 	if existing == "" && opts.LDAccessToken == "" {
 		// Nothing to reuse and no token to register with; the caller collects
@@ -281,6 +326,14 @@ func registerMCPServer(
 	}
 	var detached []string
 	if existing != "" {
+		// AWS stores the token write-only, so the old registration cannot be
+		// restored once it is deregistered. Reject a token LaunchDarkly will
+		// not accept while the working registration is still in place.
+		if err := ValidateAccessToken(ctx, opts.LDBaseURI, opts.LDAccessToken); err != nil {
+			return err
+		}
+
+		var err error
 		detached, err = disassociateEverywhere(ctx, clients, existing, logf)
 		if err != nil {
 			return err
@@ -299,7 +352,7 @@ func registerMCPServer(
 		ServiceDetails: &agenttypes.ServiceDetailsMemberMcpserver{
 			Value: agenttypes.MCPServerDetails{
 				Name:        aws.String(MCPServerName),
-				Endpoint:    aws.String(MCPServerEndpoint),
+				Endpoint:    aws.String(endpoint),
 				Description: aws.String("LaunchDarkly feature flag management MCP server"),
 				AuthorizationConfig: &agenttypes.MCPServerAuthorizationConfigMemberBearerToken{
 					Value: agenttypes.MCPServerBearerTokenConfig{
@@ -311,18 +364,19 @@ func registerMCPServer(
 		},
 	}
 
-	registration, err := registerWithRetry(ctx, clients, input, logf)
+	registration, err := registerWithRetry(ctx, clients, input, logf, endpoint)
 	if err != nil {
-		if !strings.Contains(err.Error(), "already exists") {
-			return fmt.Errorf("unable to register the LaunchDarkly MCP server: %w", err)
+		if strings.Contains(err.Error(), "already exists") {
+			return fmt.Errorf(
+				"an MCP server named %s is already registered on this account at another endpoint, "+
+					"so %s cannot be registered: pass --mcp-service-id <id> to use that registration, "+
+					"or rename it in the console",
+				MCPServerName,
+				endpoint,
+			)
 		}
 
-		return fmt.Errorf(
-			"an MCP server named %s already exists on this account but is not visible to ListServices, "+
-				"so it cannot be associated automatically: associate it with agent space %s in the console",
-			MCPServerName,
-			result.AgentSpaceID,
-		)
+		return registrationFailed(err, detached)
 	}
 
 	result.MCPServiceID = aws.ToString(registration.ServiceId)
@@ -481,15 +535,18 @@ func operatorAppInput(agentSpaceID, roleARN string, opts SetupOptions) *devopsag
 	return input
 }
 
-func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID, region string) (string, error) {
+func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID string, logf func(string, ...any)) (string, error) {
 	trustPolicy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow",`+
 		`"Principal":{"Service":"aidevops.amazonaws.com"},"Action":"sts:AssumeRole",`+
 		`"Condition":{"StringEquals":{"aws:SourceAccount":"%[1]s"},`+
-		`"ArnLike":{"aws:SourceArn":"arn:aws:aidevops:%[2]s:%[1]s:agentspace/*"}}}]}`, accountID, region)
+		`"ArnLike":{"aws:SourceArn":"arn:aws:aidevops:*:%[1]s:agentspace/*"}}}]}`, accountID)
 
-	arn, err := ensureRole(ctx, client, AgentSpaceRoleName, trustPolicy, AgentSpacePolicyARN)
+	arn, ours, err := ensureRole(ctx, client, AgentSpaceRoleName, trustPolicy, AgentSpacePolicyARN, logf)
 	if err != nil {
 		return "", err
+	}
+	if !ours {
+		return arn, nil
 	}
 
 	// Topology discovery creates the Resource Explorer service-linked role on
@@ -508,22 +565,37 @@ func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID, region 
 	return arn, nil
 }
 
-func ensureOperatorAppRole(ctx context.Context, client IAMAPI, accountID, region string) (string, error) {
+func ensureOperatorAppRole(ctx context.Context, client IAMAPI, accountID string, logf func(string, ...any)) (string, error) {
 	// sts:TagSession is required because the managed policy scopes web app
 	// access per space with an aws:PrincipalTag/AgentSpaceId condition.
 	trustPolicy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow",`+
 		`"Principal":{"Service":"aidevops.amazonaws.com"},"Action":["sts:AssumeRole","sts:TagSession"],`+
 		`"Condition":{"StringEquals":{"aws:SourceAccount":"%[1]s"},`+
-		`"ArnLike":{"aws:SourceArn":"arn:aws:aidevops:%[2]s:%[1]s:agentspace/*"}}}]}`, accountID, region)
+		`"ArnLike":{"aws:SourceArn":"arn:aws:aidevops:*:%[1]s:agentspace/*"}}}]}`, accountID)
 
-	return ensureRole(ctx, client, OperatorAppRoleName, trustPolicy, OperatorAppPolicyARN)
+	arn, _, err := ensureRole(ctx, client, OperatorAppRoleName, trustPolicy, OperatorAppPolicyARN, logf)
+
+	return arn, err
 }
 
-func ensureRole(ctx context.Context, client IAMAPI, name, trustPolicy, policyARN string) (string, error) {
+// ensureRole creates the role, or reuses one that already has its name. The
+// second return value reports whether the role is one this CLI manages: a role
+// the customer created themselves is reused as it is, since rewriting its trust
+// policy or attaching policies to it would change something setup does not own.
+func ensureRole(
+	ctx context.Context,
+	client IAMAPI,
+	name, trustPolicy, policyARN string,
+	logf func(string, ...any),
+) (string, bool, error) {
 	var arn string
 	created, err := client.CreateRole(ctx, &iam.CreateRoleInput{
 		RoleName:                 aws.String(name),
 		AssumeRolePolicyDocument: aws.String(trustPolicy),
+		Tags: []iamtypes.Tag{{
+			Key:   aws.String(ManagedTagKey),
+			Value: aws.String(ManagedTagValue),
+		}},
 	})
 	switch {
 	case err == nil:
@@ -531,30 +603,66 @@ func ensureRole(ctx context.Context, client IAMAPI, name, trustPolicy, policyARN
 	case isAlreadyExists(err):
 		existing, getErr := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
 		if getErr != nil {
-			return "", fmt.Errorf("unable to read the existing %s role: %w", name, getErr)
+			return "", false, fmt.Errorf("unable to read the existing %s role: %w", name, getErr)
 		}
 		arn = aws.ToString(existing.Role.Arn)
 
-		// A role left over from a setup in another region trusts only that
-		// region's agent spaces, so the trust policy has to be refreshed.
+		managed, err := isManagedRole(ctx, client, name)
+		if err != nil {
+			return "", false, err
+		}
+		if !managed {
+			logf(
+				"Reusing %s as it is: it has no %s=%s tag, so it was not created by this CLI. "+
+					"It must trust aidevops.amazonaws.com and allow %s",
+				arn, ManagedTagKey, ManagedTagValue, policyARN,
+			)
+
+			return arn, false, nil
+		}
+
+		// Roles created before the trust policy covered every region are
+		// pinned to one region's agent spaces, so refresh it.
 		if _, err := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
 			RoleName:       aws.String(name),
 			PolicyDocument: aws.String(trustPolicy),
 		}); err != nil {
-			return "", fmt.Errorf("unable to update the trust policy on the %s role: %w", name, err)
+			return "", false, fmt.Errorf("unable to update the trust policy on the %s role: %w", name, err)
 		}
 	default:
-		return "", fmt.Errorf("unable to create the %s role: %w", name, err)
+		return "", false, fmt.Errorf("unable to create the %s role: %w", name, err)
 	}
 
 	if _, err := client.AttachRolePolicy(ctx, &iam.AttachRolePolicyInput{
 		RoleName:  aws.String(name),
 		PolicyArn: aws.String(policyARN),
 	}); err != nil {
-		return "", fmt.Errorf("unable to attach %s to %s: %w", policyARN, name, err)
+		return "", false, fmt.Errorf("unable to attach %s to %s: %w", policyARN, name, err)
 	}
 
-	return arn, nil
+	return arn, true, nil
+}
+
+func isManagedRole(ctx context.Context, client IAMAPI, name string) (bool, error) {
+	var marker *string
+	for {
+		tags, err := client.ListRoleTags(ctx, &iam.ListRoleTagsInput{
+			RoleName: aws.String(name),
+			Marker:   marker,
+		})
+		if err != nil {
+			return false, fmt.Errorf("unable to read the tags on the %s role: %w", name, err)
+		}
+		for _, tag := range tags.Tags {
+			if aws.ToString(tag.Key) == ManagedTagKey && aws.ToString(tag.Value) == ManagedTagValue {
+				return true, nil
+			}
+		}
+		if !tags.IsTruncated {
+			return false, nil
+		}
+		marker = tags.Marker
+	}
 }
 
 func isAlreadyExists(err error) bool {
