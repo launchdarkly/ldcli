@@ -79,3 +79,47 @@ func TestFindMCPServerMatchesOnTheEndpointInTheServiceDetails(t *testing.T) {
 
 	assert.Equal(t, "mcp-2", serviceID)
 }
+
+func TestAgentSpacesListsEveryPage(t *testing.T) {
+	agent := &fakeAgent{
+		paginate: true,
+		agentSpaces: []agenttypes.AgentSpace{
+			{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly")},
+			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
+		},
+	}
+
+	spaces, err := awsdevops.AgentSpaces(context.Background(), newTestClients(agent, newFakeIAM()))
+	require.NoError(t, err)
+
+	assert.Equal(t, []awsdevops.AgentSpaceSummary{
+		{AgentSpaceID: "space-1", Name: "launchdarkly"},
+		{AgentSpaceID: "space-2", Name: "platform"},
+	}, spaces)
+}
+
+func TestConnectExistingOnlyConnectsTheMCPServer(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{
+			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
+		},
+	}
+	iamClient := newFakeIAM()
+
+	result, err := awsdevops.ConnectExisting(context.Background(), newTestClients(agent, iamClient), awsdevops.SetupOptions{
+		AgentSpaceID:  "space-2",
+		AuthFlow:      "iam",
+		LDAccessToken: "api-token",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "space-2", result.AgentSpaceID)
+	assert.Equal(t, awsdevops.OperatorAppURL("space-2"), result.OperatorAppURL)
+	assert.Equal(t, "mcp-1", result.MCPServiceID)
+	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
+	assert.Empty(t, iamClient.createdRoles)
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+	assert.NotContains(t, agent.calls, "EnableOperatorApp")
+	require.Len(t, agent.associationInputs, 1)
+	assert.Equal(t, "space-2", aws.ToString(agent.associationInputs[0].AgentSpaceId))
+}

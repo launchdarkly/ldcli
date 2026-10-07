@@ -70,6 +70,33 @@ func listAssociations(ctx context.Context, clients Clients, agentSpaceID string)
 	}
 }
 
+// AgentSpaceSummary identifies an agent space the account already has, for a
+// caller that has to pick one.
+type AgentSpaceSummary struct {
+	AgentSpaceID string `json:"agentSpaceId"`
+	Name         string `json:"name"`
+	Description  string `json:"description,omitempty"`
+}
+
+// AgentSpaces lists the agent spaces in the account and region.
+func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]AgentSpaceSummary, 0, len(spaces))
+	for _, space := range spaces {
+		summaries = append(summaries, AgentSpaceSummary{
+			AgentSpaceID: aws.ToString(space.AgentSpaceId),
+			Name:         aws.ToString(space.Name),
+			Description:  aws.ToString(space.Description),
+		})
+	}
+
+	return summaries, nil
+}
+
 // FindMCPServer returns the ID of the LaunchDarkly MCP server if one is
 // already registered on the account. AWS keeps MCP servers at the account
 // level, so a second agent space reuses the existing registration.

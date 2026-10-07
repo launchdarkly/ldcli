@@ -158,6 +158,44 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	return result, nil
 }
 
+// ConnectExisting connects LaunchDarkly to an agent space the customer already
+// set up. Only the MCP server is touched: the IAM roles, the AWS account
+// association and the operator app belong to however they provisioned that
+// space, and re-enabling the operator app would overwrite its sign-in
+// configuration.
+func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
+	logf := opts.Logf
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
+
+	accountID, err := clients.AccountID(ctx)
+	if err != nil {
+		return SetupResult{}, err
+	}
+
+	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{
+		AgentSpaceId: aws.String(opts.AgentSpaceID),
+	})
+	if err != nil {
+		return SetupResult{}, fmt.Errorf("unable to read agent space %s: %w", opts.AgentSpaceID, err)
+	}
+
+	result := SetupResult{
+		AccountID:      accountID,
+		Region:         clients.Region,
+		AgentSpaceID:   opts.AgentSpaceID,
+		OperatorAppURL: OperatorAppURL(opts.AgentSpaceID),
+	}
+	logf("Using agent space %s (%s)", aws.ToString(space.AgentSpace.Name), result.AgentSpaceID)
+
+	if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
 // associateAWSAccount retries while AWS still rejects the agent space role:
 // a freshly created role takes a while to become assumable.
 func associateAWSAccount(
