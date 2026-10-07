@@ -158,6 +158,17 @@ func (plan Plan) RequiresConfirmation() bool {
 	return false
 }
 
+// HasDestructiveActions reports whether applying the plan would remove a local
+// resource or archive one in LaunchDarkly.
+func (plan Plan) HasDestructiveActions() bool {
+	for _, resource := range plan.Resources {
+		if resource.Action == ActionArchiveServer || resource.Action == ActionDeleteLocal {
+			return true
+		}
+	}
+	return false
+}
+
 // BlockingError returns a readable error for conflicts or invalid resources.
 func (plan Plan) BlockingError() error {
 	for _, resource := range plan.Resources {
