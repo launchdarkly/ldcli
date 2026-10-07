@@ -26,13 +26,47 @@ import (
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
-// AttachmentRequest identifies one tool or skill to attach to a managed variation.
-type AttachmentRequest struct {
-	Kind       syncdomain.AttachmentKind
-	Key        string
-	ProjectKey string
-	Variation  string
+// CommandAction is one focused prompt sync operation.
+type CommandAction interface {
+	promptSyncAction()
 }
+
+// SyncAction reconciles the workspace once or whenever watched files change.
+type SyncAction struct {
+	Watch  bool
+	DryRun bool
+}
+
+// AddAction materializes selected LaunchDarkly variations as local files.
+type AddAction struct {
+	Variations []syncdomain.ResourceID
+	DryRun     bool
+}
+
+// AttachAction adds one tool or skill reference to a managed variation.
+type AttachAction struct {
+	Kind   syncdomain.AttachmentKind
+	Key    string
+	Target *syncdomain.ResourceID
+}
+
+// DetachAction stops managing selected local variations.
+type DetachAction struct {
+	Variations []syncdomain.ResourceID
+}
+
+// LinkAction creates a managed variation backed by an external prompt file.
+type LinkAction struct {
+	File   string
+	Format string
+	Target *synclink.Target
+}
+
+func (SyncAction) promptSyncAction()   {}
+func (AddAction) promptSyncAction()    {}
+func (AttachAction) promptSyncAction() {}
+func (DetachAction) promptSyncAction() {}
+func (LinkAction) promptSyncAction()   {}
 
 // Options contains command input and streams for one prompt synchronization.
 type Options struct {
@@ -40,18 +74,30 @@ type Options struct {
 	AccessToken      string
 	BaseURI          string
 	OutputKind       string
-	Add              bool
-	Attachment       *AttachmentRequest
-	Detach           bool
-	DryRun           bool
-	Format           string
-	Link             string
-	Watch            bool
+	Action           CommandAction
+	ConflictPolicy   ConflictPolicy
 	Yes              bool
+	NoInput          bool
 	Context          context.Context
 	Input            io.Reader
 	Output           io.Writer
 	ErrorOutput      io.Writer
+}
+
+func (options Options) dryRun() bool {
+	switch action := options.Action.(type) {
+	case SyncAction:
+		return action.DryRun
+	case AddAction:
+		return action.DryRun
+	default:
+		return false
+	}
+}
+
+func (options Options) watching() bool {
+	action, ok := options.Action.(SyncAction)
+	return ok && action.Watch
 }
 
 type bootstrapRunner func(syncbootstrap.Options) error
@@ -100,6 +146,9 @@ func (runner Runner) Run(options Options) error {
 	if err := validateOptions(options); err != nil {
 		return err
 	}
+	if options.Action == nil {
+		options.Action = SyncAction{}
+	}
 	// Every path stored in wrappers or the manifest is repository-relative, so
 	// resolve the canonical Git root before dispatching any command mode.
 	resolvedWorkspace, err := syncsource.NewResolver().Resolve(options.WorkingDirectory)
@@ -112,8 +161,13 @@ func (runner Runner) Run(options Options) error {
 		local:    synclocal.NewStore(resolvedWorkspace.Root),
 		manifest: syncmanifest.NewStore(apiClient, resolvedWorkspace.Source),
 	}
+	localDirectoryExists, err := workspace.local.Exists()
+	if err != nil {
+		return err
+	}
 
-	if options.Detach {
+	switch action := options.Action.(type) {
+	case DetachAction:
 		projectKeys, err := discoverProjectKeys(workspace.root)
 		if err != nil {
 			return err
@@ -125,18 +179,21 @@ func (runner Runner) Run(options Options) error {
 			ProjectKeys:    projectKeys,
 			Input:          options.Input,
 			Output:         options.Output,
+			Selections:     action.Variations,
+			NoInput:        options.NoInput,
 		})
-	}
-	if options.Link != "" {
+	case LinkAction:
 		path, err := runner.link(synclink.Options{
 			Catalog:          apiClient,
 			Store:            workspace.local,
 			RepositoryRoot:   workspace.root,
 			WorkingDirectory: options.WorkingDirectory,
-			File:             options.Link,
-			Format:           options.Format,
+			File:             action.File,
+			Format:           action.Format,
 			Input:            options.Input,
 			Output:           options.Output,
+			Target:           action.Target,
+			NoInput:          options.NoInput,
 		})
 		if err != nil {
 			return err
@@ -149,23 +206,23 @@ func (runner Runner) Run(options Options) error {
 			syncdomain.RootDir,
 			path,
 		)
-	}
-	localDirectoryExists, err := workspace.local.Exists()
-	if err != nil {
-		return err
-	}
-
-	if options.Attachment != nil {
+		localDirectoryExists = true
+	case AttachAction:
 		if !localDirectoryExists {
 			return fmt.Errorf("attach a tool or skill after synchronizing at least one variation")
 		}
+		projectKey, variationID := "", ""
+		if action.Target != nil {
+			projectKey = action.Target.ProjectKey
+			variationID = action.Target.LookupKey
+		}
 		if err := attachToVariation(workspace.local, apiClient, attachOptions{
 			RepositoryRoot: workspace.root,
-			ProjectKey:     options.Attachment.ProjectKey,
-			VariationID:    options.Attachment.Variation,
-			Kind:           options.Attachment.Kind,
-			Key:            options.Attachment.Key,
-			Interactive:    runner.isTerminal(options.Input, options.Output),
+			ProjectKey:     projectKey,
+			VariationID:    variationID,
+			Kind:           action.Kind,
+			Key:            action.Key,
+			Interactive:    !options.NoInput && runner.isTerminal(options.Input, options.Output),
 			Input:          options.Input,
 			Output:         options.Output,
 		}); err != nil {
@@ -174,13 +231,30 @@ func (runner Runner) Run(options Options) error {
 			}
 			return err
 		}
+	case AddAction:
+		return runner.bootstrap(syncbootstrap.Options{
+			Catalog:     apiClient,
+			Attachments: apiClient,
+			Store:       workspace.local,
+			Manifest:    workspace.manifest,
+			Input:       options.Input,
+			Output:      options.Output,
+			Initial:     !localDirectoryExists,
+			DryRun:      action.DryRun,
+			Selections:  action.Variations,
+			NoInput:     options.NoInput,
+		})
+	case SyncAction:
+	default:
+		return fmt.Errorf("unsupported prompt sync action %T", action)
 	}
 
 	projectKeys, err := discoverProjectKeys(workspace.root)
 	if err != nil {
 		return err
 	}
-	if (!localDirectoryExists && len(projectKeys) == 0) || options.Add {
+	syncAction, isSync := options.Action.(SyncAction)
+	if !localDirectoryExists && len(projectKeys) == 0 {
 		if err := runner.bootstrap(syncbootstrap.Options{
 			Catalog:     apiClient,
 			Attachments: apiClient,
@@ -189,11 +263,12 @@ func (runner Runner) Run(options Options) error {
 			Input:       options.Input,
 			Output:      options.Output,
 			Initial:     !localDirectoryExists,
-			DryRun:      options.DryRun,
+			DryRun:      isSync && syncAction.DryRun,
+			NoInput:     options.NoInput,
 		}); err != nil {
 			return err
 		}
-		if !options.Watch {
+		if !isSync || !syncAction.Watch {
 			return nil
 		}
 		localDirectoryExists, err = workspace.local.Exists()
@@ -205,7 +280,7 @@ func (runner Runner) Run(options Options) error {
 		}
 	}
 
-	if options.Watch {
+	if isSync && syncAction.Watch {
 		ctx := options.Context
 		if ctx == nil {
 			ctx = context.Background()
@@ -213,26 +288,13 @@ func (runner Runner) Run(options Options) error {
 		ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 		defer stop()
 
-		syncOptions := optionsForWatchSync(ctx, options)
-		// Watch owns the retry loop. Each callback still runs the exact same
-		// plan, review, revalidation, and execution pipeline as a normal sync.
+		options.Context = ctx
 		return runner.watch(ctx, workspace.root, watchDebounce, func(watcher *sourceWatcher) error {
-			return runner.runWorkspaceSync(syncOptions, workspace, watcher)
+			return runner.runWorkspaceSync(options, workspace, watcher)
 		}, options.ErrorOutput)
 	}
 
 	return runner.runWorkspaceSync(options, workspace, nil)
-}
-
-// optionsForWatchSync clears one-time actions while preserving explicit user
-// choices such as --yes for each sync triggered by the watcher.
-func optionsForWatchSync(ctx context.Context, options Options) Options {
-	options.Add = false
-	options.Attachment = nil
-	options.Format = ""
-	options.Link = ""
-	options.Context = ctx
-	return options
 }
 
 // runWorkspaceSync plans, reviews, revalidates, and executes one workspace sync.
@@ -266,14 +328,14 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		return err
 	}
 
-	if options.DryRun {
+	if options.dryRun() {
 		if err := writePlanOutput(options.Output, options.OutputKind, reviewedPlan); err != nil {
 			return err
 		}
 		return reviewedPlan.BlockingError()
 	}
 
-	interactive := runner.isTerminal(options.Input, options.ErrorOutput)
+	interactive := !options.NoInput && runner.isTerminal(options.Input, options.ErrorOutput)
 	conflictResult, err := resolveConflicts(options, reviewedPlan, options.Input, interactive, watched)
 	if err != nil {
 		return err
@@ -303,7 +365,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		return err
 	}
 	if !slices.Equal(reviewedProjectKeys, currentProjectKeys) {
-		if options.Watch {
+		if options.watching() {
 			return errRefreshWatchPlan
 		}
 		return fmt.Errorf("sync projects changed after review; run sync again")
@@ -317,7 +379,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		return err
 	}
 	if !samePlanState(reviewedPlan, currentPlan) {
-		if options.Watch {
+		if options.watching() {
 			return errRefreshWatchPlan
 		}
 		return fmt.Errorf("sync state changed after review; run sync again")
@@ -351,27 +413,36 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 
 // validateOptions rejects command modes whose side effects or UX conflict.
 func validateOptions(options Options) error {
-	switch {
-	case options.Attachment != nil &&
-		options.Attachment.Kind != syncdomain.AttachmentTool &&
-		options.Attachment.Kind != syncdomain.AttachmentSkill:
-		return fmt.Errorf("attachment kind must be tool or skill")
-	case options.Attachment != nil &&
-		(options.Add || options.Detach || options.DryRun || options.Link != "" || options.Format != "" || options.Watch):
-		return fmt.Errorf("attachment options cannot be combined with other sync actions")
-	case options.Detach && (options.Add || options.DryRun || options.Link != "" || options.Format != "" || options.Watch || options.Yes):
-		return fmt.Errorf("--detach cannot be combined with other sync actions")
-	case options.Link == "" && options.Format != "":
-		return fmt.Errorf("--format requires --link")
-	case options.Link != "" && options.Format == "":
-		return fmt.Errorf("--link requires --format")
-	case options.Link != "" && (options.Add || options.DryRun):
-		return fmt.Errorf("--link cannot be used with --add or --dry-run")
-	case options.Watch && options.DryRun:
-		return fmt.Errorf("--watch cannot be used with --dry-run")
-	}
-	if options.Link != "" {
-		return syncreference.ValidateFormat(options.Format)
+	switch action := options.Action.(type) {
+	case nil:
+	case SyncAction:
+		if action.Watch && action.DryRun {
+			return fmt.Errorf("watch does not support --dry-run")
+		}
+	case AddAction:
+	case AttachAction:
+		if action.Kind != syncdomain.AttachmentTool && action.Kind != syncdomain.AttachmentSkill {
+			return fmt.Errorf("attachment kind must be tool or skill")
+		}
+		if action.Target != nil && action.Target.Kind != syncdomain.KindVariation {
+			return fmt.Errorf("attachment target must be a variation")
+		}
+	case DetachAction:
+	case LinkAction:
+		if action.File == "" {
+			return fmt.Errorf("linked file is required")
+		}
+		if action.Format == "" {
+			return fmt.Errorf("--format is required")
+		}
+		if err := syncreference.ValidateFormat(action.Format); err != nil {
+			return err
+		}
+		if action.Target != nil && action.Target.ModelConfigKey == "" {
+			return fmt.Errorf("--model-config-key is required with --to")
+		}
+	default:
+		return fmt.Errorf("unsupported prompt sync action %T", action)
 	}
 	return nil
 }

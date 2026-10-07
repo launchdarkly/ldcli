@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
+	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
@@ -68,6 +70,7 @@ type createVariationRequest struct {
 	ModelConfigKey     string                     `json:"modelConfigKey,omitempty"`
 	ModelConfigVersion int                        `json:"modelConfigVersion,omitempty"`
 	Model              map[string]any             `json:"model,omitempty"`
+	OutputFormat       map[string]any             `json:"outputFormat,omitempty"`
 	Messages           []syncdomain.Message       `json:"messages,omitempty"`
 	Tools              []syncdomain.AttachmentRef `json:"tools,omitempty"`
 	Skills             []syncdomain.AttachmentRef `json:"skills,omitempty"`
@@ -79,6 +82,7 @@ type updateVariationRequest struct {
 	ModelConfigKey     string                      `json:"modelConfigKey"`
 	ModelConfigVersion int                         `json:"modelConfigVersion,omitempty"`
 	Model              map[string]any              `json:"model"`
+	OutputFormat       map[string]any              `json:"outputFormat"`
 	Messages           *[]syncdomain.Message       `json:"messages,omitempty"`
 	Tools              *[]syncdomain.AttachmentRef `json:"tools,omitempty"`
 	Skills             *[]syncdomain.AttachmentRef `json:"skills,omitempty"`
@@ -133,7 +137,11 @@ func (client Client) GetSyncManifest(projectKey, source string) (SyncManifest, e
 		false,
 	)
 	if err != nil {
-		return SyncManifest{}, fmt.Errorf("get sync manifest for project %q: %w", projectKey, err)
+		return SyncManifest{}, contextualAPIError(
+			err,
+			fmt.Sprintf("get sync manifest for project %q", projectKey),
+			projectKey,
+		)
 	}
 
 	var manifest SyncManifest
@@ -201,7 +209,11 @@ func (client Client) ModelConfig(projectKey, modelConfigKey string) (ModelConfig
 
 	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", nil, nil, false)
 	if err != nil {
-		return ModelConfig{}, fmt.Errorf("get model config %q: %w", modelConfigKey, err)
+		return ModelConfig{}, contextualAPIError(
+			err,
+			fmt.Sprintf("get model config %q in project %q", modelConfigKey, projectKey),
+			projectKey,
+		)
 	}
 
 	var modelConfig ModelConfig
@@ -248,6 +260,7 @@ func (client Client) CreateVariation(projectKey, configKey string, variation syn
 		ModelConfigKey:     variation.ModelConfigKey,
 		ModelConfigVersion: variation.ModelConfigVersion,
 		Model:              variation.Model,
+		OutputFormat:       variation.OutputFormat,
 		Tools:              variation.Tools,
 		Skills:             variation.Skills,
 	}
@@ -293,11 +306,18 @@ func (client Client) UpdateVariation(projectKey, configKey string, variation syn
 	if model == nil {
 		model = map[string]any{}
 	}
+	outputFormat := variation.OutputFormat
+	if outputFormat == nil {
+		// The API treats an omitted or null outputFormat as unchanged. Send an
+		// empty object when the local field is absent so removing it also syncs.
+		outputFormat = map[string]any{}
+	}
 	request := updateVariationRequest{
 		Name:               variation.Name,
 		ModelConfigKey:     variation.ModelConfigKey,
 		ModelConfigVersion: variation.ModelConfigVersion,
 		Model:              model,
+		OutputFormat:       outputFormat,
 	}
 	if variation.Tools != nil {
 		request.Tools = &variation.Tools
@@ -407,24 +427,59 @@ func newMutationError(action, variationKey string, err error) error {
 
 func newResourceMutationError(action, resource, key string, err error) error {
 	_, definitiveResponse := responseStatusCode(err)
+	contextual := contextualAPIError(
+		err,
+		fmt.Sprintf("%s %s %q", action, resource, key),
+		"",
+	)
 
 	return mutationError{
-		err:       err,
-		message:   fmt.Sprintf("%s %s %q: %s", action, resource, key, err),
+		err:       contextual,
+		message:   contextual.Error(),
 		uncertain: !definitiveResponse,
 	}
 }
 
 func responseStatusCode(err error) (int, bool) {
+	response, ok := responseError(err)
+	if !ok {
+		return 0, false
+	}
+	status, ok := response["statusCode"].(float64)
+	return int(status), ok && status != 0
+}
+
+// contextualAPIError keeps the API's structured status fields while adding
+// the resource identity needed to act on the failure.
+func contextualAPIError(err error, context, projectKey string) error {
+	response, ok := responseError(err)
+	if !ok {
+		return fmt.Errorf("%s: %w", context, err)
+	}
+	status, _ := response["statusCode"].(float64)
+	if int(status) == http.StatusNotFound && projectKey != "" {
+		response["message"] = context
+		response["suggestion"] = fmt.Sprintf(
+			"Verify the resource key and that it belongs to project %q.",
+			projectKey,
+		)
+	} else if message, _ := response["message"].(string); message != "" {
+		response["message"] = context + ": " + strings.ReplaceAll(message, "AI config", "config")
+	} else {
+		response["message"] = context
+	}
+	body, _ := json.Marshal(response)
+	return lderrors.NewErrorWrapped(string(body), err)
+}
+
+func responseError(err error) (map[string]any, bool) {
 	for current := err; current != nil; current = errors.Unwrap(current) {
-		var response struct {
-			StatusCode int `json:"statusCode"`
-		}
-		if json.Unmarshal([]byte(current.Error()), &response) == nil && response.StatusCode != 0 {
-			return response.StatusCode, true
+		var response map[string]any
+		if json.Unmarshal([]byte(current.Error()), &response) == nil && len(response) != 0 {
+			return response, true
 		}
 	}
-	return 0, false
+	return nil, false
 }
 
 // IsConflict reports whether a wrapped LaunchDarkly API error has a 409 status.

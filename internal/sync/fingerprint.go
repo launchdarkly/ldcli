@@ -179,8 +179,6 @@ func validateDirectAPIVariationFields(variation Variation) error {
 		return fmt.Errorf("variation key is required")
 	case variation.Name == "":
 		return fmt.Errorf("variation name is required")
-	case len(variation.OutputFormat) != 0:
-		return fmt.Errorf("outputFormat is not supported by direct config variation APIs")
 	}
 	return nil
 }

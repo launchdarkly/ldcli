@@ -25,6 +25,7 @@ import (
 type Catalog interface {
 	SearchProjects(query string, limit, offset int) (syncapi.Page[syncapi.Project], error)
 	SearchConfigs(projectKey, query string, modes []syncdomain.VariationMode, limit, offset int) (syncapi.Page[syncapi.Config], error)
+	Config(projectKey, configKey string) (syncapi.Config, error)
 	ModelConfigs(projectKey string) ([]syncapi.ModelConfig, error)
 }
 
@@ -38,6 +39,17 @@ type Options struct {
 	Format           string
 	Input            io.Reader
 	Output           io.Writer
+	Target           *Target
+	NoInput          bool
+}
+
+// Target identifies a non-interactive link destination and any source
+// metadata that is missing from the referenced file.
+type Target struct {
+	Variation      syncdomain.ResourceID
+	ModelConfigKey string
+	Name           string
+	Content        string
 }
 
 // Selection is the LaunchDarkly destination selected for a linked prompt.
@@ -56,16 +68,20 @@ type linkedPrompt struct {
 	content         []byte
 }
 
-// Run interactively selects a destination and creates the local linked
-// variation wrapper.
+// Run resolves a destination and creates the local linked variation wrapper.
 func Run(options Options) (string, error) {
-	if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
-		return "", fmt.Errorf("interactive prompt linking requires a terminal; run this command in a terminal")
-	}
-
 	prompt, err := readLinkedPrompt(options)
 	if err != nil {
 		return "", err
+	}
+	if options.Target != nil {
+		return linkToTarget(options, prompt, *options.Target)
+	}
+	if options.NoInput {
+		return "", fmt.Errorf("--to and --model-config-key are required with --no-input")
+	}
+	if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
+		return "", fmt.Errorf("interactive prompt linking requires a terminal; use --to and --model-config-key with --no-input")
 	}
 
 	console := syncconsole.New(options.Output)
@@ -165,6 +181,77 @@ func Run(options Options) (string, error) {
 		Config:      config,
 		ModelConfig: modelConfig,
 		Key:         key,
+		Name:        name,
+	}, prompt)
+}
+
+func linkToTarget(options Options, prompt linkedPrompt, target Target) (string, error) {
+	if target.Variation.Kind != syncdomain.KindVariation {
+		return "", fmt.Errorf("link destination must be a variation")
+	}
+	configKey, variationKey, ok := strings.Cut(target.Variation.LookupKey, "/")
+	if !ok {
+		return "", fmt.Errorf("invalid variation %q", target.Variation.LookupKey)
+	}
+	if prompt.parsed.Key != "" && prompt.parsed.Key != variationKey {
+		return "", fmt.Errorf(
+			"linked file key %q does not match destination key %q",
+			prompt.parsed.Key,
+			variationKey,
+		)
+	}
+	if target.Name != "" && strings.TrimSpace(target.Name) == "" {
+		return "", fmt.Errorf("--name cannot be blank")
+	}
+	if target.Content != "" && strings.TrimSpace(target.Content) == "" {
+		return "", fmt.Errorf("--content cannot be blank")
+	}
+
+	config, err := options.Catalog.Config(target.Variation.ProjectKey, configKey)
+	if err != nil {
+		return "", err
+	}
+	modelConfigs, err := options.Catalog.ModelConfigs(target.Variation.ProjectKey)
+	if err != nil {
+		return "", err
+	}
+	var modelConfig syncapi.ModelConfig
+	for _, candidate := range modelConfigs {
+		if candidate.Key == target.ModelConfigKey {
+			modelConfig = candidate
+			break
+		}
+	}
+	if modelConfig.Key == "" {
+		return "", fmt.Errorf("model config %q was not found", target.ModelConfigKey)
+	}
+
+	name := prompt.parsed.Name
+	if target.Name != "" {
+		if name != "" && name != target.Name {
+			return "", fmt.Errorf("linked file name %q does not match --name %q", name, target.Name)
+		}
+		name = target.Name
+	}
+	if name == "" {
+		name = displayName(variationKey)
+	}
+	if len(prompt.parsed.Messages) == 0 && target.Content == "" {
+		return "", fmt.Errorf("--content is required when the linked file has no prompt content")
+	}
+	if len(prompt.parsed.Messages) != 0 && target.Content != "" {
+		return "", fmt.Errorf("--content cannot be used when the linked file already has prompt content")
+	}
+	prompt, err = addMissingPromptContent(prompt, config.Mode, variationKey, name, target.Content)
+	if err != nil {
+		return "", err
+	}
+
+	return createLinkedPrompt(options, Selection{
+		Project:     syncapi.Project{Key: target.Variation.ProjectKey},
+		Config:      config,
+		ModelConfig: modelConfig,
+		Key:         variationKey,
 		Name:        name,
 	}, prompt)
 }

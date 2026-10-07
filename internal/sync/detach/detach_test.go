@@ -189,6 +189,35 @@ func TestRunRequiresTerminalWhenResourcesExist(t *testing.T) {
 	require.ErrorContains(t, err, "requires a terminal")
 }
 
+func TestRunUsesExplicitSelectionsWithoutTerminal(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	_, err := store.Add([]synclocal.VariationFile{{
+		ProjectKey: "project", ConfigKey: "config", Variation: testVariation("prompt"),
+	}})
+	require.NoError(t, err)
+	selection := Resource{
+		Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt",
+	}
+	manifestStore := newMemoryManifestStore()
+
+	err = Run(Options{
+		RepositoryRoot: root,
+		Store:          store,
+		Manifest:       manifestStore,
+		Input:          bytes.NewBuffer(nil),
+		Output:         bytes.NewBuffer(nil),
+		Selections:     []Resource{selection},
+		NoInput:        true,
+	})
+
+	require.NoError(t, err)
+	exists, err := store.VariationExists("project", "config", "prompt")
+	require.NoError(t, err)
+	assert.False(t, exists)
+	assert.Equal(t, []string{"project"}, manifestStore.loadedProjectKeys)
+}
+
 func TestRunReportsWhenNoResourcesAreSynced(t *testing.T) {
 	root := t.TempDir()
 	var output bytes.Buffer
@@ -206,14 +235,16 @@ func TestRunReportsWhenNoResourcesAreSynced(t *testing.T) {
 }
 
 type memoryManifestStore struct {
-	manifest syncmanifest.Manifest
+	manifest          syncmanifest.Manifest
+	loadedProjectKeys []string
 }
 
 func newMemoryManifestStore() *memoryManifestStore {
 	return &memoryManifestStore{manifest: syncmanifest.New()}
 }
 
-func (store *memoryManifestStore) Load([]string) (syncmanifest.Manifest, error) {
+func (store *memoryManifestStore) Load(projectKeys []string) (syncmanifest.Manifest, error) {
+	store.loadedProjectKeys = append([]string(nil), projectKeys...)
 	return store.manifest, nil
 }
 

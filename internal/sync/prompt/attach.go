@@ -108,7 +108,7 @@ func selectAttachmentProject(resources []syncdomain.SyncedResource, options atta
 		return projectKeys[0], nil
 	}
 	if !options.Interactive {
-		return "", fmt.Errorf("--project is required when the workspace manages multiple projects")
+		return "", fmt.Errorf("--to is required when the workspace manages multiple projects")
 	}
 
 	choices := make([]syncinteractive.Choice[string], 0, len(projectKeys))
@@ -128,7 +128,7 @@ func selectAttachment(client syncapi.Client, projectKey string, options attachOp
 		return client.ReadAttachment(projectKey, options.Kind, options.Key)
 	}
 	if !options.Interactive {
-		return syncdomain.Attachment{}, fmt.Errorf("%s key is required without a terminal", options.Kind)
+		return syncdomain.Attachment{}, fmt.Errorf("%s key is required without interactive input", options.Kind)
 	}
 
 	attachment, canceled, err := syncinteractive.SearchSelect(syncinteractive.SearchOptions[syncdomain.Attachment]{
@@ -216,7 +216,7 @@ func selectManagedVariation(
 		return "", syncdomain.Variation{}, fmt.Errorf("variation %q is not managed in project %q", options.VariationID, projectKey)
 	}
 	if !options.Interactive {
-		return "", syncdomain.Variation{}, fmt.Errorf("--variation is required without a terminal")
+		return "", syncdomain.Variation{}, fmt.Errorf("--to is required without interactive input")
 	}
 	if len(choices) == 0 {
 		return "", syncdomain.Variation{}, fmt.Errorf("no eligible variations are managed in project %q", projectKey)

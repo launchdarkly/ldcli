@@ -13,22 +13,45 @@ import (
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 )
 
-type conflictResolution string
+// ConflictResolution identifies which side should win a sync conflict.
+type ConflictResolution string
 
 const (
-	useLaunchDarkly conflictResolution = "launchdarkly"
-	useLocal        conflictResolution = "local"
-	abortConflict   conflictResolution = "abort"
+	// ConflictUseLaunchDarkly applies the current LaunchDarkly resource locally.
+	ConflictUseLaunchDarkly ConflictResolution = "launchdarkly"
+	// ConflictUseLocal applies the current local resource to LaunchDarkly.
+	ConflictUseLocal ConflictResolution = "local"
+	// ConflictAbort stops before applying the conflicted plan.
+	ConflictAbort ConflictResolution = "abort"
 )
 
+// ConflictPolicy supplies a default resolution and per-variation exceptions.
+type ConflictPolicy struct {
+	Default   ConflictResolution
+	Overrides map[ResourceID]ConflictResolution
+}
+
+// ParseConflictResolution validates a CLI conflict choice.
+func ParseConflictResolution(value string) (ConflictResolution, error) {
+	resolution := ConflictResolution(value)
+	switch resolution {
+	case ConflictUseLaunchDarkly, ConflictUseLocal, ConflictAbort:
+		return resolution, nil
+	default:
+		return "", fmt.Errorf("invalid conflict resolution %q; expected launchdarkly, local, or abort", value)
+	}
+}
+
 type conflictResolutionResult struct {
-	resolutions    map[ResourceID]conflictResolution
+	resolutions    map[ResourceID]ConflictResolution
 	aborted        bool
 	sourcesChanged bool
 }
 
+var errConflictAborted = errors.New("sync conflict left unresolved")
+
 type conflictChoice struct {
-	resolution     conflictResolution
+	resolution     ConflictResolution
 	aborted        bool
 	sourcesChanged bool
 }
@@ -50,13 +73,8 @@ func resolveConflicts(
 	if len(conflicts) == 0 {
 		return conflictResolutionResult{}, nil
 	}
-	if !interactive {
-		return conflictResolutionResult{}, fmt.Errorf(
-			"interactive conflict resolution requires a terminal; rerun in a terminal or resolve the conflict manually",
-		)
-	}
 
-	result := conflictResolutionResult{resolutions: make(map[ResourceID]conflictResolution)}
+	result := conflictResolutionResult{resolutions: make(map[ResourceID]ConflictResolution)}
 	for _, group := range conflicts {
 		visible := make([]PlannedResource, 0, len(group.resources))
 		for _, resource := range group.resources {
@@ -79,9 +97,30 @@ func resolveConflicts(
 			}
 		}
 
-		choice, err := readConflictChoice(options, reader, watched)
+		resolution, explicit, err := options.ConflictPolicy.resolve(group)
 		if err != nil {
 			return conflictResolutionResult{}, err
+		}
+		var choice conflictChoice
+		if explicit {
+			choice = conflictChoice{
+				resolution: resolution,
+				aborted:    resolution == ConflictAbort,
+			}
+			writeConflictChoice(options.ErrorOutput, choice)
+			if choice.aborted {
+				return conflictResolutionResult{}, errConflictAborted
+			}
+		} else {
+			if !interactive {
+				return conflictResolutionResult{}, fmt.Errorf(
+					"conflict resolution requires --conflict or --resolve without interactive input",
+				)
+			}
+			choice, err = readConflictChoice(options, reader, watched)
+			if err != nil {
+				return conflictResolutionResult{}, err
+			}
 		}
 		if choice.sourcesChanged {
 			result.sourcesChanged = true
@@ -96,6 +135,31 @@ func resolveConflicts(
 		}
 	}
 	return result, nil
+}
+
+func (policy ConflictPolicy) resolve(group conflictGroup) (ConflictResolution, bool, error) {
+	var selected ConflictResolution
+	for _, resource := range group.resources {
+		resolution, ok := policy.Overrides[resource.ID]
+		if !ok {
+			continue
+		}
+		if _, err := ParseConflictResolution(string(resolution)); err != nil {
+			return "", false, err
+		}
+		if selected != "" && selected != resolution {
+			return "", false, fmt.Errorf("conflicting --resolve choices affect the same shared attachment")
+		}
+		selected = resolution
+	}
+	if selected != "" {
+		return selected, true, nil
+	}
+	if policy.Default == "" {
+		return "", false, nil
+	}
+	resolution, err := ParseConflictResolution(string(policy.Default))
+	return resolution, err == nil, err
 }
 
 // groupConflicts presents one choice for each connected set of variations that
@@ -157,10 +221,10 @@ func promptConflictResolution(ctx context.Context, input io.Reader, output io.Wr
 		input,
 		output,
 		"Choose how to resolve this conflict",
-		[]syncinteractive.Choice[conflictResolution]{
-			{Title: "Use LaunchDarkly", Value: useLaunchDarkly},
-			{Title: "Use local", Value: useLocal},
-			{Title: "Abort and resolve manually", Value: abortConflict},
+		[]syncinteractive.Choice[ConflictResolution]{
+			{Title: "Use LaunchDarkly", Value: ConflictUseLaunchDarkly},
+			{Title: "Use local", Value: ConflictUseLocal},
+			{Title: "Abort and resolve manually", Value: ConflictAbort},
 		},
 	)
 	if err != nil {
@@ -168,7 +232,7 @@ func promptConflictResolution(ctx context.Context, input io.Reader, output io.Wr
 	}
 	choice := conflictChoice{
 		resolution: resolution,
-		aborted:    canceled || resolution == abortConflict,
+		aborted:    canceled || resolution == ConflictAbort,
 	}
 	writeConflictChoice(output, choice)
 	return choice, nil
@@ -221,9 +285,9 @@ func writeConflictChoice(output io.Writer, choice conflictChoice) {
 	switch {
 	case choice.aborted:
 		_ = console.Line("Sync canceled; conflict left unresolved.")
-	case choice.resolution == useLaunchDarkly:
+	case choice.resolution == ConflictUseLaunchDarkly:
 		_ = console.Line("Using LaunchDarkly.")
-	case choice.resolution == useLocal:
+	case choice.resolution == ConflictUseLocal:
 		_ = console.Line("Using local.")
 	}
 }
@@ -253,7 +317,7 @@ func (watched watchedSources) WaitForChange(ctx context.Context) error {
 
 // applyConflictResolutions applies one direction to every resource in each
 // conflict group, including non-conflicted consumers of a shared attachment.
-func applyConflictResolutions(plan Plan, resolutions map[ResourceID]conflictResolution) Plan {
+func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictResolution) Plan {
 	// Clone the resource slice before changing actions so the reviewed plan
 	// remains an immutable record for post-review revalidation.
 	resolved := Plan{Resources: append([]PlannedResource(nil), plan.Resources...)}
@@ -269,14 +333,14 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]conflictReso
 }
 
 // resolvedConflictAction returns the operation needed for the chosen side to win.
-func resolvedConflictAction(resource PlannedResource, resolution conflictResolution) Action {
+func resolvedConflictAction(resource PlannedResource, resolution ConflictResolution) Action {
 	switch resolution {
-	case useLaunchDarkly:
+	case ConflictUseLaunchDarkly:
 		if resource.Server == nil {
 			return ActionDeleteLocal
 		}
 		return ActionUpdateLocal
-	case useLocal:
+	case ConflictUseLocal:
 		if resource.Local == nil {
 			return ActionArchiveServer
 		}

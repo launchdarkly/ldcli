@@ -25,7 +25,7 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 		}
 		return false, nil
 	}
-	autoApply := options.Yes || (options.Watch && !plan.HasDestructiveActions())
+	autoApply := options.Yes || (options.watching() && !plan.HasDestructiveActions())
 	if autoApply || !plan.RequiresConfirmation() {
 		return true, nil
 	}

@@ -106,7 +106,7 @@ func (client Client) SearchProjects(query string, limit, offset int) (Page[Proje
 	}
 	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", values, nil, false)
 	if err != nil {
-		return Page[Project]{}, fmt.Errorf("search projects: %w", err)
+		return Page[Project]{}, contextualAPIError(err, "search projects", "")
 	}
 
 	var page Page[Project]
@@ -133,7 +133,11 @@ func (client Client) ModelConfigs(projectKey string) ([]ModelConfig, error) {
 		false,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list model configs: %w", err)
+		return nil, contextualAPIError(
+			err,
+			fmt.Sprintf("list model configs in project %q", projectKey),
+			projectKey,
+		)
 	}
 
 	var modelConfigs []ModelConfig
@@ -172,7 +176,11 @@ func (client Client) SearchConfigs(projectKey, query string, modes []syncdomain.
 	}
 	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", values, nil, false)
 	if err != nil {
-		return Page[Config]{}, fmt.Errorf("search configs: %w", err)
+		return Page[Config]{}, contextualAPIError(
+			err,
+			fmt.Sprintf("search configs in project %q", projectKey),
+			projectKey,
+		)
 	}
 
 	var page Page[Config]
@@ -204,7 +212,11 @@ func (client Client) Config(projectKey, configKey string) (Config, error) {
 		false,
 	)
 	if err != nil {
-		return Config{}, fmt.Errorf("get config %q: %w", configKey, err)
+		return Config{}, contextualAPIError(
+			err,
+			fmt.Sprintf("get config %q in project %q", configKey, projectKey),
+			projectKey,
+		)
 	}
 
 	var config Config

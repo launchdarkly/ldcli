@@ -31,11 +31,20 @@ type Options struct {
 	ProjectKeys    []string
 	Input          io.Reader
 	Output         io.Writer
+	Selections     []Resource
+	NoInput        bool
 }
 
-// Run lets the user select resources and removes their local sync state.
+// Run resolves selected resources and removes their local sync state.
 func Run(options Options) error {
-	resources, manifest, err := loadResources(options.RepositoryRoot, options.Manifest, options.ProjectKeys)
+	projectKeys := append([]string(nil), options.ProjectKeys...)
+	for _, selection := range options.Selections {
+		projectKeys = append(projectKeys, selection.ProjectKey)
+	}
+	slices.Sort(projectKeys)
+	projectKeys = slices.Compact(projectKeys)
+
+	resources, manifest, err := loadResources(options.RepositoryRoot, options.Manifest, projectKeys)
 	if err != nil {
 		return err
 	}
@@ -43,30 +52,39 @@ func Run(options Options) error {
 		_ = syncconsole.New(options.Output).Line("No resources are currently synced.")
 		return nil
 	}
-	if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
-		return fmt.Errorf("interactive resource selection requires a terminal; run this command in a terminal")
-	}
 
-	choices := make([]syncinteractive.Choice[Resource], 0, len(resources))
-	for _, resource := range resources {
-		choices = append(choices, syncinteractive.Choice[Resource]{
-			Title:       resource.ProjectKey + "/" + resource.LookupKey,
-			Description: string(resource.Kind),
-			Value:       resource,
-		})
-	}
-	selected, canceled, err := syncinteractive.MultiSelect(
-		options.Input,
-		options.Output,
-		"Select resources to detach",
-		"Detached resources remain in LaunchDarkly.",
-		choices,
-	)
-	if err != nil {
+	selected := options.Selections
+	if len(selected) == 0 {
+		if options.NoInput {
+			return fmt.Errorf("variation selectors are required with --no-input")
+		}
+		if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
+			return fmt.Errorf("interactive resource selection requires a terminal; use selectors with --no-input")
+		}
+		choices := make([]syncinteractive.Choice[Resource], 0, len(resources))
+		for _, resource := range resources {
+			choices = append(choices, syncinteractive.Choice[Resource]{
+				Title:       resource.ProjectKey + "/" + resource.LookupKey,
+				Description: string(resource.Kind),
+				Value:       resource,
+			})
+		}
+		var canceled bool
+		selected, canceled, err = syncinteractive.MultiSelect(
+			options.Input,
+			options.Output,
+			"Select resources to detach",
+			"Detached resources remain in LaunchDarkly.",
+			choices,
+		)
+		if err != nil {
+			return err
+		}
+		if canceled {
+			return nil
+		}
+	} else if err := validateSelections(resources, selected); err != nil {
 		return err
-	}
-	if canceled {
-		return nil
 	}
 	if err := detachResources(options, manifest, selected); err != nil {
 		return err
@@ -76,6 +94,20 @@ func Run(options Options) error {
 	_ = console.Line("Detached resources:")
 	for _, resource := range selected {
 		_ = console.Printf("- %s %s/%s\n", resource.Kind, resource.ProjectKey, resource.LookupKey)
+	}
+	return nil
+}
+
+func validateSelections(available, selected []Resource) error {
+	seen := make(map[Resource]struct{}, len(selected))
+	for _, selection := range selected {
+		if _, duplicate := seen[selection]; duplicate {
+			return fmt.Errorf("variation %s/%s was selected more than once", selection.ProjectKey, selection.LookupKey)
+		}
+		seen[selection] = struct{}{}
+		if !slices.Contains(available, selection) {
+			return fmt.Errorf("variation %s/%s is not synced", selection.ProjectKey, selection.LookupKey)
+		}
 	}
 	return nil
 }

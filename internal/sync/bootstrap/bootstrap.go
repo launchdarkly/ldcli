@@ -22,6 +22,7 @@ import (
 type Catalog interface {
 	SearchProjects(query string, limit, offset int) (syncapi.Page[syncapi.Project], error)
 	SearchConfigs(projectKey, query string, modes []syncdomain.VariationMode, limit, offset int) (syncapi.Page[syncapi.Config], error)
+	Config(projectKey, configKey string) (syncapi.Config, error)
 }
 
 type AttachmentReader interface {
@@ -44,14 +45,24 @@ type Options struct {
 	Output      io.Writer
 	Initial     bool
 	DryRun      bool
+	Selections  []syncdomain.ResourceID
+	NoInput     bool
 }
 
-// Run interactively selects prompt variations and writes their local wrappers.
+// Run resolves selected prompt variations and writes their local wrappers.
 func Run(options Options) error {
+	if len(options.Selections) != 0 {
+		files, err := selectVariationFilesByID(options)
+		if err != nil {
+			return err
+		}
+		return finishSelection(options, files)
+	}
+	if options.NoInput {
+		return fmt.Errorf("variation selectors are required with --no-input")
+	}
 	if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
-		return fmt.Errorf(
-			"interactive prompt selection requires a terminal; run this command in a terminal",
-		)
+		return fmt.Errorf("interactive prompt selection requires a terminal; use selectors with --no-input")
 	}
 
 	files, canceled, err := selectVariationFiles(options)
@@ -62,6 +73,68 @@ func Run(options Options) error {
 		return nil
 	}
 	return finishSelection(options, files)
+}
+
+func selectVariationFilesByID(options Options) ([]synclocal.VariationFile, error) {
+	configs := make(map[string]syncapi.Config)
+	seen := make(map[syncdomain.ResourceID]struct{}, len(options.Selections))
+	files := make([]synclocal.VariationFile, 0, len(options.Selections))
+
+	for _, selection := range options.Selections {
+		if selection.Kind != syncdomain.KindVariation {
+			return nil, fmt.Errorf("cannot add %s resource", selection.Kind)
+		}
+		if _, duplicate := seen[selection]; duplicate {
+			return nil, fmt.Errorf("variation %s/%s was selected more than once", selection.ProjectKey, selection.LookupKey)
+		}
+		seen[selection] = struct{}{}
+
+		configKey, variationKey, ok := strings.Cut(selection.LookupKey, "/")
+		if !ok {
+			return nil, fmt.Errorf("invalid variation %q", selection.LookupKey)
+		}
+		cacheKey := selection.ProjectKey + "/" + configKey
+		config, ok := configs[cacheKey]
+		if !ok {
+			var err error
+			config, err = options.Catalog.Config(selection.ProjectKey, configKey)
+			if err != nil {
+				return nil, err
+			}
+			configs[cacheKey] = config
+		}
+
+		variationIndex := slices.IndexFunc(config.Variations, func(variation syncdomain.Variation) bool {
+			return variation.Key == variationKey
+		})
+		if variationIndex < 0 {
+			return nil, fmt.Errorf(
+				"variation %q does not exist in config %q in project %q",
+				variationKey,
+				configKey,
+				selection.ProjectKey,
+			)
+		}
+		exists, err := options.Store.VariationExists(selection.ProjectKey, configKey, variationKey)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return nil, fmt.Errorf("variation %s/%s is already synced", selection.ProjectKey, selection.LookupKey)
+		}
+
+		variation := config.Variations[variationIndex]
+		if err := hydrateAttachments(options.Attachments, selection.ProjectKey, &variation); err != nil {
+			return nil, err
+		}
+		files = append(files, synclocal.VariationFile{
+			ProjectKey: selection.ProjectKey,
+			ConfigKey:  configKey,
+			Upsert:     true,
+			Variation:  variation,
+		})
+	}
+	return files, nil
 }
 
 // selectVariationFiles guides the user from project to config to variations

@@ -55,7 +55,11 @@ func (client Client) SearchAttachments(
 
 	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", values, nil, false)
 	if err != nil {
-		return Page[syncdomain.Attachment]{}, fmt.Errorf("search %ss: %w", kind, err)
+		return Page[syncdomain.Attachment]{}, contextualAPIError(
+			err,
+			fmt.Sprintf("search %ss in project %q", kind, projectKey),
+			projectKey,
+		)
 	}
 
 	switch kind {
@@ -103,7 +107,11 @@ func (client Client) ReadAttachment(projectKey string, kind syncdomain.Attachmen
 
 	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", nil, nil, false)
 	if err != nil {
-		return syncdomain.Attachment{}, fmt.Errorf("get %s %q: %w", kind, key, err)
+		return syncdomain.Attachment{}, contextualAPIError(
+			err,
+			fmt.Sprintf("get %s %q in project %q", kind, key, projectKey),
+			projectKey,
+		)
 	}
 	attachment, err := decodeAttachment(kind, response)
 	if err != nil {

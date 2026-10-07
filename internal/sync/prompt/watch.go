@@ -84,6 +84,9 @@ func watchWorkspace(
 			if errors.Is(err, context.Canceled) {
 				return nil
 			}
+			if errors.Is(err, errConflictAborted) {
+				return err
+			}
 			if errors.Is(err, errRefreshWatchPlan) {
 				// A source changed during review or the reviewed server state
 				// became stale. Rebuild immediately instead of waiting for a

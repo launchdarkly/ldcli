@@ -28,20 +28,22 @@ import (
 func TestRunnerBootstrapsMissingWorkspaceAndAddsToExistingWorkspace(t *testing.T) {
 	tests := map[string]struct {
 		createDirectory bool
-		add             bool
-		dryRun          bool
+		action          CommandAction
 		wantInitial     bool
+		wantDryRun      bool
 	}{
 		"missing workspace": {
+			action:      SyncAction{},
 			wantInitial: true,
 		},
 		"missing workspace dry run": {
-			dryRun:      true,
+			action:      SyncAction{DryRun: true},
 			wantInitial: true,
+			wantDryRun:  true,
 		},
 		"add to existing workspace": {
 			createDirectory: true,
-			add:             true,
+			action:          AddAction{},
 		},
 	}
 
@@ -57,7 +59,7 @@ func TestRunnerBootstrapsMissingWorkspaceAndAddsToExistingWorkspace(t *testing.T
 			runner.bootstrap = func(options syncbootstrap.Options) error {
 				called = true
 				assert.Equal(t, test.wantInitial, options.Initial)
-				assert.Equal(t, test.dryRun, options.DryRun)
+				assert.Equal(t, test.wantDryRun, options.DryRun)
 				assert.NotNil(t, options.Catalog)
 				assert.NotNil(t, options.Input)
 				assert.NotNil(t, options.Output)
@@ -68,8 +70,7 @@ func TestRunnerBootstrapsMissingWorkspaceAndAddsToExistingWorkspace(t *testing.T
 				WorkingDirectory: root,
 				AccessToken:      "token",
 				BaseURI:          "https://example.com",
-				Add:              test.add,
-				DryRun:           test.dryRun,
+				Action:           test.action,
 				Input:            os.Stdin,
 				Output:           io.Discard,
 				ErrorOutput:      io.Discard,
@@ -121,7 +122,7 @@ func TestRunnerWatchDoesNotRunInitialSync(t *testing.T) {
 
 	err := runner.Run(Options{
 		WorkingDirectory: root,
-		Watch:            true,
+		Action:           SyncAction{Watch: true},
 		Input:            os.Stdin,
 		Output:           io.Discard,
 		ErrorOutput:      io.Discard,
@@ -131,22 +132,7 @@ func TestRunnerWatchDoesNotRunInitialSync(t *testing.T) {
 	assert.True(t, watchCalled)
 }
 
-func TestOptionsForWatchSyncPreservesYes(t *testing.T) {
-	ctx := context.Background()
-	for _, yes := range []bool{false, true} {
-		options := optionsForWatchSync(ctx, Options{
-			Add: true, Format: syncreference.PlainMarkdown, Link: "prompt.md", Yes: yes,
-		})
-
-		assert.False(t, options.Add)
-		assert.Empty(t, options.Format)
-		assert.Empty(t, options.Link)
-		assert.Equal(t, yes, options.Yes)
-		assert.Equal(t, ctx, options.Context)
-	}
-}
-
-func TestRunnerLinksBeforeWatching(t *testing.T) {
+func TestRunnerLinksPrompt(t *testing.T) {
 	root := initGitRepository(t)
 	runner := NewRunner(noopResourceClient{})
 	linkCalled := false
@@ -154,28 +140,21 @@ func TestRunnerLinksBeforeWatching(t *testing.T) {
 		linkCalled = true
 		assert.Equal(t, "prompt.md", options.File)
 		assert.Equal(t, syncreference.PlainMarkdown, options.Format)
-		require.NoError(t, os.Mkdir(filepath.Join(root, syncdomain.RootDir), 0o755))
-		return "project/configs/config/prompt.prompt.md", nil
-	}
-	watchCalled := false
-	runner.watch = func(context.Context, string, time.Duration, func(*sourceWatcher) error, io.Writer) error {
-		watchCalled = true
-		return nil
+		return "", nil
 	}
 
 	err := runner.Run(Options{
 		WorkingDirectory: root,
-		Link:             "prompt.md",
-		Format:           syncreference.PlainMarkdown,
-		Watch:            true,
-		Input:            os.Stdin,
-		Output:           io.Discard,
-		ErrorOutput:      io.Discard,
+		Action: LinkAction{
+			File: "prompt.md", Format: syncreference.PlainMarkdown,
+		},
+		Input:       os.Stdin,
+		Output:      io.Discard,
+		ErrorOutput: io.Discard,
 	})
 
 	require.NoError(t, err)
 	assert.True(t, linkCalled)
-	assert.True(t, watchCalled)
 }
 
 func TestRunnerDetachesWithoutCallingTheAPI(t *testing.T) {
@@ -193,7 +172,7 @@ func TestRunnerDetachesWithoutCallingTheAPI(t *testing.T) {
 
 	err := runner.Run(Options{
 		WorkingDirectory: root,
-		Detach:           true,
+		Action:           DetachAction{},
 		Input:            os.Stdin,
 		Output:           io.Discard,
 		ErrorOutput:      io.Discard,
@@ -219,7 +198,7 @@ func TestRunnerChecksAttachmentTerminalOnOutput(t *testing.T) {
 
 	err := runner.Run(Options{
 		WorkingDirectory: root,
-		Attachment:       &AttachmentRequest{Kind: syncdomain.AttachmentTool},
+		Action:           AttachAction{Kind: syncdomain.AttachmentTool},
 		Input:            input,
 		Output:           &output,
 		ErrorOutput:      &errorOutput,
@@ -231,21 +210,16 @@ func TestRunnerChecksAttachmentTerminalOnOutput(t *testing.T) {
 }
 
 func TestValidateOptions(t *testing.T) {
-	require.ErrorContains(t, validateOptions(Options{Format: syncreference.PlainMarkdown}), "--format requires --link")
-	require.ErrorContains(t, validateOptions(Options{Link: "prompt.md"}), "--link requires --format")
-	require.ErrorContains(t, validateOptions(Options{Watch: true, DryRun: true}), "--watch cannot be used with --dry-run")
-	require.ErrorContains(t, validateOptions(Options{Detach: true, Add: true}), "--detach cannot be combined")
 	require.ErrorContains(t, validateOptions(Options{
-		Attachment: &AttachmentRequest{Kind: syncdomain.AttachmentTool}, Watch: true,
-	}), "attachment options cannot be combined")
+		Action: LinkAction{File: "prompt.md"},
+	}), "--format is required")
 	require.ErrorContains(t, validateOptions(Options{
-		Attachment: &AttachmentRequest{Kind: "invalid"},
-	}), "attachment kind")
+		Action: SyncAction{Watch: true, DryRun: true},
+	}), "watch does not support --dry-run")
+	require.ErrorContains(t, validateOptions(Options{Action: AttachAction{Kind: "invalid"}}), "attachment kind")
 	require.NoError(t, validateOptions(Options{
-		Attachment: &AttachmentRequest{
-			Kind: syncdomain.AttachmentTool, Key: "search", ProjectKey: "project", Variation: "config/default",
-		},
-		Yes: true,
+		Action: AttachAction{Kind: syncdomain.AttachmentTool, Key: "search"},
+		Yes:    true,
 	}))
 }
 

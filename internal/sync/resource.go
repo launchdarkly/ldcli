@@ -26,6 +26,28 @@ type ResourceID struct {
 	LookupKey  string
 }
 
+// ParseVariationSelector parses the stable project-key/config-key/variation-key identity
+// accepted by non-interactive sync commands.
+func ParseVariationSelector(selector string) (ResourceID, error) {
+	parts := strings.Split(selector, "/")
+	if len(parts) != 3 || slices.ContainsFunc(parts, func(part string) bool {
+		return part == "" ||
+			part == "." ||
+			part == ".." ||
+			strings.ContainsAny(part, "\\\x00")
+	}) {
+		return ResourceID{}, fmt.Errorf(
+			"invalid variation %q; expected project-key/config-key/variation-key",
+			selector,
+		)
+	}
+	return ResourceID{
+		Kind:       KindVariation,
+		ProjectKey: parts[0],
+		LookupKey:  parts[1] + "/" + parts[2],
+	}, nil
+}
+
 // CompareResourceIDs orders resource identities for deterministic plans and output.
 func CompareResourceIDs(left, right ResourceID) int {
 	if result := strings.Compare(string(left.Kind), string(right.Kind)); result != 0 {

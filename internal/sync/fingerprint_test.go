@@ -283,7 +283,7 @@ func TestFingerprintAttachmentTracksCanonicalContentOnly(t *testing.T) {
 	require.NotEqual(t, originalSkill, updatedSkill)
 }
 
-func TestValidateDirectAPIVariationSupportsModelConfigVersion(t *testing.T) {
+func TestDirectAPIVariationSupportsVersionAndOutputFormat(t *testing.T) {
 	base := Variation{Mode: VariationModeAgent, Key: "default", Name: "Default"}
 
 	withVersion := base
@@ -292,7 +292,13 @@ func TestValidateDirectAPIVariationSupportsModelConfigVersion(t *testing.T) {
 
 	withOutput := base
 	withOutput.OutputFormat = map[string]any{"type": "json"}
-	require.ErrorContains(t, ValidateDirectAPIVariation(withOutput), "outputFormat")
+	require.NoError(t, ValidateDirectAPIVariation(withOutput))
+
+	baseFingerprint, err := FingerprintVariation("project", "config/default", base)
+	require.NoError(t, err)
+	outputFingerprint, err := FingerprintVariation("project", "config/default", withOutput)
+	require.NoError(t, err)
+	require.NotEqual(t, baseFingerprint, outputFingerprint)
 }
 
 func TestValidateDirectAPIVariationRejectsSkillsForCompletionMode(t *testing.T) {
