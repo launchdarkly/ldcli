@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { Icon } from '@launchpad-ui/icons';
 import { Inline } from '@launchpad-ui/core';
 import { FlagVariation } from './api.ts';
+import { sendUiAnalytics } from './uiAnalytics';
 
 const syncProject = async (selectedProject: string) => {
   const res = await fetch(
@@ -49,8 +50,10 @@ const SyncButton = ({
       const result = await syncProject(selectedProject!);
       setAvailableVariations(result.availableVariations);
       setFlags(sortFlags(result.flagsState));
+      sendUiAnalytics('Dev Server UI Project Synced', { outcome: 'success' });
     } catch (error) {
       ToastQueue.warning('Sync failed');
+      sendUiAnalytics('Dev Server UI Project Synced', { outcome: 'error' });
       console.error('Sync failed:', error);
     } finally {
       ToastQueue.success('Sync successful');

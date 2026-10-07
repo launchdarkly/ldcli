@@ -16,17 +16,18 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
+	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
-func NewStartServerCmd(client dev_server.Client) *cobra.Command {
+func NewStartServerCmd(client dev_server.Client, analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		GroupID: "server",
 		Args:    validators.Validate(),
 		Long:    "start the dev server",
-		RunE:    startServer(client),
+		RunE:    startServer(client, analyticsTrackerFn),
 		Short:   "start the dev server",
 		Use:     "start",
 	}
@@ -57,7 +58,7 @@ func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 	return cmd
 }
 
-func startServer(client dev_server.Client) func(*cobra.Command, []string) error {
+func startServer(client dev_server.Client, analyticsTrackerFn analytics.TrackerFn) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 
@@ -108,6 +109,11 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 			StreamFlagStartup:      viper.GetBool(StreamFlagStartupFlag),
 			SdkInitTimeout:         sdkInitTimeout,
 			InitialProjectSettings: initialSetting,
+			Tracker: analyticsTrackerFn(
+				viper.GetString(cliflags.AccessTokenFlag),
+				viper.GetString(cliflags.BaseURIFlag),
+				viper.GetBool(cliflags.AnalyticsOptOut),
+			),
 		}
 
 		client.RunServer(ctx, params)
