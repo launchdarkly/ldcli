@@ -1,0 +1,16 @@
+import (
+	"fmt"
+	"time"
+
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	ld "github.com/launchdarkly/go-server-sdk/v7"
+)
+// --- init ---
+ldClient, _ := ld.MakeClient("{{.SDKKey}}", 5*time.Second)
+
+context := ldcontext.NewBuilder("example-user-key").
+	Name("Example User").
+	Build()
+
+flagValue, _ := ldClient.BoolVariation("{{.FlagKey}}", context, false)
+fmt.Printf("Flag '{{.FlagKey}}' is %t\n", flagValue)

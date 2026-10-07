@@ -28,6 +28,9 @@ type Store interface {
 	UpsertOverride(ctx context.Context, override Override) (Override, error)
 	GetOverridesForProject(ctx context.Context, projectKey string) (Overrides, error)
 	GetAvailableVariationsForProject(ctx context.Context, projectKey string) (map[string][]Variation, error)
+	// SetAvailableVariationsForProject replaces all stored variations for the
+	// project (used by the background fill in streaming-startup mode).
+	SetAvailableVariationsForProject(ctx context.Context, projectKey string, variations []FlagVariation) error
 	// IncrementProjectPayloadVersion atomically increments the payload version for the project and returns the new version.
 	IncrementProjectPayloadVersion(ctx context.Context, projectKey string) (int, error)
 

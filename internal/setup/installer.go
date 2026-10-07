@@ -1,0 +1,655 @@
+package setup
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"strings"
+)
+
+// InstallResult contains the outcome of installing an SDK package.
+type InstallResult struct {
+	SDKID            string `json:"sdk_id"`
+	Package          string `json:"package"`
+	Version          string `json:"version"`
+	Command          string `json:"command"`
+	DryRun           bool   `json:"dry_run,omitempty"`
+	AlreadyInstalled bool   `json:"already_installed,omitempty"`
+	Failed           bool   `json:"failed,omitempty"`
+	// FailureReason carries the underlying error when Failed is true, so callers
+	// can tell the user why the automatic install did not run.
+	FailureReason string `json:"failure_reason,omitempty"`
+	// Warning carries something the user has to act on even though the install
+	// worked, so success is not reported as though nothing were left to do.
+	Warning string `json:"warning,omitempty"`
+	Success bool   `json:"success"`
+}
+
+// RequiresManualInstall reports whether the SDK has no automated package-manager
+// command and must be added by hand (e.g. Java, Android, Swift).
+func RequiresManualInstall(sdkID string) bool {
+	return manualInstallSDKs[sdkID]
+}
+
+// Installer runs the appropriate package manager command to add an SDK dependency.
+type Installer interface {
+	Install(dir string, detection *DetectResult) (*InstallResult, error)
+}
+
+// StubInstaller is a placeholder implementation. Replace with real install logic.
+type StubInstaller struct{}
+
+var _ Installer = StubInstaller{}
+
+func (StubInstaller) Install(_ string, _ *DetectResult) (*InstallResult, error) {
+	return nil, errors.New("install is not yet implemented: a real Installer must be provided")
+}
+
+// PackageInstaller implements Installer using the system package manager.
+// Its run field can be replaced in tests to avoid executing real commands.
+type PackageInstaller struct {
+	run func(dir string, args []string) ([]byte, error)
+}
+
+var _ Installer = PackageInstaller{}
+
+// manualInstallSDKs lists SDKs that have no automated package-manager command
+// (Java, Android, Swift) but ARE recognised. For these, Install returns
+// Success=false without an error so the wizard can proceed and show the package
+// identifier. An SDK ID that is neither installable nor in this set is unknown
+// and is treated as an error rather than a silent no-op.
+var manualInstallSDKs = map[string]bool{
+	"java-server-sdk":    true,
+	"android":            true,
+	"android-client-sdk": true,
+	"swift-client-sdk":   true,
+	"ios-client-sdk":     true,
+}
+
+// Install runs the appropriate package manager command to add the SDK dependency.
+// For SDKs that require manual installation (e.g. Java, Android, Swift), Install
+// returns a result with Success=false without returning an error. An unknown SDK
+// ID returns an error.
+func (p PackageInstaller) Install(dir string, detection *DetectResult) (*InstallResult, error) {
+	args, pkg := InstallArgs(dir, detection.SDKID, detection.PackageManager)
+	if len(args) == 0 {
+		if !manualInstallSDKs[detection.SDKID] {
+			return nil, fmt.Errorf("unknown SDK %q: no install command available; specify a supported --sdk-id", detection.SDKID)
+		}
+		return &InstallResult{
+			SDKID:   detection.SDKID,
+			Package: pkg,
+			Success: false,
+		}, nil
+	}
+
+	// Skip the install if the SDK is already a dependency of the project.
+	if IsInstalled(dir, detection.SDKID) {
+		return &InstallResult{
+			SDKID:            detection.SDKID,
+			Package:          pkg,
+			AlreadyInstalled: true,
+			Success:          true,
+		}, nil
+	}
+
+	// A virtualenv we cannot install into is a clearer thing to report than whatever
+	// the pip outside it would do.
+	if reason := pipLessVenvReason(dir, pkg, args); reason != "" {
+		return &InstallResult{
+			SDKID:         detection.SDKID,
+			Package:       pkg,
+			Failed:        true,
+			FailureReason: reason,
+		}, nil
+	}
+
+	// Confirm the tool exists before shelling out, so a missing package manager
+	// warns with what to install instead of surfacing an exec "not found" error.
+	// We never install the tool ourselves.
+	if reason := missingToolReason(args[0]); reason != "" {
+		return &InstallResult{
+			SDKID:         detection.SDKID,
+			Package:       pkg,
+			Failed:        true,
+			FailureReason: reason,
+		}, nil
+	}
+
+	if detection.SDKID == "dotnet-server-sdk" {
+		target, reason := dotnetProjectArg(dir)
+		if reason != "" {
+			return &InstallResult{
+				SDKID:         detection.SDKID,
+				Package:       pkg,
+				Failed:        true,
+				FailureReason: reason,
+			}, nil
+		}
+		args = append(args, target...)
+	}
+
+	runner := p.run
+	if runner == nil {
+		runner = execRun
+	}
+
+	out, err := runner(dir, args)
+	command := strings.Join(args, " ")
+	if err != nil {
+		if reason := packageManagerSpecReason(out); reason != "" {
+			return &InstallResult{
+				SDKID:         detection.SDKID,
+				Package:       pkg,
+				Command:       command,
+				Failed:        true,
+				FailureReason: reason,
+			}, nil
+		}
+		if reason := externallyManagedReason(dir, out); reason != "" {
+			// No Command: the reason says not to run this pip, and the done screen
+			// offers a non-empty Command as "install it yourself with".
+			return &InstallResult{
+				SDKID:         detection.SDKID,
+				Package:       pkg,
+				Failed:        true,
+				FailureReason: reason,
+			}, nil
+		}
+		return nil, fmt.Errorf("%s: %w\n%s", command, err, strings.TrimSpace(string(out)))
+	}
+	return &InstallResult{
+		SDKID:   detection.SDKID,
+		Package: pkg,
+		Command: command,
+		Warning: unrecordedDependencyWarning(dir, pkg, args),
+		Success: true,
+	}, nil
+}
+
+// dotnetProjectArg returns the extra arguments needed to point `dotnet add
+// package` at a project, or a reason the install cannot run unattended. A bare
+// `dotnet add package` only works when the working directory holds exactly one
+// project file, but detection also accepts a solution whose projects live in
+// subdirectories.
+func dotnetProjectArg(dir string) (args []string, reason string) {
+	if matches, _ := filepath.Glob(filepath.Join(dir, "*.csproj")); len(matches) == 1 {
+		return nil, ""
+	}
+	projects := csprojFiles(dir)
+	switch len(projects) {
+	case 0:
+		return nil, "no .csproj file found; add LaunchDarkly.ServerSdk to your project manually"
+	case 1:
+		rel, err := filepath.Rel(dir, projects[0])
+		if err != nil {
+			rel = projects[0]
+		}
+		return []string{"--project", rel}, ""
+	default:
+		// Picking one of several projects would add the SDK to an arbitrary
+		// assembly, so let the user say which.
+		return nil, fmt.Sprintf("found %d projects in this solution; run `dotnet add package LaunchDarkly.ServerSdk --project <path>` for the one that needs the SDK", len(projects))
+	}
+}
+
+// packageManagerSpecReason recognises a Node manager refusing to run because the
+// packageManager field in package.json is not a spec corepack accepts: it requires
+// an exact version, so both a missing one and a range are rejected. The manifest is
+// malformed rather than the command wrong, and repairing someone's manifest is not
+// ours to do, so say what is wrong and let them fix it.
+func packageManagerSpecReason(out []byte) string {
+	// package.json has to be named in the output. Both corepack refusals mention it,
+	// and without that check any failure whose text happens to mention a missing or
+	// non-semver version — from a gem, a Python package, a Go module — would have its
+	// real error replaced by advice about a field it does not have.
+	if !bytes.Contains(out, []byte("package.json")) {
+		return ""
+	}
+	badSpec := bytes.Contains(out, []byte("No version specified")) ||
+		bytes.Contains(out, []byte("expected a semver version")) ||
+		bytes.Contains(out, []byte("Invalid package manager specification"))
+	if !badSpec {
+		return ""
+	}
+	return "the packageManager field in package.json is not a specification your package " +
+		"manager accepts: it needs one exact version, so a missing version or a range such as " +
+		"\"pnpm@^11.13.0\" is refused. Pin it (for example \"pnpm@11.13.0\") or remove the field, " +
+		"then run setup again."
+}
+
+// externallyManagedReason recognises a PEP 668 refusal and says what to do about
+// it. Homebrew and most current Linux distributions mark their Python as managed
+// by the OS package manager, so pip declines to write into it. A virtualenv is the
+// supported way through, and it is the user's to create: installing into their
+// system Python, or passing --break-system-packages to force it, risks breaking
+// tools that Python came with.
+func externallyManagedReason(dir string, out []byte) string {
+	if !bytes.Contains(out, []byte("externally-managed-environment")) {
+		return ""
+	}
+	target := dir
+	if target == "" {
+		target = "your project"
+	}
+	return fmt.Sprintf(
+		"this Python is managed by your operating system, so pip will not install into it. "+
+			"Create a virtual environment in %s and run setup again:\n"+
+			"  python3 -m venv .venv\n"+
+			"  source .venv/bin/activate\n"+
+			"Setup uses .venv automatically once it exists.",
+		target,
+	)
+}
+
+// pipLessVenvReason explains that the project's virtualenv cannot be installed into.
+// It fires only when the command is that virtualenv's own pip and the pip is not
+// there — uv, poetry and pipenv own their environments and never reach this.
+func pipLessVenvReason(dir, pkg string, args []string) string {
+	target, exists := venvPipTarget(dir)
+	if target == "" || exists || len(args) == 0 || args[0] != target {
+		return ""
+	}
+	return fmt.Sprintf(
+		"the virtual environment at %s has no pip, which is how `uv venv` creates one. "+
+			"Install into it with `uv pip install %s`, or recreate it with "+
+			"`python3 -m venv .venv`, then run setup again.",
+		filepath.Dir(filepath.Dir(target)), pkg,
+	)
+}
+
+// unrecordedDependencyWarning reports that a bare pip install leaves the project's
+// manifest untouched. poetry, uv, pipenv and pdm record the dependency themselves,
+// and Ruby gets `bundle add` for the same reason, but pip has no equivalent command:
+// editing someone's manifest is not something setup does unasked, so it says what is
+// missing instead of writing the file.
+func unrecordedDependencyWarning(dir, pkg string, args []string) string {
+	if len(args) == 0 || filepath.Base(args[0]) != "pip" && filepath.Base(args[0]) != "pip3" &&
+		filepath.Base(args[0]) != "pip.exe" {
+		return ""
+	}
+	manifest := ""
+	for _, name := range []string{"requirements.txt", "requirements/base.txt"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			manifest = name
+			break
+		}
+	}
+	if manifest == "" {
+		return ""
+	}
+	// Whole-name matching, so a related pin such as launchdarkly-server-sdk-otel is
+	// not read as the SDK itself being recorded.
+	if fileMentionsPackage(filepath.Join(dir, manifest), pkg) {
+		return ""
+	}
+	return fmt.Sprintf(
+		"pip installed %s but did not record it in %s, so a fresh checkout and CI will not have it. "+
+			"Add a line for %s to %s.",
+		pkg, manifest, pkg, manifest,
+	)
+}
+
+// installHints maps a package-manager executable to how the user can get it.
+var installHints = map[string]string{
+	"pip":    "install Python from https://www.python.org/downloads or your package manager",
+	"pip3":   "install Python from https://www.python.org/downloads or your package manager",
+	"poetry": "see https://python-poetry.org/docs/#installation",
+	"uv":     "see https://docs.astral.sh/uv/getting-started/installation",
+	"pipenv": "see https://pipenv.pypa.io/en/latest/installation.html",
+	"pdm":    "see https://pdm-project.org/en/latest/#installation",
+	"npm":    "install Node.js from https://nodejs.org",
+	"yarn":   "see https://yarnpkg.com/getting-started/install",
+	"pnpm":   "see https://pnpm.io/installation",
+	"bun":    "see https://bun.sh/docs/installation",
+	"bundle": "run `gem install bundler`",
+	"gem":    "install Ruby from https://www.ruby-lang.org/en/documentation/installation",
+	"go":     "install Go from https://go.dev/dl",
+	"dotnet": "install the .NET SDK from https://dotnet.microsoft.com/download",
+}
+
+// missingToolReason returns an explanation when tool is not on PATH, or an empty
+// string when it is available.
+func missingToolReason(tool string) string {
+	if onPath(tool) {
+		return ""
+	}
+	if hint, ok := installHints[tool]; ok {
+		return fmt.Sprintf("%s is not installed or not on your PATH — %s", tool, hint)
+	}
+	return fmt.Sprintf("%s is not installed or not on your PATH", tool)
+}
+
+func execRun(dir string, args []string) ([]byte, error) {
+	cmd := exec.Command(args[0], args[1:]...) //nolint:gosec
+	cmd.Dir = dir
+	return cmd.CombinedOutput()
+}
+
+// InstallArgs returns the command-line arguments and package name for installing the given SDK.
+// Returns nil args for SDKs that require manual installation (e.g. Java, Android, Swift).
+// packageManager is used for Node.js SDKs; for other runtimes the appropriate tool is chosen automatically.
+// dir is the project directory, which decides whether a virtualenv's pip is used;
+// pass an empty string when there is no project in mind.
+func InstallArgs(dir, sdkID, packageManager string) (args []string, pkg string) {
+	switch sdkID {
+	case "react-client-sdk":
+		pkg = "launchdarkly-react-client-sdk"
+		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
+	case "react-native":
+		pkg = "@launchdarkly/react-native-client-sdk"
+		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
+	case "node-server":
+		pkg = "@launchdarkly/node-server-sdk"
+		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
+	case "js-client-sdk":
+		// The unscoped v3 package, whose initialize API the init template and the
+		// quickstart instructions both use. The scoped @launchdarkly/js-client-sdk is
+		// v4 and exposes createClient instead.
+		pkg = "launchdarkly-js-client-sdk"
+		return nodeInstallCmd(resolveNodePM(packageManager), pkg), pkg
+	case "python-server-sdk":
+		pkg = "launchdarkly-server-sdk"
+		return pythonInstallCmd(dir, packageManager, pkg), pkg
+	case "go-server-sdk":
+		pkg = "github.com/launchdarkly/go-server-sdk/v7"
+		return []string{"go", "get", pkg}, pkg
+	case "ruby-server-sdk":
+		pkg = "launchdarkly-server-sdk"
+		// Bundler-managed projects need the gem recorded in the Gemfile; a bare
+		// `gem install` would succeed without making the SDK available to the app.
+		if packageManager == "bundle" {
+			return []string{"bundle", "add", pkg}, pkg
+		}
+		return []string{"gem", "install", pkg}, pkg
+	case "dotnet-server-sdk":
+		pkg = "LaunchDarkly.ServerSdk"
+		return []string{"dotnet", "add", "package", pkg}, pkg
+	// SDKs requiring manual installation — return a meaningful package identifier
+	// so callers can display what the user needs to add.
+	case "java-server-sdk":
+		return nil, "com.launchdarkly:launchdarkly-java-server-sdk"
+	case "android", "android-client-sdk":
+		return nil, "com.launchdarkly:launchdarkly-android-client-sdk"
+	case "swift-client-sdk", "ios-client-sdk":
+		return nil, "LaunchDarkly" // Swift Package Manager / CocoaPods
+	default:
+		return nil, sdkID
+	}
+}
+
+// lookPath is indirected so tests can control which executables appear to exist.
+var lookPath = exec.LookPath
+
+// onPath reports whether name is an executable on PATH.
+func onPath(name string) bool {
+	_, err := lookPath(name)
+	return err == nil
+}
+
+// pythonInstallCmd returns the install command arguments for a Python package
+// manager. Anything unrecognised — including the empty string, which IsInstalled
+// passes — falls back to pip.
+func pythonInstallCmd(dir, pm, pkg string) []string {
+	switch pm {
+	case "poetry":
+		return []string{"poetry", "add", pkg}
+	case "uv":
+		return []string{"uv", "add", pkg}
+	case "pipenv":
+		return []string{"pipenv", "install", pkg}
+	case "pdm":
+		return []string{"pdm", "add", pkg}
+	default:
+		return pipInstallCmd(dir, pkg)
+	}
+}
+
+// virtualEnv reports the active virtualenv, indirected so tests are not affected
+// by the environment the suite happens to run in.
+var virtualEnv = func() string { return os.Getenv("VIRTUAL_ENV") }
+
+// venvRoots lists the virtualenvs to consider for dir, the active one first. An
+// empty dir means the caller has no project in mind, so relative lookups would
+// search whatever directory the process happens to be in.
+func venvRoots(dir string) []string {
+	var roots []string
+	if active := virtualEnv(); active != "" {
+		roots = append(roots, active)
+	}
+	if dir != "" {
+		roots = append(roots, filepath.Join(dir, ".venv"), filepath.Join(dir, "venv"))
+	}
+	// Absolute, so a root can be compared against the command we build from it and
+	// so the path we show names the same place whatever the working directory is.
+	for i, root := range roots {
+		if abs, err := filepath.Abs(root); err == nil {
+			roots[i] = abs
+		}
+	}
+	return roots
+}
+
+// venvPipIn returns root's own pip as an absolute path, or an empty string when the
+// virtualenv has none. The path has to be absolute because the command runs with its
+// working directory set to the project: a relative executable is resolved after that
+// change, so "app/.venv/bin/pip" run in "app" would be looked for at
+// "app/app/.venv/bin/pip" and the install would fail with the virtualenv found.
+func venvPipIn(root string) string {
+	for _, rel := range venvPipLayouts() {
+		candidate := filepath.Join(root, rel)
+		info, err := os.Stat(candidate)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		return absOrAsGiven(candidate)
+	}
+	return ""
+}
+
+// venvPipLayouts lists where a virtualenv keeps pip, this platform's layout first.
+// Windows uses Scripts\pip.exe; everything else uses bin/pip. Naming the wrong one
+// would point the plan and the previewed command at a path the environment on this
+// machine never has.
+func venvPipLayouts() []string {
+	unix := filepath.Join("bin", "pip")
+	windows := filepath.Join("Scripts", "pip.exe")
+	if runtime.GOOS == "windows" {
+		return []string{windows, unix}
+	}
+	return []string{unix, windows}
+}
+
+// absOrAsGiven makes a path absolute, falling back to the path itself when the
+// working directory cannot be read.
+func absOrAsGiven(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
+}
+
+// pipInstallCmd returns the pip install command. A virtualenv's pip wins, then
+// whichever of pip3 and pip is on PATH: recent macOS and Homebrew installs ship
+// pip3 with no bare pip, so a hardcoded `pip` fails outright on a common box.
+//
+// Only an existing pip is used. Reaching past it — to `python3 -m pip`, or to
+// bootstrapping pip with ensurepip — would install tooling onto the user's
+// machine, which is not ours to do. When no pip is found the bare form is
+// returned so the plan screen has something to show, and Install's pre-flight
+// check warns instead of running anything.
+func pipInstallCmd(dir, pkg string) []string {
+	// A virtualenv without pip still names the environment the project set up, and
+	// naming it is more use than a pip from PATH that Install will refuse to run:
+	// the plan screen, --dry-run and the picker all read this, and a command shown
+	// there is one a reader may run by hand.
+	if pip, _ := venvPipTarget(dir); pip != "" {
+		return []string{pip, "install", pkg}
+	}
+	for _, bin := range []string{"pip3", "pip"} {
+		if onPath(bin) {
+			return []string{bin, "install", pkg}
+		}
+	}
+	return []string{"pip", "install", pkg}
+}
+
+// venvPipTarget returns the pip belonging to the project's virtualenv, and whether it
+// is actually there. An empty path means there is no virtualenv to install into.
+func venvPipTarget(dir string) (path string, exists bool) {
+	for _, root := range venvRoots(dir) {
+		if pip := venvPipIn(root); pip != "" {
+			return pip, true
+		}
+		if isVirtualEnv(root) {
+			// No pip to find, so name where this platform would keep one.
+			return absOrAsGiven(filepath.Join(root, venvPipLayouts()[0])), false
+		}
+	}
+	return "", false
+}
+
+// isVirtualEnv reports whether root is a virtualenv. pyvenv.cfg is what marks one,
+// and it is there whether or not the environment was seeded with pip.
+func isVirtualEnv(root string) bool {
+	_, err := os.Stat(filepath.Join(root, "pyvenv.cfg"))
+	return err == nil
+}
+
+// nodeInstallCmd returns the install command arguments for a Node.js package manager.
+func nodeInstallCmd(pm, pkg string) []string {
+	switch pm {
+	case "yarn":
+		return []string{"yarn", "add", pkg}
+	case "pnpm":
+		return []string{"pnpm", "add", pkg}
+	case "bun":
+		return []string{"bun", "add", pkg}
+	default:
+		return []string{"npm", "install", pkg}
+	}
+}
+
+// resolveNodePM normalises the package manager name, defaulting to "npm".
+func resolveNodePM(pm string) string {
+	switch pm {
+	case "yarn", "pnpm", "bun":
+		return pm
+	default:
+		return "npm"
+	}
+}
+
+// IsInstalled reports whether the SDK is already a dependency of the project in
+// dir, by looking for its package identifier in the relevant manifest(s). Only
+// covers SDKs with an automated install command; returns false for manual SDKs
+// and unknowns.
+func IsInstalled(dir, sdkID string) bool {
+	_, pkg := InstallArgs(dir, sdkID, "")
+	if pkg == "" {
+		return false
+	}
+
+	var manifests []string
+	switch sdkID {
+	case "react-client-sdk", "react-native", "node-server", "js-client-sdk":
+		manifests = []string{"package.json"}
+	case "go-server-sdk":
+		manifests = []string{"go.mod", "go.sum"}
+	case "python-server-sdk":
+		manifests = []string{"requirements.txt", "pyproject.toml", "setup.py", "Pipfile", "uv.lock"}
+	case "ruby-server-sdk":
+		manifests = []string{"Gemfile", "Gemfile.lock"}
+	case "dotnet-server-sdk":
+		for _, f := range csprojFiles(dir) {
+			if fileMentionsPackage(f, pkg) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+
+	for _, mf := range manifests {
+		if fileMentionsPackage(filepath.Join(dir, mf), pkg) {
+			return true
+		}
+	}
+	return false
+}
+
+func fileMentionsPackage(path, pkg string) bool {
+	b, err := os.ReadFile(path)
+	return err == nil && mentionsPackage(string(b), pkg)
+}
+
+// mentionsPackage reports whether content names pkg as a whole dependency rather
+// than as the prefix of a longer name. A plain substring test treats
+// @launchdarkly/node-server-sdk-redis as proof that @launchdarkly/node-server-sdk
+// is installed, so setup skips installing the SDK the integration package needs.
+// Every manifest format delimits a dependency name with a quote, whitespace, or a
+// comparison operator, so requiring a non-name character on both sides works for
+// all of them without parsing each one.
+func mentionsPackage(content, pkg string) bool {
+	for i := 0; ; {
+		at := strings.Index(content[i:], pkg)
+		if at < 0 {
+			return false
+		}
+		at += i
+		end := at + len(pkg)
+		beforeOK := at == 0 || !isPackageNameChar(rune(content[at-1]))
+		afterOK := end == len(content) || !isPackageNameChar(rune(content[end]))
+		if beforeOK && afterOK {
+			return true
+		}
+		i = at + 1
+	}
+}
+
+// isPackageNameChar reports whether r can appear inside a package name, and so
+// whether it continues a name rather than terminating one.
+func isPackageNameChar(r rune) bool {
+	switch {
+	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		return true
+	case r == '-', r == '_', r == '.', r == '/', r == '@':
+		return true
+	}
+	return false
+}
+
+// csprojFiles returns the project files to consider for a .NET project, preferring
+// those in dir. Detection accepts a solution with no project file beside it, so
+// fall back to searching for the projects the solution refers to.
+func csprojFiles(dir string) []string {
+	if matches, _ := filepath.Glob(filepath.Join(dir, "*.csproj")); len(matches) > 0 {
+		return matches
+	}
+	var found []string
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			// Build output holds copies of nothing useful and can be large.
+			if name := d.Name(); name == "bin" || name == "obj" || name == ".git" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(d.Name(), ".csproj") {
+			found = append(found, path)
+		}
+		return nil
+	})
+	sort.Strings(found)
+	return found
+}

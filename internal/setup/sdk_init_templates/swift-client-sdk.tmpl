@@ -1,0 +1,6 @@
+import LaunchDarkly
+// --- init ---
+let ldConfig = LDConfig(mobileKey: "{{.MobileKey}}", autoEnvAttributes: .enabled)
+guard case .success(let ldContext) = LDContextBuilder(key: "example-user-key").build()
+else { return }
+LDClient.start(config: ldConfig, context: ldContext)
