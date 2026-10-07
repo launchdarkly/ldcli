@@ -12,12 +12,6 @@ import (
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
-type currentResourceState struct {
-	localFingerprint  string
-	serverFingerprint string
-	serverMode        syncdomain.VariationMode
-}
-
 // executePlan applies each independently executable resource and advances the
 // manifest only for resources that succeed.
 func executePlan(
@@ -26,6 +20,7 @@ func executePlan(
 	client syncapi.Client,
 	manifest syncmanifest.Manifest,
 	plan Plan,
+	localFiles localFileResourcesByID,
 ) ([]ResourceOutcome, syncmanifest.Manifest, error) {
 	// Keep the reviewed baseline immutable while successful resources advance
 	// the result manifest independently.
@@ -45,7 +40,7 @@ func executePlan(
 		case ActionRemoveManifest:
 			manifest.Remove(resource.ID)
 		case ActionCreateServer, ActionUpdateServer, ActionArchiveServer, ActionUpdateLocal, ActionDeleteLocal:
-			if err := applyResourceChange(repositoryRoot, localStore, client, resource); err != nil {
+			if err := applyResourceChange(repositoryRoot, localStore, client, resource, localFiles[resource.ID]); err != nil {
 				outcome.Status, outcome.Error = OutcomeFailed, err.Error()
 				failures = append(failures, fmt.Errorf("%s/%s: %w", resource.ID.ProjectKey, resource.ID.LookupKey, err))
 				break
@@ -61,14 +56,24 @@ func executePlan(
 	return outcomes, manifest, errors.Join(failures...)
 }
 
-// applyResourceChange verifies the reviewed state and applies one local or
-// server mutation.
-func applyResourceChange(repositoryRoot string, localStore synclocal.Store, client syncapi.Client, resource PlannedResource) error {
-	if err := verifyResourceUnchanged(repositoryRoot, client, resource); err != nil {
-		return err
-	}
+// applyResourceChange applies one local or server mutation from the plan
+// revalidated after review.
+func applyResourceChange(
+	repositoryRoot string,
+	localStore synclocal.Store,
+	client syncapi.Client,
+	resource PlannedResource,
+	localFile syncdomain.SyncedResource,
+) error {
 	if changesServer(resource.Action) {
 		return applyServerChange(client, resource)
+	}
+	if resource.Action == ActionUpdateLocal {
+		variation, err := variationForLocalFile(*resource.Server, resource.Local, localFile)
+		if err != nil {
+			return err
+		}
+		resource.Server = &variation
 	}
 	if err := applyLocalChange(localStore, resource); err != nil {
 		return err
@@ -87,21 +92,6 @@ func recordSuccessfulChange(manifest *syncmanifest.Manifest, resource PlannedRes
 	default:
 		manifest.SetFingerprint(resource.ID, resource.ServerFingerprint)
 	}
-}
-
-// verifyResourceUnchanged prevents a reviewed action from using stale local or
-// server state.
-func verifyResourceUnchanged(repositoryRoot string, client syncapi.Client, reviewed PlannedResource) error {
-	current, err := readCurrentResourceState(repositoryRoot, client, reviewed.ID)
-	if err != nil {
-		return err
-	}
-	if current.localFingerprint != reviewed.LocalFingerprint ||
-		current.serverFingerprint != reviewed.ServerFingerprint ||
-		current.serverMode != reviewed.ServerMode {
-		return fmt.Errorf("resource changed after review; run sync again")
-	}
-	return nil
 }
 
 // applyServerChange performs one variation mutation through the existing
@@ -165,35 +155,21 @@ func verifyLocalResult(repositoryRoot string, resource PlannedResource) error {
 		return err
 	}
 
-	expectedFingerprint := resource.ServerFingerprint
-	if resource.Action == ActionDeleteLocal {
-		expectedFingerprint = ""
+	expectedFingerprint := ""
+	if resource.Action == ActionUpdateLocal {
+		expectedFingerprint, err = syncdomain.FingerprintVariation(
+			resource.ID.ProjectKey,
+			resource.ID.LookupKey,
+			*resource.Server,
+		)
+		if err != nil {
+			return err
+		}
 	}
 	if actualFingerprint != expectedFingerprint {
 		return fmt.Errorf("local variation did not match the expected state after sync")
 	}
 	return nil
-}
-
-// readCurrentResourceState reads the local and server fingerprints used for
-// optimistic concurrency checks.
-func readCurrentResourceState(repositoryRoot string, client syncapi.Client, id ResourceID) (currentResourceState, error) {
-	localFingerprint, err := readLocalFingerprint(repositoryRoot, id)
-	if err != nil {
-		return currentResourceState{}, err
-	}
-
-	serverResource, err := readServerResource(client, id)
-	if err != nil {
-		return currentResourceState{}, err
-	}
-	serverFingerprint := ""
-	if serverResource.Variation != nil {
-		serverFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, *serverResource.Variation)
-	}
-	return currentResourceState{
-		localFingerprint: localFingerprint, serverFingerprint: serverFingerprint, serverMode: serverResource.ConfigMode,
-	}, err
 }
 
 // readLocalFingerprint returns the current fingerprint for one local resource,

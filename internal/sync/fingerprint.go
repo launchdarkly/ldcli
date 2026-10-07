@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 )
 
 const variationFingerprintSchema = "launchdarkly.config.variation/v1"
@@ -17,9 +18,7 @@ func FingerprintVariation(projectKey, lookupKey string, variation Variation) (st
 	}
 
 	normalized := variation
-	if len(normalized.Model) == 0 {
-		normalized.Model = nil
-	}
+	normalized.Model = normalizeModelForFingerprint(normalized.Model)
 	if len(normalized.Messages) == 0 {
 		normalized.Messages = nil
 	}
@@ -55,6 +54,25 @@ func FingerprintVariation(projectKey, lookupKey string, variation Variation) (st
 	}
 	sum := sha256.Sum256(canonical)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+// normalizeModelForFingerprint removes only defaults that the variation API
+// adds without changing model behavior. Other empty objects remain meaningful.
+func normalizeModelForFingerprint(model map[string]any) map[string]any {
+	if len(model) == 0 {
+		return nil
+	}
+
+	normalized := maps.Clone(model)
+	for _, key := range []string{"parameters", "custom"} {
+		if value, ok := normalized[key].(map[string]any); ok && len(value) == 0 {
+			delete(normalized, key)
+		}
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }
 
 // ValidateDirectAPIVariation rejects fields that the existing variation APIs

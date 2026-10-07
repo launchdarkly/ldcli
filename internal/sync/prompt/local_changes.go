@@ -15,19 +15,20 @@ func applyLocalChange(store synclocal.Store, resource PlannedResource) error {
 
 	switch resource.Action {
 	case ActionUpdateLocal:
+		variation := *resource.Server
 		if resource.Local == nil {
 			_, err := store.Add([]synclocal.VariationFile{{
 				ProjectKey: resource.ID.ProjectKey,
 				ConfigKey:  configKey,
 				Upsert:     true,
-				Variation:  *resource.Server,
+				Variation:  variation,
 			}})
 			return err
 		}
 		_, err := store.ReplaceVariations([]synclocal.VariationReplacement{{
 			ProjectKey: resource.ID.ProjectKey,
 			ConfigKey:  configKey,
-			Variation:  *resource.Server,
+			Variation:  variation,
 		}})
 		return err
 	case ActionDeleteLocal:

@@ -77,6 +77,25 @@ func NewClient(transport resources.Client, accessToken, baseURI string) Client {
 	}
 }
 
+// ModelConfig returns the latest version of one model config.
+func (client Client) ModelConfig(projectKey, modelConfigKey string) (ModelConfig, error) {
+	endpoint, err := url.JoinPath(client.baseURI, "api/v2/projects", projectKey, "ai-configs/model-configs", modelConfigKey)
+	if err != nil {
+		return ModelConfig{}, fmt.Errorf("build model config endpoint: %w", err)
+	}
+
+	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", nil, nil, false)
+	if err != nil {
+		return ModelConfig{}, fmt.Errorf("get model config %q: %w", modelConfigKey, err)
+	}
+
+	var modelConfig ModelConfig
+	if err := json.Unmarshal(response, &modelConfig); err != nil {
+		return ModelConfig{}, fmt.Errorf("decode model config response: %w", err)
+	}
+	return modelConfig, nil
+}
+
 // ReadVariation returns one variation and its parent config mode.
 func (client Client) ReadVariation(projectKey, configKey, variationKey string) (VariationState, error) {
 	config, err := NewCatalogClient(client.transport, client.accessToken, client.baseURI).Config(projectKey, configKey)

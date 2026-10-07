@@ -17,16 +17,17 @@ import (
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
 type directAPI struct {
-	variation                *syncdomain.Variation
-	variationState           string
-	canonicalizeCreatedModel bool
-	requests                 []string
+	variation      *syncdomain.Variation
+	variationState string
+	modelConfigs   []syncapi.ModelConfig
+	requests       []string
 }
 
 type directAPIVariation struct {
@@ -46,6 +47,14 @@ func (api *directAPI) MakeRequest(
 	_ bool,
 ) ([]byte, error) {
 	api.requests = append(api.requests, method+" "+path)
+	if method == "GET" && strings.Contains(path, "/model-configs/") {
+		for _, modelConfig := range api.modelConfigs {
+			if strings.HasSuffix(path, "/"+modelConfig.Key) {
+				return json.Marshal(modelConfig)
+			}
+		}
+		return nil, fmt.Errorf("model config not found")
+	}
 
 	switch method {
 	case "GET":
@@ -65,11 +74,6 @@ func (api *directAPI) MakeRequest(
 			return nil, err
 		}
 		variation.Mode = syncdomain.VariationModeAgent
-		if api.canonicalizeCreatedModel {
-			variation.Model = map[string]any{
-				"modelName": variation.ModelConfigKey, "parameters": map[string]any{}, "custom": map[string]any{},
-			}
-		}
 		api.variation = &variation
 		api.variationState = "published"
 	case "PATCH":
@@ -140,38 +144,64 @@ func TestPromptFirstSyncAdoptsMatchingStateWithoutMutation(t *testing.T) {
 
 	require.NoError(t, err)
 	assertManifestFingerprint(t, root, local)
-	for _, request := range api.requests {
-		assert.True(t, strings.HasPrefix(request, "GET "), request)
-	}
+	requireOnlyReads(t, api.requests)
 }
 
 func TestPromptFirstSyncCreatesUpsertVariation(t *testing.T) {
 	root := initRepository(t)
 	local := variation("New")
+	local.ModelConfigKey = "gemini"
+	local.Model = map[string]any{"modelName": "gemini"}
 	writeVariation(t, root, local, true)
-	api := &directAPI{}
+	api := &directAPI{modelConfigs: []syncapi.ModelConfig{{Key: "gemini", ID: "gemini", Version: 4}}}
 
 	_, _, err := runPrompt(t, root, api, "--yes")
 
 	require.NoError(t, err)
 	require.NotNil(t, api.variation)
 	assert.Equal(t, local.Name, api.variation.Name)
+	assert.Equal(t, 4, api.variation.ModelConfigVersion)
+
+	local.ModelConfigVersion = 4
 	assertManifestFingerprint(t, root, local)
+	requireLocalModelConfigVersion(t, root, 0)
+
+	api.requests = nil
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	requireOnlyReads(t, api.requests)
 }
 
-func TestPromptCreateAcceptsSuccessfulServerCanonicalization(t *testing.T) {
+func TestPromptUpdateResolvesOmittedModelConfigVersionToLatest(t *testing.T) {
 	root := initRepository(t)
-	local := variation("New")
-	local.ModelConfigKey = "gemini"
+	baseline := variation("Matching")
+	baseline.ModelConfigKey = "gemini"
+	baseline.ModelConfigVersion = 2
+	baseline.Model = map[string]any{"modelName": "gemini"}
+
+	local := baseline
+	local.ModelConfigVersion = 0
 	writeVariation(t, root, local, true)
-	api := &directAPI{canonicalizeCreatedModel: true}
+	writeManifest(t, root, baseline)
+	api := &directAPI{
+		variation:    pointer(baseline),
+		modelConfigs: []syncapi.ModelConfig{{Key: "gemini", ID: "gemini", Version: 4}},
+	}
 
 	_, _, err := runPrompt(t, root, api, "--yes")
 
 	require.NoError(t, err)
 	require.NotNil(t, api.variation)
-	assert.NotEmpty(t, api.variation.Model)
+	assert.Equal(t, 4, api.variation.ModelConfigVersion)
+
+	local.ModelConfigVersion = 4
 	assertManifestFingerprint(t, root, local)
+	requireLocalModelConfigVersion(t, root, 0)
+
+	api.requests = nil
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	requireOnlyReads(t, api.requests)
 }
 
 func TestPromptPushesLocalChangeAndAdvancesManifest(t *testing.T) {
@@ -209,6 +239,65 @@ func TestPromptPullsServerChangeAndAdvancesManifest(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resources[0].Payload, &actual))
 	assert.Equal(t, server.Name, actual.Name)
 	assertManifestFingerprint(t, root, server)
+}
+
+func TestPromptPullPreservesLocalModelOverridesAcrossVersions(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	baseline.ModelConfigKey = "gemini"
+	baseline.ModelConfigVersion = 4
+	baseline.Model = map[string]any{
+		"modelName":  "gemini-1",
+		"parameters": map[string]any{"temperature": 0.2},
+		"custom":     map[string]any{"tone": "friendly"},
+	}
+
+	local := baseline
+	local.ModelConfigVersion = 0
+	local.Model = map[string]any{"custom": map[string]any{"tone": "friendly"}}
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, baseline)
+
+	server := baseline
+	server.Name = "Server"
+	server.Model = map[string]any{
+		"modelName":  "gemini-1",
+		"parameters": map[string]any{"temperature": 0.2},
+		"custom":     map[string]any{"tone": "formal"},
+	}
+	api := &directAPI{
+		variation: pointer(server),
+		modelConfigs: []syncapi.ModelConfig{{
+			Key: "gemini", ID: "gemini-1", Version: 4,
+			Params: map[string]any{"temperature": 0.2},
+		}},
+	}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	requireLocalModelConfigVersion(t, root, 0)
+	assertManifestFingerprint(t, root, server)
+
+	api.modelConfigs[0] = syncapi.ModelConfig{
+		Key: "gemini", ID: "gemini-2", Version: 5,
+		Params: map[string]any{"temperature": 0.4},
+	}
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, 5, api.variation.ModelConfigVersion)
+	assert.Equal(t, map[string]any{
+		"modelName":  "gemini-2",
+		"parameters": map[string]any{"temperature": 0.4},
+		"custom":     map[string]any{"tone": "formal"},
+	}, api.variation.Model)
+	requireLocalModelConfigVersion(t, root, 0)
+
+	api.requests = nil
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	requireOnlyReads(t, api.requests)
 }
 
 func TestPromptPushesLinkedFileContent(t *testing.T) {
@@ -315,9 +404,7 @@ func TestPromptRejectsDivergentChangesWithoutMutation(t *testing.T) {
 	_, _, err := runPrompt(t, root, api, "--yes")
 
 	require.ErrorContains(t, err, "interactive conflict resolution requires a terminal")
-	for _, request := range api.requests {
-		assert.True(t, strings.HasPrefix(request, "GET "), request)
-	}
+	requireOnlyReads(t, api.requests)
 }
 
 func TestPromptRevalidatesBeforeWriting(t *testing.T) {
@@ -330,9 +417,7 @@ func TestPromptRevalidatesBeforeWriting(t *testing.T) {
 	_, _, err := runPrompt(t, root, api, "--yes")
 
 	require.ErrorContains(t, err, "sync state changed after review")
-	for _, request := range api.requests {
-		assert.True(t, strings.HasPrefix(request, "GET "), request)
-	}
+	requireOnlyReads(t, api.requests)
 }
 
 func TestPromptAcceptsConfirmedWriteAfterAmbiguousError(t *testing.T) {
@@ -565,6 +650,25 @@ func assertManifestFingerprints(t *testing.T, root string, values ...syncdomain.
 	require.Len(t, manifest.Resources, len(values))
 	for index, value := range values {
 		assert.Equal(t, fingerprint(t, value), manifest.Resources[index].Fingerprint)
+	}
+}
+
+func requireLocalModelConfigVersion(t *testing.T, root string, expected int) {
+	t.Helper()
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+
+	var persisted syncdomain.Variation
+	require.NoError(t, json.Unmarshal(resources[0].Payload, &persisted))
+	require.Equal(t, expected, persisted.ModelConfigVersion)
+}
+
+func requireOnlyReads(t *testing.T, requests []string) {
+	t.Helper()
+	require.NotEmpty(t, requests)
+	for _, request := range requests {
+		require.True(t, strings.HasPrefix(request, "GET "), request)
 	}
 }
 

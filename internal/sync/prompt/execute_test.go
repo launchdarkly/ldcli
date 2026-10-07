@@ -31,7 +31,7 @@ func TestExecutePlanDoesNotMutateReviewedManifest(t *testing.T) {
 		LocalFingerprint: "updated",
 	}}}
 
-	_, updatedManifest, err := executePlan("", synclocal.Store{}, syncapi.Client{}, reviewedManifest, plan)
+	_, updatedManifest, err := executePlan("", synclocal.Store{}, syncapi.Client{}, reviewedManifest, plan, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "reviewed", reviewedManifest.Resources[0].Fingerprint)
