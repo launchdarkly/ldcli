@@ -39,6 +39,7 @@ func TestLiveSetup(t *testing.T) {
 
 	opts := SetupOptions{
 		AgentSpaceName: liveAgentSpaceName,
+		AuthFlow:       "iam",
 		LDAccessToken:  os.Getenv("LD_ACCESS_TOKEN"),
 		Logf:           t.Logf,
 	}
