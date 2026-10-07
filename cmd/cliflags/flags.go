@@ -25,6 +25,7 @@ func GetFields(cmd *cobra.Command) []string {
 const (
 	BaseURIDefault      = "https://app.launchdarkly.com"
 	DevStreamURIDefault = "https://stream.launchdarkly.com"
+	HostDefault         = "127.0.0.1"
 	PortDefault         = "8765"
 
 	AccessTokenFlag   = "access-token"
@@ -39,6 +40,7 @@ const (
 	EnvironmentFlag   = "environment"
 	FieldsFlag        = "fields"
 	FlagFlag          = "flag"
+	HostFlag          = "host"
 	JSONFlag          = "json"
 	OutputFlag        = "output"
 	PortFlag          = "port"
@@ -57,6 +59,7 @@ const (
 	EnvironmentFlagDescription   = "Default environment key"
 	FieldsFlagDescription        = "Comma-separated list of top-level fields to include in JSON output (e.g., --fields key,name,kind)"
 	FlagFlagDescription          = "Default feature flag key"
+	HostFlagDescription          = "Address for the dev server to listen on. Use 0.0.0.0 to accept connections from other machines or containers"
 	JSONFlagDescription          = "Output JSON format (shorthand for --output json)"
 	OutputFlagDescription        = "Output format: json, plaintext, or markdown (default: plaintext in a terminal, json otherwise)"
 	PortFlagDescription          = "Port for the dev server to run on"
@@ -75,6 +78,7 @@ func AllFlagsHelp() map[string]string {
 		DevStreamURIFlag:  DevStreamURIDescription,
 		EnvironmentFlag:   EnvironmentFlagDescription,
 		FlagFlag:          FlagFlagDescription,
+		HostFlag:          HostFlagDescription,
 		OutputFlag:        OutputFlagDescription,
 		PortFlag:          PortFlagDescription,
 		ProjectFlag:       ProjectFlagDescription,

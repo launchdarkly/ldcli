@@ -31,6 +31,7 @@ type Config struct {
 	DevStreamURI      string `json:"dev-stream-uri,omitempty" yaml:"dev-stream-uri,omitempty"`
 	Environment       string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Flag              string `json:"flag,omitempty" yaml:"flag,omitempty"`
+	Host              string `json:"host,omitempty" yaml:"host,omitempty"`
 	Output            string `json:"output,omitempty" yaml:"output,omitempty"`
 	Project           string `json:"project,omitempty" yaml:"project,omitempty"`
 	UpdateCheckOptOut *bool  `json:"update-check-opt-out,omitempty" yaml:"update-check-opt-out,omitempty"`
@@ -124,6 +125,8 @@ func (c Config) Update(kvs []string) (Config, []string, error) {
 				c.Environment = v
 			case cliflags.FlagFlag:
 				c.Flag = v
+			case cliflags.HostFlag:
+				c.Host = v
 			case cliflags.OutputFlag:
 				val, err := output.NewOutputKind(v)
 				if err != nil {

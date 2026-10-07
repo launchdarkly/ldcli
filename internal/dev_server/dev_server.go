@@ -2,8 +2,8 @@ package dev_server
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -31,6 +31,7 @@ type ServerParams struct {
 	AccessToken            string
 	BaseURI                string
 	DevStreamURI           string
+	Host                   string
 	Port                   string
 	CorsEnabled            bool
 	CorsOrigin             string
@@ -115,8 +116,15 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	}
 	handler := handlers.CombinedLoggingHandler(os.Stdout, r)
 
-	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
+	host := serverParams.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(host, serverParams.Port)
 	log.Printf("Server running on %s", addr)
+	if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
+		log.Printf("The dev server now listens on %s by default, so other machines and containers can't reach it. Pass --host 0.0.0.0 to accept their connections", host)
+	}
 	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
 
 	server := http.Server{
