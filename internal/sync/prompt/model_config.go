@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"reflect"
+	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -16,17 +18,19 @@ type modelConfigID struct {
 	configKey  string
 }
 
-// resolveVariationModelConfigs prepares compiled variations for planning.
-// An omitted version follows the latest versioned model config.
-func resolveVariationModelConfigs(
-	resources []syncdomain.SyncedResource,
+// canonicalizeLocalVariationModels returns local resources in the
+// server-comparable shape used by planning. An omitted version uses the latest
+// versioned model config.
+func canonicalizeLocalVariationModels(
+	localFileResources []syncdomain.SyncedResource,
 	getModelConfig modelConfigGetter,
-) (map[ResourceID]struct{}, error) {
+) ([]syncdomain.SyncedResource, error) {
+	// Clone the slice so canonical payloads cannot replace local file payloads.
+	canonicalResources := slices.Clone(localFileResources)
 	modelConfigs := make(map[modelConfigID]syncapi.ModelConfig)
-	followLatest := make(map[ResourceID]struct{})
 
-	for index := range resources {
-		resource := &resources[index]
+	for index := range canonicalResources {
+		resource := &canonicalResources[index]
 		if resource.Kind != syncdomain.KindVariation {
 			continue
 		}
@@ -38,9 +42,6 @@ func resolveVariationModelConfigs(
 		if variation.ModelConfigKey == "" || variation.ModelConfigVersion != 0 {
 			continue
 		}
-		followLatest[ResourceID{
-			Kind: resource.Kind, ProjectKey: resource.ProjectKey, LookupKey: resource.LookupKey,
-		}] = struct{}{}
 
 		id := modelConfigID{projectKey: resource.ProjectKey, configKey: variation.ModelConfigKey}
 		modelConfig, ok := modelConfigs[id]
@@ -57,15 +58,55 @@ func resolveVariationModelConfigs(
 		}
 
 		variation.ModelConfigVersion = modelConfig.Version
-		resolvedModel := modelConfig.VariationModel()
-		maps.Copy(resolvedModel, variation.Model)
-		variation.Model = resolvedModel
+		canonicalModel := modelConfig.VariationModel()
+		maps.Copy(canonicalModel, variation.Model)
+		variation.Model = canonicalModel
 		payload, err := json.Marshal(variation)
 		if err != nil {
-			return nil, fmt.Errorf("encode resolved variation %q: %w", resource.LookupKey, err)
+			return nil, fmt.Errorf("encode canonical variation %q: %w", resource.LookupKey, err)
 		}
 		resource.Payload = payload
 	}
 
-	return followLatest, nil
+	return canonicalResources, nil
+}
+
+// variationForLocalFile converts server state into local file form. It retains
+// model keys from the file and new server values as overrides.
+func variationForLocalFile(
+	serverVariation syncdomain.Variation,
+	canonicalLocalVariation *syncdomain.Variation,
+	localFileResource syncdomain.SyncedResource,
+) (syncdomain.Variation, error) {
+	if len(localFileResource.Payload) == 0 || canonicalLocalVariation == nil {
+		return serverVariation, nil
+	}
+
+	var localFileVariation syncdomain.Variation
+	if err := json.Unmarshal(localFileResource.Payload, &localFileVariation); err != nil {
+		return syncdomain.Variation{}, fmt.Errorf("decode local file variation %q: %w", localFileResource.LookupKey, err)
+	}
+	if localFileVariation.ModelConfigKey == "" || localFileVariation.ModelConfigVersion != 0 {
+		return serverVariation, nil
+	}
+	// Preserve an explicit server reference when it differs from the canonical local reference.
+	if serverVariation.ModelConfigKey != canonicalLocalVariation.ModelConfigKey ||
+		serverVariation.ModelConfigVersion != canonicalLocalVariation.ModelConfigVersion {
+		return serverVariation, nil
+	}
+
+	serverVariation.ModelConfigVersion = 0
+	// Clone the server model before removing canonical fields from the local form.
+	serverVariation.Model = maps.Clone(serverVariation.Model)
+	for key, value := range serverVariation.Model {
+		_, definedInLocalFile := localFileVariation.Model[key]
+		canonicalValue, presentInCanonical := canonicalLocalVariation.Model[key]
+		if !definedInLocalFile && presentInCanonical && reflect.DeepEqual(value, canonicalValue) {
+			delete(serverVariation.Model, key)
+		}
+	}
+	if len(serverVariation.Model) == 0 {
+		serverVariation.Model = nil
+	}
+	return serverVariation, nil
 }

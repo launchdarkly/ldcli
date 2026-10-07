@@ -53,6 +53,8 @@ type syncWorkspace struct {
 	manifest syncmanifest.Store
 }
 
+type localFileResourcesByID map[ResourceID]syncdomain.SyncedResource
+
 // Runner coordinates prompt synchronization using existing config APIs.
 type Runner struct {
 	client     resources.Client
@@ -205,7 +207,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace) 
 	if err != nil {
 		return err
 	}
-	reviewedPlan, err := loadWorkspacePlan(workspace.root, baseline, apiClient)
+	reviewedPlan, _, err := loadWorkspacePlan(workspace.root, baseline, apiClient)
 	if err != nil {
 		return err
 	}
@@ -240,7 +242,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace) 
 	if err != nil {
 		return err
 	}
-	currentPlan, err := loadWorkspacePlan(workspace.root, currentManifest, apiClient)
+	currentPlan, currentLocalFiles, err := loadWorkspacePlan(workspace.root, currentManifest, apiClient)
 	if err != nil {
 		return err
 	}
@@ -254,7 +256,14 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace) 
 	// Apply the user's conflict choices to freshly read state, never to the
 	// potentially stale objects that were rendered during review.
 	currentPlan = applyConflictResolutions(currentPlan, conflictResult.resolutions)
-	outcomes, updatedManifest, executionErr := executePlan(workspace.root, workspace.local, apiClient, currentManifest, currentPlan)
+	outcomes, updatedManifest, executionErr := executePlan(
+		workspace.root,
+		workspace.local,
+		apiClient,
+		currentManifest,
+		currentPlan,
+		currentLocalFiles,
+	)
 	if err := workspace.manifest.Write(updatedManifest); err != nil {
 		executionErr = errors.Join(executionErr, err)
 	}
@@ -287,20 +296,28 @@ func validateOptions(options Options) error {
 	return nil
 }
 
-// loadWorkspacePlan reads local and server state before building a three-way plan.
-func loadWorkspacePlan(repositoryRoot string, baseline syncmanifest.Manifest, client syncapi.Client) (Plan, error) {
-	localResources, err := synclocal.CompileWorkspace(repositoryRoot)
+// loadWorkspacePlan keeps local file data separate from the canonical local
+// resources used by the three-way plan.
+func loadWorkspacePlan(
+	repositoryRoot string,
+	baseline syncmanifest.Manifest,
+	client syncapi.Client,
+) (Plan, localFileResourcesByID, error) {
+	localFileResources, err := synclocal.CompileWorkspace(repositoryRoot)
 	if err != nil {
-		return Plan{}, err
+		return Plan{}, nil, err
 	}
-	followLatest, err := resolveVariationModelConfigs(localResources, client.ModelConfig)
+	canonicalLocalResources, err := canonicalizeLocalVariationModels(localFileResources, client.ModelConfig)
 	if err != nil {
-		return Plan{}, err
+		return Plan{}, nil, err
 	}
 
-	resourceIDs := make(map[ResourceID]struct{}, len(localResources)+len(baseline.Resources))
-	for _, resource := range localResources {
-		resourceIDs[ResourceID{Kind: resource.Kind, ProjectKey: resource.ProjectKey, LookupKey: resource.LookupKey}] = struct{}{}
+	localFilesByID := make(localFileResourcesByID, len(localFileResources))
+	resourceIDs := make(map[ResourceID]struct{}, len(localFileResources)+len(baseline.Resources))
+	for _, resource := range localFileResources {
+		id := ResourceID{Kind: resource.Kind, ProjectKey: resource.ProjectKey, LookupKey: resource.LookupKey}
+		localFilesByID[id] = resource
+		resourceIDs[id] = struct{}{}
 	}
 	for _, resource := range baseline.Resources {
 		resourceIDs[resource.ID()] = struct{}{}
@@ -310,15 +327,11 @@ func loadWorkspacePlan(repositoryRoot string, baseline syncmanifest.Manifest, cl
 	for id := range resourceIDs {
 		resource, err := readServerResource(client, id)
 		if err != nil {
-			return Plan{}, err
+			return Plan{}, nil, err
 		}
 		serverResources[id] = resource
 	}
-	plan := BuildPlan(baseline, localResources, serverResources)
-	for index := range plan.Resources {
-		_, plan.Resources[index].LocalFollowsLatestModelConfig = followLatest[plan.Resources[index].ID]
-	}
-	return plan, nil
+	return BuildPlan(baseline, canonicalLocalResources, serverResources), localFilesByID, nil
 }
 
 // samePlanState reports whether every reviewed decision still has the same inputs.
@@ -343,6 +356,5 @@ func samePlannedResourceState(reviewed, current PlannedResource) bool {
 		reviewed.LocalFingerprint == current.LocalFingerprint &&
 		reviewed.ServerFingerprint == current.ServerFingerprint &&
 		reviewed.ServerMode == current.ServerMode &&
-		reviewed.Upsert == current.Upsert &&
-		reviewed.LocalFollowsLatestModelConfig == current.LocalFollowsLatestModelConfig
+		reviewed.Upsert == current.Upsert
 }

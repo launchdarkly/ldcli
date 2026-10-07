@@ -38,18 +38,17 @@ type ServerResource struct {
 // PlannedResource contains the compared local/server state and the action
 // selected for one resource.
 type PlannedResource struct {
-	ID                            ResourceID
-	Action                        Action
-	Upsert                        bool
-	BaselineFingerprint           string
-	LocalFingerprint              string
-	ServerFingerprint             string
-	ServerMode                    syncdomain.VariationMode
-	Local                         *syncdomain.Variation
-	Server                        *syncdomain.Variation
-	LocalFollowsLatestModelConfig bool
-	Diff                          variationDiffFields
-	Error                         string
+	ID                  ResourceID
+	Action              Action
+	Upsert              bool
+	BaselineFingerprint string
+	LocalFingerprint    string
+	ServerFingerprint   string
+	ServerMode          syncdomain.VariationMode
+	Local               *syncdomain.Variation
+	Server              *syncdomain.Variation
+	Diff                variationDiffFields
+	Error               string
 }
 
 // Plan contains sync decisions in deterministic resource order.

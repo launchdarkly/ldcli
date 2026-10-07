@@ -20,6 +20,7 @@ func executePlan(
 	client syncapi.Client,
 	manifest syncmanifest.Manifest,
 	plan Plan,
+	localFiles localFileResourcesByID,
 ) ([]ResourceOutcome, syncmanifest.Manifest, error) {
 	// Keep the reviewed baseline immutable while successful resources advance
 	// the result manifest independently.
@@ -39,7 +40,7 @@ func executePlan(
 		case ActionRemoveManifest:
 			manifest.Remove(resource.ID)
 		case ActionCreateServer, ActionUpdateServer, ActionArchiveServer, ActionUpdateLocal, ActionDeleteLocal:
-			if err := applyResourceChange(repositoryRoot, localStore, client, resource); err != nil {
+			if err := applyResourceChange(repositoryRoot, localStore, client, resource, localFiles[resource.ID]); err != nil {
 				outcome.Status, outcome.Error = OutcomeFailed, err.Error()
 				failures = append(failures, fmt.Errorf("%s/%s: %w", resource.ID.ProjectKey, resource.ID.LookupKey, err))
 				break
@@ -57,9 +58,22 @@ func executePlan(
 
 // applyResourceChange applies one local or server mutation from the plan
 // revalidated after review.
-func applyResourceChange(repositoryRoot string, localStore synclocal.Store, client syncapi.Client, resource PlannedResource) error {
+func applyResourceChange(
+	repositoryRoot string,
+	localStore synclocal.Store,
+	client syncapi.Client,
+	resource PlannedResource,
+	localFile syncdomain.SyncedResource,
+) error {
 	if changesServer(resource.Action) {
 		return applyServerChange(client, resource)
+	}
+	if resource.Action == ActionUpdateLocal {
+		variation, err := variationForLocalFile(*resource.Server, resource.Local, localFile)
+		if err != nil {
+			return err
+		}
+		resource.Server = &variation
 	}
 	if err := applyLocalChange(localStore, resource); err != nil {
 		return err
@@ -141,13 +155,13 @@ func verifyLocalResult(repositoryRoot string, resource PlannedResource) error {
 		return err
 	}
 
-	expectedFingerprint := resource.ServerFingerprint
-	if resource.Action == ActionDeleteLocal {
-		expectedFingerprint = ""
-	} else if resource.Action == ActionUpdateLocal && resource.Local != nil && resource.LocalFollowsLatestModelConfig {
-		expected := *resource.Server
-		expected.ModelConfigVersion = 0
-		expectedFingerprint, err = syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, expected)
+	expectedFingerprint := ""
+	if resource.Action == ActionUpdateLocal {
+		expectedFingerprint, err = syncdomain.FingerprintVariation(
+			resource.ID.ProjectKey,
+			resource.ID.LookupKey,
+			*resource.Server,
+		)
 		if err != nil {
 			return err
 		}

@@ -241,23 +241,36 @@ func TestPromptPullsServerChangeAndAdvancesManifest(t *testing.T) {
 	assertManifestFingerprint(t, root, server)
 }
 
-func TestPromptPullPreservesFollowLatestModelConfig(t *testing.T) {
+func TestPromptPullPreservesLocalModelOverridesAcrossVersions(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
 	baseline.ModelConfigKey = "gemini"
 	baseline.ModelConfigVersion = 4
-	baseline.Model = map[string]any{"modelName": "gemini"}
+	baseline.Model = map[string]any{
+		"modelName":  "gemini-1",
+		"parameters": map[string]any{"temperature": 0.2},
+		"custom":     map[string]any{"tone": "friendly"},
+	}
 
 	local := baseline
 	local.ModelConfigVersion = 0
+	local.Model = map[string]any{"custom": map[string]any{"tone": "friendly"}}
 	writeVariation(t, root, local, false)
 	writeManifest(t, root, baseline)
 
 	server := baseline
 	server.Name = "Server"
+	server.Model = map[string]any{
+		"modelName":  "gemini-1",
+		"parameters": map[string]any{"temperature": 0.2},
+		"custom":     map[string]any{"tone": "formal"},
+	}
 	api := &directAPI{
-		variation:    pointer(server),
-		modelConfigs: []syncapi.ModelConfig{{Key: "gemini", ID: "gemini", Version: 4}},
+		variation: pointer(server),
+		modelConfigs: []syncapi.ModelConfig{{
+			Key: "gemini", ID: "gemini-1", Version: 4,
+			Params: map[string]any{"temperature": 0.2},
+		}},
 	}
 
 	_, _, err := runPrompt(t, root, api, "--yes")
@@ -265,6 +278,21 @@ func TestPromptPullPreservesFollowLatestModelConfig(t *testing.T) {
 	require.NoError(t, err)
 	requireLocalModelConfigVersion(t, root, 0)
 	assertManifestFingerprint(t, root, server)
+
+	api.modelConfigs[0] = syncapi.ModelConfig{
+		Key: "gemini", ID: "gemini-2", Version: 5,
+		Params: map[string]any{"temperature": 0.4},
+	}
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	require.NotNil(t, api.variation)
+	assert.Equal(t, 5, api.variation.ModelConfigVersion)
+	assert.Equal(t, map[string]any{
+		"modelName":  "gemini-2",
+		"parameters": map[string]any{"temperature": 0.4},
+		"custom":     map[string]any{"tone": "formal"},
+	}, api.variation.Model)
+	requireLocalModelConfigVersion(t, root, 0)
 
 	api.requests = nil
 	_, _, err = runPrompt(t, root, api, "--yes")
