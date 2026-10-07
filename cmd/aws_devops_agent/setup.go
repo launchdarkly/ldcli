@@ -25,6 +25,7 @@ const (
 	replaceMCPTokenFlag = "replace-mcp-token"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
+	mcpAccessTokenFlag  = "mcp-access-token"
 )
 
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
@@ -38,11 +39,11 @@ Re-running is safe: setup reuses the agent space matching --agent-space-name
 along with anything already attached to it. The run ends with the operator app
 URL, where the agent is used.
 
-The MCP server is connected with --access-token, or with the token in your
-ldcli configuration when you do not pass one. With neither, setup asks for a
-LaunchDarkly service token. AWS keeps that token and the agent acts as its
-account and role, so a session token from 'ldcli login' stops working once it
-expires.`,
+The MCP server is connected with a LaunchDarkly service token setup creates
+for it, so the agent's API calls are attributable to the agent rather than to
+you. Creating that token uses --access-token or the token in your ldcli
+configuration; pass --mcp-access-token to hand AWS a token you made yourself
+instead.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,
@@ -58,9 +59,10 @@ expires.`,
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientIDFlag, "", "OIDC client ID, required when --auth-flow=idp")
 	cmd.Flags().String(idpClientSecretFlag, "", "OIDC client secret, required when --auth-flow=idp")
-	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses the token passed with --access-token")
+	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses a new token")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to use, instead of the one registered at --mcp-endpoint")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register and look the server up by. Defaults to "+awsdevops.MCPServerEndpoint)
+	cmd.Flags().String(mcpAccessTokenFlag, "", "LaunchDarkly token to register the MCP server with, instead of a service token setup creates")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -82,11 +84,11 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	if warning := awsdevops.CheckAWSCLIVersion(cmd.Context()); warning != "" {
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", warning)
 	}
-	if opts.LDAccessToken != "" && accessTokenFromConfig(cmd) {
+	if opts.MCPAccessToken == "" && opts.LDAccessToken != "" && accessTokenFromConfig(cmd) {
 		_, _ = fmt.Fprintln(
 			cmd.ErrOrStderr(),
-			"Using the access token from your ldcli configuration for the MCP server. "+
-				"Pass --access-token with a service token if that one expires",
+			"Creating the MCP server's service token with the access token from your ldcli "+
+				"configuration. Pass --access-token if that one is expired",
 		)
 	}
 	if plaintext {
@@ -137,9 +139,9 @@ func connectMCPServer(
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
 	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Paste the token, or press Enter to skip: ")
-	opts.LDAccessToken = readSecret(cmd.InOrStdin())
+	opts.MCPAccessToken = readSecret(cmd.InOrStdin())
 	_, _ = fmt.Fprintln(cmd.OutOrStdout())
-	if opts.LDAccessToken == "" {
+	if opts.MCPAccessToken == "" {
 		return nil
 	}
 
@@ -161,6 +163,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		ReplaceMCPToken: mustBool(cmd, replaceMCPTokenFlag),
 		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
+		MCPAccessToken:  mustString(cmd, mcpAccessTokenFlag),
 	}
 
 	switch opts.AuthFlow {

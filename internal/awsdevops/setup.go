@@ -67,6 +67,11 @@ type SetupOptions struct {
 	LDAccessToken   string
 	ReplaceMCPToken bool
 
+	// MCPAccessToken, when set, is the token AWS stores for the MCP server.
+	// Without it setup creates a service token of its own, so the agent's API
+	// calls are not attributed to whoever ran the command.
+	MCPAccessToken string
+
 	// MCPServiceID, when set, is the registration to reuse or replace instead
 	// of the one found by endpoint.
 	MCPServiceID string
@@ -169,6 +174,12 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	}
 
 	return result, nil
+}
+
+// hasMCPToken reports whether setup can produce a token to register with,
+// either one given to it or one it can create with the caller's credentials.
+func (o SetupOptions) hasMCPToken() bool {
+	return o.MCPAccessToken != "" || o.LDAccessToken != ""
 }
 
 // mcpEndpoint is the endpoint the MCP server is registered at and found by.
@@ -292,6 +303,48 @@ func RegisterMCPServer(ctx context.Context, clients Clients, opts SetupOptions, 
 	return registerMCPServer(ctx, clients, opts, result, logf)
 }
 
+// resolveMCPToken returns the token AWS stores for the MCP server: the one
+// the caller supplied, or a service token created for this agent space so the
+// agent's API calls are identifiable in LaunchDarkly and can be revoked on
+// their own. replacing asks for a supplied token to be checked first, since
+// the registration it replaces cannot be restored.
+func resolveMCPToken(
+	ctx context.Context,
+	opts SetupOptions,
+	agentSpaceID string,
+	replacing bool,
+	logf func(string, ...any),
+) (string, error) {
+	if opts.MCPAccessToken != "" {
+		if replacing {
+			if err := ValidateAccessToken(ctx, opts.LDBaseURI, opts.MCPAccessToken); err != nil {
+				return "", err
+			}
+		}
+
+		return opts.MCPAccessToken, nil
+	}
+
+	name := "AWS DevOps Agent"
+	if agentSpaceID != "" {
+		name = fmt.Sprintf("%s (agent space %s)", name, agentSpaceID)
+	}
+
+	created, err := CreateServiceToken(ctx, opts.LDBaseURI, opts.LDAccessToken, name)
+	if err != nil {
+		return "", err
+	}
+	logf(
+		"Created the LaunchDarkly service token %q (%s) for the MCP server, so the agent acts as "+
+			"itself. Revoke it at %s to cut off the agent's access",
+		created.Name,
+		created.ID,
+		AccessTokenURL(opts.LDBaseURI),
+	)
+
+	return created.Value, nil
+}
+
 func registerMCPServer(
 	ctx context.Context,
 	clients Clients,
@@ -308,32 +361,32 @@ func registerMCPServer(
 		}
 		existing = found
 	}
-	if existing == "" && opts.LDAccessToken == "" {
+	if existing == "" && !opts.hasMCPToken() {
 		// Nothing to reuse and no token to register with; the caller collects
 		// one and calls RegisterMCPServer afterwards.
 		return nil
 	}
-	if existing != "" && (!opts.ReplaceMCPToken || opts.LDAccessToken == "") {
+	if existing != "" && (!opts.ReplaceMCPToken || !opts.hasMCPToken()) {
 		result.MCPServiceID = existing
 		logf(
 			"Reusing the %s MCP server already registered on this account (%s); it keeps the access "+
-				"token it was registered with, so pass --access-token --replace-mcp-token to change it",
+				"token it was registered with, so pass --replace-mcp-token to issue it a new one",
 			MCPServerName,
 			existing,
 		)
 
 		return associateMCPServer(ctx, clients, result, logf)
 	}
+	// AWS stores the token write-only, so the old registration cannot be
+	// restored once it is deregistered. Resolve the new token while the
+	// working registration is still in place.
+	token, err := resolveMCPToken(ctx, opts, result.AgentSpaceID, existing != "", logf)
+	if err != nil {
+		return err
+	}
+
 	var detached []string
 	if existing != "" {
-		// AWS stores the token write-only, so the old registration cannot be
-		// restored once it is deregistered. Reject a token LaunchDarkly will
-		// not accept while the working registration is still in place.
-		if err := ValidateAccessToken(ctx, opts.LDBaseURI, opts.LDAccessToken); err != nil {
-			return err
-		}
-
-		var err error
 		detached, err = disassociateEverywhere(ctx, clients, existing, logf)
 		if err != nil {
 			return err
@@ -357,7 +410,7 @@ func registerMCPServer(
 				AuthorizationConfig: &agenttypes.MCPServerAuthorizationConfigMemberBearerToken{
 					Value: agenttypes.MCPServerBearerTokenConfig{
 						TokenName:  aws.String("launchdarkly-api-token"),
-						TokenValue: aws.String(opts.LDAccessToken),
+						TokenValue: aws.String(token),
 					},
 				},
 			},
@@ -365,7 +418,7 @@ func registerMCPServer(
 	}
 
 	registration, err := registerWithRetry(ctx, clients, input, logf, endpoint)
-	if err != nil {
+	if err != nil { //nolint:nestif // the two failure modes need different guidance
 		if strings.Contains(err.Error(), "already exists") {
 			return fmt.Errorf(
 				"an MCP server named %s is already registered on this account at another endpoint, "+

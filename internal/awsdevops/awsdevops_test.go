@@ -2,6 +2,7 @@ package awsdevops_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -254,6 +255,7 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, iamClient), awsdevops.SetupOptions{
 		AgentSpaceName: "launchdarkly",
 		AuthFlow:       "iam",
+		LDBaseURI:      stubLaunchDarkly(t, http.StatusOK),
 		LDAccessToken:  "api-token",
 	})
 	require.NoError(t, err)
@@ -392,15 +394,34 @@ func mcpService(serviceID, name, endpoint string) agenttypes.RegisteredService {
 	}
 }
 
-// stubLaunchDarkly stands in for the LaunchDarkly API the access token is
-// checked against, and returns its base URI.
+// mintedToken is the service token stubLaunchDarkly issues.
+const mintedToken = "minted-service-token"
+
+// stubLaunchDarkly stands in for the LaunchDarkly API that checks access
+// tokens and issues service tokens, and returns its base URI. status is what
+// it answers both with, so a test can make the caller's token unusable.
 func stubLaunchDarkly(t *testing.T, status int) string {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/api/v2/caller-identity", r.URL.Path)
 		assert.Equal(t, "api-token", r.Header.Get("Authorization"))
-		w.WriteHeader(status)
+
+		switch {
+		case r.URL.Path == "/api/v2/caller-identity":
+			w.WriteHeader(status)
+		case r.URL.Path == "/api/v2/tokens" && status == http.StatusOK:
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			assert.Equal(t, true, body["serviceToken"])
+			assert.Contains(t, body["name"], "AWS DevOps Agent")
+
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"_id":"token-1","name":"` + body["name"].(string) + `","token":"` + mintedToken + `"}`))
+		case r.URL.Path == "/api/v2/tokens":
+			w.WriteHeader(status)
+		default:
+			t.Errorf("unexpected request to %s", r.URL.Path)
+		}
 	}))
 	t.Cleanup(server.Close)
 
@@ -555,6 +576,7 @@ func TestSetupIgnoresAnMCPServerAtAnotherEndpoint(t *testing.T) {
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceID:    "space-1",
 		AuthFlow:        "iam",
+		LDBaseURI:       stubLaunchDarkly(t, http.StatusOK),
 		LDAccessToken:   "api-token",
 		ReplaceMCPToken: true,
 	})
@@ -589,6 +611,7 @@ func TestSetupRegistersAtTheEndpointItIsGiven(t *testing.T) {
 	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
 		AgentSpaceID:  "space-1",
 		AuthFlow:      "iam",
+		LDBaseURI:     stubLaunchDarkly(t, http.StatusOK),
 		LDAccessToken: "api-token",
 		MCPEndpoint:   "https://mcp.example.internal/mcp",
 	})
@@ -598,6 +621,75 @@ func TestSetupRegistersAtTheEndpointItIsGiven(t *testing.T) {
 	details, ok := agent.registerInputs[0].ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver)
 	require.True(t, ok)
 	assert.Equal(t, "https://mcp.example.internal/mcp", aws.ToString(details.Value.Endpoint))
+}
+
+// registeredToken is the bearer token AWS was told to store for the MCP
+// server registered by the only RegisterService call.
+func registeredToken(t *testing.T, agent *fakeAgent) string {
+	t.Helper()
+
+	require.Len(t, agent.registerInputs, 1)
+	details, ok := agent.registerInputs[0].ServiceDetails.(*agenttypes.ServiceDetailsMemberMcpserver)
+	require.True(t, ok)
+	auth, ok := details.Value.AuthorizationConfig.(*agenttypes.MCPServerAuthorizationConfigMemberBearerToken)
+	require.True(t, ok)
+
+	return aws.ToString(auth.Value.TokenValue)
+}
+
+func TestSetupRegistersAServiceTokenItCreatesRatherThanTheCallers(t *testing.T) {
+	agent := &fakeAgent{}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceID:  "space-1",
+		AuthFlow:      "iam",
+		LDBaseURI:     stubLaunchDarkly(t, http.StatusOK),
+		LDAccessToken: "api-token",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, mintedToken, registeredToken(t, agent))
+}
+
+func TestSetupRegistersTheTokenItIsGivenWithoutCreatingOne(t *testing.T) {
+	agent := &fakeAgent{}
+	baseURI := stubLaunchDarkly(t, http.StatusInternalServerError)
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceID:   "space-1",
+		AuthFlow:       "iam",
+		LDBaseURI:      baseURI,
+		LDAccessToken:  "api-token",
+		MCPAccessToken: "my-own-token",
+	})
+	require.NoError(t, err)
+
+	// The stub fails every request, so reaching AWS at all shows setup never
+	// called LaunchDarkly.
+	assert.Equal(t, "my-own-token", registeredToken(t, agent))
+}
+
+func TestSetupKeepsTheMCPServerWhenItCannotCreateAServiceToken(t *testing.T) {
+	agent := &fakeAgent{
+		services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-existing")},
+		associations: []agenttypes.Association{{
+			AssociationId: aws.String("assoc-mcp-existing"),
+			ServiceId:     aws.String("mcp-existing"),
+		}},
+	}
+
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		AgentSpaceID:    "space-1",
+		AuthFlow:        "iam",
+		LDBaseURI:       stubLaunchDarkly(t, http.StatusForbidden),
+		LDAccessToken:   "api-token",
+		ReplaceMCPToken: true,
+	})
+
+	assert.ErrorContains(t, err, "not allowed to create access tokens")
+	assert.Empty(t, agent.disassociatedIDs)
+	assert.Empty(t, agent.deregisteredIDs)
+	assert.NotContains(t, agent.calls, "RegisterService")
 }
 
 func TestStatusFollowsEveryListPage(t *testing.T) {
