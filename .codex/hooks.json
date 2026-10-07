@@ -1,0 +1,19 @@
+{
+  "description": "Load the Simple English rules at the start of each Codex session.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|resume|clear|compact)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agents/skills/simple-english/scripts/hook.py\" session-start --harness codex",
+            "timeout": 5,
+            "statusMessage": "Loading Simple English...",
+            "additionalContextLimit": 0
+          }
+        ]
+      }
+    ]
+  }
+}
