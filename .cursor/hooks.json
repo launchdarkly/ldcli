@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "python3 .agents/skills/simple-english/scripts/hook.py session-start --harness cursor",
+        "timeout": 5
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "python3 .agents/skills/simple-english/scripts/hook.py post-edit --harness cursor",
+        "matcher": "Write",
+        "timeout": 10
+      }
+    ]
+  }
+}

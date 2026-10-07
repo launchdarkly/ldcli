@@ -19,7 +19,7 @@ import { ContextEditor } from './ContextEditor';
 import { ProjectEditButton } from './SubmitButton';
 
 type Props = {
-  projectKey: string;
+  environments: Environment[] | null;
   selectedEnvironment: Environment | null;
   setSelectedEnvironment: (selectedEnvironment: Environment | null) => void;
   sourceEnvironmentKey: string | null;
@@ -31,7 +31,7 @@ type Props = {
 };
 
 export function ProjectEditor({
-  projectKey,
+  environments,
   selectedEnvironment,
   setSelectedEnvironment,
   sourceEnvironmentKey,
@@ -101,8 +101,7 @@ export function ProjectEditor({
                 </Label>
                 <Stack gap="3">
                   <EnvironmentSelector
-                    projectKey={projectKey}
-                    sourceEnvironmentKey={sourceEnvironmentKey}
+                    environments={environments}
                     selectedEnvironment={tempSelectedEnvironment}
                     setSelectedEnvironment={setTempSelectedEnvironment}
                   />

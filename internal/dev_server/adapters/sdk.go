@@ -15,6 +15,10 @@ import (
 
 const ctxKeySdk = ctxKey("adapters.sdk")
 
+// DefaultSdkInitTimeout is how long the SDK client waits for the streaming connection to deliver the
+// initial flag payload before giving up. Large projects on slow links may need a longer timeout.
+const DefaultSdkInitTimeout = 5 * time.Second
+
 func WithSdk(ctx context.Context, s Sdk) context.Context {
 	return context.WithValue(ctx, ctxKeySdk, s)
 }
@@ -30,11 +34,16 @@ type Sdk interface {
 
 type streamingSdk struct {
 	streamingUrl string
+	initTimeout  time.Duration
 }
 
-func newSdk(streamingUrl string) Sdk {
+func newSdk(streamingUrl string, initTimeout time.Duration) Sdk {
+	if initTimeout <= 0 {
+		initTimeout = DefaultSdkInitTimeout
+	}
 	return streamingSdk{
 		streamingUrl: streamingUrl,
+		initTimeout:  initTimeout,
 	}
 }
 
@@ -47,7 +56,7 @@ func (s streamingSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.
 	if s.streamingUrl != "" {
 		config.ServiceEndpoints.Streaming = s.streamingUrl
 	}
-	ldClient, err := ldsdk.MakeCustomClient(sdkKey, config, 5*time.Second)
+	ldClient, err := ldsdk.MakeCustomClient(sdkKey, config, s.initTimeout)
 	if err != nil {
 		return flagstate.AllFlags{}, errors.Wrap(err, "unable to get source flags from LD SDK")
 	}

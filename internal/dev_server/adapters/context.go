@@ -2,11 +2,13 @@ package adapters
 
 import (
 	"context"
-	ldapi "github.com/launchdarkly/api-client-go/v14"
+	"time"
+
+	ldapi "github.com/launchdarkly/api-client-go/v24"
 )
 
-func WithApiAndSdk(ctx context.Context, client ldapi.APIClient, streamingUrl string) context.Context {
-	ctx = WithSdk(ctx, newSdk(streamingUrl))
+func WithApiAndSdk(ctx context.Context, client ldapi.APIClient, streamingUrl string, sdkInitTimeout time.Duration) context.Context {
+	ctx = WithSdk(ctx, newSdk(streamingUrl, sdkInitTimeout))
 	ctx = WithApi(ctx, NewApi(client))
 	return ctx
 }
