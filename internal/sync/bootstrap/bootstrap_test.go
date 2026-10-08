@@ -176,17 +176,18 @@ func TestFinishSelectionWritesInitialManifest(t *testing.T) {
 	secondVariation.Name = "Variation 2"
 
 	err := finishSelection(Options{
-		Store:    synclocal.NewStore(root),
-		Manifest: manifestStore,
-		Output:   &output,
-		Initial:  true,
+		Store:     synclocal.NewStore(root),
+		Baselines: manifestStore,
+		Output:    &output,
+		Initial:   true,
 	}, []synclocal.VariationFile{
 		{ProjectKey: "project", ConfigKey: "config", Upsert: true, Variation: variation},
 		{ProjectKey: "project", ConfigKey: "config", Upsert: true, Variation: secondVariation},
 	})
 
 	require.NoError(t, err)
-	manifest, err := manifestStore.Load([]string{"project"})
+	baseline, err := manifestStore.Load([]string{"project"})
+	manifest := baseline.Lock
 	require.NoError(t, err)
 	require.Len(t, manifest.Resources, 3)
 	attachmentFingerprint, err := syncdomain.FingerprintAttachment("project", variation.Attachments[0])
@@ -221,7 +222,7 @@ func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 		Tools: []syncdomain.AttachmentRef{{Key: "search"}}, Attachments: []syncdomain.Attachment{localAttachment},
 	}
 	require.NoError(t, finishSelection(Options{
-		Store: store, Manifest: manifestStore, Output: io.Discard, Initial: true,
+		Store: store, Baselines: manifestStore, Output: io.Discard, Initial: true,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project", ConfigKey: "config", Variation: first,
 	}}))
@@ -241,7 +242,7 @@ func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 		Tools: []syncdomain.AttachmentRef{{Key: "search"}}, Attachments: []syncdomain.Attachment{serverAttachment},
 	}
 	require.NoError(t, finishSelection(Options{
-		Store: store, Manifest: manifestStore, Output: io.Discard,
+		Store: store, Baselines: manifestStore, Output: io.Discard,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project", ConfigKey: "config", Variation: second,
 	}}))
@@ -258,7 +259,8 @@ func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 	}
 	require.NotEmpty(t, expectedFingerprint)
 
-	manifest, err := manifestStore.Load([]string{"project"})
+	baseline, err := manifestStore.Load([]string{"project"})
+	manifest := baseline.Lock
 	require.NoError(t, err)
 	for _, resource := range manifest.Resources {
 		if resource.ResourceKind == syncdomain.KindVariation && resource.LookupKey == "config/second" {
@@ -285,19 +287,20 @@ func TestFinishSelectionAddsMultipleVersionedVariationsToExistingManifest(t *tes
 		ModelConfigKey: "model", ModelConfigVersion: 3,
 	}
 	require.NoError(t, finishSelection(Options{
-		Store: store, Manifest: manifestStore, Output: io.Discard, Initial: true,
+		Store: store, Baselines: manifestStore, Output: io.Discard, Initial: true,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project", ConfigKey: "config", Variation: first,
 	}}))
 
 	require.NoError(t, finishSelection(Options{
-		Store: store, Manifest: manifestStore, Output: io.Discard,
+		Store: store, Baselines: manifestStore, Output: io.Discard,
 	}, []synclocal.VariationFile{
 		{ProjectKey: "project", ConfigKey: "config", Variation: second},
 		{ProjectKey: "project", ConfigKey: "config", Variation: third},
 	}))
 
-	manifest, err := manifestStore.Load([]string{"project"})
+	baseline, err := manifestStore.Load([]string{"project"})
+	manifest := baseline.Lock
 	require.NoError(t, err)
 	require.Len(t, manifest.Resources, 3)
 	assert.Equal(t, "config/first", manifest.Resources[0].LookupKey)
@@ -317,10 +320,10 @@ func TestFinishSelectionRollsBackFilesWhenManifestWriteFails(t *testing.T) {
 	}
 
 	err := finishSelection(Options{
-		Store:    synclocal.NewStore(root),
-		Manifest: failingManifestStore{},
-		Output:   io.Discard,
-		Initial:  true,
+		Store:     synclocal.NewStore(root),
+		Baselines: failingManifestStore{},
+		Output:    io.Discard,
+		Initial:   true,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project", ConfigKey: "config", Variation: variation,
 	}})
@@ -350,7 +353,7 @@ func TestFinishSelectionRollsBackNewAttachmentWithoutRemovingExistingWorkspace(t
 	}
 
 	err = finishSelection(Options{
-		Store: store, Manifest: failingManifestStore{}, Output: io.Discard,
+		Store: store, Baselines: failingManifestStore{}, Output: io.Discard,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project", ConfigKey: "config", Variation: variation,
 	}})
@@ -429,27 +432,24 @@ func (catalog *fakeCatalog) Config(string, string) (syncapi.Config, error) {
 
 type failingManifestStore struct{}
 
-func (failingManifestStore) Load([]string) (syncmanifest.Manifest, error) {
-	return syncmanifest.New(), nil
+func (failingManifestStore) Load([]string) (syncmanifest.Baseline, error) {
+	return syncmanifest.Baseline{Lock: syncmanifest.New()}, nil
 }
 
-func (failingManifestStore) Update(syncmanifest.Manifest, syncmanifest.Manifest) (syncmanifest.Manifest, error) {
-	return syncmanifest.Manifest{}, errors.New("write manifest")
+func (failingManifestStore) Save(syncmanifest.Baseline, syncmanifest.Manifest) (syncmanifest.Baseline, error) {
+	return syncmanifest.Baseline{}, errors.New("write manifest")
 }
 
 type memoryManifestStore struct {
 	manifest syncmanifest.Manifest
 }
 
-func (store *memoryManifestStore) Load([]string) (syncmanifest.Manifest, error) {
-	return store.manifest, nil
+func (store *memoryManifestStore) Load([]string) (syncmanifest.Baseline, error) {
+	return syncmanifest.Baseline{Lock: store.manifest}, nil
 }
 
-func (store *memoryManifestStore) Update(
-	_ syncmanifest.Manifest,
-	next syncmanifest.Manifest,
-) (syncmanifest.Manifest, error) {
+func (store *memoryManifestStore) Save(_ syncmanifest.Baseline, next syncmanifest.Manifest) (syncmanifest.Baseline, error) {
 	next.Sort()
 	store.manifest = next
-	return next, nil
+	return syncmanifest.Baseline{Lock: next}, nil
 }

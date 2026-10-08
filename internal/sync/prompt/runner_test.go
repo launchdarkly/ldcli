@@ -164,7 +164,7 @@ func TestRunnerDetachesWithoutCallingTheAPI(t *testing.T) {
 	runner.detach = func(options syncdetach.Options) error {
 		called = true
 		assert.NotZero(t, options.Store)
-		assert.NotZero(t, options.Manifest)
+		assert.NotZero(t, options.Baselines)
 		assert.Equal(t, os.Stdin, options.Input)
 		assert.Equal(t, io.Discard, options.Output)
 		return nil

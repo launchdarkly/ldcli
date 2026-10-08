@@ -57,17 +57,21 @@ func writePlanOutput(out io.Writer, outputKind string, plan Plan) error {
 
 	type planResourceOutput struct {
 		resourceOutput
-		Action Action              `json:"action"`
-		Error  string              `json:"error,omitempty"`
-		Diff   variationDiffFields `json:"diff,omitempty"`
+		Action          Action              `json:"action"`
+		SyncedElsewhere bool                `json:"syncedElsewhere,omitempty"`
+		Suggestion      string              `json:"suggestion,omitempty"`
+		Error           string              `json:"error,omitempty"`
+		Diff            variationDiffFields `json:"diff,omitempty"`
 	}
 	resources := make([]planResourceOutput, 0, len(plan.Resources))
 	for _, resource := range plan.Resources {
 		resources = append(resources, planResourceOutput{
-			resourceOutput: newResourceOutput(resource.ID),
-			Action:         resource.Action,
-			Error:          resource.Error,
-			Diff:           resource.Diff,
+			resourceOutput:  newResourceOutput(resource.ID),
+			Action:          resource.Action,
+			SyncedElsewhere: resource.SyncedElsewhere,
+			Suggestion:      staleSuggestion(resource),
+			Error:           resource.Error,
+			Diff:            resource.Diff,
 		})
 	}
 	return writeJSON(out, map[string]any{"resources": resources})
@@ -127,6 +131,13 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 		return nil
 	}
 	markdown := outputKind == outputMarkdown
+	detail := func(label, text string) {
+		if markdown {
+			_ = console.Printf("%s: %s\n", label, text)
+		} else {
+			_ = console.Printf("      %s: %s\n", label, text)
+		}
+	}
 
 	currentProject, currentConfig := "", ""
 	for _, resource := range plan.Resources {
@@ -157,12 +168,12 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 			_ = console.Printf("\n    %s\n      Action: %s\n", reviewHeading("Variation: "+variationKey, width), action)
 		}
 
+		if resource.SyncedElsewhere {
+			detail("Note", "Another working copy synced this variation after your sync.lock.")
+			detail("Suggestion", staleSuggestion(resource))
+		}
 		if resource.Error != "" {
-			if markdown {
-				_ = console.Printf("Error: %s\n", resource.Error)
-			} else {
-				_ = console.Printf("      Error: %s\n", resource.Error)
-			}
+			detail("Error", resource.Error)
 		}
 		if len(resource.Diff) != 0 {
 			rendered, err := renderVariationDiff(resource.Diff, outputKind, width, diffPresentation(resource.Action))
@@ -173,6 +184,23 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 		}
 	}
 	return nil
+}
+
+// staleSuggestion tells the user what to do when another working copy synced
+// the resource. It returns an empty string for a resource that is not stale.
+func staleSuggestion(resource PlannedResource) string {
+	switch {
+	case !resource.SyncedElsewhere:
+		return ""
+	case resource.Action == ActionUpdateLocal:
+		return "If the other working copy pushed its change to Git, run git pull before you sync. " +
+			"Then your sync.lock does not get a merge conflict."
+	case resource.Action == ActionConflict:
+		return "Run git pull to get the other change, and then run sync again. " +
+			"If the conflict remains, choose a side with --conflict or --resolve."
+	default:
+		return "Run git pull to get the latest .launchdarkly files and sync.lock, and then run sync again."
+	}
 }
 
 // reviewHeading colors a heading when the output is a terminal.

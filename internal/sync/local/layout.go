@@ -15,6 +15,9 @@ import (
 //	.launchdarkly/<project>/configs/<config>/<variation>.prompt.md
 //	.launchdarkly/<project>/tools/<tool>.json
 //	.launchdarkly/<project>/skills/<skill>.md
+//	.launchdarkly/sync.lock
+//
+// A file directly in .launchdarkly, such as sync.lock, is not a resource.
 const (
 	configsDir = "configs"
 	toolsDir   = "tools"
