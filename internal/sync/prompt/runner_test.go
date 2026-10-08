@@ -203,6 +203,33 @@ func TestRunnerDetachesWithoutCallingTheAPI(t *testing.T) {
 	assert.True(t, called)
 }
 
+func TestRunnerChecksAttachmentTerminalOnOutput(t *testing.T) {
+	root := initGitRepository(t)
+	require.NoError(t, os.Mkdir(filepath.Join(root, syncdomain.RootDir), 0o755))
+	input := strings.NewReader("")
+	var output, errorOutput strings.Builder
+	var checkedInput io.Reader
+	var checkedOutput io.Writer
+	runner := NewRunner(noopResourceClient{})
+	runner.isTerminal = func(input io.Reader, output io.Writer) bool {
+		checkedInput = input
+		checkedOutput = output
+		return false
+	}
+
+	err := runner.Run(Options{
+		WorkingDirectory: root,
+		Attachment:       &AttachmentRequest{Kind: syncdomain.AttachmentTool},
+		Input:            input,
+		Output:           &output,
+		ErrorOutput:      &errorOutput,
+	})
+
+	require.ErrorContains(t, err, "no synchronized projects are available")
+	assert.Same(t, input, checkedInput)
+	assert.Same(t, &output, checkedOutput)
+}
+
 func TestValidateOptions(t *testing.T) {
 	require.ErrorContains(t, validateOptions(Options{Format: syncreference.PlainMarkdown}), "--format requires --link")
 	require.ErrorContains(t, validateOptions(Options{Link: "prompt.md"}), "--link requires --format")

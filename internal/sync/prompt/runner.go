@@ -154,7 +154,7 @@ func (runner Runner) Run(options Options) error {
 			VariationID:    options.Attachment.Variation,
 			Kind:           options.Attachment.Kind,
 			Key:            options.Attachment.Key,
-			Interactive:    runner.isTerminal(options.Input, options.ErrorOutput),
+			Interactive:    runner.isTerminal(options.Input, options.Output),
 			Input:          options.Input,
 			Output:         options.Output,
 		}); err != nil {
