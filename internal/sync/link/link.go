@@ -1,12 +1,16 @@
+// Package link creates a variation whose prompt lives in an external file in
+// the repository. The variation file stores a reference to that file.
 package link
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -21,14 +25,15 @@ import (
 	"github.com/launchdarkly/ldcli/internal/sync/reference/adapters"
 )
 
-// Catalog lists the LaunchDarkly resources required to link a prompt.
+// Catalog finds the project, the config, and the model config of a new variation.
 type Catalog interface {
-	Projects() ([]syncapi.Project, error)
-	Configs(projectKey string) ([]syncapi.Config, error)
+	syncinteractive.ProjectSearcher
+	syncinteractive.ConfigSearcher
+	Config(projectKey, configKey string) (syncapi.Config, error)
 	ModelConfigs(projectKey string) ([]syncapi.ModelConfig, error)
 }
 
-// Options contains the dependencies and inputs for one link operation.
+// Options are the dependencies and the input of one link.
 type Options struct {
 	Catalog          Catalog
 	Store            synclocal.Store
@@ -38,9 +43,21 @@ type Options struct {
 	Format           string
 	Input            io.Reader
 	Output           io.Writer
+	// Target is the new variation. If it is nil, Run asks the user.
+	Target  *Target
+	NoInput bool
 }
 
-// Selection is the LaunchDarkly destination selected for a linked prompt.
+// Target is a new variation that the user named with flags. Name and Content
+// replace values that the linked file does not have.
+type Target struct {
+	Variation      syncdomain.ResourceID
+	ModelConfigKey string
+	Name           string
+	Content        string
+}
+
+// Selection is the complete destination of a new linked variation.
 type Selection struct {
 	Project     syncapi.Project
 	Config      syncapi.Config
@@ -49,6 +66,8 @@ type Selection struct {
 	Name        string
 }
 
+// linkedPrompt is the external file. If the file has no prompt, content is
+// the new prompt that link writes to the file.
 type linkedPrompt struct {
 	reference       synclocal.Reference
 	parsed          adapters.Prompt
@@ -56,151 +75,175 @@ type linkedPrompt struct {
 	content         []byte
 }
 
-// Run interactively selects a destination and creates the local linked
-// variation wrapper.
+// Run creates the linked variation file and returns its path. The path is
+// empty when the user cancels.
 func Run(options Options) (string, error) {
-	if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
-		return "", fmt.Errorf("interactive prompt linking requires a terminal; run this command in a terminal")
-	}
-
 	prompt, err := readLinkedPrompt(options)
 	if err != nil {
 		return "", err
 	}
 
-	console := syncconsole.New(options.Output)
-	_ = console.Line("Loading LaunchDarkly projects...")
-	projects, err := options.Catalog.Projects()
-	if err != nil {
-		return "", err
-	}
-	project, canceled, err := syncinteractive.Select(
-		options.Input,
-		options.Output,
-		"Choose a LaunchDarkly project",
-		projectChoices(projects),
-	)
-	if err != nil || canceled {
-		return "", err
-	}
-
-	_ = console.Line("Loading configs...")
-	configs, err := options.Catalog.Configs(project.Key)
-	if err != nil {
-		return "", err
-	}
-	configs = configsForPrompt(configs, prompt.parsed)
-	config, canceled, err := syncinteractive.Select(
-		options.Input,
-		options.Output,
-		"Choose a config",
-		configChoices(configs),
-	)
-	if err != nil || canceled {
-		return "", err
-	}
-
-	_ = console.Line("Loading model configs...")
-	modelConfigs, err := options.Catalog.ModelConfigs(project.Key)
-	if err != nil {
-		return "", err
-	}
-	modelConfig, canceled, err := syncinteractive.Select(
-		options.Input,
-		options.Output,
-		"Choose a model config",
-		modelConfigChoices(modelConfigs),
-	)
-	if err != nil || canceled {
-		return "", err
-	}
-
-	defaultKey := strings.TrimSuffix(filepath.Base(prompt.reference.File), filepath.Ext(prompt.reference.File))
-	key := prompt.parsed.Key
-	var fields []huh.Field
-	if key == "" {
-		key = defaultKey
-		fields = append(fields, huh.NewInput().
-			Title("Variation key").
-			Value(&key).
-			Validate(validateDerivedKey))
-	}
-	name := prompt.parsed.Name
-	if name == "" {
-		name = displayName(key)
-		fields = append(fields, huh.NewInput().
-			Title("Variation name").
-			Value(&name).
-			Validate(requiredValue("variation name")))
-	}
+	var selection Selection
 	var content string
-	if len(prompt.parsed.Messages) == 0 {
-		fields = append(fields, huh.NewText().
-			Title("Prompt content").
-			Lines(8).
-			Value(&content).
-			Validate(requiredValue("prompt content")))
-	}
-	if len(fields) != 0 {
-		canceled, err = syncinteractive.RunForm(options.Input, options.Output, fields...)
-		if err != nil || canceled {
+	if options.Target != nil {
+		selection, content, err = targetSelection(options, prompt, *options.Target)
+	} else {
+		if err := syncinteractive.RequireTerminal(
+			options.Input, options.Output, options.NoInput, "--to and --model-config-key", "prompt linking",
+		); err != nil {
 			return "", err
 		}
+		var canceled bool
+		selection, content, canceled, err = promptForSelection(options, prompt)
+		if canceled {
+			return "", nil
+		}
 	}
-
-	prompt, err = addMissingPromptContent(prompt, config.Mode, key, name, content)
 	if err != nil {
 		return "", err
 	}
 
-	return createLinkedPrompt(options, Selection{
-		Project:     project,
-		Config:      config,
-		ModelConfig: modelConfig,
-		Key:         key,
-		Name:        name,
-	}, prompt)
-}
-
-// addMissingPromptContent renders entered content in memory so destination
-// validation can finish before the referenced file is changed.
-func addMissingPromptContent(
-	prompt linkedPrompt,
-	mode syncdomain.VariationMode,
-	key string,
-	name string,
-	content string,
-) (linkedPrompt, error) {
-	if len(prompt.parsed.Messages) != 0 {
-		return prompt, nil
-	}
-
-	variation := syncdomain.Variation{Mode: mode, Key: key, Name: name}
-	if mode == syncdomain.VariationModeAgent {
-		variation.Instructions = content
-	} else {
-		variation.Messages = []syncdomain.Message{{Role: "system", Content: content}}
-	}
-	rendered, err := syncreference.Render(prompt.reference.Format, variation)
-	if err != nil {
-		return linkedPrompt{}, err
-	}
-
-	prompt.content = rendered
-	return prompt, nil
-}
-
-// Create writes the wrapper for an already selected destination.
-func Create(options Options, selection Selection) (string, error) {
-	prompt, err := readLinkedPrompt(options)
+	prompt, err = addMissingPromptContent(prompt, selection.Config.Mode, selection.Key, selection.Name, content)
 	if err != nil {
 		return "", err
 	}
 	return createLinkedPrompt(options, selection, prompt)
 }
 
-// createLinkedPrompt validates the destination, updates newly entered source
-// content, and creates the wrapper that binds both sides.
+// targetSelection completes the destination that the user named with flags.
+// It returns the prompt content to add when the linked file has none.
+func targetSelection(options Options, prompt linkedPrompt, target Target) (Selection, string, error) {
+	configKey, variationKey, err := target.Variation.VariationKeys()
+	if err != nil {
+		return Selection{}, "", fmt.Errorf("link destination must be a variation: %w", err)
+	}
+	hasContent := len(prompt.parsed.Messages) != 0
+	switch {
+	case prompt.parsed.Key != "" && prompt.parsed.Key != variationKey:
+		return Selection{}, "", fmt.Errorf("linked file key %q does not match destination key %q", prompt.parsed.Key, variationKey)
+	case target.Name != "" && strings.TrimSpace(target.Name) == "":
+		return Selection{}, "", errors.New("--name cannot be blank")
+	case target.Content != "" && strings.TrimSpace(target.Content) == "":
+		return Selection{}, "", errors.New("--content cannot be blank")
+	case prompt.parsed.Name != "" && target.Name != "" && prompt.parsed.Name != target.Name:
+		return Selection{}, "", fmt.Errorf("linked file name %q does not match --name %q", prompt.parsed.Name, target.Name)
+	case !hasContent && target.Content == "":
+		return Selection{}, "", errors.New("--content is required when the linked file has no prompt content")
+	case hasContent && target.Content != "":
+		return Selection{}, "", errors.New("--content cannot be used when the linked file already has prompt content")
+	}
+
+	projectKey := target.Variation.ProjectKey
+	config, err := options.Catalog.Config(projectKey, configKey)
+	if err != nil {
+		return Selection{}, "", err
+	}
+	modelConfigs, err := options.Catalog.ModelConfigs(projectKey)
+	if err != nil {
+		return Selection{}, "", err
+	}
+	index := slices.IndexFunc(modelConfigs, func(candidate syncapi.ModelConfig) bool {
+		return candidate.Key == target.ModelConfigKey
+	})
+	if index < 0 {
+		return Selection{}, "", fmt.Errorf("model config %q was not found", target.ModelConfigKey)
+	}
+
+	name := cmp.Or(prompt.parsed.Name, target.Name, displayName(variationKey))
+	return Selection{
+		Project:     syncapi.Project{Key: projectKey},
+		Config:      config,
+		ModelConfig: modelConfigs[index],
+		Key:         variationKey,
+		Name:        name,
+	}, target.Content, nil
+}
+
+// promptForSelection asks the user for the destination, and for each value
+// that the linked file does not have. The bool result is true when the user
+// cancels.
+func promptForSelection(options Options, prompt linkedPrompt) (Selection, string, bool, error) {
+	project, canceled, err := syncinteractive.SelectProject(options.Input, options.Output, options.Catalog)
+	if err != nil || canceled {
+		return Selection{}, "", canceled, err
+	}
+	var modes []syncdomain.VariationMode
+	if prompt.parsed.Mode != "" {
+		modes = []syncdomain.VariationMode{prompt.parsed.Mode}
+	}
+	config, canceled, err := syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, modes)
+	if err != nil || canceled {
+		return Selection{}, "", canceled, err
+	}
+
+	_ = syncconsole.New(options.Output).Line("Loading model configs...")
+	modelConfigs, err := options.Catalog.ModelConfigs(project.Key)
+	if err != nil {
+		return Selection{}, "", false, err
+	}
+	choices := make([]syncinteractive.Choice[syncapi.ModelConfig], 0, len(modelConfigs))
+	for _, modelConfig := range modelConfigs {
+		choices = append(choices, syncinteractive.Choice[syncapi.ModelConfig]{
+			Title: modelConfig.Name, Description: "Key: " + modelConfig.Key, Value: modelConfig,
+		})
+	}
+	modelConfig, canceled, err := syncinteractive.Select(options.Input, options.Output, "Choose a model config", choices)
+	if err != nil || canceled {
+		return Selection{}, "", canceled, err
+	}
+
+	// Ask only for the values that the linked file does not have.
+	key, name, content := prompt.parsed.Key, prompt.parsed.Name, ""
+	var fields []huh.Field
+	if key == "" {
+		key = strings.TrimSuffix(filepath.Base(prompt.reference.File), filepath.Ext(prompt.reference.File))
+		fields = append(fields, huh.NewInput().Title("Variation key").Value(&key).Validate(validateDerivedKey))
+	}
+	if name == "" {
+		name = displayName(key)
+		fields = append(fields, huh.NewInput().Title("Variation name").Value(&name).Validate(requiredValue("variation name")))
+	}
+	if len(prompt.parsed.Messages) == 0 {
+		fields = append(fields, huh.NewText().Title("Prompt content").Lines(8).Value(&content).
+			Validate(requiredValue("prompt content")))
+	}
+	if len(fields) != 0 {
+		if canceled, err := syncinteractive.RunForm(options.Input, options.Output, fields...); err != nil || canceled {
+			return Selection{}, "", canceled, err
+		}
+	}
+
+	return Selection{Project: project, Config: config, ModelConfig: modelConfig, Key: key, Name: name}, content, false, nil
+}
+
+// addMissingPromptContent renders content as the new text of a linked file
+// that has no prompt. It does not write the file. createLinkedPrompt writes
+// it after every check passes.
+func addMissingPromptContent(
+	prompt linkedPrompt,
+	mode syncdomain.VariationMode,
+	key, name, content string,
+) (linkedPrompt, error) {
+	if len(prompt.parsed.Messages) != 0 {
+		return prompt, nil
+	}
+	variation := syncdomain.Variation{Mode: mode, Key: key, Name: name}
+	if mode == syncdomain.VariationModeAgent {
+		variation.Instructions = content
+	} else {
+		variation.Messages = []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: content}}
+	}
+	rendered, err := syncreference.Render(prompt.reference.Format, variation)
+	if err != nil {
+		return linkedPrompt{}, err
+	}
+	prompt.content = rendered
+	return prompt, nil
+}
+
+// createLinkedPrompt checks the destination, writes new prompt content to the
+// linked file, and creates the variation file. If the variation file fails,
+// it restores the linked file.
 func createLinkedPrompt(options Options, selection Selection, prompt linkedPrompt) (string, error) {
 	variation := syncdomain.Variation{
 		Mode:               selection.Config.Mode,
@@ -210,22 +253,24 @@ func createLinkedPrompt(options Options, selection Selection, prompt linkedPromp
 		ModelConfigVersion: selection.ModelConfig.Version,
 		Model:              selection.ModelConfig.VariationModel(),
 	}
-	if _, err := syncreference.ApplyToVariation(prompt.reference.Format, prompt.content, &variation); err != nil {
+	if err := syncreference.ApplyToVariation(prompt.reference.Format, prompt.content, &variation); err != nil {
 		return "", err
 	}
+
+	// Every check must pass before the linked file changes.
 	if variation.Mode != selection.Config.Mode {
 		return "", fmt.Errorf("referenced prompt mode %q does not match config mode %q", variation.Mode, selection.Config.Mode)
 	}
 	if err := validateDerivedKey(variation.Key); err != nil {
 		return "", err
 	}
-	if variation.Name == "" {
-		return "", fmt.Errorf("variation name is required")
+	if err := variation.Validate(); err != nil {
+		return "", fmt.Errorf("variation %q: %w", variation.Key, err)
 	}
-	for _, existingVariation := range selection.Config.Variations {
-		if existingVariation.Key == variation.Key {
-			return "", fmt.Errorf("variation %q already exists in config %q", variation.Key, selection.Config.Key)
-		}
+	if slices.ContainsFunc(selection.Config.Variations, func(existing syncdomain.Variation) bool {
+		return existing.Key == variation.Key
+	}) {
+		return "", fmt.Errorf("variation %q already exists in config %q", variation.Key, selection.Config.Key)
 	}
 	exists, err := options.Store.VariationExists(selection.Project.Key, selection.Config.Key, variation.Key)
 	if err != nil {
@@ -235,24 +280,22 @@ func createLinkedPrompt(options Options, selection Selection, prompt linkedPromp
 		return "", fmt.Errorf("variation %q is already linked locally", variation.Key)
 	}
 
-	// Validation above must complete before an empty referenced file is filled
-	// with interactively entered content. If wrapper creation then fails, put
-	// the source back exactly as the user had it.
-	target := filepath.Join(options.RepositoryRoot, filepath.FromSlash(prompt.reference.File))
+	source := filepath.Join(options.RepositoryRoot, filepath.FromSlash(prompt.reference.File))
 	sourceChanged := !bytes.Equal(prompt.originalContent, prompt.content)
 	var sourceMode os.FileMode
 	if sourceChanged {
-		info, err := os.Stat(target)
+		info, err := os.Stat(source)
 		if err != nil {
 			return "", err
 		}
 		sourceMode = info.Mode().Perm()
-		if err := synclocal.ReplaceFileAtomically(target, prompt.reference.File, prompt.originalContent, prompt.content, sourceMode); err != nil {
+		err = synclocal.ReplaceFileAtomically(source, prompt.reference.File, prompt.originalContent, prompt.content, sourceMode)
+		if err != nil {
 			return "", fmt.Errorf("write linked file %q: %w", prompt.reference.File, err)
 		}
 	}
 
-	paths, err := options.Store.Add([]synclocal.VariationFile{{
+	creation, err := options.Store.Add([]synclocal.VariationFile{{
 		ProjectKey: selection.Project.Key,
 		ConfigKey:  selection.Config.Key,
 		Upsert:     true,
@@ -261,22 +304,19 @@ func createLinkedPrompt(options Options, selection Selection, prompt linkedPromp
 	}})
 	if err != nil {
 		if sourceChanged {
-			err = errors.Join(err, restoreLinkedFile(target, prompt.reference.File, prompt.content, prompt.originalContent, sourceMode))
+			restoreErr := synclocal.ReplaceFileAtomically(
+				source, prompt.reference.File, prompt.content, prompt.originalContent, sourceMode,
+			)
+			if restoreErr != nil {
+				err = errors.Join(err, fmt.Errorf("restore linked file %q: %w", prompt.reference.File, restoreErr))
+			}
 		}
 		return "", err
 	}
-	return paths[0], nil
+	return creation.VariationPaths[0], nil
 }
 
-// restoreLinkedFile rolls back a referenced file changed during a failed link.
-func restoreLinkedFile(target, displayPath string, currentContent, originalContent []byte, mode os.FileMode) error {
-	if err := synclocal.ReplaceFileAtomically(target, displayPath, currentContent, originalContent, mode); err != nil {
-		return fmt.Errorf("restore linked file %q: %w", displayPath, err)
-	}
-	return nil
-}
-
-// readLinkedPrompt resolves, reads, and parses a repository-contained source file.
+// readLinkedPrompt reads and parses the external file.
 func readLinkedPrompt(options Options) (linkedPrompt, error) {
 	reference, err := synclocal.NewReference(options.RepositoryRoot, options.WorkingDirectory, options.File, options.Format)
 	if err != nil {
@@ -293,33 +333,18 @@ func readLinkedPrompt(options Options) (linkedPrompt, error) {
 	return linkedPrompt{reference: reference, parsed: prompt, originalContent: content, content: content}, nil
 }
 
-// configsForPrompt limits destinations when the adapter supplied a mode.
-func configsForPrompt(configs []syncapi.Config, prompt adapters.Prompt) []syncapi.Config {
-	if prompt.Mode == "" {
-		return configs
-	}
-	result := make([]syncapi.Config, 0, len(configs))
-	for _, config := range configs {
-		if string(config.Mode) == string(prompt.Mode) {
-			result = append(result, config)
-		}
-	}
-	return result
-}
-
-// validateDerivedKey ensures a filename-derived key is also a safe path segment.
+// validateDerivedKey makes sure that a key from a file name is a safe key.
 func validateDerivedKey(key string) error {
-	switch {
-	case key == "":
-		return fmt.Errorf("cannot derive a variation key from the linked filename")
-	case key == "." || key == ".." || strings.ContainsAny(key, `/\`) || strings.IndexByte(key, 0) >= 0:
-		return fmt.Errorf("linked filename produces invalid variation key %q", key)
-	default:
-		return nil
+	if key == "" {
+		return errors.New("cannot derive a variation key from the linked filename")
 	}
+	if syncdomain.ValidateKey(key) != nil {
+		return fmt.Errorf("linked filename produces invalid variation key %q", key)
+	}
+	return nil
 }
 
-// requiredValue builds a reusable non-blank form validator.
+// requiredValue returns a form validator that rejects a blank value.
 func requiredValue(label string) func(string) error {
 	return func(value string) error {
 		if strings.TrimSpace(value) == "" {
@@ -329,45 +354,11 @@ func requiredValue(label string) func(string) error {
 	}
 }
 
-// displayName turns a kebab- or snake-case key into a readable default name.
+// displayName converts a key such as "support-agent" to "Support agent".
 func displayName(key string) string {
-	name := strings.NewReplacer("-", " ", "_", " ").Replace(key)
-	runes := []rune(name)
+	runes := []rune(strings.NewReplacer("-", " ", "_", " ").Replace(key))
 	if len(runes) != 0 {
 		runes[0] = unicode.ToUpper(runes[0])
 	}
 	return string(runes)
-}
-
-// projectChoices adapts projects to interactive labels.
-func projectChoices(projects []syncapi.Project) []syncinteractive.Choice[syncapi.Project] {
-	choices := make([]syncinteractive.Choice[syncapi.Project], 0, len(projects))
-	for _, project := range projects {
-		choices = append(choices, syncinteractive.Choice[syncapi.Project]{
-			Title: project.Name, Description: project.Key, Value: project,
-		})
-	}
-	return choices
-}
-
-// configChoices adapts configs to labels that expose key and mode.
-func configChoices(configs []syncapi.Config) []syncinteractive.Choice[syncapi.Config] {
-	choices := make([]syncinteractive.Choice[syncapi.Config], 0, len(configs))
-	for _, config := range configs {
-		choices = append(choices, syncinteractive.Choice[syncapi.Config]{
-			Title: config.Name, Description: fmt.Sprintf("%s · %s", config.Key, config.Mode), Value: config,
-		})
-	}
-	return choices
-}
-
-// modelConfigChoices adapts model configs to interactive labels.
-func modelConfigChoices(configs []syncapi.ModelConfig) []syncinteractive.Choice[syncapi.ModelConfig] {
-	choices := make([]syncinteractive.Choice[syncapi.ModelConfig], 0, len(configs))
-	for _, config := range configs {
-		choices = append(choices, syncinteractive.Choice[syncapi.ModelConfig]{
-			Title: config.Name, Description: config.Key, Value: config,
-		})
-	}
-	return choices
 }

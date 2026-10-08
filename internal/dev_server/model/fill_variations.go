@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
+	ldapi "github.com/launchdarkly/api-client-go/v24"
 	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 )
 

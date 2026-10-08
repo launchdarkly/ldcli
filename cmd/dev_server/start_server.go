@@ -101,6 +101,7 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 			AccessToken:            viper.GetString(cliflags.AccessTokenFlag),
 			BaseURI:                viper.GetString(cliflags.BaseURIFlag),
 			DevStreamURI:           viper.GetString(cliflags.DevStreamURIFlag),
+			Host:                   viper.GetString(cliflags.HostFlag),
 			Port:                   viper.GetString(cliflags.PortFlag),
 			CorsEnabled:            viper.GetBool(cliflags.CorsEnabledFlag),
 			CorsOrigin:             viper.GetString(cliflags.CorsOriginFlag),

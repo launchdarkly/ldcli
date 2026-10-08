@@ -1,12 +1,12 @@
+// Package detach stops syncing selected variations. It removes their local
+// files and their baseline. LaunchDarkly keeps the variations.
 package detach
 
 import (
 	"errors"
 	"fmt"
 	"io"
-	"path"
 	"slices"
-	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
@@ -15,138 +15,169 @@ import (
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
-// Resource identifies one local or manifested resource that can be detached.
-type Resource = syncdomain.ResourceID
+// ManifestStore reads and writes the sync baseline.
+type ManifestStore interface {
+	Load(projectKeys []string) (syncmanifest.Manifest, error)
+	Update(previous, next syncmanifest.Manifest) (syncmanifest.Manifest, error)
+}
 
-// Options contains the local stores and streams used by detach.
+// Options are the dependencies and the input of one detach.
 type Options struct {
 	RepositoryRoot string
 	Store          synclocal.Store
-	Manifest       syncmanifest.Store
-	Input          io.Reader
-	Output         io.Writer
+	Manifest       ManifestStore
+	// ProjectKeys are the projects that have local files.
+	ProjectKeys []string
+	Input       io.Reader
+	Output      io.Writer
+	// Selections are the variations to detach. If it is empty, Run asks the user.
+	Selections []syncdomain.ResourceID
+	NoInput    bool
 }
 
-// Run lets the user select resources and removes their local sync state.
+// Run detaches the selected variations.
 func Run(options Options) error {
-	resources, manifest, manifestExists, err := loadResources(options.RepositoryRoot, options.Manifest)
+	projectKeys := slices.Clone(options.ProjectKeys)
+	for _, selection := range options.Selections {
+		projectKeys = append(projectKeys, selection.ProjectKey)
+	}
+	slices.Sort(projectKeys)
+	projectKeys = slices.Compact(projectKeys)
+
+	synced, manifest, err := loadResources(options.RepositoryRoot, options.Manifest, projectKeys)
 	if err != nil {
 		return err
 	}
-	if len(resources) == 0 {
-		_ = syncconsole.New(options.Output).Line("No resources are currently synced.")
-		return nil
-	}
-	if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
-		return fmt.Errorf("interactive resource selection requires a terminal; run this command in a terminal")
-	}
-
-	choices := make([]syncinteractive.Choice[Resource], 0, len(resources))
-	for _, resource := range resources {
-		choices = append(choices, syncinteractive.Choice[Resource]{
-			Title:       resource.ProjectKey + "/" + resource.LookupKey,
-			Description: string(resource.Kind),
-			Value:       resource,
-		})
-	}
-	selected, canceled, err := syncinteractive.MultiSelect(
-		options.Input,
-		options.Output,
-		"Select resources to detach",
-		"Detached resources remain in LaunchDarkly.",
-		choices,
-	)
-	if err != nil {
-		return err
-	}
-	if canceled {
-		return nil
-	}
-	if err := detachResources(options, manifest, manifestExists, selected); err != nil {
-		return err
-	}
-
+	// Check a named selector before the empty-workspace message, so that a
+	// selector that is not synced always fails.
 	console := syncconsole.New(options.Output)
+	selected := options.Selections
+	if len(selected) != 0 {
+		if err := validateSelections(synced, selected); err != nil {
+			return err
+		}
+	} else {
+		if len(synced) == 0 {
+			_ = console.Line("No resources are currently synced.")
+			return nil
+		}
+		var canceled bool
+		if selected, canceled, err = promptForResources(options, synced); err != nil || canceled {
+			return err
+		}
+	}
+	if err := detachResources(options, manifest, selected); err != nil {
+		return err
+	}
+
 	_ = console.Line("Detached resources:")
 	for _, resource := range selected {
-		_ = console.Printf("- %s %s/%s\n", resource.Kind, resource.ProjectKey, resource.LookupKey)
+		_ = console.Printf("- %s %s\n", resource.Kind, resource)
 	}
 	return nil
 }
 
-// loadResources returns the union of local wrappers and manifested resources.
-func loadResources(repositoryRoot string, manifestStore syncmanifest.Store) ([]Resource, syncmanifest.Manifest, bool, error) {
-	manifest, manifestExists, err := manifestStore.Load()
+// promptForResources asks the user to choose one or more synced variations.
+// The bool result is true when the user cancels.
+func promptForResources(options Options, synced []syncdomain.ResourceID) ([]syncdomain.ResourceID, bool, error) {
+	if err := syncinteractive.RequireTerminal(
+		options.Input, options.Output, options.NoInput, "variation selectors", "resource selection",
+	); err != nil {
+		return nil, false, err
+	}
+	choices := make([]syncinteractive.Choice[syncdomain.ResourceID], 0, len(synced))
+	for _, resource := range synced {
+		choices = append(choices, syncinteractive.Choice[syncdomain.ResourceID]{
+			Title: resource.String(), Description: string(resource.Kind), Value: resource,
+		})
+	}
+	return syncinteractive.MultiSelect(
+		options.Input, options.Output, "Select resources to detach", "Detached resources remain in LaunchDarkly.", choices,
+	)
+}
+
+func validateSelections(synced, selected []syncdomain.ResourceID) error {
+	seen := make(map[syncdomain.ResourceID]struct{}, len(selected))
+	for _, selection := range selected {
+		if _, duplicate := seen[selection]; duplicate {
+			return fmt.Errorf("variation %s was selected more than once", selection)
+		}
+		seen[selection] = struct{}{}
+		if !slices.Contains(synced, selection) {
+			return fmt.Errorf("variation %s is not synced", selection)
+		}
+	}
+	return nil
+}
+
+// loadResources returns each variation that the manifest tracks or that has
+// a local file, in identity order.
+func loadResources(
+	repositoryRoot string,
+	manifestStore ManifestStore,
+	projectKeys []string,
+) ([]syncdomain.ResourceID, syncmanifest.Manifest, error) {
+	manifest, err := manifestStore.Load(projectKeys)
 	if err != nil {
-		return nil, syncmanifest.Manifest{}, false, err
+		return nil, syncmanifest.Manifest{}, err
 	}
-
-	resources := make(map[Resource]struct{}, len(manifest.Resources))
-	for _, resource := range manifest.Resources {
-		resources[resource.ID()] = struct{}{}
-	}
-
 	files, err := synclocal.SourceFiles(repositoryRoot)
 	if err != nil {
-		return nil, syncmanifest.Manifest{}, false, err
+		return nil, syncmanifest.Manifest{}, err
+	}
+
+	var synced []syncdomain.ResourceID
+	for _, resource := range manifest.Resources {
+		if resource.ResourceKind == syncdomain.KindVariation {
+			synced = append(synced, resource.ID())
+		}
 	}
 	for _, file := range files {
-		resource, ok := resourceFromWrapperPath(file)
-		if ok {
-			resources[resource] = struct{}{}
+		if id, ok := synclocal.ParseManagedPath(file); ok && id.Kind == syncdomain.KindVariation {
+			synced = append(synced, id)
 		}
 	}
-
-	result := make([]Resource, 0, len(resources))
-	for resource := range resources {
-		result = append(result, resource)
-	}
-	slices.SortFunc(result, syncdomain.CompareResourceIDs)
-	return result, manifest, manifestExists, nil
+	slices.SortFunc(synced, syncdomain.CompareResourceIDs)
+	return slices.Compact(synced), manifest, nil
 }
 
-// resourceFromWrapperPath derives a variation identity without parsing its contents.
-func resourceFromWrapperPath(file string) (Resource, bool) {
-	parts := strings.Split(file, "/")
-	if len(parts) != 5 || parts[0] != syncdomain.RootDir || parts[2] != "configs" || !strings.HasSuffix(parts[4], ".prompt.md") {
-		return Resource{}, false
-	}
-	variationKey := strings.TrimSuffix(parts[4], ".prompt.md")
-	if parts[1] == "" || parts[3] == "" || variationKey == "" {
-		return Resource{}, false
-	}
-	return Resource{Kind: syncdomain.KindVariation, ProjectKey: parts[1], LookupKey: path.Join(parts[3], variationKey)}, true
-}
+// detachResources removes the selected variations from the manifest, and then
+// deletes their local files. If the delete fails, it restores the manifest.
+func detachResources(options Options, original syncmanifest.Manifest, selected []syncdomain.ResourceID) error {
+	isSelected := func(id syncdomain.ResourceID) bool { return slices.Contains(selected, id) }
 
-// detachResources removes selected resources from the manifest before deleting local wrappers.
-func detachResources(options Options, original syncmanifest.Manifest, manifestExists bool, selected []Resource) error {
-	selectedSet := make(map[Resource]struct{}, len(selected))
-	for _, resource := range selected {
-		selectedSet[resource] = struct{}{}
-	}
-
-	updated := syncmanifest.New()
+	next := syncmanifest.New()
 	for _, resource := range original.Resources {
-		if _, detach := selectedSet[resource.ID()]; !detach {
-			updated.Resources = append(updated.Resources, resource)
+		if !isSelected(resource.ID()) {
+			next.Resources = append(next.Resources, resource)
 		}
 	}
-	if err := options.Manifest.Write(updated); err != nil {
+	// Stop tracking each tool and skill that only the detached variations use.
+	// If the workspace does not compile, keep every attachment baseline.
+	if variations, err := synclocal.CompileWorkspace(options.RepositoryRoot); err == nil {
+		remaining := slices.DeleteFunc(variations, func(variation syncdomain.SyncedResource) bool {
+			return isSelected(variation.ID())
+		})
+		next.RemoveUnusedAttachments(remaining)
+	}
+	persisted, err := options.Manifest.Update(original, next)
+	if err != nil {
 		return err
+	}
+	restoreManifest := func(cause error) error {
+		_, restoreErr := options.Manifest.Update(persisted, original)
+		return errors.Join(cause, restoreErr)
 	}
 
 	var deletions []synclocal.VariationDeletion
 	for _, resource := range selected {
-		if resource.Kind != syncdomain.KindVariation {
-			continue
-		}
-		configKey, variationKey, ok := strings.Cut(resource.LookupKey, "/")
-		if !ok || strings.Contains(variationKey, "/") {
+		configKey, variationKey, err := resource.VariationKeys()
+		if err != nil {
 			continue
 		}
 		exists, err := options.Store.VariationExists(resource.ProjectKey, configKey, variationKey)
 		if err != nil {
-			return errors.Join(err, restoreManifest(options.Manifest, original, manifestExists))
+			return restoreManifest(err)
 		}
 		if exists {
 			deletions = append(deletions, synclocal.VariationDeletion{
@@ -154,20 +185,8 @@ func detachResources(options Options, original syncmanifest.Manifest, manifestEx
 			})
 		}
 	}
-
 	if _, err := options.Store.DeleteVariations(deletions); err != nil {
-		return errors.Join(err, restoreManifest(options.Manifest, original, manifestExists))
-	}
-	if err := options.Store.RemoveEmptyDirectories(); err != nil {
-		return err
+		return restoreManifest(err)
 	}
 	return nil
-}
-
-// restoreManifest restores the manifest when local wrapper deletion fails.
-func restoreManifest(store syncmanifest.Store, manifest syncmanifest.Manifest, existed bool) error {
-	if existed {
-		return store.Write(manifest)
-	}
-	return store.Remove()
 }

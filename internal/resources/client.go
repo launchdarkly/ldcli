@@ -12,6 +12,10 @@ import (
 	"github.com/launchdarkly/ldcli/internal/errors"
 )
 
+// apiVersion is the LaunchDarkly REST API version sent with non-beta requests, so
+// responses don't depend on the default version stored on the caller's access token.
+const apiVersion = "20240415"
+
 type UnauthenticatedClient interface {
 	MakeUnauthenticatedRequest(
 		method string,
@@ -59,6 +63,8 @@ func (c ResourcesClient) MakeRequest(
 	req.Header.Set("User-Agent", fmt.Sprintf("launchdarkly-cli/v%s", c.cliVersion))
 	if isBeta {
 		req.Header.Set("LD-API-Version", "beta")
+	} else {
+		req.Header.Set("LD-API-Version", apiVersion)
 	}
 	req.URL.RawQuery = query.Encode()
 

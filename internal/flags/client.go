@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
+	ldapi "github.com/launchdarkly/api-client-go/v24"
 
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/errors"
@@ -131,7 +131,7 @@ func (c FlagsClient) Update(
 	client := client.New(accessToken, baseURI, c.cliVersion)
 	patch := []ldapi.PatchOperation{}
 	for _, i := range input {
-		patch = append(patch, *ldapi.NewPatchOperation(i.Op, i.Path, i.Value))
+		patch = append(patch, ldapi.PatchOperation{Op: i.Op, Path: i.Path, Value: i.Value})
 	}
 	flag, _, err := client.FeatureFlagsApi.
 		PatchFeatureFlag(ctx, projKey, key).

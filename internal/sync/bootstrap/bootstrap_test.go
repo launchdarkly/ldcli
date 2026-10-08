@@ -87,6 +87,33 @@ func TestRunRequiresTerminal(t *testing.T) {
 	)
 }
 
+func TestRunUsesExplicitVariationSelectorsWithoutTerminal(t *testing.T) {
+	root := t.TempDir()
+	var output bytes.Buffer
+	catalog := &fakeCatalog{config: syncapi.Config{
+		Key:  "config",
+		Mode: syncdomain.VariationModeAgent,
+		Variations: []syncdomain.Variation{{
+			Key: "variation", Name: "Variation", Mode: syncdomain.VariationModeAgent, Instructions: "Be helpful.",
+		}},
+	}}
+
+	err := Run(Options{
+		Catalog: catalog,
+		Store:   synclocal.NewStore(root),
+		Input:   bytes.NewBuffer(nil),
+		Output:  &output,
+		Initial: true,
+		DryRun:  true,
+		Selections: []syncdomain.ResourceID{{
+			Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
+		}},
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output.String(), "Would create: .launchdarkly/project/configs/config/variation.prompt.md")
+}
+
 func TestFinishSelectionDryRunDoesNotCreateFiles(t *testing.T) {
 	root := t.TempDir()
 	var output bytes.Buffer
@@ -135,33 +162,117 @@ Be helpful.
 func TestFinishSelectionWritesInitialManifest(t *testing.T) {
 	root := t.TempDir()
 	var output bytes.Buffer
+	manifestStore := &memoryManifestStore{manifest: syncmanifest.New()}
 	variation := syncdomain.Variation{
 		Mode: syncdomain.VariationModeAgent, Key: "variation", Name: "Variation", Instructions: "Be helpful.",
+		Tools: []syncdomain.AttachmentRef{{Key: "search"}},
+		Attachments: []syncdomain.Attachment{{
+			Kind: syncdomain.AttachmentTool,
+			Tool: &syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+		}},
 	}
+	secondVariation := variation
+	secondVariation.Key = "variation-2"
+	secondVariation.Name = "Variation 2"
 
 	err := finishSelection(Options{
 		Store:    synclocal.NewStore(root),
-		Manifest: syncmanifest.NewStore(root),
+		Manifest: manifestStore,
 		Output:   &output,
 		Initial:  true,
-	}, []synclocal.VariationFile{{
-		ProjectKey: "project", ConfigKey: "config", Upsert: true, Variation: variation,
-	}})
+	}, []synclocal.VariationFile{
+		{ProjectKey: "project", ConfigKey: "config", Upsert: true, Variation: variation},
+		{ProjectKey: "project", ConfigKey: "config", Upsert: true, Variation: secondVariation},
+	})
 
 	require.NoError(t, err)
-	manifest, exists, err := syncmanifest.NewStore(root).Load()
+	manifest, err := manifestStore.Load([]string{"project"})
 	require.NoError(t, err)
-	require.True(t, exists)
-	require.Len(t, manifest.Resources, 1)
-	expected, err := syncdomain.FingerprintVariation("project", "config/variation", variation)
+	require.Len(t, manifest.Resources, 3)
+	attachmentFingerprint, err := syncdomain.FingerprintAttachment("project", variation.Attachments[0])
 	require.NoError(t, err)
-	assert.Equal(t, expected, manifest.Resources[0].Fingerprint)
+	assert.Equal(t, syncdomain.KindTool, manifest.Resources[0].ResourceKind)
+	assert.Equal(t, "search", manifest.Resources[0].LookupKey)
+	assert.Equal(t, attachmentFingerprint, manifest.Resources[0].Fingerprint)
+	variationFingerprint, err := syncdomain.FingerprintVariation("project", "config/variation", variation)
+	require.NoError(t, err)
+	assert.Equal(t, syncdomain.KindVariation, manifest.Resources[1].ResourceKind)
+	assert.Equal(t, variationFingerprint, manifest.Resources[1].Fingerprint)
+	assert.Equal(t, syncdomain.KindVariation, manifest.Resources[2].ResourceKind)
+	assert.Equal(t, "config/variation-2", manifest.Resources[2].LookupKey)
+}
+
+func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	manifestStore := &memoryManifestStore{manifest: syncmanifest.New()}
+	localAttachment := syncdomain.Attachment{
+		Kind: syncdomain.AttachmentTool,
+		Tool: &syncdomain.Tool{
+			Key: "search",
+			Schema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"local": map[string]any{"type": "string"}},
+			},
+		},
+	}
+	first := syncdomain.Variation{
+		Mode: syncdomain.VariationModeAgent, Key: "first", Name: "First",
+		Tools: []syncdomain.AttachmentRef{{Key: "search"}}, Attachments: []syncdomain.Attachment{localAttachment},
+	}
+	require.NoError(t, finishSelection(Options{
+		Store: store, Manifest: manifestStore, Output: io.Discard, Initial: true,
+	}, []synclocal.VariationFile{{
+		ProjectKey: "project", ConfigKey: "config", Variation: first,
+	}}))
+
+	serverAttachment := syncdomain.Attachment{
+		Kind: syncdomain.AttachmentTool,
+		Tool: &syncdomain.Tool{
+			Key: "search",
+			Schema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"server": map[string]any{"type": "string"}},
+			},
+		},
+	}
+	second := syncdomain.Variation{
+		Mode: syncdomain.VariationModeAgent, Key: "second", Name: "Second",
+		Tools: []syncdomain.AttachmentRef{{Key: "search"}}, Attachments: []syncdomain.Attachment{serverAttachment},
+	}
+	require.NoError(t, finishSelection(Options{
+		Store: store, Manifest: manifestStore, Output: io.Discard,
+	}, []synclocal.VariationFile{{
+		ProjectKey: "project", ConfigKey: "config", Variation: second,
+	}}))
+
+	resources, err := store.Compile()
+	require.NoError(t, err)
+	var expectedFingerprint string
+	for _, resource := range resources {
+		if resource.LookupKey != "config/second" {
+			continue
+		}
+		expectedFingerprint, err = syncdomain.FingerprintVariation(resource.ProjectKey, resource.LookupKey, resource.Variation)
+		require.NoError(t, err)
+	}
+	require.NotEmpty(t, expectedFingerprint)
+
+	manifest, err := manifestStore.Load([]string{"project"})
+	require.NoError(t, err)
+	for _, resource := range manifest.Resources {
+		if resource.ResourceKind == syncdomain.KindVariation && resource.LookupKey == "config/second" {
+			assert.Equal(t, expectedFingerprint, resource.Fingerprint)
+			return
+		}
+	}
+	t.Fatal("second variation was not recorded in the manifest")
 }
 
 func TestFinishSelectionAddsMultipleVersionedVariationsToExistingManifest(t *testing.T) {
 	root := t.TempDir()
 	store := synclocal.NewStore(root)
-	manifestStore := syncmanifest.NewStore(root)
+	manifestStore := &memoryManifestStore{manifest: syncmanifest.New()}
 	first := syncdomain.Variation{
 		Mode: syncdomain.VariationModeAgent, Key: "first", Name: "First", Instructions: "First.",
 	}
@@ -186,9 +297,8 @@ func TestFinishSelectionAddsMultipleVersionedVariationsToExistingManifest(t *tes
 		{ProjectKey: "project", ConfigKey: "config", Variation: third},
 	}))
 
-	manifest, exists, err := manifestStore.Load()
+	manifest, err := manifestStore.Load([]string{"project"})
 	require.NoError(t, err)
-	require.True(t, exists)
 	require.Len(t, manifest.Resources, 3)
 	assert.Equal(t, "config/first", manifest.Resources[0].LookupKey)
 	assert.Equal(t, "config/second", manifest.Resources[1].LookupKey)
@@ -199,6 +309,11 @@ func TestFinishSelectionRollsBackFilesWhenManifestWriteFails(t *testing.T) {
 	root := t.TempDir()
 	variation := syncdomain.Variation{
 		Mode: syncdomain.VariationModeAgent, Key: "variation", Name: "Variation", Instructions: "Be helpful.",
+		Tools: []syncdomain.AttachmentRef{{Key: "search"}},
+		Attachments: []syncdomain.Attachment{{
+			Kind: syncdomain.AttachmentTool,
+			Tool: &syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+		}},
 	}
 
 	err := finishSelection(Options{
@@ -213,6 +328,38 @@ func TestFinishSelectionRollsBackFilesWhenManifestWriteFails(t *testing.T) {
 	require.ErrorContains(t, err, "write manifest")
 	_, statErr := os.Stat(filepath.Join(root, syncdomain.RootDir))
 	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
+func TestFinishSelectionRollsBackNewAttachmentWithoutRemovingExistingWorkspace(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	_, err := store.Bootstrap([]synclocal.VariationFile{{
+		ProjectKey: "project", ConfigKey: "config",
+		Variation: syncdomain.Variation{
+			Mode: syncdomain.VariationModeAgent, Key: "existing", Name: "Existing",
+		},
+	}})
+	require.NoError(t, err)
+	variation := syncdomain.Variation{
+		Mode: syncdomain.VariationModeAgent, Key: "new", Name: "New",
+		Tools: []syncdomain.AttachmentRef{{Key: "search"}},
+		Attachments: []syncdomain.Attachment{{
+			Kind: syncdomain.AttachmentTool,
+			Tool: &syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+		}},
+	}
+
+	err = finishSelection(Options{
+		Store: store, Manifest: failingManifestStore{}, Output: io.Discard,
+	}, []synclocal.VariationFile{{
+		ProjectKey: "project", ConfigKey: "config", Variation: variation,
+	}})
+
+	require.ErrorContains(t, err, "write manifest")
+	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "project", "configs", "config", "existing.prompt.md"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "project", "tools", "search.json"))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestWriteSummary(t *testing.T) {
@@ -237,7 +384,7 @@ func TestWriteSummary(t *testing.T) {
 func TestWritePreviewsPrintsEveryFile(t *testing.T) {
 	var output bytes.Buffer
 
-	writePreviews(&output, []synclocal.RenderedVariationFile{
+	writePreviews(&output, []synclocal.RenderedFile{
 		{Path: "project/configs/config/first.prompt.md", Content: []byte("first\n")},
 		{Path: "project/configs/config/second.prompt.md", Content: []byte("second\n")},
 	})
@@ -262,24 +409,47 @@ second
 	)
 }
 
-type fakeCatalog struct{}
+type fakeCatalog struct {
+	config syncapi.Config
+}
 
 var _ Catalog = &fakeCatalog{}
 
-func (*fakeCatalog) Projects() ([]syncapi.Project, error) {
-	return nil, nil
+func (*fakeCatalog) SearchProjects(string, int, int) (syncapi.Page[syncapi.Project], error) {
+	return syncapi.Page[syncapi.Project]{}, nil
 }
 
-func (*fakeCatalog) Configs(string) ([]syncapi.Config, error) {
-	return nil, nil
+func (*fakeCatalog) SearchConfigs(string, string, []syncdomain.VariationMode, int, int) (syncapi.Page[syncapi.Config], error) {
+	return syncapi.Page[syncapi.Config]{}, nil
+}
+
+func (catalog *fakeCatalog) Config(string, string) (syncapi.Config, error) {
+	return catalog.config, nil
 }
 
 type failingManifestStore struct{}
 
-func (failingManifestStore) Load() (syncmanifest.Manifest, bool, error) {
-	return syncmanifest.New(), false, nil
+func (failingManifestStore) Load([]string) (syncmanifest.Manifest, error) {
+	return syncmanifest.New(), nil
 }
 
-func (failingManifestStore) Write(syncmanifest.Manifest) error {
-	return errors.New("write manifest")
+func (failingManifestStore) Update(syncmanifest.Manifest, syncmanifest.Manifest) (syncmanifest.Manifest, error) {
+	return syncmanifest.Manifest{}, errors.New("write manifest")
+}
+
+type memoryManifestStore struct {
+	manifest syncmanifest.Manifest
+}
+
+func (store *memoryManifestStore) Load([]string) (syncmanifest.Manifest, error) {
+	return store.manifest, nil
+}
+
+func (store *memoryManifestStore) Update(
+	_ syncmanifest.Manifest,
+	next syncmanifest.Manifest,
+) (syncmanifest.Manifest, error) {
+	next.Sort()
+	store.manifest = next
+	return next, nil
 }

@@ -24,23 +24,68 @@ func TestLoadResourcesUnionsLocalAndManifestResources(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	manifestStore := syncmanifest.NewStore(root)
+	manifestStore := newMemoryManifestStore()
 	require.NoError(t, manifestStore.Write(syncmanifest.Manifest{
-		FormatVersion: syncmanifest.FormatVersion,
-		Resources: []syncmanifest.Resource{{
-			ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/manifest-only",
-			Fingerprint: testFingerprint(),
-		}},
+		Resources: []syncmanifest.Resource{
+			{
+				ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/manifest-only",
+				Fingerprint: testFingerprint(),
+			},
+			{
+				ResourceKind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search",
+				Fingerprint: testFingerprint(),
+			},
+		},
 	}))
 
-	resources, _, exists, err := loadResources(root, manifestStore)
+	resources, _, err := loadResources(root, manifestStore, []string{"project"})
 
 	require.NoError(t, err)
-	require.True(t, exists)
-	assert.Equal(t, []Resource{
+	assert.Equal(t, []syncdomain.ResourceID{
 		{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/local"},
 		{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/manifest-only"},
 	}, resources)
+}
+
+func TestDetachResourcesPrunesUnreferencedAttachmentManifestEntries(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	description := "Search documentation"
+	variation := testVariation("prompt")
+	variation.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	variation.Attachments = []syncdomain.Attachment{{
+		Kind: syncdomain.AttachmentTool,
+		Tool: &syncdomain.Tool{Key: "search", Description: &description, Schema: map[string]any{"type": "object"}},
+	}}
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "project", ConfigKey: "config", Variation: variation}})
+	require.NoError(t, err)
+
+	manifestStore := newMemoryManifestStore()
+	original := syncmanifest.Manifest{
+		Resources: []syncmanifest.Resource{
+			{
+				ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt",
+				Fingerprint: testFingerprint(),
+			},
+			{
+				ResourceKind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search",
+				Fingerprint: testFingerprint(),
+			},
+		},
+	}
+	require.NoError(t, manifestStore.Write(original))
+
+	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
+	err = detachResources(
+		Options{RepositoryRoot: root, Store: store, Manifest: manifestStore},
+		original,
+		[]syncdomain.ResourceID{resource},
+	)
+
+	require.NoError(t, err)
+	manifest, err := manifestStore.Load([]string{"project"})
+	require.NoError(t, err)
+	assert.Empty(t, manifest.Resources)
 }
 
 func TestDetachResourcesRemovesWrapperAndManifestButKeepsReferencedFile(t *testing.T) {
@@ -57,9 +102,8 @@ func TestDetachResourcesRemovesWrapperAndManifestButKeepsReferencedFile(t *testi
 	}})
 	require.NoError(t, err)
 
-	manifestStore := syncmanifest.NewStore(root)
+	manifestStore := newMemoryManifestStore()
 	original := syncmanifest.Manifest{
-		FormatVersion: syncmanifest.FormatVersion,
 		Resources: []syncmanifest.Resource{{
 			ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt",
 			Fingerprint: testFingerprint(),
@@ -67,8 +111,8 @@ func TestDetachResourcesRemovesWrapperAndManifestButKeepsReferencedFile(t *testi
 	}
 	require.NoError(t, manifestStore.Write(original))
 
-	resource := Resource{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
-	err = detachResources(Options{Store: store, Manifest: manifestStore}, original, true, []Resource{resource})
+	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
+	err = detachResources(Options{Store: store, Manifest: manifestStore}, original, []syncdomain.ResourceID{resource})
 
 	require.NoError(t, err)
 	exists, err := store.VariationExists("project", "config", "prompt")
@@ -76,18 +120,16 @@ func TestDetachResourcesRemovesWrapperAndManifestButKeepsReferencedFile(t *testi
 	assert.False(t, exists)
 	_, err = os.Stat(referencePath)
 	require.NoError(t, err)
-	manifest, exists, err := manifestStore.Load()
+	manifest, err := manifestStore.Load([]string{"project"})
 	require.NoError(t, err)
-	require.True(t, exists)
 	assert.Empty(t, manifest.Resources)
 }
 
 func TestDetachResourcesRemovesManifestEntryWhenWrapperWasAlreadyDeleted(t *testing.T) {
 	root := t.TempDir()
 	store := synclocal.NewStore(root)
-	manifestStore := syncmanifest.NewStore(root)
+	manifestStore := newMemoryManifestStore()
 	original := syncmanifest.Manifest{
-		FormatVersion: syncmanifest.FormatVersion,
 		Resources: []syncmanifest.Resource{{
 			ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/deleted",
 			Fingerprint: testFingerprint(),
@@ -95,13 +137,12 @@ func TestDetachResourcesRemovesManifestEntryWhenWrapperWasAlreadyDeleted(t *test
 	}
 	require.NoError(t, manifestStore.Write(original))
 
-	resource := Resource{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/deleted"}
-	err := detachResources(Options{Store: store, Manifest: manifestStore}, original, true, []Resource{resource})
+	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/deleted"}
+	err := detachResources(Options{Store: store, Manifest: manifestStore}, original, []syncdomain.ResourceID{resource})
 
 	require.NoError(t, err)
-	manifest, exists, err := manifestStore.Load()
+	manifest, err := manifestStore.Load([]string{"project"})
 	require.NoError(t, err)
-	require.True(t, exists)
 	assert.Empty(t, manifest.Resources)
 }
 
@@ -112,20 +153,18 @@ func TestDetachResourcesDeletesUnreadableWrapper(t *testing.T) {
 	require.NoError(t, os.WriteFile(wrapper, []byte("not front matter"), 0o644))
 
 	store := synclocal.NewStore(root)
-	manifestStore := syncmanifest.NewStore(root)
-	resource := Resource{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/broken"}
+	manifestStore := newMemoryManifestStore()
+	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/broken"}
 
 	err := detachResources(
 		Options{Store: store, Manifest: manifestStore},
 		syncmanifest.New(),
-		false,
-		[]Resource{resource},
+		[]syncdomain.ResourceID{resource},
 	)
 
 	require.NoError(t, err)
-	manifest, exists, loadErr := manifestStore.Load()
+	manifest, loadErr := manifestStore.Load([]string{"project"})
 	require.NoError(t, loadErr)
-	require.True(t, exists)
 	assert.Empty(t, manifest.Resources)
 	_, statErr := os.Stat(wrapper)
 	require.ErrorIs(t, statErr, os.ErrNotExist)
@@ -142,12 +181,41 @@ func TestRunRequiresTerminalWhenResourcesExist(t *testing.T) {
 	err = Run(Options{
 		RepositoryRoot: root,
 		Store:          store,
-		Manifest:       syncmanifest.NewStore(root),
+		Manifest:       newMemoryManifestStore(),
 		Input:          bytes.NewBuffer(nil),
 		Output:         bytes.NewBuffer(nil),
 	})
 
 	require.ErrorContains(t, err, "requires a terminal")
+}
+
+func TestRunUsesExplicitSelectionsWithoutTerminal(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	_, err := store.Add([]synclocal.VariationFile{{
+		ProjectKey: "project", ConfigKey: "config", Variation: testVariation("prompt"),
+	}})
+	require.NoError(t, err)
+	selection := syncdomain.ResourceID{
+		Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt",
+	}
+	manifestStore := newMemoryManifestStore()
+
+	err = Run(Options{
+		RepositoryRoot: root,
+		Store:          store,
+		Manifest:       manifestStore,
+		Input:          bytes.NewBuffer(nil),
+		Output:         bytes.NewBuffer(nil),
+		Selections:     []syncdomain.ResourceID{selection},
+		NoInput:        true,
+	})
+
+	require.NoError(t, err)
+	exists, err := store.VariationExists("project", "config", "prompt")
+	require.NoError(t, err)
+	assert.False(t, exists)
+	assert.Equal(t, []string{"project"}, manifestStore.loadedProjectKeys)
 }
 
 func TestRunReportsWhenNoResourcesAreSynced(t *testing.T) {
@@ -157,13 +225,58 @@ func TestRunReportsWhenNoResourcesAreSynced(t *testing.T) {
 	err := Run(Options{
 		RepositoryRoot: root,
 		Store:          synclocal.NewStore(root),
-		Manifest:       syncmanifest.NewStore(root),
+		Manifest:       newMemoryManifestStore(),
 		Input:          bytes.NewBuffer(nil),
 		Output:         &output,
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, "No resources are currently synced.\n", output.String())
+}
+
+func TestRunRejectsExplicitSelectionWhenNoResourcesAreSynced(t *testing.T) {
+	root := t.TempDir()
+	var output bytes.Buffer
+
+	err := Run(Options{
+		RepositoryRoot: root,
+		Store:          synclocal.NewStore(root),
+		Manifest:       newMemoryManifestStore(),
+		Input:          bytes.NewBuffer(nil),
+		Output:         &output,
+		Selections:     []syncdomain.ResourceID{syncdomain.VariationID("production", "support", "default")},
+		NoInput:        true,
+	})
+
+	require.ErrorContains(t, err, "variation production/support/default is not synced")
+	assert.Empty(t, output.String())
+}
+
+type memoryManifestStore struct {
+	manifest          syncmanifest.Manifest
+	loadedProjectKeys []string
+}
+
+func newMemoryManifestStore() *memoryManifestStore {
+	return &memoryManifestStore{manifest: syncmanifest.New()}
+}
+
+func (store *memoryManifestStore) Load(projectKeys []string) (syncmanifest.Manifest, error) {
+	store.loadedProjectKeys = append([]string(nil), projectKeys...)
+	return store.manifest, nil
+}
+
+func (store *memoryManifestStore) Update(
+	_ syncmanifest.Manifest,
+	next syncmanifest.Manifest,
+) (syncmanifest.Manifest, error) {
+	store.manifest = next
+	return next, nil
+}
+
+func (store *memoryManifestStore) Write(manifest syncmanifest.Manifest) error {
+	store.manifest = manifest
+	return nil
 }
 
 func testVariation(key string) syncdomain.Variation {
