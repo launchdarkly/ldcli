@@ -63,7 +63,8 @@ func (client Client) SearchAttachments(
 		TotalCount: page.TotalCount,
 	}
 	for _, item := range page.Items {
-		attachment, err := decodeAttachment(kind, item)
+		// A search result can omit the version, so do not require it here.
+		attachment, err := parseAttachment(kind, item)
 		if err != nil {
 			return Page[syncdomain.Attachment]{}, err
 		}
@@ -162,26 +163,13 @@ func attachmentPath(projectKey string, kind syncdomain.AttachmentKind) ([]string
 	}
 }
 
-// decodeAttachment decodes one tool or skill response and checks its identity.
+// decodeAttachment decodes the response of one tool or skill read. A read
+// must return the key and a positive version.
 func decodeAttachment(kind syncdomain.AttachmentKind, data []byte) (syncdomain.Attachment, error) {
-	var attachment syncdomain.Attachment
-	switch kind {
-	case syncdomain.AttachmentTool:
-		response, err := decodeJSON[toolResponse](data, "tool response")
-		if err != nil {
-			return syncdomain.Attachment{}, err
-		}
-		attachment = syncdomain.Attachment{Kind: kind, Version: response.Version, Tool: &response.Tool}
-	case syncdomain.AttachmentSkill:
-		response, err := decodeJSON[skillResponse](data, "skill response")
-		if err != nil {
-			return syncdomain.Attachment{}, err
-		}
-		attachment = syncdomain.Attachment{Kind: kind, Version: response.Version, Skill: &response.Skill}
-	default:
-		return syncdomain.Attachment{}, fmt.Errorf("unsupported attachment kind %q", kind)
+	attachment, err := parseAttachment(kind, data)
+	if err != nil {
+		return syncdomain.Attachment{}, err
 	}
-
 	switch {
 	case attachment.Key() == "":
 		return syncdomain.Attachment{}, fmt.Errorf("decode %s response: key is required", kind)
@@ -189,4 +177,24 @@ func decodeAttachment(kind syncdomain.AttachmentKind, data []byte) (syncdomain.A
 		return syncdomain.Attachment{}, fmt.Errorf("decode %s response: version must be positive", kind)
 	}
 	return attachment, nil
+}
+
+// parseAttachment decodes one tool or skill without checking its identity.
+func parseAttachment(kind syncdomain.AttachmentKind, data []byte) (syncdomain.Attachment, error) {
+	switch kind {
+	case syncdomain.AttachmentTool:
+		response, err := decodeJSON[toolResponse](data, "tool response")
+		if err != nil {
+			return syncdomain.Attachment{}, err
+		}
+		return syncdomain.Attachment{Kind: kind, Version: response.Version, Tool: &response.Tool}, nil
+	case syncdomain.AttachmentSkill:
+		response, err := decodeJSON[skillResponse](data, "skill response")
+		if err != nil {
+			return syncdomain.Attachment{}, err
+		}
+		return syncdomain.Attachment{Kind: kind, Version: response.Version, Skill: &response.Skill}, nil
+	default:
+		return syncdomain.Attachment{}, fmt.Errorf("unsupported attachment kind %q", kind)
+	}
 }

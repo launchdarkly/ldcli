@@ -66,6 +66,29 @@ func TestSearchAttachmentsDecodesLatestSkills(t *testing.T) {
 	assert.Equal(t, "https://example.com/api/v2/projects/project/ai-configs/skills", transport.Requests[0].Path)
 }
 
+func TestSearchAttachmentsAcceptsResultsWithoutVersion(t *testing.T) {
+	toolTransport := &recordingClient{Responses: [][]byte{
+		[]byte(`{"items": [{"key": "search", "schema": {"type": "object"}}], "totalCount": 1}`),
+		[]byte(`{"key": "search", "schema": {"type": "object"}, "version": 4}`),
+	}}
+	tools, err := NewClient(toolTransport, "token", "https://example.com").
+		SearchAttachments("project", syncdomain.AttachmentTool, "", 25, 0)
+
+	require.NoError(t, err)
+	require.Len(t, tools.Items, 1)
+	assert.Equal(t, 4, tools.Items[0].Version)
+
+	skillTransport := &recordingClient{Responses: [][]byte{
+		[]byte(`{"items": [{"key": "support", "name": "Support", "version": 0}], "totalCount": 1}`),
+	}}
+	skills, err := NewClient(skillTransport, "token", "https://example.com").
+		SearchAttachments("project", syncdomain.AttachmentSkill, "", 25, 0)
+
+	require.NoError(t, err)
+	require.Len(t, skills.Items, 1)
+	assert.Equal(t, "support", skills.Items[0].Key())
+}
+
 func TestUpdateSkillSendsEditableFields(t *testing.T) {
 	description := "Customer support guidance"
 	markdown := "Help the customer.\n"
