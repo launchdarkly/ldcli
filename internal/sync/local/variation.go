@@ -89,6 +89,7 @@ func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
 		ProjectKey: file.ProjectKey,
 		LookupKey:  configKey + "/" + variation.Key,
 		Upsert:     meta.Upsert,
+		Ref:        meta.Ref,
 		Variation:  variation,
 	}, nil
 }

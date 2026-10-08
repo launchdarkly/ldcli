@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"errors"
+	"maps"
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
@@ -62,7 +63,9 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		if !resolved.HasChanges() {
 			// A workspace from before sync.lock gets the file on its first sync.
 			if !reviewed.baseline.HasLockFile() {
-				if _, err := workspace.baselines.Save(reviewed.baseline, reviewed.baseline.Lock); err != nil {
+				lock := reviewed.baseline.Lock.Clone()
+				lock.SetRefs(slices.Collect(maps.Values(reviewed.localFiles)))
+				if _, err := workspace.baselines.Save(reviewed.baseline, lock); err != nil {
 					return err
 				}
 			}

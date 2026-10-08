@@ -41,7 +41,7 @@ func CompileWorkspace(repositoryRoot string) ([]syncdomain.SyncedResource, error
 		return nil, fmt.Errorf("resolve repository root: %w", err)
 	}
 	return compile(workspaceFS{root: root}, func(reference Reference) ([]byte, error) {
-		return readWorkspaceReference(root, reference)
+		return ReadReference(root, reference)
 	})
 }
 

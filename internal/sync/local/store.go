@@ -27,11 +27,13 @@ type VariationFile struct {
 }
 
 // VariationReplacement is new content for a variation file. If
-// CreateIfMissing is true and the file does not exist, the replace creates it.
+// CreateIfMissing is true and the file does not exist, the replace creates it
+// with Ref as its link. An existing file keeps its own link.
 type VariationReplacement struct {
 	ProjectKey      string
 	ConfigKey       string
 	CreateIfMissing bool
+	Ref             *Reference
 	Variation       syncdomain.Variation
 }
 

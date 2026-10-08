@@ -149,7 +149,8 @@ func (store Store) prepareReplacements(replacements []VariationReplacement) ([]s
 }
 
 // missingVariation describes a variation file that does not exist yet. A new
-// file has upsert, so that a later sync can create the variation again.
+// file has upsert, so that a later sync can create the variation again, and
+// it keeps the link of the variation that it restores.
 func missingVariation(replacement VariationReplacement) (existingVariation, error) {
 	relativePath, err := variationPath(replacement.ProjectKey, replacement.ConfigKey, replacement.Variation.Key)
 	if err != nil {
@@ -158,7 +159,7 @@ func missingVariation(replacement VariationReplacement) (existingVariation, erro
 	return existingVariation{
 		relativePath: relativePath,
 		mode:         0o644,
-		frontMatter:  variationFrontMatter{Upsert: true},
+		frontMatter:  variationFrontMatter{Upsert: true, Ref: replacement.Ref},
 	}, nil
 }
 

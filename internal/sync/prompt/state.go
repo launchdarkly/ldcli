@@ -2,12 +2,14 @@ package prompt
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
+	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
 )
 
 // workspaceState is everything that one plan depends on. The plan compares
@@ -81,8 +83,50 @@ func loadWorkspacePlan(
 	plan := BuildPlan(baseline.Lock, local, server)
 	for index := range plan.Resources {
 		plan.Resources[index].SyncedElsewhere = baseline.Stale(plan.Resources[index].ID)
+		planRestore(repositoryRoot, baseline, &plan.Resources[index])
 	}
 	return plan, localFilesByID, nil
+}
+
+// planRestore checks a variation whose local file is missing. The restored
+// file must keep the link that sync.lock records. When sync cannot restore
+// the link safely, the resource becomes an error and sync writes nothing.
+func planRestore(repositoryRoot string, baseline syncmanifest.Baseline, resource *PlannedResource) {
+	if resource.Action != ActionUpdateLocal || resource.Local != nil {
+		return
+	}
+	fail := func(problem, fix string) {
+		resource.Action = ActionError
+		resource.Error = "the variation file is missing, and " + problem + ". " + fix
+	}
+	if !baseline.HasLockFile() {
+		fail("this working copy has no sync.lock to show whether the file linked to a prompt file",
+			"Restore the file from Git, or stop syncing the variation with detach")
+		return
+	}
+	ref := baseline.Lock.Ref(resource.ID)
+	if ref == nil {
+		return
+	}
+
+	content, err := synclocal.ReadReference(repositoryRoot, *ref)
+	if err != nil {
+		fail(fmt.Sprintf("its linked file %q is not available (%s)", ref.File, err),
+			"Restore the files from Git, or stop syncing the variation with detach")
+		return
+	}
+	// The restore writes LaunchDarkly's prompt to the linked file. Allow that
+	// only when the file already has that prompt, so that no local edit is lost.
+	linked := *resource.Server
+	if err := syncreference.ApplyToVariation(ref.Format, content, &linked); err == nil {
+		fingerprint, err := syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, linked)
+		if err == nil && fingerprint == resource.ServerFingerprint {
+			resource.restoreRef = ref
+			return
+		}
+	}
+	fail(fmt.Sprintf("its linked file %q differs from LaunchDarkly", ref.File),
+		"Restore the variation file from Git, and then run sync again")
 }
 
 // readServerResource reads one variation from LaunchDarkly with the content

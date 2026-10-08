@@ -80,15 +80,15 @@ func (store BaselineStore) Load(projectKeys []string) (Baseline, error) {
 }
 
 // Save records next as the new baseline. It sends the entries that changed
-// from current.Lock to next to the remote manifest, and then writes next to
-// the sync.lock file with the versions that LaunchDarkly returned. If the
-// remote save fails, the lock file does not change.
+// from current.Lock to next to the remote manifest, with the versions that
+// sync read, and then writes next to the sync.lock file. If the remote save
+// fails, the lock file does not change.
 func (store BaselineStore) Save(current Baseline, next Manifest) (Baseline, error) {
 	remote, err := store.remote.Update(current.remote, current.remote.WithChanges(current.Lock, next))
 	if err != nil {
 		return Baseline{}, err
 	}
-	saved := Baseline{Lock: next.WithVersionsFrom(remote), remote: remote, lockFileExists: true}
+	saved := Baseline{Lock: next.Clone(), remote: remote, lockFileExists: true}
 	saved.Lock.Sort()
 	if err := writeLock(store.lock, saved.Lock); err != nil {
 		return Baseline{}, err

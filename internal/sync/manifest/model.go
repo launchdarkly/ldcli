@@ -19,15 +19,20 @@ type Manifest struct {
 	Resources []Resource
 }
 
-// Resource is the baseline of one resource. Version is the version of the
-// remote manifest entry, which LaunchDarkly uses for optimistic locking. The
-// YAML tags are the format of the sync.lock file.
+// Resource is the baseline of one resource. The YAML tags are the format of
+// the sync.lock file.
 type Resource struct {
 	ResourceKind syncdomain.Kind `yaml:"kind"`
 	ProjectKey   string          `yaml:"project"`
 	LookupKey    string          `yaml:"key"`
 	Fingerprint  string          `yaml:"fingerprint"`
-	Version      int             `yaml:"version"`
+	// Version is the version of the remote manifest entry, which LaunchDarkly
+	// uses for optimistic locking. Only the remote manifest has it. The lock
+	// does not store it, so that a lock entry changes only with its content.
+	Version int `yaml:"-"`
+	// Ref is the linked prompt file of a variation. Only sync.lock stores it,
+	// so that sync can restore a missing variation file with its link.
+	Ref *syncdomain.Reference `yaml:"ref,omitempty"`
 }
 
 // ID returns the identity of the resource.
@@ -64,6 +69,24 @@ func (manifest *Manifest) Remove(id syncdomain.ResourceID) {
 	if index := manifest.index(id); index >= 0 {
 		manifest.Resources = slices.Delete(manifest.Resources, index, index+1)
 	}
+}
+
+// SetRefs records the linked prompt file of each variation. A variation
+// without a local file keeps its recorded link.
+func (manifest *Manifest) SetRefs(variations []syncdomain.SyncedResource) {
+	for _, variation := range variations {
+		if index := manifest.index(variation.ID()); index >= 0 {
+			manifest.Resources[index].Ref = variation.Ref
+		}
+	}
+}
+
+// Ref returns the recorded linked prompt file of a resource, or nil.
+func (manifest Manifest) Ref(id syncdomain.ResourceID) *syncdomain.Reference {
+	if index := manifest.index(id); index >= 0 {
+		return manifest.Resources[index].Ref
+	}
+	return nil
 }
 
 // SetAttachments records the state of each tool and skill. Many variations

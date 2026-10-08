@@ -3,6 +3,7 @@ package prompt
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
@@ -177,4 +178,14 @@ func localResources(variation *syncdomain.Variation, upsert bool) []syncdomain.S
 		Variation:  *variation,
 		Upsert:     upsert,
 	}}
+}
+
+func TestPlanRestoreStopsWithoutSyncLock(t *testing.T) {
+	server := testVariation("Server")
+	resource := PlannedResource{ID: testResourceID(), Action: ActionUpdateLocal, Server: &server}
+
+	planRestore(t.TempDir(), syncmanifest.Baseline{}, &resource)
+
+	assert.Equal(t, ActionError, resource.Action)
+	assert.Contains(t, resource.Error, "this working copy has no sync.lock")
 }

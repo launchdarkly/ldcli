@@ -68,6 +68,8 @@ type PlannedResource struct {
 	// changedAttachments are the tools and skills whose content differs
 	// between the local file and LaunchDarkly.
 	changedAttachments []ResourceID
+	// restoreRef is the link that a restored variation file keeps.
+	restoreRef *syncdomain.Reference
 }
 
 // Plan is the sync decision for each resource, in identity order.

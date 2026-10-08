@@ -27,12 +27,10 @@ resources:
     project: production
     key: search
     fingerprint: `+fingerprint("b")+`
-    version: 2
   - kind: variation
     project: production
     key: support/default
     fingerprint: `+fingerprint("a")+`
-    version: 6
 `, string(content))
 
 	decoded, err := decodeLock(content)
@@ -100,7 +98,7 @@ func TestBaselineStaleComparesFingerprints(t *testing.T) {
 
 // The version in each request must be the version that sync read from
 // LaunchDarkly, so that LaunchDarkly rejects a save that races another save.
-func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLock(t *testing.T) {
+func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLockWithoutThem(t *testing.T) {
 	client := &manifestClient{
 		manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("b"), 5)},
 		patchResponses: []syncapi.SyncManifest{{
@@ -130,7 +128,7 @@ func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLock(t *testing.T) {
 	written, _, err := ReadLock(lock)
 	require.NoError(t, err)
 	assert.Equal(t, saved.Lock, written)
-	assert.Equal(t, 6, written.Resources[written.index(variationID())].Version)
+	assert.NotContains(t, string(lock.content), "version:")
 	assert.False(t, saved.Stale(variationID()))
 }
 
@@ -219,4 +217,26 @@ func (lock *memoryLock) ReadLock() ([]byte, error) {
 func (lock *memoryLock) WriteLock(content []byte) error {
 	lock.content = content
 	return nil
+}
+
+func TestLockKeepsTheLinkOfAVariation(t *testing.T) {
+	manifest := Manifest{Resources: []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default",
+		Fingerprint: fingerprint("a"), Version: 1,
+	}}}
+	ref := &syncdomain.Reference{File: "prompts/support.md", Format: "plain-markdown"}
+	manifest.SetRefs([]syncdomain.SyncedResource{{
+		Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default", Ref: ref,
+	}})
+
+	content, err := encodeLock(manifest)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "    ref:\n      file: prompts/support.md\n      format: plain-markdown\n")
+	decoded, err := decodeLock(content)
+	require.NoError(t, err)
+	assert.Equal(t, ref, decoded.Ref(variationID()))
+
+	// A variation without a local file keeps its recorded link.
+	manifest.SetRefs(nil)
+	assert.Equal(t, ref, manifest.Ref(variationID()))
 }
