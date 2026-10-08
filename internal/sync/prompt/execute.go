@@ -76,6 +76,7 @@ func executePlan(
 			failures = append(failures, err)
 		} else {
 			next.RemoveUnusedAttachments(variations)
+			next.SetRefs(variations)
 		}
 	}
 	return outcomes, next, errors.Join(failures...)
@@ -235,6 +236,7 @@ func applyLocalChange(store synclocal.Store, resource PlannedResource) error {
 			ProjectKey:      resource.ID.ProjectKey,
 			ConfigKey:       configKey,
 			CreateIfMissing: resource.Local == nil,
+			Ref:             resource.restoreRef,
 			Variation:       *resource.Server,
 		}})
 		return err

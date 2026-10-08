@@ -20,8 +20,9 @@ import (
 
 const archiveQuestion = "\nArchive these variations in LaunchDarkly? [y/N] "
 
-// Archiver archives a variation in LaunchDarkly.
+// Archiver reads and archives a variation in LaunchDarkly.
 type Archiver interface {
+	ReadVariation(projectKey, configKey, variationKey string) (syncapi.VariationState, error)
 	ArchiveVariation(projectKey, configKey, variationKey string) error
 }
 
@@ -42,6 +43,19 @@ type Options struct {
 	Archive  bool
 	Archiver Archiver
 	Yes      bool
+	// Context stops the archive confirmation and the archive when it ends.
+	Context context.Context
+
+	// isTerminal reports whether the streams are a terminal. Tests replace it.
+	isTerminal func(io.Reader, io.Writer) bool
+}
+
+// context returns the context of the command, or a context that never ends.
+func (options Options) context() context.Context {
+	if options.Context == nil {
+		return context.Background()
+	}
+	return options.Context
 }
 
 // Run detaches the selected variations.
@@ -81,8 +95,8 @@ func Run(options Options) error {
 			return err
 		}
 		// Archive first. If a later step fails, the same command can run again,
-		// because a variation that is already archived does not fail.
-		if err := archiveVariations(options.Archiver, selected); err != nil {
+		// because it skips a variation that is already archived.
+		if err := archiveVariations(options.context(), options.Archiver, selected); err != nil {
 			return err
 		}
 	}
@@ -132,21 +146,39 @@ func confirmArchive(options Options, selected []syncdomain.ResourceID) (bool, er
 	for _, resource := range selected {
 		_ = console.Printf("- %s\n", resource)
 	}
-	interactive := !options.NoInput && syncinteractive.StreamsAreTerminal(options.Input, options.Output)
-	confirmed, err := syncinteractive.Confirm(context.Background(), options.Input, options.Output, interactive, archiveQuestion)
+	isTerminal := options.isTerminal
+	if isTerminal == nil {
+		isTerminal = syncinteractive.StreamsAreTerminal
+	}
+	interactive := !options.NoInput && isTerminal(options.Input, options.Output)
+	confirmed, err := syncinteractive.Confirm(options.context(), options.Input, options.Output, interactive, archiveQuestion)
 	if err == nil && !confirmed {
 		_ = console.Line("Detach canceled.")
 	}
 	return confirmed, err
 }
 
-// archiveVariations archives each variation. A variation that LaunchDarkly
-// does not have, or that is already archived, does not fail.
-func archiveVariations(archiver Archiver, selected []syncdomain.ResourceID) error {
+// archiveVariations archives each variation that LaunchDarkly still has. It
+// reads each variation first, because the API rejects the archive of an
+// archived variation. A variation that is already archived or gone does not
+// fail, so the same command can run again after a later step fails. It stops
+// before the next archive when ctx ends.
+func archiveVariations(ctx context.Context, archiver Archiver, selected []syncdomain.ResourceID) error {
 	for _, resource := range selected {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		configKey, variationKey, err := resource.VariationKeys()
 		if err != nil {
 			return err
+		}
+		// ReadVariation treats an archived variation as absent.
+		state, err := archiver.ReadVariation(resource.ProjectKey, configKey, variationKey)
+		switch {
+		case syncapi.IsNotFound(err) || err == nil && !state.Exists:
+			continue
+		case err != nil:
+			return fmt.Errorf("read variation %s: %w", resource, err)
 		}
 		if err := archiver.ArchiveVariation(resource.ProjectKey, configKey, variationKey); err != nil && !syncapi.IsNotFound(err) {
 			return fmt.Errorf("archive variation %s: %w", resource, err)
