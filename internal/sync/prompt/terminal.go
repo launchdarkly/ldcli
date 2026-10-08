@@ -99,8 +99,8 @@ func confirmQuestion(input io.Reader, prompt io.Writer, interactive bool, questi
 	return answer == "y" || answer == "yes", nil
 }
 
-// cleanupOrphanedAttachments removes local dependency files only after the
-// user confirms that no managed variation references them.
+// cleanupOrphanedAttachments removes local dependency files after confirmation
+// and a final reference check.
 func cleanupOrphanedAttachments(options Options, store synclocal.Store, interactive bool) error {
 	orphaned, err := store.OrphanedAttachments()
 	if err != nil {
@@ -129,6 +129,10 @@ func cleanupOrphanedAttachments(options Options, store synclocal.Store, interact
 		)
 	}
 
+	if !options.Yes && !interactive {
+		_ = console.Line("Unreferenced attachment files kept. Rerun with --yes to delete them.")
+		return nil
+	}
 	if !options.Yes {
 		confirmed, err := confirmQuestionWithContext(
 			options.Context,
@@ -146,6 +150,16 @@ func cleanupOrphanedAttachments(options Options, store synclocal.Store, interact
 		}
 	}
 
+	currentOrphans, err := store.OrphanedAttachments()
+	if err != nil {
+		return err
+	}
+	orphaned = stillOrphanedAttachments(orphaned, currentOrphans)
+	if len(orphaned) == 0 {
+		_ = console.Line("No selected attachment files remain unreferenced.")
+		return nil
+	}
+
 	deleted, err := store.DeleteAttachments(orphaned)
 	if err != nil {
 		return err
@@ -155,4 +169,18 @@ func cleanupOrphanedAttachments(options Options, store synclocal.Store, interact
 		_ = console.Printf("- %s/%s\n", ".launchdarkly", file)
 	}
 	return nil
+}
+
+func stillOrphanedAttachments(reviewed, current []synclocal.OrphanedAttachment) []synclocal.OrphanedAttachment {
+	currentSet := make(map[synclocal.OrphanedAttachment]struct{}, len(current))
+	for _, attachment := range current {
+		currentSet[attachment] = struct{}{}
+	}
+	stillOrphaned := make([]synclocal.OrphanedAttachment, 0, len(reviewed))
+	for _, attachment := range reviewed {
+		if _, ok := currentSet[attachment]; ok {
+			stillOrphaned = append(stillOrphaned, attachment)
+		}
+	}
+	return stillOrphaned
 }
