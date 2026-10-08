@@ -15,7 +15,6 @@ const (
 	ActionInSync         Action = "in_sync"
 	ActionCreateServer   Action = "create_server"
 	ActionUpdateServer   Action = "update_server"
-	ActionArchiveServer  Action = "archive_server"
 	ActionUpdateLocal    Action = "update_local"
 	ActionDeleteLocal    Action = "delete_local"
 	ActionUpdateManifest Action = "update_manifest"
@@ -26,7 +25,7 @@ const (
 
 // changesServer reports whether the action writes to LaunchDarkly.
 func (action Action) changesServer() bool {
-	return action == ActionCreateServer || action == ActionUpdateServer || action == ActionArchiveServer
+	return action == ActionCreateServer || action == ActionUpdateServer
 }
 
 // changesLocal reports whether the action writes a local file.
@@ -200,6 +199,15 @@ func chooseAction(tracked bool, resource PlannedResource) Action {
 		}
 	}
 
+	// A missing local file means that this working copy does not have the
+	// variation, for example after a Git pull or a branch switch. Sync restores
+	// the file. Only "detach --archive" archives a variation.
+	if !localExists && serverExists {
+		return ActionUpdateLocal
+	}
+
+	// A tracked side that exists has a fingerprint, so "unchanged" also means
+	// that the side exists.
 	localUnchanged := resource.LocalFingerprint == resource.BaselineFingerprint
 	serverUnchanged := resource.ServerFingerprint == resource.BaselineFingerprint
 	switch {
@@ -207,30 +215,19 @@ func chooseAction(tracked bool, resource PlannedResource) Action {
 		return ActionInSync
 	case resource.LocalFingerprint == resource.ServerFingerprint:
 		// Both sides changed to the same state, which can be a deletion.
-		if !localExists && !serverExists {
+		if !localExists {
 			return ActionRemoveManifest
 		}
 		return ActionUpdateManifest
 	case serverUnchanged:
 		// Only the local file changed, so LaunchDarkly follows it.
-		switch {
-		case !localExists:
-			return ActionArchiveServer
-		case serverExists:
-			return ActionUpdateServer
-		default:
-			return ActionConflict
-		}
+		return ActionUpdateServer
+	case localUnchanged && !serverExists:
+		// The variation was archived in LaunchDarkly, so the local file goes too.
+		return ActionDeleteLocal
 	case localUnchanged:
 		// Only LaunchDarkly changed, so the local file follows it.
-		switch {
-		case !serverExists:
-			return ActionDeleteLocal
-		case localExists:
-			return ActionUpdateLocal
-		default:
-			return ActionConflict
-		}
+		return ActionUpdateLocal
 	default:
 		return ActionConflict
 	}
@@ -244,11 +241,10 @@ func (plan Plan) RequiresConfirmation() bool {
 	})
 }
 
-// HasDestructiveActions reports whether the plan deletes a local file or
-// archives a variation in LaunchDarkly.
+// HasDestructiveActions reports whether the plan deletes a local file.
 func (plan Plan) HasDestructiveActions() bool {
 	return slices.ContainsFunc(plan.Resources, func(resource PlannedResource) bool {
-		return resource.Action == ActionArchiveServer || resource.Action == ActionDeleteLocal
+		return resource.Action == ActionDeleteLocal
 	})
 }
 

@@ -97,7 +97,7 @@ func attachmentManifestState(resource PlannedResource) *syncdomain.Variation {
 // recordSuccessfulChange records the state that a completed action chose.
 func recordSuccessfulChange(manifest *syncmanifest.Manifest, resource PlannedResource) {
 	switch {
-	case resource.Action == ActionArchiveServer || resource.Action == ActionDeleteLocal:
+	case resource.Action == ActionDeleteLocal:
 		manifest.Remove(resource.ID)
 	case resource.Action.changesServer():
 		manifest.SetFingerprint(resource.ID, resource.LocalFingerprint)
@@ -175,8 +175,6 @@ func applyServerChange(client syncapi.Client, attachments *attachmentResolver, r
 			return err
 		}
 		writeErr = client.UpdateVariation(projectKey, configKey, variation)
-	case ActionArchiveServer:
-		writeErr = client.ArchiveVariation(projectKey, configKey, variationKey)
 	default:
 		return fmt.Errorf("action %q does not change LaunchDarkly", resource.Action)
 	}
@@ -197,13 +195,8 @@ func applyServerChange(client syncapi.Client, attachments *attachmentResolver, r
 			return errors.Join(writeErr, err)
 		}
 	}
-	expected := resource.LocalFingerprint
-	if resource.Action == ActionArchiveServer {
-		expected = ""
-	}
-
 	switch actual {
-	case expected:
+	case resource.LocalFingerprint:
 		return nil
 	case resource.ServerFingerprint:
 		return writeErr

@@ -789,17 +789,19 @@ func TestPromptStaleWorkingCopyPullsInsteadOfReverting(t *testing.T) {
 	assert.Equal(t, other.Name, resources[0].Variation.Name)
 }
 
-func TestPromptPropagatesTrackedLocalDeletion(t *testing.T) {
+func TestPromptRestoresTrackedMissingFileInsteadOfArchiving(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
 	writeVariation(t, root, baseline, false)
 	writeManifest(t, root, baseline)
 	api := &directAPI{variation: pointer(baseline)}
 
-	// The first sync writes sync.lock, which tracks the project after its
-	// files are gone.
+	// The first sync of a workspace from before sync.lock writes the lock.
 	_, _, err := runPrompt(t, root, api, "--yes")
 	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir, "sync.lock"))
+	require.NoError(t, err)
+
 	_, err = synclocal.NewStore(root).DeleteVariations([]synclocal.VariationDeletion{{
 		ProjectKey: "production", ConfigKey: "support", VariationKey: "default",
 	}})
@@ -808,9 +810,12 @@ func TestPromptPropagatesTrackedLocalDeletion(t *testing.T) {
 	_, _, err = runPrompt(t, root, api, "--yes")
 
 	require.NoError(t, err)
-	require.NotNil(t, api.variation)
-	assert.Equal(t, "archived", api.variationState)
-	assert.Empty(t, manifestsByRoot[root].Items)
+	assert.NotEqual(t, "archived", api.variationState)
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	assert.Equal(t, baseline.Name, resources[0].Variation.Name)
+	assert.NotEmpty(t, manifestsByRoot[root].Items)
 }
 
 func TestPromptPropagatesTrackedServerDeletion(t *testing.T) {

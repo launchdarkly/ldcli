@@ -1,19 +1,29 @@
 // Package detach stops syncing selected variations. It removes their local
-// files and their baseline. LaunchDarkly keeps the variations.
+// files and their baseline. LaunchDarkly keeps the variations, unless the
+// user asks to archive them.
 package detach
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
+
+const archiveQuestion = "\nArchive these variations in LaunchDarkly? [y/N] "
+
+// Archiver archives a variation in LaunchDarkly.
+type Archiver interface {
+	ArchiveVariation(projectKey, configKey, variationKey string) error
+}
 
 // Options are the dependencies and the input of one detach.
 type Options struct {
@@ -27,6 +37,11 @@ type Options struct {
 	// Selections are the variations to detach. If it is empty, Run asks the user.
 	Selections []syncdomain.ResourceID
 	NoInput    bool
+	// Archive also archives each selected variation in LaunchDarkly. Without
+	// Yes, the user must confirm the archive.
+	Archive  bool
+	Archiver Archiver
+	Yes      bool
 }
 
 // Run detaches the selected variations.
@@ -60,11 +75,26 @@ func Run(options Options) error {
 			return err
 		}
 	}
+	if options.Archive {
+		confirmed, err := confirmArchive(options, selected)
+		if err != nil || !confirmed {
+			return err
+		}
+		// Archive first. If a later step fails, the same command can run again,
+		// because a variation that is already archived does not fail.
+		if err := archiveVariations(options.Archiver, selected); err != nil {
+			return err
+		}
+	}
 	if err := detachResources(options, baseline, selected); err != nil {
 		return err
 	}
 
-	_ = console.Line("Detached resources:")
+	if options.Archive {
+		_ = console.Line("Detached and archived resources:")
+	} else {
+		_ = console.Line("Detached resources:")
+	}
 	for _, resource := range selected {
 		_ = console.Printf("- %s %s\n", resource.Kind, resource)
 	}
@@ -85,9 +115,44 @@ func promptForResources(options Options, synced []syncdomain.ResourceID) ([]sync
 			Title: resource.String(), Description: string(resource.Kind), Value: resource,
 		})
 	}
-	return syncinteractive.MultiSelect(
-		options.Input, options.Output, "Select resources to detach", "Detached resources remain in LaunchDarkly.", choices,
-	)
+	description := "Detached resources remain in LaunchDarkly."
+	if options.Archive {
+		description = "Detached resources are also archived in LaunchDarkly."
+	}
+	return syncinteractive.MultiSelect(options.Input, options.Output, "Select resources to detach", description, choices)
+}
+
+// confirmArchive asks the user to agree to the archive, unless Yes is set.
+func confirmArchive(options Options, selected []syncdomain.ResourceID) (bool, error) {
+	if options.Yes {
+		return true, nil
+	}
+	console := syncconsole.New(options.Output)
+	_ = console.Line("Variations to archive in LaunchDarkly:")
+	for _, resource := range selected {
+		_ = console.Printf("- %s\n", resource)
+	}
+	interactive := !options.NoInput && syncinteractive.StreamsAreTerminal(options.Input, options.Output)
+	confirmed, err := syncinteractive.Confirm(context.Background(), options.Input, options.Output, interactive, archiveQuestion)
+	if err == nil && !confirmed {
+		_ = console.Line("Detach canceled.")
+	}
+	return confirmed, err
+}
+
+// archiveVariations archives each variation. A variation that LaunchDarkly
+// does not have, or that is already archived, does not fail.
+func archiveVariations(archiver Archiver, selected []syncdomain.ResourceID) error {
+	for _, resource := range selected {
+		configKey, variationKey, err := resource.VariationKeys()
+		if err != nil {
+			return err
+		}
+		if err := archiver.ArchiveVariation(resource.ProjectKey, configKey, variationKey); err != nil && !syncapi.IsNotFound(err) {
+			return fmt.Errorf("archive variation %s: %w", resource, err)
+		}
+	}
+	return nil
 }
 
 func validateSelections(synced, selected []syncdomain.ResourceID) error {

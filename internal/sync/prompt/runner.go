@@ -155,6 +155,9 @@ func (runner Runner) runDetach(options Options, workspace syncWorkspace, action 
 		Output:         options.Output,
 		Selections:     action.Variations,
 		NoInput:        options.NoInput,
+		Archive:        action.Archive,
+		Archiver:       runner.api(options),
+		Yes:            options.Yes,
 	})
 }
 

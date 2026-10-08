@@ -42,21 +42,6 @@ func TestWritePlanDescribesMissingLaunchDarklyVariation(t *testing.T) {
 	assert.NotContains(t, output.String(), "-null")
 }
 
-func TestWritePlanDescribesArchivedLaunchDarklyVariation(t *testing.T) {
-	variation := syncdomain.Variation{Mode: syncdomain.VariationModeCompletion, Key: "default", Name: "Default"}
-	plan := Plan{Resources: []PlannedResource{{
-		ID:     testResourceID(),
-		Action: ActionArchiveServer,
-		Diff:   variationDiff(&variation, nil),
-	}}}
-
-	var output bytes.Buffer
-	require.NoError(t, writePlanOutput(&output, "plaintext", plan))
-
-	assert.Contains(t, output.String(), "Action: Archive the variation in LaunchDarkly")
-	assert.Contains(t, output.String(), "(archived in LaunchDarkly)")
-}
-
 func TestWritePlanNotesResourceSyncedByAnotherWorkingCopy(t *testing.T) {
 	plan := Plan{Resources: []PlannedResource{{ID: testResourceID(), Action: ActionUpdateLocal, SyncedElsewhere: true}}}
 

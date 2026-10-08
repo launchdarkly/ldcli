@@ -34,9 +34,11 @@ type AttachAction struct {
 	Target *syncdomain.ResourceID
 }
 
-// DetachAction stops syncing selected local variations.
+// DetachAction stops syncing selected local variations. With Archive, it
+// also archives them in LaunchDarkly.
 type DetachAction struct {
 	Variations []syncdomain.ResourceID
+	Archive    bool
 }
 
 // LinkAction creates a variation whose prompt is an external file, and then syncs.
