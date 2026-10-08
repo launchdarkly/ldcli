@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -496,6 +497,69 @@ func TestClientArchiveVariationReturnsTransportError(t *testing.T) {
 	err := client.ArchiveVariation("project", "support", "helpful")
 
 	require.ErrorContains(t, err, `archive config variation "helpful": in use`)
+}
+
+func TestClientGetsSyncManifest(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"source": "git:example.com/acme/repo",
+		"items": [{
+			"resourceKind": "variation",
+			"resourceLookupKey": "support/helpful",
+			"fingerprint": "sha256:abc",
+			"version": 3
+		}]
+	}`)}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	manifest, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
+
+	require.NoError(t, err)
+	require.Len(t, manifest.Items, 1)
+	assert.Equal(t, 3, manifest.Items[0].Version)
+	require.Len(t, transport.Requests, 1)
+	request := transport.Requests[0]
+	assert.Equal(t, http.MethodGet, request.Method)
+	assert.Equal(t, "https://example.com/api/v2/projects/project/configs/sync/manifests", request.Path)
+	assert.Equal(t, "git:example.com/acme/repo", request.Query.Get("source"))
+}
+
+func TestClientPatchesSyncManifest(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"source": "git:example.com/acme/repo",
+		"items": []
+	}`)}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	_, err := client.PatchSyncManifest(
+		"project",
+		"git:example.com/acme/repo",
+		[]SyncManifestUpsert{{
+			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/helpful",
+			Fingerprint: "sha256:abc", Version: 2,
+		}},
+		nil,
+	)
+
+	require.NoError(t, err)
+	require.Len(t, transport.Requests, 1)
+	request := transport.Requests[0]
+	assert.Equal(t, http.MethodPatch, request.Method)
+	assert.Equal(t, "application/json", request.ContentType)
+	assert.JSONEq(t, `{
+		"source": "git:example.com/acme/repo",
+		"upserts": [{
+			"resourceKind": "variation",
+			"resourceLookupKey": "support/helpful",
+			"fingerprint": "sha256:abc",
+			"version": 2
+		}],
+		"deletions": []
+	}`, string(request.Body))
+}
+
+func TestIsConflictRecognizesAPIStatus(t *testing.T) {
+	assert.True(t, IsConflict(errors.New(`{"code":"conflict","statusCode":409}`)))
+	assert.False(t, IsConflict(errors.New(`{"code":"invalid_request","statusCode":400}`)))
 }
 
 func testVariation(mode syncdomain.VariationMode) syncdomain.Variation {

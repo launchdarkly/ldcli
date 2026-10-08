@@ -412,6 +412,9 @@ func verifyLocalResult(repositoryRoot string, resource PlannedResource) error {
 // or an empty fingerprint when the resource does not exist.
 func readLocalFingerprint(repositoryRoot string, id ResourceID) (string, error) {
 	localResources, err := synclocal.CompileWorkspace(repositoryRoot)
+	if errors.Is(err, synclocal.ErrNoDirectory) {
+		return "", nil
+	}
 	if err != nil {
 		return "", err
 	}

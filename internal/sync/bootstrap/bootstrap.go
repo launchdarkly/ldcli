@@ -30,8 +30,8 @@ type AttachmentReader interface {
 
 // ManifestStore persists the synchronization baseline after local files are written.
 type ManifestStore interface {
-	Load() (syncmanifest.Manifest, bool, error)
-	Write(syncmanifest.Manifest) error
+	Load(projectKeys []string) (syncmanifest.Manifest, error)
+	Update(previous, next syncmanifest.Manifest) (syncmanifest.Manifest, error)
 }
 
 // Options contains the dependencies and streams for one bootstrap flow.
@@ -237,10 +237,18 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 		return nil
 	}
 
-	manifest, _, err := options.Manifest.Load()
+	projectKeys := make([]string, 0, len(files))
+	for _, file := range files {
+		projectKeys = append(projectKeys, file.ProjectKey)
+	}
+	manifest, err := options.Manifest.Load(projectKeys)
 	if err != nil {
 		return err
 	}
+	// Keep the loaded versions unchanged because Update uses them for
+	// optimistic concurrency.
+	previousManifest := manifest
+	manifest.Resources = slices.Clone(manifest.Resources)
 
 	var creation synclocal.Creation
 	if options.Initial {
@@ -257,7 +265,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	// The manifest is written last so it never claims a wrapper exists before
 	// that wrapper reaches disk. Roll back every file this operation created if
 	// persistence fails, including shared dependencies that did not exist before.
-	if err := options.Manifest.Write(manifest); err != nil {
+	if _, err := options.Manifest.Update(previousManifest, manifest); err != nil {
 		return errors.Join(err, options.Store.RollbackCreation(creation))
 	}
 

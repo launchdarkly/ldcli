@@ -37,7 +37,7 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prompt",
 		Short: "Synchronize local prompt variations with LaunchDarkly",
-		Long: "Bootstrap local prompt variations from LaunchDarkly, add more variations, or synchronize changes using the committed local manifest. " +
+		Long: "Bootstrap local prompt variations from LaunchDarkly, add more variations, or synchronize changes using the LaunchDarkly manifest. " +
 			"Sync rechecks state before every write, rerun sync after a change.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if err := cobra.NoArgs(cmd, args); err != nil {

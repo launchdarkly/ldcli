@@ -9,25 +9,22 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-// FormatVersion is the current manifest schema version.
-const FormatVersion = 1
-
 var fingerprintPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 // Manifest records the common resource state accepted by the last successful
 // synchronization.
 type Manifest struct {
-	FormatVersion int        `yaml:"formatVersion"`
-	Resources     []Resource `yaml:"resources"`
+	Resources []Resource
 }
 
 // Resource identifies one tracked resource and its last synchronized
 // fingerprint.
 type Resource struct {
-	ResourceKind syncdomain.Kind `yaml:"resourceKind"`
-	ProjectKey   string          `yaml:"projectKey"`
-	LookupKey    string          `yaml:"lookupKey"`
-	Fingerprint  string          `yaml:"fingerprint"`
+	ResourceKind syncdomain.Kind
+	ProjectKey   string
+	LookupKey    string
+	Fingerprint  string
+	Version      int
 }
 
 // ID returns the common identity represented by this manifest entry.
@@ -37,7 +34,7 @@ func (resource Resource) ID() syncdomain.ResourceID {
 
 // New returns an empty current-version manifest.
 func New() Manifest {
-	return Manifest{FormatVersion: FormatVersion, Resources: []Resource{}}
+	return Manifest{Resources: []Resource{}}
 }
 
 // SetFingerprint records the last synchronized state for one resource.
@@ -117,10 +114,6 @@ func (manifest *Manifest) Remove(id syncdomain.ResourceID) {
 
 // Validate checks the manifest schema and resource identities.
 func (manifest Manifest) Validate() error {
-	if manifest.FormatVersion != FormatVersion {
-		return fmt.Errorf("unsupported manifest formatVersion %d", manifest.FormatVersion)
-	}
-
 	seen := make(map[syncdomain.ResourceID]struct{}, len(manifest.Resources))
 	for _, resource := range manifest.Resources {
 		if err := validatePathSegment("resource kind", string(resource.ResourceKind)); err != nil {
@@ -134,6 +127,9 @@ func (manifest Manifest) Validate() error {
 		}
 		if !fingerprintPattern.MatchString(resource.Fingerprint) {
 			return fmt.Errorf("invalid fingerprint for %s/%s", resource.ProjectKey, resource.LookupKey)
+		}
+		if resource.Version < 0 {
+			return fmt.Errorf("invalid version for %s/%s", resource.ProjectKey, resource.LookupKey)
 		}
 
 		identity := resource.ID()

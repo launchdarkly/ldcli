@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"strings"
 	"syscall"
 
 	"github.com/launchdarkly/ldcli/internal/resources"
@@ -21,6 +22,7 @@ import (
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
+	syncrepository "github.com/launchdarkly/ldcli/internal/sync/repository"
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
@@ -56,10 +58,15 @@ type bootstrapRunner func(syncbootstrap.Options) error
 type detachRunner func(syncdetach.Options) error
 type linkRunner func(synclink.Options) (string, error)
 
+type manifestStore interface {
+	Load(projectKeys []string) (syncmanifest.Manifest, error)
+	Update(previous, next syncmanifest.Manifest) (syncmanifest.Manifest, error)
+}
+
 type syncWorkspace struct {
 	root     string
 	local    synclocal.Store
-	manifest syncmanifest.Store
+	manifest manifestStore
 }
 
 type localFileResourcesByID map[ResourceID]syncdomain.SyncedResource
@@ -99,18 +106,23 @@ func (runner Runner) Run(options Options) error {
 	if err != nil {
 		return err
 	}
+	apiClient := syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI)
 	workspace := syncWorkspace{
 		root:     resolvedWorkspace.Root,
 		local:    synclocal.NewStore(resolvedWorkspace.Root),
-		manifest: syncmanifest.NewStore(resolvedWorkspace.Root),
+		manifest: syncmanifest.NewStore(apiClient, resolvedWorkspace.Source),
 	}
-	apiClient := syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI)
 
 	if options.Detach {
+		projectKeys, err := discoverProjectKeys(workspace.root)
+		if err != nil {
+			return err
+		}
 		return runner.detach(syncdetach.Options{
 			RepositoryRoot: workspace.root,
 			Store:          workspace.local,
 			Manifest:       workspace.manifest,
+			ProjectKeys:    projectKeys,
 			Input:          options.Input,
 			Output:         options.Output,
 		})
@@ -164,7 +176,11 @@ func (runner Runner) Run(options Options) error {
 		}
 	}
 
-	if !localDirectoryExists || options.Add {
+	projectKeys, err := discoverProjectKeys(workspace.root)
+	if err != nil {
+		return err
+	}
+	if (!localDirectoryExists && len(projectKeys) == 0) || options.Add {
 		if err := runner.bootstrap(syncbootstrap.Options{
 			Catalog:     apiClient,
 			Attachments: apiClient,
@@ -235,9 +251,13 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 
 	apiClient := syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI)
+	reviewedProjectKeys, err := discoverProjectKeys(workspace.root)
+	if err != nil {
+		return err
+	}
 	// The manifest is the common ancestor in a three-way comparison between
 	// current local files and current LaunchDarkly state.
-	baseline, _, err := workspace.manifest.Load()
+	baseline, err := workspace.manifest.Load(reviewedProjectKeys)
 	if err != nil {
 		return err
 	}
@@ -278,7 +298,17 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 
 	// Re-read both sides after review so no action uses stale state.
-	currentManifest, _, err := workspace.manifest.Load()
+	currentProjectKeys, err := discoverProjectKeys(workspace.root)
+	if err != nil {
+		return err
+	}
+	if !slices.Equal(reviewedProjectKeys, currentProjectKeys) {
+		if options.Watch {
+			return errRefreshWatchPlan
+		}
+		return fmt.Errorf("sync projects changed after review; run sync again")
+	}
+	currentManifest, err := workspace.manifest.Load(currentProjectKeys)
 	if err != nil {
 		return err
 	}
@@ -304,7 +334,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		currentPlan,
 		currentLocalFiles,
 	)
-	if err := workspace.manifest.Write(updatedManifest); err != nil {
+	if _, err := workspace.manifest.Update(currentManifest, updatedManifest); err != nil {
 		executionErr = errors.Join(executionErr, err)
 	}
 	if err := workspace.local.RemoveEmptyDirectories(); err != nil {
@@ -354,6 +384,10 @@ func loadWorkspacePlan(
 	client syncapi.Client,
 ) (Plan, localFileResourcesByID, error) {
 	localFileResources, err := synclocal.CompileWorkspace(repositoryRoot)
+	if errors.Is(err, synclocal.ErrNoDirectory) {
+		localFileResources = nil
+		err = nil
+	}
 	if err != nil {
 		return Plan{}, nil, err
 	}
@@ -385,6 +419,41 @@ func loadWorkspacePlan(
 		serverResources[id] = resource
 	}
 	return BuildPlan(baseline, canonicalLocalResources, serverResources), localFilesByID, nil
+}
+
+func discoverProjectKeys(repositoryRoot string) ([]string, error) {
+	files, err := synclocal.SourceFiles(repositoryRoot)
+	if err != nil {
+		return nil, err
+	}
+	deleted, err := syncrepository.DeletedPaths(repositoryRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	var projectKeys []string
+	for _, file := range append(files, deleted...) {
+		if projectKey, ok := projectKeyFromManagedPath(file); ok {
+			projectKeys = append(projectKeys, projectKey)
+		}
+	}
+	slices.Sort(projectKeys)
+	return slices.Compact(projectKeys), nil
+}
+
+func projectKeyFromManagedPath(file string) (string, bool) {
+	parts := strings.Split(file, "/")
+	if len(parts) < 4 || parts[0] != syncdomain.RootDir || parts[1] == "" {
+		return "", false
+	}
+	switch {
+	case len(parts) == 5 && parts[2] == "configs" && strings.HasSuffix(parts[4], ".prompt.md"):
+	case len(parts) == 4 && parts[2] == "tools" && strings.HasSuffix(parts[3], ".json"):
+	case len(parts) == 4 && parts[2] == "skills" && strings.HasSuffix(parts[3], ".md"):
+	default:
+		return "", false
+	}
+	return parts[1], true
 }
 
 // attachmentHydrator reads each shared dependency once while building a plan.

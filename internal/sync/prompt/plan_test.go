@@ -39,7 +39,6 @@ func TestBuildPlanThreeWayMatrix(t *testing.T) {
 			baselineFingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, baseline)
 			require.NoError(t, err)
 			manifest := syncmanifest.Manifest{
-				FormatVersion: syncmanifest.FormatVersion,
 				Resources: []syncmanifest.Resource{{
 					ResourceKind: id.Kind,
 					ProjectKey:   id.ProjectKey,
