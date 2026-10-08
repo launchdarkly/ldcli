@@ -1,8 +1,9 @@
+// Package bootstrap adds LaunchDarkly variations to the local workspace. The
+// first add creates the .launchdarkly directory.
 package bootstrap
 
 import (
 	"cmp"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,23 +19,25 @@ import (
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
-// Catalog lists projects and configs available for bootstrap.
+// Catalog finds the projects, configs, and variations to add.
 type Catalog interface {
-	SearchProjects(query string, limit, offset int) (syncapi.Page[syncapi.Project], error)
-	SearchConfigs(projectKey, query string, modes []syncdomain.VariationMode, limit, offset int) (syncapi.Page[syncapi.Config], error)
+	syncinteractive.ProjectSearcher
+	syncinteractive.ConfigSearcher
+	Config(projectKey, configKey string) (syncapi.Config, error)
 }
 
+// AttachmentReader reads the tools and skills that a variation uses.
 type AttachmentReader interface {
 	ReadAttachment(projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error)
 }
 
-// ManifestStore persists the synchronization baseline after local files are written.
+// ManifestStore reads and writes the sync baseline.
 type ManifestStore interface {
 	Load(projectKeys []string) (syncmanifest.Manifest, error)
 	Update(previous, next syncmanifest.Manifest) (syncmanifest.Manifest, error)
 }
 
-// Options contains the dependencies and streams for one bootstrap flow.
+// Options are the dependencies and the input of one add.
 type Options struct {
 	Catalog     Catalog
 	Attachments AttachmentReader
@@ -42,61 +45,96 @@ type Options struct {
 	Manifest    ManifestStore
 	Input       io.Reader
 	Output      io.Writer
-	Initial     bool
-	DryRun      bool
+	// Initial is true when the workspace has no .launchdarkly directory.
+	Initial bool
+	DryRun  bool
+	// Selections are the variations to add. If it is empty, Run asks the user.
+	Selections []syncdomain.ResourceID
+	NoInput    bool
 }
 
-// Run interactively selects prompt variations and writes their local wrappers.
+// Run writes the files of the selected variations and records their baseline.
 func Run(options Options) error {
-	if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
-		return fmt.Errorf(
-			"interactive prompt selection requires a terminal; run this command in a terminal",
-		)
+	var files []synclocal.VariationFile
+	var err error
+	if len(options.Selections) != 0 {
+		files, err = selectedVariations(options)
+	} else {
+		if err := syncinteractive.RequireTerminal(
+			options.Input, options.Output, options.NoInput, "variation selectors", "prompt selection",
+		); err != nil {
+			return err
+		}
+		var canceled bool
+		files, canceled, err = promptForVariations(options)
+		if canceled {
+			return nil
+		}
 	}
-
-	files, canceled, err := selectVariationFiles(options)
 	if err != nil {
 		return err
-	}
-	if canceled {
-		return nil
 	}
 	return finishSelection(options, files)
 }
 
-// selectVariationFiles guides the user from project to config to variations
-// and converts the selections into local wrapper definitions.
-func selectVariationFiles(options Options) ([]synclocal.VariationFile, bool, error) {
-	project, canceled, err := syncinteractive.SearchSelect(syncinteractive.SearchOptions[syncapi.Project]{
-		Input:             options.Input,
-		Output:            options.Output,
-		SearchTitle:       "Search LaunchDarkly projects",
-		SearchPlaceholder: "Project name or key",
-		SelectTitle:       "Choose a LaunchDarkly project",
-		ItemName:          "projects",
-		Fetch: func(query string, limit, offset int) ([]syncapi.Project, int, error) {
-			page, err := options.Catalog.SearchProjects(query, limit, offset)
-			return page.Items, page.TotalCount, err
-		},
-		Choice: projectChoice,
-	})
+// selectedVariations reads each variation that the user named.
+func selectedVariations(options Options) ([]synclocal.VariationFile, error) {
+	configs := make(map[string]syncapi.Config)
+	seen := make(map[syncdomain.ResourceID]struct{}, len(options.Selections))
+	files := make([]synclocal.VariationFile, 0, len(options.Selections))
+
+	for _, selection := range options.Selections {
+		configKey, variationKey, err := selection.VariationKeys()
+		if err != nil {
+			return nil, err
+		}
+		if _, duplicate := seen[selection]; duplicate {
+			return nil, fmt.Errorf("variation %s was selected more than once", selection)
+		}
+		seen[selection] = struct{}{}
+
+		configID := selection.ProjectKey + "/" + configKey
+		config, ok := configs[configID]
+		if !ok {
+			if config, err = options.Catalog.Config(selection.ProjectKey, configKey); err != nil {
+				return nil, err
+			}
+			configs[configID] = config
+		}
+		index := slices.IndexFunc(config.Variations, func(variation syncdomain.Variation) bool {
+			return variation.Key == variationKey
+		})
+		if index < 0 {
+			return nil, fmt.Errorf(
+				"variation %q does not exist in config %q in project %q", variationKey, configKey, selection.ProjectKey,
+			)
+		}
+
+		exists, err := options.Store.VariationExists(selection.ProjectKey, configKey, variationKey)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return nil, fmt.Errorf("variation %s is already synced", selection)
+		}
+
+		file, err := newVariationFile(options.Attachments, selection.ProjectKey, configKey, config.Variations[index])
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+	return files, nil
+}
+
+// promptForVariations asks the user for a project, a config, and one or more
+// variations. The bool result is true when the user cancels.
+func promptForVariations(options Options) ([]synclocal.VariationFile, bool, error) {
+	project, canceled, err := syncinteractive.SelectProject(options.Input, options.Output, options.Catalog)
 	if err != nil || canceled {
 		return nil, canceled, err
 	}
-
-	config, canceled, err := syncinteractive.SearchSelect(syncinteractive.SearchOptions[syncapi.Config]{
-		Input:             options.Input,
-		Output:            options.Output,
-		SearchTitle:       "Search LaunchDarkly configs",
-		SearchPlaceholder: "Config name or key",
-		SelectTitle:       "Choose a config",
-		ItemName:          "configs",
-		Fetch: func(query string, limit, offset int) ([]syncapi.Config, int, error) {
-			page, err := options.Catalog.SearchConfigs(project.Key, query, nil, limit, offset)
-			return page.Items, page.TotalCount, err
-		},
-		Choice: configChoice,
-	})
+	config, canceled, err := syncinteractive.SelectConfig(options.Input, options.Output, options.Catalog, project.Key, nil)
 	if err != nil || canceled {
 		return nil, canceled, err
 	}
@@ -104,18 +142,10 @@ func selectVariationFiles(options Options) ([]synclocal.VariationFile, bool, err
 		return nil, false, fmt.Errorf("config %q has no prompt variations", config.Key)
 	}
 
-	choices, existingCount, err := variationChoices(
-		options.Store,
-		project.Key,
-		config,
-	)
-	if err != nil {
+	choices, existingCount, err := variationChoices(options.Store, project.Key, config)
+	if err != nil || len(choices) == 0 {
 		return nil, false, err
 	}
-	if len(choices) == 0 {
-		return nil, false, nil
-	}
-
 	action := "write"
 	if options.DryRun {
 		action = "preview"
@@ -125,11 +155,7 @@ func selectVariationFiles(options Options) ([]synclocal.VariationFile, bool, err
 		description += fmt.Sprintf(" %d already synced variations are omitted.", existingCount)
 	}
 	variations, canceled, err := syncinteractive.MultiSelect(
-		options.Input,
-		options.Output,
-		"Select prompt variations",
-		description,
-		choices,
+		options.Input, options.Output, "Select prompt variations", description, choices,
 	)
 	if err != nil || canceled {
 		return nil, canceled, err
@@ -137,41 +163,17 @@ func selectVariationFiles(options Options) ([]synclocal.VariationFile, bool, err
 
 	files := make([]synclocal.VariationFile, 0, len(variations))
 	for _, variation := range variations {
-		if err := hydrateAttachments(options.Attachments, project.Key, &variation); err != nil {
+		file, err := newVariationFile(options.Attachments, project.Key, config.Key, variation)
+		if err != nil {
 			return nil, false, err
 		}
-		files = append(files, synclocal.VariationFile{
-			ProjectKey: project.Key,
-			ConfigKey:  config.Key,
-			Upsert:     true,
-			Variation:  variation,
-		})
+		files = append(files, file)
 	}
 	return files, false, nil
 }
 
-func hydrateAttachments(reader AttachmentReader, projectKey string, variation *syncdomain.Variation) error {
-	for index := range variation.Tools {
-		attachment, err := reader.ReadAttachment(projectKey, syncdomain.AttachmentTool, variation.Tools[index].Key)
-		if err != nil {
-			return err
-		}
-		variation.Tools[index].Version = attachment.Version
-		variation.SetAttachment(attachment)
-	}
-	for index := range variation.Skills {
-		attachment, err := reader.ReadAttachment(projectKey, syncdomain.AttachmentSkill, variation.Skills[index].Key)
-		if err != nil {
-			return err
-		}
-		variation.Skills[index].Version = attachment.Version
-		variation.SetAttachment(attachment)
-	}
-	return variation.NormalizeAttachments()
-}
-
-// variationChoices returns unsynchronized variations in stable display order
-// and separately counts variations that already have local wrappers.
+// variationChoices returns the variations that are not synced yet, by name.
+// It also returns the number of variations that are already synced.
 func variationChoices(
 	store synclocal.Store,
 	projectKey string,
@@ -202,34 +204,33 @@ func variationChoices(
 	return choices, existingCount, nil
 }
 
-// projectChoice keeps the readable project name above its stable key.
-func projectChoice(project syncapi.Project) syncinteractive.Choice[syncapi.Project] {
-	return syncinteractive.Choice[syncapi.Project]{
-		Title: project.Name, Description: "Key: " + project.Key, Value: project,
+// newVariationFile reads the tools and skills of a LaunchDarkly variation, so
+// that the add also writes their files.
+func newVariationFile(
+	reader AttachmentReader,
+	projectKey, configKey string,
+	variation syncdomain.Variation,
+) (synclocal.VariationFile, error) {
+	err := variation.HydrateAttachments(func(kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
+		return reader.ReadAttachment(projectKey, kind, key)
+	})
+	if err != nil {
+		return synclocal.VariationFile{}, err
 	}
+	return synclocal.VariationFile{ProjectKey: projectKey, ConfigKey: configKey, Upsert: true, Variation: variation}, nil
 }
 
-// configChoice includes both the stable config identity and its mode.
-func configChoice(config syncapi.Config) syncinteractive.Choice[syncapi.Config] {
-	return syncinteractive.Choice[syncapi.Config]{
-		Title: config.Name, Description: fmt.Sprintf("Key: %s · Mode: %s", config.Key, config.Mode), Value: config,
-	}
-}
-
-// finishSelection validates the selected variations, renders dry-run previews,
-// or commits the wrappers and their manifest fingerprints together.
+// finishSelection previews the files, or writes them and records their
+// baseline. The manifest update comes last, so that the manifest never
+// tracks a file that is not on disk. If the baseline or the update fails,
+// the files that this add created are removed.
 func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if len(files) == 0 {
 		writeNoChangeSummary(options.Output, options.DryRun)
 		return nil
 	}
 	if options.DryRun {
-		for _, file := range files {
-			if err := syncdomain.ValidateDirectAPIVariation(file.Variation); err != nil {
-				return err
-			}
-		}
-		previews, err := options.Store.RenderResources(files)
+		previews, err := options.Store.Render(files)
 		if err != nil {
 			return err
 		}
@@ -245,84 +246,68 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if err != nil {
 		return err
 	}
-	// Keep the loaded versions unchanged because Update uses them for
-	// optimistic concurrency.
-	previousManifest := manifest
-	manifest.Resources = slices.Clone(manifest.Resources)
 
 	var creation synclocal.Creation
 	if options.Initial {
-		creation, err = options.Store.BootstrapResources(files)
+		creation, err = options.Store.Bootstrap(files)
 	} else {
-		creation, err = options.Store.AddResources(files)
+		creation, err = options.Store.Add(files)
 	}
 	if err != nil {
 		return err
 	}
-	if err := setManifestFromLocalResources(&manifest, options.Store, files); err != nil {
-		return errors.Join(err, options.Store.RollbackCreation(creation))
+	next, err := recordCreatedVariations(manifest, options.Store, files)
+	if err == nil {
+		_, err = options.Manifest.Update(manifest, next)
 	}
-	// The manifest is written last so it never claims a wrapper exists before
-	// that wrapper reaches disk. Roll back every file this operation created if
-	// persistence fails, including shared dependencies that did not exist before.
-	if _, err := options.Manifest.Update(previousManifest, manifest); err != nil {
+	if err != nil {
 		return errors.Join(err, options.Store.RollbackCreation(creation))
 	}
 
 	writeSummary(options.Output, options.Initial, len(creation.VariationPaths))
-
 	return nil
 }
 
-// setManifestFromLocalResources records the files that reached disk, including
-// existing attachment files that creation preserved.
-func setManifestFromLocalResources(
-	manifest *syncmanifest.Manifest,
+// recordCreatedVariations returns a copy of the manifest with a baseline for
+// each new variation. It reads the variations from disk, because Add keeps an
+// existing tool or skill file, and the baseline must match that file.
+func recordCreatedVariations(
+	manifest syncmanifest.Manifest,
 	store synclocal.Store,
 	files []synclocal.VariationFile,
-) error {
-	selected := make(map[syncdomain.ResourceID]struct{}, len(files))
+) (syncmanifest.Manifest, error) {
+	created := make(map[syncdomain.ResourceID]struct{}, len(files))
 	for _, file := range files {
-		selected[syncdomain.ResourceID{
-			Kind:       syncdomain.KindVariation,
-			ProjectKey: file.ProjectKey,
-			LookupKey:  file.ConfigKey + "/" + file.Variation.Key,
-		}] = struct{}{}
+		created[syncdomain.VariationID(file.ProjectKey, file.ConfigKey, file.Variation.Key)] = struct{}{}
+	}
+	variations, err := store.Compile()
+	if err != nil {
+		return syncmanifest.Manifest{}, err
 	}
 
-	resources, err := store.Compile()
-	if err != nil {
-		return err
-	}
-	for _, resource := range resources {
-		id := syncdomain.ResourceID{
-			Kind: resource.Kind, ProjectKey: resource.ProjectKey, LookupKey: resource.LookupKey,
-		}
-		if _, ok := selected[id]; !ok {
+	next := manifest.Clone()
+	for _, variation := range variations {
+		id := variation.ID()
+		if _, ok := created[id]; !ok {
 			continue
 		}
-		var variation syncdomain.Variation
-		if err := json.Unmarshal(resource.Payload, &variation); err != nil {
-			return fmt.Errorf("decode local variation %q: %w", resource.LookupKey, err)
-		}
-		variation.Attachments = resource.Attachments
-		fingerprint, err := syncdomain.FingerprintVariation(resource.ProjectKey, resource.LookupKey, variation)
+		fingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, variation.Variation)
 		if err != nil {
-			return err
+			return syncmanifest.Manifest{}, err
 		}
-		manifest.SetFingerprint(id, fingerprint)
-		if err := manifest.SetAttachmentsIfMissing(resource.ProjectKey, resource.Attachments); err != nil {
-			return err
+		next.SetFingerprint(id, fingerprint)
+		if err := next.SetAttachmentsIfMissing(id.ProjectKey, variation.Variation.Attachments); err != nil {
+			return syncmanifest.Manifest{}, err
 		}
-		delete(selected, id)
+		delete(created, id)
 	}
-	for id := range selected {
-		return fmt.Errorf("created variation %s/%s was not found", id.ProjectKey, id.LookupKey)
+	for id := range created {
+		return syncmanifest.Manifest{}, fmt.Errorf("created variation %s was not found", id)
 	}
-	return nil
+	return next, nil
 }
 
-// writeNoChangeSummary explains that every available variation is already local.
+// writeNoChangeSummary reports that the config has no variation to add.
 func writeNoChangeSummary(output io.Writer, dryRun bool) {
 	message := "No variations added; every variation in that config is already synced."
 	if dryRun {
@@ -331,46 +316,36 @@ func writeNoChangeSummary(output io.Writer, dryRun bool) {
 	_ = syncconsole.New(output).Line(message)
 }
 
-// writeSummary reports how many wrapper files were created.
+// writeSummary reports how many variation files the add created.
 func writeSummary(output io.Writer, initial bool, count int) {
 	verb := "Added"
 	if initial {
 		verb = "Bootstrapped"
 	}
-
-	resource := "variation file"
+	noun := "variation file"
 	if count != 1 {
-		resource += "s"
+		noun += "s"
 	}
-
-	_ = syncconsole.New(output).Printf(
-		"%s %d %s in %s.\n",
-		verb,
-		count,
-		resource,
-		syncdomain.RootDir,
-	)
+	_ = syncconsole.New(output).Printf("%s %d %s in %s.\n", verb, count, noun, syncdomain.RootDir)
 }
 
-// writePreviews prints each dry-run file with clear boundaries and its target path.
-func writePreviews(output io.Writer, previews []synclocal.RenderedVariationFile) {
+// writePreviews prints each file that a dry run would create.
+func writePreviews(output io.Writer, previews []synclocal.RenderedFile) {
 	console := syncconsole.New(output)
+	const border = "============================================================"
 	for index, preview := range previews {
 		if index != 0 {
 			_ = console.Line("")
 		}
-		_ = console.Line("============================================================")
+		_ = console.Line(border)
 		_ = console.Printf(
-			"File %d of %d\nWould create: %s\n",
-			index+1,
-			len(previews),
-			path.Join(syncdomain.RootDir, preview.Path),
+			"File %d of %d\nWould create: %s\n", index+1, len(previews), path.Join(syncdomain.RootDir, preview.Path),
 		)
 		_ = console.Line("------------------------------------------------------------")
 		_ = console.WriteBytes(preview.Content)
 		if len(preview.Content) == 0 || preview.Content[len(preview.Content)-1] != '\n' {
 			_ = console.Line("")
 		}
-		_ = console.Line("============================================================")
+		_ = console.Line(border)
 	}
 }

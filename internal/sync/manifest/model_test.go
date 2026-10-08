@@ -67,11 +67,13 @@ func TestManifestRemovesOnlyUnreferencedAttachments(t *testing.T) {
 		{ResourceKind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"},
 		{ResourceKind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "support"},
 	}
-	referenced := map[syncdomain.ResourceID]struct{}{
-		{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}: {},
-	}
+	search := syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{Key: "search"}}
+	variations := []syncdomain.SyncedResource{{
+		ProjectKey: "project",
+		Variation:  syncdomain.Variation{Attachments: []syncdomain.Attachment{search}},
+	}}
 
-	manifest.RemoveUnreferencedAttachments(referenced)
+	manifest.RemoveUnusedAttachments(variations)
 
 	assert.Equal(t, []Resource{
 		{ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/default"},

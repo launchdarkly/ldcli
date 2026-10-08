@@ -48,15 +48,18 @@ Help the customer.
 
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	var variation syncdomain.Variation
-	require.NoError(t, json.Unmarshal(resources[0].Payload, &variation))
+	variation := resources[0].Variation
 	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search"}}, variation.Tools)
 	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "support"}}, variation.Skills)
-	require.Len(t, resources[0].Attachments, 2)
-	assert.Equal(t, "Search documentation", *resources[0].Attachments[0].Tool.Description)
-	assert.True(t, resources[0].Attachments[0].Upsert)
-	assert.Equal(t, "Follow the standard support process.", resources[0].Attachments[1].Skill.Description)
-	assert.Contains(t, resources[0].Attachments[1].Skill.Markdown, "Follow the support process.")
+	require.Len(t, variation.Attachments, 2)
+	tool, ok := variation.Attachment(syncdomain.AttachmentTool, "search")
+	require.True(t, ok)
+	assert.Equal(t, "Search documentation", *tool.Tool.Description)
+	assert.True(t, tool.Upsert)
+	skill, ok := variation.Attachment(syncdomain.AttachmentSkill, "support")
+	require.True(t, ok)
+	assert.Equal(t, "Follow the standard support process.", skill.Skill.Description)
+	assert.Contains(t, skill.Skill.Markdown, "Follow the support process.")
 }
 
 func TestRenderSkillIncludesReadOnlyKeyAndEditableDescription(t *testing.T) {
@@ -150,7 +153,7 @@ func TestPreserveToolUpsertAcrossServerWrites(t *testing.T) {
 	assert.Equal(t, "New", *file.Description)
 }
 
-func TestAttachVariationRemovesNewAttachmentWhenVariationUpdateFails(t *testing.T) {
+func TestReplaceVariationsRemovesNewAttachmentWhenVariationUpdateFails(t *testing.T) {
 	root := t.TempDir()
 	store := NewStore(root)
 	existing := localVariation("default")
@@ -164,7 +167,7 @@ func TestAttachVariationRemovesNewAttachmentWhenVariationUpdateFails(t *testing.
 		Kind: syncdomain.AttachmentTool, Tool: &tool,
 	}}
 
-	err = store.AttachVariation("project", "../invalid", variation)
+	_, err = store.ReplaceVariations([]VariationReplacement{{ProjectKey: "project", ConfigKey: "../invalid", Variation: variation}})
 
 	require.Error(t, err)
 	_, statErr := os.Stat(filepath.Join(root, ".launchdarkly", "project", "tools", "search.json"))
@@ -173,7 +176,7 @@ func TestAttachVariationRemovesNewAttachmentWhenVariationUpdateFails(t *testing.
 	resources, compileErr := CompileWorkspace(root)
 	require.NoError(t, compileErr)
 	require.Len(t, resources, 1)
-	assert.Empty(t, resources[0].Attachments)
+	assert.Empty(t, resources[0].Variation.Attachments)
 }
 
 func TestReplaceVariationsLeavesAttachmentUnchangedWhenPreflightFails(t *testing.T) {
@@ -323,6 +326,6 @@ Help the customer.
 		Skills:      []syncdomain.AttachmentRef{{Key: "support"}},
 		Attachments: []syncdomain.Attachment{{Kind: syncdomain.AttachmentSkill, Skill: &skill}},
 	}
-	err = NewStore(root).AttachVariation("project", "config", variation)
+	_, err = NewStore(root).ReplaceVariations([]VariationReplacement{{ProjectKey: "project", ConfigKey: "config", Variation: variation}})
 	require.ErrorContains(t, err, "symbolic links are not supported")
 }

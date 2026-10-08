@@ -58,7 +58,7 @@ func TestConfirmApply(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var prompt bytes.Buffer
-			confirmed, err := confirmApply(strings.NewReader(test.input), &prompt, test.terminal)
+			confirmed, err := confirm(context.Background(), strings.NewReader(test.input), &prompt, test.terminal, applyQuestion)
 
 			assert.Equal(t, test.confirmed, confirmed)
 			if test.wantError != "" {
@@ -172,7 +172,7 @@ func TestReviewAndConfirmPlanStopsWhenWatchContextIsCanceled(t *testing.T) {
 	}, 1)
 	go func() {
 		confirmed, err := reviewAndConfirmPlan(Options{
-			Watch: true, Context: ctx, Input: input, ErrorOutput: output,
+			Action: SyncAction{Watch: true}, Context: ctx, Input: input, ErrorOutput: output,
 		}, Plan{Resources: []PlannedResource{{
 			ID: testResourceID(), Action: ActionArchiveServer,
 		}}}, true)
@@ -206,7 +206,7 @@ func TestReviewAndConfirmPlanRejectsConfirmationWhenWatchContextIsAlreadyCancele
 	cancel()
 
 	confirmed, err := reviewAndConfirmPlan(Options{
-		Watch: true, Context: ctx, Input: strings.NewReader("yes\n"), ErrorOutput: io.Discard,
+		Action: SyncAction{Watch: true}, Context: ctx, Input: strings.NewReader("yes\n"), ErrorOutput: io.Discard,
 	}, Plan{Resources: []PlannedResource{{
 		ID: testResourceID(), Action: ActionArchiveServer,
 	}}}, true)
@@ -250,7 +250,7 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 			var output bytes.Buffer
 			plan := Plan{Resources: []PlannedResource{{ID: testResourceID(), Action: test.action}}}
 			continued, err := reviewAndConfirmPlan(Options{
-				Watch: true, Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,
+				Action: SyncAction{Watch: true}, Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,
 			}, plan, test.interactive)
 
 			assert.Equal(t, test.wantContinue, continued)

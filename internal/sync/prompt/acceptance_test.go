@@ -18,6 +18,7 @@ import (
 
 	"github.com/launchdarkly/ldcli/cmd"
 	"github.com/launchdarkly/ldcli/internal/analytics"
+	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -34,6 +35,19 @@ type directAPI struct {
 	skills         map[string]versionedSkill
 	manifest       *syncapi.SyncManifest
 	requests       []string
+}
+
+type notFoundAPI struct{}
+
+func (notFoundAPI) MakeRequest(string, string, string, string, url.Values, []byte, bool) ([]byte, error) {
+	return nil, lderrors.NewError(
+		`{"code":"not_found","message":"AI config not found","statusCode":404,` +
+			`"suggestion":"Resource not found. Verify the selected project."}`,
+	)
+}
+
+func (notFoundAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
 }
 
 type versionedTool struct {
@@ -157,6 +171,7 @@ func (api *directAPI) MakeRequest(
 			ModelConfigKey     string                      `json:"modelConfigKey"`
 			ModelConfigVersion int                         `json:"modelConfigVersion"`
 			Model              map[string]any              `json:"model"`
+			OutputFormat       map[string]any              `json:"outputFormat"`
 			Tools              *[]syncdomain.AttachmentRef `json:"tools"`
 			Skills             *[]syncdomain.AttachmentRef `json:"skills"`
 		}
@@ -181,7 +196,7 @@ func (api *directAPI) MakeRequest(
 			Mode: syncdomain.VariationModeAgent, Key: key, Name: update.Name,
 			Instructions: update.Instructions, ModelConfigKey: update.ModelConfigKey,
 			ModelConfigVersion: update.ModelConfigVersion, Model: update.Model,
-			Tools: tools, Skills: skills,
+			OutputFormat: update.OutputFormat, Tools: tools, Skills: skills,
 		}
 		api.variationState = "published"
 	}
@@ -207,6 +222,26 @@ func TestPromptDryRunUsesOnlyExistingReadAPI(t *testing.T) {
 	for _, request := range api.requests {
 		assert.True(t, strings.HasPrefix(request, "GET "), request)
 	}
+}
+
+func TestPromptAddReportsContextForNotFoundConfig(t *testing.T) {
+	root := initRepository(t)
+
+	_, _, err := runPrompt(
+		t,
+		root,
+		notFoundAPI{},
+		"add",
+		"default/this-is-an-agent/this-variation",
+		"--output=plaintext",
+	)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `get config "this-is-an-agent" in project "default"`)
+	assert.NotContains(t, err.Error(), "AI config")
+	assert.ErrorContains(t, err, "(code: not_found)")
+	assert.ErrorContains(t, err, `Suggestion: Verify the resource key and that it belongs to project "default".`)
+	assert.NotContains(t, err.Error(), "unknown error occurred")
 }
 
 func TestPromptFirstSyncAdoptsMatchingStateWithoutMutation(t *testing.T) {
@@ -267,9 +302,10 @@ func TestPromptAttachesLatestToolToManagedVariation(t *testing.T) {
 		t,
 		root,
 		api,
-		"--attach-tool=search",
-		"--project=production",
-		"--variation=support/default",
+		"attach",
+		"tool",
+		"search",
+		"--to=production/support/default",
 		"--yes",
 	)
 
@@ -279,8 +315,8 @@ func TestPromptAttachesLatestToolToManagedVariation(t *testing.T) {
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	require.Len(t, resources[0].Attachments, 1)
-	assert.Equal(t, "search", resources[0].Attachments[0].Key())
+	require.Len(t, resources[0].Variation.Attachments, 1)
+	assert.Equal(t, "search", resources[0].Variation.Attachments[0].Key())
 	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "tools", "search.json"))
 	require.NoError(t, err)
 
@@ -309,9 +345,10 @@ func TestPromptAttachesLatestSkillAsMarkdownFile(t *testing.T) {
 		t,
 		root,
 		api,
-		"--attach-skill=support",
-		"--project=production",
-		"--variation=support/default",
+		"attach",
+		"skill",
+		"support",
+		"--to=production/support/default",
 		"--yes",
 	)
 
@@ -342,9 +379,10 @@ func TestPromptRejectsSkillAttachmentForCompletionVariation(t *testing.T) {
 		t,
 		root,
 		api,
-		"--attach-skill=support",
-		"--project=production",
-		"--variation=support/default",
+		"attach",
+		"skill",
+		"support",
+		"--to=production/support/default",
 		"--yes",
 	)
 
@@ -353,7 +391,7 @@ func TestPromptRejectsSkillAttachmentForCompletionVariation(t *testing.T) {
 	resources, compileErr := synclocal.CompileWorkspace(root)
 	require.NoError(t, compileErr)
 	require.Len(t, resources, 1)
-	assert.Empty(t, resources[0].Attachments)
+	assert.Empty(t, resources[0].Variation.Attachments)
 }
 
 func TestPromptCreatesMissingToolWhenUpsertIsEnabled(t *testing.T) {
@@ -559,10 +597,49 @@ func TestPromptPullsServerChangeAndAdvancesManifest(t *testing.T) {
 	resources, err := synclocal.Compile(os.DirFS(root))
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	var actual syncdomain.Variation
-	require.NoError(t, json.Unmarshal(resources[0].Payload, &actual))
+	actual := resources[0].Variation
 	assert.Equal(t, server.Name, actual.Name)
 	assertManifestFingerprint(t, root, server)
+}
+
+func TestPromptRoundTripsOutputFormat(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	server := variation("Server")
+	server.OutputFormat = map[string]any{"type": "object"}
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(server)}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+
+	resources, err := synclocal.Compile(os.DirFS(root))
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	pulled := resources[0].Variation
+	assert.Equal(t, server.OutputFormat, pulled.OutputFormat)
+
+	local := server
+	local.OutputFormat = map[string]any{"type": "array"}
+	_, err = synclocal.NewStore(root).ReplaceVariations([]synclocal.VariationReplacement{{
+		ProjectKey: "production", ConfigKey: "support", Variation: local,
+	}})
+	require.NoError(t, err)
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	assert.Equal(t, local.OutputFormat, api.variation.OutputFormat)
+
+	local.OutputFormat = nil
+	_, err = synclocal.NewStore(root).ReplaceVariations([]synclocal.VariationReplacement{{
+		ProjectKey: "production", ConfigKey: "support", Variation: local,
+	}})
+	require.NoError(t, err)
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	assert.Empty(t, api.variation.OutputFormat)
 }
 
 func TestPromptPullPreservesLocalModelOverridesAcrossVersions(t *testing.T) {
@@ -733,7 +810,7 @@ func TestPromptRejectsDivergentChangesWithoutMutation(t *testing.T) {
 
 	_, _, err := runPrompt(t, root, api, "--yes")
 
-	require.ErrorContains(t, err, "interactive conflict resolution requires a terminal")
+	require.ErrorContains(t, err, "requires --conflict or --resolve")
 	requireOnlyReads(t, api.requests)
 }
 
@@ -1131,8 +1208,7 @@ func requireLocalModelConfigVersion(t *testing.T, root string, expected int) {
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 
-	var persisted syncdomain.Variation
-	require.NoError(t, json.Unmarshal(resources[0].Payload, &persisted))
+	persisted := resources[0].Variation
 	require.Equal(t, expected, persisted.ModelConfigVersion)
 }
 

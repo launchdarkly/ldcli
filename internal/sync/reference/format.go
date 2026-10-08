@@ -1,3 +1,5 @@
+// Package reference converts a variation to and from the external file that a
+// linked variation uses. Each file format has one adapter.
 package reference
 
 import (
@@ -5,19 +7,30 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	"github.com/launchdarkly/ldcli/internal/sync/reference/adapters"
-	"github.com/launchdarkly/ldcli/internal/sync/reference/adapters/plain_markdown"
+	"github.com/launchdarkly/ldcli/internal/sync/reference/adapters/plainmarkdown"
 )
 
-// PlainMarkdown identifies the built-in plain Markdown adapter.
+// PlainMarkdown identifies the built-in plain Markdown format.
 const PlainMarkdown = "plain-markdown"
 
-// ValidateFormat reports whether a reference format has a registered adapter.
+// adapterFor is the registry of external formats. To add a format, implement
+// adapters.Adapter and add one case here.
+func adapterFor(format string) (adapters.Adapter, error) {
+	switch format {
+	case PlainMarkdown:
+		return plainmarkdown.Adapter{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported referenced prompt format %q", format)
+	}
+}
+
+// ValidateFormat reports whether a format has an adapter.
 func ValidateFormat(format string) error {
 	_, err := adapterFor(format)
 	return err
 }
 
-// Parse converts referenced file content into the common adapter domain.
+// Parse reads the content of an external file.
 func Parse(format string, content []byte) (adapters.Prompt, error) {
 	adapter, err := adapterFor(format)
 	if err != nil {
@@ -26,17 +39,19 @@ func Parse(format string, content []byte) (adapters.Prompt, error) {
 	return adapter.Parse(content)
 }
 
-// ApplyToVariation merges referenced prompt content into a variation's stored metadata.
-func ApplyToVariation(format string, content []byte, variation *syncdomain.Variation) (adapters.Prompt, error) {
+// ApplyToVariation replaces the prompt content of the variation with the
+// content of an external file. If the file stores a mode, key, or name, that
+// value also replaces the value in the variation.
+func ApplyToVariation(format string, content []byte, variation *syncdomain.Variation) error {
 	prompt, err := Parse(format, content)
 	if err != nil {
-		return adapters.Prompt{}, err
+		return err
 	}
 	if prompt.Mode != "" {
 		if !prompt.Mode.Valid() {
-			return adapters.Prompt{}, fmt.Errorf("unsupported referenced prompt mode %q", prompt.Mode)
+			return fmt.Errorf("unsupported referenced prompt mode %q", prompt.Mode)
 		}
-		variation.Mode = syncdomain.VariationMode(prompt.Mode)
+		variation.Mode = prompt.Mode
 	}
 	if prompt.Key != "" {
 		variation.Key = prompt.Key
@@ -44,69 +59,61 @@ func ApplyToVariation(format string, content []byte, variation *syncdomain.Varia
 	if prompt.Name != "" {
 		variation.Name = prompt.Name
 	}
-
-	messages := make([]syncdomain.Message, 0, len(prompt.Messages))
 	for _, message := range prompt.Messages {
-		if !message.Role.Valid() {
-			return adapters.Prompt{}, fmt.Errorf("unsupported referenced prompt role %q", message.Role)
+		if !syncdomain.ValidMessageRole(message.Role) {
+			return fmt.Errorf("unsupported referenced prompt role %q", message.Role)
 		}
-		messages = append(messages, syncdomain.Message{Role: string(message.Role), Content: message.Content})
 	}
+
 	switch variation.Mode {
 	case syncdomain.VariationModeAgent:
-		if len(messages) > 1 || len(messages) == 1 && messages[0].Role != string(adapters.RoleSystem) {
-			return adapters.Prompt{}, fmt.Errorf("agent variation %q requires one system message from its reference", variation.Key)
+		if !atMostOneSystemMessage(prompt.Messages) {
+			return fmt.Errorf("agent variation %q requires one system message from its reference", variation.Key)
 		}
 		variation.Instructions = ""
 		variation.Messages = nil
-		if len(messages) == 1 {
-			variation.Instructions = messages[0].Content
+		if len(prompt.Messages) == 1 {
+			variation.Instructions = prompt.Messages[0].Content
 		}
 	case syncdomain.VariationModeCompletion:
 		variation.Instructions = ""
-		variation.Messages = messages
+		variation.Messages = append([]syncdomain.Message{}, prompt.Messages...)
 	default:
-		return adapters.Prompt{}, fmt.Errorf("referenced prompt does not specify a supported mode")
+		return fmt.Errorf("referenced prompt does not specify a supported mode")
 	}
-	return prompt, nil
+	return nil
 }
 
-// Render converts a variation back to the selected external file format.
+// Render converts the variation to the content of an external file.
 func Render(format string, variation syncdomain.Variation) ([]byte, error) {
 	adapter, err := adapterFor(format)
 	if err != nil {
 		return nil, err
 	}
-	prompt := adapters.Prompt{Mode: adapters.Mode(variation.Mode), Key: variation.Key, Name: variation.Name}
+
+	prompt := adapters.Prompt{Mode: variation.Mode, Key: variation.Key, Name: variation.Name}
 	switch variation.Mode {
 	case syncdomain.VariationModeAgent:
 		if len(variation.Messages) != 0 {
 			return nil, fmt.Errorf("agent variation %q cannot be represented because it contains messages", variation.Key)
 		}
 		if variation.Instructions != "" {
-			prompt.Messages = []adapters.Message{{Role: adapters.RoleSystem, Content: variation.Instructions}}
+			prompt.Messages = []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: variation.Instructions}}
 		}
 	case syncdomain.VariationModeCompletion:
 		for _, message := range variation.Messages {
-			role := adapters.Role(message.Role)
-			if !role.Valid() {
+			if !syncdomain.ValidMessageRole(message.Role) {
 				return nil, fmt.Errorf("variation %q has unsupported message role %q", variation.Key, message.Role)
 			}
-			prompt.Messages = append(prompt.Messages, adapters.Message{Role: role, Content: message.Content})
 		}
+		prompt.Messages = variation.Messages
 	default:
 		return nil, fmt.Errorf("referenced prompt does not support variation mode %q", variation.Mode)
 	}
 	return adapter.Render(prompt)
 }
 
-// adapterFor is the single registry for external prompt formats. New formats
-// plug into sync by implementing adapters.Adapter and adding one case here.
-func adapterFor(format string) (adapters.Adapter, error) {
-	switch format {
-	case PlainMarkdown:
-		return plain_markdown.Adapter{}, nil
-	default:
-		return nil, fmt.Errorf("unsupported referenced prompt format %q", format)
-	}
+// atMostOneSystemMessage reports whether messages is empty or is one system message.
+func atMostOneSystemMessage(messages []syncdomain.Message) bool {
+	return len(messages) == 0 || len(messages) == 1 && messages[0].Role == syncdomain.RoleSystem
 }

@@ -1,7 +1,6 @@
 package local
 
 import (
-	"encoding/json"
 	"errors"
 	"io/fs"
 	"testing"
@@ -89,8 +88,7 @@ func TestCompile(t *testing.T) {
 	assert.Equal(t, "my-config-key/my-first-variation", variation.LookupKey)
 	assert.True(t, variation.Upsert)
 
-	var payload syncdomain.Variation
-	require.NoError(t, json.Unmarshal(variation.Payload, &payload))
+	payload := variation.Variation
 	assert.Equal(t, syncdomain.VariationModeCompletion, payload.Mode)
 	assert.Equal(t, "my-first-variation", payload.Key)
 	assert.Equal(t, "This is the prompt name", payload.Name)

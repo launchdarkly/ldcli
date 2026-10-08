@@ -7,94 +7,107 @@ import (
 	"path/filepath"
 )
 
+// stagedDeletion is one file in a delete transaction. The file first moves to
+// backupPath, so that a failure can move it back.
 type stagedDeletion struct {
 	relativePath string
-	originalPath string
+	path         string
 	backupPath   string
 }
 
-// DeleteVariations preflights and stages a batch before removing any wrapper
-// permanently, allowing staging failures to restore the original files.
-func (store Store) DeleteVariations(resources []VariationDeletion) ([]string, error) {
-	deletions, err := store.prepareDeletions(resources)
-	if err != nil {
-		return nil, err
-	}
-
-	// Move the complete batch to same-directory backups before removing
-	// anything permanently. A staging failure can therefore restore every file.
-	if err := stageDeletions(deletions); err != nil {
-		return nil, err
-	}
-	commitDeletions(store.root, deletions)
-	return deletionPaths(deletions), nil
-}
-
-// prepareDeletions validates the complete batch and rejects duplicate paths
-// before filesystem state changes.
-func (store Store) prepareDeletions(resources []VariationDeletion) ([]stagedDeletion, error) {
-	deletions := make([]stagedDeletion, 0, len(resources))
-	seenPaths := make(map[string]struct{}, len(resources))
-
-	for _, resource := range resources {
-		absolutePath, err := store.variationPath(resource.ProjectKey, resource.ConfigKey, resource.VariationKey)
+// DeleteVariations deletes a batch of variation files and returns their paths.
+func (store Store) DeleteVariations(deletions []VariationDeletion) ([]string, error) {
+	paths := make([]string, 0, len(deletions))
+	for _, deletion := range deletions {
+		relativePath, err := variationPath(deletion.ProjectKey, deletion.ConfigKey, deletion.VariationKey)
 		if err != nil {
 			return nil, err
 		}
-		// Use Lstat so the regular-file check rejects symlink wrappers rather
-		// than following them to a file outside the managed workspace.
-		info, err := os.Lstat(absolutePath)
-		if err != nil {
-			return nil, fmt.Errorf("inspect variation %s: %w", resource.VariationKey, err)
-		}
-		if !info.Mode().IsRegular() {
-			return nil, fmt.Errorf("variation %s is not a regular file", resource.VariationKey)
-		}
-		if _, duplicate := seenPaths[absolutePath]; duplicate {
-			return nil, fmt.Errorf("variation %q was selected more than once", resource.VariationKey)
-		}
-		seenPaths[absolutePath] = struct{}{}
-		relativePath, err := filepath.Rel(store.root, absolutePath)
-		if err != nil {
-			return nil, fmt.Errorf("resolve variation %s: %w", resource.VariationKey, err)
-		}
-		deletions = append(deletions, stagedDeletion{
-			relativePath: filepath.ToSlash(relativePath),
-			originalPath: absolutePath,
-		})
+		paths = append(paths, relativePath)
 	}
-	return deletions, nil
+	return store.deleteFiles(paths)
 }
 
-// stageDeletions renames wrappers to same-directory backups and restores prior
-// renames if any later rename fails.
+// deleteFiles deletes a batch of managed files in one transaction. It first
+// moves every file to a backup beside it. If a move fails, it moves the
+// files back. When every file has moved, it removes the backups.
+func (store Store) deleteFiles(relativePaths []string) ([]string, error) {
+	deletions := make([]stagedDeletion, 0, len(relativePaths))
+	seen := make(map[string]struct{}, len(relativePaths))
+	for _, relativePath := range relativePaths {
+		if _, duplicate := seen[relativePath]; duplicate {
+			return nil, fmt.Errorf("%s was selected more than once", relativePath)
+		}
+		seen[relativePath] = struct{}{}
+
+		path := store.absolute(relativePath)
+		if err := rejectSymlinkedPath(store.root, path); err != nil {
+			return nil, err
+		}
+		// Lstat does not follow a symbolic link, so a link is not a regular file.
+		info, err := os.Lstat(path)
+		if err != nil {
+			return nil, fmt.Errorf("inspect %s: %w", relativePath, err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("%s is not a regular file", relativePath)
+		}
+		deletions = append(deletions, stagedDeletion{relativePath: relativePath, path: path})
+	}
+
+	if err := stageDeletions(deletions); err != nil {
+		return nil, err
+	}
+	// When every file is in its backup, the delete is complete. Removing a
+	// backup can fail, but restoring only some files is worse than a backup
+	// that remains.
+	for _, deletion := range deletions {
+		if err := os.Remove(deletion.backupPath); err == nil {
+			removeEmptyParents(store.root, filepath.Dir(deletion.path))
+		}
+	}
+	return relativePaths, nil
+}
+
+// stageDeletions moves each file to a backup. If a move fails, it moves the
+// earlier files back.
 func stageDeletions(deletions []stagedDeletion) error {
-	var staged []stagedDeletion
 	for index := range deletions {
-		backupPath, err := reserveBackupPath(deletions[index].originalPath)
+		backupPath, err := reserveBackupPath(deletions[index].path)
 		if err == nil {
-			err = os.Rename(deletions[index].originalPath, backupPath)
+			err = os.Rename(deletions[index].path, backupPath)
 		}
 		if err != nil {
-			return errors.Join(fmt.Errorf("stage deletion %s: %w", deletions[index].relativePath, err), rollbackDeletions(staged))
+			return errors.Join(
+				fmt.Errorf("stage deletion %s: %w", deletions[index].relativePath, err),
+				restoreDeletions(deletions[:index]),
+			)
 		}
-
 		deletions[index].backupPath = backupPath
-		staged = append(staged, deletions[index])
 	}
 	return nil
 }
 
-// reserveBackupPath obtains a collision-free backup name beside a wrapper.
-func reserveBackupPath(originalPath string) (string, error) {
-	temp, err := os.CreateTemp(filepath.Dir(originalPath), "."+filepath.Base(originalPath)+".deleted-")
+// restoreDeletions moves each backup to its original path, in reverse order.
+func restoreDeletions(deletions []stagedDeletion) error {
+	var failures []error
+	for index := len(deletions) - 1; index >= 0; index-- {
+		if err := os.Rename(deletions[index].backupPath, deletions[index].path); err != nil {
+			failures = append(failures, fmt.Errorf("restore %s: %w", deletions[index].relativePath, err))
+		}
+	}
+	return errors.Join(failures...)
+}
+
+// reserveBackupPath returns an unused name beside path. It creates a
+// temporary file to reserve the name, and then removes the file so that a
+// rename can use the name.
+func reserveBackupPath(path string) (string, error) {
+	temp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".deleted-")
 	if err != nil {
 		return "", err
 	}
-
 	backupPath := temp.Name()
-	// CreateTemp reserves a collision-free name. Removing the placeholder lets
-	// Rename move the original into that exact same-directory location.
 	if err := temp.Close(); err != nil {
 		_ = os.Remove(backupPath)
 		return "", err
@@ -105,47 +118,13 @@ func reserveBackupPath(originalPath string) (string, error) {
 	return backupPath, nil
 }
 
-// commitDeletions treats the completed batch rename as the commit point.
-// Backup cleanup is best effort because restoring only part of the batch would
-// make the visible workspace inconsistent again.
-func commitDeletions(root string, deletions []stagedDeletion) {
-	for _, deletion := range deletions {
-		if err := os.Remove(deletion.backupPath); err == nil {
-			removeEmptyParentsThroughRoot(root, filepath.Dir(deletion.originalPath))
-		}
-	}
-}
-
-// deletionPaths returns the stable repository-relative paths reported to callers.
-func deletionPaths(deletions []stagedDeletion) []string {
-	paths := make([]string, len(deletions))
-	for index, deletion := range deletions {
-		paths[index] = deletion.relativePath
-	}
-	return paths
-}
-
-// rollbackDeletions restores staged wrappers in reverse order.
-func rollbackDeletions(deletions []stagedDeletion) error {
-	var rollbackErr error
-	for index := len(deletions) - 1; index >= 0; index-- {
-		if err := os.Rename(deletions[index].backupPath, deletions[index].originalPath); err != nil {
-			rollbackErr = errors.Join(rollbackErr, fmt.Errorf("restore variation %s: %w", deletions[index].relativePath, err))
-		}
-	}
-	return rollbackErr
-}
-
-// removeEmptyParentsThroughRoot removes empty variation, config, and project
-// directories. It also removes the .launchdarkly root when the store is empty.
-func removeEmptyParentsThroughRoot(root, current string) {
-	for {
-		if err := os.Remove(current); err != nil {
+// removeEmptyParents removes directory and each empty parent, up to and
+// including root.
+func removeEmptyParents(root, directory string) {
+	for isWithin(root, directory) {
+		if err := os.Remove(directory); err != nil || directory == root {
 			return
 		}
-		if current == root {
-			return
-		}
-		current = filepath.Dir(current)
+		directory = filepath.Dir(directory)
 	}
 }

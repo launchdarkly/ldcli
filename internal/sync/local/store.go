@@ -1,3 +1,6 @@
+// Package local reads and writes the sync files in the .launchdarkly
+// directory of a Git repository. Every write is atomic for each file and
+// rolls back the batch when a later file fails.
 package local
 
 import (
@@ -11,10 +14,10 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-// ErrVariationExists reports that a create would overwrite a local wrapper.
+// ErrVariationExists reports that a create would overwrite a variation file.
 var ErrVariationExists = errors.New("variation already exists locally")
 
-// VariationFile contains everything needed to write one local variation wrapper.
+// VariationFile is one variation file to create.
 type VariationFile struct {
 	ProjectKey string
 	ConfigKey  string
@@ -23,7 +26,8 @@ type VariationFile struct {
 	Variation  syncdomain.Variation
 }
 
-// VariationReplacement identifies a wrapper and the state to write.
+// VariationReplacement is new content for a variation file. If
+// CreateIfMissing is true and the file does not exist, the replace creates it.
 type VariationReplacement struct {
 	ProjectKey      string
 	ConfigKey       string
@@ -31,60 +35,53 @@ type VariationReplacement struct {
 	Variation       syncdomain.Variation
 }
 
-// VariationDeletion identifies an existing wrapper to remove.
+// VariationDeletion identifies an existing variation file to delete.
 type VariationDeletion struct {
 	ProjectKey   string
 	ConfigKey    string
 	VariationKey string
 }
 
-// RenderedVariationFile is a repository-relative wrapper ready to write.
-type RenderedVariationFile struct {
+// RenderedFile is the content of one file and its path relative to the
+// managed directory.
+type RenderedFile struct {
 	Path    string
 	Content []byte
 }
 
-// Creation records the variation paths returned to users and every file that
-// can be safely removed if a later manifest write fails.
-type Creation struct {
-	VariationPaths []string
-	CreatedPaths   []string
-}
-
-// Store reads and writes resources under a repository's .launchdarkly directory.
+// Store reads and writes the files in the managed directory of one repository.
 type Store struct {
 	repositoryRoot string
 	root           string
 }
 
-// NewStore creates a local resource store rooted at a Git repository.
+// NewStore creates a store for the repository at repositoryRoot.
 func NewStore(repositoryRoot string) Store {
 	return Store{repositoryRoot: repositoryRoot, root: filepath.Join(repositoryRoot, syncdomain.RootDir)}
 }
 
-// Exists reports whether the repository has a .launchdarkly directory.
+// Exists reports whether the managed directory exists.
 func (store Store) Exists() (bool, error) {
 	info, err := os.Stat(store.root)
-	if errors.Is(err, os.ErrNotExist) {
+	switch {
+	case errors.Is(err, os.ErrNotExist):
 		return false, nil
-	}
-	if err != nil {
+	case err != nil:
 		return false, fmt.Errorf("inspect %s: %w", store.root, err)
-	}
-	if !info.IsDir() {
+	case !info.IsDir():
 		return false, fmt.Errorf("%s exists but is not a directory", store.root)
+	default:
+		return true, nil
 	}
-	return true, nil
 }
 
-// VariationExists reports whether one local variation wrapper exists.
+// VariationExists reports whether a variation file exists.
 func (store Store) VariationExists(projectKey, configKey, variationKey string) (bool, error) {
-	path, err := store.variationPath(projectKey, configKey, variationKey)
+	relativePath, err := variationPath(projectKey, configKey, variationKey)
 	if err != nil {
 		return false, err
 	}
-
-	_, err = os.Stat(path)
+	_, err = os.Stat(store.absolute(relativePath))
 	switch {
 	case err == nil:
 		return true, nil
@@ -95,121 +92,16 @@ func (store Store) VariationExists(projectKey, configKey, variationKey string) (
 	}
 }
 
-// Bootstrap atomically creates a new .launchdarkly directory.
-func (store Store) Bootstrap(resources []VariationFile) ([]string, error) {
-	creation, err := store.BootstrapResources(resources)
-	return creation.VariationPaths, err
-}
-
-// BootstrapResources creates a workspace and returns its rollback record.
-func (store Store) BootstrapResources(resources []VariationFile) (Creation, error) {
-	if _, err := os.Stat(store.root); err == nil {
-		return Creation{}, fmt.Errorf("%s already exists", store.root)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return Creation{}, fmt.Errorf("inspect %s: %w", store.root, err)
-	}
-
-	stagingDirectory, err := os.MkdirTemp(filepath.Dir(store.root), ".launchdarkly.tmp-")
-	if err != nil {
-		return Creation{}, fmt.Errorf("create bootstrap staging directory: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(stagingDirectory) }()
-
-	// Build the entire workspace in a sibling directory. The final rename is a
-	// single commit point because source and destination share a filesystem.
-	stagedStore := Store{repositoryRoot: store.repositoryRoot, root: stagingDirectory}
-	creation, err := stagedStore.createVariations(resources)
-	if err != nil {
-		return Creation{}, err
-	}
-	if err := os.Rename(stagingDirectory, store.root); err != nil {
-		return Creation{}, fmt.Errorf("finish bootstrap: %w", err)
-	}
-	return creation, nil
-}
-
-// Add creates a batch of variation wrappers without overwriting existing files.
-func (store Store) Add(resources []VariationFile) ([]string, error) {
-	creation, err := store.AddResources(resources)
-	return creation.VariationPaths, err
-}
-
-// AddResources creates resources and returns the exact files published by the call.
-func (store Store) AddResources(resources []VariationFile) (Creation, error) {
-	return store.createVariations(resources)
-}
-
-// RollbackCreation removes only files published by the corresponding create.
-func (store Store) RollbackCreation(creation Creation) error {
-	var failures []error
-	for index := len(creation.CreatedPaths) - 1; index >= 0; index-- {
-		filePath := filepath.Join(store.root, filepath.FromSlash(creation.CreatedPaths[index]))
-		if err := os.Remove(filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-			failures = append(failures, fmt.Errorf("remove created resource %s: %w", creation.CreatedPaths[index], err))
-		}
-	}
-	if err := store.RemoveEmptyDirectories(); err != nil {
-		failures = append(failures, err)
-	}
-	return errors.Join(failures...)
-}
-
-type existingVariation struct {
-	relativePath string
-	absolutePath string
-	content      []byte
-	mode         os.FileMode
-	exists       bool
-	frontMatter  variationFrontMatter
-}
-
-// inspectVariation reads the wrapper metadata needed by replace and delete
-// transactions.
-func (store Store) inspectVariation(projectKey, configKey, variationKey string) (existingVariation, error) {
-	absolutePath, err := store.variationPath(projectKey, configKey, variationKey)
-	if err != nil {
-		return existingVariation{}, err
-	}
-
-	content, err := os.ReadFile(absolutePath)
-	if err != nil {
-		return existingVariation{}, fmt.Errorf("read variation %s: %w", variationKey, err)
-	}
-	info, err := os.Stat(absolutePath)
-	if err != nil {
-		return existingVariation{}, fmt.Errorf("stat variation %s: %w", variationKey, err)
-	}
-	if !info.Mode().IsRegular() {
-		return existingVariation{}, fmt.Errorf("variation %s is not a regular file", variationKey)
-	}
-
-	var frontMatter variationFrontMatter
-	if _, err := parseYAMLFrontMatter(content, &frontMatter); err != nil {
-		return existingVariation{}, fmt.Errorf("parse variation %s: %w", variationKey, err)
-	}
-	if err := validateVariation(filepath.Base(absolutePath), frontMatter); err != nil {
-		return existingVariation{}, fmt.Errorf("validate variation %s: %w", variationKey, err)
-	}
-
-	return existingVariation{
-		relativePath: filepath.ToSlash(strings.TrimPrefix(absolutePath, store.root+string(filepath.Separator))),
-		absolutePath: absolutePath,
-		content:      content,
-		mode:         info.Mode().Perm(),
-		exists:       true,
-		frontMatter:  frontMatter,
-	}, nil
-}
-
-// RemoveEmptyDirectories removes empty resource directories left by deletes.
+// RemoveEmptyDirectories removes each empty directory in the managed tree,
+// including the managed directory itself.
 func (store Store) RemoveEmptyDirectories() error {
 	var directories []string
-	err := filepath.WalkDir(store.root, func(path string, entry os.DirEntry, walkErr error) error {
-		if errors.Is(walkErr, os.ErrNotExist) {
+	err := filepath.WalkDir(store.root, func(path string, entry os.DirEntry, err error) error {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
-		if walkErr != nil {
-			return walkErr
+		if err != nil {
+			return err
 		}
 		if entry.IsDir() {
 			directories = append(directories, path)
@@ -223,48 +115,84 @@ func (store Store) RemoveEmptyDirectories() error {
 		return fmt.Errorf("inspect empty sync directories: %w", err)
 	}
 
-	// Remove deepest-first so parent directories become empty as their children
-	// disappear. ENOTEMPTY is expected when a directory still owns resources.
+	// Remove the deepest directories first, so that a parent is empty when
+	// its turn comes. A directory that still has files returns ENOTEMPTY.
 	for index := len(directories) - 1; index >= 0; index-- {
 		err := os.Remove(directories[index])
-		if err == nil || errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOTEMPTY) {
-			continue
+		if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTEMPTY) {
+			return fmt.Errorf("remove empty sync directory %s: %w", directories[index], err)
 		}
-		return fmt.Errorf("remove empty sync directory %s: %w", directories[index], err)
 	}
 	return nil
 }
 
-// variationPath validates every identity component before constructing a path
-// beneath the managed workspace.
-func (store Store) variationPath(projectKey, configKey, variationKey string) (string, error) {
-	segments := []struct {
-		name  string
-		value string
-	}{
-		{name: "project key", value: projectKey},
-		{name: "config key", value: configKey},
-		{name: "variation key", value: variationKey},
-	}
-	for _, segment := range segments {
-		if err := validatePathSegment(segment.value); err != nil {
-			return "", fmt.Errorf("invalid %s %q: %w", segment.name, segment.value, err)
-		}
-	}
-	return filepath.Join(store.root, projectKey, configsDir, configKey, variationKey+variationFileSuffix), nil
+// existingVariation is a variation file on disk and its decoded front matter.
+// When exists is false, the file is new and has the default upsert flag.
+type existingVariation struct {
+	relativePath string
+	content      []byte
+	mode         os.FileMode
+	exists       bool
+	frontMatter  variationFrontMatter
 }
 
-// validatePathSegment rejects traversal, separators, and null bytes before a
-// resource identity reaches filesystem APIs.
-func validatePathSegment(value string) error {
-	if value == "" {
-		return errors.New("must not be empty")
+func (store Store) readVariation(projectKey, configKey, variationKey string) (existingVariation, error) {
+	relativePath, err := variationPath(projectKey, configKey, variationKey)
+	if err != nil {
+		return existingVariation{}, err
 	}
-	if value == "." || value == ".." || strings.ContainsAny(value, `/\`) {
-		return errors.New("must be a single path segment")
+	absolutePath := store.absolute(relativePath)
+
+	info, err := os.Stat(absolutePath)
+	if err != nil {
+		return existingVariation{}, fmt.Errorf("inspect variation %s: %w", variationKey, err)
 	}
-	if strings.IndexByte(value, 0) >= 0 {
-		return errors.New("must not contain a null byte")
+	if !info.Mode().IsRegular() {
+		return existingVariation{}, fmt.Errorf("variation %s is not a regular file", variationKey)
+	}
+	content, err := os.ReadFile(absolutePath)
+	if err != nil {
+		return existingVariation{}, fmt.Errorf("read variation %s: %w", variationKey, err)
+	}
+	frontMatter, _, err := parseVariationFrontMatter(relativePath, content)
+	if err != nil {
+		return existingVariation{}, fmt.Errorf("parse variation %s: %w", variationKey, err)
+	}
+	return existingVariation{
+		relativePath: relativePath,
+		content:      content,
+		mode:         info.Mode().Perm(),
+		exists:       true,
+		frontMatter:  frontMatter,
+	}, nil
+}
+
+// absolute converts a path relative to the managed directory to an absolute path.
+func (store Store) absolute(relativePath string) string {
+	return filepath.Join(store.root, filepath.FromSlash(relativePath))
+}
+
+// rejectSymlinkedPath makes sure that no component of target is a symbolic
+// link, so that a write cannot leave the managed directory.
+func rejectSymlinkedPath(root, target string) error {
+	if !isWithin(root, target) {
+		return fmt.Errorf("managed path %s is outside %s", target, root)
+	}
+	relative, _ := filepath.Rel(root, target)
+
+	current := root
+	for _, component := range append([]string{""}, strings.Split(relative, string(filepath.Separator))...) {
+		current = filepath.Join(current, component)
+		info, err := os.Lstat(current)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("inspect managed path %s: %w", current, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symbolic links are not supported: %s", current)
+		}
 	}
 	return nil
 }

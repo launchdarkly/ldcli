@@ -2,43 +2,99 @@ package prompt
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"slices"
-	"time"
 
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 )
 
-type conflictResolution string
+// ConflictResolution is the side that wins a conflict.
+type ConflictResolution string
 
 const (
-	useLaunchDarkly conflictResolution = "launchdarkly"
-	useLocal        conflictResolution = "local"
-	abortConflict   conflictResolution = "abort"
+	// ConflictUseLaunchDarkly writes the LaunchDarkly state to the local file.
+	ConflictUseLaunchDarkly ConflictResolution = "launchdarkly"
+	// ConflictUseLocal writes the local state to LaunchDarkly.
+	ConflictUseLocal ConflictResolution = "local"
+	// ConflictAbort stops the sync before it writes anything.
+	ConflictAbort ConflictResolution = "abort"
 )
 
-type conflictResolutionResult struct {
-	resolutions    map[ResourceID]conflictResolution
-	aborted        bool
-	sourcesChanged bool
+// Valid reports whether the resolution is one of the supported choices.
+func (resolution ConflictResolution) Valid() bool {
+	return resolution == ConflictUseLaunchDarkly || resolution == ConflictUseLocal || resolution == ConflictAbort
 }
 
-type conflictChoice struct {
-	resolution     conflictResolution
-	aborted        bool
-	sourcesChanged bool
+// ParseConflictResolution parses a conflict choice from the command line.
+func ParseConflictResolution(value string) (ConflictResolution, error) {
+	if resolution := ConflictResolution(value); resolution.Valid() {
+		return resolution, nil
+	}
+	return "", fmt.Errorf("invalid conflict resolution %q; expected launchdarkly, local, or abort", value)
 }
 
+// ConflictPolicy is a default choice and a choice for each named variation.
+// A command without a policy asks the user.
+type ConflictPolicy struct {
+	Default   ConflictResolution
+	Overrides map[ResourceID]ConflictResolution
+}
+
+// resolve returns the policy choice for a group. The bool result is false when
+// the policy has no choice for the group.
+func (policy ConflictPolicy) resolve(group conflictGroup) (ConflictResolution, bool, error) {
+	var selected ConflictResolution
+	for _, resource := range group.resources {
+		resolution, ok := policy.Overrides[resource.ID]
+		if !ok {
+			continue
+		}
+		if !resolution.Valid() {
+			return "", false, fmt.Errorf("invalid conflict resolution %q", resolution)
+		}
+		if selected != "" && selected != resolution {
+			return "", false, errors.New("conflicting --resolve choices affect the same shared attachment")
+		}
+		selected = resolution
+	}
+	if selected == "" {
+		selected = policy.Default
+	}
+	if selected == "" {
+		return "", false, nil
+	}
+	if !selected.Valid() {
+		return "", false, fmt.Errorf("invalid conflict resolution %q", selected)
+	}
+	return selected, true, nil
+}
+
+var errConflictAborted = errors.New("sync conflict left unresolved")
+
+// conflictGroup is one conflict choice. Variations that share a changed
+// attachment are in one group, because the attachment can have only one state.
 type conflictGroup struct {
 	resources  []PlannedResource
 	attachment bool
 }
 
-// resolveConflicts shows each conflict and asks which side should win.
+type conflictResolutionResult struct {
+	resolutions    map[ResourceID]ConflictResolution
+	aborted        bool
+	sourcesChanged bool
+}
+
+type conflictChoice struct {
+	resolution     ConflictResolution
+	aborted        bool
+	sourcesChanged bool
+}
+
+// resolveConflicts shows each conflict and gets a choice from the policy or
+// from the user. In watch mode, a file change during the choice stops it.
 func resolveConflicts(
 	options Options,
 	plan Plan,
@@ -46,49 +102,44 @@ func resolveConflicts(
 	interactive bool,
 	watched *watchedSources,
 ) (conflictResolutionResult, error) {
-	conflicts := groupConflicts(plan)
-	if len(conflicts) == 0 {
+	groups := groupConflicts(plan)
+	if len(groups) == 0 {
 		return conflictResolutionResult{}, nil
 	}
-	if !interactive {
-		return conflictResolutionResult{}, fmt.Errorf(
-			"interactive conflict resolution requires a terminal; rerun in a terminal or resolve the conflict manually",
-		)
-	}
 
-	result := conflictResolutionResult{resolutions: make(map[ResourceID]conflictResolution)}
-	for _, group := range conflicts {
-		visible := make([]PlannedResource, 0, len(group.resources))
-		for _, resource := range group.resources {
-			if len(resource.Diff) != 0 {
-				visible = append(visible, resource)
-			}
-		}
-		if len(visible) == 0 {
-			visible = append(visible, group.resources[0])
-		}
-		conflict := Plan{Resources: visible}
-		if err := writePlanReview(options.ErrorOutput, "plaintext", conflict, terminalWidth(options.ErrorOutput)); err != nil {
+	result := conflictResolutionResult{resolutions: make(map[ResourceID]ConflictResolution)}
+	for _, group := range groups {
+		if err := writeConflict(options.ErrorOutput, group); err != nil {
 			return conflictResolutionResult{}, err
 		}
-		if group.attachment && len(group.resources) > 1 {
-			console := syncconsole.New(options.ErrorOutput)
-			_ = console.Printf("This attachment conflict affects %d variations:\n", len(group.resources))
-			for _, resource := range group.resources {
-				_ = console.Printf("- %s/%s\n", resource.ID.ProjectKey, resource.ID.LookupKey)
-			}
-		}
 
-		choice, err := readConflictChoice(options, reader, watched)
+		resolution, fromPolicy, err := options.ConflictPolicy.resolve(group)
 		if err != nil {
 			return conflictResolutionResult{}, err
 		}
-		if choice.sourcesChanged {
-			result.sourcesChanged = true
-			return result, nil
+		var choice conflictChoice
+		switch {
+		case fromPolicy:
+			choice = conflictChoice{resolution: resolution, aborted: resolution == ConflictAbort}
+			writeConflictChoice(options.ErrorOutput, choice)
+			if choice.aborted {
+				return conflictResolutionResult{}, errConflictAborted
+			}
+		case !interactive:
+			return conflictResolutionResult{}, errors.New(
+				"conflict resolution requires --conflict or --resolve without interactive input",
+			)
+		case watched != nil:
+			choice, err = promptWatchedConflictResolution(options.Context, options.Input, options.ErrorOutput, *watched)
+		default:
+			choice, err = promptConflictResolution(options.Context, reader, options.ErrorOutput)
 		}
-		if choice.aborted {
-			result.aborted = true
+		if err != nil {
+			return conflictResolutionResult{}, err
+		}
+
+		if choice.sourcesChanged || choice.aborted {
+			result.sourcesChanged, result.aborted = choice.sourcesChanged, choice.aborted
 			return result, nil
 		}
 		for _, resource := range group.resources {
@@ -98,31 +149,53 @@ func resolveConflicts(
 	return result, nil
 }
 
-// groupConflicts presents one choice for each connected set of variations that
-// share a changed dependency, including conflicts with other local edits.
+// writeConflict shows the diff of each resource in a group that has one.
+func writeConflict(output io.Writer, group conflictGroup) error {
+	visible := slices.DeleteFunc(slices.Clone(group.resources), func(resource PlannedResource) bool {
+		return len(resource.Diff) == 0
+	})
+	if len(visible) == 0 {
+		visible = group.resources[:1]
+	}
+	if err := writePlanReview(output, "plaintext", Plan{Resources: visible}, terminalWidth(output)); err != nil {
+		return err
+	}
+	if group.attachment && len(group.resources) > 1 {
+		console := syncconsole.New(output)
+		_ = console.Printf("This attachment conflict affects %d variations:\n", len(group.resources))
+		for _, resource := range group.resources {
+			_ = console.Printf("- %s\n", resource.ID)
+		}
+	}
+	return nil
+}
+
+// groupConflicts returns one group for each conflict. A group also has every
+// other variation that shares a changed attachment with it, directly or
+// through another variation in the group.
 func groupConflicts(plan Plan) []conflictGroup {
 	var groups []conflictGroup
 	visited := make([]bool, len(plan.Resources))
-	for start := range plan.Resources {
-		if visited[start] || plan.Resources[start].Action != ActionConflict {
+	for start, resource := range plan.Resources {
+		if visited[start] || resource.Action != ActionConflict {
 			continue
 		}
 		visited[start] = true
-		indices := []int{start}
-		for next := 0; next < len(indices); next++ {
+		members := []int{start}
+		for next := 0; next < len(members); next++ {
 			for candidate := range plan.Resources {
 				if visited[candidate] ||
 					plan.Resources[candidate].Action == ActionError ||
-					!sharesChangedAttachment(plan.Resources[indices[next]], plan.Resources[candidate]) {
+					!sharesChangedAttachment(plan.Resources[members[next]], plan.Resources[candidate]) {
 					continue
 				}
 				visited[candidate] = true
-				indices = append(indices, candidate)
+				members = append(members, candidate)
 			}
 		}
 
-		group := conflictGroup{attachment: len(indices) > 1}
-		for _, index := range indices {
+		group := conflictGroup{attachment: len(members) > 1}
+		for _, index := range members {
 			group.resources = append(group.resources, plan.Resources[index])
 		}
 		groups = append(groups, group)
@@ -130,52 +203,37 @@ func groupConflicts(plan Plan) []conflictGroup {
 	return groups
 }
 
-// sharesChangedAttachment identifies variations that must resolve their shared
-// dependency in the same direction.
+// sharesChangedAttachment reports whether two variations share a changed
+// attachment, so that both must use the same side.
 func sharesChangedAttachment(left, right PlannedResource) bool {
-	for _, leftID := range left.changedAttachments {
-		if slices.Contains(right.changedAttachments, leftID) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(left.changedAttachments, func(id ResourceID) bool {
+		return slices.Contains(right.changedAttachments, id)
+	})
 }
 
-// readConflictChoice waits for a regular terminal choice or a watch-aware
-// choice that can be interrupted by another source change.
-func readConflictChoice(options Options, reader io.Reader, watched *watchedSources) (conflictChoice, error) {
-	if watched != nil {
-		return promptWatchedConflictResolution(options.Context, options.Input, options.ErrorOutput, *watched)
-	}
-	return promptConflictResolution(context.Background(), reader, options.ErrorOutput)
-}
-
-// promptConflictResolution asks which side should win one conflict.
+// promptConflictResolution asks the user which side wins one conflict.
 func promptConflictResolution(ctx context.Context, input io.Reader, output io.Writer) (conflictChoice, error) {
 	resolution, canceled, err := syncinteractive.SelectContext(
 		ctx,
 		input,
 		output,
 		"Choose how to resolve this conflict",
-		[]syncinteractive.Choice[conflictResolution]{
-			{Title: "Use LaunchDarkly", Value: useLaunchDarkly},
-			{Title: "Use local", Value: useLocal},
-			{Title: "Abort and resolve manually", Value: abortConflict},
+		[]syncinteractive.Choice[ConflictResolution]{
+			{Title: "Use LaunchDarkly", Value: ConflictUseLaunchDarkly},
+			{Title: "Use local", Value: ConflictUseLocal},
+			{Title: "Abort and resolve manually", Value: ConflictAbort},
 		},
 	)
 	if err != nil {
 		return conflictChoice{}, err
 	}
-	choice := conflictChoice{
-		resolution: resolution,
-		aborted:    canceled || resolution == abortConflict,
-	}
+	choice := conflictChoice{resolution: resolution, aborted: canceled || resolution == ConflictAbort}
 	writeConflictChoice(output, choice)
 	return choice, nil
 }
 
-// promptWatchedConflictResolution refreshes the plan if a source changes
-// while the conflict selector is open.
+// promptWatchedConflictResolution asks the user which side wins, and stops
+// when a watched file changes first. The plan is then out of date.
 func promptWatchedConflictResolution(
 	ctx context.Context,
 	input io.Reader,
@@ -185,105 +243,78 @@ func promptWatchedConflictResolution(
 	promptContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// The prompt and the watcher race. The first to finish cancels the
+	// shared context, so that the other stops.
 	changeResult := make(chan error, 1)
-	// Race the form against filesystem changes. Canceling the shared child
-	// context guarantees exactly one path wins and the other exits promptly.
 	go func() {
 		changeResult <- watched.WaitForChange(promptContext)
 		cancel()
 	}()
-
 	choice, promptErr := promptConflictResolution(promptContext, input, output)
 	cancel()
 	changeErr := <-changeResult
-	if changeErr == nil {
+
+	switch {
+	case changeErr == nil:
 		_ = syncconsole.New(output).Line("\nA watched file changed; refreshing...")
 		return conflictChoice{sourcesChanged: true}, nil
-	}
-	if !errors.Is(changeErr, context.Canceled) {
+	case !errors.Is(changeErr, context.Canceled):
 		return conflictChoice{}, changeErr
-	}
-	if promptErr == nil && choice.aborted {
+	case promptErr == nil && choice.aborted:
 		return conflictChoice{}, context.Canceled
-	}
-	if promptErr != nil {
-		if ctx.Err() != nil {
-			return conflictChoice{}, context.Canceled
-		}
+	case promptErr != nil && ctx.Err() != nil:
+		return conflictChoice{}, context.Canceled
+	case promptErr != nil:
 		return conflictChoice{}, promptErr
+	default:
+		return choice, nil
 	}
-	return choice, nil
 }
 
-// writeConflictChoice confirms the selected resolution after the form exits.
+// writeConflictChoice confirms the choice after the form closes.
 func writeConflictChoice(output io.Writer, choice conflictChoice) {
 	console := syncconsole.New(output)
 	switch {
 	case choice.aborted:
 		_ = console.Line("Sync canceled; conflict left unresolved.")
-	case choice.resolution == useLaunchDarkly:
+	case choice.resolution == ConflictUseLaunchDarkly:
 		_ = console.Line("Using LaunchDarkly.")
-	case choice.resolution == useLocal:
+	case choice.resolution == ConflictUseLocal:
 		_ = console.Line("Using local.")
 	}
 }
 
-type watchedSources struct {
-	watcher  *sourceWatcher
-	snapshot [sha256.Size]byte
-	debounce time.Duration
-}
-
-// WaitForChange waits until the watched source content differs from the state
-// used to build the current plan.
-func (watched watchedSources) WaitForChange(ctx context.Context) error {
-	for {
-		if err := watched.watcher.WaitForChange(ctx, watched.debounce); err != nil {
-			return err
-		}
-		current, err := sourceSnapshot(watched.watcher.root)
-		if err != nil {
-			return err
-		}
-		if current != watched.snapshot {
-			return nil
-		}
-	}
-}
-
-// applyConflictResolutions applies one direction to every resource in each
-// conflict group, including non-conflicted consumers of a shared attachment.
-func applyConflictResolutions(plan Plan, resolutions map[ResourceID]conflictResolution) Plan {
-	// Clone the resource slice before changing actions so the reviewed plan
-	// remains an immutable record for post-review revalidation.
-	resolved := Plan{Resources: append([]PlannedResource(nil), plan.Resources...)}
+// applyConflictResolutions returns a copy of the plan in which each resolved
+// resource has the action for its chosen side. The original plan stays as
+// the reviewed record.
+func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictResolution) Plan {
+	resolved := Plan{Resources: slices.Clone(plan.Resources)}
 	for index := range resolved.Resources {
 		resource := &resolved.Resources[index]
-		resolution, ok := resolutions[resource.ID]
-		if !ok {
-			continue
+		if resolution, ok := resolutions[resource.ID]; ok {
+			resource.Action = resolvedConflictAction(*resource, resolution)
 		}
-		resource.Action = resolvedConflictAction(*resource, resolution)
 	}
 	return resolved
 }
 
-// resolvedConflictAction returns the operation needed for the chosen side to win.
-func resolvedConflictAction(resource PlannedResource, resolution conflictResolution) Action {
+// resolvedConflictAction returns the action that makes the chosen side win.
+func resolvedConflictAction(resource PlannedResource, resolution ConflictResolution) Action {
 	switch resolution {
-	case useLaunchDarkly:
+	case ConflictUseLaunchDarkly:
 		if resource.Server == nil {
 			return ActionDeleteLocal
 		}
 		return ActionUpdateLocal
-	case useLocal:
-		if resource.Local == nil {
+	case ConflictUseLocal:
+		switch {
+		case resource.Local == nil:
 			return ActionArchiveServer
-		}
-		if resource.Server == nil {
+		case resource.Server == nil:
 			return ActionCreateServer
+		default:
+			return ActionUpdateServer
 		}
-		return ActionUpdateServer
 	default:
 		return ActionConflict
 	}

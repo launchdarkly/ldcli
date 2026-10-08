@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 )
 
+// The API accepts at most this number of upserts and deletions in one patch.
 const manifestBatchLimit = 100
 
 type client interface {
@@ -21,30 +22,27 @@ type client interface {
 	) (syncapi.SyncManifest, error)
 }
 
-// Store persists synchronization baselines through LaunchDarkly.
+// Store keeps the manifest in LaunchDarkly. LaunchDarkly stores one remote
+// manifest for each project and repository source.
 type Store struct {
 	client client
 	source string
 }
 
-// NewStore creates a remote manifest store for one repository source.
+// NewStore creates a store for one repository source.
 func NewStore(client client, source string) Store {
 	return Store{client: client, source: source}
 }
 
-// Load combines the project-scoped remote manifests used by the workspace.
+// Load reads the remote manifest of each project and combines them.
 func (store Store) Load(projectKeys []string) (Manifest, error) {
-	projectKeys = append([]string(nil), projectKeys...)
-	slices.Sort(projectKeys)
-	projectKeys = slices.Compact(projectKeys)
-
 	manifest := New()
-	for _, projectKey := range projectKeys {
+	for _, projectKey := range uniqueSorted(projectKeys) {
 		remote, err := store.client.GetSyncManifest(projectKey, store.source)
 		if err != nil {
 			return Manifest{}, err
 		}
-		resources, err := resourcesFromRemote(projectKey, store.source, remote)
+		resources, err := store.resourcesFromRemote(projectKey, remote)
 		if err != nil {
 			return Manifest{}, err
 		}
@@ -57,18 +55,16 @@ func (store Store) Load(projectKeys []string) (Manifest, error) {
 	return manifest, nil
 }
 
-// Update applies the difference between two aggregate manifest states.
+// Update sends the difference between previous and next to LaunchDarkly. The
+// previous manifest must come from Load, so that each entry has its remote
+// version. Update returns the new remote state.
 func (store Store) Update(previous, next Manifest) (Manifest, error) {
 	if err := previous.Validate(); err != nil {
 		return Manifest{}, fmt.Errorf("validate previous sync manifest: %w", err)
 	}
 	for _, resource := range previous.Resources {
 		if resource.Version == 0 {
-			return Manifest{}, fmt.Errorf(
-				"sync manifest resource %s/%s is missing its remote version",
-				resource.ProjectKey,
-				resource.LookupKey,
-			)
+			return Manifest{}, fmt.Errorf("sync manifest resource %s is missing its remote version", resource.ID())
 		}
 	}
 	if err := next.Validate(); err != nil {
@@ -76,81 +72,69 @@ func (store Store) Update(previous, next Manifest) (Manifest, error) {
 	}
 
 	result := New()
-	for _, projectKey := range manifestProjects(previous, next) {
-		before := projectResources(previous, projectKey)
-		after := projectResources(next, projectKey)
-		upserts, deletions := manifestChanges(before, after)
-
+	for _, projectKey := range projectKeys(previous, next) {
+		before := previous.project(projectKey)
+		after := next.project(projectKey)
+		upserts, deletions := changes(before, after)
 		if len(upserts) == 0 && len(deletions) == 0 {
-			result.Resources = append(result.Resources, retainVersions(before, after)...)
+			result.Resources = append(result.Resources, withVersions(after, before)...)
 			continue
 		}
 
-		remote, err := store.apply(projectKey, upserts, deletions)
+		remote, err := store.patch(projectKey, upserts, deletions)
 		if err != nil {
 			return Manifest{}, err
 		}
-		resources, err := resourcesFromRemote(projectKey, store.source, remote)
+		resources, err := store.resourcesFromRemote(projectKey, remote)
 		if err != nil {
 			return Manifest{}, err
 		}
 		result.Resources = append(result.Resources, resources...)
 	}
-
 	result.Sort()
 	return result, nil
 }
 
-func (store Store) apply(
+// patch sends the changes in batches and returns the remote manifest after
+// the last batch. If a batch fails without a response, patch reads the
+// manifest to find whether LaunchDarkly applied it.
+func (store Store) patch(
 	projectKey string,
 	upserts []syncapi.SyncManifestUpsert,
 	deletions []syncapi.SyncManifestDeletion,
 ) (syncapi.SyncManifest, error) {
 	var latest syncapi.SyncManifest
 	for len(upserts) != 0 || len(deletions) != 0 {
-		upsertCount := min(len(upserts), manifestBatchLimit)
-		deletionCount := min(len(deletions), manifestBatchLimit)
-		batchUpserts := upserts[:upsertCount]
-		batchDeletions := deletions[:deletionCount]
+		batchUpserts := upserts[:min(len(upserts), manifestBatchLimit)]
+		batchDeletions := deletions[:min(len(deletions), manifestBatchLimit)]
+		upserts = upserts[len(batchUpserts):]
+		deletions = deletions[len(batchDeletions):]
 
-		remote, err := store.client.PatchSyncManifest(
-			projectKey,
-			store.source,
-			batchUpserts,
-			batchDeletions,
-		)
-		if err != nil {
-			if syncapi.IsConflict(err) {
-				return syncapi.SyncManifest{}, fmt.Errorf(
-					"sync manifest for project %q changed in LaunchDarkly; run sync again: %w",
-					projectKey,
-					err,
-				)
-			}
-			if !syncapi.MutationMayHaveSucceeded(err) {
-				return syncapi.SyncManifest{}, err
-			}
-
-			remote, readErr := store.client.GetSyncManifest(projectKey, store.source)
+		remote, err := store.client.PatchSyncManifest(projectKey, store.source, batchUpserts, batchDeletions)
+		switch {
+		case err == nil:
+		case syncapi.IsConflict(err):
+			return syncapi.SyncManifest{}, fmt.Errorf(
+				"sync manifest for project %q changed in LaunchDarkly; run sync again: %w", projectKey, err,
+			)
+		case !syncapi.MutationMayHaveSucceeded(err):
+			return syncapi.SyncManifest{}, err
+		default:
+			var readErr error
+			remote, readErr = store.client.GetSyncManifest(projectKey, store.source)
 			if readErr != nil || !changesApplied(remote, batchUpserts, batchDeletions) {
 				return syncapi.SyncManifest{}, errors.Join(err, readErr)
 			}
 		}
-
 		latest = remote
-		upserts = upserts[upsertCount:]
-		deletions = deletions[deletionCount:]
 	}
 	return latest, nil
 }
 
-func resourcesFromRemote(projectKey, source string, remote syncapi.SyncManifest) ([]Resource, error) {
-	if remote.Source != "" && remote.Source != source {
+func (store Store) resourcesFromRemote(projectKey string, remote syncapi.SyncManifest) ([]Resource, error) {
+	if remote.Source != "" && remote.Source != store.source {
 		return nil, fmt.Errorf(
-			"sync manifest for project %q returned source %q instead of %q",
-			projectKey,
-			remote.Source,
-			source,
+			"sync manifest for project %q returned source %q instead of %q", projectKey, remote.Source, store.source,
 		)
 	}
 
@@ -158,10 +142,7 @@ func resourcesFromRemote(projectKey, source string, remote syncapi.SyncManifest)
 	for _, item := range remote.Items {
 		if item.Version < 1 {
 			return nil, fmt.Errorf(
-				"sync manifest resource %s/%s returned invalid version %d",
-				projectKey,
-				item.ResourceLookupKey,
-				item.Version,
+				"sync manifest resource %s/%s returned invalid version %d", projectKey, item.ResourceLookupKey, item.Version,
 			)
 		}
 		resources = append(resources, Resource{
@@ -175,18 +156,86 @@ func resourcesFromRemote(projectKey, source string, remote syncapi.SyncManifest)
 	return resources, nil
 }
 
-func manifestProjects(manifests ...Manifest) []string {
-	var projectKeys []string
-	for _, manifest := range manifests {
-		for _, resource := range manifest.Resources {
-			projectKeys = append(projectKeys, resource.ProjectKey)
+// changes compares two states of one project. The results are in identity order.
+func changes(before, after []Resource) ([]syncapi.SyncManifestUpsert, []syncapi.SyncManifestDeletion) {
+	before, after = sorted(before), sorted(after)
+	remaining := make(map[syncdomain.ResourceID]Resource, len(before))
+	for _, resource := range before {
+		remaining[resource.ID()] = resource
+	}
+
+	var upserts []syncapi.SyncManifestUpsert
+	for _, resource := range after {
+		current, exists := remaining[resource.ID()]
+		delete(remaining, resource.ID())
+		if exists && current.Fingerprint == resource.Fingerprint {
+			continue
+		}
+		upserts = append(upserts, syncapi.SyncManifestUpsert{
+			ResourceKind:      resource.ResourceKind,
+			ResourceLookupKey: resource.LookupKey,
+			Fingerprint:       resource.Fingerprint,
+			Version:           current.Version,
+		})
+	}
+
+	var deletions []syncapi.SyncManifestDeletion
+	for _, resource := range before {
+		if _, removed := remaining[resource.ID()]; removed {
+			deletions = append(deletions, syncapi.SyncManifestDeletion{
+				ResourceKind:      resource.ResourceKind,
+				ResourceLookupKey: resource.LookupKey,
+				Version:           resource.Version,
+			})
 		}
 	}
-	slices.Sort(projectKeys)
-	return slices.Compact(projectKeys)
+	return upserts, deletions
 }
 
-func projectResources(manifest Manifest, projectKey string) []Resource {
+// changesApplied reports whether the remote manifest contains every change.
+func changesApplied(
+	remote syncapi.SyncManifest,
+	upserts []syncapi.SyncManifestUpsert,
+	deletions []syncapi.SyncManifestDeletion,
+) bool {
+	type key struct {
+		kind      syncdomain.Kind
+		lookupKey string
+	}
+	current := make(map[key]syncapi.SyncManifestResource, len(remote.Items))
+	for _, item := range remote.Items {
+		current[key{item.ResourceKind, item.ResourceLookupKey}] = item
+	}
+	for _, upsert := range upserts {
+		item, ok := current[key{upsert.ResourceKind, upsert.ResourceLookupKey}]
+		if !ok || item.Fingerprint != upsert.Fingerprint || item.Version <= upsert.Version {
+			return false
+		}
+	}
+	for _, deletion := range deletions {
+		if _, ok := current[key{deletion.ResourceKind, deletion.ResourceLookupKey}]; ok {
+			return false
+		}
+	}
+	return true
+}
+
+// withVersions copies the remote version of each entry in before to the
+// matching entry in after.
+func withVersions(after, before []Resource) []Resource {
+	versions := make(map[syncdomain.ResourceID]int, len(before))
+	for _, resource := range before {
+		versions[resource.ID()] = resource.Version
+	}
+	result := slices.Clone(after)
+	for index := range result {
+		result[index].Version = versions[result[index].ID()]
+	}
+	return result
+}
+
+// project returns the entries of one project.
+func (manifest Manifest) project(projectKey string) []Resource {
 	var resources []Resource
 	for _, resource := range manifest.Resources {
 		if resource.ProjectKey == projectKey {
@@ -196,103 +245,24 @@ func projectResources(manifest Manifest, projectKey string) []Resource {
 	return resources
 }
 
-func manifestChanges(
-	previous []Resource,
-	next []Resource,
-) ([]syncapi.SyncManifestUpsert, []syncapi.SyncManifestDeletion) {
-	before := make(map[identity]Resource, len(previous))
-	for _, resource := range previous {
-		before[resourceIdentity(resource)] = resource
-	}
-
-	var upserts []syncapi.SyncManifestUpsert
-	remaining := make(map[identity]Resource, len(previous))
-	for id, resource := range before {
-		remaining[id] = resource
-	}
-
-	for _, resource := range next {
-		id := resourceIdentity(resource)
-		current, exists := before[id]
-		delete(remaining, id)
-		if exists && current.Fingerprint == resource.Fingerprint {
-			continue
-		}
-		version := 0
-		if exists {
-			version = current.Version
-		}
-		upserts = append(upserts, syncapi.SyncManifestUpsert{
-			ResourceKind:      resource.ResourceKind,
-			ResourceLookupKey: resource.LookupKey,
-			Fingerprint:       resource.Fingerprint,
-			Version:           version,
-		})
-	}
-
-	var deletions []syncapi.SyncManifestDeletion
-	for _, resource := range remaining {
-		deletions = append(deletions, syncapi.SyncManifestDeletion{
-			ResourceKind:      resource.ResourceKind,
-			ResourceLookupKey: resource.LookupKey,
-			Version:           resource.Version,
-		})
-	}
-	slices.SortFunc(upserts, func(left, right syncapi.SyncManifestUpsert) int {
-		if left.ResourceKind != right.ResourceKind {
-			return strings.Compare(string(left.ResourceKind), string(right.ResourceKind))
-		}
-		return strings.Compare(left.ResourceLookupKey, right.ResourceLookupKey)
-	})
-	slices.SortFunc(deletions, func(left, right syncapi.SyncManifestDeletion) int {
-		if left.ResourceKind != right.ResourceKind {
-			return strings.Compare(string(left.ResourceKind), string(right.ResourceKind))
-		}
-		return strings.Compare(left.ResourceLookupKey, right.ResourceLookupKey)
-	})
-	return upserts, deletions
+func sorted(resources []Resource) []Resource {
+	manifest := Manifest{Resources: slices.Clone(resources)}
+	manifest.Sort()
+	return manifest.Resources
 }
 
-type identity struct {
-	kind      string
-	lookupKey string
-}
-
-func resourceIdentity(resource Resource) identity {
-	return identity{kind: string(resource.ResourceKind), lookupKey: resource.LookupKey}
-}
-
-func retainVersions(previous, next []Resource) []Resource {
-	versions := make(map[identity]int, len(previous))
-	for _, resource := range previous {
-		versions[resourceIdentity(resource)] = resource.Version
-	}
-	result := append([]Resource(nil), next...)
-	for index := range result {
-		result[index].Version = versions[resourceIdentity(result[index])]
-	}
-	return result
-}
-
-func changesApplied(
-	remote syncapi.SyncManifest,
-	upserts []syncapi.SyncManifestUpsert,
-	deletions []syncapi.SyncManifestDeletion,
-) bool {
-	current := make(map[identity]syncapi.SyncManifestResource, len(remote.Items))
-	for _, item := range remote.Items {
-		current[identity{kind: string(item.ResourceKind), lookupKey: item.ResourceLookupKey}] = item
-	}
-	for _, upsert := range upserts {
-		item, ok := current[identity{kind: string(upsert.ResourceKind), lookupKey: upsert.ResourceLookupKey}]
-		if !ok || item.Fingerprint != upsert.Fingerprint || item.Version <= upsert.Version {
-			return false
+func projectKeys(manifests ...Manifest) []string {
+	var keys []string
+	for _, manifest := range manifests {
+		for _, resource := range manifest.Resources {
+			keys = append(keys, resource.ProjectKey)
 		}
 	}
-	for _, deletion := range deletions {
-		if _, ok := current[identity{kind: string(deletion.ResourceKind), lookupKey: deletion.ResourceLookupKey}]; ok {
-			return false
-		}
-	}
-	return true
+	return uniqueSorted(keys)
+}
+
+func uniqueSorted(values []string) []string {
+	values = slices.Clone(values)
+	slices.Sort(values)
+	return slices.Compact(values)
 }

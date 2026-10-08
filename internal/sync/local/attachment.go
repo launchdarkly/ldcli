@@ -2,11 +2,13 @@ package local
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,15 +16,11 @@ import (
 	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
-	"gopkg.in/yaml.v3"
 )
 
-const (
-	toolsDir        = "tools"
-	skillsDir       = "skills"
-	toolFileSuffix  = ".json"
-	skillFileSuffix = ".md"
-)
+// A tool file is JSON. A skill file is Markdown with YAML front matter that
+// has the key and the description.
+const toolFormatVersion = 1
 
 type toolFile struct {
 	FormatVersion int  `json:"formatVersion"`
@@ -35,8 +33,7 @@ type skillFrontMatter struct {
 	Description *string `yaml:"description"`
 }
 
-// OrphanedAttachment identifies a managed dependency file that no local
-// variation references.
+// OrphanedAttachment is a tool or skill file that no variation uses.
 type OrphanedAttachment struct {
 	ProjectKey string
 	Kind       syncdomain.AttachmentKind
@@ -44,84 +41,7 @@ type OrphanedAttachment struct {
 	Path       string
 }
 
-type attachmentFileID struct {
-	projectKey string
-	kind       syncdomain.AttachmentKind
-	key        string
-}
-
-// readTool loads and validates the deterministic local file for one tool key.
-func readTool(fsys fs.FS, projectKey, key string) (syncdomain.Attachment, error) {
-	if err := validatePathSegment(key); err != nil {
-		return syncdomain.Attachment{}, fmt.Errorf("invalid tool key %q: %w", key, err)
-	}
-
-	relativePath, _ := attachmentPath(projectKey, syncdomain.AttachmentTool, key)
-	filePath := path.Join(syncdomain.RootDir, relativePath)
-	data, err := readAttachmentFile(fsys, filePath)
-	if err != nil {
-		return syncdomain.Attachment{}, fmt.Errorf("read tool %q: %w", key, err)
-	}
-
-	var file toolFile
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&file); err != nil {
-		return syncdomain.Attachment{}, fmt.Errorf("parse tool %q: %w", key, err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return syncdomain.Attachment{}, fmt.Errorf("parse tool %q: multiple JSON values are not supported", key)
-		}
-		return syncdomain.Attachment{}, fmt.Errorf("parse tool %q: %w", key, err)
-	}
-	switch {
-	case file.FormatVersion != 1:
-		return syncdomain.Attachment{}, fmt.Errorf("tool %q has unsupported formatVersion %d", key, file.FormatVersion)
-	case file.Key != key:
-		return syncdomain.Attachment{}, fmt.Errorf("tool key %q does not match filename %q", file.Key, key)
-	case file.Schema == nil:
-		return syncdomain.Attachment{}, fmt.Errorf("tool %q schema is required", key)
-	}
-	return syncdomain.Attachment{
-		Kind: syncdomain.AttachmentTool, Upsert: file.Upsert, Tool: &file.Tool,
-	}, nil
-}
-
-// readSkill loads one Markdown skill and its editable description. The filename
-// remains authoritative for the read-only key shown in front matter.
-func readSkill(fsys fs.FS, projectKey, key string) (syncdomain.Attachment, error) {
-	if err := validatePathSegment(key); err != nil {
-		return syncdomain.Attachment{}, fmt.Errorf("invalid skill key %q: %w", key, err)
-	}
-
-	relativePath, _ := attachmentPath(projectKey, syncdomain.AttachmentSkill, key)
-	filePath := path.Join(syncdomain.RootDir, relativePath)
-	data, err := readAttachmentFile(fsys, filePath)
-	if err != nil {
-		return syncdomain.Attachment{}, fmt.Errorf("read skill %q: %w", key, err)
-	}
-
-	var metadata skillFrontMatter
-	body, err := parseYAMLFrontMatter(data, &metadata)
-	if err != nil {
-		return syncdomain.Attachment{}, fmt.Errorf("parse skill %q: %w", key, err)
-	}
-	body = trimSkillBodySeparator(body)
-	switch {
-	case metadata.Key != key:
-		return syncdomain.Attachment{}, fmt.Errorf("skill key %q does not match filename %q", metadata.Key, key)
-	case metadata.Description == nil:
-		return syncdomain.Attachment{}, fmt.Errorf("skill %q description is required in front matter", key)
-	case strings.TrimSpace(string(body)) == "":
-		return syncdomain.Attachment{}, fmt.Errorf("skill %q markdown is required", key)
-	}
-
-	skill := syncdomain.Skill{Key: key, Description: *metadata.Description, Markdown: string(body)}
-	return syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &skill}, nil
-}
-
+// readAttachment reads the file of one tool or skill.
 func readAttachment(fsys fs.FS, projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
 	switch kind {
 	case syncdomain.AttachmentTool:
@@ -133,92 +53,137 @@ func readAttachment(fsys fs.FS, projectKey string, kind syncdomain.AttachmentKin
 	}
 }
 
-func trimSkillBodySeparator(body []byte) []byte {
-	if bytes.HasPrefix(body, []byte("\r\n")) {
-		return body[2:]
+func readTool(fsys fs.FS, projectKey, key string) (syncdomain.Attachment, error) {
+	data, err := readAttachmentFile(fsys, projectKey, syncdomain.AttachmentTool, key)
+	if err != nil {
+		return syncdomain.Attachment{}, err
 	}
-	return bytes.TrimPrefix(body, []byte("\n"))
+
+	var file toolFile
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&file); err != nil {
+		return syncdomain.Attachment{}, fmt.Errorf("parse tool %q: %w", key, err)
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		if err == nil {
+			err = errors.New("multiple JSON values are not supported")
+		}
+		return syncdomain.Attachment{}, fmt.Errorf("parse tool %q: %w", key, err)
+	}
+
+	switch {
+	case file.FormatVersion != toolFormatVersion:
+		return syncdomain.Attachment{}, fmt.Errorf("tool %q has unsupported formatVersion %d", key, file.FormatVersion)
+	case file.Key != key:
+		return syncdomain.Attachment{}, fmt.Errorf("tool key %q does not match filename %q", file.Key, key)
+	case file.Schema == nil:
+		return syncdomain.Attachment{}, fmt.Errorf("tool %q schema is required", key)
+	}
+	return syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Upsert: file.Upsert, Tool: &file.Tool}, nil
 }
 
-// readAttachmentFile rejects links and non-regular files before reading
-// managed dependency content. This keeps all reads inside the workspace tree.
-func readAttachmentFile(fsys fs.FS, filePath string) ([]byte, error) {
-	info, err := fs.Stat(fsys, filePath)
+// readSkill reads one skill file. The file name is the key, and the key in
+// the front matter must match it.
+func readSkill(fsys fs.FS, projectKey, key string) (syncdomain.Attachment, error) {
+	data, err := readAttachmentFile(fsys, projectKey, syncdomain.AttachmentSkill, key)
+	if err != nil {
+		return syncdomain.Attachment{}, err
+	}
+
+	var metadata skillFrontMatter
+	body, err := parseYAMLFrontMatter(data, &metadata)
+	if err != nil {
+		return syncdomain.Attachment{}, fmt.Errorf("parse skill %q: %w", key, err)
+	}
+	// Rendering puts one blank line after the front matter. Remove it.
+	if bytes.HasPrefix(body, []byte("\r\n")) {
+		body = body[2:]
+	} else {
+		body = bytes.TrimPrefix(body, []byte("\n"))
+	}
+
+	switch {
+	case metadata.Key != key:
+		return syncdomain.Attachment{}, fmt.Errorf("skill key %q does not match filename %q", metadata.Key, key)
+	case metadata.Description == nil:
+		return syncdomain.Attachment{}, fmt.Errorf("skill %q description is required in front matter", key)
+	case strings.TrimSpace(string(body)) == "":
+		return syncdomain.Attachment{}, fmt.Errorf("skill %q markdown is required", key)
+	}
+	skill := syncdomain.Skill{Key: key, Description: *metadata.Description, Markdown: string(body)}
+	return syncdomain.Attachment{Kind: syncdomain.AttachmentSkill, Skill: &skill}, nil
+}
+
+// readAttachmentFile reads one tool or skill file. It rejects a symbolic link
+// or another special file, so that a read stays in the managed directory.
+func readAttachmentFile(fsys fs.FS, projectKey string, kind syncdomain.AttachmentKind, key string) ([]byte, error) {
+	relativePath, err := attachmentPath(projectKey, kind, key)
 	if err != nil {
 		return nil, err
 	}
-	if info.Mode()&fs.ModeSymlink != 0 {
-		return nil, fmt.Errorf("symbolic links are not supported")
+	filePath := path.Join(syncdomain.RootDir, relativePath)
+
+	info, err := fs.Stat(fsys, filePath)
+	switch {
+	case err != nil:
+	case info.Mode()&fs.ModeSymlink != 0:
+		err = errors.New("symbolic links are not supported")
+	case !info.Mode().IsRegular():
+		err = errors.New("not a regular file")
 	}
-	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("not a regular file")
+	if err != nil {
+		return nil, fmt.Errorf("read %s %q: %w", kind, key, err)
 	}
-	return fs.ReadFile(fsys, filePath)
+
+	data, err := fs.ReadFile(fsys, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s %q: %w", kind, key, err)
+	}
+	return data, nil
 }
 
-// renderAttachmentFiles renders each shared dependency once, rejecting two
-// variations that claim different local content for the same key.
-func renderAttachmentFiles(resources []VariationFile) ([]RenderedVariationFile, error) {
-	files := make(map[string][]byte)
-
-	for _, resource := range resources {
-		if err := validatePathSegment(resource.ProjectKey); err != nil {
-			return nil, fmt.Errorf("invalid project key %q: %w", resource.ProjectKey, err)
-		}
-		for _, attachment := range resource.Variation.Attachments {
-			var content []byte
-			var err error
-
-			switch attachment.Kind {
-			case syncdomain.AttachmentTool:
-				content, err = renderTool(attachment)
-			case syncdomain.AttachmentSkill:
-				if attachment.Skill == nil {
-					return nil, fmt.Errorf("skill content is required")
-				}
-				content, err = renderSkill(*attachment.Skill)
-			default:
-				err = fmt.Errorf("unsupported attachment kind %q", attachment.Kind)
-			}
+// renderAttachmentFiles renders the file of each tool and skill that the
+// variations use, in path order. Two variations can share an attachment, but
+// they must have the same content for it.
+func renderAttachmentFiles(files []VariationFile) ([]RenderedFile, error) {
+	contents := make(map[string][]byte)
+	for _, file := range files {
+		for _, attachment := range file.Variation.Attachments {
+			filePath, err := attachmentPath(file.ProjectKey, attachment.Kind, attachment.Key())
 			if err != nil {
 				return nil, err
 			}
-			filePath, err := attachmentPath(resource.ProjectKey, attachment.Kind, attachment.Key())
+			content, err := renderAttachment(attachment)
 			if err != nil {
 				return nil, err
 			}
-			if err := addAttachmentFile(files, filePath, content); err != nil {
-				return nil, err
+			if existing, ok := contents[filePath]; ok && !bytes.Equal(existing, content) {
+				return nil, fmt.Errorf("attachment %q has conflicting local definitions", filePath)
 			}
+			contents[filePath] = content
 		}
 	}
 
-	paths := make([]string, 0, len(files))
-	for filePath := range files {
-		paths = append(paths, filePath)
-	}
-	slices.Sort(paths)
-
-	rendered := make([]RenderedVariationFile, 0, len(paths))
-	for _, filePath := range paths {
-		rendered = append(rendered, RenderedVariationFile{Path: filePath, Content: files[filePath]})
+	rendered := make([]RenderedFile, 0, len(contents))
+	for _, filePath := range slices.Sorted(maps.Keys(contents)) {
+		rendered = append(rendered, RenderedFile{Path: filePath, Content: contents[filePath]})
 	}
 	return rendered, nil
 }
 
-func renderTool(attachment syncdomain.Attachment) ([]byte, error) {
-	tool := attachment.Tool
-	if tool == nil {
-		return nil, fmt.Errorf("tool content is required")
+func renderAttachment(attachment syncdomain.Attachment) ([]byte, error) {
+	switch {
+	case attachment.Kind == syncdomain.AttachmentTool && attachment.Tool != nil:
+		if attachment.Tool.Schema == nil {
+			return nil, fmt.Errorf("tool %q schema is required", attachment.Tool.Key)
+		}
+		return renderToolFile(toolFile{FormatVersion: toolFormatVersion, Upsert: attachment.Upsert, Tool: *attachment.Tool})
+	case attachment.Kind == syncdomain.AttachmentSkill && attachment.Skill != nil:
+		return renderSkill(*attachment.Skill)
+	default:
+		return nil, fmt.Errorf("%s %q has no content", attachment.Kind, attachment.Key())
 	}
-	if err := validatePathSegment(tool.Key); err != nil {
-		return nil, fmt.Errorf("invalid tool key %q: %w", tool.Key, err)
-	}
-	if tool.Schema == nil {
-		return nil, fmt.Errorf("tool %q schema is required", tool.Key)
-	}
-
-	return renderToolFile(toolFile{FormatVersion: 1, Upsert: attachment.Upsert, Tool: *tool})
 }
 
 func renderToolFile(file toolFile) ([]byte, error) {
@@ -233,36 +198,24 @@ func renderToolFile(file toolFile) ([]byte, error) {
 }
 
 func renderSkill(skill syncdomain.Skill) ([]byte, error) {
-	if err := validatePathSegment(skill.Key); err != nil {
-		return nil, fmt.Errorf("invalid skill key %q: %w", skill.Key, err)
-	}
 	if strings.TrimSpace(skill.Markdown) == "" {
 		return nil, fmt.Errorf("skill %q markdown is required", skill.Key)
 	}
-
-	var metadata bytes.Buffer
-	encoder := yaml.NewEncoder(&metadata)
-	encoder.SetIndent(2)
-	if err := encoder.Encode(skillFrontMatter{Key: skill.Key, Description: &skill.Description}); err != nil {
+	metadata, err := marshalYAML(skillFrontMatter{Key: skill.Key, Description: &skill.Description})
+	if err != nil {
 		return nil, fmt.Errorf("marshal skill %q metadata: %w", skill.Key, err)
 	}
 
-	var file bytes.Buffer
-	file.WriteString("---\n")
-	file.Write(metadata.Bytes())
-	file.WriteString("---\n\n")
-	file.WriteString(skill.Markdown)
-	return file.Bytes(), nil
+	var content bytes.Buffer
+	content.WriteString("---\n")
+	content.Write(metadata)
+	content.WriteString("---\n\n")
+	content.WriteString(skill.Markdown)
+	return content.Bytes(), nil
 }
 
-func addAttachmentFile(files map[string][]byte, filePath string, content []byte) error {
-	if existing, ok := files[filePath]; ok && !bytes.Equal(existing, content) {
-		return fmt.Errorf("attachment %q has conflicting local definitions", filePath)
-	}
-	files[filePath] = content
-	return nil
-}
-
+// preserveToolUpsert keeps the upsert flag of an existing tool file. The flag
+// is a local choice, so new content from LaunchDarkly does not remove it.
 func preserveToolUpsert(filePath string, original, replacement []byte) ([]byte, error) {
 	if !strings.HasSuffix(filePath, toolFileSuffix) {
 		return replacement, nil
@@ -281,63 +234,40 @@ func preserveToolUpsert(filePath string, original, replacement []byte) ([]byte, 
 	return renderToolFile(updated)
 }
 
-// AttachVariation commits dependency files and their consuming variation in
-// the same staged transaction.
-func (store Store) AttachVariation(projectKey, configKey string, variation syncdomain.Variation) error {
-	_, err := store.ReplaceVariations([]VariationReplacement{{
-		ProjectKey: projectKey,
-		ConfigKey:  configKey,
-		Variation:  variation,
-	}})
-	return err
-}
-
-// OrphanedAttachments returns managed tool and skill files that are no longer
-// referenced by any local variation.
+// OrphanedAttachments returns each tool and skill file that no local
+// variation uses.
 func (store Store) OrphanedAttachments() ([]OrphanedAttachment, error) {
-	resources, err := CompileWorkspace(store.repositoryRoot)
-	if errors.Is(err, ErrNoDirectory) {
-		resources = nil
-		err = nil
-	}
-	if err != nil {
+	variations, err := CompileWorkspace(store.repositoryRoot)
+	if err != nil && !errors.Is(err, ErrNoDirectory) {
 		return nil, err
 	}
-
-	referenced := make(map[attachmentFileID]struct{})
-	for _, resource := range resources {
-		for _, attachment := range resource.Attachments {
-			referenced[attachmentFileID{
-				projectKey: resource.ProjectKey,
-				kind:       attachment.Kind,
-				key:        attachment.Key(),
-			}] = struct{}{}
+	used := make(map[syncdomain.ResourceID]struct{})
+	for _, variation := range variations {
+		for _, attachment := range variation.Variation.Attachments {
+			used[attachment.ID(variation.ProjectKey)] = struct{}{}
 		}
 	}
 
 	var orphaned []OrphanedAttachment
-	err = filepath.WalkDir(store.root, func(filePath string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	err = filepath.WalkDir(store.root, func(filePath string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
 		}
-		if entry.IsDir() {
-			return nil
-		}
-		relativePath, err := filepath.Rel(store.root, filePath)
+		relativePath, err := filepath.Rel(store.repositoryRoot, filePath)
 		if err != nil {
 			return err
 		}
-		attachment, ok := attachmentFromPath(filepath.ToSlash(relativePath))
-		if !ok {
+		id, ok := ParseManagedPath(filepath.ToSlash(relativePath))
+		if !ok || id.Kind == syncdomain.KindVariation {
 			return nil
 		}
-		id := attachmentFileID{
-			projectKey: attachment.ProjectKey,
-			kind:       attachment.Kind,
-			key:        attachment.Key,
-		}
-		if _, exists := referenced[id]; !exists {
-			orphaned = append(orphaned, attachment)
+		if _, isUsed := used[id]; !isUsed {
+			orphaned = append(orphaned, OrphanedAttachment{
+				ProjectKey: id.ProjectKey,
+				Kind:       syncdomain.AttachmentKind(id.Kind),
+				Key:        id.LookupKey,
+				Path:       strings.TrimPrefix(filepath.ToSlash(relativePath), syncdomain.RootDir+"/"),
+			})
 		}
 		return nil
 	})
@@ -347,22 +277,20 @@ func (store Store) OrphanedAttachments() ([]OrphanedAttachment, error) {
 	if err != nil {
 		return nil, fmt.Errorf("find unreferenced attachments: %w", err)
 	}
+
 	slices.SortFunc(orphaned, func(left, right OrphanedAttachment) int {
-		if result := strings.Compare(left.ProjectKey, right.ProjectKey); result != 0 {
-			return result
-		}
-		if result := strings.Compare(string(left.Kind), string(right.Kind)); result != 0 {
-			return result
-		}
-		return strings.Compare(left.Key, right.Key)
+		return cmp.Or(
+			strings.Compare(left.ProjectKey, right.ProjectKey),
+			strings.Compare(string(left.Kind), string(right.Kind)),
+			strings.Compare(left.Key, right.Key),
+		)
 	})
 	return orphaned, nil
 }
 
-// DeleteAttachments transactionally removes confirmed local attachment files.
+// DeleteAttachments deletes tool and skill files in one transaction.
 func (store Store) DeleteAttachments(attachments []OrphanedAttachment) ([]string, error) {
-	deletions := make([]stagedDeletion, 0, len(attachments))
-	seen := make(map[string]struct{}, len(attachments))
+	paths := make([]string, 0, len(attachments))
 	for _, attachment := range attachments {
 		relativePath, err := attachmentPath(attachment.ProjectKey, attachment.Kind, attachment.Key)
 		if err != nil {
@@ -371,75 +299,7 @@ func (store Store) DeleteAttachments(attachments []OrphanedAttachment) ([]string
 		if relativePath != attachment.Path {
 			return nil, fmt.Errorf("attachment path %q does not match %q", attachment.Path, relativePath)
 		}
-		if _, duplicate := seen[relativePath]; duplicate {
-			return nil, fmt.Errorf("attachment %q was selected more than once", relativePath)
-		}
-		seen[relativePath] = struct{}{}
-
-		absolutePath := filepath.Join(store.root, filepath.FromSlash(relativePath))
-		if err := rejectSymlinkedPath(store.root, absolutePath); err != nil {
-			return nil, err
-		}
-		info, err := os.Lstat(absolutePath)
-		if err != nil {
-			return nil, fmt.Errorf("inspect attachment %s: %w", relativePath, err)
-		}
-		if !info.Mode().IsRegular() {
-			return nil, fmt.Errorf("attachment %s is not a regular file", relativePath)
-		}
-		deletions = append(deletions, stagedDeletion{
-			relativePath: relativePath,
-			originalPath: absolutePath,
-		})
+		paths = append(paths, relativePath)
 	}
-
-	if err := stageDeletions(deletions); err != nil {
-		return nil, err
-	}
-	commitDeletions(store.root, deletions)
-	return deletionPaths(deletions), nil
-}
-
-func attachmentFromPath(filePath string) (OrphanedAttachment, bool) {
-	parts := strings.Split(filePath, "/")
-	if len(parts) == 3 && parts[1] == toolsDir && strings.HasSuffix(parts[2], toolFileSuffix) {
-		key := strings.TrimSuffix(parts[2], toolFileSuffix)
-		expected, err := attachmentPath(parts[0], syncdomain.AttachmentTool, key)
-		return OrphanedAttachment{
-			ProjectKey: parts[0], Kind: syncdomain.AttachmentTool, Key: key, Path: filePath,
-		}, err == nil && expected == filePath
-	}
-	if len(parts) == 3 && parts[1] == skillsDir && strings.HasSuffix(parts[2], skillFileSuffix) {
-		key := strings.TrimSuffix(parts[2], skillFileSuffix)
-		expected, err := attachmentPath(parts[0], syncdomain.AttachmentSkill, key)
-		return OrphanedAttachment{
-			ProjectKey: parts[0], Kind: syncdomain.AttachmentSkill, Key: key, Path: filePath,
-		}, err == nil && expected == filePath
-	}
-	return OrphanedAttachment{}, false
-}
-
-func attachmentPath(projectKey string, kind syncdomain.AttachmentKind, key string) (string, error) {
-	if err := validatePathSegment(projectKey); err != nil {
-		return "", fmt.Errorf("invalid project key %q: %w", projectKey, err)
-	}
-	if err := validatePathSegment(key); err != nil {
-		return "", fmt.Errorf("invalid %s key %q: %w", kind, key, err)
-	}
-	dir, suffix, err := attachmentLayout(kind)
-	if err != nil {
-		return "", err
-	}
-	return path.Join(projectKey, dir, key+suffix), nil
-}
-
-func attachmentLayout(kind syncdomain.AttachmentKind) (string, string, error) {
-	switch kind {
-	case syncdomain.AttachmentTool:
-		return toolsDir, toolFileSuffix, nil
-	case syncdomain.AttachmentSkill:
-		return skillsDir, skillFileSuffix, nil
-	default:
-		return "", "", fmt.Errorf("unsupported attachment kind %q", kind)
-	}
+	return store.deleteFiles(paths)
 }

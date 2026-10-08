@@ -250,7 +250,7 @@ func TestCatalogClientModelConfigsReturnsRequestError(t *testing.T) {
 
 	_, err := client.ModelConfigs("project")
 
-	require.ErrorContains(t, err, "list model configs: unavailable")
+	require.ErrorContains(t, err, `list model configs in project "project": unavailable`)
 }
 
 func TestCatalogClientModelConfigsRejectsInvalidResponse(t *testing.T) {

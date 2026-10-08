@@ -24,15 +24,15 @@ func TestResolvedConflictAction(t *testing.T) {
 	tests := []struct {
 		name       string
 		resource   PlannedResource
-		resolution conflictResolution
+		resolution ConflictResolution
 		expected   Action
 	}{
-		{"LaunchDarkly updates an existing local resource", PlannedResource{Local: &local, Server: &server}, useLaunchDarkly, ActionUpdateLocal},
-		{"LaunchDarkly restores a missing local resource", PlannedResource{Server: &server}, useLaunchDarkly, ActionUpdateLocal},
-		{"LaunchDarkly deletion removes the local resource", PlannedResource{Local: &local}, useLaunchDarkly, ActionDeleteLocal},
-		{"local updates an existing server resource", PlannedResource{Local: &local, Server: &server}, useLocal, ActionUpdateServer},
-		{"local creates a missing server resource", PlannedResource{Local: &local}, useLocal, ActionCreateServer},
-		{"local deletion archives the server resource", PlannedResource{Server: &server}, useLocal, ActionArchiveServer},
+		{"LaunchDarkly updates an existing local resource", PlannedResource{Local: &local, Server: &server}, ConflictUseLaunchDarkly, ActionUpdateLocal},
+		{"LaunchDarkly restores a missing local resource", PlannedResource{Server: &server}, ConflictUseLaunchDarkly, ActionUpdateLocal},
+		{"LaunchDarkly deletion removes the local resource", PlannedResource{Local: &local}, ConflictUseLaunchDarkly, ActionDeleteLocal},
+		{"local updates an existing server resource", PlannedResource{Local: &local, Server: &server}, ConflictUseLocal, ActionUpdateServer},
+		{"local creates a missing server resource", PlannedResource{Local: &local}, ConflictUseLocal, ActionCreateServer},
+		{"local deletion archives the server resource", PlannedResource{Server: &server}, ConflictUseLocal, ActionArchiveServer},
 	}
 
 	for _, test := range tests {
@@ -52,7 +52,7 @@ func TestApplyConflictResolutionsDoesNotChangeReviewedPlan(t *testing.T) {
 		{ID: sharedID, Action: ActionUpdateServer, Local: &local, Server: &server},
 	}}
 
-	resolved := applyConflictResolutions(reviewed, map[ResourceID]conflictResolution{id: useLaunchDarkly, sharedID: useLaunchDarkly})
+	resolved := applyConflictResolutions(reviewed, map[ResourceID]ConflictResolution{id: ConflictUseLaunchDarkly, sharedID: ConflictUseLaunchDarkly})
 
 	assert.Equal(t, ActionConflict, reviewed.Resources[0].Action)
 	assert.Equal(t, ActionUpdateServer, reviewed.Resources[1].Action)
@@ -112,13 +112,13 @@ func TestApplyLocalChangeRestoresMissingConflictFile(t *testing.T) {
 		}
 	}
 	assert.True(t, restored.Upsert)
-	require.Len(t, restored.Attachments, 1)
-	assert.Equal(t, serverDescription, *restored.Attachments[0].Tool.Description)
+	require.Len(t, restored.Variation.Attachments, 1)
+	assert.Equal(t, serverDescription, *restored.Variation.Attachments[0].Tool.Description)
 }
 
 func TestWriteConflictChoice(t *testing.T) {
 	var output bytes.Buffer
-	writeConflictChoice(&output, conflictChoice{resolution: useLocal})
+	writeConflictChoice(&output, conflictChoice{resolution: ConflictUseLocal})
 	writeConflictChoice(&output, conflictChoice{aborted: true})
 	assert.Equal(t, "Using local.\nSync canceled; conflict left unresolved.\n", output.String())
 }
@@ -133,7 +133,7 @@ func TestResolveConflictsShowsDiffBeforePrompt(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.False(t, result.aborted)
-	assert.Equal(t, useLocal, result.resolutions[testResourceID()])
+	assert.Equal(t, ConflictUseLocal, result.resolutions[testResourceID()])
 	rendered := output.String()
 	assert.Contains(t, rendered, "LaunchDarkly now")
 	assert.Contains(t, rendered, "Local file now")
@@ -146,7 +146,48 @@ func TestResolveConflictsRequiresTerminalEvenWithYes(t *testing.T) {
 
 	_, err := resolveConflicts(Options{Input: input, ErrorOutput: &bytes.Buffer{}, Yes: true}, plan, input, false, nil)
 
-	require.ErrorContains(t, err, "interactive conflict resolution requires a terminal")
+	require.ErrorContains(t, err, "requires --conflict or --resolve")
+}
+
+func TestResolveConflictsUsesNonInteractivePolicy(t *testing.T) {
+	plan := divergentPlan(t)
+	id := testResourceID()
+	options := Options{
+		ConflictPolicy: ConflictPolicy{
+			Default:   ConflictUseLaunchDarkly,
+			Overrides: map[ResourceID]ConflictResolution{id: ConflictUseLocal},
+		},
+		ErrorOutput: io.Discard,
+	}
+
+	result, err := resolveConflicts(options, plan, strings.NewReader(""), false, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, ConflictUseLocal, result.resolutions[id])
+}
+
+func TestResolveConflictsReturnsErrorForExplicitAbort(t *testing.T) {
+	plan := divergentPlan(t)
+	options := Options{
+		ConflictPolicy: ConflictPolicy{Default: ConflictAbort},
+		ErrorOutput:    io.Discard,
+	}
+
+	_, err := resolveConflicts(options, plan, strings.NewReader(""), false, nil)
+
+	require.ErrorContains(t, err, "sync conflict left unresolved")
+}
+
+func TestConflictPolicyRejectsContradictorySharedAttachmentChoices(t *testing.T) {
+	first, second := testResourceID(), testResourceID()
+	second.LookupKey = "config/second"
+	policy := ConflictPolicy{Overrides: map[ResourceID]ConflictResolution{
+		first: ConflictUseLocal, second: ConflictUseLaunchDarkly,
+	}}
+
+	_, _, err := policy.resolve(conflictGroup{resources: []PlannedResource{{ID: first}, {ID: second}}})
+
+	require.ErrorContains(t, err, "same shared attachment")
 }
 
 func TestGroupConflictsDeduplicatesSharedAttachment(t *testing.T) {
@@ -179,28 +220,28 @@ func TestGroupConflictsDeduplicatesSharedAttachment(t *testing.T) {
 }
 
 func TestGroupConflictsConnectsMixedChangesAcrossSharedAttachments(t *testing.T) {
-	tool := attachmentID{projectKey: "project", kind: syncdomain.AttachmentTool, key: "search"}
-	skill := attachmentID{projectKey: "project", kind: syncdomain.AttachmentSkill, key: "support"}
+	tool := ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}
+	skill := ResourceID{Kind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "support"}
 	resources := []PlannedResource{
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/first"},
-			Action: ActionConflict, changedAttachments: []attachmentID{tool},
+			Action: ActionConflict, changedAttachments: []ResourceID{tool},
 		},
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/second"},
-			Action: ActionConflict, changedAttachments: []attachmentID{tool, skill},
+			Action: ActionConflict, changedAttachments: []ResourceID{tool, skill},
 		},
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/third"},
-			Action: ActionConflict, changedAttachments: []attachmentID{skill},
+			Action: ActionConflict, changedAttachments: []ResourceID{skill},
 		},
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/fourth"},
-			Action: ActionUpdateServer, changedAttachments: []attachmentID{skill},
+			Action: ActionUpdateServer, changedAttachments: []ResourceID{skill},
 		},
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/error"},
-			Action: ActionError, changedAttachments: []attachmentID{skill},
+			Action: ActionError, changedAttachments: []ResourceID{skill},
 		},
 	}
 
@@ -288,8 +329,8 @@ func TestRunWorkspaceSyncAbortsAttachmentConflictWithoutWriting(t *testing.T) {
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	require.Len(t, resources[0].Attachments, 1)
-	assert.Equal(t, "Changed locally", *resources[0].Attachments[0].Tool.Description)
+	require.Len(t, resources[0].Variation.Attachments, 1)
+	assert.Equal(t, "Changed locally", *resources[0].Variation.Attachments[0].Tool.Description)
 	assert.Contains(t, output.String(), "Sync canceled; conflict left unresolved.")
 }
 
@@ -319,8 +360,8 @@ func TestRunWorkspaceSyncUsesLaunchDarklyForAttachmentConflict(t *testing.T) {
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	require.Len(t, resources[0].Attachments, 1)
-	assert.Equal(t, "Changed in LaunchDarkly", *resources[0].Attachments[0].Tool.Description)
+	require.Len(t, resources[0].Variation.Attachments, 1)
+	assert.Equal(t, "Changed in LaunchDarkly", *resources[0].Variation.Attachments[0].Tool.Description)
 	assert.Contains(t, output.String(), "Using LaunchDarkly.")
 }
 

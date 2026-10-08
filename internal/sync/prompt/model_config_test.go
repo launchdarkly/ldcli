@@ -1,7 +1,6 @@
 package prompt
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -50,8 +49,7 @@ func TestCanonicalizeLocalVariationModels(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"custom-model", "global-model"}, requested)
 
-	var canonicalVersioned syncdomain.Variation
-	require.NoError(t, json.Unmarshal(canonicalLocalResources[0].Payload, &canonicalVersioned))
+	canonicalVersioned := canonicalLocalResources[0].Variation
 	assert.Equal(t, 4, canonicalVersioned.ModelConfigVersion)
 	assert.Equal(t, map[string]any{
 		"modelName":  "claude-4",
@@ -59,16 +57,13 @@ func TestCanonicalizeLocalVariationModels(t *testing.T) {
 		"custom":     map[string]any{"region": "us-east"},
 	}, canonicalVersioned.Model)
 
-	var canonicalUnversioned syncdomain.Variation
-	require.NoError(t, json.Unmarshal(canonicalLocalResources[1].Payload, &canonicalUnversioned))
+	canonicalUnversioned := canonicalLocalResources[1].Variation
 	assert.Equal(t, unversioned, canonicalUnversioned)
 
-	var canonicalPinned syncdomain.Variation
-	require.NoError(t, json.Unmarshal(canonicalLocalResources[2].Payload, &canonicalPinned))
+	canonicalPinned := canonicalLocalResources[2].Variation
 	assert.Equal(t, pinned, canonicalPinned)
 
-	var localFileVersioned syncdomain.Variation
-	require.NoError(t, json.Unmarshal(localFileResources[0].Payload, &localFileVersioned))
+	localFileVersioned := localFileResources[0].Variation
 	assert.Equal(t, versioned, localFileVersioned)
 }
 
@@ -88,9 +83,7 @@ func TestCanonicalizeLocalVariationModelsRejectsUnknownConfig(t *testing.T) {
 
 func syncedVariation(t *testing.T, projectKey, lookupKey string, variation syncdomain.Variation) syncdomain.SyncedResource {
 	t.Helper()
-	payload, err := json.Marshal(variation)
-	require.NoError(t, err)
 	return syncdomain.SyncedResource{
-		Kind: syncdomain.KindVariation, ProjectKey: projectKey, LookupKey: lookupKey, Payload: payload,
+		Kind: syncdomain.KindVariation, ProjectKey: projectKey, LookupKey: lookupKey, Variation: variation,
 	}
 }

@@ -283,23 +283,29 @@ func TestFingerprintAttachmentTracksCanonicalContentOnly(t *testing.T) {
 	require.NotEqual(t, originalSkill, updatedSkill)
 }
 
-func TestValidateDirectAPIVariationSupportsModelConfigVersion(t *testing.T) {
+func TestVariationSupportsVersionAndOutputFormat(t *testing.T) {
 	base := Variation{Mode: VariationModeAgent, Key: "default", Name: "Default"}
 
 	withVersion := base
 	withVersion.ModelConfigVersion = 3
-	require.NoError(t, ValidateDirectAPIVariation(withVersion))
+	require.NoError(t, withVersion.Validate())
 
 	withOutput := base
 	withOutput.OutputFormat = map[string]any{"type": "json"}
-	require.ErrorContains(t, ValidateDirectAPIVariation(withOutput), "outputFormat")
+	require.NoError(t, withOutput.Validate())
+
+	baseFingerprint, err := FingerprintVariation("project", "config/default", base)
+	require.NoError(t, err)
+	outputFingerprint, err := FingerprintVariation("project", "config/default", withOutput)
+	require.NoError(t, err)
+	require.NotEqual(t, baseFingerprint, outputFingerprint)
 }
 
-func TestValidateDirectAPIVariationRejectsSkillsForCompletionMode(t *testing.T) {
+func TestValidateRejectsSkillsForCompletionMode(t *testing.T) {
 	variation := Variation{
 		Mode: VariationModeCompletion, Key: "default", Name: "Default",
 		Skills: []AttachmentRef{{Key: "support"}},
 	}
 
-	require.ErrorContains(t, ValidateDirectAPIVariation(variation), "skills can only be attached to agent-mode configs")
+	require.ErrorContains(t, variation.Validate(), "skills can only be attached to agent-mode configs")
 }

@@ -1,7 +1,6 @@
 package prompt
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -171,13 +170,12 @@ func localResources(variation *syncdomain.Variation, upsert bool) []syncdomain.S
 	if variation == nil {
 		return nil
 	}
-	payload, _ := json.Marshal(variation)
 	id := testResourceID()
 	return []syncdomain.SyncedResource{{
 		Kind:       id.Kind,
 		ProjectKey: id.ProjectKey,
 		LookupKey:  id.LookupKey,
-		Payload:    payload,
+		Variation:  *variation,
 		Upsert:     upsert,
 	}}
 }

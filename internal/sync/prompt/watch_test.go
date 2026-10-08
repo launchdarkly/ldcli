@@ -100,6 +100,31 @@ func TestWatchWorkspaceKeepsWatchingAfterSyncError(t *testing.T) {
 	require.NoError(t, <-done)
 }
 
+func TestWatchWorkspaceStopsAfterExplicitConflictAbort(t *testing.T) {
+	root := t.TempDir()
+	wrapper := filepath.Join(root, syncdomain.RootDir, "project", "configs", "config", "prompt.prompt.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(wrapper), 0o755))
+	require.NoError(t, os.WriteFile(wrapper, []byte("initial"), 0o644))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- watchWorkspace(ctx, root, 15*time.Millisecond, func(*sourceWatcher) error {
+			return errConflictAborted
+		}, io.Discard)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	require.NoError(t, os.WriteFile(wrapper, []byte("changed"), 0o644))
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, errConflictAborted)
+	case <-time.After(time.Second):
+		t.Fatal("watch did not stop after conflict abort")
+	}
+}
+
 func TestWatchWorkspaceRefreshesPlanAfterSourceChangesDuringSync(t *testing.T) {
 	root := t.TempDir()
 	wrapper := filepath.Join(root, syncdomain.RootDir, "project", "configs", "config", "prompt.prompt.md")

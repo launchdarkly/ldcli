@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -86,6 +85,33 @@ func TestRunRequiresTerminal(t *testing.T) {
 		err,
 		"interactive prompt selection requires a terminal",
 	)
+}
+
+func TestRunUsesExplicitVariationSelectorsWithoutTerminal(t *testing.T) {
+	root := t.TempDir()
+	var output bytes.Buffer
+	catalog := &fakeCatalog{config: syncapi.Config{
+		Key:  "config",
+		Mode: syncdomain.VariationModeAgent,
+		Variations: []syncdomain.Variation{{
+			Key: "variation", Name: "Variation", Mode: syncdomain.VariationModeAgent, Instructions: "Be helpful.",
+		}},
+	}}
+
+	err := Run(Options{
+		Catalog: catalog,
+		Store:   synclocal.NewStore(root),
+		Input:   bytes.NewBuffer(nil),
+		Output:  &output,
+		Initial: true,
+		DryRun:  true,
+		Selections: []syncdomain.ResourceID{{
+			Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
+		}},
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, output.String(), "Would create: .launchdarkly/project/configs/config/variation.prompt.md")
 }
 
 func TestFinishSelectionDryRunDoesNotCreateFiles(t *testing.T) {
@@ -227,10 +253,7 @@ func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 		if resource.LookupKey != "config/second" {
 			continue
 		}
-		var variation syncdomain.Variation
-		require.NoError(t, json.Unmarshal(resource.Payload, &variation))
-		variation.Attachments = resource.Attachments
-		expectedFingerprint, err = syncdomain.FingerprintVariation(resource.ProjectKey, resource.LookupKey, variation)
+		expectedFingerprint, err = syncdomain.FingerprintVariation(resource.ProjectKey, resource.LookupKey, resource.Variation)
 		require.NoError(t, err)
 	}
 	require.NotEmpty(t, expectedFingerprint)
@@ -361,7 +384,7 @@ func TestWriteSummary(t *testing.T) {
 func TestWritePreviewsPrintsEveryFile(t *testing.T) {
 	var output bytes.Buffer
 
-	writePreviews(&output, []synclocal.RenderedVariationFile{
+	writePreviews(&output, []synclocal.RenderedFile{
 		{Path: "project/configs/config/first.prompt.md", Content: []byte("first\n")},
 		{Path: "project/configs/config/second.prompt.md", Content: []byte("second\n")},
 	})
@@ -386,7 +409,9 @@ second
 	)
 }
 
-type fakeCatalog struct{}
+type fakeCatalog struct {
+	config syncapi.Config
+}
 
 var _ Catalog = &fakeCatalog{}
 
@@ -396,6 +421,10 @@ func (*fakeCatalog) SearchProjects(string, int, int) (syncapi.Page[syncapi.Proje
 
 func (*fakeCatalog) SearchConfigs(string, string, []syncdomain.VariationMode, int, int) (syncapi.Page[syncapi.Config], error) {
 	return syncapi.Page[syncapi.Config]{}, nil
+}
+
+func (catalog *fakeCatalog) Config(string, string) (syncapi.Config, error) {
+	return catalog.config, nil
 }
 
 type failingManifestStore struct{}
