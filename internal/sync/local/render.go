@@ -39,30 +39,72 @@ func (store Store) RenderVariations(resources []VariationFile) ([]RenderedVariat
 	return rendered, nil
 }
 
-// createVariations writes a prevalidated batch and rolls back files created
-// before the first failure.
-func (store Store) createVariations(resources []VariationFile) ([]string, error) {
-	// Render the complete batch first so validation failures cannot leave a
-	// partially created workspace.
-	rendered, err := store.RenderVariations(resources)
+// RenderResources validates and renders dependency files before their
+// consuming variation wrappers.
+func (store Store) RenderResources(resources []VariationFile) ([]RenderedVariationFile, error) {
+	variations, err := store.RenderVariations(resources)
 	if err != nil {
 		return nil, err
 	}
+	attachments, err := renderAttachmentFiles(resources)
+	if err != nil {
+		return nil, err
+	}
+	return append(attachments, variations...), nil
+}
+
+// createVariations writes a prevalidated batch and rolls back files created
+// before the first failure.
+func (store Store) createVariations(resources []VariationFile) (Creation, error) {
+	// Render the complete batch first so validation failures cannot leave a
+	// partially created workspace.
+	files, err := store.RenderResources(resources)
+	if err != nil {
+		return Creation{}, err
+	}
 
 	var createdPaths []string
-	for _, file := range rendered {
+	for _, file := range files {
 		absolutePath := filepath.Join(store.root, filepath.FromSlash(file.Path))
-		if err := createFile(absolutePath, file.Content); err != nil {
-			// Creates are independent filesystem operations. Remove earlier
-			// files in reverse order to recover the pre-call state.
-			for index := len(createdPaths) - 1; index >= 0; index-- {
-				_ = os.Remove(filepath.Join(store.root, filepath.FromSlash(createdPaths[index])))
-			}
-			return nil, errors.Join(err, store.RemoveEmptyDirectories())
+		created, err := createResourceFile(store.root, absolutePath, file.Content)
+		if err != nil {
+			rollbackErr := store.RollbackCreation(Creation{CreatedPaths: createdPaths})
+			return Creation{}, errors.Join(err, rollbackErr)
 		}
-		createdPaths = append(createdPaths, file.Path)
+		if created {
+			createdPaths = append(createdPaths, file.Path)
+		}
 	}
-	return createdPaths, nil
+
+	var variationPaths []string
+	for _, file := range files {
+		if strings.HasSuffix(file.Path, variationFileSuffix) {
+			variationPaths = append(variationPaths, file.Path)
+		}
+	}
+	return Creation{VariationPaths: variationPaths, CreatedPaths: createdPaths}, nil
+}
+
+// createResourceFile preserves an existing dependency file so adding another
+// consuming variation never overwrites local edits.
+func createResourceFile(root, path string, data []byte) (bool, error) {
+	_, err := os.Stat(path)
+	switch {
+	case err == nil:
+		if err := rejectSymlinkedPath(root, path); err != nil {
+			return false, err
+		}
+		if strings.HasSuffix(path, variationFileSuffix) {
+			return false, fmt.Errorf("%w: %s", ErrVariationExists, path)
+		}
+		return false, nil
+	case !errors.Is(err, os.ErrNotExist):
+		return false, fmt.Errorf("inspect resource file %s: %w", filepath.Base(path), err)
+	}
+	if err := createFile(root, path, data); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // marshalVariationFile converts the canonical variation into front matter and
@@ -70,6 +112,9 @@ func (store Store) createVariations(resources []VariationFile) ([]string, error)
 func marshalVariationFile(resource VariationFile) ([]byte, error) {
 	if !resource.Variation.Mode.Valid() {
 		return nil, fmt.Errorf("variation %q has unsupported mode %q", resource.Variation.Key, resource.Variation.Mode)
+	}
+	if err := resource.Variation.NormalizeAttachments(); err != nil {
+		return nil, fmt.Errorf("variation %q attachments: %w", resource.Variation.Key, err)
 	}
 	switch resource.Variation.Mode {
 	case syncdomain.VariationModeAgent:
@@ -142,7 +187,10 @@ func escapeMessageContent(content, role string) string {
 
 // createFile stages content beside its destination and hard-links it into
 // place, which guarantees an existing wrapper is never overwritten.
-func createFile(path string, data []byte) error {
+func createFile(root, path string, data []byte) error {
+	if err := rejectSymlinkedPath(root, path); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create variation directory: %w", err)
 	}
@@ -172,6 +220,31 @@ func createFile(path string, data []byte) error {
 			return fmt.Errorf("%w: %s", ErrVariationExists, path)
 		}
 		return fmt.Errorf("create variation %s: %w", filepath.Base(path), err)
+	}
+	return nil
+}
+
+// rejectSymlinkedPath prevents managed writes from being redirected through
+// an existing file or parent-directory symlink.
+func rejectSymlinkedPath(root, target string) error {
+	relative, err := filepath.Rel(root, target)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("managed path %s is outside %s", target, root)
+	}
+
+	current := root
+	for _, component := range append([]string{""}, strings.Split(relative, string(filepath.Separator))...) {
+		current = filepath.Join(current, component)
+		info, err := os.Lstat(current)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("inspect managed path %s: %w", current, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symbolic links are not supported: %s", current)
+		}
 	}
 	return nil
 }

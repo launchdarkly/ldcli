@@ -27,10 +27,16 @@ func TestLoadResourcesUnionsLocalAndManifestResources(t *testing.T) {
 	manifestStore := syncmanifest.NewStore(root)
 	require.NoError(t, manifestStore.Write(syncmanifest.Manifest{
 		FormatVersion: syncmanifest.FormatVersion,
-		Resources: []syncmanifest.Resource{{
-			ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/manifest-only",
-			Fingerprint: testFingerprint(),
-		}},
+		Resources: []syncmanifest.Resource{
+			{
+				ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/manifest-only",
+				Fingerprint: testFingerprint(),
+			},
+			{
+				ResourceKind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search",
+				Fingerprint: testFingerprint(),
+			},
+		},
 	}))
 
 	resources, _, exists, err := loadResources(root, manifestStore)
@@ -41,6 +47,49 @@ func TestLoadResourcesUnionsLocalAndManifestResources(t *testing.T) {
 		{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/local"},
 		{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/manifest-only"},
 	}, resources)
+}
+
+func TestDetachResourcesPrunesUnreferencedAttachmentManifestEntries(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	description := "Search documentation"
+	variation := testVariation("prompt")
+	variation.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	variation.Attachments = []syncdomain.Attachment{{
+		Kind: syncdomain.AttachmentTool,
+		Tool: &syncdomain.Tool{Key: "search", Description: &description, Schema: map[string]any{"type": "object"}},
+	}}
+	_, err := store.Add([]synclocal.VariationFile{{ProjectKey: "project", ConfigKey: "config", Variation: variation}})
+	require.NoError(t, err)
+
+	manifestStore := syncmanifest.NewStore(root)
+	original := syncmanifest.Manifest{
+		FormatVersion: syncmanifest.FormatVersion,
+		Resources: []syncmanifest.Resource{
+			{
+				ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt",
+				Fingerprint: testFingerprint(),
+			},
+			{
+				ResourceKind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search",
+				Fingerprint: testFingerprint(),
+			},
+		},
+	}
+	require.NoError(t, manifestStore.Write(original))
+
+	resource := Resource{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
+	err = detachResources(
+		Options{RepositoryRoot: root, Store: store, Manifest: manifestStore},
+		original,
+		true,
+		[]Resource{resource},
+	)
+
+	require.NoError(t, err)
+	manifest, _, err := manifestStore.Load()
+	require.NoError(t, err)
+	assert.Empty(t, manifest.Resources)
 }
 
 func TestDetachResourcesRemovesWrapperAndManifestButKeepsReferencedFile(t *testing.T) {

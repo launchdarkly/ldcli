@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"encoding/json"
 	"errors"
 	"net/url"
 	"testing"
@@ -47,10 +48,235 @@ func TestApplyServerChangeDoesNotRereadAfterDefinitiveAPIError(t *testing.T) {
 		Local:  &variation,
 	}
 
-	err := applyServerChange(syncapi.NewClient(transport, "token", "https://example.com"), resource)
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+	err := applyServerChange(client, newAttachmentResolver(client), resource)
 
 	require.ErrorContains(t, err, `"statusCode":400`)
 	assert.Zero(t, transport.reads)
+}
+
+func TestExecutePlanDoesNotMutateWhileConflictIsUnresolved(t *testing.T) {
+	transport := &attachmentMutationAPI{
+		current: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+		version: 2,
+	}
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+	variation := testVariation("local")
+	variation.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	variation.Attachments = []syncdomain.Attachment{{
+		Kind: syncdomain.AttachmentTool,
+		Tool: &syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "string"}},
+	}}
+	plan := Plan{Resources: []PlannedResource{
+		{
+			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/first"},
+			Action: ActionUpdateServer, Local: &variation,
+		},
+		{
+			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/second"},
+			Action: ActionConflict, Local: &variation,
+		},
+	}}
+
+	outcomes, _, err := executePlan("", synclocal.Store{}, client, syncmanifest.New(), plan, nil)
+
+	require.ErrorContains(t, err, "cannot sync conflicted resource")
+	assert.Empty(t, outcomes)
+	assert.Zero(t, transport.reads)
+	assert.Zero(t, transport.updates)
+}
+
+func TestExecutePlanSkipsEveryConsumerWhenSharedAttachmentFails(t *testing.T) {
+	transport := &attachmentMutationAPI{
+		current:   syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+		version:   2,
+		updateErr: errors.New(`{"code":"invalid_request","statusCode":400}`),
+	}
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+	description := "Search all documentation"
+	variation := syncdomain.Variation{
+		Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Support",
+		Tools: []syncdomain.AttachmentRef{{Key: "search"}},
+		Attachments: []syncdomain.Attachment{{
+			Kind: syncdomain.AttachmentTool,
+			Tool: &syncdomain.Tool{
+				Key: "search", Description: &description, Schema: map[string]any{"type": "object"},
+			},
+		}},
+	}
+	plan := Plan{Resources: []PlannedResource{
+		{
+			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/first"},
+			Action: ActionUpdateServer, Local: &variation,
+		},
+		{
+			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/second"},
+			Action: ActionUpdateServer, Local: &variation,
+		},
+	}}
+
+	originalManifest := syncmanifest.New()
+	originalManifest.SetFingerprint(
+		syncdomain.ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"},
+		"sha256:reviewed",
+	)
+	outcomes, manifest, err := executePlan("", synclocal.Store{}, client, originalManifest, plan, nil)
+
+	require.Error(t, err)
+	require.Len(t, outcomes, 2)
+	assert.Equal(t, OutcomeFailed, outcomes[0].Status)
+	assert.Equal(t, OutcomeFailed, outcomes[1].Status)
+	require.Len(t, manifest.Resources, 1)
+	assert.Equal(t, "sha256:reviewed", manifest.Resources[0].Fingerprint)
+	assert.Equal(t, 1, transport.updates)
+	assert.Equal(t, 1, transport.reads)
+}
+
+func TestAttachmentVersioningDoesNotMutateReviewedVariation(t *testing.T) {
+	transport := &attachmentMutationAPI{
+		current: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+		version: 2,
+	}
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+	variation := testVariation("local")
+	variation.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	variation.Attachments = []syncdomain.Attachment{{
+		Kind:    syncdomain.AttachmentTool,
+		Version: 2,
+		Tool:    &syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+	}}
+
+	resolved, err := newAttachmentResolver(client).resolveVariation("project", variation)
+	require.NoError(t, err)
+	pinned := variationPinnedToLatest(variation)
+
+	assert.Equal(t, 1, variation.Tools[0].Version)
+	assert.Equal(t, 2, resolved.Tools[0].Version)
+	assert.Equal(t, 2, pinned.Tools[0].Version)
+}
+
+func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
+	root := t.TempDir()
+	store := synclocal.NewStore(root)
+	authored := testVariation("Local")
+	authored.ModelConfigKey = "claude"
+	authored.Model = map[string]any{"temperature": 0.2}
+	authored.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
+	authored.Attachments = []syncdomain.Attachment{{
+		Kind:    syncdomain.AttachmentTool,
+		Version: 1,
+		Tool:    &syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
+	}}
+	_, err := store.Add([]synclocal.VariationFile{{
+		ProjectKey: "production",
+		ConfigKey:  "support",
+		Variation:  authored,
+	}})
+	require.NoError(t, err)
+
+	canonicalLocal := authored
+	canonicalLocal.ModelConfigVersion = 7
+	canonicalLocal.Model = map[string]any{"modelName": "claude-sonnet", "temperature": 0.2}
+	server := canonicalLocal
+	server.Name = "Server"
+	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
+	server.Attachments[0].Version = 2
+	localPayload, err := json.Marshal(authored)
+	require.NoError(t, err)
+	resource := PlannedResource{
+		ID:                           testResourceID(),
+		Action:                       ActionUpdateLocal,
+		Local:                        &canonicalLocal,
+		Server:                       &server,
+		ServerHasStaleAttachmentPins: true,
+	}
+	transport := &variationUpdateAPI{}
+	client := syncapi.NewClient(transport, "token", "https://example.com")
+
+	err = applyResourceChange(
+		root,
+		store,
+		client,
+		newAttachmentResolver(client),
+		resource,
+		syncdomain.SyncedResource{Payload: localPayload},
+	)
+
+	require.NoError(t, err)
+	var request struct {
+		ModelConfigVersion int                        `json:"modelConfigVersion"`
+		Model              map[string]any             `json:"model"`
+		Tools              []syncdomain.AttachmentRef `json:"tools"`
+	}
+	require.NoError(t, json.Unmarshal(transport.body, &request))
+	assert.Equal(t, 7, request.ModelConfigVersion)
+	assert.Equal(t, map[string]any{"modelName": "claude-sonnet", "temperature": 0.2}, request.Model)
+	require.Len(t, request.Tools, 1)
+	assert.Equal(t, 2, request.Tools[0].Version)
+}
+
+type variationUpdateAPI struct {
+	body []byte
+}
+
+func (api *variationUpdateAPI) MakeRequest(
+	_ string,
+	method string,
+	_ string,
+	_ string,
+	_ url.Values,
+	body []byte,
+	_ bool,
+) ([]byte, error) {
+	if method == "PATCH" {
+		api.body = body
+	}
+	return []byte(`{}`), nil
+}
+
+func (*variationUpdateAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+type attachmentMutationAPI struct {
+	current   syncdomain.Tool
+	version   int
+	reads     int
+	updates   int
+	updateErr error
+}
+
+func (api *attachmentMutationAPI) MakeRequest(
+	_ string,
+	method string,
+	_ string,
+	_ string,
+	_ url.Values,
+	body []byte,
+	_ bool,
+) ([]byte, error) {
+	switch method {
+	case "GET":
+		api.reads++
+	case "PATCH":
+		api.updates++
+		if api.updateErr != nil {
+			return nil, api.updateErr
+		}
+		if err := json.Unmarshal(body, &api.current); err != nil {
+			return nil, err
+		}
+		api.current.Key = "search"
+		api.version++
+	}
+	return json.Marshal(struct {
+		syncdomain.Tool
+		Version int `json:"version"`
+	}{Tool: api.current, Version: api.version})
+}
+
+func (*attachmentMutationAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, nil
 }
 
 type definitiveMutationAPI struct {

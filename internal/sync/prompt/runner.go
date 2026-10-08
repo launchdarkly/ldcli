@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 
 	"github.com/launchdarkly/ldcli/internal/resources"
@@ -54,6 +55,12 @@ type syncWorkspace struct {
 }
 
 type localFileResourcesByID map[ResourceID]syncdomain.SyncedResource
+
+type attachmentID struct {
+	projectKey string
+	kind       syncdomain.AttachmentKind
+	key        string
+}
 
 // Runner coordinates prompt synchronization using existing config APIs.
 type Runner struct {
@@ -130,13 +137,14 @@ func (runner Runner) Run(options Options) error {
 
 	if !localDirectoryExists || options.Add {
 		if err := runner.bootstrap(syncbootstrap.Options{
-			Catalog:  apiClient,
-			Store:    workspace.local,
-			Manifest: workspace.manifest,
-			Input:    options.Input,
-			Output:   options.Output,
-			Initial:  !localDirectoryExists,
-			DryRun:   options.DryRun,
+			Catalog:     apiClient,
+			Attachments: apiClient,
+			Store:       workspace.local,
+			Manifest:    workspace.manifest,
+			Input:       options.Input,
+			Output:      options.Output,
+			Initial:     !localDirectoryExists,
+			DryRun:      options.DryRun,
 		}); err != nil {
 			return err
 		}
@@ -320,18 +328,67 @@ func loadWorkspacePlan(
 		resourceIDs[id] = struct{}{}
 	}
 	for _, resource := range baseline.Resources {
-		resourceIDs[resource.ID()] = struct{}{}
+		if resource.ResourceKind == syncdomain.KindVariation {
+			resourceIDs[resource.ID()] = struct{}{}
+		}
 	}
 
 	serverResources := make(map[ResourceID]ServerResource, len(resourceIDs))
+	attachments := newAttachmentHydrator(client)
 	for id := range resourceIDs {
-		resource, err := readServerResource(client, id)
+		resource, err := readServerResource(client, attachments, id)
 		if err != nil {
 			return Plan{}, nil, err
 		}
 		serverResources[id] = resource
 	}
 	return BuildPlan(baseline, canonicalLocalResources, serverResources), localFilesByID, nil
+}
+
+// attachmentHydrator reads each shared dependency once while building a plan.
+type attachmentHydrator struct {
+	client syncapi.Client
+	cache  map[attachmentID]syncdomain.Attachment
+}
+
+func newAttachmentHydrator(client syncapi.Client) *attachmentHydrator {
+	return &attachmentHydrator{client: client, cache: make(map[attachmentID]syncdomain.Attachment)}
+}
+
+func (hydrator *attachmentHydrator) read(projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
+	id := attachmentID{projectKey: projectKey, kind: kind, key: key}
+	if attachment, ok := hydrator.cache[id]; ok {
+		return attachment, nil
+	}
+	attachment, err := hydrator.client.ReadAttachment(projectKey, kind, key)
+	if err != nil {
+		return syncdomain.Attachment{}, err
+	}
+	hydrator.cache[id] = attachment
+	return attachment, nil
+}
+
+func (hydrator *attachmentHydrator) hydrate(projectKey string, variation *syncdomain.Variation) error {
+	variation.Attachments = make([]syncdomain.Attachment, 0, len(variation.Tools)+len(variation.Skills))
+	for _, ref := range variation.Tools {
+		attachment, err := hydrator.read(projectKey, syncdomain.AttachmentTool, ref.Key)
+		if err != nil {
+			return err
+		}
+		variation.Attachments = append(variation.Attachments, attachment)
+	}
+	for _, ref := range variation.Skills {
+		attachment, err := hydrator.read(projectKey, syncdomain.AttachmentSkill, ref.Key)
+		if err != nil {
+			return err
+		}
+		variation.Attachments = append(variation.Attachments, attachment)
+	}
+	return variation.NormalizeAttachments()
+}
+
+func hydrateServerAttachments(client syncapi.Client, projectKey string, variation *syncdomain.Variation) error {
+	return newAttachmentHydrator(client).hydrate(projectKey, variation)
 }
 
 // samePlanState reports whether every reviewed decision still has the same inputs.
@@ -356,5 +413,16 @@ func samePlannedResourceState(reviewed, current PlannedResource) bool {
 		reviewed.LocalFingerprint == current.LocalFingerprint &&
 		reviewed.ServerFingerprint == current.ServerFingerprint &&
 		reviewed.ServerMode == current.ServerMode &&
-		reviewed.Upsert == current.Upsert
+		reviewed.Upsert == current.Upsert &&
+		reviewed.ServerHasStaleAttachmentPins == current.ServerHasStaleAttachmentPins &&
+		sameAttachmentPins(reviewed.Server, current.Server)
+}
+
+// sameAttachmentPins compares exact server references because canonical
+// fingerprints intentionally exclude runtime versions.
+func sameAttachmentPins(reviewed, current *syncdomain.Variation) bool {
+	if reviewed == nil || current == nil {
+		return reviewed == current
+	}
+	return slices.Equal(reviewed.Tools, current.Tools) && slices.Equal(reviewed.Skills, current.Skills)
 }

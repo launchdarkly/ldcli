@@ -24,11 +24,12 @@ type VariationFile struct {
 	Variation  syncdomain.Variation
 }
 
-// VariationReplacement identifies an existing wrapper and its replacement state.
+// VariationReplacement identifies a wrapper and the state to write.
 type VariationReplacement struct {
-	ProjectKey string
-	ConfigKey  string
-	Variation  syncdomain.Variation
+	ProjectKey      string
+	ConfigKey       string
+	CreateIfMissing bool
+	Variation       syncdomain.Variation
 }
 
 // VariationDeletion identifies an existing wrapper to remove.
@@ -42,6 +43,13 @@ type VariationDeletion struct {
 type RenderedVariationFile struct {
 	Path    string
 	Content []byte
+}
+
+// Creation records the variation paths returned to users and every file that
+// can be safely removed if a later manifest write fails.
+type Creation struct {
+	VariationPaths []string
+	CreatedPaths   []string
 }
 
 // Store reads and writes resources under a repository's .launchdarkly directory.
@@ -107,34 +115,61 @@ func (store Store) VariationExists(projectKey, configKey, variationKey string) (
 
 // Bootstrap atomically creates a new .launchdarkly directory.
 func (store Store) Bootstrap(resources []VariationFile) ([]string, error) {
+	creation, err := store.BootstrapResources(resources)
+	return creation.VariationPaths, err
+}
+
+// BootstrapResources creates a workspace and returns its rollback record.
+func (store Store) BootstrapResources(resources []VariationFile) (Creation, error) {
 	if _, err := os.Stat(store.root); err == nil {
-		return nil, fmt.Errorf("%s already exists", store.root)
+		return Creation{}, fmt.Errorf("%s already exists", store.root)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("inspect %s: %w", store.root, err)
+		return Creation{}, fmt.Errorf("inspect %s: %w", store.root, err)
 	}
 
 	stagingDirectory, err := os.MkdirTemp(filepath.Dir(store.root), ".launchdarkly.tmp-")
 	if err != nil {
-		return nil, fmt.Errorf("create bootstrap staging directory: %w", err)
+		return Creation{}, fmt.Errorf("create bootstrap staging directory: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(stagingDirectory) }()
 
 	// Build the entire workspace in a sibling directory. The final rename is a
 	// single commit point because source and destination share a filesystem.
 	stagedStore := Store{repositoryRoot: store.repositoryRoot, root: stagingDirectory}
-	paths, err := stagedStore.createVariations(resources)
+	creation, err := stagedStore.createVariations(resources)
 	if err != nil {
-		return nil, err
+		return Creation{}, err
 	}
 	if err := os.Rename(stagingDirectory, store.root); err != nil {
-		return nil, fmt.Errorf("finish bootstrap: %w", err)
+		return Creation{}, fmt.Errorf("finish bootstrap: %w", err)
 	}
-	return paths, nil
+	return creation, nil
 }
 
 // Add creates a batch of variation wrappers without overwriting existing files.
 func (store Store) Add(resources []VariationFile) ([]string, error) {
+	creation, err := store.AddResources(resources)
+	return creation.VariationPaths, err
+}
+
+// AddResources creates resources and returns the exact files published by the call.
+func (store Store) AddResources(resources []VariationFile) (Creation, error) {
 	return store.createVariations(resources)
+}
+
+// RollbackCreation removes only files published by the corresponding create.
+func (store Store) RollbackCreation(creation Creation) error {
+	var failures []error
+	for index := len(creation.CreatedPaths) - 1; index >= 0; index-- {
+		filePath := filepath.Join(store.root, filepath.FromSlash(creation.CreatedPaths[index]))
+		if err := os.Remove(filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			failures = append(failures, fmt.Errorf("remove created resource %s: %w", creation.CreatedPaths[index], err))
+		}
+	}
+	if err := store.RemoveEmptyDirectories(); err != nil {
+		failures = append(failures, err)
+	}
+	return errors.Join(failures...)
 }
 
 type existingVariation struct {
@@ -142,6 +177,7 @@ type existingVariation struct {
 	absolutePath string
 	content      []byte
 	mode         os.FileMode
+	exists       bool
 	frontMatter  variationFrontMatter
 }
 
@@ -178,6 +214,7 @@ func (store Store) inspectVariation(projectKey, configKey, variationKey string) 
 		absolutePath: absolutePath,
 		content:      content,
 		mode:         info.Mode().Perm(),
+		exists:       true,
 		frontMatter:  frontMatter,
 	}, nil
 }

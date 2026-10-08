@@ -3,6 +3,7 @@ package prompt_test
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -27,7 +28,19 @@ type directAPI struct {
 	variation      *syncdomain.Variation
 	variationState string
 	modelConfigs   []syncapi.ModelConfig
+	tools          map[string]versionedTool
+	skills         map[string]versionedSkill
 	requests       []string
+}
+
+type versionedTool struct {
+	syncdomain.Tool
+	Version int `json:"version"`
+}
+
+type versionedSkill struct {
+	syncdomain.Skill
+	Version int `json:"version"`
 }
 
 type directAPIVariation struct {
@@ -47,6 +60,50 @@ func (api *directAPI) MakeRequest(
 	_ bool,
 ) ([]byte, error) {
 	api.requests = append(api.requests, method+" "+path)
+	if strings.HasSuffix(path, "/ai-tools") && method == http.MethodPost {
+		var tool versionedTool
+		if err := json.Unmarshal(body, &tool.Tool); err != nil {
+			return nil, err
+		}
+		tool.Version = 1
+		if api.tools == nil {
+			api.tools = make(map[string]versionedTool)
+		}
+		api.tools[tool.Key] = tool
+		return json.Marshal(tool)
+	}
+	if strings.Contains(path, "/ai-tools/") {
+		key := path[strings.LastIndex(path, "/")+1:]
+		tool, ok := api.tools[key]
+		if !ok {
+			return nil, fmt.Errorf(`{"code":"not_found","message":"AI tool not found","statusCode":404}`)
+		}
+		if method == "PATCH" {
+			if err := json.Unmarshal(body, &tool.Tool); err != nil {
+				return nil, err
+			}
+			tool.Key = key
+			tool.Version++
+			api.tools[key] = tool
+		}
+		return json.Marshal(tool)
+	}
+	if strings.Contains(path, "/ai-configs/skills/") {
+		key := path[strings.LastIndex(path, "/")+1:]
+		skill, ok := api.skills[key]
+		if !ok {
+			return nil, fmt.Errorf("skill not found")
+		}
+		if method == "PATCH" {
+			if err := json.Unmarshal(body, &skill.Skill); err != nil {
+				return nil, err
+			}
+			skill.Key = key
+			skill.Version++
+			api.skills[key] = skill
+		}
+		return json.Marshal(skill)
+	}
 	if method == "GET" && strings.Contains(path, "/model-configs/") {
 		for _, modelConfig := range api.modelConfigs {
 			if strings.HasSuffix(path, "/"+modelConfig.Key) {
@@ -89,11 +146,13 @@ func (api *directAPI) MakeRequest(
 		}
 
 		var update struct {
-			Name               string         `json:"name"`
-			Instructions       string         `json:"instructions"`
-			ModelConfigKey     string         `json:"modelConfigKey"`
-			ModelConfigVersion int            `json:"modelConfigVersion"`
-			Model              map[string]any `json:"model"`
+			Name               string                      `json:"name"`
+			Instructions       string                      `json:"instructions"`
+			ModelConfigKey     string                      `json:"modelConfigKey"`
+			ModelConfigVersion int                         `json:"modelConfigVersion"`
+			Model              map[string]any              `json:"model"`
+			Tools              *[]syncdomain.AttachmentRef `json:"tools"`
+			Skills             *[]syncdomain.AttachmentRef `json:"skills"`
 		}
 		if err := json.Unmarshal(body, &update); err != nil {
 			return nil, err
@@ -102,10 +161,21 @@ func (api *directAPI) MakeRequest(
 		if api.variation != nil {
 			key = api.variation.Key
 		}
+		tools, skills := []syncdomain.AttachmentRef(nil), []syncdomain.AttachmentRef(nil)
+		if api.variation != nil {
+			tools, skills = api.variation.Tools, api.variation.Skills
+		}
+		if update.Tools != nil {
+			tools = *update.Tools
+		}
+		if update.Skills != nil {
+			skills = *update.Skills
+		}
 		api.variation = &syncdomain.Variation{
 			Mode: syncdomain.VariationModeAgent, Key: key, Name: update.Name,
 			Instructions: update.Instructions, ModelConfigKey: update.ModelConfigKey,
 			ModelConfigVersion: update.ModelConfigVersion, Model: update.Model,
+			Tools: tools, Skills: skills,
 		}
 		api.variationState = "published"
 	}
@@ -170,6 +240,114 @@ func TestPromptFirstSyncCreatesUpsertVariation(t *testing.T) {
 	_, _, err = runPrompt(t, root, api, "--yes")
 	require.NoError(t, err)
 	requireOnlyReads(t, api.requests)
+}
+
+func TestPromptCreatesMissingToolWhenUpsertIsEnabled(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	attachLocalTool(t, root, baseline, true)
+	api := &directAPI{variation: pointer(baseline), tools: map[string]versionedTool{}}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	require.Contains(t, api.tools, "my-second-tool")
+	assert.Equal(t, 1, api.tools["my-second-tool"].Version)
+	require.Equal(t, []syncdomain.AttachmentRef{{Key: "my-second-tool", Version: 1}}, api.variation.Tools)
+}
+
+func TestPromptExplainsUpsertForMissingTool(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	attachLocalTool(t, root, baseline, false)
+	api := &directAPI{variation: pointer(baseline), tools: map[string]versionedTool{}}
+
+	output, _, err := runPrompt(t, root, api, "--yes")
+
+	require.ErrorContains(t, err, `add "upsert": true`)
+	assert.Contains(t, output, `add "upsert": true`)
+	assert.NotContains(t, err.Error(), "unknown error")
+}
+
+func TestPromptVersionsChangedToolBeforeUpdatingVariation(t *testing.T) {
+	root := initRepository(t)
+	originalDescription := "Search documentation"
+	updatedDescription := "Search all documentation"
+	tool := syncdomain.Tool{
+		Key: "search", Description: &originalDescription,
+		Schema: map[string]any{"type": "object"},
+	}
+	baseline := variation("Baseline")
+	baseline.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 2}}
+	baseline.Attachments = []syncdomain.Attachment{toolAttachment(tool, 2)}
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	api := &directAPI{
+		variation: pointer(baseline),
+		tools: map[string]versionedTool{
+			"search": {Tool: tool, Version: 2},
+		},
+	}
+	toolPath := filepath.Join(root, ".launchdarkly", "production", "tools", "search.json")
+	require.NoError(t, os.WriteFile(toolPath, []byte(`{
+  "formatVersion": 1,
+  "key": "search",
+  "description": "Search all documentation",
+  "schema": {"type": "object"}
+}
+`), 0o644))
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, api.tools["search"].Version)
+	assert.Equal(t, updatedDescription, *api.tools["search"].Description)
+	require.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 3}}, api.variation.Tools)
+
+	expected := baseline
+	expected.Attachments[0].Tool.Description = &updatedDescription
+	assertManifestFingerprint(t, root, expected)
+}
+
+func TestPromptPullsLatestToolAndAdvancesVariationPin(t *testing.T) {
+	root := initRepository(t)
+	oldDescription := "Search documentation"
+	newDescription := "Search all documentation"
+	oldTool := syncdomain.Tool{
+		Key: "search", Description: &oldDescription,
+		Schema: map[string]any{"type": "object"},
+	}
+	latestTool := oldTool
+	latestTool.Description = &newDescription
+	baseline := variation("Baseline")
+	baseline.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 2}}
+	baseline.Attachments = []syncdomain.Attachment{toolAttachment(oldTool, 2)}
+	writeVariation(t, root, baseline, true)
+	writeManifest(t, root, baseline)
+	serverVariation := baseline
+	serverVariation.Attachments = nil
+	api := &directAPI{
+		variation: &serverVariation,
+		tools: map[string]versionedTool{
+			"search": {Tool: latestTool, Version: 3},
+		},
+	}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	require.Equal(t, []syncdomain.AttachmentRef{{Key: "search", Version: 3}}, api.variation.Tools)
+	content, err := os.ReadFile(filepath.Join(root, ".launchdarkly", "production", "tools", "search.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "Search all documentation")
+
+	expected := baseline
+	expected.Attachments[0] = toolAttachment(latestTool, 3)
+	assertManifestFingerprint(t, root, expected)
 }
 
 func TestPromptUpdateResolvesOmittedModelConfigVersionToLatest(t *testing.T) {
@@ -598,6 +776,27 @@ func writeVariation(t *testing.T, root string, value syncdomain.Variation, upser
 	require.NoError(t, err)
 }
 
+func attachLocalTool(t *testing.T, root string, variation syncdomain.Variation, upsert bool) {
+	t.Helper()
+	variation.Tools = []syncdomain.AttachmentRef{{Key: "my-second-tool"}}
+	_, err := synclocal.NewStore(root).ReplaceVariations([]synclocal.VariationReplacement{{
+		ProjectKey: "production", ConfigKey: "support", Variation: variation,
+	}})
+	require.NoError(t, err)
+
+	toolPath := filepath.Join(root, ".launchdarkly", "production", "tools", "my-second-tool.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(toolPath), 0o755))
+	content := fmt.Sprintf(`{
+  "formatVersion": 1,
+  "upsert": %t,
+  "key": "my-second-tool",
+  "description": "This is a test",
+  "schema": {"type": "object"}
+}
+`, upsert)
+	require.NoError(t, os.WriteFile(toolPath, []byte(content), 0o644))
+}
+
 func writeLinkedVariation(t *testing.T, root string, value syncdomain.Variation, content string) {
 	t.Helper()
 	referencePath := filepath.Join(root, "prompts", value.Key+".md")
@@ -623,19 +822,14 @@ func writeManifest(t *testing.T, root string, value syncdomain.Variation) {
 
 func writeManifestResources(t *testing.T, root string, values ...syncdomain.Variation) {
 	t.Helper()
-	resources := make([]syncmanifest.Resource, 0, len(values))
+	manifest := syncmanifest.New()
 	for _, value := range values {
-		resources = append(resources, syncmanifest.Resource{
-			ResourceKind: syncdomain.KindVariation,
-			ProjectKey:   "production",
-			LookupKey:    "support/" + value.Key,
-			Fingerprint:  fingerprint(t, value),
-		})
+		require.NoError(t, manifest.SetAttachments("production", value.Attachments))
+		manifest.SetFingerprint(syncdomain.ResourceID{
+			Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/" + value.Key,
+		}, fingerprint(t, value))
 	}
-	require.NoError(t, syncmanifest.NewStore(root).Write(syncmanifest.Manifest{
-		FormatVersion: syncmanifest.FormatVersion,
-		Resources:     resources,
-	}))
+	require.NoError(t, syncmanifest.NewStore(root).Write(manifest))
 }
 
 func assertManifestFingerprint(t *testing.T, root string, value syncdomain.Variation) {
@@ -647,10 +841,28 @@ func assertManifestFingerprints(t *testing.T, root string, values ...syncdomain.
 	manifest, exists, err := syncmanifest.NewStore(root).Load()
 	require.NoError(t, err)
 	require.True(t, exists)
-	require.Len(t, manifest.Resources, len(values))
-	for index, value := range values {
-		assert.Equal(t, fingerprint(t, value), manifest.Resources[index].Fingerprint)
+	variations := make(map[string]string)
+	attachments := make(map[syncdomain.ResourceID]string)
+	for _, resource := range manifest.Resources {
+		if resource.ResourceKind == syncdomain.KindVariation {
+			variations[resource.LookupKey] = resource.Fingerprint
+		} else {
+			attachments[resource.ID()] = resource.Fingerprint
+		}
 	}
+	require.Len(t, variations, len(values))
+	expectedAttachments := make(map[syncdomain.ResourceID]string)
+	for _, value := range values {
+		assert.Equal(t, fingerprint(t, value), variations["support/"+value.Key])
+		for _, attachment := range value.Attachments {
+			id := syncdomain.ResourceID{
+				Kind: syncdomain.Kind(attachment.Kind), ProjectKey: "production", LookupKey: attachment.Key(),
+			}
+			expectedAttachments[id], err = syncdomain.FingerprintAttachment("production", attachment)
+			require.NoError(t, err)
+		}
+	}
+	assert.Equal(t, expectedAttachments, attachments)
 }
 
 func requireLocalModelConfigVersion(t *testing.T, root string, expected int) {
@@ -687,6 +899,10 @@ func variationWithKey(key, name string) syncdomain.Variation {
 	return syncdomain.Variation{
 		Mode: syncdomain.VariationModeAgent, Key: key, Name: name, Instructions: "Help",
 	}
+}
+
+func toolAttachment(tool syncdomain.Tool, version int) syncdomain.Attachment {
+	return syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Version: version, Tool: &tool}
 }
 
 func pointer[T any](value T) *T {

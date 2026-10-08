@@ -17,6 +17,7 @@ type stagedVariation struct {
 	replacementContent []byte
 	mode               os.FileMode
 	stagedPath         string
+	originalExists     bool
 	report             bool
 }
 
@@ -50,6 +51,23 @@ func (store Store) prepareReplacements(resources []VariationReplacement) ([]stag
 
 	for _, resource := range resources {
 		existing, err := store.inspectVariation(resource.ProjectKey, resource.ConfigKey, resource.Variation.Key)
+		if err != nil && resource.CreateIfMissing && errors.Is(err, os.ErrNotExist) {
+			absolutePath, pathErr := store.variationPath(resource.ProjectKey, resource.ConfigKey, resource.Variation.Key)
+			if pathErr != nil {
+				return nil, pathErr
+			}
+			relativePath, pathErr := filepath.Rel(store.root, absolutePath)
+			if pathErr != nil {
+				return nil, fmt.Errorf("resolve variation path %q: %w", resource.Variation.Key, pathErr)
+			}
+			existing = existingVariation{
+				relativePath: filepath.ToSlash(relativePath),
+				absolutePath: absolutePath,
+				mode:         0o644,
+				frontMatter:  variationFrontMatter{Upsert: true},
+			}
+			err = nil
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -76,6 +94,7 @@ func (store Store) prepareReplacements(resources []VariationReplacement) ([]stag
 			originalContent:    existing.content,
 			replacementContent: content,
 			mode:               existing.mode,
+			originalExists:     existing.exists,
 			report:             true,
 		})
 
@@ -112,6 +131,59 @@ func (store Store) prepareReplacements(resources []VariationReplacement) ([]stag
 			originalContent:    originalContent,
 			replacementContent: referenceContent,
 			mode:               info.Mode().Perm(),
+			originalExists:     true,
+		})
+	}
+
+	attachmentFiles := make([]VariationFile, 0, len(resources))
+	for _, resource := range resources {
+		attachmentFiles = append(attachmentFiles, VariationFile{
+			ProjectKey: resource.ProjectKey,
+			Variation:  resource.Variation,
+		})
+	}
+	files, err := renderAttachmentFiles(attachmentFiles)
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		destination := filepath.Join(store.root, filepath.FromSlash(file.Path))
+		if err := rejectSymlinkedPath(store.root, destination); err != nil {
+			return nil, err
+		}
+		if _, duplicate := seenPaths[destination]; duplicate {
+			return nil, fmt.Errorf("resource file %q was selected more than once", file.Path)
+		}
+		seenPaths[destination] = struct{}{}
+
+		original, err := os.ReadFile(destination)
+		exists := err == nil
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("read attachment %q: %w", file.Path, err)
+		}
+		replacement := file.Content
+		mode := os.FileMode(0o644)
+		if exists {
+			replacement, err = preserveToolUpsert(file.Path, original, replacement)
+			if err != nil {
+				return nil, err
+			}
+			info, err := os.Stat(destination)
+			if err != nil {
+				return nil, fmt.Errorf("stat attachment %q: %w", file.Path, err)
+			}
+			mode = info.Mode().Perm()
+		}
+		if exists && bytes.Equal(original, replacement) {
+			continue
+		}
+		replacements = append(replacements, stagedVariation{
+			relativePath:       file.Path,
+			destinationPath:    destination,
+			originalContent:    original,
+			replacementContent: replacement,
+			mode:               mode,
+			originalExists:     exists,
 		})
 	}
 	return replacements, nil
@@ -121,6 +193,10 @@ func (store Store) prepareReplacements(resources []VariationReplacement) ([]stag
 // before the first original file is changed.
 func stageReplacements(replacements []stagedVariation) error {
 	for index := range replacements {
+		if err := os.MkdirAll(filepath.Dir(replacements[index].destinationPath), 0o755); err != nil {
+			removeStagedVariations(replacements)
+			return fmt.Errorf("create resource directory %s: %w", replacements[index].relativePath, err)
+		}
 		stagedPath, err := stageReplacement(replacements[index])
 		if err != nil {
 			removeStagedVariations(replacements)
@@ -136,6 +212,9 @@ func stageReplacements(replacements []stagedVariation) error {
 func verifyReplacementSources(replacements []stagedVariation) error {
 	for _, replacement := range replacements {
 		current, err := os.ReadFile(replacement.destinationPath)
+		if !replacement.originalExists && errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("recheck variation %s: %w", replacement.relativePath, err)
 		}
@@ -241,6 +320,12 @@ func rollbackVariations(replacements []stagedVariation) error {
 	// partially restored state.
 	for index := len(replacements) - 1; index >= 0; index-- {
 		replacement := replacements[index]
+		if !replacement.originalExists {
+			if err := os.Remove(replacement.destinationPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+				rollbackErr = errors.Join(rollbackErr, fmt.Errorf("roll back variation %s: %w", replacement.relativePath, err))
+			}
+			continue
+		}
 		tempPath, err := stageReplacement(stagedVariation{
 			relativePath: replacement.relativePath, destinationPath: replacement.destinationPath,
 			replacementContent: replacement.originalContent, mode: replacement.mode,

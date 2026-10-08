@@ -83,7 +83,9 @@ func loadResources(repositoryRoot string, manifestStore syncmanifest.Store) ([]R
 
 	resources := make(map[Resource]struct{}, len(manifest.Resources))
 	for _, resource := range manifest.Resources {
-		resources[resource.ID()] = struct{}{}
+		if resource.ResourceKind == syncdomain.KindVariation {
+			resources[resource.ID()] = struct{}{}
+		}
 	}
 
 	files, err := synclocal.SourceFiles(repositoryRoot)
@@ -130,6 +132,22 @@ func detachResources(options Options, original syncmanifest.Manifest, manifestEx
 		if _, detach := selectedSet[resource.ID()]; !detach {
 			updated.Resources = append(updated.Resources, resource)
 		}
+	}
+	if resources, err := synclocal.CompileWorkspace(options.RepositoryRoot); err == nil {
+		referenced := make(map[syncdomain.ResourceID]struct{})
+		for _, resource := range resources {
+			if _, detach := selectedSet[syncdomain.ResourceID{
+				Kind: resource.Kind, ProjectKey: resource.ProjectKey, LookupKey: resource.LookupKey,
+			}]; detach {
+				continue
+			}
+			for _, attachment := range resource.Attachments {
+				referenced[syncdomain.ResourceID{
+					Kind: syncdomain.Kind(attachment.Kind), ProjectKey: resource.ProjectKey, LookupKey: attachment.Key(),
+				}] = struct{}{}
+			}
+		}
+		updated.RemoveUnreferencedAttachments(referenced)
 	}
 	if err := options.Manifest.Write(updated); err != nil {
 		return err
