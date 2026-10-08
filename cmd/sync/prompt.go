@@ -12,17 +12,24 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/output"
 	"github.com/launchdarkly/ldcli/internal/resources"
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
 )
 
 const (
-	addFlag    = "add"
-	detachFlag = "detach"
-	dryRunFlag = "dry-run"
-	formatFlag = "format"
-	linkFlag   = "link"
-	watchFlag  = "watch"
-	yesFlag    = "yes"
+	addFlag         = "add"
+	attachSkillFlag = "attach-skill"
+	attachToolFlag  = "attach-tool"
+	detachFlag      = "detach"
+	dryRunFlag      = "dry-run"
+	formatFlag      = "format"
+	linkFlag        = "link"
+	projectFlag     = "project"
+	variationFlag   = "variation"
+	watchFlag       = "watch"
+	yesFlag         = "yes"
+
+	interactiveAttachment = "__interactive__"
 )
 
 // NewPromptCmd creates the prompt synchronization command.
@@ -42,10 +49,16 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 	}
 
 	cmd.Flags().Bool(addFlag, false, "Select additional prompt variations from LaunchDarkly")
+	cmd.Flags().String(attachSkillFlag, "", "Attach the latest skill version by key, or select interactively")
+	cmd.Flags().Lookup(attachSkillFlag).NoOptDefVal = interactiveAttachment
+	cmd.Flags().String(attachToolFlag, "", "Attach the latest tool version by key, or select interactively")
+	cmd.Flags().Lookup(attachToolFlag).NoOptDefVal = interactiveAttachment
 	cmd.Flags().Bool(detachFlag, false, "Select local resources to stop syncing")
 	cmd.Flags().Bool(dryRunFlag, false, "Preview synchronization changes without applying them")
 	cmd.Flags().String(linkFlag, "", "Link an external prompt file")
 	cmd.Flags().String(formatFlag, "", "Format adapter for --link (for example, plain-markdown)")
+	cmd.Flags().String(projectFlag, "", "Project key for an attachment operation")
+	cmd.Flags().String(variationFlag, "", "Config and variation key for an attachment operation (config/variation)")
 	cmd.Flags().Bool(watchFlag, false, "Sync when managed or referenced files change")
 	cmd.Flags().Bool(yesFlag, false, "Apply synchronization changes without interactive confirmation")
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
@@ -61,6 +74,10 @@ func runPrompt(client resources.Client) func(*cobra.Command, []string) error {
 		}
 
 		add, _ := cmd.Flags().GetBool(addFlag)
+		attachment, err := attachmentRequest(cmd)
+		if err != nil {
+			return err
+		}
 		detach, _ := cmd.Flags().GetBool(detachFlag)
 		dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
 		format, _ := cmd.Flags().GetString(formatFlag)
@@ -75,6 +92,7 @@ func runPrompt(client resources.Client) func(*cobra.Command, []string) error {
 			BaseURI:          viper.GetString(cliflags.BaseURIFlag),
 			OutputKind:       outputKind,
 			Add:              add,
+			Attachment:       attachment,
 			Detach:           detach,
 			DryRun:           dryRun,
 			Format:           format,
@@ -91,4 +109,31 @@ func runPrompt(client resources.Client) func(*cobra.Command, []string) error {
 		}
 		return nil
 	}
+}
+
+func attachmentRequest(cmd *cobra.Command) (*syncprompt.AttachmentRequest, error) {
+	attachSkill := cmd.Flags().Changed(attachSkillFlag)
+	attachTool := cmd.Flags().Changed(attachToolFlag)
+	project, _ := cmd.Flags().GetString(projectFlag)
+	variation, _ := cmd.Flags().GetString(variationFlag)
+
+	if attachSkill && attachTool {
+		return nil, fmt.Errorf("--attach-skill and --attach-tool cannot be combined")
+	}
+	if !attachSkill && !attachTool {
+		if project != "" || variation != "" {
+			return nil, fmt.Errorf("--project and --variation require --attach-skill or --attach-tool")
+		}
+		return nil, nil
+	}
+
+	kind, flagName := syncdomain.AttachmentSkill, attachSkillFlag
+	if attachTool {
+		kind, flagName = syncdomain.AttachmentTool, attachToolFlag
+	}
+	key, _ := cmd.Flags().GetString(flagName)
+	if key == interactiveAttachment {
+		key = ""
+	}
+	return &syncprompt.AttachmentRequest{Kind: kind, Key: key, ProjectKey: project, Variation: variation}, nil
 }

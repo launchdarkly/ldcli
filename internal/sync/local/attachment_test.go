@@ -150,6 +150,32 @@ func TestPreserveToolUpsertAcrossServerWrites(t *testing.T) {
 	assert.Equal(t, "New", *file.Description)
 }
 
+func TestAttachVariationRemovesNewAttachmentWhenVariationUpdateFails(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(root)
+	existing := localVariation("default")
+	_, err := store.Add([]VariationFile{existing})
+	require.NoError(t, err)
+
+	tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
+	variation := existing.Variation
+	variation.Tools = []syncdomain.AttachmentRef{{Key: tool.Key}}
+	variation.Attachments = []syncdomain.Attachment{{
+		Kind: syncdomain.AttachmentTool, Tool: &tool,
+	}}
+
+	err = store.AttachVariation("project", "../invalid", variation)
+
+	require.Error(t, err)
+	_, statErr := os.Stat(filepath.Join(root, ".launchdarkly", "project", "tools", "search.json"))
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+
+	resources, compileErr := CompileWorkspace(root)
+	require.NoError(t, compileErr)
+	require.Len(t, resources, 1)
+	assert.Empty(t, resources[0].Attachments)
+}
+
 func TestReplaceVariationsLeavesAttachmentUnchangedWhenPreflightFails(t *testing.T) {
 	root := t.TempDir()
 	store := NewStore(root)
