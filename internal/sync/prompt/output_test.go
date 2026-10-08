@@ -90,6 +90,22 @@ func TestWritePlanRendersHumanFriendlyAttachmentDiff(t *testing.T) {
 	assert.NotContains(t, rendered, `"key": "my-first-tool"`)
 }
 
+func TestFormatToolDetailsRendersNestedSchemaValues(t *testing.T) {
+	rendered := formatToolDetails(syncdomain.Tool{
+		Key: "search",
+		Schema: map[string]any{
+			"anyOf": []any{
+				map[string]any{"type": "string"},
+				nil,
+			},
+		},
+	})
+
+	assert.Contains(t, rendered, "anyOf:\n    -\n      type: string\n    - null")
+	assert.NotContains(t, rendered, "map[")
+	assert.NotContains(t, rendered, "<nil>")
+}
+
 func TestWritePlanRendersEachSkillInItsOwnDiff(t *testing.T) {
 	server := testVariation("Support")
 	local := server
@@ -117,6 +133,35 @@ func TestWritePlanRendersEachSkillInItsOwnDiff(t *testing.T) {
 	assert.Equal(t, 2, strings.Count(rendered, "(not attached)"))
 	assert.Contains(t, rendered, "Description: First description")
 	assert.NotContains(t, rendered, "Skills attached to this variation")
+}
+
+func TestWritePlanMarkdownProtectsSkillCodeFences(t *testing.T) {
+	server := testVariation("Support")
+	server.Skills = []syncdomain.AttachmentRef{{Key: "example"}}
+	server.Attachments = []syncdomain.Attachment{{
+		Kind: syncdomain.AttachmentSkill,
+		Skill: &syncdomain.Skill{
+			Key:      "example",
+			Markdown: "Example:\n```go\nsame\n```\nOld ending",
+		},
+	}}
+	local := server
+	localSkill := *server.Attachments[0].Skill
+	localSkill.Markdown = "Example:\n```go\nsame\n```\nNew ending"
+	local.Attachments = []syncdomain.Attachment{{
+		Kind:  syncdomain.AttachmentSkill,
+		Skill: &localSkill,
+	}}
+	plan := Plan{Resources: []PlannedResource{{
+		ID: testResourceID(), Action: ActionUpdateServer, Diff: variationDiff(&server, &local),
+	}}}
+
+	var output bytes.Buffer
+	require.NoError(t, writePlanReview(&output, "markdown", plan, 0))
+
+	rendered := output.String()
+	assert.Contains(t, rendered, "````diff\n")
+	assert.Equal(t, 2, strings.Count(rendered, "````"))
 }
 
 func TestWritePlanGroupsVariationsUnderTheirConfig(t *testing.T) {

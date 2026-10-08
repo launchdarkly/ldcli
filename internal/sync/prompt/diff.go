@@ -67,7 +67,9 @@ func renderVariationDiff(fields variationDiffFields, outputKind string, width in
 			}
 			if outputKind == "markdown" {
 				_, _ = fmt.Fprintf(&rendered, "\n#### %s (%s)\n\n", section.title, section.change)
-				_, _ = fmt.Fprintf(&rendered, "```diff\n%s\n```\n", strings.Join(diffLines, "\n"))
+				content := strings.Join(diffLines, "\n")
+				fence := markdownCodeFence(content)
+				_, _ = fmt.Fprintf(&rendered, "%sdiff\n%s\n%s\n", fence, content, fence)
 				continue
 			}
 			sectionTitle := fmt.Sprintf("%s (%s)", section.title, section.change)
@@ -83,6 +85,27 @@ func renderVariationDiff(fields variationDiffFields, outputKind string, width in
 		}
 	}
 	return rendered.String(), nil
+}
+
+// markdownCodeFence returns a fence that cannot close inside its content.
+func markdownCodeFence(content string) string {
+	longestRun := 0
+	currentRun := 0
+	for _, character := range content {
+		if character != '`' {
+			currentRun = 0
+			continue
+		}
+		currentRun++
+		if currentRun > longestRun {
+			longestRun = currentRun
+		}
+	}
+	fenceLength := 3
+	if longestRun >= fenceLength {
+		fenceLength = longestRun + 1
+	}
+	return strings.Repeat("`", fenceLength)
 }
 
 func diffSections(field string, diff variationFieldDiff, presentation variationDiffPresentation) ([]renderedDiffSection, error) {
@@ -526,6 +549,15 @@ func writeDiffValue(rendered *strings.Builder, label string, value any, indent i
 		for _, item := range value {
 			_, _ = fmt.Fprintf(rendered, "\n%s- %s", strings.Repeat(" ", indent+2), item)
 		}
+	case []any:
+		if len(value) == 0 {
+			_, _ = fmt.Fprintf(rendered, "\n%s%s: []", padding, label)
+			return
+		}
+		_, _ = fmt.Fprintf(rendered, "\n%s%s:", padding, label)
+		writeDiffList(rendered, value, indent+2)
+	case nil:
+		_, _ = fmt.Fprintf(rendered, "\n%s%s: null", padding, label)
 	default:
 		_, _ = fmt.Fprintf(rendered, "\n%s%s: %v", padding, label, value)
 	}
@@ -538,28 +570,33 @@ func writeDiffMap(rendered *strings.Builder, values map[string]any, indent int) 
 	}
 	slices.Sort(keys)
 
-	padding := strings.Repeat(" ", indent)
 	for _, key := range keys {
-		value := values[key]
+		writeDiffValue(rendered, key, values[key], indent)
+	}
+}
+
+func writeDiffList(rendered *strings.Builder, values []any, indent int) {
+	padding := strings.Repeat(" ", indent)
+	for _, value := range values {
 		switch nested := value.(type) {
 		case map[string]any:
 			if len(nested) == 0 {
-				_, _ = fmt.Fprintf(rendered, "\n%s%s: {}", padding, key)
+				_, _ = fmt.Fprintf(rendered, "\n%s- {}", padding)
 				continue
 			}
-			_, _ = fmt.Fprintf(rendered, "\n%s%s:", padding, key)
+			_, _ = fmt.Fprintf(rendered, "\n%s-", padding)
 			writeDiffMap(rendered, nested, indent+2)
 		case []any:
 			if len(nested) == 0 {
-				_, _ = fmt.Fprintf(rendered, "\n%s%s: []", padding, key)
+				_, _ = fmt.Fprintf(rendered, "\n%s- []", padding)
 				continue
 			}
-			_, _ = fmt.Fprintf(rendered, "\n%s%s:", padding, key)
-			for _, item := range nested {
-				_, _ = fmt.Fprintf(rendered, "\n%s- %v", strings.Repeat(" ", indent+2), item)
-			}
+			_, _ = fmt.Fprintf(rendered, "\n%s-", padding)
+			writeDiffList(rendered, nested, indent+2)
+		case nil:
+			_, _ = fmt.Fprintf(rendered, "\n%s- null", padding)
 		default:
-			_, _ = fmt.Fprintf(rendered, "\n%s%s: %v", padding, key, value)
+			_, _ = fmt.Fprintf(rendered, "\n%s- %v", padding, value)
 		}
 	}
 }
