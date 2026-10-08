@@ -1,0 +1,11 @@
+{
+  "pr": 720,
+  "why": "#720 bumped oapi-codegen 2.4.1 → 2.7.1 and merged with green CI and one approval. Nobody ran go generate. Regenerating server.gen.go with the new tool breaks the build, and main still carries that breakage.",
+  "head": "f92ab8f7279205b52430b131d9b165f99c7c8b13",
+  "base": "877f4db1a240de8afde12f170d2e91c6668a6a9d",
+  "expect": {
+    "verdict": "block",
+    "checks": {"go-generate-drift": "regression"},
+    "blocks_contain": ["regenerated code does not compile"]
+  }
+}

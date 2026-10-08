@@ -1,0 +1,29 @@
+{
+  "pr": 779,
+  "why": "#779 is a grouped security update. Its description names dompurify and uuid, but the commit also moves @launchpad-ui/components, launchdarkly-js-client-sdk, react-router, and vite to new versions. npm ci fails, and components 0.23.1 removes exports that the UI imports. The verifier must block, flag the undisclosed updates, and not ask about esbuild, whose install script was already on base.",
+  "head": "aee99e9edb9bcdba15001ee0201bd5e69d9c75a1",
+  "base": "9197f925f3ce12da4eb7864a0644451d12977788",
+  "pr_meta": "pr-meta/pr-779.json",
+  "agent_inputs": "agent-inputs/pr-779",
+  "expect": {
+    "verdict": "block",
+    "checks": {
+      "pr-disclosure": "decide",
+      "ui-npm-ci": "regression"
+    },
+    "decisions_contain": [
+      "@launchpad-ui/components",
+      "launchdarkly-js-client-sdk",
+      "react-router",
+      "vite",
+      "Accept MPL-2.0 for lightningcss 1.33.0 and 11 lightningcss-* package(s) (dev-only build tools)?"
+    ],
+    "decisions_exclude": [
+      "esbuild"
+    ],
+    "summaries_contain": {
+      "upstream-changes": "full range for 4 of 4",
+      "ui-npm-audit": "GHSA-"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "id": "release-secrets-nested-runtimes-supported",
+      "title": "release-secrets and the actions it runs declare supported runtimes, and the inputs that ldcli passes exist",
+      "kind": "discriminating",
+      "rationale": "manual-publish.yml (job release-ldcli, step 'Get Docker token') runs the release-secrets composite. At release-secrets-v1.0.1 the composite runs aws-actions/configure-aws-credentials@v1-node16 and dkershner6/aws-ssm-getparameters-action@v1, which both declare node16. GitHub removed node16 from runners. At v1.2.0 they are configure-aws-credentials@v4 and a pinned getparameters commit, both node20. The check reads action.yml at the refs that each side pins and also checks aws_assume_role and ssm_parameter_pairs. Uses the network (gh api).",
+      "script": "release-secrets-nested-runtimes-supported.sh",
+      "timeout": 180
+    }
+  ]
+}

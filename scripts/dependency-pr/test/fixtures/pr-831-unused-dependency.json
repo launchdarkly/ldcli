@@ -1,0 +1,11 @@
+{
+  "pr": 831,
+  "why": "#831 (react-window 1 → 2, a rewrite) passes CI only because nothing imports react-window. The right action is to remove the dependency, which is a choice for a person.",
+  "head": "75f49b53c31e79721c08f6073921d0aa0f8ca34f",
+  "base": "6c1740f8932352cdc2696e7aee20dfef676abfac",
+  "expect": {
+    "verdict": "needs-human",
+    "checks": {"ui-dep-usage": "decide", "ui-build-drift": "pass"},
+    "decisions_contain": ["Remove @types/react-window and react-window from package.json instead of updating them?"]
+  }
+}

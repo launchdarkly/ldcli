@@ -1,0 +1,60 @@
+// Usage: node lp_exports.mjs <ui-dir> <packs-dir>
+// For each @launchpad-ui/* package that src/ imports by name, reads the
+// package tarball unpacked in <packs-dir>/<pkg>/package and checks that each
+// imported name is exported by its type entry point.
+import fs from 'node:fs';
+import path from 'node:path';
+
+const [uiDir, packsDir] = process.argv.slice(2);
+const srcFiles = [];
+const walk = (d) => {
+  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    const p = path.join(d, e.name);
+    if (e.isDirectory()) { if (e.name !== '__verify__') walk(p); }
+    else if (/\.(tsx?|jsx?)$/.test(e.name)) srcFiles.push(p);
+  }
+};
+walk(path.join(uiDir, 'src'));
+
+const wanted = new Map();
+const importRe = /import\s+(?:type\s+)?(?:[\w$]+\s*,\s*)?\{([^}]*)\}\s*from\s*['"](@launchpad-ui\/[\w-]+)['"]/g;
+for (const f of srcFiles) {
+  const text = fs.readFileSync(f, 'utf8');
+  for (const m of text.matchAll(importRe)) {
+    const names = m[1].split(',').map((s) => s.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]).filter(Boolean);
+    const set = wanted.get(m[2]) ?? new Map();
+    for (const n of names) set.set(n, [...(set.get(n) ?? []), path.relative(uiDir, f)]);
+    wanted.set(m[2], set);
+  }
+}
+
+const exportsOf = (file, seen = new Set()) => {
+  const out = new Set();
+  if (seen.has(file) || !fs.existsSync(file)) return out;
+  seen.add(file);
+  const text = fs.readFileSync(file, 'utf8');
+  for (const m of text.matchAll(/export\s+(?:type\s+)?\{([^}]*)\}/g))
+    for (const s of m[1].split(',')) { const n = s.trim().replace(/^type\s+/, '').split(/\s+as\s+/).pop(); if (n) out.add(n); }
+  for (const m of text.matchAll(/export\s+(?:declare\s+)?(?:const|let|var|function|class|type|interface|enum)\s+([\w$]+)/g)) out.add(m[1]);
+  for (const m of text.matchAll(/export\s+\*\s+from\s+['"](\.[^'"]+)['"]/g)) {
+    const base = path.resolve(path.dirname(file), m[1]);
+    for (const c of [base + '.d.ts', path.join(base, 'index.d.ts')]) for (const n of exportsOf(c, seen)) out.add(n);
+  }
+  return out;
+};
+
+let missing = 0, checked = 0;
+for (const [pkg, names] of [...wanted].sort()) {
+  const root = path.join(packsDir, pkg, 'package');
+  const pj = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const dot = pj.exports?.['.'];
+  const types = (typeof dot === 'object' && dot?.types) || pj.types || pj.typings || 'dist/index.d.ts';
+  const exp = exportsOf(path.resolve(root, types));
+  const gone = [...names.keys()].filter((n) => !exp.has(n)).sort();
+  checked += names.size;
+  missing += gone.length;
+  console.log(`${pkg}@${pj.version}: ${names.size} imported name(s), ${gone.length} missing`);
+  for (const n of gone) console.log(`  MISSING ${pkg}@${pj.version} ${n} (used in ${[...new Set(names.get(n))].sort().join(', ')})`);
+}
+console.log(`SUMMARY checked=${checked} missing=${missing}`);
+process.exit(missing ? 1 : 0);

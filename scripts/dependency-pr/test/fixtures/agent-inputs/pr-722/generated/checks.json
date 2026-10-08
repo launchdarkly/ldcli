@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "id": "release-please-outputs-still-set",
+      "title": "The pinned release-please-action sets every output that release-please.yml reads",
+      "kind": "guard",
+      "rationale": "release-please.yml reads steps.release.outputs.release_created and tag_name to gate tag creation and every release job. release-please-action declares no outputs in action.yml and sets them in src/index.ts (setPathOutput, tagName to tag_name). The check reads the source at the commit that each side pins. Uses the network (gh api).",
+      "script": "release-please-outputs-still-set.sh",
+      "timeout": 120
+    },
+    {
+      "id": "release-please-config-schema",
+      "title": "release-please-config.json is valid for the release-please library that the pinned action bundles",
+      "kind": "guard",
+      "rationale": "release-please-action v5.0.0 bundles release-please 17.6.0 (v4.4.0 bundles 17.1.3). The library reads release-please-config.json and .release-please-manifest.json on every push to main. The check validates the configuration against schemas/config.json of the bundled library version. Uses the network (gh api, npx ajv-cli).",
+      "script": "release-please-config-schema.sh",
+      "timeout": 300
+    }
+  ]
+}

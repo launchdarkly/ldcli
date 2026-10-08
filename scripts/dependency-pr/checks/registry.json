@@ -1,0 +1,42 @@
+{
+  "schema": 2,
+  "_doc": "Baseline checks in execution order. when: ecosystems that trigger the check ('any' = always). packages: optional regex on updated package names. compare_base: when the PR result is fail or decide, run the check on base too, to find pre-existing problems. required: if the check does not run, the verdict is 'incomplete'. gate: the check must pass; a pre-existing failure does not satisfy it. required_for_tags: required and a gate, but only when an update has one of these risk tags. profile: fast (default) or full.",
+  "checks": [
+    { "id": "pr-state", "title": "PR merges cleanly and changes only dependency files", "script": "pr-state.sh", "when": ["any"], "compare_base": false, "required": false, "timeout": 60 },
+    { "id": "pr-disclosure", "title": "The PR description names every direct update", "script": "pr-disclosure.sh", "when": ["any"], "compare_base": false, "required": false, "timeout": 60 },
+    { "id": "ci-status", "title": "CI results on the PR head", "script": "ci-status.sh", "when": ["any"], "compare_base": false, "required": false, "timeout": 60 },
+    { "id": "downgrades", "title": "No dependency goes to a lower version than base", "script": "downgrades.sh", "when": ["any"], "compare_base": false, "required": false, "timeout": 60 },
+    { "id": "upstream-changes", "title": "Upstream release notes and diff of each direct update", "script": "upstream-changes.sh", "when": ["gomod", "npm-ui", "npm-wrapper", "github-actions"], "compare_base": false, "required": false, "timeout": 300 },
+    { "id": "transitive-changes", "title": "Transitive dependency changes (new, removed, major, install scripts)", "script": "transitive-changes.sh", "when": ["gomod", "npm-ui", "npm-wrapper"], "compare_base": false, "required": true, "timeout": 600 },
+    { "id": "license-changes", "title": "Licenses of new and changed dependencies", "script": "license-changes.sh", "when": ["gomod", "npm-ui", "npm-wrapper"], "compare_base": false, "required": true, "timeout": 600 },
+
+    { "id": "go-mod-tidy", "title": "go mod tidy makes no change to go.mod or go.sum", "script": "go-mod-tidy.sh", "when": ["gomod"], "compare_base": true, "required": true, "timeout": 600 },
+    { "id": "go-directive", "title": "go and toolchain directives (unchanged, or the new version is supported)", "script": "go-directive.sh", "when": ["gomod"], "compare_base": false, "required": true, "timeout": 600 },
+    { "id": "go-build-vet", "title": "go build and go vet", "script": "go-build-vet.sh", "when": ["gomod"], "compare_base": true, "required": true, "gate": true, "timeout": 900 },
+    { "id": "go-test", "title": "go test ./... (isolated environment)", "script": "go-test.sh", "when": ["gomod"], "compare_base": true, "required": true, "gate": true, "timeout": 1200 },
+    { "id": "go-generate-drift", "title": "go generate makes no change, and the generated code builds", "script": "go-generate-drift.sh", "when": ["gomod"], "compare_base": true, "required": true, "timeout": 900 },
+    { "id": "govulncheck", "title": "govulncheck: no new reachable vulnerabilities", "script": "govulncheck.sh", "when": ["gomod"], "compare_base": false, "required": false, "timeout": 900 },
+    { "id": "release-snapshot", "title": "All release targets cross-compile in goreleaser-cross (CGO)", "script": "release-snapshot.sh", "when": ["gomod"], "compare_base": true, "required": false, "required_for_tags": ["cgo", "go-directive"], "profile": "full", "timeout": 2400 },
+    { "id": "golangci-lint", "title": "golangci-lint (pre-commit configuration)", "script": "golangci-lint.sh", "when": ["gomod"], "compare_base": true, "required": false, "required_for_tags": ["go-directive"], "profile": "full", "timeout": 900 },
+
+    { "id": "ui-npm-ci", "title": "npm ci resolves (no ERESOLVE or peer conflicts)", "script": "ui-npm-ci.sh", "when": ["npm-ui"], "compare_base": true, "required": true, "gate": true, "timeout": 900 },
+    { "id": "ui-lint", "title": "UI lint (eslint)", "script": "ui-lint.sh", "when": ["npm-ui"], "compare_base": true, "required": true, "timeout": 600 },
+    { "id": "ui-prettier", "title": "UI format (prettier --check)", "script": "ui-prettier.sh", "when": ["npm-ui"], "compare_base": true, "required": true, "timeout": 600 },
+    { "id": "ui-test", "title": "UI tests (vitest)", "script": "ui-test.sh", "when": ["npm-ui"], "compare_base": true, "required": true, "gate": true, "timeout": 900 },
+    { "id": "ui-build-drift", "title": "UI builds, and the committed dist/ is current", "script": "ui-build-drift.sh", "when": ["npm-ui"], "compare_base": true, "required": true, "timeout": 900 },
+    { "id": "ui-npm-ls", "title": "npm ls: the dependency tree is valid (peers satisfied)", "script": "ui-npm-ls.sh", "when": ["npm-ui"], "compare_base": true, "required": false, "timeout": 300 },
+    { "id": "ui-npm-audit", "title": "npm audit (runtime dependencies): no new advisories", "script": "ui-npm-audit.sh", "when": ["npm-ui"], "compare_base": false, "required": false, "timeout": 300 },
+    { "id": "ui-dep-usage", "title": "The updated UI dependencies are used", "script": "ui-dep-usage.sh", "when": ["npm-ui"], "compare_base": false, "required": false, "timeout": 120 },
+
+    { "id": "npm-wrapper-install", "title": "The npm package installs, and its postinstall gets a working binary", "script": "npm-wrapper-install.sh", "when": ["npm-wrapper"], "compare_base": true, "required": true, "gate": true, "timeout": 600 },
+
+    { "id": "actions-pinning", "title": "Third-party actions use a commit SHA (SEC-7924)", "script": "actions-pinning.sh", "when": ["github-actions"], "compare_base": true, "required": true, "timeout": 120 },
+    { "id": "actionlint", "title": "actionlint", "script": "actionlint.sh", "when": ["github-actions"], "compare_base": true, "required": true, "timeout": 600 },
+    { "id": "actions-coverage", "title": "Updated actions: CI coverage, inputs, outputs, defaults, runtime, permissions", "script": "actions-coverage.sh", "when": ["github-actions"], "compare_base": false, "required": true, "timeout": 300 },
+
+    { "id": "docker-image", "title": "The base image exists, and the release image builds and runs", "script": "docker-image.sh", "when": ["docker"], "compare_base": true, "required": true, "gate": true, "timeout": 900 },
+
+    { "id": "binary-smoke", "title": "Binary smoke test: --version, help for all commands, dev-server serves the UI and API", "script": "binary-smoke.sh", "when": ["gomod", "npm-ui", "docker"], "compare_base": true, "required": true, "gate": true, "timeout": 600 },
+    { "id": "cli-help-diff", "title": "CLI help output is the same as on base", "script": "cli-help-diff.sh", "when": ["gomod"], "compare_base": false, "required": false, "timeout": 600 }
+  ]
+}

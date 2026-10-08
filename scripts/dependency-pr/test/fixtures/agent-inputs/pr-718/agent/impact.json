@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "summary": "manual-publish.yml moves launchdarkly/gh-actions/actions/release-secrets from release-secrets-v1.0.1 to release-secrets-v1.2.0. release-please.yml already uses v1.2.0. The verifier classified the update as v1.2.0 to v1.2.0 (a digest with 0 commits), but the real range is v1.0.1 to v1.2.0. Inside the composite, aws-actions/configure-aws-credentials moves from v1-node16 to v4 and the SSM getparameters action moves from the floating v1 tag (node16) to a pinned node20 commit. A new optional input s3_path_pairs is added. The inputs that ldcli passes (aws_assume_role, ssm_parameter_pairs) do not change. The same v1.2.0 step with the same inputs passed in the v3.12.0 release.",
+  "tier": "high",
+  "tier_reasons": [
+    "Release tooling with a real version change (v1.0.1 to v1.2.0, which includes configure-aws-credentials v1 to v4). The classifier compared v1.2.0 with itself and reported a digest."
+  ],
+  "changelog": [
+    {
+      "package": "launchdarkly/gh-actions/actions/release-secrets",
+      "range": "release-secrets-v1.0.1..release-secrets-v1.2.0",
+      "notes": "fix (#10): pin dkershner6/aws-ssm-getparameters-action to commit 4fcb4872 (node20) instead of v1 (node16). feat (#16): optional s3_path_pairs input and an S3 download step that runs only when the input is set. feat 1.2.0 (#35): aws-actions/configure-aws-credentials v1-node16 to v4 (node20), with the same audience, role-to-assume, and aws-region. No input was removed or made required.",
+      "breaking": false,
+      "url": "https://github.com/launchdarkly/gh-actions/compare/release-secrets-v1.0.1...release-secrets-v1.2.0"
+    }
+  ],
+  "usage": [
+    ".github/workflows/manual-publish.yml (job release-ldcli, step 'Get Docker token': aws_assume_role, ssm_parameter_pairs; the job has id-token: write)",
+    ".github/workflows/release-please.yml (job release-ldcli, already on release-secrets-v1.2.0 with the same inputs)"
+  ],
+  "behavior_changes_reachable": true,
+  "findings": [
+    {
+      "severity": "info",
+      "text": "The exact ref and inputs already run in production. In the v3.12.0 release (release-please.yml run 35993978650, 2026-09-24), the 'Get Docker token' step with release-secrets-v1.2.0 passed, and the job then published the images. manual-publish.yml uses the same AWS_ROLE_ARN variable and the same SSM parameters.",
+      "evidence": [
+        "https://github.com/launchdarkly/ldcli/actions/runs/35993978650"
+      ]
+    },
+    {
+      "severity": "info",
+      "text": "configure-aws-credentials v4 needs the id-token: write permission for OIDC. The release-ldcli job in manual-publish.yml has it, and the permissions block does not change.",
+      "evidence": [
+        ".github/workflows/manual-publish.yml"
+      ]
+    }
+  ]
+}

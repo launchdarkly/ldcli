@@ -1,0 +1,4 @@
+{
+  "_doc": "Licenses that need no review when a dependency is added or changed. A new or changed dependency with any other license, or with a license change, becomes a decision for a person.",
+  "allowed": ["MIT", "ISC", "0BSD", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "Unlicense", "CC0-1.0", "BlueOak-1.0.0", "Python-2.0", "CC-BY-4.0"]
+}
