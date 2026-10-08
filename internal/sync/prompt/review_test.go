@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
 
@@ -58,7 +59,7 @@ func TestConfirmApply(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var prompt bytes.Buffer
-			confirmed, err := confirm(context.Background(), strings.NewReader(test.input), &prompt, test.terminal, applyQuestion)
+			confirmed, err := syncinteractive.Confirm(context.Background(), strings.NewReader(test.input), &prompt, test.terminal, applyQuestion)
 
 			assert.Equal(t, test.confirmed, confirmed)
 			if test.wantError != "" {
@@ -174,7 +175,7 @@ func TestReviewAndConfirmPlanStopsWhenWatchContextIsCanceled(t *testing.T) {
 		confirmed, err := reviewAndConfirmPlan(Options{
 			Action: SyncAction{Watch: true}, Context: ctx, Input: input, ErrorOutput: output,
 		}, Plan{Resources: []PlannedResource{{
-			ID: testResourceID(), Action: ActionArchiveServer,
+			ID: testResourceID(), Action: ActionDeleteLocal,
 		}}}, true)
 		results <- struct {
 			confirmed bool
@@ -208,7 +209,7 @@ func TestReviewAndConfirmPlanRejectsConfirmationWhenWatchContextIsAlreadyCancele
 	confirmed, err := reviewAndConfirmPlan(Options{
 		Action: SyncAction{Watch: true}, Context: ctx, Input: strings.NewReader("yes\n"), ErrorOutput: io.Discard,
 	}, Plan{Resources: []PlannedResource{{
-		ID: testResourceID(), Action: ActionArchiveServer,
+		ID: testResourceID(), Action: ActionDeleteLocal,
 	}}}, true)
 
 	require.False(t, confirmed)
@@ -228,7 +229,7 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 	}{
 		{name: "updates apply automatically", action: ActionUpdateServer, wantContinue: true},
 		{
-			name: "server archive requires confirmation", action: ActionArchiveServer, input: "yes\n",
+			name: "local deletion requires confirmation", action: ActionDeleteLocal, input: "yes\n",
 			interactive: true, wantContinue: true, wantPrompt: true,
 		},
 		{
@@ -236,11 +237,11 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 			interactive: true, wantPrompt: true,
 		},
 		{
-			name: "non-terminal destructive action is rejected", action: ActionArchiveServer,
+			name: "non-terminal destructive action is rejected", action: ActionDeleteLocal,
 			wantError: "rerun with --yes",
 		},
 		{
-			name: "explicit yes applies destructive action", action: ActionArchiveServer,
+			name: "explicit yes applies destructive action", action: ActionDeleteLocal,
 			yes: true, wantContinue: true,
 		},
 	}

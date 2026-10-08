@@ -307,14 +307,11 @@ func resolvedConflictAction(resource PlannedResource, resolution ConflictResolut
 		}
 		return ActionUpdateLocal
 	case ConflictUseLocal:
-		switch {
-		case resource.Local == nil:
-			return ActionArchiveServer
-		case resource.Server == nil:
+		// A conflict always has a local file, because a missing file is restored.
+		if resource.Server == nil {
 			return ActionCreateServer
-		default:
-			return ActionUpdateServer
 		}
+		return ActionUpdateServer
 	default:
 		return ActionConflict
 	}

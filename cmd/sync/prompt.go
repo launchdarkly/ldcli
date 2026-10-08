@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	archiveFlag        = "archive"
 	conflictFlag       = "conflict"
 	contentFlag        = "content"
 	dryRunFlag         = "dry-run"
@@ -214,16 +215,22 @@ func newDetachCmd(client resources.Client) *cobra.Command {
   ldcli sync prompt detach
 
   # Stop syncing one variation
-  ldcli sync prompt detach production/support/default`,
+  ldcli sync prompt detach production/support/default
+
+  # Stop syncing one variation and archive it in LaunchDarkly
+  ldcli sync prompt detach production/support/default --archive --yes --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
-		RunE: runPrompt(client, func(_ *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
 			if err != nil {
 				return nil, err
 			}
-			return syncprompt.DetachAction{Variations: variations}, nil
+			archive, _ := cmd.Flags().GetBool(archiveFlag)
+			return syncprompt.DetachAction{Variations: variations, Archive: archive}, nil
 		}),
 	}
+	cmd.Flags().Bool(archiveFlag, false, "Also archive the variations in LaunchDarkly")
+	cmd.Flags().Bool(yesFlag, false, "Archive without confirmation")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
 }

@@ -2,6 +2,7 @@ package detach
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -254,6 +255,72 @@ func TestRunRejectsExplicitSelectionWhenNoResourcesAreSynced(t *testing.T) {
 
 	require.ErrorContains(t, err, "variation production/support/default is not synced")
 	assert.Empty(t, output.String())
+}
+
+func TestRunArchive(t *testing.T) {
+	notFound := errors.New(`{"code":"not_found","statusCode":404}`)
+	tests := map[string]struct {
+		archive      bool
+		yes          bool
+		archiveErr   error
+		wantError    string
+		wantArchived []string
+		wantDetached bool
+	}{
+		"detach without archive keeps the variation in LaunchDarkly": {wantDetached: true},
+		"archive with yes":             {archive: true, yes: true, wantArchived: []string{"project/config/prompt"}, wantDetached: true},
+		"variation already archived":   {archive: true, yes: true, archiveErr: notFound, wantArchived: []string{"project/config/prompt"}, wantDetached: true},
+		"archive needs a confirmation": {archive: true, wantError: "rerun with --yes"},
+		"archive failure stops detach": {
+			archive: true, yes: true, archiveErr: errors.New("forbidden"),
+			wantError: "archive variation project/config/prompt", wantArchived: []string{"project/config/prompt"},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			store := synclocal.NewStore(root)
+			_, err := store.Add([]synclocal.VariationFile{{
+				ProjectKey: "project", ConfigKey: "config", Variation: testVariation("prompt"),
+			}})
+			require.NoError(t, err)
+			archiver := &recordingArchiver{err: test.archiveErr}
+
+			err = Run(Options{
+				RepositoryRoot: root,
+				Store:          store,
+				Baselines:      newMemoryManifestStore(),
+				Input:          bytes.NewBuffer(nil),
+				Output:         bytes.NewBuffer(nil),
+				Selections:     []syncdomain.ResourceID{syncdomain.VariationID("project", "config", "prompt")},
+				NoInput:        true,
+				Archive:        test.archive,
+				Archiver:       archiver,
+				Yes:            test.yes,
+			})
+
+			if test.wantError != "" {
+				require.ErrorContains(t, err, test.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, test.wantArchived, archiver.archived)
+			exists, err := store.VariationExists("project", "config", "prompt")
+			require.NoError(t, err)
+			assert.Equal(t, !test.wantDetached, exists)
+		})
+	}
+}
+
+type recordingArchiver struct {
+	archived []string
+	err      error
+}
+
+func (archiver *recordingArchiver) ArchiveVariation(projectKey, configKey, variationKey string) error {
+	archiver.archived = append(archiver.archived, projectKey+"/"+configKey+"/"+variationKey)
+	return archiver.err
 }
 
 type memoryManifestStore struct {
