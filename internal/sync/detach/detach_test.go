@@ -234,6 +234,24 @@ func TestRunReportsWhenNoResourcesAreSynced(t *testing.T) {
 	assert.Equal(t, "No resources are currently synced.\n", output.String())
 }
 
+func TestRunRejectsExplicitSelectionWhenNoResourcesAreSynced(t *testing.T) {
+	root := t.TempDir()
+	var output bytes.Buffer
+
+	err := Run(Options{
+		RepositoryRoot: root,
+		Store:          synclocal.NewStore(root),
+		Manifest:       newMemoryManifestStore(),
+		Input:          bytes.NewBuffer(nil),
+		Output:         &output,
+		Selections:     []syncdomain.ResourceID{syncdomain.VariationID("production", "support", "default")},
+		NoInput:        true,
+	})
+
+	require.ErrorContains(t, err, "variation production/support/default is not synced")
+	assert.Empty(t, output.String())
+}
+
 type memoryManifestStore struct {
 	manifest          syncmanifest.Manifest
 	loadedProjectKeys []string

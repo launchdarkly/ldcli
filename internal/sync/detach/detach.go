@@ -48,20 +48,23 @@ func Run(options Options) error {
 	if err != nil {
 		return err
 	}
+	// Check a named selector before the empty-workspace message, so that a
+	// selector that is not synced always fails.
 	console := syncconsole.New(options.Output)
-	if len(synced) == 0 {
-		_ = console.Line("No resources are currently synced.")
-		return nil
-	}
-
 	selected := options.Selections
-	if len(selected) == 0 {
+	if len(selected) != 0 {
+		if err := validateSelections(synced, selected); err != nil {
+			return err
+		}
+	} else {
+		if len(synced) == 0 {
+			_ = console.Line("No resources are currently synced.")
+			return nil
+		}
 		var canceled bool
 		if selected, canceled, err = promptForResources(options, synced); err != nil || canceled {
 			return err
 		}
-	} else if err := validateSelections(synced, selected); err != nil {
-		return err
 	}
 	if err := detachResources(options, manifest, selected); err != nil {
 		return err
