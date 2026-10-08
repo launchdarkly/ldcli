@@ -272,8 +272,8 @@ func TestAttachToVariationPreservesExistingSharedAttachmentEdits(t *testing.T) {
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	for _, resource := range resources {
-		require.Len(t, resource.Attachments, 1)
-		assert.Equal(t, localDescription, *resource.Attachments[0].Tool.Description)
+		require.Len(t, resource.Variation.Attachments, 1)
+		assert.Equal(t, localDescription, *resource.Variation.Attachments[0].Tool.Description)
 	}
 }
 
@@ -300,7 +300,7 @@ func TestToolSearchPageReturnsTrueLatestVersion(t *testing.T) {
 	assert.Equal(t, 2, transport.requests)
 }
 
-func TestAddAttachmentContentPreservesOtherKinds(t *testing.T) {
+func TestAttachPreservesOtherKinds(t *testing.T) {
 	skill := syncdomain.Skill{Key: "support", Markdown: "# Support"}
 	variation := syncdomain.Variation{
 		Skills:      []syncdomain.AttachmentRef{{Key: "support"}},
@@ -308,7 +308,7 @@ func TestAddAttachmentContentPreservesOtherKinds(t *testing.T) {
 	}
 	tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
 
-	addAttachmentContent(&variation, syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Version: 3, Tool: &tool})
+	variation.Attach(syncdomain.Attachment{Kind: syncdomain.AttachmentTool, Version: 3, Tool: &tool})
 
 	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "support"}}, variation.Skills)
 	assert.Equal(t, []syncdomain.AttachmentRef{{Key: "search"}}, variation.Tools)

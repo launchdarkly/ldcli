@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
-	"github.com/launchdarkly/ldcli/internal/sync/reference/adapters"
 )
 
 func TestPlainMarkdownAdapterReturnsCommonPromptDomain(t *testing.T) {
@@ -16,7 +15,7 @@ func TestPlainMarkdownAdapterReturnsCommonPromptDomain(t *testing.T) {
 	require.Empty(t, prompt.Mode)
 	require.Empty(t, prompt.Key)
 	require.Empty(t, prompt.Name)
-	require.Equal(t, []adapters.Message{{Role: adapters.RoleSystem, Content: "Be helpful."}}, prompt.Messages)
+	require.Equal(t, []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: "Be helpful."}}, prompt.Messages)
 }
 
 func TestPlainMarkdownRoundTrip(t *testing.T) {
@@ -45,7 +44,7 @@ func TestPlainMarkdownRoundTrip(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := ApplyToVariation(PlainMarkdown, []byte("\nBe helpful.\n"), &test.variation)
+			err := ApplyToVariation(PlainMarkdown, []byte("\nBe helpful.\n"), &test.variation)
 			require.NoError(t, err)
 			test.assert(t, test.variation)
 
@@ -73,7 +72,7 @@ func TestReferenceFormatRejectsUnknownFormat(t *testing.T) {
 	var variation syncdomain.Variation
 	err := ValidateFormat("anthropic-prompt")
 	require.ErrorContains(t, err, "unsupported referenced prompt format")
-	_, err = ApplyToVariation("anthropic-prompt", nil, &variation)
+	err = ApplyToVariation("anthropic-prompt", nil, &variation)
 	require.ErrorContains(t, err, "unsupported referenced prompt format")
 	_, err = Render("anthropic-prompt", variation)
 	require.ErrorContains(t, err, "unsupported referenced prompt format")

@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -254,10 +253,7 @@ func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 		if resource.LookupKey != "config/second" {
 			continue
 		}
-		var variation syncdomain.Variation
-		require.NoError(t, json.Unmarshal(resource.Payload, &variation))
-		variation.Attachments = resource.Attachments
-		expectedFingerprint, err = syncdomain.FingerprintVariation(resource.ProjectKey, resource.LookupKey, variation)
+		expectedFingerprint, err = syncdomain.FingerprintVariation(resource.ProjectKey, resource.LookupKey, resource.Variation)
 		require.NoError(t, err)
 	}
 	require.NotEmpty(t, expectedFingerprint)
@@ -388,7 +384,7 @@ func TestWriteSummary(t *testing.T) {
 func TestWritePreviewsPrintsEveryFile(t *testing.T) {
 	var output bytes.Buffer
 
-	writePreviews(&output, []synclocal.RenderedVariationFile{
+	writePreviews(&output, []synclocal.RenderedFile{
 		{Path: "project/configs/config/first.prompt.md", Content: []byte("first\n")},
 		{Path: "project/configs/config/second.prompt.md", Content: []byte("second\n")},
 	})

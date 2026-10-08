@@ -88,9 +88,8 @@ func watchWorkspace(
 				return err
 			}
 			if errors.Is(err, errRefreshWatchPlan) {
-				// A source changed during review or the reviewed server state
-				// became stale. Rebuild immediately instead of waiting for a
-				// second filesystem event that may never arrive.
+				// A file or the server state changed during the review. Build
+				// a new plan now, because a second file event can fail to come.
 				if err := watcher.Refresh(); err != nil {
 					return err
 				}
@@ -119,6 +118,31 @@ func watchWorkspace(
 				continue
 			}
 			break
+		}
+	}
+}
+
+// watchedSources is the source state that one plan used. It detects a change
+// while the user reviews the plan.
+type watchedSources struct {
+	watcher  *sourceWatcher
+	snapshot [sha256.Size]byte
+	debounce time.Duration
+}
+
+// WaitForChange waits until the content of a watched file differs from the
+// state of the plan.
+func (watched watchedSources) WaitForChange(ctx context.Context) error {
+	for {
+		if err := watched.watcher.WaitForChange(ctx, watched.debounce); err != nil {
+			return err
+		}
+		current, err := sourceSnapshot(watched.watcher.root)
+		if err != nil {
+			return err
+		}
+		if current != watched.snapshot {
+			return nil
 		}
 	}
 }
@@ -165,8 +189,8 @@ func (watcher *sourceWatcher) Refresh() error {
 		return err
 	}
 
-	// Rebuild registrations from source-of-truth state because a wrapper edit
-	// may add, remove, or redirect an external reference.
+	// Build the registrations again from the current files, because an edit
+	// to a variation file can add, remove, or change a linked file.
 	watcher.resetDirectories()
 	watcher.files = make(map[string]struct{}, len(files))
 	// Watching the repository root lets us observe recreation of a deleted
@@ -259,8 +283,8 @@ func (watcher *sourceWatcher) addCreatedDirectory(event fsnotify.Event) error {
 	if !event.Has(fsnotify.Create) {
 		return nil
 	}
-	// The path may disappear between the event and Stat when an editor uses a
-	// short-lived temporary directory. There is nothing left to register.
+	// An editor can remove a temporary directory before Stat runs. Then
+	// there is nothing to register.
 	info, err := os.Stat(event.Name)
 	if errors.Is(err, os.ErrNotExist) || err == nil && !info.IsDir() {
 		return nil
@@ -283,8 +307,8 @@ func (watcher *sourceWatcher) forgetRemovedDirectories(event fsnotify.Event) {
 	removed := filepath.Clean(event.Name)
 	for directory := range watcher.directories {
 		if directory == removed || pathWithin(removed, directory) {
-			// Remove descendants from our bookkeeping as well; their OS watches
-			// are no longer useful after an ancestor moves or disappears.
+			// Also forget each directory below it. Its watch has no use after
+			// a parent directory moves or disappears.
 			_ = watcher.watcher.Remove(directory)
 			delete(watcher.directories, directory)
 		}
@@ -292,7 +316,7 @@ func (watcher *sourceWatcher) forgetRemovedDirectories(event fsnotify.Event) {
 }
 
 // shouldWatchDirectory reports whether a directory contains managed files or
-// is an ancestor of a referenced file that may not exist yet.
+// is a parent of a linked file that does not exist yet.
 func (watcher *sourceWatcher) shouldWatchDirectory(directory string) bool {
 	if watcher.insideManagedRoot(directory) {
 		return true
@@ -384,8 +408,8 @@ func (watcher *sourceWatcher) addDirectory(path string) error {
 // a directory that can observe creation of the missing descendants.
 func (watcher *sourceWatcher) addClosestExistingDirectory(path string) error {
 	path = filepath.Clean(path)
-	// A referenced file may not exist yet. Its nearest existing ancestor is
-	// enough to observe creation of the next missing path component.
+	// A linked file can be absent. A watch on its nearest existing parent
+	// sees the creation of the next missing directory or file.
 	for pathWithin(watcher.root, path) {
 		info, err := os.Stat(path)
 		if err == nil {

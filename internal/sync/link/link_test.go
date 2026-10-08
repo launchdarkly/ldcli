@@ -77,12 +77,12 @@ func TestRunRejectsBlankExplicitMetadata(t *testing.T) {
 	}
 }
 
-func TestCreateWritesLinkedVariationWrapper(t *testing.T) {
+func TestCreateLinkedPromptWritesLinkedVariationWrapper(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "prompts"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "prompts", "support-agent.md"), []byte("Be helpful.\n"), 0o644))
 
-	path, err := Create(Options{
+	path, err := create(Options{
 		Store:            synclocal.NewStore(root),
 		RepositoryRoot:   root,
 		WorkingDirectory: root,
@@ -126,15 +126,15 @@ model:
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	require.Contains(t, string(resources[0].Payload), `"instructions":"Be helpful."`)
-	require.Contains(t, string(resources[0].Payload), `"modelName":"claude-3-5-sonnet-20241022"`)
+	require.Equal(t, "Be helpful.", resources[0].Variation.Instructions)
+	require.Equal(t, "claude-3-5-sonnet-20241022", resources[0].Variation.Model["modelName"])
 }
 
-func TestCreateRejectsExistingServerVariation(t *testing.T) {
+func TestCreateLinkedPromptRejectsExistingServerVariation(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "prompt.md"), []byte("Help"), 0o644))
 
-	_, err := Create(Options{
+	_, err := create(Options{
 		Store:            synclocal.NewStore(root),
 		RepositoryRoot:   root,
 		WorkingDirectory: root,
@@ -154,7 +154,7 @@ func TestCreateRejectsExistingServerVariation(t *testing.T) {
 	require.ErrorContains(t, err, `variation "prompt" already exists`)
 }
 
-func TestCreateValidatesDestinationBeforeUpdatingLinkedFile(t *testing.T) {
+func TestCreateLinkedPromptValidatesDestinationBeforeUpdatingLinkedFile(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "prompt.md")
 	require.NoError(t, os.WriteFile(sourcePath, nil, 0o644))
@@ -242,4 +242,12 @@ func (*fakeCatalog) SearchConfigs(string, string, []syncdomain.VariationMode, in
 
 func (catalog *fakeCatalog) ModelConfigs(string) ([]syncapi.ModelConfig, error) {
 	return []syncapi.ModelConfig{catalog.model}, nil
+}
+
+func create(options Options, selection Selection) (string, error) {
+	prompt, err := readLinkedPrompt(options)
+	if err != nil {
+		return "", err
+	}
+	return createLinkedPrompt(options, selection, prompt)
 }

@@ -112,8 +112,8 @@ func TestApplyLocalChangeRestoresMissingConflictFile(t *testing.T) {
 		}
 	}
 	assert.True(t, restored.Upsert)
-	require.Len(t, restored.Attachments, 1)
-	assert.Equal(t, serverDescription, *restored.Attachments[0].Tool.Description)
+	require.Len(t, restored.Variation.Attachments, 1)
+	assert.Equal(t, serverDescription, *restored.Variation.Attachments[0].Tool.Description)
 }
 
 func TestWriteConflictChoice(t *testing.T) {
@@ -220,28 +220,28 @@ func TestGroupConflictsDeduplicatesSharedAttachment(t *testing.T) {
 }
 
 func TestGroupConflictsConnectsMixedChangesAcrossSharedAttachments(t *testing.T) {
-	tool := attachmentID{projectKey: "project", kind: syncdomain.AttachmentTool, key: "search"}
-	skill := attachmentID{projectKey: "project", kind: syncdomain.AttachmentSkill, key: "support"}
+	tool := ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}
+	skill := ResourceID{Kind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "support"}
 	resources := []PlannedResource{
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/first"},
-			Action: ActionConflict, changedAttachments: []attachmentID{tool},
+			Action: ActionConflict, changedAttachments: []ResourceID{tool},
 		},
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/second"},
-			Action: ActionConflict, changedAttachments: []attachmentID{tool, skill},
+			Action: ActionConflict, changedAttachments: []ResourceID{tool, skill},
 		},
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/third"},
-			Action: ActionConflict, changedAttachments: []attachmentID{skill},
+			Action: ActionConflict, changedAttachments: []ResourceID{skill},
 		},
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/fourth"},
-			Action: ActionUpdateServer, changedAttachments: []attachmentID{skill},
+			Action: ActionUpdateServer, changedAttachments: []ResourceID{skill},
 		},
 		{
 			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/error"},
-			Action: ActionError, changedAttachments: []attachmentID{skill},
+			Action: ActionError, changedAttachments: []ResourceID{skill},
 		},
 	}
 
@@ -329,8 +329,8 @@ func TestRunWorkspaceSyncAbortsAttachmentConflictWithoutWriting(t *testing.T) {
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	require.Len(t, resources[0].Attachments, 1)
-	assert.Equal(t, "Changed locally", *resources[0].Attachments[0].Tool.Description)
+	require.Len(t, resources[0].Variation.Attachments, 1)
+	assert.Equal(t, "Changed locally", *resources[0].Variation.Attachments[0].Tool.Description)
 	assert.Contains(t, output.String(), "Sync canceled; conflict left unresolved.")
 }
 
@@ -360,8 +360,8 @@ func TestRunWorkspaceSyncUsesLaunchDarklyForAttachmentConflict(t *testing.T) {
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	require.Len(t, resources[0].Attachments, 1)
-	assert.Equal(t, "Changed in LaunchDarkly", *resources[0].Attachments[0].Tool.Description)
+	require.Len(t, resources[0].Variation.Attachments, 1)
+	assert.Equal(t, "Changed in LaunchDarkly", *resources[0].Variation.Attachments[0].Tool.Description)
 	assert.Contains(t, output.String(), "Using LaunchDarkly.")
 }
 

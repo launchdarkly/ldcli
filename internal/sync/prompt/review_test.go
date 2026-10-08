@@ -58,7 +58,7 @@ func TestConfirmApply(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var prompt bytes.Buffer
-			confirmed, err := confirmApply(strings.NewReader(test.input), &prompt, test.terminal)
+			confirmed, err := confirm(context.Background(), strings.NewReader(test.input), &prompt, test.terminal, applyQuestion)
 
 			assert.Equal(t, test.confirmed, confirmed)
 			if test.wantError != "" {

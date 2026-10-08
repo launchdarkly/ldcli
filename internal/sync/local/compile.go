@@ -1,7 +1,6 @@
 package local
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -14,34 +13,28 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-// ErrNoDirectory reports that no local sync directory exists.
+// ErrNoDirectory reports that the repository has no managed directory.
 var ErrNoDirectory = errors.New(".launchdarkly directory not found")
 
-// ParseError identifies the local file that could not be compiled.
+// ParseError identifies the managed file that is not valid.
 type ParseError struct {
 	Path string
 	Err  error
 }
 
-// Error includes the repository-relative file that could not be compiled.
-func (e ParseError) Error() string {
-	return e.Path + ": " + e.Err.Error()
-}
+func (e ParseError) Error() string { return e.Path + ": " + e.Err.Error() }
+func (e ParseError) Unwrap() error { return e.Err }
 
-// Unwrap exposes the underlying syntax or validation error.
-func (e ParseError) Unwrap() error {
-	return e.Err
-}
-
-// Compile reads local resources from an arbitrary filesystem.
+// Compile reads every variation in a file system that contains a managed
+// directory. Tests use it with an in-memory file system.
 func Compile(fsys fs.FS) ([]syncdomain.SyncedResource, error) {
 	return compile(fsys, func(reference Reference) ([]byte, error) {
 		return readReferenceFromFS(fsys, reference)
 	})
 }
 
-// CompileWorkspace compiles local resources and safely resolves references
-// within the Git repository.
+// CompileWorkspace reads every variation in a repository. It rejects a
+// symbolic link in a managed path, and a linked file outside the repository.
 func CompileWorkspace(repositoryRoot string) ([]syncdomain.SyncedResource, error) {
 	root, err := filepath.EvalSymlinks(repositoryRoot)
 	if err != nil {
@@ -52,14 +45,13 @@ func CompileWorkspace(repositoryRoot string) ([]syncdomain.SyncedResource, error
 	})
 }
 
-// Compile reads every resource managed by this store.
+// Compile reads every variation in the repository of the store.
 func (store Store) Compile() ([]syncdomain.SyncedResource, error) {
 	return CompileWorkspace(store.repositoryRoot)
 }
 
-// workspaceFS rejects symlinks anywhere in a managed path. Managed files are
-// owned by sync and must not redirect reads outside (or elsewhere within) the
-// repository.
+// workspaceFS opens repository files and rejects a path that goes through a
+// symbolic link. Sync owns the managed files, so a link is not valid there.
 type workspaceFS struct {
 	root string
 }
@@ -68,7 +60,6 @@ func (fsys workspaceFS) Open(name string) (fs.File, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 	}
-
 	target := filepath.Join(fsys.root, filepath.FromSlash(name))
 	resolved, err := filepath.EvalSymlinks(target)
 	if err != nil {
@@ -80,8 +71,7 @@ func (fsys workspaceFS) Open(name string) (fs.File, error) {
 	return os.Open(target)
 }
 
-// compile walks every managed project and delegates reference loading to the
-// caller so tests and real workspaces share the same parser.
+// compile reads the variation files of each project, in identity order.
 func compile(fsys fs.FS, readReference func(Reference) ([]byte, error)) ([]syncdomain.SyncedResource, error) {
 	entries, err := fs.ReadDir(fsys, syncdomain.RootDir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -91,55 +81,49 @@ func compile(fsys fs.FS, readReference func(Reference) ([]byte, error)) ([]syncd
 		return nil, err
 	}
 
-	var resources []syncdomain.SyncedResource
-
-	// Directories immediately below .launchdarkly are project scopes. Files at
-	// the root, including the manifest, are handled by their owning packages.
+	var variations []syncdomain.SyncedResource
 	for _, entry := range entries {
+		// Each directory is a project. Files in the managed directory itself
+		// are not resources.
 		if !entry.IsDir() {
 			continue
 		}
-
-		variations, err := compileProjectVariations(fsys, entry.Name(), readReference)
+		projectVariations, err := compileProject(fsys, entry.Name(), readReference)
 		if err != nil {
 			return nil, err
 		}
-
-		resources = append(resources, variations...)
+		variations = append(variations, projectVariations...)
 	}
 
-	slices.SortFunc(resources, compareResources)
-
-	return resources, nil
+	slices.SortFunc(variations, func(left, right syncdomain.SyncedResource) int {
+		return syncdomain.CompareResourceIDs(left.ID(), right.ID())
+	})
+	return variations, nil
 }
 
-// compileProjectVariations turns every supported wrapper in one project into
-// the common resource representation consumed by reconciliation.
-func compileProjectVariations(
+// compileProject reads every variation file in one project.
+func compileProject(
 	fsys fs.FS,
 	projectKey string,
 	readReference func(Reference) ([]byte, error),
 ) ([]syncdomain.SyncedResource, error) {
-	dir := path.Join(syncdomain.RootDir, projectKey, configsDir)
+	configsRoot := path.Join(syncdomain.RootDir, projectKey, configsDir)
+	readAttachment := func(kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
+		return readAttachment(fsys, projectKey, kind, key)
+	}
 
-	var resources []syncdomain.SyncedResource
-
-	err := fs.WalkDir(fsys, dir, func(name string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			// A project may legitimately contain no resources of this kind.
-			if name == dir && errors.Is(err, fs.ErrNotExist) {
-				return nil
-			}
+	var variations []syncdomain.SyncedResource
+	err := fs.WalkDir(fsys, configsRoot, func(name string, entry fs.DirEntry, err error) error {
+		switch {
+		case name == configsRoot && errors.Is(err, fs.ErrNotExist):
+			// A project can have no variations.
+			return nil
+		case err != nil:
 			return err
-		}
-		if entry.IsDir() {
+		case entry.IsDir():
 			return nil
 		}
-
-		relPath := strings.TrimPrefix(name, dir+"/")
-		// Ignore files owned by other resource kinds. Each compiler recognizes
-		// only its own directory shape and suffix.
-		if relPath == name || !isVariationFile(relPath) {
+		if id, ok := ParseManagedPath(name); !ok || id.Kind != syncdomain.KindVariation {
 			return nil
 		}
 
@@ -147,37 +131,21 @@ func compileProjectVariations(
 		if err != nil {
 			return err
 		}
-
-		resource, err := parseVariation(localFile{
-			ProjectKey:    projectKey,
-			RelPath:       relPath,
-			Data:          data,
-			ReadReference: readReference,
-			ReadAttachment: func(kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error) {
-				return readAttachment(fsys, projectKey, kind, key)
-			},
+		variation, err := parseVariation(localFile{
+			ProjectKey:     projectKey,
+			RelPath:        strings.TrimPrefix(name, configsRoot+"/"),
+			Data:           data,
+			ReadReference:  readReference,
+			ReadAttachment: readAttachment,
 		})
 		if err != nil {
-			// Preserve the managed path so users can locate malformed content
-			// while callers can still inspect the parser error through Unwrap.
 			return ParseError{Path: name, Err: err}
 		}
-
-		resources = append(resources, resource)
-
+		variations = append(variations, variation)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-
-	return resources, nil
-}
-
-// compareResources provides deterministic project and lookup-key ordering.
-func compareResources(a, b syncdomain.SyncedResource) int {
-	return cmp.Or(
-		cmp.Compare(a.ProjectKey, b.ProjectKey),
-		cmp.Compare(a.LookupKey, b.LookupKey),
-	)
+	return variations, nil
 }

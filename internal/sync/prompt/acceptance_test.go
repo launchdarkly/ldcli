@@ -315,8 +315,8 @@ func TestPromptAttachesLatestToolToManagedVariation(t *testing.T) {
 	resources, err := synclocal.CompileWorkspace(root)
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	require.Len(t, resources[0].Attachments, 1)
-	assert.Equal(t, "search", resources[0].Attachments[0].Key())
+	require.Len(t, resources[0].Variation.Attachments, 1)
+	assert.Equal(t, "search", resources[0].Variation.Attachments[0].Key())
 	_, err = os.Stat(filepath.Join(root, ".launchdarkly", "production", "tools", "search.json"))
 	require.NoError(t, err)
 
@@ -391,7 +391,7 @@ func TestPromptRejectsSkillAttachmentForCompletionVariation(t *testing.T) {
 	resources, compileErr := synclocal.CompileWorkspace(root)
 	require.NoError(t, compileErr)
 	require.Len(t, resources, 1)
-	assert.Empty(t, resources[0].Attachments)
+	assert.Empty(t, resources[0].Variation.Attachments)
 }
 
 func TestPromptCreatesMissingToolWhenUpsertIsEnabled(t *testing.T) {
@@ -597,8 +597,7 @@ func TestPromptPullsServerChangeAndAdvancesManifest(t *testing.T) {
 	resources, err := synclocal.Compile(os.DirFS(root))
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	var actual syncdomain.Variation
-	require.NoError(t, json.Unmarshal(resources[0].Payload, &actual))
+	actual := resources[0].Variation
 	assert.Equal(t, server.Name, actual.Name)
 	assertManifestFingerprint(t, root, server)
 }
@@ -618,8 +617,7 @@ func TestPromptRoundTripsOutputFormat(t *testing.T) {
 	resources, err := synclocal.Compile(os.DirFS(root))
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	var pulled syncdomain.Variation
-	require.NoError(t, json.Unmarshal(resources[0].Payload, &pulled))
+	pulled := resources[0].Variation
 	assert.Equal(t, server.OutputFormat, pulled.OutputFormat)
 
 	local := server
@@ -1210,8 +1208,7 @@ func requireLocalModelConfigVersion(t *testing.T, root string, expected int) {
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 
-	var persisted syncdomain.Variation
-	require.NoError(t, json.Unmarshal(resources[0].Payload, &persisted))
+	persisted := resources[0].Variation
 	require.Equal(t, expected, persisted.ModelConfigVersion)
 }
 

@@ -147,7 +147,8 @@ func TestAttachmentVersioningDoesNotMutateReviewedVariation(t *testing.T) {
 
 	resolved, err := newAttachmentResolver(client).resolveVariation("project", variation)
 	require.NoError(t, err)
-	pinned := variationPinnedToLatest(variation)
+	pinned, err := variation.PinnedToLatest()
+	require.NoError(t, err)
 
 	assert.Equal(t, 1, variation.Tools[0].Version)
 	assert.Equal(t, 2, resolved.Tools[0].Version)
@@ -180,8 +181,6 @@ func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
 	server.Name = "Server"
 	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
 	server.Attachments[0].Version = 2
-	localPayload, err := json.Marshal(authored)
-	require.NoError(t, err)
 	resource := PlannedResource{
 		ID:                           testResourceID(),
 		Action:                       ActionUpdateLocal,
@@ -198,7 +197,7 @@ func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
 		client,
 		newAttachmentResolver(client),
 		resource,
-		syncdomain.SyncedResource{Payload: localPayload},
+		&authored,
 	)
 
 	require.NoError(t, err)

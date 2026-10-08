@@ -1,8 +1,6 @@
 package prompt
 
 import (
-	"encoding/json"
-	"fmt"
 	"maps"
 	"reflect"
 	"slices"
@@ -13,42 +11,29 @@ import (
 
 type modelConfigGetter func(projectKey, modelConfigKey string) (syncapi.ModelConfig, error)
 
-type modelConfigID struct {
-	projectKey string
-	configKey  string
-}
-
-// canonicalizeLocalVariationModels returns local resources in the
-// server-comparable shape used by planning. An omitted version uses the latest
-// versioned model config.
+// canonicalizeLocalVariationModels returns a copy of the local variations in
+// the form that LaunchDarkly stores. A variation that names a model config
+// without a version uses the latest version, and its local model settings
+// replace the settings of that model config. The input does not change.
 func canonicalizeLocalVariationModels(
-	localFileResources []syncdomain.SyncedResource,
+	localFiles []syncdomain.SyncedResource,
 	getModelConfig modelConfigGetter,
 ) ([]syncdomain.SyncedResource, error) {
-	// Clone the slice so canonical payloads cannot replace local file payloads.
-	canonicalResources := slices.Clone(localFileResources)
+	type modelConfigID struct{ projectKey, key string }
 	modelConfigs := make(map[modelConfigID]syncapi.ModelConfig)
+	canonical := slices.Clone(localFiles)
 
-	for index := range canonicalResources {
-		resource := &canonicalResources[index]
-		if resource.Kind != syncdomain.KindVariation {
-			continue
-		}
-
-		var variation syncdomain.Variation
-		if err := json.Unmarshal(resource.Payload, &variation); err != nil {
-			return nil, fmt.Errorf("decode local variation %q: %w", resource.LookupKey, err)
-		}
+	for index := range canonical {
+		variation := &canonical[index].Variation
 		if variation.ModelConfigKey == "" || variation.ModelConfigVersion != 0 {
 			continue
 		}
 
-		id := modelConfigID{projectKey: resource.ProjectKey, configKey: variation.ModelConfigKey}
+		id := modelConfigID{projectKey: canonical[index].ProjectKey, key: variation.ModelConfigKey}
 		modelConfig, ok := modelConfigs[id]
 		if !ok {
 			var err error
-			modelConfig, err = getModelConfig(id.projectKey, id.configKey)
-			if err != nil {
+			if modelConfig, err = getModelConfig(id.projectKey, id.key); err != nil {
 				return nil, err
 			}
 			modelConfigs[id] = modelConfig
@@ -57,56 +42,48 @@ func canonicalizeLocalVariationModels(
 			continue
 		}
 
+		model := modelConfig.VariationModel()
+		maps.Copy(model, variation.Model)
 		variation.ModelConfigVersion = modelConfig.Version
-		canonicalModel := modelConfig.VariationModel()
-		maps.Copy(canonicalModel, variation.Model)
-		variation.Model = canonicalModel
-		payload, err := json.Marshal(variation)
-		if err != nil {
-			return nil, fmt.Errorf("encode canonical variation %q: %w", resource.LookupKey, err)
-		}
-		resource.Payload = payload
+		variation.Model = model
 	}
-
-	return canonicalResources, nil
+	return canonical, nil
 }
 
-// variationForLocalFile converts server state into local file form. It retains
-// model keys from the file and new server values as overrides.
-func variationForLocalFile(
-	serverVariation syncdomain.Variation,
-	canonicalLocalVariation *syncdomain.Variation,
-	localFileResource syncdomain.SyncedResource,
-) (syncdomain.Variation, error) {
-	if len(localFileResource.Payload) == 0 || canonicalLocalVariation == nil {
-		return serverVariation, nil
+// variationForLocalFile converts a LaunchDarkly variation to the form of the
+// local file. If the local file names a model config without a version, the
+// result keeps that form. It removes each model value that the model config
+// supplies and that the local file does not set. A new server value stays as
+// a local override.
+//
+// localFile is the variation as the file stores it. canonicalLocal is the same
+// variation after canonicalizeLocalVariationModels. Both are nil when the
+// variation has no local file.
+func variationForLocalFile(server syncdomain.Variation, localFile, canonicalLocal *syncdomain.Variation) syncdomain.Variation {
+	if localFile == nil || canonicalLocal == nil {
+		return server
+	}
+	if localFile.ModelConfigKey == "" || localFile.ModelConfigVersion != 0 {
+		return server
+	}
+	// A server variation that names a different model config, or a different
+	// version, is an explicit change. Keep it as LaunchDarkly stores it.
+	if server.ModelConfigKey != canonicalLocal.ModelConfigKey ||
+		server.ModelConfigVersion != canonicalLocal.ModelConfigVersion {
+		return server
 	}
 
-	var localFileVariation syncdomain.Variation
-	if err := json.Unmarshal(localFileResource.Payload, &localFileVariation); err != nil {
-		return syncdomain.Variation{}, fmt.Errorf("decode local file variation %q: %w", localFileResource.LookupKey, err)
-	}
-	if localFileVariation.ModelConfigKey == "" || localFileVariation.ModelConfigVersion != 0 {
-		return serverVariation, nil
-	}
-	// Preserve an explicit server reference when it differs from the canonical local reference.
-	if serverVariation.ModelConfigKey != canonicalLocalVariation.ModelConfigKey ||
-		serverVariation.ModelConfigVersion != canonicalLocalVariation.ModelConfigVersion {
-		return serverVariation, nil
-	}
-
-	serverVariation.ModelConfigVersion = 0
-	// Clone the server model before removing canonical fields from the local form.
-	serverVariation.Model = maps.Clone(serverVariation.Model)
-	for key, value := range serverVariation.Model {
-		_, definedInLocalFile := localFileVariation.Model[key]
-		canonicalValue, presentInCanonical := canonicalLocalVariation.Model[key]
-		if !definedInLocalFile && presentInCanonical && reflect.DeepEqual(value, canonicalValue) {
-			delete(serverVariation.Model, key)
+	server.ModelConfigVersion = 0
+	server.Model = maps.Clone(server.Model)
+	for key, value := range server.Model {
+		_, setInFile := localFile.Model[key]
+		inherited, fromModelConfig := canonicalLocal.Model[key]
+		if !setInFile && fromModelConfig && reflect.DeepEqual(value, inherited) {
+			delete(server.Model, key)
 		}
 	}
-	if len(serverVariation.Model) == 0 {
-		serverVariation.Model = nil
+	if len(server.Model) == 0 {
+		server.Model = nil
 	}
-	return serverVariation, nil
+	return server
 }

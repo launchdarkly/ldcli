@@ -41,7 +41,7 @@ func TestLoadResourcesUnionsLocalAndManifestResources(t *testing.T) {
 	resources, _, err := loadResources(root, manifestStore, []string{"project"})
 
 	require.NoError(t, err)
-	assert.Equal(t, []Resource{
+	assert.Equal(t, []syncdomain.ResourceID{
 		{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/local"},
 		{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/manifest-only"},
 	}, resources)
@@ -75,11 +75,11 @@ func TestDetachResourcesPrunesUnreferencedAttachmentManifestEntries(t *testing.T
 	}
 	require.NoError(t, manifestStore.Write(original))
 
-	resource := Resource{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
+	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
 	err = detachResources(
 		Options{RepositoryRoot: root, Store: store, Manifest: manifestStore},
 		original,
-		[]Resource{resource},
+		[]syncdomain.ResourceID{resource},
 	)
 
 	require.NoError(t, err)
@@ -111,8 +111,8 @@ func TestDetachResourcesRemovesWrapperAndManifestButKeepsReferencedFile(t *testi
 	}
 	require.NoError(t, manifestStore.Write(original))
 
-	resource := Resource{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
-	err = detachResources(Options{Store: store, Manifest: manifestStore}, original, []Resource{resource})
+	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt"}
+	err = detachResources(Options{Store: store, Manifest: manifestStore}, original, []syncdomain.ResourceID{resource})
 
 	require.NoError(t, err)
 	exists, err := store.VariationExists("project", "config", "prompt")
@@ -137,8 +137,8 @@ func TestDetachResourcesRemovesManifestEntryWhenWrapperWasAlreadyDeleted(t *test
 	}
 	require.NoError(t, manifestStore.Write(original))
 
-	resource := Resource{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/deleted"}
-	err := detachResources(Options{Store: store, Manifest: manifestStore}, original, []Resource{resource})
+	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/deleted"}
+	err := detachResources(Options{Store: store, Manifest: manifestStore}, original, []syncdomain.ResourceID{resource})
 
 	require.NoError(t, err)
 	manifest, err := manifestStore.Load([]string{"project"})
@@ -154,12 +154,12 @@ func TestDetachResourcesDeletesUnreadableWrapper(t *testing.T) {
 
 	store := synclocal.NewStore(root)
 	manifestStore := newMemoryManifestStore()
-	resource := Resource{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/broken"}
+	resource := syncdomain.ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/broken"}
 
 	err := detachResources(
 		Options{Store: store, Manifest: manifestStore},
 		syncmanifest.New(),
-		[]Resource{resource},
+		[]syncdomain.ResourceID{resource},
 	)
 
 	require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestRunUsesExplicitSelectionsWithoutTerminal(t *testing.T) {
 		ProjectKey: "project", ConfigKey: "config", Variation: testVariation("prompt"),
 	}})
 	require.NoError(t, err)
-	selection := Resource{
+	selection := syncdomain.ResourceID{
 		Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/prompt",
 	}
 	manifestStore := newMemoryManifestStore()
@@ -207,7 +207,7 @@ func TestRunUsesExplicitSelectionsWithoutTerminal(t *testing.T) {
 		Manifest:       manifestStore,
 		Input:          bytes.NewBuffer(nil),
 		Output:         bytes.NewBuffer(nil),
-		Selections:     []Resource{selection},
+		Selections:     []syncdomain.ResourceID{selection},
 		NoInput:        true,
 	})
 

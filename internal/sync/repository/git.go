@@ -34,9 +34,8 @@ func (execGit) lookPath(name string) (string, error) {
 func (execGit) output(dir string, args ...string) (string, string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	// Repository discovery recognizes Git's stable English "not a git
-	// repository" diagnostic. Fix the subprocess locale so classification does
-	// not change with the user's system language.
+	// Repository discovery looks for the English "not a git repository"
+	// message. A fixed locale keeps that message the same in every language.
 	cmd.Env = append(os.Environ(), "LC_ALL=C")
 
 	out, err := cmd.Output()

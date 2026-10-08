@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -121,6 +122,56 @@ func TestStoreReportsOptimisticConflict(t *testing.T) {
 	_, err := store.Update(previous, next)
 
 	require.ErrorContains(t, err, `sync manifest for project "project" changed in LaunchDarkly`)
+}
+
+func TestStoreReadsBackAnUncertainPatchThatSucceeded(t *testing.T) {
+	applied := syncapi.SyncManifest{
+		Source: "git:example/repo",
+		Items: []syncapi.SyncManifestResource{{
+			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/variation",
+			Fingerprint: fingerprint("b"), Version: 2,
+		}},
+	}
+	client := &manifestClient{
+		manifests: map[string]syncapi.SyncManifest{"project": applied},
+		patchErr:  uncertainPatchError(t),
+	}
+	previous := Manifest{Resources: []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
+		Fingerprint: fingerprint("a"), Version: 1,
+	}}}
+	next := previous.Clone()
+	next.Resources[0].Fingerprint = fingerprint("b")
+
+	updated, err := NewStore(client, "git:example/repo").Update(previous, next)
+
+	require.NoError(t, err)
+	require.Equal(t, []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
+		Fingerprint: fingerprint("b"), Version: 2,
+	}}, updated.Resources)
+}
+
+// uncertainPatchError returns the error that the API client reports when a
+// patch fails before LaunchDarkly sends a response.
+func uncertainPatchError(t *testing.T) error {
+	t.Helper()
+	transport := &failingTransport{err: errors.New("connection reset")}
+	_, err := syncapi.NewClient(transport, "token", "https://example.com").PatchSyncManifest("project", "source", nil, nil)
+	require.True(t, syncapi.MutationMayHaveSucceeded(err))
+	return err
+}
+
+type failingTransport struct {
+	err error
+}
+
+func (transport *failingTransport) MakeRequest(string, string, string, string, url.Values, []byte, bool) ([]byte, error) {
+	return nil, transport.err
+}
+
+func (transport *failingTransport) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, transport.err
 }
 
 func TestManifestValidation(t *testing.T) {
