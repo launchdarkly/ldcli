@@ -34,7 +34,7 @@ jobs:
     outputs:
       images_and_digests: ${{ steps.publish.outputs.images_and_digests }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         name: Checkout
         with:
           fetch-depth: 0
@@ -92,7 +92,7 @@ jobs:
       id-token: write
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         name: Checkout
         with:
           fetch-depth: 0
