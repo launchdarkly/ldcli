@@ -772,7 +772,7 @@ func TestPromptStaleWorkingCopyPullsInsteadOfReverting(t *testing.T) {
 	// Another working copy syncs a change. The shared remote manifest moves.
 	other := variation("Other working copy")
 	api.variation = pointer(other)
-	writeManifest(t, root, other)
+	writeRemoteManifest(t, root, other)
 	manifestsByRoot[root].Items[0].Version = 2
 
 	_, review, err := runPrompt(t, root, api, "--yes")
@@ -789,17 +789,140 @@ func TestPromptStaleWorkingCopyPullsInsteadOfReverting(t *testing.T) {
 	assert.Equal(t, other.Name, resources[0].Variation.Name)
 }
 
-func TestPromptPropagatesTrackedLocalDeletion(t *testing.T) {
+func TestPromptRestoresLinkedVariationWithItsLink(t *testing.T) {
+	root := initRepository(t)
+	api := syncLinkedVariation(t, root)
+	deleteVariationFile(t, root)
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.NotNil(t, resources[0].Ref)
+	assert.Equal(t, "prompts/default.md", resources[0].Ref.File)
+
+	// An edit in the linked file still reaches LaunchDarkly.
+	require.NoError(t, os.WriteFile(filepath.Join(root, "prompts", "default.md"), []byte("Edited prompt\n"), 0o644))
+	_, _, err = runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	assert.Equal(t, "Edited prompt", api.variation.Instructions)
+}
+
+func TestPromptStopsRestoreWhenLinkedFileIsNotSafe(t *testing.T) {
+	tests := map[string]struct {
+		change    func(t *testing.T, linkedFile string)
+		wantError string
+	}{
+		"linked file is missing": {
+			change:    func(t *testing.T, linkedFile string) { require.NoError(t, os.Remove(linkedFile)) },
+			wantError: `its linked file "prompts/default.md" is not available`,
+		},
+		"linked file has local edits": {
+			change: func(t *testing.T, linkedFile string) {
+				require.NoError(t, os.WriteFile(linkedFile, []byte("Local edit\n"), 0o644))
+			},
+			wantError: `its linked file "prompts/default.md" differs from LaunchDarkly`,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			api := syncLinkedVariation(t, root)
+			deleteVariationFile(t, root)
+			test.change(t, filepath.Join(root, "prompts", "default.md"))
+
+			_, _, err := runPrompt(t, root, api, "--yes")
+
+			require.ErrorContains(t, err, test.wantError)
+			assert.Equal(t, "Linked prompt", api.variation.Instructions)
+			_, statErr := os.Stat(filepath.Join(root, syncdomain.RootDir, "production", "configs", "support", "default.prompt.md"))
+			assert.ErrorIs(t, statErr, os.ErrNotExist)
+		})
+	}
+}
+
+func TestPromptDetachArchive(t *testing.T) {
+	tests := map[string]struct {
+		arguments []string
+		wantError string
+	}{
+		"archive with --yes": {
+			arguments: []string{"--archive", "--yes", "--no-input"},
+		},
+		"archive without --yes": {
+			arguments: []string{"--archive", "--no-input"},
+			wantError: "rerun with --yes",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			baseline := variation("Baseline")
+			writeVariation(t, root, baseline, false)
+			writeManifest(t, root, baseline)
+			api := &directAPI{variation: pointer(baseline)}
+			_, _, err := runPrompt(t, root, api, "--yes")
+			require.NoError(t, err)
+
+			_, _, err = runPrompt(t, root, api, append([]string{"detach", "production/support/default"}, test.arguments...)...)
+
+			variationFile := filepath.Join(root, syncdomain.RootDir, "production", "configs", "support", "default.prompt.md")
+			_, statErr := os.Stat(variationFile)
+			if test.wantError != "" {
+				require.ErrorContains(t, err, test.wantError)
+				assert.NotEqual(t, "archived", api.variationState)
+				assert.NoError(t, statErr)
+				assert.NotEmpty(t, manifestsByRoot[root].Items)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "archived", api.variationState)
+			assert.ErrorIs(t, statErr, os.ErrNotExist)
+			assert.Empty(t, manifestsByRoot[root].Items)
+			// The lock had only this variation, so detach removes the file.
+			_, statErr = os.Stat(filepath.Join(root, syncdomain.RootDir, "sync.lock"))
+			assert.ErrorIs(t, statErr, os.ErrNotExist)
+		})
+	}
+}
+
+// syncLinkedVariation writes a linked variation that matches LaunchDarkly and
+// runs one sync, so that sync.lock records the link.
+func syncLinkedVariation(t *testing.T, root string) *directAPI {
+	t.Helper()
+	linked := variation("Linked")
+	writeLinkedVariation(t, root, linked, "Linked prompt")
+	linked.Instructions = "Linked prompt"
+	api := &directAPI{variation: pointer(linked)}
+	_, _, err := runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+	return api
+}
+
+func deleteVariationFile(t *testing.T, root string) {
+	t.Helper()
+	_, err := synclocal.NewStore(root).DeleteVariations([]synclocal.VariationDeletion{{
+		ProjectKey: "production", ConfigKey: "support", VariationKey: "default",
+	}})
+	require.NoError(t, err)
+}
+
+func TestPromptRestoresTrackedMissingFileInsteadOfArchiving(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
 	writeVariation(t, root, baseline, false)
-	writeManifest(t, root, baseline)
 	api := &directAPI{variation: pointer(baseline)}
 
-	// The first sync writes sync.lock, which tracks the project after its
-	// files are gone.
+	// The first sync adopts the file that matches LaunchDarkly and writes the lock.
 	_, _, err := runPrompt(t, root, api, "--yes")
 	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir, "sync.lock"))
+	require.NoError(t, err)
+
 	_, err = synclocal.NewStore(root).DeleteVariations([]synclocal.VariationDeletion{{
 		ProjectKey: "production", ConfigKey: "support", VariationKey: "default",
 	}})
@@ -808,9 +931,44 @@ func TestPromptPropagatesTrackedLocalDeletion(t *testing.T) {
 	_, _, err = runPrompt(t, root, api, "--yes")
 
 	require.NoError(t, err)
-	require.NotNil(t, api.variation)
-	assert.Equal(t, "archived", api.variationState)
-	assert.Empty(t, manifestsByRoot[root].Items)
+	assert.NotEqual(t, "archived", api.variationState)
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	assert.Equal(t, baseline.Name, resources[0].Variation.Name)
+	assert.NotEmpty(t, manifestsByRoot[root].Items)
+}
+
+// The remote manifest is shared by every branch. A working copy without a
+// sync.lock file must not restore, archive, or record a variation that only
+// another branch syncs.
+func TestPromptWithoutSyncLockIgnoresVariationsOfOtherBranches(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeRemoteManifest(t, root, baseline)
+	remote := manifestsByRoot[root]
+	remote.Items = append(remote.Items, syncapi.SyncManifestResource{
+		ResourceKind:      syncdomain.KindVariation,
+		ResourceLookupKey: "billing/default",
+		Fingerprint:       remote.Items[0].Fingerprint,
+		Version:           1,
+	})
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.False(t, slices.ContainsFunc(api.requests, func(request string) bool {
+		return strings.Contains(request, "/billing")
+	}), "sync read a variation that this working copy never synced")
+	_, statErr := os.Stat(filepath.Join(root, syncdomain.RootDir, "production", "configs", "billing"))
+	assert.ErrorIs(t, statErr, os.ErrNotExist)
+	assert.Len(t, manifestsByRoot[root].Items, 2)
+	lock, err := os.ReadFile(filepath.Join(root, syncdomain.RootDir, "sync.lock"))
+	require.NoError(t, err)
+	assert.Contains(t, string(lock), "key: support/default")
+	assert.NotContains(t, string(lock), "billing")
 }
 
 func TestPromptPropagatesTrackedServerDeletion(t *testing.T) {
@@ -1029,7 +1187,7 @@ func runPrompt(t *testing.T, root string, client resources.Client, arguments ...
 		api.manifest = manifest
 	}
 	args := []string{
-		"sync", "prompt",
+		"sync", "prompts",
 		"--access-token", "token",
 		"--base-uri", "https://example.test",
 	}
@@ -1176,7 +1334,18 @@ func writeManifest(t *testing.T, root string, value syncdomain.Variation) {
 	writeManifestResources(t, root, value)
 }
 
+// writeManifestResources records values as the baseline of a working copy
+// that synced them. It writes the sync.lock file and the remote manifest.
 func writeManifestResources(t *testing.T, root string, values ...syncdomain.Variation) {
+	t.Helper()
+	manifest := writeRemoteManifest(t, root, values...)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, syncdomain.RootDir), 0o755))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), manifest))
+}
+
+// writeRemoteManifest writes only the remote manifest, as another working
+// copy does when it syncs.
+func writeRemoteManifest(t *testing.T, root string, values ...syncdomain.Variation) syncmanifest.Manifest {
 	t.Helper()
 	manifest := syncmanifest.New()
 	for _, value := range values {
@@ -1195,6 +1364,7 @@ func writeManifestResources(t *testing.T, root string, values ...syncdomain.Vari
 		})
 	}
 	manifestsByRoot[root] = remote
+	return manifest
 }
 
 func assertManifestFingerprint(t *testing.T, root string, value syncdomain.Variation) {

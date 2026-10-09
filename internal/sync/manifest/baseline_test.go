@@ -27,12 +27,10 @@ resources:
     project: production
     key: search
     fingerprint: `+fingerprint("b")+`
-    version: 2
   - kind: variation
     project: production
     key: support/default
     fingerprint: `+fingerprint("a")+`
-    version: 6
 `, string(content))
 
 	decoded, err := decodeLock(content)
@@ -51,17 +49,33 @@ func TestDecodeLockRejectsInvalidContent(t *testing.T) {
 	}
 }
 
-func TestBaselineStoreUsesRemoteManifestWithoutLockFile(t *testing.T) {
-	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("a"), 3)}}
+// Other branches add entries to the shared remote manifest. A working copy
+// without a sync.lock file must not track them.
+func TestBaselineStoreWithoutLockFileTracksNothing(t *testing.T) {
+	client := &manifestClient{
+		manifests:      map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("a"), 3)},
+		patchResponses: []syncapi.SyncManifest{remoteManifest(fingerprint("b"), 4)},
+	}
 	lock := &memoryLock{}
+	store := NewBaselineStore(NewStore(client, testSource), lock)
 
-	baseline, err := NewBaselineStore(NewStore(client, testSource), lock).Load([]string{"production"})
+	baseline, err := store.Load([]string{"production"})
 
 	require.NoError(t, err)
-	assert.False(t, baseline.HasLockFile())
-	require.Len(t, baseline.Lock.Resources, 1)
-	assert.Equal(t, fingerprint("a"), baseline.Lock.Resources[0].Fingerprint)
+	assert.Empty(t, baseline.Lock.Resources)
 	assert.False(t, baseline.Stale(variationID()))
+
+	// A new entry for a resource that the remote manifest has must send the
+	// remote version that sync read.
+	next := baseline.Lock.Clone()
+	next.SetFingerprint(variationID(), fingerprint("b"))
+	_, err = store.Save(baseline, next)
+	require.NoError(t, err)
+	require.Len(t, client.patches, 1)
+	assert.Equal(t, []syncapi.SyncManifestUpsert{
+		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Fingerprint: fingerprint("b"), Version: 3},
+	}, client.patches[0].upserts)
+	assert.NotNil(t, lock.content)
 }
 
 func TestBaselineStoreUsesLockFileAsBaselineAndReportsStaleness(t *testing.T) {
@@ -71,7 +85,6 @@ func TestBaselineStoreUsesLockFileAsBaselineAndReportsStaleness(t *testing.T) {
 	baseline, err := NewBaselineStore(NewStore(client, testSource), lock).Load(nil)
 
 	require.NoError(t, err)
-	assert.True(t, baseline.HasLockFile())
 	assert.Equal(t, fingerprint("a"), baseline.Lock.Resources[0].Fingerprint)
 	assert.True(t, baseline.Stale(variationID()))
 }
@@ -100,7 +113,7 @@ func TestBaselineStaleComparesFingerprints(t *testing.T) {
 
 // The version in each request must be the version that sync read from
 // LaunchDarkly, so that LaunchDarkly rejects a save that races another save.
-func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLock(t *testing.T) {
+func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLockWithoutThem(t *testing.T) {
 	client := &manifestClient{
 		manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("b"), 5)},
 		patchResponses: []syncapi.SyncManifest{{
@@ -127,10 +140,10 @@ func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLock(t *testing.T) {
 		{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 0},
 		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Fingerprint: fingerprint("c"), Version: 5},
 	}, client.patches[0].upserts)
-	written, _, err := ReadLock(lock)
+	written, err := ReadLock(lock)
 	require.NoError(t, err)
 	assert.Equal(t, saved.Lock, written)
-	assert.Equal(t, 6, written.Resources[written.index(variationID())].Version)
+	assert.NotContains(t, string(lock.content), "version:")
 	assert.False(t, saved.Stale(variationID()))
 }
 
@@ -219,4 +232,26 @@ func (lock *memoryLock) ReadLock() ([]byte, error) {
 func (lock *memoryLock) WriteLock(content []byte) error {
 	lock.content = content
 	return nil
+}
+
+func TestLockKeepsTheLinkOfAVariation(t *testing.T) {
+	manifest := Manifest{Resources: []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default",
+		Fingerprint: fingerprint("a"), Version: 1,
+	}}}
+	ref := &syncdomain.Reference{File: "prompts/support.md", Format: "plain-markdown"}
+	manifest.SetRefs([]syncdomain.SyncedResource{{
+		Kind: syncdomain.KindVariation, ProjectKey: "production", LookupKey: "support/default", Ref: ref,
+	}})
+
+	content, err := encodeLock(manifest)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "    ref:\n      file: prompts/support.md\n      format: plain-markdown\n")
+	decoded, err := decodeLock(content)
+	require.NoError(t, err)
+	assert.Equal(t, ref, decoded.Ref(variationID()))
+
+	// A variation without a local file keeps its recorded link.
+	manifest.SetRefs(nil)
+	assert.Equal(t, ref, manifest.Ref(variationID()))
 }

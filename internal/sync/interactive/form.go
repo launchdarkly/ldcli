@@ -332,11 +332,23 @@ func (model *searchModel[T]) rebuildList(loadedMore bool) {
 
 // Select asks the user to choose one value.
 func Select[T any](input io.Reader, output io.Writer, title string, choices []Choice[T]) (T, bool, error) {
-	return SelectContext(context.Background(), input, output, title, choices)
+	return selectChoice(context.Background(), input, output, title, choices, true)
 }
 
-// SelectContext asks the user to choose one value and stops when the context ends.
-func SelectContext[T any](ctx context.Context, input io.Reader, output io.Writer, title string, choices []Choice[T]) (T, bool, error) {
+// SelectInline asks the user to choose one value below the current output,
+// so that the text above the question stays visible. It stops when ctx ends.
+func SelectInline[T any](ctx context.Context, input io.Reader, output io.Writer, title string, choices []Choice[T]) (T, bool, error) {
+	return selectChoice(ctx, input, output, title, choices, false)
+}
+
+func selectChoice[T any](
+	ctx context.Context,
+	input io.Reader,
+	output io.Writer,
+	title string,
+	choices []Choice[T],
+	fullScreen bool,
+) (T, bool, error) {
 	var zero T
 	if len(choices) == 0 {
 		return zero, false, fmt.Errorf("%s: no choices are available", title)
@@ -351,15 +363,13 @@ func SelectContext[T any](ctx context.Context, input io.Reader, output io.Writer
 	field := huh.NewSelect[int]().
 		Title(title).
 		Options(options...).
-		Height(selectionHeight).
 		Value(&selected)
+	// A select with a height pads to it. Inline, it fits its options instead.
+	if fullScreen {
+		field.Height(selectionHeight)
+	}
 
-	canceled, err := RunFormContext(
-		ctx,
-		input,
-		output,
-		field,
-	)
+	canceled, err := runForm(ctx, input, output, fullScreen, field)
 	if err != nil || canceled {
 		return zero, canceled, err
 	}
@@ -404,13 +414,18 @@ func MultiSelect[T any](input io.Reader, output io.Writer, title, description st
 
 // RunForm runs fields with the shared sync theme and terminal streams.
 func RunForm(input io.Reader, output io.Writer, fields ...huh.Field) (bool, error) {
-	return RunFormContext(context.Background(), input, output, fields...)
+	return runForm(context.Background(), input, output, true, fields...)
 }
 
-// RunFormContext runs fields until they complete, abort, or the context ends.
-func RunFormContext(ctx context.Context, input io.Reader, output io.Writer, fields ...huh.Field) (bool, error) {
+// runForm runs fields until they complete, abort, or ctx ends. A full screen
+// form gives a long list the whole terminal, but it hides the output above it.
+func runForm(ctx context.Context, input io.Reader, output io.Writer, fullScreen bool, fields ...huh.Field) (bool, error) {
+	programOptions := []tea.ProgramOption{tea.WithReportFocus()}
+	if fullScreen {
+		programOptions = append(programOptions, tea.WithAltScreen())
+	}
 	err := huh.NewForm(huh.NewGroup(fields...)).
-		WithProgramOptions(tea.WithAltScreen(), tea.WithReportFocus()).
+		WithProgramOptions(programOptions...).
 		WithInput(input).
 		WithOutput(output).
 		WithAccessible(false).

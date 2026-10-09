@@ -14,10 +14,7 @@ import (
 
 // Reference is the "ref" field of a linked variation. It names a file in the
 // repository and the format of that file.
-type Reference struct {
-	File   string `yaml:"file"`
-	Format string `yaml:"format"`
-}
+type Reference = syncdomain.Reference
 
 // NewReference converts a path that the user entered to a reference. The
 // path can be relative to workingDirectory. The file must be in the repository.
@@ -108,7 +105,9 @@ func readReferenceFromFS(fsys fs.FS, reference Reference) ([]byte, error) {
 	return data, nil
 }
 
-func readWorkspaceReference(repositoryRoot string, reference Reference) ([]byte, error) {
+// ReadReference reads a linked file. It resolves symbolic links and makes sure
+// that the file is a regular file in the repository.
+func ReadReference(repositoryRoot string, reference Reference) ([]byte, error) {
 	target, err := resolveReferencePath(repositoryRoot, reference)
 	if err != nil {
 		return nil, err

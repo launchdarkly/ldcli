@@ -60,12 +60,6 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 	if !proceed {
 		if !resolved.HasChanges() {
-			// A workspace from before sync.lock gets the file on its first sync.
-			if !reviewed.baseline.HasLockFile() {
-				if _, err := workspace.baselines.Save(reviewed.baseline, reviewed.baseline.Lock); err != nil {
-					return err
-				}
-			}
 			return cleanupOrphanedAttachments(options, workspace.local, interactive)
 		}
 		return nil

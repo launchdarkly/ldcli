@@ -220,8 +220,6 @@ func actionDescription(action Action) string {
 		return "Create the variation in LaunchDarkly"
 	case ActionUpdateServer:
 		return "Update LaunchDarkly from the local file"
-	case ActionArchiveServer:
-		return "Archive the variation in LaunchDarkly"
 	case ActionUpdateLocal:
 		return "Update the local file from LaunchDarkly"
 	case ActionDeleteLocal:
@@ -241,9 +239,8 @@ func actionDescription(action Action) string {
 
 // variationDiffPresentation is the labels and the direction of a diff.
 type variationDiffPresentation struct {
-	beforeLabel  string
-	afterLabel   string
-	missingAfter string
+	beforeLabel string
+	afterLabel  string
 	// reverse shows the local file as "before", because the local file changes.
 	reverse bool
 }
@@ -255,10 +252,6 @@ func diffPresentation(action Action) variationDiffPresentation {
 		return variationDiffPresentation{beforeLabel: "Local file now", afterLabel: "Local file after sync", reverse: true}
 	case ActionCreateServer, ActionUpdateServer:
 		return variationDiffPresentation{beforeLabel: "LaunchDarkly now", afterLabel: "LaunchDarkly after sync"}
-	case ActionArchiveServer:
-		return variationDiffPresentation{
-			beforeLabel: "LaunchDarkly now", afterLabel: "LaunchDarkly after sync", missingAfter: "(archived in LaunchDarkly)",
-		}
 	default:
 		return variationDiffPresentation{beforeLabel: "LaunchDarkly now", afterLabel: "Local file now"}
 	}
