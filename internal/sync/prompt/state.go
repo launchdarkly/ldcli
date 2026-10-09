@@ -99,11 +99,6 @@ func planRestore(repositoryRoot string, baseline syncmanifest.Baseline, resource
 		resource.Action = ActionError
 		resource.Error = "the variation file is missing, and " + problem + ". " + fix
 	}
-	if !baseline.HasLockFile() {
-		fail("this working copy has no sync.lock to show whether the file linked to a prompt file",
-			"Restore the file from Git, or stop syncing the variation with detach")
-		return
-	}
 	ref := baseline.Lock.Ref(resource.ID)
 	if ref == nil {
 		return
@@ -159,7 +154,7 @@ func (workspace syncWorkspace) projectKeys() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	lock, _, err := syncmanifest.ReadLock(workspace.local)
+	lock, err := syncmanifest.ReadLock(workspace.local)
 	if err != nil {
 		return nil, err
 	}

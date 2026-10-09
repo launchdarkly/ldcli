@@ -772,7 +772,7 @@ func TestPromptStaleWorkingCopyPullsInsteadOfReverting(t *testing.T) {
 	// Another working copy syncs a change. The shared remote manifest moves.
 	other := variation("Other working copy")
 	api.variation = pointer(other)
-	writeManifest(t, root, other)
+	writeRemoteManifest(t, root, other)
 	manifestsByRoot[root].Items[0].Version = 2
 
 	_, review, err := runPrompt(t, root, api, "--yes")
@@ -897,7 +897,6 @@ func syncLinkedVariation(t *testing.T, root string) *directAPI {
 	linked := variation("Linked")
 	writeLinkedVariation(t, root, linked, "Linked prompt")
 	linked.Instructions = "Linked prompt"
-	writeManifest(t, root, linked)
 	api := &directAPI{variation: pointer(linked)}
 	_, _, err := runPrompt(t, root, api, "--yes")
 	require.NoError(t, err)
@@ -916,10 +915,9 @@ func TestPromptRestoresTrackedMissingFileInsteadOfArchiving(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
 	writeVariation(t, root, baseline, false)
-	writeManifest(t, root, baseline)
 	api := &directAPI{variation: pointer(baseline)}
 
-	// The first sync of a workspace from before sync.lock writes the lock.
+	// The first sync adopts the file that matches LaunchDarkly and writes the lock.
 	_, _, err := runPrompt(t, root, api, "--yes")
 	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir, "sync.lock"))
@@ -939,6 +937,38 @@ func TestPromptRestoresTrackedMissingFileInsteadOfArchiving(t *testing.T) {
 	require.Len(t, resources, 1)
 	assert.Equal(t, baseline.Name, resources[0].Variation.Name)
 	assert.NotEmpty(t, manifestsByRoot[root].Items)
+}
+
+// The remote manifest is shared by every branch. A working copy without a
+// sync.lock file must not restore, archive, or record a variation that only
+// another branch syncs.
+func TestPromptWithoutSyncLockIgnoresVariationsOfOtherBranches(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeRemoteManifest(t, root, baseline)
+	remote := manifestsByRoot[root]
+	remote.Items = append(remote.Items, syncapi.SyncManifestResource{
+		ResourceKind:      syncdomain.KindVariation,
+		ResourceLookupKey: "billing/default",
+		Fingerprint:       remote.Items[0].Fingerprint,
+		Version:           1,
+	})
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.False(t, slices.ContainsFunc(api.requests, func(request string) bool {
+		return strings.Contains(request, "/billing")
+	}), "sync read a variation that this working copy never synced")
+	_, statErr := os.Stat(filepath.Join(root, syncdomain.RootDir, "production", "configs", "billing"))
+	assert.ErrorIs(t, statErr, os.ErrNotExist)
+	assert.Len(t, manifestsByRoot[root].Items, 2)
+	lock, err := os.ReadFile(filepath.Join(root, syncdomain.RootDir, "sync.lock"))
+	require.NoError(t, err)
+	assert.Contains(t, string(lock), "key: support/default")
+	assert.NotContains(t, string(lock), "billing")
 }
 
 func TestPromptPropagatesTrackedServerDeletion(t *testing.T) {
@@ -1304,7 +1334,18 @@ func writeManifest(t *testing.T, root string, value syncdomain.Variation) {
 	writeManifestResources(t, root, value)
 }
 
+// writeManifestResources records values as the baseline of a working copy
+// that synced them. It writes the sync.lock file and the remote manifest.
 func writeManifestResources(t *testing.T, root string, values ...syncdomain.Variation) {
+	t.Helper()
+	manifest := writeRemoteManifest(t, root, values...)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, syncdomain.RootDir), 0o755))
+	require.NoError(t, syncmanifest.WriteLock(synclocal.NewStore(root), manifest))
+}
+
+// writeRemoteManifest writes only the remote manifest, as another working
+// copy does when it syncs.
+func writeRemoteManifest(t *testing.T, root string, values ...syncdomain.Variation) syncmanifest.Manifest {
 	t.Helper()
 	manifest := syncmanifest.New()
 	for _, value := range values {
@@ -1323,6 +1364,7 @@ func writeManifestResources(t *testing.T, root string, values ...syncdomain.Vari
 		})
 	}
 	manifestsByRoot[root] = remote
+	return manifest
 }
 
 func assertManifestFingerprint(t *testing.T, root string, value syncdomain.Variation) {
