@@ -16,9 +16,9 @@ import {
   Stack,
 } from '@launchpad-ui/core';
 import Theme from '@launchpad-ui/tokens';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Icon } from '@launchpad-ui/icons';
-import { apiRoute } from './util.ts';
+import { apiRoute, sortFlags } from './util.ts';
 import { FlagVariation } from './api.ts';
 import VariationValues from './Flag.tsx';
 import fuzzysort from 'fuzzysort';
@@ -41,6 +41,7 @@ function Flags({
   setOverrides,
 }: FlagProps) {
   const [onlyShowOverrides, setOnlyShowOverrides] = useState(false);
+  const [onlyShowLocal, setOnlyShowLocal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const flagsPerPage = 20;
@@ -50,15 +51,40 @@ function Flags({
     [overrides],
   );
 
+  const localFlagsPresent = useMemo(
+    () =>
+      !!flags && Object.keys(overrides).some((flagKey) => !(flagKey in flags)),
+    [flags, overrides],
+  );
+
   useEffect(() => {
-    if (!overridesPresent && onlyShowOverrides) {
+    if (!overridesPresent) {
       setOnlyShowOverrides(false);
     }
-  }, [overridesPresent, onlyShowOverrides]);
+  }, [overridesPresent]);
+
+  useEffect(() => {
+    if (flags && !localFlagsPresent) {
+      setOnlyShowLocal(false);
+    }
+  }, [flags, localFlagsPresent]);
+
+  const showOnlyOverrides = onlyShowOverrides && !!overridesPresent;
+  const showOnlyLocal = onlyShowLocal && localFlagsPresent;
+
+  const allFlags = useMemo(() => {
+    if (!flags) return null;
+    const localFlags = Object.fromEntries(
+      Object.entries(overrides)
+        .filter(([flagKey]) => !(flagKey in flags))
+        .map(([flagKey, { value }]) => [flagKey, { value }]),
+    );
+    return sortFlags({ ...flags, ...localFlags });
+  }, [flags, overrides]);
 
   const filteredFlags = useMemo(() => {
-    if (!flags) return [];
-    const flagEntries = Object.entries(flags);
+    if (!allFlags) return [];
+    const flagEntries = Object.entries(allFlags);
     return flagEntries
       .filter((entry) => {
         if (!searchTerm) return true;
@@ -79,13 +105,24 @@ function Flags({
         const [flagKey] = entry;
         const hasOverride = flagKey in overrides;
 
-        if (onlyShowOverrides && !hasOverride) {
+        if (showOnlyOverrides && !hasOverride) {
+          return false;
+        }
+
+        if (showOnlyLocal && (!flags || flagKey in flags)) {
           return false;
         }
 
         return true;
       });
-  }, [flags, searchTerm, onlyShowOverrides, overrides]);
+  }, [
+    allFlags,
+    flags,
+    searchTerm,
+    showOnlyOverrides,
+    showOnlyLocal,
+    overrides,
+  ]);
 
   const paginatedFlags = useMemo(() => {
     const startIndex = currentPage * flagsPerPage;
@@ -213,11 +250,11 @@ function Flags({
       >
         <Label
           htmlFor="only-show-overrides"
-          className="only-show-overrides-label"
+          className={`only-show-overrides-label${overridesPresent ? '' : ' disabled'}`}
         >
           <Checkbox
             id="only-show-overrides"
-            isSelected={onlyShowOverrides}
+            isSelected={showOnlyOverrides}
             onChange={(newValue) => {
               setOnlyShowOverrides(newValue);
             }}
@@ -229,6 +266,26 @@ function Flags({
           />
           Only show flags with overrides
         </Label>
+        {localFlagsPresent && (
+          <Label
+            htmlFor="only-show-local"
+            className="only-show-overrides-label"
+            style={{ marginLeft: '1.5rem', marginRight: 'auto' }}
+          >
+            <Checkbox
+              id="only-show-local"
+              isSelected={showOnlyLocal}
+              onChange={(newValue) => {
+                setOnlyShowLocal(newValue);
+              }}
+              style={{
+                display: 'inline-block',
+                marginRight: '.25rem',
+              }}
+            />
+            Only show local flags
+          </Label>
+        )}
         <Button
           variant="destructive"
           isDisabled={!overridesPresent}
