@@ -213,7 +213,7 @@ func sharesChangedAttachment(left, right PlannedResource) bool {
 
 // promptConflictResolution asks the user which side wins one conflict.
 func promptConflictResolution(ctx context.Context, input io.Reader, output io.Writer) (conflictChoice, error) {
-	resolution, canceled, err := syncinteractive.SelectContext(
+	resolution, canceled, err := syncinteractive.SelectInline(
 		ctx,
 		input,
 		output,
