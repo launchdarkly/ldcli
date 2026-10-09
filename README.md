@@ -106,6 +106,32 @@ LaunchDarkly CLI commands:
 
 - `setup` guides you through creating your first flag, connecting an SDK, and evaluating your flag in your Test environment
 - `dev-server` lets you start a local server and retrieve flag values from a LaunchDarkly source environment so you can test your code locally. For assistance starting with or running dev-server, refer to the [reference docs](https://launchdarkly.com/docs/guides/flags/ldcli-dev-server).
+- `aws-devops-agent` provisions the AWS DevOps Agent integration in your own AWS account
+
+### AWS DevOps Agent
+
+`ldcli aws-devops-agent` creates the AWS resources the [AWS DevOps Agent](https://aws.amazon.com/devops-agent/) needs to manage your LaunchDarkly flags: the IAM roles it assumes, an agent space, the association with your AWS account, the operator web app, and the LaunchDarkly MCP server connection.
+
+The commands use your existing AWS session rather than any cross-account LaunchDarkly role, so authenticate first. They fail before creating anything if no credentials are available:
+
+```sh-session
+aws sso login --profile my-profile
+export AWS_PROFILE=my-profile AWS_REGION=us-east-1
+
+ldcli aws-devops-agent setup
+```
+
+The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ca-central-1`, `sa-east-1`, `ap-south-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1`, `eu-west-1` and `eu-west-2`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
+
+`setup` is safe to re-run: it reuses the IAM roles, the agent space matching `--agent-space-name`, the account and MCP associations on it, and any LaunchDarkly MCP server already registered on the account. Pass `--new-agent-space` to create an additional agent space instead. The IAM roles are account-wide and trust the agent spaces in every region, so running `setup` in a second region leaves the first one working; a role named `DevOpsAgentRole-AgentSpace` or `DevOpsAgentRole-WebappAdmin` that `setup` did not create is reused untouched, and it has to trust `aidevops.amazonaws.com` itself.
+
+`--access-token` is optional. The first available token — the flag, then `LD_ACCESS_TOKEN`, then the one already in your ldcli configuration — is registered with AWS as the bearer token the agent uses to call the LaunchDarkly MCP server, so it should be a [service token](https://launchdarkly.com/docs/home/account/api-create) whose permissions match what you want the agent to do. AWS keeps it until the MCP server is re-registered, so a session token written by `ldcli login` eventually expires and the agent then fails with `unauthorized` errors. Re-run with `--access-token <token> --replace-mcp-token` to re-register an MCP server with a different token; the token is checked against LaunchDarkly first, because AWS stores it write-only and the previous registration cannot be restored. The MCP server already registered on the account is the one serving `https://mcp.launchdarkly.com/mcp/launchdarkly`, whatever it is named: pass `--mcp-endpoint` to connect a LaunchDarkly MCP server you host yourself, or `--mcp-service-id` to point at a specific registration. The agent may call `list-projects`, `list-flags` and `get-flag` without asking, and must ask for approval before calling `toggle-flag`.
+
+With no token configured at all, `setup` prints the LaunchDarkly page where you create a service token and connects the MCP server with the token you paste there, so you do not need one ready beforehand. Pressing Enter without a token skips the step, as does running without a terminal.
+
+`setup` ends by printing the operator app URL, `https://<agent-space-id>.aidevops.global.app.aws`, which is where you use the agent, together with the AWS console page that manages it.
+
+`ldcli aws-devops-agent status` shows what exists in the account and region.
 
 ### Resource Commands
 
