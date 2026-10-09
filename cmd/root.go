@@ -409,10 +409,6 @@ See each command's help for details on how to use the generated script.`, rootCm
 	case err != nil:
 		outcome = analytics.ERROR
 		fmt.Fprintln(os.Stderr, err.Error())
-		// Give the background check a moment to write the cache. os.Exit
-		// would otherwise kill it immediately.
-		waitForUpdateNotice()
-		os.Exit(1)
 	default:
 		outcome = analytics.SUCCESS
 	}
@@ -435,6 +431,12 @@ See each command's help for details on how to use the generated script.`, rootCm
 	analyticsClient.Wait()
 
 	waitForUpdateNotice()
+
+	// Exit after the completed event is sent. os.Exit stops the process
+	// immediately, so an earlier exit lost the error event.
+	if outcome == analytics.ERROR {
+		os.Exit(1)
+	}
 }
 
 // setFlagsFromConfig reads in the config file if it exists and uses any flag values for commands.
