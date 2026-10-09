@@ -14,15 +14,8 @@ import (
 // repository. It supplies the version of each entry, which LaunchDarkly uses
 // to reject two saves of one entry at the same time.
 type Baseline struct {
-	Lock           Manifest
-	remote         Manifest
-	lockFileExists bool
-}
-
-// HasLockFile reports whether the working copy has a sync.lock file. A
-// working copy without one uses the remote manifest as its lock.
-func (baseline Baseline) HasLockFile() bool {
-	return baseline.lockFileExists
+	Lock   Manifest
+	remote Manifest
 }
 
 // Stale reports whether another working copy synced a different state of the
@@ -62,10 +55,11 @@ func NewBaselineStore(remote Store, lock LockFile) BaselineStore {
 }
 
 // Load reads the sync.lock file and the remote manifest of each project that
-// projectKeys or the lock names. A working copy without a sync.lock file uses
-// the remote manifest as its lock. Its next save then writes the file.
+// projectKeys or the lock names. A working copy without a sync.lock file
+// tracks nothing yet. The remote manifest is not its lock, because other
+// branches add entries to it that this working copy never had.
 func (store BaselineStore) Load(projectKeys []string) (Baseline, error) {
-	lock, hasLock, err := ReadLock(store.lock)
+	lock, err := ReadLock(store.lock)
 	if err != nil {
 		return Baseline{}, err
 	}
@@ -73,10 +67,7 @@ func (store BaselineStore) Load(projectKeys []string) (Baseline, error) {
 	if err != nil {
 		return Baseline{}, err
 	}
-	if !hasLock {
-		lock = remote.Clone()
-	}
-	return Baseline{Lock: lock, remote: remote, lockFileExists: hasLock}, nil
+	return Baseline{Lock: lock, remote: remote}, nil
 }
 
 // Save records next as the new baseline. It sends the entries that changed
@@ -88,9 +79,9 @@ func (store BaselineStore) Save(current Baseline, next Manifest) (Baseline, erro
 	if err != nil {
 		return Baseline{}, err
 	}
-	saved := Baseline{Lock: next.Clone(), remote: remote, lockFileExists: true}
+	saved := Baseline{Lock: next.Clone(), remote: remote}
 	saved.Lock.Sort()
-	if err := writeLock(store.lock, saved.Lock); err != nil {
+	if err := WriteLock(store.lock, saved.Lock); err != nil {
 		return Baseline{}, err
 	}
 	return saved, nil

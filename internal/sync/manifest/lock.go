@@ -29,27 +29,26 @@ type lockDocument struct {
 	Resources     []Resource `yaml:"resources"`
 }
 
-// ReadLock decodes the sync.lock file. The bool result is false when the file
-// does not exist.
-func ReadLock(lock LockFile) (Manifest, bool, error) {
+// ReadLock decodes the sync.lock file. A missing file gives an empty manifest.
+func ReadLock(lock LockFile) (Manifest, error) {
 	content, err := lock.ReadLock()
 	if errors.Is(err, fs.ErrNotExist) {
-		return New(), false, nil
+		return New(), nil
 	}
 	if err != nil {
-		return Manifest{}, false, fmt.Errorf("read sync.lock: %w", err)
+		return Manifest{}, fmt.Errorf("read sync.lock: %w", err)
 	}
 	manifest, err := decodeLock(content)
 	if err != nil {
-		return Manifest{}, false, fmt.Errorf("read sync.lock: %w", err)
+		return Manifest{}, fmt.Errorf("read sync.lock: %w", err)
 	}
-	return manifest, true, nil
+	return manifest, nil
 }
 
-// writeLock encodes the manifest to the sync.lock file. A manifest without
+// WriteLock encodes the manifest to the sync.lock file. A manifest without
 // entries removes the file, so that a workspace without resources has no
 // .launchdarkly directory.
-func writeLock(lock LockFile, manifest Manifest) error {
+func WriteLock(lock LockFile, manifest Manifest) error {
 	content, err := encodeLock(manifest)
 	if err != nil {
 		return err

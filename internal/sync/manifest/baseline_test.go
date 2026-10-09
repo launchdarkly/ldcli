@@ -49,17 +49,33 @@ func TestDecodeLockRejectsInvalidContent(t *testing.T) {
 	}
 }
 
-func TestBaselineStoreUsesRemoteManifestWithoutLockFile(t *testing.T) {
-	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("a"), 3)}}
+// Other branches add entries to the shared remote manifest. A working copy
+// without a sync.lock file must not track them.
+func TestBaselineStoreWithoutLockFileTracksNothing(t *testing.T) {
+	client := &manifestClient{
+		manifests:      map[string]syncapi.SyncManifest{"production": remoteManifest(fingerprint("a"), 3)},
+		patchResponses: []syncapi.SyncManifest{remoteManifest(fingerprint("b"), 4)},
+	}
 	lock := &memoryLock{}
+	store := NewBaselineStore(NewStore(client, testSource), lock)
 
-	baseline, err := NewBaselineStore(NewStore(client, testSource), lock).Load([]string{"production"})
+	baseline, err := store.Load([]string{"production"})
 
 	require.NoError(t, err)
-	assert.False(t, baseline.HasLockFile())
-	require.Len(t, baseline.Lock.Resources, 1)
-	assert.Equal(t, fingerprint("a"), baseline.Lock.Resources[0].Fingerprint)
+	assert.Empty(t, baseline.Lock.Resources)
 	assert.False(t, baseline.Stale(variationID()))
+
+	// A new entry for a resource that the remote manifest has must send the
+	// remote version that sync read.
+	next := baseline.Lock.Clone()
+	next.SetFingerprint(variationID(), fingerprint("b"))
+	_, err = store.Save(baseline, next)
+	require.NoError(t, err)
+	require.Len(t, client.patches, 1)
+	assert.Equal(t, []syncapi.SyncManifestUpsert{
+		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Fingerprint: fingerprint("b"), Version: 3},
+	}, client.patches[0].upserts)
+	assert.NotNil(t, lock.content)
 }
 
 func TestBaselineStoreUsesLockFileAsBaselineAndReportsStaleness(t *testing.T) {
@@ -69,7 +85,6 @@ func TestBaselineStoreUsesLockFileAsBaselineAndReportsStaleness(t *testing.T) {
 	baseline, err := NewBaselineStore(NewStore(client, testSource), lock).Load(nil)
 
 	require.NoError(t, err)
-	assert.True(t, baseline.HasLockFile())
 	assert.Equal(t, fingerprint("a"), baseline.Lock.Resources[0].Fingerprint)
 	assert.True(t, baseline.Stale(variationID()))
 }
@@ -125,7 +140,7 @@ func TestBaselineStoreSaveSendsRemoteVersionsAndWritesLockWithoutThem(t *testing
 		{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 0},
 		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Fingerprint: fingerprint("c"), Version: 5},
 	}, client.patches[0].upserts)
-	written, _, err := ReadLock(lock)
+	written, err := ReadLock(lock)
 	require.NoError(t, err)
 	assert.Equal(t, saved.Lock, written)
 	assert.NotContains(t, string(lock.content), "version:")
