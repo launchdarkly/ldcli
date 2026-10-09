@@ -1,5 +1,39 @@
 # Changelog
 
+## [3.13.0](https://github.com/launchdarkly/ldcli/compare/v3.12.0...v3.13.0) (2026-10-09)
+
+
+### Features
+
+* Add ldcli aws-devops-agent setup ([#847](https://github.com/launchdarkly/ldcli/issues/847)) ([b818ae4](https://github.com/launchdarkly/ldcli/commit/b818ae4f75f75ed9a9e226ea0aa9cb6a09fc9c21))
+* Add local flag overrides using dev server ([#837](https://github.com/launchdarkly/ldcli/issues/837)) ([6c1740f](https://github.com/launchdarkly/ldcli/commit/6c1740f8932352cdc2696e7aee20dfef676abfac))
+* **sync:** add prompt reference workspaces ([#817](https://github.com/launchdarkly/ldcli/issues/817)) ([040479a](https://github.com/launchdarkly/ldcli/commit/040479a73715d5cd34c61559bd632162e08145a3))
+* **sync:** add scriptable prompt commands ([#854](https://github.com/launchdarkly/ldcli/issues/854)) ([771608c](https://github.com/launchdarkly/ldcli/commit/771608c4894e2df7a1f471fb82c74e6cf2e38231))
+* **sync:** add searchable attachment API foundation ([#839](https://github.com/launchdarkly/ldcli/issues/839)) ([ef8ffb0](https://github.com/launchdarkly/ldcli/commit/ef8ffb03e8b2e59914d3a13cc95ccf5fc256f1a9))
+* **sync:** add the prompt sync command ([#814](https://github.com/launchdarkly/ldcli/issues/814)) ([9c9183e](https://github.com/launchdarkly/ldcli/commit/9c9183e0905a1f3c21c13383935e9d55236375b9))
+* **sync:** attach tools and skills to variations ([#841](https://github.com/launchdarkly/ldcli/issues/841)) ([94512ad](https://github.com/launchdarkly/ldcli/commit/94512adfa8a83ec7a69a67c3007a9dcafdf492ea))
+* **sync:** bootstrap prompt workspaces ([#812](https://github.com/launchdarkly/ldcli/issues/812)) ([c64ed62](https://github.com/launchdarkly/ldcli/commit/c64ed62e8c8eb43983f6fa8ce08b5ccc60620a2e))
+* **sync:** establish prompt sync foundations ([#810](https://github.com/launchdarkly/ldcli/issues/810)) ([568dff6](https://github.com/launchdarkly/ldcli/commit/568dff64bbee5b02bf19aa230951ca8910d3e22f))
+* **sync:** link and detach prompt resources ([#819](https://github.com/launchdarkly/ldcli/issues/819)) ([dfd82b2](https://github.com/launchdarkly/ldcli/commit/dfd82b25883f4ae6ee53072e5fc1c14f94669a1c))
+* **sync:** orchestrate prompt synchronization ([#820](https://github.com/launchdarkly/ldcli/issues/820)) ([dfbfa1b](https://github.com/launchdarkly/ldcli/commit/dfbfa1b55b6bf59a090d19fbd95cbe42de1b871a))
+* **sync:** persist local prompt workspaces ([#811](https://github.com/launchdarkly/ldcli/issues/811)) ([f0155d5](https://github.com/launchdarkly/ldcli/commit/f0155d58e876915bbf2f56ad1bcf41a4bf30a938))
+* **sync:** persist manifests in LaunchDarkly ([#852](https://github.com/launchdarkly/ldcli/issues/852)) ([b16faca](https://github.com/launchdarkly/ldcli/commit/b16faca3f4f457a3e1fefb6129d3a5e1ac2eba7f))
+* **sync:** persist prompt sync manifests ([#818](https://github.com/launchdarkly/ldcli/issues/818)) ([d70eb9e](https://github.com/launchdarkly/ldcli/commit/d70eb9e62c155df8ee2bc60d97cda425dabf8c61))
+* **sync:** reconcile prompt variation changes ([#813](https://github.com/launchdarkly/ldcli/issues/813)) ([f9365cf](https://github.com/launchdarkly/ldcli/commit/f9365cf000a320acfdc7ecd7e7d6af82f522c894))
+* **sync:** reconcile variation attachments ([#840](https://github.com/launchdarkly/ldcli/issues/840)) ([a112461](https://github.com/launchdarkly/ldcli/commit/a11246118a54960fee7d8d4214d5674dad6f1586))
+* **sync:** render attachment-aware review output ([#842](https://github.com/launchdarkly/ldcli/issues/842)) ([c154f79](https://github.com/launchdarkly/ldcli/commit/c154f7970297a083c59be97f0405b131357dd60a))
+* tell agents to write in Simple English, with hooks ([#833](https://github.com/launchdarkly/ldcli/issues/833)) ([c3e9c0f](https://github.com/launchdarkly/ldcli/commit/c3e9c0f2389794ab799a4c408c759003e9c835e0))
+
+
+### Bug Fixes
+
+* Add local flag overrides using dev server ([#837](https://github.com/launchdarkly/ldcli/issues/837)) ([#850](https://github.com/launchdarkly/ldcli/issues/850)) ([9197f92](https://github.com/launchdarkly/ldcli/commit/9197f925f3ce12da4eb7864a0644451d12977788))
+* **dev-server:** cap request bodies and retain at most 10k debug events ([#846](https://github.com/launchdarkly/ldcli/issues/846)) ([e381109](https://github.com/launchdarkly/ldcli/commit/e381109a8e37fa0b614e5073245e92f0aebc0a0c))
+* **dev-server:** listen on 127.0.0.1 by default ([#845](https://github.com/launchdarkly/ldcli/issues/845)) ([1854c86](https://github.com/launchdarkly/ldcli/commit/1854c86853a06f0690958c2494e2bc70a7f5311b))
+* **sync:** confirm destructive watch actions ([#835](https://github.com/launchdarkly/ldcli/issues/835)) ([6b2fb00](https://github.com/launchdarkly/ldcli/commit/6b2fb00c60ad271edb7f23f7c995e706266bdc82))
+* **sync:** guarantee prompt fingerprint convergence ([#836](https://github.com/launchdarkly/ldcli/issues/836)) ([be3865f](https://github.com/launchdarkly/ldcli/commit/be3865f9090bd92cb06f9d6a7f5ca82fee265b52))
+* **sync:** safely clean unreferenced attachments ([#843](https://github.com/launchdarkly/ldcli/issues/843)) ([6b5be42](https://github.com/launchdarkly/ldcli/commit/6b5be421d198cb6adb1092cfc9e600e5f65129ef))
+
 ## [3.12.0](https://github.com/launchdarkly/ldcli/compare/v3.11.0...v3.12.0) (2026-09-19)
 
 
