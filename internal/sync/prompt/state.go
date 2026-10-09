@@ -8,7 +8,6 @@ import (
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
-	syncrepository "github.com/launchdarkly/ldcli/internal/sync/repository"
 )
 
 // workspaceState is everything that one plan depends on. The plan compares
@@ -16,37 +15,37 @@ import (
 // stores it, so that a local write keeps the form of the file.
 type workspaceState struct {
 	projectKeys []string
-	manifest    syncmanifest.Manifest
+	baseline    syncmanifest.Baseline
 	plan        Plan
 	localFiles  map[ResourceID]syncdomain.SyncedResource
 }
 
-// loadState reads the manifest, the local files, and LaunchDarkly, and
-// builds the plan.
+// loadState reads the baseline, the local files, and LaunchDarkly, and builds
+// the plan.
 func (workspace syncWorkspace) loadState(client syncapi.Client) (workspaceState, error) {
-	projectKeys, err := discoverProjectKeys(workspace.root)
+	projectKeys, err := workspace.projectKeys()
 	if err != nil {
 		return workspaceState{}, err
 	}
-	// The manifest is the common ancestor in a three-way comparison of the
-	// local files and LaunchDarkly.
-	manifest, err := workspace.manifest.Load(projectKeys)
+	// The lock is the common ancestor in a three-way comparison of the local
+	// files and LaunchDarkly.
+	baseline, err := workspace.baselines.Load(projectKeys)
 	if err != nil {
 		return workspaceState{}, err
 	}
-	plan, localFiles, err := loadWorkspacePlan(workspace.root, manifest, client)
+	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client)
 	if err != nil {
 		return workspaceState{}, err
 	}
-	return workspaceState{projectKeys: projectKeys, manifest: manifest, plan: plan, localFiles: localFiles}, nil
+	return workspaceState{projectKeys: projectKeys, baseline: baseline, plan: plan, localFiles: localFiles}, nil
 }
 
 // loadWorkspacePlan reads the local variations and their LaunchDarkly
-// versions, and compares both with the baseline. It also returns the local
+// versions, and compares both with the lock. It also returns the local
 // variations as their files store them.
 func loadWorkspacePlan(
 	repositoryRoot string,
-	baseline syncmanifest.Manifest,
+	baseline syncmanifest.Baseline,
 	client syncapi.Client,
 ) (Plan, map[ResourceID]syncdomain.SyncedResource, error) {
 	localFiles, err := compileWorkspace(repositoryRoot)
@@ -59,12 +58,12 @@ func loadWorkspacePlan(
 	}
 
 	localFilesByID := make(map[ResourceID]syncdomain.SyncedResource, len(localFiles))
-	ids := make(map[ResourceID]struct{}, len(localFiles)+len(baseline.Resources))
+	ids := make(map[ResourceID]struct{}, len(localFiles)+len(baseline.Lock.Resources))
 	for _, resource := range localFiles {
 		localFilesByID[resource.ID()] = resource
 		ids[resource.ID()] = struct{}{}
 	}
-	for _, resource := range baseline.Resources {
+	for _, resource := range baseline.Lock.Resources {
 		if resource.ResourceKind == syncdomain.KindVariation {
 			ids[resource.ID()] = struct{}{}
 		}
@@ -79,7 +78,11 @@ func loadWorkspacePlan(
 		}
 		server[id] = resource
 	}
-	return BuildPlan(baseline, local, server), localFilesByID, nil
+	plan := BuildPlan(baseline.Lock, local, server)
+	for index := range plan.Resources {
+		plan.Resources[index].SyncedElsewhere = baseline.Stale(plan.Resources[index].ID)
+	}
+	return plan, localFilesByID, nil
 }
 
 // readServerResource reads one variation from LaunchDarkly with the content
@@ -104,20 +107,21 @@ func readServerResource(client syncapi.Client, attachments *attachmentCache, id 
 	return resource, nil
 }
 
-// discoverProjectKeys returns each project that has a local sync file, or
-// that had one before a deletion that Git reports.
-func discoverProjectKeys(repositoryRoot string) ([]string, error) {
-	files, err := synclocal.SourceFiles(repositoryRoot)
+// projectKeys returns each project that has a local sync file or an entry in
+// the sync.lock file. A project whose files are all missing is still in the
+// lock, so sync can restore its files.
+func (workspace syncWorkspace) projectKeys() ([]string, error) {
+	files, err := synclocal.SourceFiles(workspace.root)
 	if err != nil {
 		return nil, err
 	}
-	deleted, err := syncrepository.DeletedPaths(repositoryRoot)
+	lock, _, err := syncmanifest.ReadLock(workspace.local)
 	if err != nil {
 		return nil, err
 	}
 
-	var projectKeys []string
-	for _, file := range append(files, deleted...) {
+	projectKeys := lock.ProjectKeys()
+	for _, file := range files {
 		if id, ok := synclocal.ParseManagedPath(file); ok {
 			projectKeys = append(projectKeys, id.ProjectKey)
 		}

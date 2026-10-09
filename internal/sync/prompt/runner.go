@@ -24,16 +24,12 @@ import (
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
-type manifestStore interface {
-	Load(projectKeys []string) (syncmanifest.Manifest, error)
-	Update(previous, next syncmanifest.Manifest) (syncmanifest.Manifest, error)
-}
-
 // syncWorkspace is the Git repository that one command syncs.
 type syncWorkspace struct {
-	root     string
-	local    synclocal.Store
-	manifest manifestStore
+	root  string
+	local synclocal.Store
+	// baselines keeps the sync.lock file and the remote manifest.
+	baselines syncmanifest.Baselines
 }
 
 // Runner runs the prompt sync commands. Tests replace its function fields.
@@ -71,10 +67,11 @@ func (runner Runner) Run(options Options) error {
 	if err != nil {
 		return err
 	}
+	local := synclocal.NewStore(resolved.Root)
 	workspace := syncWorkspace{
-		root:     resolved.Root,
-		local:    synclocal.NewStore(resolved.Root),
-		manifest: syncmanifest.NewStore(runner.api(options), resolved.Source),
+		root:      resolved.Root,
+		local:     local,
+		baselines: syncmanifest.NewBaselineStore(syncmanifest.NewStore(runner.api(options), resolved.Source), local),
 	}
 
 	switch action := options.Action.(type) {
@@ -109,7 +106,7 @@ func (runner Runner) runSync(options Options, workspace syncWorkspace, action Sy
 	if err != nil {
 		return err
 	}
-	projectKeys, err := discoverProjectKeys(workspace.root)
+	projectKeys, err := workspace.projectKeys()
 	if err != nil {
 		return err
 	}
@@ -145,14 +142,14 @@ func (runner Runner) runAdd(options Options, workspace syncWorkspace, action Add
 }
 
 func (runner Runner) runDetach(options Options, workspace syncWorkspace, action DetachAction) error {
-	projectKeys, err := discoverProjectKeys(workspace.root)
+	projectKeys, err := workspace.projectKeys()
 	if err != nil {
 		return err
 	}
 	return runner.detach(syncdetach.Options{
 		RepositoryRoot: workspace.root,
 		Store:          workspace.local,
-		Manifest:       workspace.manifest,
+		Baselines:      workspace.baselines,
 		ProjectKeys:    projectKeys,
 		Input:          options.Input,
 		Output:         options.Output,
@@ -224,7 +221,7 @@ func (runner Runner) bootstrapOptions(
 		Catalog:     api,
 		Attachments: api,
 		Store:       workspace.local,
-		Manifest:    workspace.manifest,
+		Baselines:   workspace.baselines,
 		Input:       options.Input,
 		Output:      options.Output,
 		Initial:     initial,

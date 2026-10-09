@@ -99,25 +99,6 @@ func TestFindGitRepositoryReturnsOperationalError(t *testing.T) {
 	})
 }
 
-func TestDeletedPathsCombinesStagedAndUnstagedChanges(t *testing.T) {
-	git := &fakeGit{outputs: map[string]gitResult{
-		"diff --name-only --diff-filter=D -z -- .launchdarkly": {
-			output: ".launchdarkly/project/configs/config/unstaged.prompt.md\x00",
-		},
-		"diff --cached --name-only --diff-filter=D -z -- .launchdarkly": {
-			output: ".launchdarkly/project/configs/config/staged.prompt.md\x00",
-		},
-	}}
-
-	paths, err := deletedPaths(git, "/tmp/example")
-
-	require.NoError(t, err)
-	require.Equal(t, []string{
-		".launchdarkly/project/configs/config/staged.prompt.md",
-		".launchdarkly/project/configs/config/unstaged.prompt.md",
-	}, paths)
-}
-
 type gitResult struct {
 	output string
 	stderr string

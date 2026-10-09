@@ -57,6 +57,26 @@ func TestWritePlanDescribesArchivedLaunchDarklyVariation(t *testing.T) {
 	assert.Contains(t, output.String(), "(archived in LaunchDarkly)")
 }
 
+func TestWritePlanNotesResourceSyncedByAnotherWorkingCopy(t *testing.T) {
+	plan := Plan{Resources: []PlannedResource{{ID: testResourceID(), Action: ActionUpdateLocal, SyncedElsewhere: true}}}
+
+	var text, data bytes.Buffer
+	require.NoError(t, writePlanOutput(&text, "plaintext", plan))
+	require.NoError(t, writePlanOutput(&data, "json", plan))
+
+	assert.Contains(t, text.String(), "Note: Another working copy synced this variation after your sync.lock.")
+	assert.Contains(t, text.String(), "Suggestion: If the other working copy pushed its change to Git, run git pull before you sync.")
+	assert.Contains(t, data.String(), `"syncedElsewhere": true`)
+	assert.Contains(t, data.String(), `"suggestion": "If the other working copy pushed its change to Git`)
+}
+
+func TestStaleSuggestionMatchesTheAction(t *testing.T) {
+	assert.Empty(t, staleSuggestion(PlannedResource{Action: ActionUpdateLocal}))
+	assert.Contains(t, staleSuggestion(PlannedResource{Action: ActionUpdateLocal, SyncedElsewhere: true}), "run git pull before you sync")
+	assert.Contains(t, staleSuggestion(PlannedResource{Action: ActionConflict, SyncedElsewhere: true}), "--conflict or --resolve")
+	assert.Contains(t, staleSuggestion(PlannedResource{Action: ActionInSync, SyncedElsewhere: true}), "run sync again")
+}
+
 func TestWritePlanRendersHumanFriendlyAttachmentDiff(t *testing.T) {
 	server := testVariation("Support")
 	local := server

@@ -20,13 +20,14 @@ type Manifest struct {
 }
 
 // Resource is the baseline of one resource. Version is the version of the
-// remote manifest entry, which LaunchDarkly uses for optimistic locking.
+// remote manifest entry, which LaunchDarkly uses for optimistic locking. The
+// YAML tags are the format of the sync.lock file.
 type Resource struct {
-	ResourceKind syncdomain.Kind
-	ProjectKey   string
-	LookupKey    string
-	Fingerprint  string
-	Version      int
+	ResourceKind syncdomain.Kind `yaml:"kind"`
+	ProjectKey   string          `yaml:"project"`
+	LookupKey    string          `yaml:"key"`
+	Fingerprint  string          `yaml:"fingerprint"`
+	Version      int             `yaml:"version"`
 }
 
 // ID returns the identity of the resource.
@@ -108,6 +109,47 @@ func (manifest *Manifest) RemoveUnusedAttachments(variations []syncdomain.Synced
 		_, ok := used[resource.ID()]
 		return !ok
 	})
+}
+
+// WithChanges returns a copy of the manifest with the entry changes from
+// before to after. An entry that is the same in before and after keeps the
+// value that the manifest has, which can come from another working copy.
+func (manifest Manifest) WithChanges(before, after Manifest) Manifest {
+	result := manifest.Clone()
+	for _, resource := range after.Resources {
+		if index := before.index(resource.ID()); index < 0 || before.Resources[index].Fingerprint != resource.Fingerprint {
+			result.SetFingerprint(resource.ID(), resource.Fingerprint)
+		}
+	}
+	for _, resource := range before.Resources {
+		if after.index(resource.ID()) < 0 {
+			result.Remove(resource.ID())
+		}
+	}
+	return result
+}
+
+// WithVersionsFrom returns a copy of the manifest in which each entry has the
+// version of the same entry in source, or 0 if source does not have it.
+func (manifest Manifest) WithVersionsFrom(source Manifest) Manifest {
+	versions := make(map[syncdomain.ResourceID]int, len(source.Resources))
+	for _, resource := range source.Resources {
+		versions[resource.ID()] = resource.Version
+	}
+	result := manifest.Clone()
+	for index := range result.Resources {
+		result.Resources[index].Version = versions[result.Resources[index].ID()]
+	}
+	return result
+}
+
+// ProjectKeys returns each project that has an entry, in order.
+func (manifest Manifest) ProjectKeys() []string {
+	keys := make([]string, 0, len(manifest.Resources))
+	for _, resource := range manifest.Resources {
+		keys = append(keys, resource.ProjectKey)
+	}
+	return uniqueSorted(keys)
 }
 
 // Validate makes sure that each entry has a safe identity, a valid
