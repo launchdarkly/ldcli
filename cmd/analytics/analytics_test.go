@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -39,65 +40,236 @@ func TestDetectAgentContext(t *testing.T) {
 			expected: "explicit:my-skill",
 		},
 		{
-			name:     "explicit LD_CLI_AGENT takes precedence over known env vars",
-			env:      newMockEnv(map[string]string{"LD_CLI_AGENT": "custom", "CURSOR_SESSION_ID": "abc"}, false),
+			name:     "explicit LD_CLI_AGENT takes precedence over AI_AGENT and known env vars",
+			env:      newMockEnv(map[string]string{"LD_CLI_AGENT": "custom", "AI_AGENT": "devin_1_agent", "CLAUDECODE": "1"}, false),
 			expected: "explicit:custom",
 		},
+
+		// Environment variables that each agent sets in the shell that runs ldcli.
 		{
-			name:     "CURSOR_SESSION_ID detected",
-			env:      newMockEnv(map[string]string{"CURSOR_SESSION_ID": "abc"}, false),
-			expected: "cursor",
-		},
-		{
-			name:     "CURSOR_TRACE_ID detected",
-			env:      newMockEnv(map[string]string{"CURSOR_TRACE_ID": "xyz"}, false),
-			expected: "cursor",
-		},
-		{
-			name:     "CLAUDE_CODE detected",
-			env:      newMockEnv(map[string]string{"CLAUDE_CODE": "1"}, false),
+			name: "Claude Code",
+			env: newMockEnv(map[string]string{
+				"AI_AGENT":               "claude-code_2-1-295_agent",
+				"CLAUDECODE":             "1",
+				"CLAUDE_CODE_ENTRYPOINT": "cli",
+				"CLAUDE_CODE_SESSION_ID": "1366a0bd-a5d9-4aef-a2b1-e96a3a313a34",
+			}, false),
 			expected: "claude-code",
 		},
 		{
-			name:     "CLAUDE_CODE_SESSION detected",
-			env:      newMockEnv(map[string]string{"CLAUDE_CODE_SESSION": "sess"}, false),
+			name:     "Claude Code before AI_AGENT support",
+			env:      newMockEnv(map[string]string{"CLAUDECODE": "1", "CLAUDE_CODE_ENTRYPOINT": "cli"}, false),
 			expected: "claude-code",
 		},
 		{
-			name:     "CODEX_SESSION detected",
-			env:      newMockEnv(map[string]string{"CODEX_SESSION": "s"}, false),
+			name:     "Cursor agent",
+			env:      newMockEnv(map[string]string{"CURSOR_AGENT": "1"}, false),
+			expected: "cursor",
+		},
+		{
+			name:     "Cursor agent terminal role",
+			env:      newMockEnv(map[string]string{"CURSOR_EXTENSION_HOST_ROLE": "agent-exec"}, false),
+			expected: "cursor",
+		},
+		{
+			name:     "Cursor builds that also set CI=1",
+			env:      newMockEnv(map[string]string{"CURSOR_AGENT": "1", "CI": "1"}, false),
+			expected: "cursor",
+		},
+		{
+			name: "Codex CLI",
+			env: newMockEnv(map[string]string{
+				"CODEX_THREAD_ID":                "t-1",
+				"CODEX_SESSION_ID":               "s-1",
+				"CODEX_SANDBOX_NETWORK_DISABLED": "1",
+			}, false),
 			expected: "codex",
 		},
 		{
-			name:     "CODEX_SANDBOX_ID detected",
-			env:      newMockEnv(map[string]string{"CODEX_SANDBOX_ID": "sb"}, false),
+			name:     "Codex CLI unified exec",
+			env:      newMockEnv(map[string]string{"CODEX_CI": "1"}, false),
 			expected: "codex",
 		},
 		{
-			name:     "DEVIN_SESSION detected",
-			env:      newMockEnv(map[string]string{"DEVIN_SESSION": "d"}, false),
+			name:     "Codex CLI macOS sandbox",
+			env:      newMockEnv(map[string]string{"CODEX_SANDBOX": "seatbelt"}, false),
+			expected: "codex",
+		},
+		{
+			name:     "Devin",
+			env:      newMockEnv(map[string]string{"AI_AGENT": "devin_3000-11-1_agent"}, false),
 			expected: "devin",
 		},
 		{
-			name:     "GITHUB_COPILOT detected",
-			env:      newMockEnv(map[string]string{"GITHUB_COPILOT": "1"}, false),
+			name: "GitHub Copilot in VS Code",
+			env: newMockEnv(map[string]string{
+				"AI_AGENT":      "github_copilot_vscode_agent",
+				"COPILOT_AGENT": "1",
+				"TERM_PROGRAM":  "vscode",
+			}, true),
 			expected: "copilot",
 		},
 		{
-			name:     "WINDSURF_SESSION detected",
-			env:      newMockEnv(map[string]string{"WINDSURF_SESSION": "w"}, false),
-			expected: "windsurf",
+			name:     "GitHub Copilot CLI",
+			env:      newMockEnv(map[string]string{"COPILOT_CLI": "1", "COPILOT_AGENT_SESSION_ID": "s-1"}, false),
+			expected: "copilot",
 		},
 		{
-			name:     "CLINE_TASK_ID detected",
-			env:      newMockEnv(map[string]string{"CLINE_TASK_ID": "t"}, false),
+			name:     "Gemini CLI",
+			env:      newMockEnv(map[string]string{"GEMINI_CLI": "1"}, false),
+			expected: "gemini-cli",
+		},
+		{
+			name:     "OpenCode",
+			env:      newMockEnv(map[string]string{"OPENCODE": "1", "AGENT": "1", "OPENCODE_PID": "42"}, false),
+			expected: "opencode",
+		},
+		{
+			name:     "Kilo Code also sets OPENCODE",
+			env:      newMockEnv(map[string]string{"KILO": "1", "KILOCODE_FEATURE": "cli", "OPENCODE": "1", "AGENT": "1"}, false),
+			expected: "kilo-code",
+		},
+		{
+			name:     "Crush",
+			env:      newMockEnv(map[string]string{"CRUSH": "1", "AGENT": "crush", "AI_AGENT": "crush"}, false),
+			expected: "crush",
+		},
+		{
+			name:     "Augment",
+			env:      newMockEnv(map[string]string{"AUGMENT_AGENT": "1"}, false),
+			expected: "augment",
+		},
+		{
+			name:     "Cline in a VS Code terminal",
+			env:      newMockEnv(map[string]string{"CLINE_ACTIVE": "true", "TERM_PROGRAM": "vscode"}, true),
 			expected: "cline",
 		},
 		{
-			name:     "AIDER_MODEL detected",
-			env:      newMockEnv(map[string]string{"AIDER_MODEL": "gpt-4"}, false),
+			name:     "Roo Code in a VS Code terminal",
+			env:      newMockEnv(map[string]string{"ROO_ACTIVE": "true"}, true),
+			expected: "roo-code",
+		},
+		{
+			name:     "Roo Code CLI",
+			env:      newMockEnv(map[string]string{"ROO_CLI_RUNTIME": "1"}, false),
+			expected: "roo-code",
+		},
+		{
+			name:     "Amp",
+			env:      newMockEnv(map[string]string{"AMP_CURRENT_THREAD_ID": "T-1"}, false),
+			expected: "amp",
+		},
+		{
+			name:     "Windsurf Cascade",
+			env:      newMockEnv(map[string]string{"WINDSURF_CASCADE_TERMINAL": "1"}, false),
+			expected: "windsurf",
+		},
+		{
+			name:     "Amazon Q Developer CLI",
+			env:      newMockEnv(map[string]string{"AWS_EXECUTION_ENV": "AmazonQ-For-CLI Version/1.12.0"}, false),
+			expected: "amazon-q",
+		},
+		{
+			name:     "Aider",
+			env:      newMockEnv(map[string]string{"OR_APP_NAME": "Aider", "OR_SITE_URL": "https://aider.chat"}, false),
 			expected: "aider",
 		},
+
+		// AI_AGENT parsing.
+		{
+			name:     "AI_AGENT takes precedence over agent env vars",
+			env:      newMockEnv(map[string]string{"AI_AGENT": "claude-code_2-1-295_agent", "CODEX_THREAD_ID": "t-1"}, false),
+			expected: "claude-code",
+		},
+		{
+			name:     "AI_AGENT with an @ version",
+			env:      newMockEnv(map[string]string{"AI_AGENT": "devin@1"}, false),
+			expected: "devin",
+		},
+		{
+			name:     "AI_AGENT is not case sensitive",
+			env:      newMockEnv(map[string]string{"AI_AGENT": " Claude-Code_2-1-295_agent "}, false),
+			expected: "claude-code",
+		},
+		{
+			name:     "AI_AGENT with an unknown name drops the version",
+			env:      newMockEnv(map[string]string{"AI_AGENT": "hermes-agent_0-4_agent"}, false),
+			expected: "ai-agent:hermes-agent",
+		},
+		{
+			name:     "AI_AGENT prefix must end at a name boundary",
+			env:      newMockEnv(map[string]string{"AI_AGENT": "ampere"}, false),
+			expected: "ai-agent:ampere",
+		},
+		{
+			name:     "AI_AGENT removes characters that are not allowed",
+			env:      newMockEnv(map[string]string{"AI_AGENT": "my agent!/../x"}, false),
+			expected: "ai-agent:myagentx",
+		},
+		{
+			name:     "AI_AGENT with a long unknown name is cut",
+			env:      newMockEnv(map[string]string{"AI_AGENT": "abcdefghijklmnopqrstuvwxyz0123456789"}, false),
+			expected: "ai-agent:abcdefghijklmnopqrstuvwxyz012345",
+		},
+		{
+			name:     "AI_AGENT with no usable name is ignored",
+			env:      newMockEnv(map[string]string{"AI_AGENT": "_@!!"}, false),
+			expected: "unknown-non-interactive",
+		},
+		{
+			name:     "AI_AGENT that is only spaces is ignored",
+			env:      newMockEnv(map[string]string{"AI_AGENT": "   "}, true),
+			expected: "",
+		},
+
+		// Values that must not match.
+		{
+			name:     "AWS_EXECUTION_ENV without AmazonQ is not an agent",
+			env:      newMockEnv(map[string]string{"AWS_EXECUTION_ENV": "AWS_Lambda_go1.x"}, false),
+			expected: "unknown-non-interactive",
+		},
+		{
+			name:     "OR_APP_NAME for another app is not an agent",
+			env:      newMockEnv(map[string]string{"OR_APP_NAME": "SomeOtherApp"}, false),
+			expected: "unknown-non-interactive",
+		},
+		{
+			name:     "CURSOR_EXTENSION_HOST_ROLE for a person is not an agent",
+			env:      newMockEnv(map[string]string{"CURSOR_EXTENSION_HOST_ROLE": "user"}, true),
+			expected: "",
+		},
+		{
+			name:     "person in the Cursor terminal is not an agent",
+			env:      newMockEnv(map[string]string{"CURSOR_TRACE_ID": "xyz", "TERM_PROGRAM": "vscode"}, true),
+			expected: "",
+		},
+		{
+			name:     "person with AIDER_MODEL in the shell profile is not an agent",
+			env:      newMockEnv(map[string]string{"AIDER_MODEL": "gpt-4"}, true),
+			expected: "",
+		},
+		{
+			name:     "Replit workspace is not an agent",
+			env:      newMockEnv(map[string]string{"REPL_ID": "r-1"}, true),
+			expected: "",
+		},
+		{
+			name: "environment variables that no agent sets are not detected",
+			env: newMockEnv(map[string]string{
+				"CLAUDE_CODE":         "1",
+				"CLAUDE_CODE_SESSION": "s",
+				"CURSOR_SESSION_ID":   "c",
+				"CODEX_SESSION":       "s",
+				"CODEX_SANDBOX_ID":    "sb",
+				"DEVIN_SESSION":       "d",
+				"GITHUB_COPILOT":      "1",
+				"WINDSURF_SESSION":    "w",
+				"CLINE_TASK_ID":       "t",
+			}, false),
+			expected: "unknown-non-interactive",
+		},
+
+		// Terminal and CI fallbacks.
 		{
 			name:     "no TTY and no env vars returns unknown-non-interactive",
 			env:      newMockEnv(map[string]string{}, false),
@@ -120,8 +292,8 @@ func TestDetectAgentContext(t *testing.T) {
 		},
 		{
 			name:     "agent env var takes precedence over CI env var",
-			env:      newMockEnv(map[string]string{"CURSOR_SESSION_ID": "abc", "CI": "true"}, false),
-			expected: "cursor",
+			env:      newMockEnv(map[string]string{"COPILOT_AGENT": "1", "GITHUB_ACTIONS": "true", "CI": "true"}, false),
+			expected: "copilot",
 		},
 		{
 			name:     "interactive terminal with no agent env vars returns empty",
@@ -132,11 +304,6 @@ func TestDetectAgentContext(t *testing.T) {
 			name:     "CI env var in interactive terminal returns empty",
 			env:      newMockEnv(map[string]string{"CI": "true"}, true),
 			expected: "",
-		},
-		{
-			name:     "first matching env var wins by priority order",
-			env:      newMockEnv(map[string]string{"CURSOR_SESSION_ID": "c", "CLAUDE_CODE": "1"}, false),
-			expected: "cursor",
 		},
 		{
 			name:     "stdin is TTY but stdout is not still counts as interactive",
@@ -155,6 +322,23 @@ func TestDetectAgentContext(t *testing.T) {
 			result := detectAgentContext(tt.env)
 			assert.Equal(t, tt.expected, result)
 		})
+	}
+}
+
+func TestKnownAgentsConfig(t *testing.T) {
+	assert.NotEmpty(t, knownAIAgentPrefixes)
+	assert.NotEmpty(t, knownAgentEnvVars)
+	assert.NotEmpty(t, knownCIEnvVars)
+
+	for _, p := range knownAIAgentPrefixes {
+		assert.NotEmpty(t, p.Prefix)
+		assert.NotEmpty(t, p.Label, "prefix %q", p.Prefix)
+		assert.Equal(t, strings.ToLower(p.Prefix), p.Prefix, "prefix %q must be lowercase", p.Prefix)
+	}
+	for _, a := range knownAgentEnvVars {
+		assert.NotEmpty(t, a.EnvVar)
+		assert.NotEmpty(t, a.Label, "env var %q", a.EnvVar)
+		assert.False(t, a.Equals != "" && a.Contains != "", "env var %q sets both equals and contains", a.EnvVar)
 	}
 }
 
