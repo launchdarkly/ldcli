@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiRoute } from './util';
+import { sendUiAnalytics } from './uiAnalytics';
 import { EventData } from './types';
 import EventsTable from './EventsTable';
 
@@ -14,6 +15,7 @@ const EventsPage = ({ limit = 1000 }: Props) => {
 
   useEffect(() => {
     const eventSource = new EventSource(apiRoute('/events/tee'));
+    sendUiAnalytics('Dev Server UI Events Stream Opened');
 
     eventSource.addEventListener('put', (event: MessageEvent) => {
       if (!event.data || event.data.trim() === '') {
@@ -49,6 +51,9 @@ const EventsPage = ({ limit = 1000 }: Props) => {
 
   const toggleStreaming = (newStreamingState: boolean) => {
     setIsStreaming(newStreamingState);
+    sendUiAnalytics('Dev Server UI Events Stream Changed', {
+      streaming: newStreamingState,
+    });
 
     if (newStreamingState && backlog.length > 0) {
       // Flush backlog into events when turning streaming back on

@@ -25,4 +25,7 @@ func (c *LogClient) SendSetupSDKSelectedEvent(sdk string) {
 func (c *LogClient) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64) {
 	log.Printf("SendSetupFlagToggledEvent, count: %v", count)
 }
+func (c *LogClient) SendDevServerUIEvent(name string, properties map[string]interface{}) {
+	log.Printf("SendDevServerUIEvent, name: %s, properties: %v", name, properties)
+}
 func (a *LogClient) Wait() {}

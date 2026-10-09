@@ -8,8 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 )
+
+const maxUIAnalyticsInFlight = 10
 
 type ClientFn struct {
 	ID           string
@@ -42,10 +45,20 @@ type Client struct {
 	id           string
 	version      string
 	wg           sync.WaitGroup
+	uiInFlight   atomic.Int32
 }
 
 // sendEvent makes an async request to track the given event with properties.
-func (c *Client) sendEvent(eventName string, properties map[string]interface{}) {
+func (c *Client) sendEvent(eventName string, properties map[string]interface{}, release func()) {
+	started := false
+	if release != nil {
+		defer func() {
+			if !started {
+				release()
+			}
+		}()
+	}
+
 	properties["id"] = c.id
 	if c.agentContext != "" {
 		properties["agent_context"] = c.agentContext
@@ -81,13 +94,17 @@ func (c *Client) sendEvent(eventName string, properties map[string]interface{}) 
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("User-Agent", fmt.Sprintf("launchdarkly-cli/%s", c.version))
 	var resp *http.Response
+	started = true
 	go func() {
+		defer c.wg.Done()
+		if release != nil {
+			defer release()
+		}
 		resp, err = c.httpClient.Do(req)
 		if err != nil { //nolint:staticcheck
 			// TODO: log error
 		}
 		if resp == nil {
-			c.wg.Done()
 			return
 		}
 
@@ -96,14 +113,30 @@ func (c *Client) sendEvent(eventName string, properties map[string]interface{}) 
 			// TODO: log error
 		}
 		resp.Body.Close()
-		c.wg.Done()
 	}()
+}
+
+func (c *Client) reserveUIAnalyticsSlot() bool {
+	for {
+		current := c.uiInFlight.Load()
+		if current >= maxUIAnalyticsInFlight {
+			return false
+		}
+		if c.uiInFlight.CompareAndSwap(current, current+1) {
+			return true
+		}
+	}
+}
+
+func (c *Client) releaseUIAnalyticsSlot() {
+	c.uiInFlight.Add(-1)
 }
 
 func (c *Client) SendCommandRunEvent(properties map[string]interface{}) {
 	c.sendEvent(
 		"CLI Command Run",
 		properties,
+		nil,
 	)
 }
 
@@ -113,6 +146,7 @@ func (c *Client) SendCommandCompletedEvent(outcome string) {
 		map[string]interface{}{
 			"outcome": outcome,
 		},
+		nil,
 	)
 }
 
@@ -122,6 +156,7 @@ func (c *Client) SendSetupStepStartedEvent(step string) {
 		map[string]interface{}{
 			"step": step,
 		},
+		nil,
 	)
 }
 
@@ -131,6 +166,7 @@ func (c *Client) SendSetupSDKSelectedEvent(sdk string) {
 		map[string]interface{}{
 			"sdk": sdk,
 		},
+		nil,
 	)
 }
 
@@ -142,7 +178,15 @@ func (c *Client) SendSetupFlagToggledEvent(on bool, count int, duration_ms int64
 			"count":       count,
 			"duration_ms": duration_ms,
 		},
+		nil,
 	)
+}
+
+func (c *Client) SendDevServerUIEvent(name string, properties map[string]interface{}) {
+	if !c.reserveUIAnalyticsSlot() {
+		return
+	}
+	c.sendEvent(name, properties, c.releaseUIAnalyticsSlot)
 }
 
 func (a *Client) Wait() {

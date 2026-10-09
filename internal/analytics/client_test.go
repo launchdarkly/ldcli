@@ -1,11 +1,16 @@
 package analytics
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -177,4 +182,122 @@ func TestClient_SendEvent(t *testing.T) {
 		assert.Equal(t, "connect", received.Properties["step"])
 		assert.Equal(t, "codex", received.Properties["agent_context"])
 	})
+}
+
+func TestClient_SendDevServerUIEvent(t *testing.T) {
+	t.Run("posts the event name, id, and headers", func(t *testing.T) {
+		var received trackingPayload
+		var gotAuth, gotType, gotAgent, gotMethod, gotPath string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &received)
+			gotAuth = r.Header.Get("Authorization")
+			gotType = r.Header.Get("Content-Type")
+			gotAgent = r.Header.Get("User-Agent")
+			gotMethod = r.Method
+			gotPath = r.URL.Path
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		fn := ClientFn{ID: "test-id", Version: "1.0.0", AgentContext: "cursor"}
+		tracker := fn.Tracker("test-token", server.URL, false)
+		tracker.SendDevServerUIEvent("Dev Server UI Page Viewed", map[string]interface{}{
+			"page": "flags",
+		})
+		tracker.Wait()
+
+		assert.Equal(t, "Dev Server UI Page Viewed", received.Event)
+		assert.Equal(t, "test-id", received.Properties["id"])
+		assert.Equal(t, "cursor", received.Properties["agent_context"])
+		assert.Equal(t, "flags", received.Properties["page"])
+		assert.Equal(t, "test-token", gotAuth)
+		assert.Equal(t, "application/json", gotType)
+		assert.Equal(t, "launchdarkly-cli/1.0.0", gotAgent)
+		assert.Equal(t, http.MethodPost, gotMethod)
+		assert.Equal(t, "/internal/tracking", gotPath)
+	})
+
+	t.Run("omits agent_context when empty", func(t *testing.T) {
+		var received trackingPayload
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &received)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		fn := ClientFn{ID: "test-id", Version: "1.0.0"}
+		tracker := fn.Tracker("test-token", server.URL, false)
+		tracker.SendDevServerUIEvent("Dev Server UI Events Stream Opened", map[string]interface{}{})
+		tracker.Wait()
+
+		_, hasAgentCtx := received.Properties["agent_context"]
+		assert.False(t, hasAgentCtx)
+		assert.Equal(t, "test-id", received.Properties["id"])
+	})
+
+	t.Run("noop client does not start a request", func(t *testing.T) {
+		called := false
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		tracker := ClientFn{ID: "test-id", Version: "1.0.0"}.Tracker("test-token", server.URL, true)
+		_, ok := tracker.(*NoopClient)
+		require.True(t, ok)
+		tracker.SendDevServerUIEvent("Dev Server UI Page Viewed", map[string]interface{}{"page": "flags"})
+		tracker.Wait()
+		assert.False(t, called)
+	})
+
+	t.Run("drops the event when 10 calls are in flight", func(t *testing.T) {
+		var mu sync.Mutex
+		var started int
+		release := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			started++
+			mu.Unlock()
+			<-release
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		tracker := ClientFn{ID: "test-id", Version: "1.0.0"}.Tracker("token", server.URL, false)
+		for i := 0; i < maxUIAnalyticsInFlight; i++ {
+			tracker.SendDevServerUIEvent("Dev Server UI Page Viewed", map[string]interface{}{"page": "flags"})
+		}
+		require.Eventually(t, func() bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return started == maxUIAnalyticsInFlight
+		}, time.Second, 10*time.Millisecond)
+
+		tracker.SendDevServerUIEvent("Dev Server UI Page Viewed", map[string]interface{}{"page": "events"})
+		time.Sleep(50 * time.Millisecond)
+		mu.Lock()
+		assert.Equal(t, maxUIAnalyticsInFlight, started)
+		mu.Unlock()
+
+		close(release)
+		tracker.Wait()
+	})
+}
+
+func TestLogClient_SendDevServerUIEvent(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() {
+		log.SetOutput(os.Stderr)
+	})
+
+	(&LogClient{}).SendDevServerUIEvent("Dev Server UI Page Viewed", map[string]interface{}{
+		"page": "flags",
+	})
+
+	assert.Contains(t, buf.String(), "SendDevServerUIEvent")
+	assert.Contains(t, buf.String(), "Dev Server UI Page Viewed")
 }
