@@ -1,4 +1,4 @@
-// Package prompt runs the "ldcli sync prompt" commands. A sync compares the
+// Package prompt runs the "ldcli sync prompts" commands. A sync compares the
 // local files and LaunchDarkly with the manifest, shows the plan, and applies
 // it after the user agrees.
 package prompt

@@ -35,21 +35,21 @@ const (
 // NewPromptCmd creates the prompt synchronization command.
 func NewPromptCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "prompt",
+		Use:   "prompts",
 		Short: "Synchronize local prompt variations with LaunchDarkly",
 		Long: "Bootstrap local prompt variations from LaunchDarkly, add more variations, or synchronize changes using the LaunchDarkly manifest. " +
 			"Sync rechecks state before every write, rerun sync after a change.",
 		Example: `  # Preview synchronization changes
-  ldcli sync prompt --dry-run
+  ldcli sync prompts --dry-run
 
   # Add the first variation without prompting
-  ldcli sync prompt add production/support/default --no-input
+  ldcli sync prompts add production/support/default --no-input
 
   # Apply changes in an existing workspace without prompting
-  ldcli sync prompt --yes --no-input
+  ldcli sync prompts --yes --no-input
 
   # Prefer local changes when conflicts occur
-  ldcli sync prompt --yes --conflict=local`,
+  ldcli sync prompts --yes --conflict=local`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if err := cobra.NoArgs(cmd, args); err != nil {
 				return err
@@ -121,10 +121,10 @@ func newWatchCmd(client resources.Client) *cobra.Command {
 		Use:   "watch",
 		Short: "Synchronize when managed files change",
 		Example: `  # Watch files and confirm each set of changes
-  ldcli sync prompt watch
+  ldcli sync prompts watch
 
   # Apply watched changes without prompting and report unresolved conflicts
-  ldcli sync prompt watch --yes --no-input`,
+  ldcli sync prompts watch --yes --no-input`,
 		Args: validatedArgs(cobra.NoArgs),
 		RunE: runPrompt(client, func(*cobra.Command, []string) (syncprompt.CommandAction, error) {
 			return syncprompt.SyncAction{Watch: true}, nil
@@ -139,13 +139,13 @@ func newAddCmd(client resources.Client) *cobra.Command {
 		Use:   "add [project-key/config-key/variation-key...]",
 		Short: "Add prompt variations from LaunchDarkly",
 		Example: `  # Choose variations interactively
-  ldcli sync prompt add
+  ldcli sync prompts add
 
   # Add one variation by its full selector
-  ldcli sync prompt add production/support/default
+  ldcli sync prompts add production/support/default
 
   # Add multiple variations without prompting
-  ldcli sync prompt add production/support/default production/chat/concise --no-input`,
+  ldcli sync prompts add production/support/default production/chat/concise --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
 		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
@@ -166,10 +166,10 @@ func newAttachCmd(client resources.Client) *cobra.Command {
 		Use:   "attach",
 		Short: "Attach a tool or skill to a synced variation",
 		Example: `  # Attach a tool
-  ldcli sync prompt attach tool search --to production/support/default --yes
+  ldcli sync prompts attach tool search --to production/support/default --yes
 
   # Attach a skill
-  ldcli sync prompt attach skill summarize --to production/support/default --yes`,
+  ldcli sync prompts attach skill summarize --to production/support/default --yes`,
 	}
 	cmd.AddCommand(
 		newAttachKindCmd(client, syncdomain.AttachmentTool),
@@ -183,10 +183,10 @@ func newAttachKindCmd(client resources.Client, kind syncdomain.AttachmentKind) *
 		Use:   string(kind) + " [key]",
 		Short: "Attach a " + string(kind) + " to a synced variation",
 		Example: fmt.Sprintf(`  # Choose a %s and synced variation interactively
-  ldcli sync prompt attach %s
+  ldcli sync prompts attach %s
 
   # Attach a %s by key to a synced variation
-  ldcli sync prompt attach %s example-key \
+  ldcli sync prompts attach %s example-key \
     --to production/support/default \
     --yes --no-input`, kind, kind, kind, kind),
 		Args: validatedArgs(cobra.MaximumNArgs(1)),
@@ -212,13 +212,13 @@ func newDetachCmd(client resources.Client) *cobra.Command {
 		Use:   "detach [project-key/config-key/variation-key...]",
 		Short: "Stop syncing local prompt variations",
 		Example: `  # Choose variations interactively
-  ldcli sync prompt detach
+  ldcli sync prompts detach
 
   # Stop syncing one variation
-  ldcli sync prompt detach production/support/default
+  ldcli sync prompts detach production/support/default
 
   # Stop syncing one variation and archive it in LaunchDarkly
-  ldcli sync prompt detach production/support/default --archive --yes --no-input`,
+  ldcli sync prompts detach production/support/default --archive --yes --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
 		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
@@ -240,7 +240,7 @@ func newLinkCmd(client resources.Client) *cobra.Command {
 		Use:   "link <file>",
 		Short: "Link an external prompt file",
 		Example: `  # Link a Markdown file as a new variation
-  ldcli sync prompt link prompts/support.md \
+  ldcli sync prompts link prompts/support.md \
     --format plain-markdown \
     --to production/support/default \
     --model-config-key claude \

@@ -1157,7 +1157,7 @@ func runPrompt(t *testing.T, root string, client resources.Client, arguments ...
 		api.manifest = manifest
 	}
 	args := []string{
-		"sync", "prompt",
+		"sync", "prompts",
 		"--access-token", "token",
 		"--base-uri", "https://example.test",
 	}
