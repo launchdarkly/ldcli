@@ -13,29 +13,6 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-func TestStore_ProjectKeys(t *testing.T) {
-	root := t.TempDir()
-	store := NewStore(root)
-	require.NoError(t, os.MkdirAll(
-		filepath.Join(root, syncdomain.RootDir, "zeta"),
-		0o755,
-	))
-	require.NoError(t, os.MkdirAll(
-		filepath.Join(root, syncdomain.RootDir, "alpha"),
-		0o755,
-	))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(root, syncdomain.RootDir, "README"),
-		nil,
-		0o644,
-	))
-
-	keys, err := store.ProjectKeys()
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"alpha", "zeta"}, keys)
-}
-
 func TestStore_BootstrapRoundTripsSupportedModes(t *testing.T) {
 	root := t.TempDir()
 	resources := []VariationFile{
@@ -70,8 +47,9 @@ func TestStore_BootstrapRoundTripsSupportedModes(t *testing.T) {
 		},
 	}
 
-	paths, err := NewStore(root).Bootstrap(resources)
+	creation, err := NewStore(root).Bootstrap(resources)
 	require.NoError(t, err)
+	paths := creation.VariationPaths
 	assert.ElementsMatch(t, []string{
 		"project/configs/completion-config/friendly.prompt.md",
 		"project/configs/agent-config/researcher.prompt.md",
@@ -98,9 +76,7 @@ func TestStore_BootstrapRoundTripsSupportedModes(t *testing.T) {
 			compiled,
 			local.ConfigKey+"/"+local.Variation.Key,
 		)
-		expected, err := marshalPayload(local.Variation)
-		require.NoError(t, err)
-		assert.JSONEq(t, string(expected), string(resource.Payload))
+		assertSameVariationJSON(t, local.Variation, resource.Variation)
 		assert.True(t, resource.Upsert)
 	}
 }
@@ -133,8 +109,7 @@ func TestStore_BootstrapNormalizesPromptLineEndings(t *testing.T) {
 			compiled, err := Compile(os.DirFS(root))
 			require.NoError(t, err)
 			resource := requireVariationResource(t, compiled, "config/"+serverVariation.Key)
-			var localVariation syncdomain.Variation
-			require.NoError(t, json.Unmarshal(resource.Payload, &localVariation))
+			localVariation := resource.Variation
 
 			serverFingerprint, err := syncdomain.FingerprintVariation("project", "config/"+serverVariation.Key, serverVariation)
 			require.NoError(t, err)
@@ -145,12 +120,12 @@ func TestStore_BootstrapNormalizesPromptLineEndings(t *testing.T) {
 	}
 }
 
-func TestStore_RenderVariationsMatchesWrittenFile(t *testing.T) {
+func TestStore_RenderMatchesWrittenFile(t *testing.T) {
 	root := t.TempDir()
 	store := NewStore(root)
 	resource := localVariation("preview")
 
-	rendered, err := store.RenderVariations([]VariationFile{resource})
+	rendered, err := store.Render([]VariationFile{resource})
 
 	require.NoError(t, err)
 	require.Len(t, rendered, 1)
@@ -158,9 +133,9 @@ func TestStore_RenderVariationsMatchesWrittenFile(t *testing.T) {
 	_, err = os.Stat(filepath.Join(root, syncdomain.RootDir))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 
-	paths, err := store.Bootstrap([]VariationFile{resource})
+	creation, err := store.Bootstrap([]VariationFile{resource})
 	require.NoError(t, err)
-	assert.Equal(t, []string{rendered[0].Path}, paths)
+	assert.Equal(t, []string{rendered[0].Path}, creation.VariationPaths)
 	content, err := os.ReadFile(filepath.Join(
 		root,
 		syncdomain.RootDir,
@@ -275,9 +250,7 @@ func TestStore_ReplaceVariationsPreservesLocalMetadata(t *testing.T) {
 	require.NoError(t, err)
 	resource := requireVariationResource(t, compiled, "config/existing")
 	assert.False(t, resource.Upsert)
-	expected, err := marshalPayload(server)
-	require.NoError(t, err)
-	assert.JSONEq(t, string(expected), string(resource.Payload))
+	assertSameVariationJSON(t, server, resource.Variation)
 
 	info, err := os.Stat(path)
 	require.NoError(t, err)
@@ -421,4 +394,13 @@ func requireVariationResource(
 	require.FailNow(t, "variation resource not found", lookupKey)
 
 	return syncdomain.SyncedResource{}
+}
+
+func assertSameVariationJSON(t *testing.T, expected, actual syncdomain.Variation) {
+	t.Helper()
+	expectedJSON, err := json.Marshal(expected)
+	require.NoError(t, err)
+	actualJSON, err := json.Marshal(actual)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(expectedJSON), string(actualJSON))
 }

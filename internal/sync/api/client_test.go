@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -155,7 +156,7 @@ func TestClientVariationReturnsTransportError(t *testing.T) {
 
 	_, err := client.ReadVariation("project", "support", "helpful")
 
-	require.ErrorContains(t, err, `get config "support": unavailable`)
+	require.ErrorContains(t, err, `get config "support" in project "project": unavailable`)
 }
 
 func TestClientVariationRejectsInvalidResponse(t *testing.T) {
@@ -211,6 +212,9 @@ func TestClientCreateVariation(t *testing.T) {
 			Content: "Be concise.",
 		}},
 		Instructions: "stale agent instructions",
+		OutputFormat: map[string]any{
+			"type": "object",
+		},
 	}
 
 	err := client.CreateVariation("project", "support", variation)
@@ -237,10 +241,10 @@ func TestClientCreateVariation(t *testing.T) {
 			"modelName": "claude-3-5-sonnet",
 			"parameters": {"temperature": 0.2}
 		},
+		"outputFormat": {"type": "object"},
 		"messages": [{"role": "system", "content": "Be concise."}]
 	}`, string(request.Body))
 	assert.NotContains(t, string(request.Body), `"mode"`)
-	assert.NotContains(t, string(request.Body), `"outputFormat"`)
 	assert.NotContains(t, string(request.Body), `"instructions"`)
 }
 
@@ -291,28 +295,6 @@ func TestClientMutationRecognizesDefinitiveAPIError(t *testing.T) {
 	assert.False(t, MutationMayHaveSucceeded(err))
 }
 
-func TestClientCreateVariationRejectsUnsupportedDirectAPIFields(t *testing.T) {
-	tests := map[string]syncdomain.Variation{
-		"output format": func() syncdomain.Variation {
-			variation := testVariation(syncdomain.VariationModeAgent)
-			variation.OutputFormat = map[string]any{"type": "object"}
-			return variation
-		}(),
-	}
-
-	for name, variation := range tests {
-		t.Run(name, func(t *testing.T) {
-			transport := &recordingClient{}
-			client := NewClient(transport, "token", "https://example.com")
-
-			err := client.CreateVariation("project", "support", variation)
-
-			require.Error(t, err)
-			assert.Empty(t, transport.Requests)
-		})
-	}
-}
-
 func TestClientCreateVariationReturnsEncodeError(t *testing.T) {
 	transport := &recordingClient{}
 	client := NewClient(transport, "token", "https://example.com")
@@ -334,6 +316,7 @@ func TestClientUpdateVariation(t *testing.T) {
 	variation := testVariation(syncdomain.VariationModeAgent)
 	variation.Name = "Very helpful"
 	variation.ModelConfigVersion = 3
+	variation.OutputFormat = map[string]any{"type": "object"}
 
 	err := client.UpdateVariation("project", "support", variation)
 
@@ -356,11 +339,11 @@ func TestClientUpdateVariation(t *testing.T) {
 		"instructions": "Help the user.",
 		"modelConfigKey": "claude",
 		"modelConfigVersion": 3,
-		"model": {"modelName": "claude-3-5-sonnet"}
+		"model": {"modelName": "claude-3-5-sonnet"},
+		"outputFormat": {"type": "object"}
 	}`, string(request.Body))
 	assert.NotContains(t, string(request.Body), `"key"`)
 	assert.NotContains(t, string(request.Body), `"mode"`)
-	assert.NotContains(t, string(request.Body), `"outputFormat"`)
 }
 
 func TestClientUpdateVariationSendsEmptyOwnedFieldsToClearThem(t *testing.T) {
@@ -379,7 +362,8 @@ func TestClientUpdateVariationSendsEmptyOwnedFieldsToClearThem(t *testing.T) {
 		"name": "Helpful",
 		"instructions": "",
 		"modelConfigKey": "",
-		"model": {}
+		"model": {},
+		"outputFormat": {}
 	}`, string(transport.Requests[0].Body))
 }
 
@@ -396,6 +380,7 @@ func TestClientUpdateCompletionVariationOmitsAgentFields(t *testing.T) {
 		"name": "Helpful",
 		"modelConfigKey": "claude",
 		"model": {"modelName": "claude-3-5-sonnet"},
+		"outputFormat": {},
 		"messages": [{"role": "system", "content": "Help the user."}]
 	}`, string(transport.Requests[0].Body))
 	assert.NotContains(t, string(transport.Requests[0].Body), `"instructions"`)
@@ -428,28 +413,6 @@ func TestClientUpdateVariationReturnsTransportError(t *testing.T) {
 	)
 
 	require.ErrorContains(t, err, `update config variation "helpful": conflict`)
-}
-
-func TestClientUpdateVariationRejectsUnsupportedDirectAPIFields(t *testing.T) {
-	tests := map[string]syncdomain.Variation{
-		"output format": func() syncdomain.Variation {
-			variation := testVariation(syncdomain.VariationModeAgent)
-			variation.OutputFormat = map[string]any{"type": "object"}
-			return variation
-		}(),
-	}
-
-	for name, variation := range tests {
-		t.Run(name, func(t *testing.T) {
-			transport := &recordingClient{}
-			client := NewClient(transport, "token", "https://example.com")
-
-			err := client.UpdateVariation("project", "support", variation)
-
-			require.Error(t, err)
-			assert.Empty(t, transport.Requests)
-		})
-	}
 }
 
 func TestClientUpdateVariationReturnsEncodeError(t *testing.T) {
@@ -496,6 +459,109 @@ func TestClientArchiveVariationReturnsTransportError(t *testing.T) {
 	err := client.ArchiveVariation("project", "support", "helpful")
 
 	require.ErrorContains(t, err, `archive config variation "helpful": in use`)
+}
+
+func TestClientGetsSyncManifest(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"source": "git:example.com/acme/repo",
+		"items": [{
+			"resourceKind": "variation",
+			"resourceLookupKey": "support/helpful",
+			"fingerprint": "sha256:abc",
+			"version": 3
+		}]
+	}`)}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	manifest, err := client.GetSyncManifest("project", "git:example.com/acme/repo")
+
+	require.NoError(t, err)
+	require.Len(t, manifest.Items, 1)
+	assert.Equal(t, 3, manifest.Items[0].Version)
+	require.Len(t, transport.Requests, 1)
+	request := transport.Requests[0]
+	assert.Equal(t, http.MethodGet, request.Method)
+	assert.Equal(t, "https://example.com/api/v2/projects/project/configs/sync/manifests", request.Path)
+	assert.Equal(t, "git:example.com/acme/repo", request.Query.Get("source"))
+}
+
+func TestClientPatchesSyncManifest(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{
+		"source": "git:example.com/acme/repo",
+		"items": []
+	}`)}}
+	client := NewClient(transport, "token", "https://example.com")
+
+	_, err := client.PatchSyncManifest(
+		"project",
+		"git:example.com/acme/repo",
+		[]SyncManifestUpsert{{
+			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/helpful",
+			Fingerprint: "sha256:abc", Version: 2,
+		}},
+		nil,
+	)
+
+	require.NoError(t, err)
+	require.Len(t, transport.Requests, 1)
+	request := transport.Requests[0]
+	assert.Equal(t, http.MethodPatch, request.Method)
+	assert.Equal(t, "application/json", request.ContentType)
+	assert.JSONEq(t, `{
+		"source": "git:example.com/acme/repo",
+		"upserts": [{
+			"resourceKind": "variation",
+			"resourceLookupKey": "support/helpful",
+			"fingerprint": "sha256:abc",
+			"version": 2
+		}],
+		"deletions": []
+	}`, string(request.Body))
+}
+
+func TestIsConflictRecognizesAPIStatus(t *testing.T) {
+	assert.True(t, IsConflict(errors.New(`{"code":"conflict","statusCode":409}`)))
+	assert.False(t, IsConflict(errors.New(`{"code":"invalid_request","statusCode":400}`)))
+}
+
+func TestContextualAPIErrorPreservesResponseFields(t *testing.T) {
+	err := contextualAPIError(
+		errors.New(`{
+			"code":"not_found",
+			"message":"AI config not found",
+			"statusCode":404,
+			"suggestion":"generic suggestion"
+		}`),
+		`get config "agent" in project "default"`,
+		"default",
+	)
+
+	assert.JSONEq(t, `{
+		"code":"not_found",
+		"message":"get config \"agent\" in project \"default\"",
+		"statusCode":404,
+		"suggestion":"Verify the resource key and that it belongs to project \"default\"."
+	}`, err.Error())
+}
+
+func TestContextualAPIErrorPreservesSpecificMutationFailure(t *testing.T) {
+	err := contextualAPIError(
+		errors.New(`{
+			"code":"not_found",
+			"message":"model config version not found",
+			"statusCode":404,
+			"suggestion":"Select an existing model config version."
+		}`),
+		`update config variation "default"`,
+		"",
+	)
+
+	assert.JSONEq(t, `{
+		"code":"not_found",
+		"message":"update config variation \"default\": model config version not found",
+		"statusCode":404,
+		"suggestion":"Select an existing model config version."
+	}`, err.Error())
 }
 
 func testVariation(mode syncdomain.VariationMode) syncdomain.Variation {

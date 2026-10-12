@@ -88,7 +88,8 @@ func (m *Manager) connectToDb(ctx context.Context, path string) (*sql.DB, error)
 }
 
 // RestoreToFile returns a string path of the sqlite database restored from the stream
-func (m *Manager) RestoreToFile(ctx context.Context, stream io.Reader) (string, error) {
+// The temp file is removed if the restore fails.
+func (m *Manager) RestoreToFile(ctx context.Context, stream io.Reader) (_ string, err error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -97,7 +98,15 @@ func (m *Manager) RestoreToFile(ctx context.Context, stream io.Reader) (string, 
 	if err != nil {
 		return "", errors.Wrapf(err, "unable to create temp file")
 	}
+	defer func() {
+		if err != nil {
+			_ = os.Remove(tempFile.Name())
+		}
+	}()
 	_, err = io.Copy(tempFile, stream)
+	if closeErr := tempFile.Close(); err == nil {
+		err = closeErr
+	}
 	if err != nil {
 		return "", errors.Wrapf(err, "unable to write to temp file")
 	}

@@ -1,7 +1,6 @@
 package prompt
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,7 +38,6 @@ func TestBuildPlanThreeWayMatrix(t *testing.T) {
 			baselineFingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, baseline)
 			require.NoError(t, err)
 			manifest := syncmanifest.Manifest{
-				FormatVersion: syncmanifest.FormatVersion,
 				Resources: []syncmanifest.Resource{{
 					ResourceKind: id.Kind,
 					ProjectKey:   id.ProjectKey,
@@ -85,6 +83,44 @@ func TestBuildPlanFirstSync(t *testing.T) {
 	}
 }
 
+func TestBuildPlanDoesNotTreatManifestAttachmentsAsIndependentTargets(t *testing.T) {
+	manifest := syncmanifest.New()
+	manifest.Resources = []syncmanifest.Resource{{
+		ResourceKind: syncdomain.KindTool,
+		ProjectKey:   "project",
+		LookupKey:    "search",
+		Fingerprint:  "sha256:ignored",
+	}}
+
+	plan := BuildPlan(manifest, nil, nil)
+
+	require.Empty(t, plan.Resources)
+}
+
+func TestBuildPlanOmitsDiffForEquivalentAPIDefaults(t *testing.T) {
+	local := testVariation("example")
+	local.Model = map[string]any{"modelName": "gpt-5"}
+	server := local
+	server.Model = map[string]any{
+		"modelName":  "gpt-5",
+		"custom":     map[string]any{},
+		"parameters": map[string]any{},
+	}
+
+	id := testResourceID()
+	fingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, server)
+	require.NoError(t, err)
+	manifest := syncmanifest.New()
+	manifest.SetFingerprint(id, fingerprint)
+
+	plan := BuildPlan(manifest, localResources(&local, false), map[ResourceID]ServerResource{
+		id: {Variation: &server, ConfigMode: syncdomain.VariationModeAgent},
+	})
+
+	require.Equal(t, ActionInSync, plan.Resources[0].Action)
+	require.Empty(t, plan.Resources[0].Diff)
+}
+
 func TestBuildPlanRejectsParentConfigModeMismatch(t *testing.T) {
 	local := testVariation("local")
 	id := testResourceID()
@@ -95,6 +131,26 @@ func TestBuildPlanRejectsParentConfigModeMismatch(t *testing.T) {
 
 	require.Equal(t, ActionError, plan.Resources[0].Action)
 	require.Contains(t, plan.Resources[0].Error, "does not match config mode")
+}
+
+func TestPlanHasDestructiveActions(t *testing.T) {
+	tests := map[string]struct {
+		action      Action
+		destructive bool
+	}{
+		"create server":  {action: ActionCreateServer},
+		"update server":  {action: ActionUpdateServer},
+		"archive server": {action: ActionArchiveServer, destructive: true},
+		"update local":   {action: ActionUpdateLocal},
+		"delete local":   {action: ActionDeleteLocal, destructive: true},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			plan := Plan{Resources: []PlannedResource{{Action: test.action}}}
+			require.Equal(t, test.destructive, plan.HasDestructiveActions())
+		})
+	}
 }
 
 func testResourceID() ResourceID {
@@ -114,13 +170,12 @@ func localResources(variation *syncdomain.Variation, upsert bool) []syncdomain.S
 	if variation == nil {
 		return nil
 	}
-	payload, _ := json.Marshal(variation)
 	id := testResourceID()
 	return []syncdomain.SyncedResource{{
 		Kind:       id.Kind,
 		ProjectKey: id.ProjectKey,
 		LookupKey:  id.LookupKey,
-		Payload:    payload,
+		Variation:  *variation,
 		Upsert:     upsert,
 	}}
 }

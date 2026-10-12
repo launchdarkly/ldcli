@@ -79,6 +79,7 @@ func TestUpdate(t *testing.T) {
 				"dev-stream-uri", "http://relay.com",
 				"environment", "test-environment",
 				"flag", "test-flag",
+				"host", "0.0.0.0",
 				"output", "plaintext",
 				"project", "test-project",
 			},
@@ -91,6 +92,7 @@ func TestUpdate(t *testing.T) {
 		assert.Equal(t, "http://relay.com", result.DevStreamURI)
 		assert.Equal(t, "test-environment", result.Environment)
 		assert.Equal(t, "test-flag", result.Flag)
+		assert.Equal(t, "0.0.0.0", result.Host)
 		assert.Equal(t, "plaintext", result.Output)
 		assert.Equal(t, "test-project", result.Project)
 		assert.Equal(
@@ -102,6 +104,7 @@ func TestUpdate(t *testing.T) {
 				"dev-stream-uri",
 				"environment",
 				"flag",
+				"host",
 				"output",
 				"project",
 			},

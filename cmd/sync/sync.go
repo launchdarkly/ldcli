@@ -16,7 +16,12 @@ func NewSyncCmd(client resources.Client, analyticsTrackerFn analytics.TrackerFn)
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Synchronize local resources with LaunchDarkly",
-		Args:  cobra.MinimumNArgs(1),
+		Example: `  # Synchronize prompt variations
+  ldcli sync prompt
+
+  # Preview prompt synchronization changes
+  ldcli sync prompt --dry-run`,
+		Args: cobra.MinimumNArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 			tracker := analyticsTrackerFn(
 				viper.GetString(cliflags.AccessTokenFlag),
