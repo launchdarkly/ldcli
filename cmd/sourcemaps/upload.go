@@ -317,17 +317,20 @@ func getSourceMapUploadUrls(apiKey, projectID string, paths []string, backendUrl
 func uploadFiles(files []SourceMapFile, uploadUrls []string) error {
 	g, ctx := errgroup.WithContext(context.Background())
 	g.SetLimit(uploadConcurrency)
+
 	for i, file := range files {
 		g.Go(func() error {
 			if ctx.Err() != nil {
 				return nil
 			}
+
 			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
 				return fmt.Errorf("failed to upload file %s: %w", file.Path, err)
 			}
 			return nil
 		})
 	}
+
 	return g.Wait()
 }
 
