@@ -3,7 +3,7 @@ package client
 import (
 	"fmt"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
+	ldapi "github.com/launchdarkly/api-client-go/v24"
 )
 
 // New creates an LD API client. It's not set as a field on the struct because the CLI flags

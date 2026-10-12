@@ -5,10 +5,19 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/charmbracelet/lipgloss"
+
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
 
-// OutcomeStatus describes whether a reviewed resource action completed.
+// The output kinds that the --output flag selects.
+const (
+	outputPlaintext = "plaintext"
+	outputMarkdown  = "markdown"
+	outputJSON      = "json"
+)
+
+// OutcomeStatus is the result of one planned action.
 type OutcomeStatus string
 
 const (
@@ -17,7 +26,7 @@ const (
 	OutcomeSkipped   OutcomeStatus = "skipped"
 )
 
-// ResourceOutcome records the result of executing one planned resource action.
+// ResourceOutcome is the result of the action of one planned resource.
 type ResourceOutcome struct {
 	ID     ResourceID    `json:"-"`
 	Action Action        `json:"action"`
@@ -25,86 +34,71 @@ type ResourceOutcome struct {
 	Error  string        `json:"error,omitempty"`
 }
 
-type planResourceOutput struct {
-	ResourceKind string              `json:"resourceKind"`
-	ProjectKey   string              `json:"projectKey"`
-	LookupKey    string              `json:"lookupKey"`
-	Action       Action              `json:"action"`
-	Error        string              `json:"error,omitempty"`
-	Diff         variationDiffFields `json:"diff,omitempty"`
+// resourceOutput is the identity of a resource in JSON output.
+type resourceOutput struct {
+	ResourceKind string `json:"resourceKind"`
+	ProjectKey   string `json:"projectKey"`
+	LookupKey    string `json:"lookupKey"`
 }
 
-type outcomeOutput struct {
-	ResourceKind string        `json:"resourceKind"`
-	ProjectKey   string        `json:"projectKey"`
-	LookupKey    string        `json:"lookupKey"`
-	Action       Action        `json:"action"`
-	Status       OutcomeStatus `json:"status"`
-	Error        string        `json:"error,omitempty"`
+func newResourceOutput(id ResourceID) resourceOutput {
+	return resourceOutput{ResourceKind: string(id.Kind), ProjectKey: id.ProjectKey, LookupKey: id.LookupKey}
 }
 
-// writePlanOutput renders the local synchronization plan.
+// writePlanOutput writes the plan in the selected output kind.
 func writePlanOutput(out io.Writer, outputKind string, plan Plan) error {
-	if outputKind == "" {
-		outputKind = "plaintext"
+	outputKind, err := checkOutputKind(outputKind)
+	if err != nil {
+		return err
 	}
-	if outputKind == "json" {
-		resources := make([]planResourceOutput, 0, len(plan.Resources))
-		for _, resource := range plan.Resources {
-			resources = append(resources, planResourceOutput{
-				ResourceKind: string(resource.ID.Kind),
-				ProjectKey:   resource.ID.ProjectKey,
-				LookupKey:    resource.ID.LookupKey,
-				Action:       resource.Action,
-				Error:        resource.Error,
-				Diff:         resource.Diff,
-			})
-		}
-		return writeJSON(out, map[string]any{"resources": resources})
+	if outputKind != outputJSON {
+		return writePlanReview(out, outputKind, plan, terminalWidth(out))
 	}
-	if outputKind != "plaintext" && outputKind != "markdown" {
-		return fmt.Errorf("unsupported output kind %q", outputKind)
+
+	type planResourceOutput struct {
+		resourceOutput
+		Action Action              `json:"action"`
+		Error  string              `json:"error,omitempty"`
+		Diff   variationDiffFields `json:"diff,omitempty"`
 	}
-	return writePlanReview(out, outputKind, plan, terminalWidth(out))
+	resources := make([]planResourceOutput, 0, len(plan.Resources))
+	for _, resource := range plan.Resources {
+		resources = append(resources, planResourceOutput{
+			resourceOutput: newResourceOutput(resource.ID),
+			Action:         resource.Action,
+			Error:          resource.Error,
+			Diff:           resource.Diff,
+		})
+	}
+	return writeJSON(out, map[string]any{"resources": resources})
 }
 
-// writeOutcomeOutput renders execution results, including partial failures.
+// writeOutcomeOutput writes the result of each action, which includes failures.
 func writeOutcomeOutput(out io.Writer, outputKind string, outcomes []ResourceOutcome) error {
-	if outputKind == "" {
-		outputKind = "plaintext"
+	outputKind, err := checkOutputKind(outputKind)
+	if err != nil {
+		return err
 	}
-	if outputKind == "json" {
+	if outputKind == outputJSON {
+		type outcomeOutput struct {
+			resourceOutput
+			ResourceOutcome
+		}
 		resources := make([]outcomeOutput, 0, len(outcomes))
 		for _, outcome := range outcomes {
-			resources = append(resources, outcomeOutput{
-				ResourceKind: string(outcome.ID.Kind),
-				ProjectKey:   outcome.ID.ProjectKey,
-				LookupKey:    outcome.ID.LookupKey,
-				Action:       outcome.Action,
-				Status:       outcome.Status,
-				Error:        outcome.Error,
-			})
+			resources = append(resources, outcomeOutput{resourceOutput: newResourceOutput(outcome.ID), ResourceOutcome: outcome})
 		}
 		return writeJSON(out, map[string]any{"resources": resources})
-	}
-	if outputKind != "plaintext" && outputKind != "markdown" {
-		return fmt.Errorf("unsupported output kind %q", outputKind)
 	}
 
 	console := syncconsole.New(out)
-	if outputKind == "markdown" {
+	if outputKind == outputMarkdown {
 		_ = console.Line("## Sync results")
 	} else {
 		_ = console.Line("Sync results:")
 	}
 	for _, outcome := range outcomes {
-		_ = console.Printf(
-			"- %s/%s  action=%s  status=%s\n",
-			outcome.ID.ProjectKey,
-			outcome.ID.LookupKey,
-			outcome.Action,
-			outcome.Status,
-		)
+		_ = console.Printf("- %s  action=%s  status=%s\n", outcome.ID, outcome.Action, outcome.Status)
 		if outcome.Error != "" {
 			_ = console.Printf("  Error: %s\n", outcome.Error)
 		}
@@ -112,44 +106,63 @@ func writeOutcomeOutput(out io.Writer, outputKind string, outcomes []ResourceOut
 	return nil
 }
 
-// writePlanReview renders the human review view, including action descriptions,
-// validation failures, and any variation diff.
+// checkOutputKind returns the output kind. An empty kind is plain text.
+func checkOutputKind(outputKind string) (string, error) {
+	switch outputKind {
+	case "":
+		return outputPlaintext, nil
+	case outputPlaintext, outputMarkdown, outputJSON:
+		return outputKind, nil
+	default:
+		return "", fmt.Errorf("unsupported output kind %q", outputKind)
+	}
+}
+
+// writePlanReview writes the plan for a person to read. It groups the
+// resources by project and config, and shows each action, error, and diff.
 func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) error {
 	console := syncconsole.New(out)
 	if len(plan.Resources) == 0 {
 		_ = console.Line("No prompt variations are tracked.")
 		return nil
 	}
+	markdown := outputKind == outputMarkdown
 
-	currentProject := ""
+	currentProject, currentConfig := "", ""
 	for _, resource := range plan.Resources {
 		if resource.ID.ProjectKey != currentProject {
 			if currentProject != "" {
 				_ = console.Line("")
 			}
-			currentProject = resource.ID.ProjectKey
-			if outputKind == "markdown" {
+			currentProject, currentConfig = resource.ID.ProjectKey, ""
+			if markdown {
 				_ = console.Printf("## Project `%s`\n", currentProject)
 			} else {
-				_ = console.Printf("Project: %s\n", currentProject)
+				_ = console.Printf("%s\n", reviewHeading("Project: "+currentProject, width))
 			}
 		}
 
-		if outputKind == "markdown" {
-			_ = console.Printf(
-				"\n### `%s`\n\nAction: **%s**\n",
-				resource.ID.LookupKey,
-				actionDescription(resource.Action),
-			)
-		} else {
-			_ = console.Printf(
-				"\n%s\n  Action: %s\n",
-				resource.ID.LookupKey,
-				actionDescription(resource.Action),
-			)
+		action := actionDescription(resource.Action)
+		configKey, variationKey, err := resource.ID.VariationKeys()
+		switch {
+		case markdown:
+			_ = console.Printf("\n### Variation `%s`\n\nAction: **%s**\n", resource.ID.LookupKey, action)
+		case err != nil:
+			_ = console.Printf("\n  %s\n    Action: %s\n", reviewHeading("Variation: "+resource.ID.LookupKey, width), action)
+		default:
+			if configKey != currentConfig {
+				currentConfig = configKey
+				_ = console.Printf("\n  %s\n", reviewHeading("Config: "+configKey, width))
+			}
+			_ = console.Printf("\n    %s\n      Action: %s\n", reviewHeading("Variation: "+variationKey, width), action)
 		}
+
 		if resource.Error != "" {
-			_ = console.Printf("  Error: %s\n", resource.Error)
+			if markdown {
+				_ = console.Printf("Error: %s\n", resource.Error)
+			} else {
+				_ = console.Printf("      Error: %s\n", resource.Error)
+			}
 		}
 		if len(resource.Diff) != 0 {
 			rendered, err := renderVariationDiff(resource.Diff, outputKind, width, diffPresentation(resource.Action))
@@ -162,7 +175,15 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 	return nil
 }
 
-// actionDescription translates internal reconciliation actions into user-facing language.
+// reviewHeading colors a heading when the output is a terminal.
+func reviewHeading(value string, width int) string {
+	if width <= 0 {
+		return value
+	}
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("67")).Bold(true).Render(value)
+}
+
+// actionDescription describes an action for the user.
 func actionDescription(action Action) string {
 	switch action {
 	case ActionInSync:
@@ -190,14 +211,16 @@ func actionDescription(action Action) string {
 	}
 }
 
+// variationDiffPresentation is the labels and the direction of a diff.
 type variationDiffPresentation struct {
 	beforeLabel  string
 	afterLabel   string
 	missingAfter string
-	reverse      bool
+	// reverse shows the local file as "before", because the local file changes.
+	reverse bool
 }
 
-// diffPresentation chooses labels, direction, and absence text for an action.
+// diffPresentation returns the labels that describe the change of an action.
 func diffPresentation(action Action) variationDiffPresentation {
 	switch action {
 	case ActionUpdateLocal, ActionDeleteLocal:
@@ -213,7 +236,7 @@ func diffPresentation(action Action) variationDiffPresentation {
 	}
 }
 
-// writeJSON emits indented, newline-terminated JSON for machine-readable output.
+// writeJSON writes indented JSON with a final newline.
 func writeJSON(out io.Writer, value any) error {
 	encoder := json.NewEncoder(out)
 	encoder.SetIndent("", "  ")

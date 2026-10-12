@@ -2,29 +2,36 @@ package local
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/adrg/frontmatter"
+	"gopkg.in/yaml.v3"
+
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
-	"gopkg.in/yaml.v3"
 )
 
-const (
-	configsDir          = "configs"
-	variationFileSuffix = ".prompt.md"
-)
-
-type localFile struct {
-	ProjectKey    string
-	RelPath       string
-	Data          []byte
-	ReadReference func(Reference) ([]byte, error)
-}
+// A variation file has YAML front matter and a prompt body:
+//
+//	---
+//	formatVersion: 1
+//	mode: completion
+//	key: default
+//	name: Default
+//	---
+//
+//	<system>
+//	You are helpful.
+//	</system>
+//
+// An agent body is the instructions. A completion body is a list of role
+// blocks. A completion body without role blocks is one system message. A
+// linked variation has a "ref" field and no body.
+const variationFormatVersion = 1
 
 type variationFrontMatter struct {
 	FormatVersion        int        `yaml:"formatVersion"`
@@ -33,128 +40,167 @@ type variationFrontMatter struct {
 	syncdomain.Variation `yaml:",inline"`
 }
 
-var yamlFrontMatter = frontmatter.NewFormat("---", "---", func(data []byte, destination any) error {
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-
-	return decoder.Decode(destination)
-})
-
-// isVariationFile recognizes direct children of a config directory with the
-// supported wrapper suffix.
-func isVariationFile(relPath string) bool {
-	if !strings.HasSuffix(relPath, variationFileSuffix) {
-		return false
-	}
-
-	dir, file := path.Split(relPath)
-	dir = strings.TrimSuffix(dir, "/")
-
-	return dir != "" && !strings.Contains(dir, "/") && file != ""
+// localFile is one variation file and the readers for the files that it references.
+type localFile struct {
+	ProjectKey     string
+	RelPath        string
+	Data           []byte
+	ReadReference  func(Reference) ([]byte, error)
+	ReadAttachment func(syncdomain.AttachmentKind, string) (syncdomain.Attachment, error)
 }
 
-// parseVariation combines wrapper metadata with inline or referenced prompt
-// content and emits the canonical resource payload.
+// parseVariation reads one variation file, including the content of a linked
+// file and every attachment that it references. RelPath is relative to the
+// configs directory, for example "support/default.prompt.md".
 func parseVariation(file localFile) (syncdomain.SyncedResource, error) {
-	var meta variationFrontMatter
-	body, err := parseYAMLFrontMatter(file.Data, &meta)
+	meta, body, err := parseVariationFrontMatter(file.RelPath, file.Data)
 	if err != nil {
-		return syncdomain.SyncedResource{}, err
-	}
-
-	if err := validateVariation(file.RelPath, meta); err != nil {
 		return syncdomain.SyncedResource{}, err
 	}
 
 	variation := meta.Variation
 	if meta.Ref != nil {
-		// The wrapper owns identity and model metadata; the adapter supplies
-		// only the content fields represented by the external source format.
+		// The variation file owns the identity and the model settings. The
+		// linked file owns only the prompt content.
 		if strings.TrimSpace(string(body)) != "" {
 			return syncdomain.SyncedResource{}, errors.New("referenced variation cannot also contain an inline prompt body")
 		}
-		referencedContent, err := file.ReadReference(*meta.Ref)
+		content, err := file.ReadReference(*meta.Ref)
 		if err != nil {
 			return syncdomain.SyncedResource{}, err
 		}
-		if _, err := syncreference.ApplyToVariation(meta.Ref.Format, referencedContent, &variation); err != nil {
+		if err := syncreference.ApplyToVariation(meta.Ref.Format, content, &variation); err != nil {
 			return syncdomain.SyncedResource{}, err
 		}
-		stem := strings.TrimSuffix(path.Base(file.RelPath), variationFileSuffix)
-		if variation.Key != stem {
+		if stem := variationStem(file.RelPath); variation.Key != stem {
 			return syncdomain.SyncedResource{}, fmt.Errorf("referenced prompt key %q does not match filename %q", variation.Key, stem)
 		}
-	} else {
-		// Inline bodies use the simplest representation for each mode: plain
-		// instructions for agents and explicit role blocks for completions.
-		switch variation.Mode {
-		case syncdomain.VariationModeAgent:
-			variation.Instructions = syncdomain.NormalizePromptText(string(body))
-		case syncdomain.VariationModeCompletion:
-			messages, err := parseCompletionMessages(string(body))
-			if err != nil {
-				return syncdomain.SyncedResource{}, err
-			}
-			variation.Messages = messages
-		}
+	} else if err := parsePromptBody(string(body), &variation); err != nil {
+		return syncdomain.SyncedResource{}, err
 	}
 
-	payload, err := marshalPayload(variation)
-	if err != nil {
+	if err := variation.HydrateAttachments(file.ReadAttachment); err != nil {
 		return syncdomain.SyncedResource{}, err
 	}
 
 	configKey := path.Dir(file.RelPath)
-
 	return syncdomain.SyncedResource{
 		Kind:       syncdomain.KindVariation,
 		ProjectKey: file.ProjectKey,
-		LookupKey:  configKey + "/" + meta.Key,
-		Payload:    payload,
+		LookupKey:  configKey + "/" + variation.Key,
 		Upsert:     meta.Upsert,
+		Variation:  variation,
 	}, nil
 }
 
-// validateVariation checks the file format and binds the declared key to the filename.
-func validateVariation(relPath string, meta variationFrontMatter) error {
+// parseVariationFrontMatter decodes and validates the front matter, and
+// returns the remaining body.
+func parseVariationFrontMatter(relPath string, data []byte) (variationFrontMatter, []byte, error) {
+	var meta variationFrontMatter
+	body, err := parseYAMLFrontMatter(data, &meta)
+	if err != nil {
+		return variationFrontMatter{}, nil, err
+	}
+
 	switch {
 	case meta.FormatVersion == 0:
-		return errors.New("formatVersion is required")
-	case meta.FormatVersion != 1:
-		return fmt.Errorf("unsupported formatVersion %d", meta.FormatVersion)
-	case meta.Mode == "":
-		return errors.New("mode is required")
-	case !meta.Mode.Valid():
-		return fmt.Errorf("unsupported mode %q", meta.Mode)
-	case meta.Key == "":
-		return errors.New("key is required")
-	case meta.Name == "":
-		return errors.New("name is required")
+		return variationFrontMatter{}, nil, errors.New("formatVersion is required")
+	case meta.FormatVersion != variationFormatVersion:
+		return variationFrontMatter{}, nil, fmt.Errorf("unsupported formatVersion %d", meta.FormatVersion)
 	}
-
-	stem := strings.TrimSuffix(path.Base(relPath), variationFileSuffix)
-	if stem != meta.Key {
-		return fmt.Errorf("key %q does not match filename %q", meta.Key, stem)
+	if err := meta.Variation.Validate(); err != nil {
+		return variationFrontMatter{}, nil, err
 	}
+	if stem := variationStem(relPath); meta.Key != stem {
+		return variationFrontMatter{}, nil, fmt.Errorf("key %q does not match filename %q", meta.Key, stem)
+	}
+	return meta, body, nil
+}
 
+// parsePromptBody stores an inline body as agent instructions or as
+// completion messages.
+func parsePromptBody(body string, variation *syncdomain.Variation) error {
+	if variation.Mode == syncdomain.VariationModeAgent {
+		variation.Instructions = syncdomain.NormalizePromptText(body)
+		return nil
+	}
+	messages, err := parseCompletionMessages(body)
+	if err != nil {
+		return err
+	}
+	variation.Messages = messages
 	return nil
 }
 
-// marshalPayload encodes canonical JSON without HTML escaping or a trailing newline.
-func marshalPayload(value any) (json.RawMessage, error) {
-	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	encoder.SetEscapeHTML(false)
-
-	if err := encoder.Encode(value); err != nil {
-		return nil, fmt.Errorf("marshal payload: %w", err)
+// renderVariationFile renders the front matter and the prompt body of one
+// variation file. The result parses back to the same variation.
+func renderVariationFile(file VariationFile) ([]byte, error) {
+	variation := file.Variation
+	if err := variation.Validate(); err != nil {
+		return nil, fmt.Errorf("variation %q: %w", variation.Key, err)
+	}
+	variation.Tools = slices.Clone(variation.Tools)
+	variation.Skills = slices.Clone(variation.Skills)
+	variation.SortAttachments()
+	switch {
+	case variation.Mode == syncdomain.VariationModeAgent && len(variation.Messages) != 0:
+		return nil, fmt.Errorf("agent variation %q cannot contain messages", variation.Key)
+	case variation.Mode == syncdomain.VariationModeCompletion && variation.Instructions != "":
+		return nil, fmt.Errorf("completion variation %q cannot contain instructions", variation.Key)
+	}
+	if file.Ref != nil {
+		if err := validateReference(*file.Ref); err != nil {
+			return nil, err
+		}
 	}
 
-	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
+	frontMatter, err := marshalYAML(variationFrontMatter{
+		FormatVersion: variationFormatVersion,
+		Upsert:        file.Upsert,
+		Ref:           file.Ref,
+		Variation:     variation,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal variation %q: %w", variation.Key, err)
+	}
+
+	var content bytes.Buffer
+	content.WriteString("---\n")
+	content.Write(frontMatter)
+	content.WriteString("---\n")
+
+	// A linked variation has no body, so that only one file holds the prompt.
+	switch {
+	case file.Ref != nil:
+	case variation.Mode == syncdomain.VariationModeAgent:
+		if instructions := syncdomain.NormalizePromptText(variation.Instructions); instructions != "" {
+			fmt.Fprintf(&content, "\n%s\n", instructions)
+		}
+	default:
+		for _, message := range variation.Messages {
+			if !syncdomain.ValidMessageRole(message.Role) {
+				return nil, fmt.Errorf("variation %q has unsupported message role %q", variation.Key, message.Role)
+			}
+			body := escapeMessageContent(syncdomain.NormalizePromptText(message.Content), message.Role)
+			fmt.Fprintf(&content, "\n<%s>\n%s\n</%s>\n", message.Role, body, message.Role)
+		}
+	}
+	return content.Bytes(), nil
 }
 
-// parseYAMLFrontMatter accepts BOM and common newline variants, decodes strict
-// YAML metadata, and returns the remaining prompt body.
+// variationStem returns the variation key that a file name declares.
+func variationStem(relPath string) string {
+	return strings.TrimSuffix(path.Base(relPath), variationFileSuffix)
+}
+
+var yamlFrontMatter = frontmatter.NewFormat("---", "---", func(data []byte, destination any) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	return decoder.Decode(destination)
+})
+
+// parseYAMLFrontMatter decodes strict YAML front matter and returns the body
+// that follows it. It accepts a byte order mark and Windows line endings.
 func parseYAMLFrontMatter(data []byte, destination any) ([]byte, error) {
 	source := bytes.TrimLeft(bytes.TrimPrefix(data, []byte("\ufeff")), "\r\n")
 	hasStart := bytes.Equal(source, []byte("---")) ||
@@ -171,121 +217,19 @@ func parseYAMLFrontMatter(data []byte, destination any) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid front matter: %w", err)
 	}
-
 	return body, nil
 }
 
-var messageRoles = []string{"system", "user", "assistant"}
-
-// parseCompletionMessages parses tagged role blocks, with untagged text treated
-// as one system message for a simple authoring experience.
-func parseCompletionMessages(body string) ([]syncdomain.Message, error) {
-	body = syncdomain.NormalizePromptText(body)
-	if body == "" {
-		return nil, nil
+// marshalYAML encodes front matter with a two-space indent.
+func marshalYAML(value any) ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := yaml.NewEncoder(&buffer)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
 	}
-
-	if _, _, _, ok := nextOpenTag(body, 0); !ok {
-		// A plain body is a convenient shorthand for the common single-system
-		// message case.
-		return []syncdomain.Message{{
-			Role:    "system",
-			Content: body,
-		}}, nil
+	if err := encoder.Close(); err != nil {
+		return nil, err
 	}
-
-	var messages []syncdomain.Message
-	cursor := 0
-
-	for cursor < len(body) {
-		start, role, contentStart, ok := nextOpenTag(body, cursor)
-		if !ok {
-			if strings.TrimSpace(body[cursor:]) != "" {
-				return nil, errors.New("unexpected text outside message tags")
-			}
-
-			break
-		}
-		if strings.TrimSpace(body[cursor:start]) != "" {
-			return nil, errors.New("unexpected text outside message tags")
-		}
-
-		contentEnd, closeEnd, found := matchingClose(body, contentStart, role)
-		if !found {
-			return nil, fmt.Errorf("unclosed <%s> tag", role)
-		}
-
-		// Advance to the byte immediately after the balanced closing tag. The
-		// next iteration verifies that only whitespace separates messages.
-		messages = append(messages, syncdomain.Message{
-			Role:    role,
-			Content: unescapeMessageContent(syncdomain.NormalizePromptText(body[contentStart:contentEnd]), role),
-		})
-		cursor = closeEnd
-	}
-
-	return messages, nil
-}
-
-// unescapeMessageContent reverses the delimiter escaping applied during rendering.
-func unescapeMessageContent(content, role string) string {
-	content = strings.ReplaceAll(content, `<\/`+role+">", "</"+role+">")
-	content = strings.ReplaceAll(content, `<\`+role+">", "<"+role+">")
-	return strings.ReplaceAll(content, `\\`, `\`)
-}
-
-// nextOpenTag finds the earliest supported role tag at or after an offset.
-func nextOpenTag(body string, from int) (start int, role string, contentStart int, ok bool) {
-	start = -1
-
-	for _, candidate := range messageRoles {
-		tag := "<" + candidate + ">"
-		index := strings.Index(body[from:], tag)
-		if index < 0 {
-			continue
-		}
-
-		absolute := from + index
-		if start < 0 || absolute < start {
-			start = absolute
-			role = candidate
-			contentStart = absolute + len(tag)
-			ok = true
-		}
-	}
-
-	return start, role, contentStart, ok
-}
-
-// matchingClose finds the balanced closing tag for one role block.
-func matchingClose(body string, from int, role string) (contentEnd, closeEnd int, ok bool) {
-	open := "<" + role + ">"
-	close := "</" + role + ">"
-	depth := 1
-	index := from
-
-	for index < len(body) {
-		relativeOpen := strings.Index(body[index:], open)
-		relativeClose := strings.Index(body[index:], close)
-		if relativeClose < 0 {
-			return 0, 0, false
-		}
-
-		if relativeOpen >= 0 && relativeOpen < relativeClose {
-			depth++
-			index += relativeOpen + len(open)
-
-			continue
-		}
-
-		depth--
-		closeAt := index + relativeClose
-		if depth == 0 {
-			return closeAt, closeAt + len(close), true
-		}
-
-		index = closeAt + len(close)
-	}
-
-	return 0, 0, false
+	return buffer.Bytes(), nil
 }
