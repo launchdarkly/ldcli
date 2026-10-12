@@ -1,422 +1,137 @@
 package prompt
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
-	"io"
-	"os"
 	"slices"
-	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/pmezard/go-difflib/difflib"
-	"golang.org/x/term"
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
+// variationFieldDiff is the JSON of one part of a variation before and after
+// the sync. A nil value means that the part does not exist.
 type variationFieldDiff struct {
 	Before json.RawMessage `json:"before"`
 	After  json.RawMessage `json:"after"`
 }
 
+// variationDiffFields maps a part name, such as "variation" or "tools", to its diff.
 type variationDiffFields map[string]variationFieldDiff
 
-// renderVariationDiff formats structured field changes as terminal or Markdown
-// unified diffs, choosing side-by-side output when the terminal is wide enough.
-func renderVariationDiff(
-	fields variationDiffFields,
-	outputKind string,
-	width int,
-	presentation variationDiffPresentation,
-) (string, error) {
-	fields, err := collapseWholeVariationDiff(fields)
-	if err != nil {
-		return "", err
+// variationDiff returns the parts of the variation that differ. The tools and
+// the skills have their own parts, so that the review shows their content.
+func variationDiff(before, after *syncdomain.Variation) variationDiffFields {
+	if before == nil && after == nil {
+		return nil
 	}
-	keys := make([]string, 0, len(fields))
-	for key := range fields {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
 
-	var rendered strings.Builder
-	for _, key := range keys {
-		diff := fields[key]
-		if presentation.reverse {
-			diff.Before, diff.After = diff.After, diff.Before
-		}
-		before, err := formatDiffValue(diff.Before, presentation.beforeLabel, "")
-		if err != nil {
-			return "", err
-		}
-		after, err := formatDiffValue(diff.After, presentation.afterLabel, presentation.missingAfter)
-		if err != nil {
-			return "", err
-		}
-		change := "changed"
-		if len(diff.Before) == 0 {
-			change = "added"
-		}
-		if len(diff.After) == 0 {
-			change = "removed"
-		}
-
-		diffLines, err := unifiedDiffLines(
-			before,
-			after,
-			presentation.beforeLabel,
-			presentation.afterLabel,
-		)
-		if err != nil {
-			return "", err
-		}
-		if outputKind == "markdown" {
-			_, _ = fmt.Fprintf(&rendered, "\n#### %s (%s)\n\n", key, change)
-			_, _ = fmt.Fprintf(
-				&rendered,
-				"```diff\n%s\n```\n",
-				strings.Join(diffLines, "\n"),
-			)
-			continue
-		}
-		_, _ = fmt.Fprintf(&rendered, "\n  %s (%s)\n", key, change)
-		if width >= 100 {
-			rendered.WriteString(renderSideBySideUnifiedDiff(diffLines, width))
-		} else {
-			rendered.WriteString(renderUnifiedDiff(diffLines, width > 0))
+	fields := variationDiffFields{}
+	addField := func(name string, before, after json.RawMessage) {
+		if string(before) != string(after) {
+			fields[name] = variationFieldDiff{Before: before, After: after}
 		}
 	}
-	return rendered.String(), nil
-}
+	addField("variation", variationJSON(before), variationJSON(after))
+	beforeTools, beforeSkills := attachmentJSON(before)
+	afterTools, afterSkills := attachmentJSON(after)
+	addField("tools", beforeTools, afterTools)
+	addField("skills", beforeSkills, afterSkills)
 
-// collapseWholeVariationDiff combines field-level all-add or all-remove
-// changes into one resource-level diff without rewrapping an existing resource.
-func collapseWholeVariationDiff(
-	fields map[string]variationFieldDiff,
-) (map[string]variationFieldDiff, error) {
 	if len(fields) == 0 {
-		return fields, nil
+		return nil
 	}
-	if _, alreadyWholeVariation := fields["variation"]; alreadyWholeVariation && len(fields) == 1 {
-		return fields, nil
-	}
+	return fields
+}
 
-	allAdded := true
-	allRemoved := true
-	for _, diff := range fields {
-		allAdded = allAdded && len(diff.Before) == 0
-		allRemoved = allRemoved && len(diff.After) == 0
+// variationJSON returns the variation without its attachment references. The
+// "tools" and "skills" parts show those changes.
+func variationJSON(variation *syncdomain.Variation) json.RawMessage {
+	if variation == nil {
+		return nil
 	}
-	if !allAdded && !allRemoved {
-		return fields, nil
-	}
+	withoutRefs := *variation
+	withoutRefs.Tools, withoutRefs.Skills = nil, nil
+	data, _ := json.Marshal(withoutRefs)
+	return data
+}
 
-	values := make(map[string]json.RawMessage, len(fields))
-	for key, diff := range fields {
-		if allAdded {
-			values[key] = diff.After
-		} else {
-			values[key] = diff.Before
+// attachmentJSON returns the canonical content of the tools and of the skills.
+func attachmentJSON(variation *syncdomain.Variation) (tools, skills json.RawMessage) {
+	if variation == nil {
+		return nil, nil
+	}
+	var toolContent []syncdomain.Tool
+	var skillContent []syncdomain.Skill
+	for _, attachment := range variation.Attachments {
+		canonical := syncdomain.CanonicalAttachment(attachment)
+		switch {
+		case canonical.Tool != nil:
+			toolContent = append(toolContent, *canonical.Tool)
+		case canonical.Skill != nil:
+			skillContent = append(skillContent, *canonical.Skill)
 		}
 	}
-	value, err := json.Marshal(values)
-	if err != nil {
-		return nil, fmt.Errorf("combine variation diff: %w", err)
+	if len(toolContent) != 0 {
+		tools, _ = json.Marshal(toolContent)
 	}
-
-	combined := variationFieldDiff{}
-	if allAdded {
-		combined.After = value
-	} else {
-		combined.Before = value
+	if len(skillContent) != 0 {
+		skills, _ = json.Marshal(skillContent)
 	}
-	return map[string]variationFieldDiff{"variation": combined}, nil
+	return tools, skills
 }
 
-// unifiedDiffLines delegates line-level comparison to go-difflib while keeping
-// labels and context consistent across output modes.
-func unifiedDiffLines(
-	before string,
-	after string,
-	beforeLabel string,
-	afterLabel string,
-) ([]string, error) {
-	diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
-		A:        diffInputLines(before),
-		B:        diffInputLines(after),
-		FromFile: beforeLabel,
-		ToFile:   afterLabel,
-		Context:  3,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("build variation diff: %w", err)
+// attachmentPinDiff reports the references in a server variation that do not
+// pin the latest version. It returns the current and the latest versions.
+func attachmentPinDiff(variation *syncdomain.Variation) (current, latest json.RawMessage, stale bool) {
+	if variation == nil {
+		return nil, nil, false
 	}
-	return strings.Split(strings.TrimSuffix(diff, "\n"), "\n"), nil
-}
-
-// diffInputLines gives every logical line the terminator expected by difflib.
-func diffInputLines(value string) []string {
-	lines := strings.Split(value, "\n")
-	for index := range lines {
-		lines[index] += "\n"
-	}
-	return lines
-}
-
-// renderUnifiedDiff renders a conventional single-column diff and highlights
-// paired replacements more precisely than independent added/removed lines.
-func renderUnifiedDiff(lines []string, color bool) string {
-	var rendered strings.Builder
-	for index := 0; index < len(lines); {
-		change := scanDiffChange(lines, index)
-		if len(change.removed) != 0 && len(change.added) != 0 {
-			styledRemoved := append([]string(nil), change.removed...)
-			styledAdded := append([]string(nil), change.added...)
-			pairs := min(len(change.removed), len(change.added))
-			for pair := 0; pair < pairs; pair++ {
-				if color {
-					styledRemoved[pair], styledAdded[pair] = renderChangedLinePair(
-						change.removed[pair],
-						change.added[pair],
-					)
-				}
+	currentPins := map[string]map[string]int{"tools": {}, "skills": {}}
+	latestPins := map[string]map[string]int{"tools": {}, "skills": {}}
+	for _, kind := range syncdomain.AttachmentKinds {
+		group := string(kind) + "s"
+		for _, ref := range variation.Refs(kind) {
+			if attachment, ok := variation.Attachment(kind, ref.Key); ok && attachment.Version != ref.Version {
+				currentPins[group][ref.Key] = ref.Version
+				latestPins[group][ref.Key] = attachment.Version
+				stale = true
 			}
-			for index := pairs; index < len(styledRemoved); index++ {
-				styledRemoved[index] = styleDiffLine(styledRemoved[index], color)
-			}
-			for index := pairs; index < len(styledAdded); index++ {
-				styledAdded[index] = styleDiffLine(styledAdded[index], color)
-			}
-			for _, line := range append(styledRemoved, styledAdded...) {
-				_, _ = fmt.Fprintf(&rendered, "    %s\n", line)
-			}
-			index = change.next
-			continue
 		}
-		_, _ = fmt.Fprintf(
-			&rendered,
-			"    %s\n",
-			styleDiffLine(lines[index], color),
-		)
-		index++
 	}
-	return rendered.String()
+	if !stale {
+		return nil, nil, false
+	}
+	current, _ = json.Marshal(currentPins)
+	latest, _ = json.Marshal(latestPins)
+	return current, latest, true
 }
 
-// renderSideBySideUnifiedDiff aligns removed and added lines into equal-width
-// columns while retaining unified-diff headers and hunks.
-func renderSideBySideUnifiedDiff(lines []string, width int) string {
-	if len(lines) < 2 {
-		return renderUnifiedDiff(lines, true)
-	}
+// changedAttachmentIDs returns the tools and skills whose content differs
+// between the server and the local variation.
+func changedAttachmentIDs(resource PlannedResource) []ResourceID {
+	before := attachmentsByID(resource.ID.ProjectKey, resource.Server)
+	after := attachmentsByID(resource.ID.ProjectKey, resource.Local)
 
-	const (
-		indentWidth = 4
-		columnGap   = 2
-	)
-	columnWidth := (width - indentWidth - columnGap) / 2
-	cellStyle := lipgloss.NewStyle().Width(columnWidth)
-
-	var rendered strings.Builder
-	writeRow := func(before, after string) {
-		before = ansi.Wordwrap(before, columnWidth, ",:")
-		after = ansi.Wordwrap(after, columnWidth, ",:")
-		row := lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			cellStyle.Render(before),
-			strings.Repeat(" ", columnGap),
-			cellStyle.Render(after),
-		)
-		_, _ = fmt.Fprintf(
-			&rendered,
-			"%s\n",
-			indentBlock(row, indentWidth),
-		)
-	}
-
-	writeRow(styleDiffLine(lines[0], true), styleDiffLine(lines[1], true))
-	for index := 2; index < len(lines); {
-		if strings.HasPrefix(lines[index], "@@") {
-			_, _ = fmt.Fprintf(
-				&rendered,
-				"    %s\n",
-				styleDiffLine(lines[index], true),
-			)
-			index++
-			continue
+	var changed []ResourceID
+	for id, attachment := range before {
+		if other, exists := after[id]; !exists || !syncdomain.SameAttachmentContent(attachment, other) {
+			changed = append(changed, id)
 		}
-
-		change := scanDiffChange(lines, index)
-		if len(change.removed) != 0 || len(change.added) != 0 {
-			for pair := 0; pair < max(len(change.removed), len(change.added)); pair++ {
-				var beforeLine, afterLine string
-				switch {
-				case pair < len(change.removed) && pair < len(change.added):
-					beforeLine, afterLine = renderChangedLinePair(
-						change.removed[pair],
-						change.added[pair],
-					)
-				case pair < len(change.removed):
-					beforeLine = styleDiffLine(change.removed[pair], true)
-				default:
-					afterLine = styleDiffLine(change.added[pair], true)
-				}
-				writeRow(beforeLine, afterLine)
-			}
-			index = change.next
-			continue
+	}
+	for id := range after {
+		if _, exists := before[id]; !exists {
+			changed = append(changed, id)
 		}
-
-		context := styleDiffLine(lines[index], true)
-		writeRow(context, context)
-		index++
 	}
-	return rendered.String()
+	slices.SortFunc(changed, syncdomain.CompareResourceIDs)
+	return changed
 }
 
-type diffChange struct {
-	removed []string
-	added   []string
-	next    int
-}
-
-// scanDiffChange groups adjacent removed and added lines into one replacement block.
-func scanDiffChange(lines []string, start int) diffChange {
-	removedEnd := start
-	for removedEnd < len(lines) && isRemovedDiffLine(lines[removedEnd]) {
-		removedEnd++
-	}
-
-	addedEnd := removedEnd
-	for addedEnd < len(lines) && isAddedDiffLine(lines[addedEnd]) {
-		addedEnd++
-	}
-
-	return diffChange{
-		removed: lines[start:removedEnd],
-		added:   lines[removedEnd:addedEnd],
-		next:    addedEnd,
-	}
-}
-
-// indentBlock applies the same left margin to every rendered line.
-func indentBlock(value string, spaces int) string {
-	prefix := strings.Repeat(" ", spaces)
-	return prefix + strings.ReplaceAll(value, "\n", "\n"+prefix)
-}
-
-// isRemovedDiffLine distinguishes content removals from the --- file header.
-func isRemovedDiffLine(line string) bool {
-	return strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---")
-}
-
-// isAddedDiffLine distinguishes content additions from the +++ file header.
-func isAddedDiffLine(line string) bool {
-	return strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++")
-}
-
-// styleDiffLine applies semantic colors to headers, hunks, context, and changes.
-func styleDiffLine(line string, color bool) string {
-	if !color {
-		return line
-	}
-	switch {
-	case strings.HasPrefix(line, "---"), isRemovedDiffLine(line):
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(line)
-	case strings.HasPrefix(line, "+++"), isAddedDiffLine(line):
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render(line)
-	case strings.HasPrefix(line, "@@"):
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Render(line)
-	default:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(line)
-	}
-}
-
-// renderChangedLinePair highlights only the changed span within paired lines.
-func renderChangedLinePair(before, after string) (string, string) {
-	if !isRemovedDiffLine(before) || !isAddedDiffLine(after) {
-		return styleDiffLine(before, true), styleDiffLine(after, true)
-	}
-
-	prefix, removed, added, suffix := changedParts(before[1:], after[1:])
-	removedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	addedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
-	removedHighlight := removedStyle.
-		Background(lipgloss.Color("52")).
-		Bold(true)
-	addedHighlight := addedStyle.
-		Background(lipgloss.Color("22")).
-		Bold(true)
-
-	return removedStyle.Render("-"+prefix) +
-			removedHighlight.Render(removed) +
-			removedStyle.Render(suffix),
-		addedStyle.Render("+"+prefix) +
-			addedHighlight.Render(added) +
-			addedStyle.Render(suffix)
-}
-
-// changedParts separates two lines into their shared prefix, changed middle,
-// and shared suffix using runes rather than bytes.
-func changedParts(before, after string) (
-	prefix string,
-	removed string,
-	added string,
-	suffix string,
-) {
-	beforeRunes := []rune(before)
-	afterRunes := []rune(after)
-	prefixLength := 0
-	for prefixLength < min(len(beforeRunes), len(afterRunes)) &&
-		beforeRunes[prefixLength] == afterRunes[prefixLength] {
-		prefixLength++
-	}
-
-	suffixLength := 0
-	for suffixLength < len(beforeRunes)-prefixLength &&
-		suffixLength < len(afterRunes)-prefixLength &&
-		beforeRunes[len(beforeRunes)-1-suffixLength] ==
-			afterRunes[len(afterRunes)-1-suffixLength] {
-		suffixLength++
-	}
-
-	beforeChangeEnd := len(beforeRunes) - suffixLength
-	afterChangeEnd := len(afterRunes) - suffixLength
-	return string(beforeRunes[:prefixLength]),
-		string(beforeRunes[prefixLength:beforeChangeEnd]),
-		string(afterRunes[prefixLength:afterChangeEnd]),
-		string(beforeRunes[beforeChangeEnd:])
-}
-
-// formatDiffValue pretty-prints JSON and substitutes readable absence markers
-// for missing local or LaunchDarkly resources.
-func formatDiffValue(value json.RawMessage, label string, missingValue string) (string, error) {
-	if len(value) == 0 || bytes.Equal(value, []byte("null")) {
-		if missingValue != "" {
-			return missingValue, nil
+func attachmentsByID(projectKey string, variation *syncdomain.Variation) map[ResourceID]syncdomain.Attachment {
+	attachments := map[ResourceID]syncdomain.Attachment{}
+	if variation != nil {
+		for _, attachment := range variation.Attachments {
+			attachments[attachment.ID(projectKey)] = attachment
 		}
-		if strings.HasPrefix(label, "LaunchDarkly") {
-			return "(does not exist in LaunchDarkly)", nil
-		}
-		return "(does not exist locally)", nil
 	}
-	var formatted bytes.Buffer
-	if err := json.Indent(&formatted, value, "", "  "); err != nil {
-		return "", fmt.Errorf("format variation diff: %w", err)
-	}
-	return formatted.String(), nil
-}
-
-// terminalWidth returns zero for redirected output or unavailable terminal metadata.
-func terminalWidth(out io.Writer) int {
-	file, ok := out.(*os.File)
-	if !ok || !term.IsTerminal(int(file.Fd())) {
-		return 0
-	}
-	width, _, err := term.GetSize(int(file.Fd()))
-	if err != nil {
-		return 0
-	}
-	return width
+	return attachments
 }

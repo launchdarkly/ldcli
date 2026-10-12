@@ -1,10 +1,8 @@
 package prompt
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -12,242 +10,284 @@ import (
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
-type currentResourceState struct {
-	localFingerprint  string
-	serverFingerprint string
-	serverMode        syncdomain.VariationMode
-}
-
-// executePlan applies each independently executable resource and advances the
-// manifest only for resources that succeed.
+// executePlan applies each action of the plan, and returns the outcomes and
+// the new manifest. The manifest records only the actions that succeed. The
+// manifest argument does not change. localFiles has each local variation as
+// its file stores it.
 func executePlan(
 	repositoryRoot string,
 	localStore synclocal.Store,
 	client syncapi.Client,
 	manifest syncmanifest.Manifest,
 	plan Plan,
+	localFiles map[ResourceID]syncdomain.SyncedResource,
 ) ([]ResourceOutcome, syncmanifest.Manifest, error) {
-	// Keep the reviewed baseline immutable while successful resources advance
-	// the result manifest independently.
-	manifest.Resources = append([]syncmanifest.Resource(nil), manifest.Resources...)
+	// A conflict choice applies to the full plan. Write nothing until every
+	// conflict has a choice, so that a shared attachment cannot change while
+	// one of its variations has no choice.
+	if err := plan.BlockingError(); err != nil {
+		return nil, manifest, err
+	}
 
+	next := manifest.Clone()
 	outcomes := make([]ResourceOutcome, 0, len(plan.Resources))
 	var failures []error
+	attachments := newAttachmentResolver(client)
+	fail := func(outcome *ResourceOutcome, err error) {
+		outcome.Status, outcome.Error = OutcomeFailed, err.Error()
+		failures = append(failures, fmt.Errorf("%s: %w", outcome.ID, err))
+	}
 
 	for _, resource := range plan.Resources {
 		outcome := ResourceOutcome{ID: resource.ID, Action: resource.Action, Status: OutcomeSucceeded}
-
-		switch resource.Action {
-		case ActionInSync:
-			// The manifest already represents this state.
-		case ActionUpdateManifest:
-			manifest.SetFingerprint(resource.ID, resource.LocalFingerprint)
-		case ActionRemoveManifest:
-			manifest.Remove(resource.ID)
-		case ActionCreateServer, ActionUpdateServer, ActionArchiveServer, ActionUpdateLocal, ActionDeleteLocal:
-			if err := applyResourceChange(repositoryRoot, localStore, client, resource); err != nil {
-				outcome.Status, outcome.Error = OutcomeFailed, err.Error()
-				failures = append(failures, fmt.Errorf("%s/%s: %w", resource.ID.ProjectKey, resource.ID.LookupKey, err))
+		switch {
+		case resource.Action == ActionInSync:
+		case resource.Action == ActionUpdateManifest:
+			next.SetFingerprint(resource.ID, resource.LocalFingerprint)
+		case resource.Action == ActionRemoveManifest:
+			next.Remove(resource.ID)
+		case resource.Action.changesServer() || resource.Action.changesLocal():
+			var localFile *syncdomain.Variation
+			if file, ok := localFiles[resource.ID]; ok {
+				localFile = &file.Variation
+			}
+			if err := applyResourceChange(repositoryRoot, localStore, client, attachments, resource, localFile); err != nil {
+				fail(&outcome, err)
 				break
 			}
-			recordSuccessfulChange(&manifest, resource)
+			recordSuccessfulChange(&next, resource)
 		default:
 			outcome.Status, outcome.Error = OutcomeSkipped, "resource is not executable"
 		}
 
+		if outcome.Status == OutcomeSucceeded {
+			if variation := attachmentManifestState(resource); variation != nil {
+				if err := next.SetAttachments(resource.ID.ProjectKey, variation.Attachments); err != nil {
+					fail(&outcome, err)
+				}
+			}
+		}
 		outcomes = append(outcomes, outcome)
 	}
 
-	return outcomes, manifest, errors.Join(failures...)
+	if len(failures) == 0 {
+		variations, err := compileWorkspace(repositoryRoot)
+		if err != nil {
+			failures = append(failures, err)
+		} else {
+			next.RemoveUnusedAttachments(variations)
+		}
+	}
+	return outcomes, next, errors.Join(failures...)
 }
 
-// applyResourceChange verifies the reviewed state and applies one local or
-// server mutation.
-func applyResourceChange(repositoryRoot string, localStore synclocal.Store, client syncapi.Client, resource PlannedResource) error {
-	if err := verifyResourceUnchanged(repositoryRoot, client, resource); err != nil {
-		return err
+// attachmentManifestState returns the variation whose attachments the
+// manifest records after the action, or nil.
+func attachmentManifestState(resource PlannedResource) *syncdomain.Variation {
+	switch resource.Action {
+	case ActionInSync, ActionUpdateManifest, ActionCreateServer, ActionUpdateServer:
+		return resource.Local
+	case ActionUpdateLocal:
+		return resource.Server
+	default:
+		return nil
 	}
-	if changesServer(resource.Action) {
-		return applyServerChange(client, resource)
-	}
-	if err := applyLocalChange(localStore, resource); err != nil {
-		return err
-	}
-	return verifyLocalResult(repositoryRoot, resource)
 }
 
-// recordSuccessfulChange updates the manifest to the state selected by the
-// completed action.
+// recordSuccessfulChange records the state that a completed action chose.
 func recordSuccessfulChange(manifest *syncmanifest.Manifest, resource PlannedResource) {
 	switch {
 	case resource.Action == ActionArchiveServer || resource.Action == ActionDeleteLocal:
 		manifest.Remove(resource.ID)
-	case changesServer(resource.Action):
+	case resource.Action.changesServer():
 		manifest.SetFingerprint(resource.ID, resource.LocalFingerprint)
 	default:
 		manifest.SetFingerprint(resource.ID, resource.ServerFingerprint)
 	}
 }
 
-// verifyResourceUnchanged prevents a reviewed action from using stale local or
-// server state.
-func verifyResourceUnchanged(repositoryRoot string, client syncapi.Client, reviewed PlannedResource) error {
-	current, err := readCurrentResourceState(repositoryRoot, client, reviewed.ID)
-	if err != nil {
+// applyResourceChange applies one action that writes to LaunchDarkly or to a
+// local file. localFile is the variation as its file stores it, or nil.
+func applyResourceChange(
+	repositoryRoot string,
+	localStore synclocal.Store,
+	client syncapi.Client,
+	attachments *attachmentResolver,
+	resource PlannedResource,
+	localFile *syncdomain.Variation,
+) error {
+	if resource.Action.changesServer() {
+		return applyServerChange(client, attachments, resource)
+	}
+
+	// The local write uses the form of the local file, which can leave out
+	// model values from the model config. A pin update below needs the
+	// complete variation, so keep it.
+	server := resource.Server
+	if resource.Action == ActionUpdateLocal {
+		variation := variationForLocalFile(*resource.Server, localFile, resource.Local)
+		resource.Server = &variation
+	}
+	if err := applyLocalChange(localStore, resource); err != nil {
 		return err
 	}
-	if current.localFingerprint != reviewed.LocalFingerprint ||
-		current.serverFingerprint != reviewed.ServerFingerprint ||
-		current.serverMode != reviewed.ServerMode {
-		return fmt.Errorf("resource changed after review; run sync again")
+	if err := verifyLocalResult(repositoryRoot, resource); err != nil {
+		return err
+	}
+
+	// The local file now matches LaunchDarkly. If LaunchDarkly pins an older
+	// attachment version, update the pin too.
+	if resource.ServerHasStaleAttachmentPins && server != nil {
+		configKey, _, err := resource.ID.VariationKeys()
+		if err != nil {
+			return err
+		}
+		pinned, err := server.PinnedToLatest()
+		if err != nil {
+			return err
+		}
+		return client.UpdateVariation(resource.ID.ProjectKey, configKey, pinned)
 	}
 	return nil
 }
 
-// applyServerChange performs one variation mutation through the existing
-// public config APIs.
-func applyServerChange(client syncapi.Client, resource PlannedResource) error {
-	configKey, variationKey, err := splitVariationLookupKey(resource.ID.LookupKey)
+// applyServerChange writes one variation to LaunchDarkly. If the write fails
+// without a response, it reads the variation to find whether the write
+// succeeded.
+func applyServerChange(client syncapi.Client, attachments *attachmentResolver, resource PlannedResource) error {
+	configKey, variationKey, err := resource.ID.VariationKeys()
 	if err != nil {
 		return err
 	}
+	projectKey := resource.ID.ProjectKey
 
-	var mutationErr error
+	var writeErr error
 	switch resource.Action {
 	case ActionCreateServer:
-		mutationErr = client.CreateVariation(resource.ID.ProjectKey, configKey, *resource.Local)
+		variation, err := attachments.resolveVariation(projectKey, *resource.Local)
+		if err != nil {
+			return err
+		}
+		writeErr = client.CreateVariation(projectKey, configKey, variation)
 	case ActionUpdateServer:
-		mutationErr = client.UpdateVariation(resource.ID.ProjectKey, configKey, *resource.Local)
+		variation, err := attachments.resolveVariation(projectKey, withExplicitDetach(*resource.Local, resource.Server))
+		if err != nil {
+			return err
+		}
+		writeErr = client.UpdateVariation(projectKey, configKey, variation)
 	case ActionArchiveServer:
-		mutationErr = client.ArchiveVariation(resource.ID.ProjectKey, configKey, variationKey)
+		writeErr = client.ArchiveVariation(projectKey, configKey, variationKey)
+	default:
+		return fmt.Errorf("action %q does not change LaunchDarkly", resource.Action)
 	}
-	if mutationErr == nil {
-		return nil
-	}
-	if !syncapi.MutationMayHaveSucceeded(mutationErr) {
-		return mutationErr
-	}
-
-	// A network error can hide a successful write, so re-read only when the
-	// mutation result is uncertain.
-	state, readErr := client.ReadVariation(resource.ID.ProjectKey, configKey, variationKey)
-	if readErr != nil {
-		return errors.Join(mutationErr, fmt.Errorf("verify server variation: %w", readErr))
+	if writeErr == nil || !syncapi.MutationMayHaveSucceeded(writeErr) {
+		return writeErr
 	}
 
-	actualFingerprint := ""
+	state, err := client.ReadVariation(projectKey, configKey, variationKey)
+	if err != nil {
+		return errors.Join(writeErr, fmt.Errorf("verify server variation: %w", err))
+	}
+	actual := ""
 	if state.Exists {
-		actualFingerprint, readErr = syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, state.Variation)
-		if readErr != nil {
-			return errors.Join(mutationErr, readErr)
+		if err := newAttachmentCache(client).hydrate(projectKey, &state.Variation); err != nil {
+			return errors.Join(writeErr, err)
+		}
+		if actual, err = syncdomain.FingerprintVariation(projectKey, resource.ID.LookupKey, state.Variation); err != nil {
+			return errors.Join(writeErr, err)
 		}
 	}
-	expectedFingerprint := resource.LocalFingerprint
+	expected := resource.LocalFingerprint
 	if resource.Action == ActionArchiveServer {
-		expectedFingerprint = ""
+		expected = ""
 	}
 
-	switch actualFingerprint {
-	case expectedFingerprint:
+	switch actual {
+	case expected:
 		return nil
 	case resource.ServerFingerprint:
-		return mutationErr
+		return writeErr
 	default:
-		return fmt.Errorf("server variation changed concurrently after an uncertain write: %w", mutationErr)
+		return fmt.Errorf("server variation changed concurrently after an uncertain write: %w", writeErr)
 	}
 }
 
-// verifyLocalResult confirms that a local file mutation produced the selected
-// server state.
-func verifyLocalResult(repositoryRoot string, resource PlannedResource) error {
-	actualFingerprint, err := readLocalFingerprint(repositoryRoot, resource.ID)
+// withExplicitDetach sends an empty reference list when the local variation
+// has no tools or skills but LaunchDarkly has some. The API treats an absent
+// list as unchanged.
+func withExplicitDetach(local syncdomain.Variation, server *syncdomain.Variation) syncdomain.Variation {
+	if server == nil {
+		return local
+	}
+	if local.Tools == nil && len(server.Tools) != 0 {
+		local.Tools = []syncdomain.AttachmentRef{}
+	}
+	if local.Skills == nil && len(server.Skills) != 0 {
+		local.Skills = []syncdomain.AttachmentRef{}
+	}
+	return local
+}
+
+// applyLocalChange writes the LaunchDarkly state of one variation to its
+// local file, or deletes the file.
+func applyLocalChange(store synclocal.Store, resource PlannedResource) error {
+	configKey, variationKey, err := resource.ID.VariationKeys()
 	if err != nil {
 		return err
 	}
 
-	expectedFingerprint := resource.ServerFingerprint
-	if resource.Action == ActionDeleteLocal {
-		expectedFingerprint = ""
+	switch resource.Action {
+	case ActionUpdateLocal:
+		_, err := store.ReplaceVariations([]synclocal.VariationReplacement{{
+			ProjectKey:      resource.ID.ProjectKey,
+			ConfigKey:       configKey,
+			CreateIfMissing: resource.Local == nil,
+			Variation:       *resource.Server,
+		}})
+		return err
+	case ActionDeleteLocal:
+		_, err := store.DeleteVariations([]synclocal.VariationDeletion{{
+			ProjectKey: resource.ID.ProjectKey, ConfigKey: configKey, VariationKey: variationKey,
+		}})
+		return err
+	default:
+		return fmt.Errorf("action %q does not change a local file", resource.Action)
 	}
-	if actualFingerprint != expectedFingerprint {
-		return fmt.Errorf("local variation did not match the expected state after sync")
+}
+
+// verifyLocalResult makes sure that the local file has the state that the
+// action wrote. For ActionUpdateLocal, resource.Server is in the form of the
+// local file.
+func verifyLocalResult(repositoryRoot string, resource PlannedResource) error {
+	actual, err := readLocalFingerprint(repositoryRoot, resource.ID)
+	if err != nil {
+		return err
+	}
+
+	expected := ""
+	if resource.Action == ActionUpdateLocal {
+		expected, err = syncdomain.FingerprintVariation(resource.ID.ProjectKey, resource.ID.LookupKey, *resource.Server)
+		if err != nil {
+			return err
+		}
+	}
+	if actual != expected {
+		return errors.New("local variation did not match the expected state after sync")
 	}
 	return nil
 }
 
-// readCurrentResourceState reads the local and server fingerprints used for
-// optimistic concurrency checks.
-func readCurrentResourceState(repositoryRoot string, client syncapi.Client, id ResourceID) (currentResourceState, error) {
-	localFingerprint, err := readLocalFingerprint(repositoryRoot, id)
-	if err != nil {
-		return currentResourceState{}, err
-	}
-
-	serverResource, err := readServerResource(client, id)
-	if err != nil {
-		return currentResourceState{}, err
-	}
-	serverFingerprint := ""
-	if serverResource.Variation != nil {
-		serverFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, *serverResource.Variation)
-	}
-	return currentResourceState{
-		localFingerprint: localFingerprint, serverFingerprint: serverFingerprint, serverMode: serverResource.ConfigMode,
-	}, err
-}
-
-// readLocalFingerprint returns the current fingerprint for one local resource,
-// or an empty fingerprint when the resource does not exist.
+// readLocalFingerprint returns the fingerprint of one local variation, or an
+// empty string when the variation has no local file.
 func readLocalFingerprint(repositoryRoot string, id ResourceID) (string, error) {
-	localResources, err := synclocal.CompileWorkspace(repositoryRoot)
+	variations, err := compileWorkspace(repositoryRoot)
 	if err != nil {
 		return "", err
 	}
-
-	for _, resource := range localResources {
-		if resource.Kind != id.Kind || resource.ProjectKey != id.ProjectKey || resource.LookupKey != id.LookupKey {
-			continue
+	for _, variation := range variations {
+		if variation.ID() == id {
+			return syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, variation.Variation)
 		}
-		var variation syncdomain.Variation
-		if err := json.Unmarshal(resource.Payload, &variation); err != nil {
-			return "", err
-		}
-		return syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, variation)
 	}
 	return "", nil
-}
-
-// readServerResource reads one supported resource from LaunchDarkly.
-func readServerResource(client syncapi.Client, id ResourceID) (ServerResource, error) {
-	if id.Kind != syncdomain.KindVariation {
-		return ServerResource{}, fmt.Errorf("unsupported sync resource kind %q", id.Kind)
-	}
-	configKey, variationKey, err := splitVariationLookupKey(id.LookupKey)
-	if err != nil {
-		return ServerResource{}, err
-	}
-	state, err := client.ReadVariation(id.ProjectKey, configKey, variationKey)
-	if err != nil {
-		return ServerResource{}, err
-	}
-
-	resource := ServerResource{ConfigMode: state.ConfigMode}
-	if state.Exists {
-		resource.Variation = &state.Variation
-	}
-	return resource, nil
-}
-
-// splitVariationLookupKey separates a config key from its variation key.
-func splitVariationLookupKey(lookupKey string) (string, string, error) {
-	configKey, variationKey, ok := strings.Cut(lookupKey, "/")
-	if !ok || configKey == "" || variationKey == "" || strings.Contains(variationKey, "/") {
-		return "", "", fmt.Errorf("invalid variation lookup key %q", lookupKey)
-	}
-	return configKey, variationKey, nil
-}
-
-// changesServer reports whether an action mutates LaunchDarkly.
-func changesServer(action Action) bool {
-	return action == ActionCreateServer || action == ActionUpdateServer || action == ActionArchiveServer
 }
