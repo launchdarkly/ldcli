@@ -18,7 +18,7 @@ const flagEvalKind = subsystems.ObjectKind("flag-eval")
 // fdv2ServerObjects sends.
 //
 // Compared with the FDv1 client-side representation (clientFlag), this drops the
-// version field, because the put-object envelope carries the flag version, and gains
+// version field because the put-object envelope carries the flag version. It gains
 // samplingRatio and trackEvents. The flag key lives on the envelope too, so it is
 // absent here.
 type clientFlagEval struct {

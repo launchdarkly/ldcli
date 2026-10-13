@@ -128,10 +128,10 @@ func makeServerIntentEvent(payloadID string, target int, intentCode subsystems.I
 }
 
 // makePutObjectEvent builds a put-object event for one flag. The event version must be
-// the version of the flag, not the payload version. SDKs store the event version as the
-// version of the flag. They compare it to find which flags changed and to drop stale
-// updates. The payload version changes on every override, so it would mark every flag
-// as changed on each full transfer.
+// the version of the flag, not the payload version. Client-side SDKs store the event
+// version as the version of the flag. They compare stored flags to find which flags
+// changed. The payload version changes on every override. If the event used it, every
+// full transfer will mark every flag as changed.
 func makePutObjectEvent(key string, flagState model.FlagState, objects fdv2ObjectEncoder) (subsystems.RawEvent, error) {
 	object, err := json.Marshal(objects.encode(key, flagState))
 	if err != nil {
