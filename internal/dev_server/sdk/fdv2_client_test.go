@@ -50,7 +50,7 @@ func TestFdv2ClientObjects(t *testing.T) {
 		}, object)
 	})
 
-	t.Run("omits the payload version and the flag key, which live on the envelope", func(t *testing.T) {
+	t.Run("omits the version and the flag key, which live on the envelope", func(t *testing.T) {
 		object := encodeClientObject(t, fdv2ClientObjects(false), "my-flag", flagState)
 
 		assert.NotContains(t, object, "version")
@@ -138,7 +138,7 @@ func TestPollClientV2Handler(t *testing.T) {
 		require.NoError(t, json.Unmarshal(resp.Events[1].Data, &put))
 		assert.Equal(t, subsystems.ObjectKind("flag-eval"), put.Kind)
 		assert.Equal(t, "flag-1", put.Key)
-		assert.Equal(t, 3, put.Version)
+		assert.Equal(t, 4, put.Version)
 		assert.JSONEq(t, `{"flagVersion":4,"value":true,"variation":0,"trackEvents":false}`, string(put.Object))
 	})
 
@@ -438,6 +438,9 @@ func TestStreamClientV2Handler(t *testing.T) {
 		assert.Equal(t, string(subsystems.EventPutObject), name)
 		assert.Contains(t, data, `"kind":"flag-eval"`)
 		assert.Contains(t, data, `"value":false`)
+		var put subsystems.PutObject
+		require.NoError(t, json.Unmarshal([]byte(data), &put))
+		assert.Equal(t, 5, put.Version, "the put-object carries the flag version, not the payload version")
 
 		name, data = readSSEEvent(t, events)
 		assert.Equal(t, string(subsystems.EventPayloadTransferred), name)
