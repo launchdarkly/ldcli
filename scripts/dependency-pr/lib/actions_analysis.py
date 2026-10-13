@@ -79,6 +79,75 @@ def on_github_com(value):
     return "${{ " + (ghes.group(1) if ghes else expr).strip() + " }}"
 
 
+EXACT = re.compile(r"^v?\d+\.\d+\.\d+$")
+FLOATING = re.compile(r"^v?\d+(\.\d+)?$")
+
+
+def vtuple(tag):
+    return tuple(int(x) for x in re.findall(r"\d+", tag))
+
+
+def gh_api(path):
+    try:
+        out = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if out.returncode != 0:
+        return None
+    try:
+        return json.loads(out.stdout)
+    except ValueError:
+        return None
+
+
+_resolved = {}
+
+
+def resolve_ref(name, ref):
+    """The exact release that a ref points to today. A floating tag (v4, v4.1)
+    moves with each release, so it resolves to the highest exact tag (v4.4.0)
+    on the same commit. version is None when it cannot be resolved."""
+    repo = "/".join(name.split("/")[:2])
+    if EXACT.match(ref):
+        return {"ref": ref, "floating": False, "version": ref}
+    if not FLOATING.match(ref):
+        return {"ref": ref, "floating": None, "version": None}
+    if (repo, ref) in _resolved:
+        return _resolved[(repo, ref)]
+    commit = gh_api(f"repos/{repo}/commits/{ref}") or {}
+    sha = commit.get("sha") if isinstance(commit, dict) else None
+    refs = gh_api(f"repos/{repo}/git/matching-refs/tags/{ref}.") or []
+    tags = sorted(((vtuple(t), t, r["object"]) for r in refs if isinstance(r, dict)
+                   for t in [r.get("ref", "").removeprefix("refs/tags/")] if EXACT.match(t)), reverse=True)
+    out = {"ref": ref, "floating": True, "version": None, "latest": tags[0][1] if tags else None}
+    for _, tag, obj in tags[:20] if sha else []:
+        target = obj.get("sha")
+        if obj.get("type") == "tag":
+            target = ((gh_api(f"repos/{repo}/git/tags/{target}") or {}).get("object") or {}).get("sha")
+        if target == sha:
+            out["version"] = tag
+            break
+    _resolved[(repo, ref)] = out
+    return out
+
+
+def stale_pins(name, old_refs, new_ref):
+    """An exact new pin that is older than what a floating ref gives today:
+    the floating major of the pin (@v6 is v6.1.0, the pin is v6.0.3), or a
+    floating old ref that the PR replaces (@v4 is v4.4.0, the pin is v4.1.0)."""
+    if not new_ref or not EXACT.match(new_ref):
+        return []
+    major = re.match(r"^v?\d+", new_ref).group(0)
+    kinds = {r: "replaced" for r in old_refs}
+    kinds.setdefault(major, "major")
+    found = []
+    for ref, kind in kinds.items():
+        res = resolve_ref(name, ref)
+        if res.get("floating") and res.get("version") and vtuple(res["version"]) > vtuple(new_ref):
+            found.append({"pin": new_ref, "floating": ref, "resolves_to": res["version"], "kind": kind})
+    return found
+
+
 def gh_action_yml(name, ref):
     parts = name.split("/")
     repo, sub = "/".join(parts[:2]), "/".join(parts[2:])
@@ -140,6 +209,17 @@ def main():
         # can pin v4 in one workflow and v5 in another).
         old_refs = [r["ref"] for r in u.get("replaced") or []] or ([u["from_ref"]] if u.get("from_ref") else [])
         new_ref = u.get("to_ref")
+
+        def label(ref, version):
+            res = resolve_ref(name, ref)
+            if res.get("floating") and res.get("version"):
+                return f"{version} ({res['version']})"
+            return version
+        olds_shown = [label(r["ref"], r["version"]) for r in u.get("replaced") or []] or \
+            ([label(u["from_ref"], u.get("from") or u["from_ref"])] if u.get("from_ref") else [u.get("from") or "∅"])
+        new_shown = label(new_ref, u.get("to") or new_ref) if new_ref else (u.get("to") or "∅")
+        entry["change"] = f"{', '.join(olds_shown)} → {new_shown}"
+        entry["stale_pins"] = stale_pins(name, old_refs, new_ref)
         if old_refs and new_ref:
             olds = [gh_action_yml(name, r) for r in old_refs]
             new = gh_action_yml(name, new_ref)

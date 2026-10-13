@@ -16,7 +16,7 @@ R="$ARTIFACTS/report.json"
 detail "| Action | Change | Used in | Runs on PR CI? | Upstream action.yml |"
 detail "|---|---|---|---|---|"
 jq -r '.actions[] |
-  "| `\(.name)` | \(if (.replaced | length) > 1 then (.replaced | join(", ")) else (.from // "∅") end) → \(.to // "∅") | \([.usages[].file] | unique | join(", ")) | \(
+  "| `\(.name)` | \(.change) | \([.usages[].file] | unique | join(", ")) | \(
     if (.usages | length) == 0 then "n/a"
     elif all(.usages[]; .runs_on_pr) then "yes"
     elif any(.usages[]; .runs_on_pr) then "partly, not " + ([.usages[] | select(.runs_on_pr | not) | .workflows[]] | unique | join(", "))
@@ -32,6 +32,11 @@ jq -r '.actions[] | select(.upstream.status == "ok" and ((.upstream.outputs_unde
 jq -r '.actions[] | select(.upstream.status == "ok" and ((.upstream.defaults_same_on_github_com // []) | length) > 0)
   | "- `\(.name)`: the default of \([.upstream.defaults_same_on_github_com[].input] | join(", ")) changed only for GitHub Enterprise Server. It gives the same value on github.com."' "$R" >>"$ARTIFACTS/details.md"
 jq -r '.permissions_changes[] | "- permissions changed in \(.where): `\(.from)` → `\(.to)`"' "$R" >>"$ARTIFACTS/details.md"
+jq -r '.actions[] | .name as $n | .stale_pins[]
+  | "- `\($n)@\(.pin)` is an exact pin. `@\(.floating)`\(if .kind == "replaced" then ", which the PR replaces," else "" end) resolves to the newer \(.resolves_to) today, so the pin \(if .kind == "replaced" then "moves the workflows back to an older release" else "does not get the later releases" end)."' "$R" >>"$ARTIFACTS/details.md"
+jq -r '.actions[] | .name as $n | .stale_pins[]
+  | "Pin `\($n)` to `@\(.resolves_to)` or to the floating `@\(.pin | capture("^(?<m>v?[0-9]+)").m)` instead of `@\(.pin)`."' "$R" | sort -u |
+  while IFS= read -r line; do recommend "$line"; done
 
 broken=$(jq -r '[.actions[] | select(.upstream.status == "ok") | .name as $n | .upstream
   | ((.removed_but_used | map("\($n) no longer has input \(.)")) + (.new_required | map("\($n) requires new input \(.)")) + (.outputs_missing | map("\($n) no longer has output \(.)")))[]] | join("; ")' "$R")
@@ -50,9 +55,9 @@ perm=$(jq -r '[.permissions_changes[] | "\(.where): \(.from) → \(.to)"] | join
 [ -n "$perm" ] && questions+=("accept the workflow permission changes ($perm)")
 # Fields are joined with the unit separator, not a tab. Tab is IFS whitespace,
 # so read would merge empty fields and shift the later fields left.
-while IFS=$'\x1f' read -r name from to untested runtime defaults selfhosted used; do
+while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted used; do
   [ -n "$name" ] || continue
-  ev="$name $from → $to: inputs and outputs that the repo uses are unchanged; runtime $runtime${defaults:+; changed defaults: $defaults}${selfhosted:+; non-standard runner labels: $selfhosted}"
+  ev="$name $change: inputs and outputs that the repo uses are unchanged; runtime $runtime${defaults:+; changed defaults: $defaults}${selfhosted:+; non-standard runner labels: $selfhosted}"
   evidence+=("$ev")
   if [ -n "$untested" ]; then
     questions+=("accept $name $to in workflows that PR CI does not run ($untested)")
@@ -60,12 +65,22 @@ while IFS=$'\x1f' read -r name from to untested runtime defaults selfhosted used
     questions+=("accept the changed input defaults of $name in $used ($defaults)")
   fi
 done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking or (.upstream.defaults_changed | length) > 0) |
-  [.name, (if (.replaced | length) > 1 then (.replaced | join(", ")) else .from end), .to,
+  [.name, .change, .to,
    ([.usages[] | select(.runs_on_pr | not) | .workflows[]] | unique | map(sub("^\\.github/workflows/"; "")) | join(", ")),
    (.upstream.runs_using | join(" → ")),
    ([.upstream.defaults_changed[] | "\(.input): \(.from // "none") → \(.to // "none")"] | join(", ")),
    (.self_hosted_runners | join(", ")),
    ([.usages[].workflows[]] | unique | map(sub("^\\.github/workflows/"; "")) | join(", "))] | map(. // "" | tostring) | join("\u001f")' "$R")
+
+while IFS=$'\x1f' read -r q ev; do
+  [ -n "$q" ] || continue
+  questions+=("$q")
+  evidence+=("$ev")
+done < <(jq -r '.actions[] | .name as $n | .stale_pins | select(length > 0)
+  | ["accept the exact pin \($n)@\(.[0].pin), which is older than "
+       + (map("\(.resolves_to) that @\(.floating) \(if .kind == "replaced" then "(replaced by the PR) " else "" end)resolves to today") | join(" and ")),
+     "\($n)@\(.[0].pin) is an exact pin; " + (map("@\(.floating) resolves to \(.resolves_to)") | join(", "))]
+  | join("\u001f")' "$R")
 
 if [ ${#questions[@]} -gt 0 ]; then
   fingerprint "${questions[*]}"

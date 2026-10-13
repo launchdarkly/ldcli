@@ -479,6 +479,42 @@ check "ci-status: unknown workflow runs are incomplete" "incomplete" "$(ci_check
 check "ci-status is a required check, so incomplete CI makes the verdict incomplete" "true" \
   "$(jq -r '.checks[] | select(.id == "ci-status") | .required' "$ROOT/checks/registry.json")"
 
+# Bug 4: actions-coverage showed "v4 → v6.0.3" for #719. The floating @v4 is
+# v4.4.0 today, and @v6 is v6.1.0, so the exact pin v6.0.3 misses a release.
+for side in b p; do mkdir -p "$tmp/co-$side/.github/workflows"; done
+printf 'on: push\njobs:\n  r:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n' >"$tmp/co-b/.github/workflows/r.yml"
+sed 's/@v4$/@v6.0.3/' "$tmp/co-b/.github/workflows/r.yml" >"$tmp/co-p/.github/workflows/r.yml"
+printf '.github/workflows/r.yml\n' >"$tmp/co-changed.txt"
+"$LIB/classify.sh" "$tmp/co-b" "$tmp/co-p" "$tmp/co-changed.txt" "$tmp/pr0.json" "$tmp/cls-co.json" 2>>"$tmp/classify.err"
+mkdir -p "$tmp/co-api"
+printf 'inputs:\n  fetch-depth:\n    default: 1\nruns:\n  using: node20\n' | base64 -w0 >"$tmp/co-api/v4"
+printf 'inputs:\n  fetch-depth:\n    default: 1\nruns:\n  using: node24\n' | base64 -w0 >"$tmp/co-api/v6.0.3"
+cp "$tmp/co-api/v6.0.3" "$tmp/co-api/v4.3.0"
+# v4 and v4.4.0 (an annotated tag) are on commit a44; v6 and v6.1.0 on c61.
+cat >"$tmp/co-api/routes" <<'R'
+repos/actions/checkout/commits/v4	{"sha": "a44"}
+repos/actions/checkout/commits/v6	{"sha": "c61"}
+repos/actions/checkout/git/matching-refs/tags/v4.	[{"ref": "refs/tags/v4.3.0", "object": {"sha": "b43", "type": "commit"}}, {"ref": "refs/tags/v4.4.0", "object": {"sha": "t44", "type": "tag"}}]
+repos/actions/checkout/git/matching-refs/tags/v6.	[{"ref": "refs/tags/v6.0.3", "object": {"sha": "d603", "type": "commit"}}, {"ref": "refs/tags/v6.1.0", "object": {"sha": "c61", "type": "commit"}}]
+repos/actions/checkout/git/tags/t44	{"object": {"sha": "a44", "type": "commit"}}
+R
+stub "$tmp/bin-co" gh "case \"\$2\" in
+  *contents/action.yml\\?ref=*) f=\"$tmp/co-api/\${2##*ref=}\"; [ -f \"\$f\" ] && cat \"\$f\" || exit 1 ;;
+  *) awk -F'\t' -v p=\"\$2\" '\$1 == p {print \$2; found=1} END {exit !found}' \"$tmp/co-api/routes\" ;;
+esac"
+out=$(BASE_WT="$tmp/co-b" run_check actions-coverage "$tmp/co-p" PATH="$tmp/bin-co:$PATH" CLASSIFICATION="$tmp/cls-co.json")
+check "actions-coverage resolves the floating old ref to the exact release" 1 \
+  "$(grep -c '| `actions/checkout` | v4 (v4.4.0) → v6.0.3 |' "$(ls -dt "$tmp"/art.* | head -n1)/details.md")"
+check "actions-coverage flags an exact pin that is older than its floating major" \
+  "decide|Accept actions/checkout v6.0.3 in workflows that PR CI does not run (r.yml); and accept the exact pin actions/checkout@v6.0.3, which is older than v6.1.0 that @v6 resolves to today?" \
+  "${out%%|*}|${out##*|}"
+sed -i 's/@v6.0.3$/@v4.3.0/' "$tmp/co-p/.github/workflows/r.yml"
+"$LIB/classify.sh" "$tmp/co-b" "$tmp/co-p" "$tmp/co-changed.txt" "$tmp/pr0.json" "$tmp/cls-co.json" 2>>"$tmp/classify.err"
+out=$(BASE_WT="$tmp/co-b" run_check actions-coverage "$tmp/co-p" PATH="$tmp/bin-co:$PATH" CLASSIFICATION="$tmp/cls-co.json")
+check "actions-coverage: an exact pin below what the replaced floating ref gives is a step back" \
+  "decide|Accept the exact pin actions/checkout@v4.3.0, which is older than v4.4.0 that @v4 (replaced by the PR) resolves to today?" \
+  "${out%%|*}|${out##*|}"
+
 # Bug 3: a generated check inherited the global git configuration, and an
 # `insteadOf` rule with an access token showed up in its log. The tokens are
 # built at run time, so this file holds no token-shaped string.
