@@ -1,11 +1,13 @@
 package sdk
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/ldcli/internal/dev_server/db"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model/mocks"
 	"github.com/stretchr/testify/assert"
@@ -125,8 +128,8 @@ func TestBuildPollResponse(t *testing.T) {
 		assert.True(t, putKeys["flag-b"])
 	})
 
-	// SDKs compare put-object versions to find changed flags. If the version followed the
-	// payload version, every override would mark every flag as changed.
+	// Client-side SDKs compare put-object versions to find changed flags. If the version
+	// follows the payload version, every override will mark every flag as changed.
 	t.Run("put-object versions of unchanged flags stay the same when the payload version changes", func(t *testing.T) {
 		before := model.FlagsState{
 			"unchanged": model.FlagState{Value: ldvalue.Int(10), Version: 1},
@@ -148,6 +151,92 @@ func TestBuildPollResponse(t *testing.T) {
 			})
 		}
 	})
+}
+
+type overrideEventRecorder struct {
+	events []model.OverrideEvent
+}
+
+func (r *overrideEventRecorder) Handle(event interface{}) {
+	if overrideEvent, ok := event.(model.OverrideEvent); ok {
+		r.events = append(r.events, overrideEvent)
+	}
+}
+
+// TestPutObjectVersionsWithOverridesInStore uses the real SQLite store. Each change to an
+// override must give the flag a higher version. Otherwise an SDK can ignore the change.
+func TestPutObjectVersionsWithOverridesInStore(t *testing.T) {
+	ctx := context.Background()
+	store, err := db.NewSqlite(ctx, filepath.Join(t.TempDir(), "test.db"))
+	require.NoError(t, err)
+	ctx = model.ContextWithStore(ctx, store)
+	recorder := &overrideEventRecorder{}
+	observers := model.NewObservers()
+	observers.RegisterObserver(recorder)
+	ctx = model.SetObserversOnContext(ctx, observers)
+
+	require.NoError(t, store.InsertProject(ctx, model.Project{
+		Key:                  exampleProjectKey,
+		SourceEnvironmentKey: "test",
+		Context:              ldcontext.New("user"),
+		AllFlagsState: model.FlagsState{
+			"overridden": model.FlagState{Value: ldvalue.Bool(false), Version: 3},
+			"untouched":  model.FlagState{Value: ldvalue.Int(10), Version: 1},
+		},
+		AvailableVariations: []model.FlagVariation{},
+	}))
+
+	fullTransferVersions := func() map[string]int {
+		project, err := store.GetDevProject(ctx, exampleProjectKey)
+		require.NoError(t, err)
+		flags, err := project.GetFlagStateWithOverridesForProject(ctx)
+		require.NoError(t, err)
+		payload, err := buildInitialResponse(exampleProjectKey, project.PayloadVersion, flags, "", fdv2ClientObjects(false))
+		require.NoError(t, err)
+		return putObjectVersions(t, payload)
+	}
+
+	steps := []struct {
+		name  string
+		apply func() error
+	}{
+		{"set override", func() error {
+			_, err := model.UpsertOverride(ctx, exampleProjectKey, "overridden", ldvalue.Bool(true))
+			return err
+		}},
+		{"set the same value again", func() error {
+			_, err := model.UpsertOverride(ctx, exampleProjectKey, "overridden", ldvalue.Bool(true))
+			return err
+		}},
+		{"remove override", func() error {
+			return model.DeleteOverride(ctx, exampleProjectKey, "overridden")
+		}},
+		{"set override after removal", func() error {
+			_, err := model.UpsertOverride(ctx, exampleProjectKey, "overridden", ldvalue.Bool(true))
+			return err
+		}},
+	}
+
+	previous := fullTransferVersions()
+	assert.Equal(t, map[string]int{"overridden": 3, "untouched": 1}, previous)
+	for i, step := range steps {
+		t.Run(step.name, func(t *testing.T) {
+			require.NoError(t, step.apply())
+			require.Len(t, recorder.events, i+1)
+			event := recorder.events[i]
+
+			changeEvents, err := buildFlagChangeEvents(exampleProjectKey, event.PayloadVersion, event.FlagKey, event.FlagState, fdv2ClientObjects(false))
+			require.NoError(t, err)
+			var put subsystems.PutObject
+			require.NoError(t, json.Unmarshal(changeEvents[1].Data, &put))
+
+			current := fullTransferVersions()
+			assert.Greater(t, put.Version, previous["overridden"], "the streamed version must go up")
+			assert.Equal(t, current["overridden"], put.Version, "the streamed version must match the next full transfer")
+			assert.Equal(t, 1, current["untouched"], "a flag that did not change must keep its version")
+			previous = current
+		})
+	}
 }
 
 func putObjectVersions(t *testing.T, payload subsystems.PollingPayload) map[string]int {
