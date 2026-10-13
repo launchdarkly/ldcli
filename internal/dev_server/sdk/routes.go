@@ -8,6 +8,10 @@ import (
 
 var DevNull = ConstantResponseHandler(http.StatusAccepted, "")
 
+// methodReport is the non-standard HTTP method client-side SDKs use to send an
+// evaluation context in the body of an otherwise cacheable read.
+const methodReport = "REPORT"
+
 func BindRoutes(router *mux.Router) {
 	// events
 	router.HandleFunc("/bulk", SdkEventsReceiveHandler)
@@ -35,7 +39,7 @@ func BindRoutes(router *mux.Router) {
 	router.PathPrefix("/msdk/evalx").Handler(GetProjectKeyFromAuthorizationHeader(http.HandlerFunc(GetClientFlags)))
 
 	evalRouter := router.PathPrefix("/eval").Subrouter()
-	evalRouterMethods := []string{http.MethodGet, "REPORT"}
+	evalRouterMethods := []string{http.MethodGet, methodReport}
 	evalRouter.Use(CorsHeadersForMethods(evalRouterMethods...))
 	evalRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
 	evalRouter.PathPrefix("/{envId}").
@@ -49,8 +53,29 @@ func BindRoutes(router *mux.Router) {
 	goalsRouter.Methods(append(goalsRouterMethods, http.MethodOptions)...).HandlerFunc(ConstantResponseHandler(http.StatusOK, "[]"))
 
 	evalXRouter := router.PathPrefix("/sdk/evalx/{envId}").Subrouter()
-	evalXRouterMethods := []string{http.MethodGet, "REPORT"}
+	evalXRouterMethods := []string{http.MethodGet, methodReport}
 	evalXRouter.Use(CorsHeadersForMethods(evalXRouterMethods...))
 	evalXRouter.Use(GetProjectKeyFromEnvIdParameter("envId"))
 	evalXRouter.Methods(append(evalXRouterMethods, http.MethodOptions)...).HandlerFunc(GetClientFlags)
+
+	// FDv2 unifies the browser and mobile client-side endpoints, so these four routes
+	// replace the /eval/{envId}, /meval, /sdk/evalx/{envId} and /msdk/evalx families above.
+	// Unlike those families, FDv2 does not accept REPORT: client-side SDKs send the
+	// context in a POST body instead.
+	bindClientFdv2Route(router, "/sdk/poll/eval", PollClientV2, http.MethodPost)
+	bindClientFdv2Route(router, "/sdk/poll/eval/{context}", PollClientV2, http.MethodGet)
+	bindClientFdv2Route(router, "/sdk/stream/eval", StreamClientV2, http.MethodPost)
+	bindClientFdv2Route(router, "/sdk/stream/eval/{context}", StreamClientV2, http.MethodGet)
+}
+
+// bindClientFdv2Route registers a client-side FDv2 route along with the three pieces of
+// middleware the protocol requires of every one of them: CORS (including the OPTIONS
+// preflight, which the gorilla handler answers before the rest of the chain runs),
+// credential resolution, and a check that the evaluation context is well-formed JSON.
+func bindClientFdv2Route(router *mux.Router, path string, handler http.HandlerFunc, methods ...string) {
+	route := router.Path(path).Subrouter()
+	route.Use(ClientFdv2CorsHeaders)
+	route.Use(GetProjectKeyFromClientCredential)
+	route.Use(ValidateClientContext)
+	route.Methods(append(methods, http.MethodOptions)...).HandlerFunc(handler)
 }
