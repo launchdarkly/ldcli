@@ -405,6 +405,80 @@ out=$(BASE_WT="$tmp/gvbase" run_check govulncheck "$tmp/gvpr" PATH="$tmp/bin-gv:
 check "govulncheck reports fixed advisories by level and the reachable ones that stay" \
   "pass|No new reachable vulnerabilities; fixes 2 advisories (1 imported package, 1 required module); still reachable: GO-1" "${out%|*}"
 
+# ---- 2026-10-13 recheck
+
+# Bug 1: ci-status passed #717 from the rollup alone (Bugbot, Semgrep, bot
+# oversight). Go and dev-server UI ended failure with 0 jobs, and Dependency
+# Scan stayed queued. The expected workflows are compared with the runs.
+ci="$tmp/ci" && mkdir -p "$ci/.github/workflows"
+printf 'name: Go\non:\n  push:\n    branches: [main]\n  pull_request:\n    branches: [main]\njobs: {}\n' >"$ci/.github/workflows/go.yml"
+printf 'name: dev-server UI\non:\n  pull_request:\n    branches: [main]\njobs: {}\n' >"$ci/.github/workflows/dev-server-ui.yml"
+printf 'name: Dependency Scan\non:\n  pull_request:\njobs: {}\n' >"$ci/.github/workflows/dependency-scan.yml"
+printf 'name: Lint PR title\non:\n  pull_request_target:\n    types: [opened, edited, synchronize]\njobs: {}\n' >"$ci/.github/workflows/lint-pr-title.yml"
+printf 'name: Docs\non:\n  pull_request:\n    paths: ["docs/**", "!docs/internal/**"]\njobs: {}\n' >"$ci/.github/workflows/docs.yml"
+printf 'name: Labels\non:\n  pull_request:\n    types: [labeled]\njobs: {}\n' >"$ci/.github/workflows/labels.yml"
+printf 'name: Release\non:\n  push:\n    branches: [main]\njobs: {}\n' >"$ci/.github/workflows/release.yml"
+jq -n '{changed_files: [".github/workflows/go.yml", ".github/workflows/dependency-scan.yml"]}' >"$tmp/cls-ci.json"
+H=348e5d8bd25abfeefa62f61b5195746f6dd64e70
+run_json() {
+  # run_json <name> <file> <event> <status> <conclusion|null> <jobs> [head]
+  jq -nc --arg n "$1" --arg f "$2" --arg e "$3" --arg s "$4" --argjson c "$5" --argjson j "$6" --arg h "${7:-$H}" \
+    '{id: ($f | length), name: $n, path: ".github/workflows/\($f)", event: $e, status: $s, conclusion: $c,
+      jobs_count: $j, head_sha: $h, created_at: "2026-10-07T16:52:53Z", run_attempt: 1}'
+}
+rollup='[{"name": "Cursor Bugbot", "status": "COMPLETED", "conclusion": "SUCCESS", "workflow": ""},
+         {"name": "semgrep-cloud-platform/scan", "status": "COMPLETED", "conclusion": "SUCCESS", "workflow": ""},
+         {"name": "Require additional human oversight on bot PRs", "status": "COMPLETED", "conclusion": "SUCCESS", "workflow": ""}]'
+ci_meta() {
+  # ci_meta <runs-json> [rollup-head]
+  jq -n --arg h "$H" --arg rh "${2:-$H}" --argjson ci "$rollup" --argjson runs "$1" \
+    '{head_sha: $h, base_ref: "main", ci: $ci, ci_head: $rh, ci_runs: $runs}' >"$tmp/ci-meta.json"
+}
+ci_check() { BASE_WT="$ci" run_check ci-status "$ci" PR_META="$tmp/ci-meta.json" CLASSIFICATION="$tmp/cls-ci.json"; }
+green="[$(run_json Go go.yml pull_request completed '"success"' 1), $(run_json 'dev-server UI' dev-server-ui.yml pull_request completed '"success"' 1),
+        $(run_json 'Dependency Scan' dependency-scan.yml pull_request completed '"success"' 2), $(run_json 'Lint PR title' lint-pr-title.yml pull_request_target completed '"success"' 1)]"
+
+ci_meta "[$(run_json Go go.yml pull_request completed '"failure"' 0), $(run_json 'dev-server UI' dev-server-ui.yml pull_request completed '"failure"' 0),
+          $(run_json 'Dependency Scan' dependency-scan.yml pull_request queued null 0), $(run_json 'Lint PR title' lint-pr-title.yml pull_request_target queued null 0)]"
+out=$(ci_check)
+check "ci-status: 0-job failures and queued runs are incomplete, not green (#717)" "incomplete" "${out%%|*}"
+check "ci-status names each workflow that did not run" 1 \
+  "$(grep -c 'Go (ended `failure` with 0 jobs, so no job ran), Lint PR title (queued since 2026-10-07), dev-server UI (ended `failure` with 0 jobs, so no job ran)' <<<"$out")"
+check "ci-status names the queued Dependency Scan run" 1 "$(grep -c 'Dependency Scan (queued since 2026-10-07)' <<<"$out")"
+
+ci_meta "$green"
+out=$(ci_check)
+check "ci-status: every expected workflow green → pass" "pass|All 4 expected workflow run(s) and 3 other check(s) green on PR head 348e5d8" "${out%|*}"
+check "ci-status: a paths filter, a negated path, and activity types exclude workflows" "docs.yml labels.yml" \
+  "$(jq -r '[.not_expected[].path | sub(".github/workflows/"; "")] | join(" ")' "$(ls -dt "$tmp"/art.* | head -n1)/report.json")"
+
+check "ci-status path filters: ** spans directories, * does not, and a later ! pattern excludes" "True False True False" \
+  "$(python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); from ci_runs import matches as m
+p = ["docs/**", "!docs/internal/**"]
+print(m(p, "docs/a/b.md"), m(p, "docs/internal/x.md"), m(["**/*.md"], "README.md"), m(["*.md"], "docs/a.md"))' "$LIB")"
+
+ci_meta "$(jq -c 'map(select(.name != "Go"))' <<<"$green")"
+out=$(ci_check)
+check "ci-status: an expected workflow with no run is incomplete" "incomplete" "${out%%|*}"
+check "ci-status says the missing workflow has no run" 1 "$(grep -c 'Go (no run on this head)' <<<"$out")"
+
+ci_meta "$(jq -c 'map(if .name == "Go" then .conclusion = "startup_failure" | .jobs_count = 0 else . end)' <<<"$green")"
+check "ci-status: a startup failure is incomplete" "incomplete" "$(ci_check | cut -d'|' -f1)"
+
+ci_meta "$(jq -c 'map(if .name == "Go" then .conclusion = "failure" | .jobs_count = 2 else . end)' <<<"$green")"
+check "ci-status: a failure in a job that ran → fail" "fail|Failing on PR head 348e5d8: Go (\`failure\` in 2 job(s))" "$(ci_check | cut -d'|' -f1,2)"
+
+old=c3c375a8b88c8affe8970c096ff1c70b4309c36d
+ci_meta "$(jq -c --arg o "$old" 'map(.head_sha = $o)' <<<"$green")" "$old"
+out=$(ci_check)
+check "ci-status: green results for an older head count as not run" "incomplete" "${out%%|*}"
+check "ci-status says the rollup is for the older head" 1 "$(grep -c 'Cursor Bugbot (result is for c3c375a, not this head)' <<<"$out")"
+
+jq -n --arg h "$H" --argjson ci "$rollup" '{head_sha: $h, base_ref: "main", ci: $ci, ci_head: $h, ci_runs: null}' >"$tmp/ci-meta.json"
+check "ci-status: unknown workflow runs are incomplete" "incomplete" "$(ci_check | cut -d'|' -f1)"
+check "ci-status is a required check, so incomplete CI makes the verdict incomplete" "true" \
+  "$(jq -r '.checks[] | select(.id == "ci-status") | .required' "$ROOT/checks/registry.json")"
+
 echo
 if [ "$failures" -gt 0 ]; then
   echo "$failures test(s) failed"

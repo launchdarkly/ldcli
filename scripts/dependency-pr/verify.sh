@@ -17,7 +17,8 @@
 #   --base-sha SHA      use this commit as the base instead of the base branch tip
 #   --no-pr-meta        do not read PR metadata (title, CI results) from GitHub
 #   --pr-meta FILE      read PR metadata from FILE (the `gh pr view --json` shape) instead
-#                       of GitHub; without statusCheckRollup, ci-status does not apply
+#                       of GitHub; without statusCheckRollup, ci-status does not apply.
+#                       workflowRuns (runs on the head, each with jobs_count) is optional
 #   -h, --help
 #
 # Outputs (in the out dir): result.json, comment.md, logs/<side>/<check>.log,
@@ -146,6 +147,27 @@ setup_refs() {
   if [ -z "$HEAD_PIN" ] && [ -n "$expected" ] && [ "$expected" != "$HEAD_SHA" ]; then
     log "warning: PR head moved during setup ($expected → $HEAD_SHA); verifying $HEAD_SHA"
   fi
+  if [ -z "$PR_META_FILE" ] && [ -n "$PR" ] && [ "$NO_PR_META" != true ]; then
+    fetch_ci_runs "$gh_json"
+  fi
+}
+
+# The rollup leaves out workflow runs that never started a job, so ci-status
+# also reads the runs on the head commit, with the job count of each run.
+fetch_ci_runs() {
+  local gh_json="$1" runs id jobs
+  log "reading workflow runs on $HEAD_SHA"
+  if ! runs=$(gh api --paginate "repos/$REPO/actions/runs?head_sha=$HEAD_SHA&per_page=100" \
+    --jq '.workflow_runs[] | {id, name, path, event, status, conclusion, head_sha, created_at, run_attempt, html_url}' 2>/dev/null | jq -s '.'); then
+    log "warning: could not read workflow runs; ci-status will be incomplete"
+    jq '.workflowRuns = null' "$gh_json" >"$gh_json.tmp" && mv "$gh_json.tmp" "$gh_json"
+    return 0
+  fi
+  for id in $(jq -r '.[].id' <<<"$runs"); do
+    jobs=$(gh api "repos/$REPO/actions/runs/$id/jobs?per_page=1" --jq '.total_count' 2>/dev/null) || jobs=null
+    runs=$(jq --argjson id "$id" --argjson n "${jobs:-null}" 'map(if .id == $id then . + {jobs_count: $n} else . end)' <<<"$runs")
+  done
+  jq --argjson r "$runs" '.workflowRuns = $r' "$gh_json" >"$gh_json.tmp" && mv "$gh_json.tmp" "$gh_json"
 }
 
 remove_worktree() {
@@ -203,7 +225,9 @@ write_meta() {
         tested: {base: $base_tested, pr: $pr_tested},
         ci: (if $g == null or ($g | has("statusCheckRollup") | not) then null
              else ($g.statusCheckRollup // []) | map({name: (.name // .context), status, conclusion, state, workflow: .workflowName})
-             end)
+             end),
+        ci_head: ($g.headRefOid // null),
+        ci_runs: ($g.workflowRuns // null)
       }' >"$STATE/pr.json"
 }
 
