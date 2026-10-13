@@ -46,15 +46,57 @@ hermetic_env_args() {
   printf '%s\n' "${args[@]}"
 }
 
+# Generated checks are written for one PR and are not reviewed like the
+# baseline, so they also get a private HOME and no global or system git
+# configuration. A global `insteadOf` rule can put an access token into a
+# remote URL, and a check that prints the URL writes the token to its log.
+# Tool caches stay shared so the checks stay fast.
+generated_env_args() {
+  local sandbox="$1"
+  mkdir -p "$sandbox/home"
+  printf '%s\n' \
+    "HOME=$sandbox/home" \
+    "GIT_CONFIG_GLOBAL=/dev/null" \
+    "GIT_CONFIG_NOSYSTEM=1" \
+    "GIT_AUTHOR_NAME=dependency-pr-verify" "GIT_AUTHOR_EMAIL=verify@localhost" \
+    "GIT_COMMITTER_NAME=dependency-pr-verify" "GIT_COMMITTER_EMAIL=verify@localhost" \
+    "GIT_TERMINAL_PROMPT=0" \
+    "GOPATH=${GOPATH_REAL}" \
+    "XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}" \
+    "npm_config_cache=${npm_config_cache:-$HOME/.npm}" \
+    "DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}"
+}
+
+# Prints the secret values that scrub.py removes from logs, one per line:
+# token-like environment variables, the gh token, and credentials in the
+# global git configuration. Keep the output in an unexported variable.
+collect_secrets() {
+  local name
+  while IFS= read -r name; do
+    printf '%s\n' "${!name}"
+  done < <(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | grep -iE 'TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|ACCESS_KEY|PRIVATE_KEY|CREDENTIAL' || true)
+  command -v gh >/dev/null 2>&1 && gh auth token 2>/dev/null
+  git config --global --get-regexp '^(url\..*|http\..*extraheader|credential\..*)' 2>/dev/null |
+    grep -oE '://[^/[:space:]@]+@|[[:alnum:]+/=_-]{16,}$' | sed -E 's#^://##; s#@$##; s#^[^:]*:##'
+}
+
+# scrub_files <file>...: removes the secrets from the files, in place.
+scrub_files() {
+  [ $# -gt 0 ] || return 0
+  VERIFY_SECRETS="${VERIFY_SECRETS:-}" python3 "$VERIFY_ROOT/lib/scrub.py" "$@"
+}
+
 init_go_cache_env() {
   if command -v go >/dev/null 2>&1; then
     GOCACHE_REAL="$(go env GOCACHE)"
     GOMODCACHE_REAL="$(go env GOMODCACHE)"
+    GOPATH_REAL="$(go env GOPATH)"
   else
     GOCACHE_REAL="${HOME}/.cache/go-build"
     GOMODCACHE_REAL="${HOME}/go/pkg/mod"
+    GOPATH_REAL="${HOME}/go"
   fi
-  export GOCACHE_REAL GOMODCACHE_REAL
+  export GOCACHE_REAL GOMODCACHE_REAL GOPATH_REAL
 }
 
 now_s() { date +%s; }

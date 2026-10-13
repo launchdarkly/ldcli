@@ -479,6 +479,52 @@ check "ci-status: unknown workflow runs are incomplete" "incomplete" "$(ci_check
 check "ci-status is a required check, so incomplete CI makes the verdict incomplete" "true" \
   "$(jq -r '.checks[] | select(.id == "ci-status") | .required' "$ROOT/checks/registry.json")"
 
+# Bug 3: a generated check inherited the global git configuration, and an
+# `insteadOf` rule with an access token showed up in its log. The tokens are
+# built at run time, so this file holds no token-shaped string.
+fake_gh="gh""p_$(printf 'Z%.0s' {1..36})"
+fake_url_secret="s3cr3t-$(printf 'q%.0s' {1..20})"
+rh="$tmp/runner" && mkdir -p "$rh/home" "$rh/wt" "$rh/gen"
+printf '[url "https://x-access-token:%s@github.com/"]\n\tinsteadOf = https://github.com/\n[user]\n\tname = Real Person\n' \
+  "$fake_url_secret" >"$rh/home/.gitconfig"
+cat >"$rh/gen/leaky.sh" <<'SH'
+source "$VERIFY_ROOT/lib/check.sh"
+echo "home=$HOME"
+echo "global-user=$(git config --global user.name)"
+echo "url=$(git ls-remote --get-url https://github.com/launchdarkly/ldcli)"
+echo "token=$LEAK_TOKEN"
+detail "- leaked $LEAK_TOKEN"
+pass "printed $LEAK_TOKEN"
+SH
+out=$(
+  export HOME="$rh/home" LEAK_TOKEN="$fake_gh"
+  unset GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
+  source "$LIB/common.sh"
+  source "$LIB/runner.sh"
+  init_go_cache_env
+  VERIFY_SECRETS="$(collect_secrets)" && export -n VERIFY_SECRETS
+  OUT="$rh/out" STATE="$rh/out/state" LOGS="$rh/out/logs" PR_WT="$rh/wt" BASE_WT="$rh/wt" PROFILE=fast
+  log() { :; }
+  run_one generated leaky "$rh/gen/leaky.sh" pr 30
+  run_one checks leaky "$rh/gen/leaky.sh" pr 30
+  cat "$LOGS/pr/generated-leaky.log"
+  echo "---"
+  cat "$LOGS/pr/leaky.log" "$STATE/generated/leaky/pr/result.json" "$STATE/checks/leaky/pr/result.json"
+)
+gen_log=$(sed '/^---$/q' <<<"$out")
+check "generated check: HOME is private" 1 "$(grep -c "^home=$rh/out/state/generated/leaky/pr/sandbox/home$" <<<"$gen_log")"
+check "generated check: the global git configuration does not apply" 1 "$(grep -c '^global-user=$' <<<"$gen_log")"
+check "generated check: no insteadOf rewrite puts a credential into a URL" 1 \
+  "$(grep -c '^url=https://github.com/launchdarkly/ldcli$' <<<"$gen_log")"
+check "runner: no token in any log or result" 0 "$(grep -cE "$fake_gh|$fake_url_secret" <<<"$out")"
+check "runner: the tokens are replaced with [REDACTED]" 4 "$(grep -c 'printed \[REDACTED\]\|^token=\[REDACTED\]' <<<"$out")"
+check "runner: a baseline check log with a credential URL is scrubbed" 1 \
+  "$(sed -n '/^---$/,$p' <<<"$out" | grep -c '^url=https://\[REDACTED\]@github.com/launchdarkly/ldcli$')"
+check "scrub: an Authorization header and an LD API token are removed" \
+  "Authorization: Bearer [REDACTED] key=[REDACTED]" \
+  "$(printf 'Authorization: Bearer abc.def key=%s\n' "api-$(printf '0%.0s' {1..8})-1111-2222-3333-444444444444" >"$tmp/scrub.txt" &&
+     python3 "$LIB/scrub.py" "$tmp/scrub.txt" && cat "$tmp/scrub.txt")"
+
 echo
 if [ "$failures" -gt 0 ]; then
   echo "$failures test(s) failed"
