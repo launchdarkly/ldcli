@@ -570,7 +570,8 @@ check "generated check: HOME is private" 1 "$(grep -c "^home=$rh/out/state/gener
 check "generated check: the global git configuration does not apply" 1 "$(grep -c '^global-user=$' <<<"$gen_log")"
 check "generated check: no insteadOf rewrite puts a credential into a URL" 1 \
   "$(grep -c '^url=https://github.com/launchdarkly/ldcli$' <<<"$gen_log")"
-check "runner: no token in any log or result" 0 "$(grep -cE "$fake_gh|$fake_url_secret" <<<"$out")"
+check "runner: both checks ran, and no token is in any log or result" "2 0" \
+  "$(grep -c '^home=' <<<"$out") $(grep -cE "$fake_gh|$fake_url_secret" <<<"$out")"
 check "runner: the tokens are replaced with [REDACTED]" 4 "$(grep -c 'printed \[REDACTED\]\|^token=\[REDACTED\]' <<<"$out")"
 check "runner: a baseline check log with a credential URL is scrubbed" 1 \
   "$(sed -n '/^---$/,$p' <<<"$out" | grep -c '^url=https://\[REDACTED\]@github.com/launchdarkly/ldcli$')"
