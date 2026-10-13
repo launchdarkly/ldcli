@@ -24,12 +24,9 @@ import { Environment } from './types';
 
 export async function fetchEnvironments(
   projectKey: string,
-  query?: string,
 ): Promise<Environment[]> {
   const res = await fetch(
-    apiRoute(
-      `/dev/projects/${projectKey}/environments?limit=20${query ? `&name=${query}` : ''}`,
-    ),
+    apiRoute(`/dev/projects/${projectKey}/environments?limit=1000`),
   );
   if (!res.ok) {
     throw new Error(

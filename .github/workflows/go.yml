@@ -19,7 +19,10 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: stable
+        # The version the module declares, not whatever is newest. golangci-lint
+        # reads type data written by the compiler, and a Go release newer than the
+        # pinned linter makes it unreadable, which fails every pull request at once.
+        go-version-file: go.mod
     - name: build
       run: go build .
 

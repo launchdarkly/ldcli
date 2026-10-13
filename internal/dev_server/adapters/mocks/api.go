@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
+	ldapi "github.com/launchdarkly/api-client-go/v24"
 	gomock "go.uber.org/mock/gomock"
 )
 

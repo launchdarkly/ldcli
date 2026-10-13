@@ -103,7 +103,7 @@ func run(service config.Service) func(*cobra.Command, []string) error {
 				return newErr(err.Error())
 			}
 
-			configJSON, err := json.Marshal(conf)
+			configJSON, err := json.Marshal(conf.Redacted())
 			if err != nil {
 				return newErr(err.Error())
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"os/exec"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/dev_server"
+	"github.com/launchdarkly/ldcli/internal/dev_server/adapters"
 	"github.com/launchdarkly/ldcli/internal/dev_server/model"
 )
 
@@ -46,12 +48,23 @@ func NewStartServerCmd(client dev_server.Client) *cobra.Command {
 	cmd.Flags().Bool(cliflags.SyncOnceFlag, false, cliflags.SyncOnceFlagDescription)
 	_ = viper.BindPFlag(cliflags.SyncOnceFlag, cmd.Flags().Lookup(cliflags.SyncOnceFlag))
 
+	cmd.Flags().Bool(StreamFlagStartupFlag, false, StreamFlagStartupDescription)
+	_ = viper.BindPFlag(StreamFlagStartupFlag, cmd.Flags().Lookup(StreamFlagStartupFlag))
+
+	cmd.Flags().Duration(SdkInitTimeoutFlag, adapters.DefaultSdkInitTimeout, SdkInitTimeoutDescription)
+	_ = viper.BindPFlag(SdkInitTimeoutFlag, cmd.Flags().Lookup(SdkInitTimeoutFlag))
+
 	return cmd
 }
 
 func startServer(client dev_server.Client) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
+
+		sdkInitTimeout := viper.GetDuration(SdkInitTimeoutFlag)
+		if sdkInitTimeout <= 0 {
+			return fmt.Errorf("--%s must be greater than zero, got %s", SdkInitTimeoutFlag, sdkInitTimeout)
+		}
 
 		var initialSetting model.InitialProjectSettings
 
@@ -88,9 +101,12 @@ func startServer(client dev_server.Client) func(*cobra.Command, []string) error 
 			AccessToken:            viper.GetString(cliflags.AccessTokenFlag),
 			BaseURI:                viper.GetString(cliflags.BaseURIFlag),
 			DevStreamURI:           viper.GetString(cliflags.DevStreamURIFlag),
+			Host:                   viper.GetString(cliflags.HostFlag),
 			Port:                   viper.GetString(cliflags.PortFlag),
 			CorsEnabled:            viper.GetBool(cliflags.CorsEnabledFlag),
 			CorsOrigin:             viper.GetString(cliflags.CorsOriginFlag),
+			StreamFlagStartup:      viper.GetBool(StreamFlagStartupFlag),
+			SdkInitTimeout:         sdkInitTimeout,
 			InitialProjectSettings: initialSetting,
 		}
 

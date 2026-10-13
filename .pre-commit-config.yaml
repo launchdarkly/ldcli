@@ -12,3 +12,6 @@ repos:
     rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
+        # The golden R8 index is binary, and the fixer cannot tell. A newline
+        # appended to it moves the footer the reader locates the index by.
+        exclude: \.index$

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	ldapi "github.com/launchdarkly/api-client-go/v14"
+	ldapi "github.com/launchdarkly/api-client-go/v24"
 
 	"github.com/launchdarkly/ldcli/internal/client"
 	"github.com/launchdarkly/ldcli/internal/errors"
@@ -12,7 +12,7 @@ import (
 
 type Client interface {
 	Create(ctx context.Context, accessToken, baseURI, name, key string) ([]byte, error)
-	List(ctx context.Context, accessToken, baseURI string) ([]byte, error)
+	List(ctx context.Context, accessToken, baseURI string, limit, offset int64) ([]byte, error)
 }
 
 type ProjectsClient struct {
@@ -52,10 +52,18 @@ func (c ProjectsClient) List(
 	ctx context.Context,
 	accessToken,
 	baseURI string,
+	limit,
+	offset int64,
 ) ([]byte, error) {
 	client := client.New(accessToken, baseURI, c.cliVersion)
-	projects, _, err := client.ProjectsApi.
-		GetProjects(ctx).Execute()
+	req := client.ProjectsApi.GetProjects(ctx)
+	if limit > 0 {
+		req = req.Limit(limit)
+	}
+	if offset > 0 {
+		req = req.Offset(offset)
+	}
+	projects, _, err := req.Execute()
 	if err != nil {
 		return nil, errors.NewLDAPIError(err)
 	}

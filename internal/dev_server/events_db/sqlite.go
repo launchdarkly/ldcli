@@ -10,9 +10,18 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// maxDebugEvents and maxDebugEventBytes bound the debug_events table by row count and by total
+// event size; the oldest rows are deleted as new ones arrive.
+const (
+	maxDebugEvents     = 10000
+	maxDebugEventBytes = 64 << 20
+)
+
 type Sqlite struct {
-	database *sql.DB
-	dbPath   string
+	database      *sql.DB
+	dbPath        string
+	maxEvents     int64
+	maxEventBytes int64
 }
 
 func (s *Sqlite) CreateDebugSession(ctx context.Context, debugSessionKey string) error {
@@ -23,9 +32,22 @@ func (s *Sqlite) CreateDebugSession(ctx context.Context, debugSessionKey string)
 }
 
 func (s *Sqlite) WriteEvent(ctx context.Context, debugSessionKey string, kind string, data json.RawMessage) error {
-	_, err := s.database.ExecContext(ctx, `
+	res, err := s.database.ExecContext(ctx, `
 		INSERT INTO debug_events (kind, debug_session_key, data)
 		VALUES (?,?, ?)`, kind, debugSessionKey, data)
+	if err != nil {
+		return err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	_, err = s.database.ExecContext(ctx, `
+		DELETE FROM debug_events WHERE id <= ? OR id <= (
+			SELECT id FROM (
+				SELECT id, SUM(length(data)) OVER (ORDER BY id DESC) AS retained_bytes FROM debug_events
+			) WHERE retained_bytes > ? ORDER BY id DESC LIMIT 1
+		)`, id-s.maxEvents, s.maxEventBytes)
 	return err
 }
 
@@ -185,6 +207,8 @@ var _ model.EventStore = &Sqlite{}
 func NewSqlite(ctx context.Context, dbPath string) (*Sqlite, error) {
 	store := new(Sqlite)
 	store.dbPath = dbPath
+	store.maxEvents = maxDebugEvents
+	store.maxEventBytes = maxDebugEventBytes
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return &Sqlite{}, err

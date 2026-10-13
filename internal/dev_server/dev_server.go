@@ -2,10 +2,11 @@ package dev_server
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/gorilla/handlers"
@@ -30,9 +31,12 @@ type ServerParams struct {
 	AccessToken            string
 	BaseURI                string
 	DevStreamURI           string
+	Host                   string
 	Port                   string
 	CorsEnabled            bool
 	CorsOrigin             string
+	StreamFlagStartup      bool
+	SdkInitTimeout         time.Duration
 	InitialProjectSettings model.InitialProjectSettings
 }
 
@@ -68,10 +72,12 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	})
 	r := mux.NewRouter()
 	r.Use(handlers.RecoveryHandler(handlers.PrintRecoveryStack(true)))
-	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI))
+	r.Use(limitRequestBody)
+	r.Use(adapters.Middleware(*ldClient, serverParams.DevStreamURI, serverParams.SdkInitTimeout))
 	r.Use(model.EventStoreMiddleware(sqlEventStore))
 	r.Use(model.StoreMiddleware(sqlStore))
 	r.Use(model.ObserversMiddleware(observers))
+	r.Use(model.StreamStartupMiddleware(serverParams.StreamFlagStartup))
 	r.Handle("/", http.RedirectHandler("/ui/", http.StatusFound))
 	r.Handle("/ui", http.RedirectHandler("/ui/", http.StatusMovedPermanently))
 	r.Handle("/ui/{_}.svg", http.StripPrefix("/ui/", ui.AssetHandler))
@@ -100,17 +106,25 @@ func (c LDClient) RunServer(ctx context.Context, serverParams ServerParams) {
 	}
 	api.HandlerFromMux(apiServer, apiRouter) // this method actually mutates the passed router.
 
-	ctx = adapters.WithApiAndSdk(ctx, *ldClient, serverParams.DevStreamURI)
+	ctx = adapters.WithApiAndSdk(ctx, *ldClient, serverParams.DevStreamURI, serverParams.SdkInitTimeout)
 	ctx = model.SetObserversOnContext(ctx, observers)
 	ctx = model.ContextWithStore(ctx, sqlStore)
+	ctx = model.WithStreamStartup(ctx, serverParams.StreamFlagStartup)
 	syncErr := model.CreateOrSyncProject(ctx, serverParams.InitialProjectSettings)
 	if syncErr != nil {
 		log.Fatal(syncErr)
 	}
 	handler := handlers.CombinedLoggingHandler(os.Stdout, r)
 
-	addr := fmt.Sprintf("0.0.0.0:%s", serverParams.Port)
+	host := serverParams.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(host, serverParams.Port)
 	log.Printf("Server running on %s", addr)
+	if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
+		log.Printf("The dev server now listens on %s by default, so other machines and containers can't reach it. Pass --host 0.0.0.0 to accept their connections", host)
+	}
 	log.Printf("Access the UI for toggling overrides at http://localhost:%s/ui or by running `ldcli dev-server ui`", serverParams.Port)
 
 	server := http.Server{
