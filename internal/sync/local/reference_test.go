@@ -1,7 +1,6 @@
 package local
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -72,8 +71,7 @@ func TestCompileWorkspaceReadsLinkedPrompt(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
-	var variation syncdomain.Variation
-	require.NoError(t, json.Unmarshal(resources[0].Payload, &variation))
+	variation := resources[0].Variation
 	require.Equal(t, "Be helpful.", variation.Instructions)
 }
 
@@ -118,8 +116,7 @@ func TestReplaceVariationsUpdatesLinkedWrapperAndPrompt(t *testing.T) {
 	compiled, err := CompileWorkspace(root)
 	require.NoError(t, err)
 	resource := requireVariationResource(t, compiled, "support/default")
-	var localVariation syncdomain.Variation
-	require.NoError(t, json.Unmarshal(resource.Payload, &localVariation))
+	localVariation := resource.Variation
 	serverFingerprint, err := syncdomain.FingerprintVariation("project", "support/default", serverVariation)
 	require.NoError(t, err)
 	localFingerprint, err := syncdomain.FingerprintVariation("project", "support/default", localVariation)

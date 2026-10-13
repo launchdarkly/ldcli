@@ -1,10 +1,11 @@
-package plain_markdown
+package plainmarkdown
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	"github.com/launchdarkly/ldcli/internal/sync/reference/adapters"
 )
 
@@ -13,7 +14,7 @@ func TestAdapterParsesAndRendersRawPrompt(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, adapters.Prompt{
-		Messages: []adapters.Message{{Role: adapters.RoleSystem, Content: "Be helpful."}},
+		Messages: []syncdomain.Message{{Role: syncdomain.RoleSystem, Content: "Be helpful."}},
 	}, prompt)
 
 	rendered, err := (Adapter{}).Render(prompt)
@@ -26,15 +27,15 @@ func TestAdapterNormalizesLineEndings(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, adapters.Prompt{
-		Messages: []adapters.Message{{
-			Role:    adapters.RoleSystem,
+		Messages: []syncdomain.Message{{
+			Role:    syncdomain.RoleSystem,
 			Content: "First line.\nSecond line.\nThird line.",
 		}},
 	}, prompt)
 
 	rendered, err := (Adapter{}).Render(adapters.Prompt{
-		Messages: []adapters.Message{{
-			Role:    adapters.RoleSystem,
+		Messages: []syncdomain.Message{{
+			Role:    syncdomain.RoleSystem,
 			Content: "First line.\r\nSecond line.\rThird line.",
 		}},
 	})

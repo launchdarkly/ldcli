@@ -1,76 +1,177 @@
 package manifest
 
 import (
-	"os"
-	"path/filepath"
+	"errors"
+	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 )
 
-func TestStoreRoundTripIsDeterministic(t *testing.T) {
-	root := t.TempDir()
-	store := NewStore(root)
-	input := Manifest{
-		Resources: []Resource{
-			{ResourceKind: syncdomain.KindVariation, ProjectKey: "zeta", LookupKey: "config/b", Fingerprint: fingerprint("b")},
-			{ResourceKind: syncdomain.KindVariation, ProjectKey: "alpha", LookupKey: "config/a", Fingerprint: fingerprint("a")},
-		},
+type patchCall struct {
+	projectKey string
+	upserts    []syncapi.SyncManifestUpsert
+	deletions  []syncapi.SyncManifestDeletion
+}
+
+type manifestClient struct {
+	manifests      map[string]syncapi.SyncManifest
+	patchResponses []syncapi.SyncManifest
+	patchErr       error
+	patches        []patchCall
+}
+
+func (client *manifestClient) GetSyncManifest(projectKey, _ string) (syncapi.SyncManifest, error) {
+	return client.manifests[projectKey], nil
+}
+
+func (client *manifestClient) PatchSyncManifest(
+	projectKey string,
+	_ string,
+	upserts []syncapi.SyncManifestUpsert,
+	deletions []syncapi.SyncManifestDeletion,
+) (syncapi.SyncManifest, error) {
+	client.patches = append(client.patches, patchCall{
+		projectKey: projectKey,
+		upserts:    append([]syncapi.SyncManifestUpsert(nil), upserts...),
+		deletions:  append([]syncapi.SyncManifestDeletion(nil), deletions...),
+	})
+	if client.patchErr != nil {
+		return syncapi.SyncManifest{}, client.patchErr
 	}
+	response := client.patchResponses[0]
+	client.patchResponses = client.patchResponses[1:]
+	return response, nil
+}
 
-	require.NoError(t, store.Write(input))
-	data, err := os.ReadFile(filepath.Join(root, syncdomain.RootDir, FileName))
-	require.NoError(t, err)
-	require.Equal(t, `formatVersion: 1
-resources:
-  - resourceKind: variation
-    projectKey: alpha
-    lookupKey: config/a
-    fingerprint: `+fingerprint("a")+`
-  - resourceKind: variation
-    projectKey: zeta
-    lookupKey: config/b
-    fingerprint: `+fingerprint("b")+`
-`, string(data))
+func TestStoreLoadsProjectManifests(t *testing.T) {
+	client := &manifestClient{manifests: map[string]syncapi.SyncManifest{
+		"zeta": {
+			Source: "git:example/repo",
+			Items: []syncapi.SyncManifestResource{{
+				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/b",
+				Fingerprint: fingerprint("b"), Version: 4,
+			}},
+		},
+		"alpha": {
+			Source: "git:example/repo",
+			Items: []syncapi.SyncManifestResource{{
+				ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/a",
+				Fingerprint: fingerprint("a"), Version: 2,
+			}},
+		},
+	}}
 
-	loaded, exists, err := store.Load()
+	loaded, err := NewStore(client, "git:example/repo").Load([]string{"zeta", "alpha", "alpha"})
+
 	require.NoError(t, err)
-	require.True(t, exists)
 	require.Equal(t, []Resource{
-		{ResourceKind: syncdomain.KindVariation, ProjectKey: "alpha", LookupKey: "config/a", Fingerprint: fingerprint("a")},
-		{ResourceKind: syncdomain.KindVariation, ProjectKey: "zeta", LookupKey: "config/b", Fingerprint: fingerprint("b")},
+		{ResourceKind: syncdomain.KindVariation, ProjectKey: "alpha", LookupKey: "config/a", Fingerprint: fingerprint("a"), Version: 2},
+		{ResourceKind: syncdomain.KindVariation, ProjectKey: "zeta", LookupKey: "config/b", Fingerprint: fingerprint("b"), Version: 4},
 	}, loaded.Resources)
 }
 
-func TestStoreLoadsMissingManifestAsEmpty(t *testing.T) {
-	loaded, exists, err := NewStore(t.TempDir()).Load()
+func TestStoreUpdatesWithRemoteVersions(t *testing.T) {
+	client := &manifestClient{patchResponses: []syncapi.SyncManifest{{
+		Source: "git:example/repo",
+		Items: []syncapi.SyncManifestResource{
+			{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 4},
+			{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 1},
+		},
+	}}}
+	store := NewStore(client, "git:example/repo")
+	previous := Manifest{Resources: []Resource{
+		{ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/existing", Fingerprint: fingerprint("a"), Version: 3},
+		{ResourceKind: syncdomain.KindSkill, ProjectKey: "project", LookupKey: "old", Fingerprint: fingerprint("b"), Version: 2},
+	}}
+	next := Manifest{Resources: []Resource{
+		{ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 3},
+		{ResourceKind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search", Fingerprint: fingerprint("d")},
+	}}
+
+	updated, err := store.Update(previous, next)
 
 	require.NoError(t, err)
-	require.False(t, exists)
-	require.Equal(t, New(), loaded)
+	require.Len(t, client.patches, 1)
+	assert.Equal(t, []syncapi.SyncManifestUpsert{
+		{ResourceKind: syncdomain.KindTool, ResourceLookupKey: "search", Fingerprint: fingerprint("d"), Version: 0},
+		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/existing", Fingerprint: fingerprint("c"), Version: 3},
+	}, client.patches[0].upserts)
+	assert.Equal(t, []syncapi.SyncManifestDeletion{{
+		ResourceKind: syncdomain.KindSkill, ResourceLookupKey: "old", Version: 2,
+	}}, client.patches[0].deletions)
+	assert.Equal(t, 4, updated.Resources[1].Version)
 }
 
-func TestStoreRejectsUnknownFields(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, syncdomain.RootDir, FileName)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte("formatVersion: 1\nunknown: true\nresources: []\n"), 0o644))
+func TestStoreReportsOptimisticConflict(t *testing.T) {
+	client := &manifestClient{patchErr: errors.New(`{"code":"conflict","statusCode":409}`)}
+	store := NewStore(client, "git:example/repo")
+	previous := Manifest{Resources: []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
+		Fingerprint: fingerprint("a"), Version: 1,
+	}}}
+	next := previous
+	next.Resources = append([]Resource(nil), previous.Resources...)
+	next.Resources[0].Fingerprint = fingerprint("b")
 
-	_, _, err := NewStore(root).Load()
-	require.ErrorContains(t, err, "field unknown not found")
+	_, err := store.Update(previous, next)
+
+	require.ErrorContains(t, err, `sync manifest for project "project" changed in LaunchDarkly`)
 }
 
-func TestStoreRejectsMultipleYAMLDocuments(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, syncdomain.RootDir, FileName)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte("formatVersion: 1\nresources: []\n---\nformatVersion: 1\nresources: []\n"), 0o644))
+func TestStoreReadsBackAnUncertainPatchThatSucceeded(t *testing.T) {
+	applied := syncapi.SyncManifest{
+		Source: "git:example/repo",
+		Items: []syncapi.SyncManifestResource{{
+			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "config/variation",
+			Fingerprint: fingerprint("b"), Version: 2,
+		}},
+	}
+	client := &manifestClient{
+		manifests: map[string]syncapi.SyncManifest{"project": applied},
+		patchErr:  uncertainPatchError(t),
+	}
+	previous := Manifest{Resources: []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
+		Fingerprint: fingerprint("a"), Version: 1,
+	}}}
+	next := previous.Clone()
+	next.Resources[0].Fingerprint = fingerprint("b")
 
-	_, _, err := NewStore(root).Load()
-	require.ErrorContains(t, err, "multiple YAML documents")
+	updated, err := NewStore(client, "git:example/repo").Update(previous, next)
+
+	require.NoError(t, err)
+	require.Equal(t, []Resource{{
+		ResourceKind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
+		Fingerprint: fingerprint("b"), Version: 2,
+	}}, updated.Resources)
+}
+
+// uncertainPatchError returns the error that the API client reports when a
+// patch fails before LaunchDarkly sends a response.
+func uncertainPatchError(t *testing.T) error {
+	t.Helper()
+	transport := &failingTransport{err: errors.New("connection reset")}
+	_, err := syncapi.NewClient(transport, "token", "https://example.com").PatchSyncManifest("project", "source", nil, nil)
+	require.True(t, syncapi.MutationMayHaveSucceeded(err))
+	return err
+}
+
+type failingTransport struct {
+	err error
+}
+
+func (transport *failingTransport) MakeRequest(string, string, string, string, url.Values, []byte, bool) ([]byte, error) {
+	return nil, transport.err
+}
+
+func (transport *failingTransport) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
+	return nil, transport.err
 }
 
 func TestManifestValidation(t *testing.T) {
@@ -85,10 +186,6 @@ func TestManifestValidation(t *testing.T) {
 		mutate func(*Manifest)
 		error  string
 	}{
-		"format": {
-			mutate: func(manifest *Manifest) { manifest.FormatVersion = 2 },
-			error:  "unsupported manifest formatVersion",
-		},
 		"kind": {
 			mutate: func(manifest *Manifest) { manifest.Resources[0].ResourceKind = "" },
 			error:  "invalid resource kind",
@@ -117,7 +214,7 @@ func TestManifestValidation(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			manifest := Manifest{FormatVersion: FormatVersion, Resources: []Resource{valid}}
+			manifest := Manifest{Resources: []Resource{valid}}
 			test.mutate(&manifest)
 			require.ErrorContains(t, manifest.Validate(), test.error)
 		})
@@ -126,7 +223,6 @@ func TestManifestValidation(t *testing.T) {
 
 func TestManifestSupportsDifferentResourceIdentities(t *testing.T) {
 	manifest := Manifest{
-		FormatVersion: FormatVersion,
 		Resources: []Resource{
 			{ResourceKind: "tool", ProjectKey: "project", LookupKey: "weather", Fingerprint: fingerprint("a")},
 			{ResourceKind: "skill", ProjectKey: "project", LookupKey: "support/summarize/v2", Fingerprint: fingerprint("b")},
