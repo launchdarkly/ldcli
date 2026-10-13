@@ -515,6 +515,24 @@ check "actions-coverage: an exact pin below what the replaced floating ref gives
   "decide|Accept the exact pin actions/checkout@v4.3.0, which is older than v4.4.0 that @v4 (replaced by the PR) resolves to today?" \
   "${out%%|*}|${out##*|}"
 
+# Bug 5: the #721 question named the input default (python-version: 3.x →
+# none). It must name the effect on the step that uses the Python.
+for side in b p; do mkdir -p "$tmp/py-$side/.github/workflows"; done
+printf 'on: pull_request\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-python@v3\n      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1\n' >"$tmp/py-b/.github/workflows/go.yml"
+sed 's/setup-python@v3/setup-python@v6/' "$tmp/py-b/.github/workflows/go.yml" >"$tmp/py-p/.github/workflows/go.yml"
+printf '.github/workflows/go.yml\n' >"$tmp/py-changed.txt"
+"$LIB/classify.sh" "$tmp/py-b" "$tmp/py-p" "$tmp/py-changed.txt" "$tmp/pr0.json" "$tmp/cls-py.json" 2>>"$tmp/classify.err"
+printf 'inputs:\n  python-version:\n    default: "3.x"\nruns:\n  using: node16\n' | base64 -w0 >"$tmp/co-api/v3"
+printf 'inputs:\n  python-version:\n    description: x\nruns:\n  using: node24\n' | base64 -w0 >"$tmp/co-api/v6"
+out=$(BASE_WT="$tmp/py-b" run_check actions-coverage "$tmp/py-p" PATH="$tmp/bin-co:$PATH" CLASSIFICATION="$tmp/cls-py.json")
+check "actions-coverage asks about the effect of a dropped python-version default, not the default" \
+  "decide|Accept that pre-commit in go.yml will use the runner's Python 3.12 instead of the newest 3.x in the tool cache?" \
+  "${out%%|*}|${out##*|}"
+echo 3.11 >"$tmp/py-p/.python-version"
+out=$(BASE_WT="$tmp/py-b" run_check actions-coverage "$tmp/py-p" PATH="$tmp/bin-co:$PATH" CLASSIFICATION="$tmp/cls-py.json")
+check "actions-coverage: with a .python-version file, the effect names that version" \
+  "Accept that pre-commit in go.yml will use the Python in .python-version (3.11) instead of the newest 3.x in the tool cache?" "${out##*|}"
+
 # Bug 3: a generated check inherited the global git configuration, and an
 # `insteadOf` rule with an access token showed up in its log. The tokens are
 # built at run time, so this file holds no token-shaped string.

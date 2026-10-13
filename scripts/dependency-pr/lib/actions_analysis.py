@@ -79,6 +79,44 @@ def on_github_com(value):
     return "${{ " + (ghes.group(1) if ghes else expr).strip() + " }}"
 
 
+def step_label(step):
+    """A short name for a step: its name, the action (the owner for <owner>/action), or its command."""
+    if step.get("name"):
+        return str(step["name"])
+    uses = str(step.get("uses") or "").split("@")[0]
+    if uses:
+        parts = uses.split("/")
+        return parts[0] if len(parts) > 1 and parts[1] == "action" else uses
+    run = str(step.get("run") or "").strip().split()
+    return f"`{run[0]}`" if run else "the next step"
+
+
+# The Python on the PATH of GitHub-hosted runner images.
+RUNNER_PYTHON = {"ubuntu-latest": "3.12", "ubuntu-24.04": "3.12", "ubuntu-22.04": "3.10"}
+
+
+def default_effects(name, change, usages, wt):
+    """What a changed input default does to the steps after the action, for
+    defaults whose effect is known. An empty list means: name the default."""
+    if name != "actions/setup-python" or change["input"] != "python-version" or change["to"] not in (None, ""):
+        return []
+    pinned = os.path.join(wt, ".python-version")
+    if os.path.isfile(pinned):
+        with open(pinned) as f:
+            target = f"the Python in .python-version ({f.read().strip()})"
+    else:
+        versions = {RUNNER_PYTHON.get(r) for us in usages for r in us["runners"]}
+        target = f"the runner's Python {versions.pop()}" if len(versions) == 1 and None not in versions else "the runner's Python"
+    old = f"the newest {change['from']} in the tool cache" if str(change["from"]).endswith(".x") else f"Python {change['from']}"
+    out = []
+    for us in usages:
+        who = us["next_step"] or "the job"
+        text = f"{who} in {os.path.basename(us['file'])} will use {target} instead of {old}"
+        if text not in out:
+            out.append(text)
+    return out
+
+
 EXACT = re.compile(r"^v?\d+\.\d+\.\d+$")
 FLOATING = re.compile(r"^v?\d+(\.\d+)?$")
 
@@ -191,7 +229,8 @@ def main():
         for f, d, cdir in sources:
             for job_id, job in jobs_of(d):
                 job_text = json.dumps(job)
-                for step in steps_of(job):
+                steps = list(steps_of(job))
+                for i, step in enumerate(steps):
                     if step.get("uses", "").split("@")[0] != name:
                         continue
                     wf_list = [f] if cdir is None else callers.get(cdir, [])
@@ -201,6 +240,7 @@ def main():
                         "outputs_read": outputs, "workflows": wf_list,
                         "runs_on_pr": any(on_pr.get(w, False) for w in wf_list),
                         "runners": sorted({str(r) for w in wf_list for r in runners.get(w, set())}),
+                        "next_step": step_label(steps[i + 1]) if i + 1 < len(steps) else None,
                     })
         entry = {"name": name, "from": u.get("from"), "to": u.get("to"), "breaking": bool(u.get("breaking")), "usages": usages,
                  "replaced": [r["version"] for r in u.get("replaced") or []]}
@@ -248,6 +288,8 @@ def main():
                     # An output that neither action.yml declares is set at run time
                     # (release-please-action), so only a declared output can go missing.
                     outputs_missing |= {o for o in read if o in old_out and o not in new_out}
+                for c in defaults_changed:
+                    c["effects"] = default_effects(name, c, usages, wt)
                 old_runtimes = sorted({str((o.get("runs") or {}).get("using")) for o in olds})
                 entry["upstream"] = {
                     "status": "ok",

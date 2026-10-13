@@ -33,6 +33,6 @@ PR CI runs only `go.yml`, `dev-server-ui.yml`, `dependency-scan.yml`, and `lint-
 
 - A breaking update is used in workflows that PR CI does not run. Ask: "Accept <action> <version> in <workflows>, which PR CI does not run?" Give the interface comparison, the runtime change, and the guard results as evidence.
 - A workflow `permissions` block changed.
-- A non-breaking update changes the default of an input that the repository does not set.
+- A non-breaking update changes the default of an input that the repository does not set. If the effect is known, ask about the effect, for example: "Accept that pre-commit in go.yml will use the runner's Python 3.12 instead of the newest 3.x in the tool cache?"
 
 No local check can run a release workflow. The comment can recommend a `manual-publish` dry run (`dry-run: true`) as follow-up.

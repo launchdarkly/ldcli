@@ -53,16 +53,19 @@ questions=()
 evidence=()
 perm=$(jq -r '[.permissions_changes[] | "\(.where): \(.from) → \(.to)"] | join("; ")' "$R")
 [ -n "$perm" ] && questions+=("accept the workflow permission changes ($perm)")
+# A changed default with a known effect is asked as that effect ("pre-commit in
+# go.yml will use the runner's Python 3.12 ..."), and the others by name.
 # Fields are joined with the unit separator, not a tab. Tab is IFS whitespace,
 # so read would merge empty fields and shift the later fields left.
-while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted used; do
+while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted used effects plain; do
   [ -n "$name" ] || continue
   ev="$name $change: inputs and outputs that the repo uses are unchanged; runtime $runtime${defaults:+; changed defaults: $defaults}${selfhosted:+; non-standard runner labels: $selfhosted}"
   evidence+=("$ev")
   if [ -n "$untested" ]; then
     questions+=("accept $name $to in workflows that PR CI does not run ($untested)")
-  elif [ -n "$defaults" ]; then
-    questions+=("accept the changed input defaults of $name in $used ($defaults)")
+  else
+    [ -n "$effects" ] && questions+=("accept that $effects")
+    [ -n "$plain" ] && questions+=("accept the changed input defaults of $name in $used ($plain)")
   fi
 done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking or (.upstream.defaults_changed | length) > 0) |
   [.name, .change, .to,
@@ -70,7 +73,10 @@ done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking
    (.upstream.runs_using | join(" → ")),
    ([.upstream.defaults_changed[] | "\(.input): \(.from // "none") → \(.to // "none")"] | join(", ")),
    (.self_hosted_runners | join(", ")),
-   ([.usages[].workflows[]] | unique | map(sub("^\\.github/workflows/"; "")) | join(", "))] | map(. // "" | tostring) | join("\u001f")' "$R")
+   ([.usages[].workflows[]] | unique | map(sub("^\\.github/workflows/"; "")) | join(", ")),
+   ([.upstream.defaults_changed[] | (.effects // [])[]] | join(" and ")),
+   ([.upstream.defaults_changed[] | select((.effects // []) | length == 0) | "\(.input): \(.from // "none") → \(.to // "none")"] | join(", "))]
+  | map(. // "" | tostring) | join("\u001f")' "$R")
 
 while IFS=$'\x1f' read -r q ev; do
   [ -n "$q" ] || continue
