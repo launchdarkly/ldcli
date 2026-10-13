@@ -3,7 +3,9 @@ package source
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/launchdarkly/ldcli/internal/sync/repository"
 )
@@ -13,7 +15,8 @@ var ErrGitRequired = errors.New("sync must run inside an initialized Git reposit
 
 // Workspace identifies the repository root used by sync.
 type Workspace struct {
-	Root string
+	Root   string
+	Source string
 }
 
 // Resolver finds the Git workspace containing a requested directory.
@@ -43,7 +46,62 @@ func (resolver Resolver) Resolve(dir string) (Workspace, error) {
 		return Workspace{}, err
 	}
 
-	return Workspace{Root: root}, nil
+	source, err := sourceFromOrigin(gitRepository.Origin)
+	if err != nil {
+		return Workspace{}, fmt.Errorf("derive sync source from Git origin: %w", err)
+	}
+	return Workspace{Root: root, Source: source}, nil
+}
+
+func sourceFromOrigin(origin string) (string, error) {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return "", errors.New("origin is empty")
+	}
+
+	host, repositoryPath, ok := scpOrigin(origin)
+	if !ok {
+		parsed, err := url.Parse(origin)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return "", fmt.Errorf("unsupported origin %q", origin)
+		}
+		host = normalizedHost(parsed)
+		repositoryPath = parsed.Path
+	}
+
+	repositoryPath = strings.Trim(strings.TrimSuffix(repositoryPath, ".git"), "/")
+	if host == "" || repositoryPath == "" {
+		return "", fmt.Errorf("unsupported origin %q", origin)
+	}
+	return "git:" + strings.ToLower(host) + "/" + repositoryPath, nil
+}
+
+func scpOrigin(origin string) (string, string, bool) {
+	if strings.Contains(origin, "://") {
+		return "", "", false
+	}
+	userAndHost, repositoryPath, ok := strings.Cut(origin, ":")
+	if !ok || repositoryPath == "" {
+		return "", "", false
+	}
+	_, host, hasUser := strings.Cut(userAndHost, "@")
+	if !hasUser {
+		host = userAndHost
+	}
+	return host, repositoryPath, host != ""
+}
+
+func normalizedHost(origin *url.URL) string {
+	host := origin.Host
+	switch {
+	case origin.Scheme == "ssh" && origin.Port() == "22":
+		host = origin.Hostname()
+	case origin.Scheme == "https" && origin.Port() == "443":
+		host = origin.Hostname()
+	case origin.Scheme == "http" && origin.Port() == "80":
+		host = origin.Hostname()
+	}
+	return host
 }
 
 // canonicalPath resolves symlinks and returns an absolute, clean path so every
