@@ -117,13 +117,50 @@ func TestBuildPollResponse(t *testing.T) {
 				var put subsystems.PutObject
 				require.NoError(t, json.Unmarshal(event.Data, &put))
 				putKeys[put.Key] = true
-				assert.Equal(t, currentVersion, put.Version)
+				assert.Equal(t, multiFlags[put.Key].Version, put.Version)
 				assert.Equal(t, subsystems.FlagKind, put.Kind)
 			}
 		}
 		assert.True(t, putKeys["flag-a"])
 		assert.True(t, putKeys["flag-b"])
 	})
+
+	// SDKs compare put-object versions to find changed flags. If the version followed the
+	// payload version, every override would mark every flag as changed.
+	t.Run("put-object versions of unchanged flags stay the same when the payload version changes", func(t *testing.T) {
+		before := model.FlagsState{
+			"unchanged": model.FlagState{Value: ldvalue.Int(10), Version: 1},
+			"changed":   model.FlagState{Value: ldvalue.Bool(false), Version: 3},
+		}
+		after := model.FlagsState{
+			"unchanged": before["unchanged"],
+			"changed":   model.FlagState{Value: ldvalue.Bool(true), Version: 4},
+		}
+		for name, objects := range map[string]fdv2ObjectEncoder{"server": fdv2ServerObjects, "client": fdv2ClientObjects(false)} {
+			t.Run(name, func(t *testing.T) {
+				beforeResp, err := buildInitialResponse(payloadID, currentVersion, before, "", objects)
+				require.NoError(t, err)
+				afterResp, err := buildInitialResponse(payloadID, currentVersion+1, after, "", objects)
+				require.NoError(t, err)
+
+				assert.Equal(t, map[string]int{"unchanged": 1, "changed": 3}, putObjectVersions(t, beforeResp))
+				assert.Equal(t, map[string]int{"unchanged": 1, "changed": 4}, putObjectVersions(t, afterResp))
+			})
+		}
+	})
+}
+
+func putObjectVersions(t *testing.T, payload subsystems.PollingPayload) map[string]int {
+	t.Helper()
+	versions := make(map[string]int)
+	for _, event := range payload.Events {
+		if event.Name == subsystems.EventPutObject {
+			var put subsystems.PutObject
+			require.NoError(t, json.Unmarshal(event.Data, &put))
+			versions[put.Key] = put.Version
+		}
+	}
+	return versions
 }
 
 func TestPollV2Handler(t *testing.T) {

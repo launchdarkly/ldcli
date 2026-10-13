@@ -96,7 +96,7 @@ func buildFullTransferResponse(payloadID string, version int, flags model.FlagsS
 	events := []subsystems.RawEvent{intentEvent}
 
 	for key, flagState := range flags {
-		event, err := makePutObjectEvent(version, key, flagState, objects)
+		event, err := makePutObjectEvent(key, flagState, objects)
 		if err != nil {
 			return subsystems.PollingPayload{}, err
 		}
@@ -127,13 +127,18 @@ func makeServerIntentEvent(payloadID string, target int, intentCode subsystems.I
 	return subsystems.RawEvent{Name: subsystems.EventServerIntent, Data: data}, nil
 }
 
-func makePutObjectEvent(version int, key string, flagState model.FlagState, objects fdv2ObjectEncoder) (subsystems.RawEvent, error) {
+// makePutObjectEvent builds a put-object event for one flag. The event version must be
+// the version of the flag, not the payload version. SDKs store the event version as the
+// version of the flag. They compare it to find which flags changed and to drop stale
+// updates. The payload version changes on every override, so it would mark every flag
+// as changed on each full transfer.
+func makePutObjectEvent(key string, flagState model.FlagState, objects fdv2ObjectEncoder) (subsystems.RawEvent, error) {
 	object, err := json.Marshal(objects.encode(key, flagState))
 	if err != nil {
 		return subsystems.RawEvent{}, err
 	}
 	data, err := json.Marshal(subsystems.PutObject{
-		Version: version,
+		Version: flagState.Version,
 		Kind:    objects.kind,
 		Key:     key,
 		Object:  object,
@@ -151,7 +156,7 @@ func buildFlagChangeEvents(payloadID string, version int, flagKey string, flagSt
 	if err != nil {
 		return nil, err
 	}
-	putEvent, err := makePutObjectEvent(version, flagKey, flagState, objects)
+	putEvent, err := makePutObjectEvent(flagKey, flagState, objects)
 	if err != nil {
 		return nil, err
 	}
