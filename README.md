@@ -121,7 +121,7 @@ export AWS_PROFILE=my-profile AWS_REGION=us-east-1
 ldcli aws-devops-agent setup
 ```
 
-The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ca-central-1`, `sa-east-1`, `ap-south-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1`, `eu-west-1` and `eu-west-2`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
+The AWS DevOps Agent is available in `us-east-1`, `us-east-2`, `us-west-2`, `ca-central-1`, `sa-east-1`, `ap-south-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ap-northeast-2`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3` and `eu-north-1`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
 
 If the account already runs the AWS DevOps Agent, `setup` lists its agent spaces and asks which one to connect LaunchDarkly to. It then only registers and associates the LaunchDarkly MCP server on the space you pick, leaving its IAM roles, account association and operator app sign-in configuration alone. Pass `--agent-space-id <id>` to pick one without being asked, or `--new-agent-space` to provision another space.
 
