@@ -125,7 +125,9 @@ The AWS DevOps Agent is available in `us-east-1`, `us-east-2`, `us-west-2`, `ca-
 
 If the account already runs the AWS DevOps Agent, `setup` lists its agent spaces and asks which one to connect LaunchDarkly to. It then only registers and associates the LaunchDarkly MCP server on the space you pick, leaving its IAM roles, account association and operator app sign-in configuration alone. Pass `--agent-space-id <id>` to pick one without being asked, or `--new-agent-space` to provision another space.
 
-Before `setup` changes AWS, it shows the AWS account, region, profile, agent space, and MCP server that it will use. It then asks `Continue? [y/N]` and stops with an error unless you type `y` or `yes`. To skip the question, pass `--yes`. Without a terminal, or with `--output json`, `setup` does not ask.
+Before `setup` changes AWS, it shows a plan. The plan names the AWS account, region, profile, IAM roles, agent space, operator app, and MCP server, and what `setup` will do to each. In a terminal, `setup` then asks `Continue? [y/N]` and stops with an error unless you type `y` or `yes`. To skip the question, pass `--yes`. Without a terminal, `setup` shows the plan and does not ask. With `--output json`, `setup` shows no plan and does not ask.
+
+If the SSO session of your profile expired, `setup` and `status` offer to run `aws sso login --profile <name>` for you. They ask only in a terminal, and not with `--output json`.
 
 Without a terminal — in CI, or with `--output json` — `setup` reuses the space matching `--agent-space-name` so an unattended re-run stays idempotent, and fails asking for `--agent-space-id` or `--new-agent-space` when the only spaces are ones it did not create.
 
