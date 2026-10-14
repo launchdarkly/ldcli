@@ -57,6 +57,10 @@ type PlannedResource struct {
 	ServerMode          syncdomain.VariationMode
 	Local               *syncdomain.Variation
 	Server              *syncdomain.Variation
+	// SyncedElsewhere is true when another working copy synced the resource
+	// after this working copy wrote its sync.lock file. The plan is still
+	// correct, because it compares against this working copy's lock.
+	SyncedElsewhere bool
 	// ServerHasStaleAttachmentPins is true when LaunchDarkly pins an older
 	// version of a tool or skill than its latest version.
 	ServerHasStaleAttachmentPins bool

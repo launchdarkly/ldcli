@@ -15,17 +15,11 @@ import (
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
 
-// ManifestStore reads and writes the sync baseline.
-type ManifestStore interface {
-	Load(projectKeys []string) (syncmanifest.Manifest, error)
-	Update(previous, next syncmanifest.Manifest) (syncmanifest.Manifest, error)
-}
-
 // Options are the dependencies and the input of one detach.
 type Options struct {
 	RepositoryRoot string
 	Store          synclocal.Store
-	Manifest       ManifestStore
+	Baselines      syncmanifest.Baselines
 	// ProjectKeys are the projects that have local files.
 	ProjectKeys []string
 	Input       io.Reader
@@ -44,7 +38,7 @@ func Run(options Options) error {
 	slices.Sort(projectKeys)
 	projectKeys = slices.Compact(projectKeys)
 
-	synced, manifest, err := loadResources(options.RepositoryRoot, options.Manifest, projectKeys)
+	synced, baseline, err := loadResources(options.RepositoryRoot, options.Baselines, projectKeys)
 	if err != nil {
 		return err
 	}
@@ -66,7 +60,7 @@ func Run(options Options) error {
 			return err
 		}
 	}
-	if err := detachResources(options, manifest, selected); err != nil {
+	if err := detachResources(options, baseline, selected); err != nil {
 		return err
 	}
 
@@ -110,24 +104,24 @@ func validateSelections(synced, selected []syncdomain.ResourceID) error {
 	return nil
 }
 
-// loadResources returns each variation that the manifest tracks or that has
-// a local file, in identity order.
+// loadResources returns each variation that the lock tracks or that has a
+// local file, in identity order.
 func loadResources(
 	repositoryRoot string,
-	manifestStore ManifestStore,
+	baselines syncmanifest.Baselines,
 	projectKeys []string,
-) ([]syncdomain.ResourceID, syncmanifest.Manifest, error) {
-	manifest, err := manifestStore.Load(projectKeys)
+) ([]syncdomain.ResourceID, syncmanifest.Baseline, error) {
+	baseline, err := baselines.Load(projectKeys)
 	if err != nil {
-		return nil, syncmanifest.Manifest{}, err
+		return nil, syncmanifest.Baseline{}, err
 	}
 	files, err := synclocal.SourceFiles(repositoryRoot)
 	if err != nil {
-		return nil, syncmanifest.Manifest{}, err
+		return nil, syncmanifest.Baseline{}, err
 	}
 
 	var synced []syncdomain.ResourceID
-	for _, resource := range manifest.Resources {
+	for _, resource := range baseline.Lock.Resources {
 		if resource.ResourceKind == syncdomain.KindVariation {
 			synced = append(synced, resource.ID())
 		}
@@ -138,16 +132,16 @@ func loadResources(
 		}
 	}
 	slices.SortFunc(synced, syncdomain.CompareResourceIDs)
-	return slices.Compact(synced), manifest, nil
+	return slices.Compact(synced), baseline, nil
 }
 
-// detachResources removes the selected variations from the manifest, and then
-// deletes their local files. If the delete fails, it restores the manifest.
-func detachResources(options Options, original syncmanifest.Manifest, selected []syncdomain.ResourceID) error {
+// detachResources removes the selected variations from the baseline, and then
+// deletes their local files. If the delete fails, it restores the baseline.
+func detachResources(options Options, original syncmanifest.Baseline, selected []syncdomain.ResourceID) error {
 	isSelected := func(id syncdomain.ResourceID) bool { return slices.Contains(selected, id) }
 
 	next := syncmanifest.New()
-	for _, resource := range original.Resources {
+	for _, resource := range original.Lock.Resources {
 		if !isSelected(resource.ID()) {
 			next.Resources = append(next.Resources, resource)
 		}
@@ -160,12 +154,12 @@ func detachResources(options Options, original syncmanifest.Manifest, selected [
 		})
 		next.RemoveUnusedAttachments(remaining)
 	}
-	persisted, err := options.Manifest.Update(original, next)
+	saved, err := options.Baselines.Save(original, next)
 	if err != nil {
 		return err
 	}
-	restoreManifest := func(cause error) error {
-		_, restoreErr := options.Manifest.Update(persisted, original)
+	restoreBaseline := func(cause error) error {
+		_, restoreErr := options.Baselines.Save(saved, original.Lock)
 		return errors.Join(cause, restoreErr)
 	}
 
@@ -177,7 +171,7 @@ func detachResources(options Options, original syncmanifest.Manifest, selected [
 		}
 		exists, err := options.Store.VariationExists(resource.ProjectKey, configKey, variationKey)
 		if err != nil {
-			return restoreManifest(err)
+			return restoreBaseline(err)
 		}
 		if exists {
 			deletions = append(deletions, synclocal.VariationDeletion{
@@ -186,7 +180,7 @@ func detachResources(options Options, original syncmanifest.Manifest, selected [
 		}
 	}
 	if _, err := options.Store.DeleteVariations(deletions); err != nil {
-		return restoreManifest(err)
+		return restoreBaseline(err)
 	}
 	return nil
 }

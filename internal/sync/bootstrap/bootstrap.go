@@ -31,18 +31,12 @@ type AttachmentReader interface {
 	ReadAttachment(projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error)
 }
 
-// ManifestStore reads and writes the sync baseline.
-type ManifestStore interface {
-	Load(projectKeys []string) (syncmanifest.Manifest, error)
-	Update(previous, next syncmanifest.Manifest) (syncmanifest.Manifest, error)
-}
-
 // Options are the dependencies and the input of one add.
 type Options struct {
 	Catalog     Catalog
 	Attachments AttachmentReader
 	Store       synclocal.Store
-	Manifest    ManifestStore
+	Baselines   syncmanifest.Baselines
 	Input       io.Reader
 	Output      io.Writer
 	// Initial is true when the workspace has no .launchdarkly directory.
@@ -242,7 +236,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	for _, file := range files {
 		projectKeys = append(projectKeys, file.ProjectKey)
 	}
-	manifest, err := options.Manifest.Load(projectKeys)
+	baseline, err := options.Baselines.Load(projectKeys)
 	if err != nil {
 		return err
 	}
@@ -256,9 +250,9 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if err != nil {
 		return err
 	}
-	next, err := recordCreatedVariations(manifest, options.Store, files)
+	next, err := recordCreatedVariations(baseline.Lock, options.Store, files)
 	if err == nil {
-		_, err = options.Manifest.Update(manifest, next)
+		_, err = options.Baselines.Save(baseline, next)
 	}
 	if err != nil {
 		return errors.Join(err, options.Store.RollbackCreation(creation))

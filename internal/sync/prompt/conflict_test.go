@@ -267,7 +267,7 @@ func TestRunWorkspaceSyncAppliesConflictChoiceAfterRevalidation(t *testing.T) {
 			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
 		nil,
 	)
 
@@ -292,7 +292,7 @@ func TestRunWorkspaceSyncAbortsConflictWithoutWriting(t *testing.T) {
 			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
 		nil,
 	)
 
@@ -318,7 +318,7 @@ func TestRunWorkspaceSyncAbortsAttachmentConflictWithoutWriting(t *testing.T) {
 			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
 		nil,
 	)
 
@@ -349,7 +349,7 @@ func TestRunWorkspaceSyncUsesLaunchDarklyForAttachmentConflict(t *testing.T) {
 			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, manifest: manifestStore},
+		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
 		nil,
 	)
 
@@ -416,7 +416,7 @@ func divergentPlan(t *testing.T) Plan {
 	})
 }
 
-func writeConflictWorkspace(t *testing.T, root string, baseline, local syncdomain.Variation) (synclocal.Store, manifestStore) {
+func writeConflictWorkspace(t *testing.T, root string, baseline, local syncdomain.Variation) (synclocal.Store, syncmanifest.Baselines) {
 	t.Helper()
 
 	command := exec.Command("git", "init", "--quiet")
@@ -445,16 +445,13 @@ type memoryManifestStore struct {
 	manifest syncmanifest.Manifest
 }
 
-func (store *memoryManifestStore) Load([]string) (syncmanifest.Manifest, error) {
-	return store.manifest, nil
+func (store *memoryManifestStore) Load([]string) (syncmanifest.Baseline, error) {
+	return syncmanifest.Baseline{Lock: store.manifest}, nil
 }
 
-func (store *memoryManifestStore) Update(
-	_ syncmanifest.Manifest,
-	next syncmanifest.Manifest,
-) (syncmanifest.Manifest, error) {
+func (store *memoryManifestStore) Save(_ syncmanifest.Baseline, next syncmanifest.Manifest) (syncmanifest.Baseline, error) {
 	store.manifest = next
-	return next, nil
+	return syncmanifest.Baseline{Lock: next}, nil
 }
 
 type conflictAPI struct {

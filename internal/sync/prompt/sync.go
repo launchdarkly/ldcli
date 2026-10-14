@@ -10,7 +10,7 @@ import (
 
 // runWorkspaceSync runs one sync in five steps:
 //
-//  1. Read the manifest, the local files, and LaunchDarkly, and build a plan.
+//  1. Read the baseline, the local files, and LaunchDarkly, and build a plan.
 //  2. Ask the user to resolve each conflict.
 //  3. Show the plan and ask the user to apply it.
 //  4. Read the state again, and stop if it changed after the review.
@@ -60,6 +60,12 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	}
 	if !proceed {
 		if !resolved.HasChanges() {
+			// A workspace from before sync.lock gets the file on its first sync.
+			if !reviewed.baseline.HasLockFile() {
+				if _, err := workspace.baselines.Save(reviewed.baseline, reviewed.baseline.Lock); err != nil {
+					return err
+				}
+			}
 			return cleanupOrphanedAttachments(options, workspace.local, interactive)
 		}
 		return nil
@@ -102,10 +108,10 @@ func (runner Runner) applyPlan(
 	interactive bool,
 ) error {
 	plan := applyConflictResolutions(current.plan, resolutions)
-	outcomes, next, err := executePlan(workspace.root, workspace.local, client, current.manifest, plan, current.localFiles)
+	outcomes, next, err := executePlan(workspace.root, workspace.local, client, current.baseline.Lock, plan, current.localFiles)
 
 	failures := []error{err}
-	if _, err := workspace.manifest.Update(current.manifest, next); err != nil {
+	if _, err := workspace.baselines.Save(current.baseline, next); err != nil {
 		failures = append(failures, err)
 	}
 	if err := workspace.local.RemoveEmptyDirectories(); err != nil {

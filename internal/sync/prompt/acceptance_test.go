@@ -758,20 +758,52 @@ func TestPromptServerDeletionLeavesReferencedFile(t *testing.T) {
 	assert.Empty(t, resources)
 }
 
+// A working copy that is behind another working copy must pull the newer
+// LaunchDarkly state. It must not write its older file back to LaunchDarkly.
+func TestPromptStaleWorkingCopyPullsInsteadOfReverting(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline)}
+	_, _, err := runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
+
+	// Another working copy syncs a change. The shared remote manifest moves.
+	other := variation("Other working copy")
+	api.variation = pointer(other)
+	writeManifest(t, root, other)
+	manifestsByRoot[root].Items[0].Version = 2
+
+	_, review, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, other.Name, api.variation.Name)
+	assert.False(t, slices.ContainsFunc(api.requests, func(request string) bool {
+		return strings.HasPrefix(request, "PATCH ") && strings.Contains(request, "/variations/")
+	}), "sync wrote the older local file back to LaunchDarkly")
+	assert.Contains(t, review, "Another working copy synced this variation after your sync.lock.")
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	assert.Equal(t, other.Name, resources[0].Variation.Name)
+}
+
 func TestPromptPropagatesTrackedLocalDeletion(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
 	writeVariation(t, root, baseline, false)
 	writeManifest(t, root, baseline)
-	command := exec.Command("git", "add", ".launchdarkly")
-	command.Dir = root
-	output, err := command.CombinedOutput()
-	require.NoError(t, err, "%s", output)
+	api := &directAPI{variation: pointer(baseline)}
+
+	// The first sync writes sync.lock, which tracks the project after its
+	// files are gone.
+	_, _, err := runPrompt(t, root, api, "--yes")
+	require.NoError(t, err)
 	_, err = synclocal.NewStore(root).DeleteVariations([]synclocal.VariationDeletion{{
 		ProjectKey: "production", ConfigKey: "support", VariationKey: "default",
 	}})
 	require.NoError(t, err)
-	api := &directAPI{variation: pointer(baseline)}
 
 	_, _, err = runPrompt(t, root, api, "--yes")
 
