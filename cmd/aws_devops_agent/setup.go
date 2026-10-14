@@ -56,7 +56,7 @@ expires.`,
 
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
-	cmd.Flags().String(agentSpaceIDFlag, "", "Connect LaunchDarkly to this existing agent space instead of asking which one to use")
+	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. A sign-in flag runs full setup on it")
 	cmd.Flags().String(agentSpaceNameFlag, "launchdarkly", "Name of the agent space to create")
 	cmd.Flags().Bool(newAgentSpaceFlag, false, "Provision a new agent space instead of asking which existing one to use")
 	cmd.MarkFlagsMutuallyExclusive(agentSpaceIDFlag, newAgentSpaceFlag)
@@ -170,7 +170,7 @@ func resolveAgentSpace(
 		return true, nil
 	}
 	if opts.AgentSpaceID != "" {
-		return false, nil
+		return authFlagSet(cmd), nil
 	}
 
 	spaces, err := awsdevops.AgentSpaces(cmd.Context(), clients)
@@ -258,6 +258,17 @@ func profileLabel(cmd *cobra.Command) string {
 	}
 
 	return "default credentials"
+}
+
+// authFlagSet reports a passed sign-in flag.
+func authFlagSet(cmd *cobra.Command) bool {
+	for _, name := range []string{authFlowFlag, idcInstanceARNFlag, issuerURLFlag, idpClientIDFlag, idpClientSecretFlag} {
+		if cmd.Flags().Changed(name) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // selectAgentSpace asks which agent space to connect LaunchDarkly to, and

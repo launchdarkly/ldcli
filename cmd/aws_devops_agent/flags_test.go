@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,4 +37,52 @@ func TestSetupAcceptsEachSpaceFlagAlone(t *testing.T) {
 		require.NoError(t, cmd.ParseFlags(args))
 		assert.NoError(t, cmd.ValidateFlagGroups())
 	}
+}
+
+func spaceIDRun(t *testing.T, flags map[string]string) []string {
+	t.Helper()
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	require.NoError(t, cmd.Flags().Set(agentSpaceIDFlag, "space-2"))
+	for name, value := range flags {
+		require.NoError(t, cmd.Flags().Set(name, value))
+	}
+	clients, w := countingClients(agenttypes.AgentSpace{
+		AgentSpaceId: aws.String("space-2"),
+		Name:         aws.String("platform"),
+	})
+	opts, err := setupOptions(cmd)
+	require.NoError(t, err)
+	opts.LDAccessToken = "api-token"
+
+	require.NoError(t, setupWith(cmd, clients, opts, true, false))
+
+	return w.calls
+}
+
+// An auth flag asks for full setup.
+func TestSpaceIDWithAuthFlagRunsFullSetup(t *testing.T) {
+	cases := map[string]map[string]string{
+		"auth-flow":        {authFlowFlag: "iam"},
+		"idc-instance-arn": {authFlowFlag: "idc", idcInstanceARNFlag: "arn:aws:sso:::instance/ssoins-1"},
+	}
+	for name, flags := range cases {
+		t.Run(name, func(t *testing.T) {
+			calls := spaceIDRun(t, flags)
+
+			assert.Contains(t, calls, "EnableOperatorApp")
+			assert.Contains(t, calls, "CreateRole")
+			assert.NotContains(t, calls, "CreateAgentSpace")
+		})
+	}
+}
+
+// Without one, setup only connects.
+func TestSpaceIDAloneOnlyConnects(t *testing.T) {
+	calls := spaceIDRun(t, nil)
+
+	assert.NotContains(t, calls, "EnableOperatorApp")
+	assert.NotContains(t, calls, "CreateRole")
+	assert.NotContains(t, calls, "CreateAgentSpace")
+	assert.Contains(t, calls, "RegisterService")
 }
