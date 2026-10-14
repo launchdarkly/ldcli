@@ -79,7 +79,11 @@ func printStatus(out io.Writer, status awsdevops.Status) {
 	if len(status.Services) > 0 {
 		_, _ = fmt.Fprintln(out, "\nServices:")
 		for _, service := range status.Services {
-			_, _ = fmt.Fprintf(out, "  %s (%s)\n", serviceLabel(service), service.ServiceID)
+			label := serviceLabel(service)
+			if label == "" {
+				label = "Service"
+			}
+			_, _ = fmt.Fprintf(out, "  %s (%s)\n", label, service.ServiceID)
 		}
 	}
 

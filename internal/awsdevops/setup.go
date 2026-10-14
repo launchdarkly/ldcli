@@ -94,8 +94,8 @@ type SetupResult struct {
 
 // SetupPlan describes what setup will change.
 type SetupPlan struct {
-	AccountID  string
-	Region     string
+	AccountID   string
+	Region      string
 	AgentSpace  string
 	MCPServer   string
 	Roles       []string

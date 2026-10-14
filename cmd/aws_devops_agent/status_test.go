@@ -154,3 +154,16 @@ func TestStatusJSONUnchanged(t *testing.T) {
 
 	assert.JSONEq(t, string(want), out.String())
 }
+
+// A nameless service still gets a label.
+func TestStatusServicesListLabelsBlankService(t *testing.T) {
+	status := realisticStatus()
+	status.Services[0] = awsdevops.ServiceStatus{ServiceID: "s-ld01"}
+
+	for _, line := range strings.Split(renderStatus(status), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "s-ld01") {
+			assert.False(t, strings.HasPrefix(trimmed, "("), "line has no label: %q", line)
+		}
+	}
+}

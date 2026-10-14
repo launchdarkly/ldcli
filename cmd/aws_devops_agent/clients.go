@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
@@ -27,17 +28,21 @@ type ssoLogin struct {
 
 // loadClients builds AWS clients from the command flags.
 func loadClients(cmd *cobra.Command) (awsdevops.Clients, error) {
-	l := ssoLogin{
+	l := newSSOLogin(cmd, canPrompt)
+
+	return l.clients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
+}
+
+func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
+	return ssoLogin{
 		newClients:  awsdevops.NewClients,
 		configPath:  awsdevops.ConfigFilePath(),
 		in:          cmd.InOrStdin(),
 		out:         cmd.ErrOrStderr(),
-		interactive: canPrompt,
+		interactive: func() bool { return cliflags.GetOutputKind(cmd) != "json" && tty() },
 		lookPath:    exec.LookPath,
 		run:         runAttached,
 	}
-
-	return l.clients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
 }
 
 func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevops.Clients, error) {

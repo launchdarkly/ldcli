@@ -11,9 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
@@ -216,4 +218,25 @@ func TestLoginSkipsWhenFirstCallWorks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, f.reads)
 	assert.Equal(t, 1, f.calls)
+}
+
+// JSON runs never ask, like the setup plan.
+func TestLoginNeverAsksInJSONMode(t *testing.T) {
+	viper.Set(cliflags.OutputFlag, "json")
+	t.Cleanup(func() { viper.Set(cliflags.OutputFlag, "") })
+	cmd := NewStatusCmd(nil)
+
+	l := newSSOLogin(cmd, func() bool { return true })
+
+	assert.False(t, l.interactive())
+}
+
+func TestLoginAsksInPlaintextTerminal(t *testing.T) {
+	viper.Set(cliflags.OutputFlag, "plaintext")
+	t.Cleanup(func() { viper.Set(cliflags.OutputFlag, "") })
+	cmd := NewStatusCmd(nil)
+
+	l := newSSOLogin(cmd, func() bool { return true })
+
+	assert.True(t, l.interactive())
 }
