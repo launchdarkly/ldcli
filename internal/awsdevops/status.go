@@ -9,6 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 )
 
+// AWSServiceID identifies the AWS account association.
+const AWSServiceID = awsServiceID
+
 // Status is a read-only view of what setup has provisioned so far.
 type Status struct {
 	AccountID    string             `json:"accountId"`
