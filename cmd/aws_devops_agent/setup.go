@@ -123,8 +123,9 @@ func setupWith(
 		return err
 	}
 
-	if interactive && !mustBool(cmd, yesFlag) {
-		if err := confirmSetup(cmd, clients, opts, provision); err != nil {
+	if plaintext {
+		ask := interactive && !mustBool(cmd, yesFlag)
+		if err := confirmSetup(cmd, clients, opts, provision, ask); err != nil {
 			return err
 		}
 	}
@@ -214,7 +215,7 @@ func resolveAgentSpace(
 }
 
 // confirmSetup shows the plan and asks.
-func confirmSetup(cmd *cobra.Command, clients awsdevops.Clients, opts awsdevops.SetupOptions, provision bool) error {
+func confirmSetup(cmd *cobra.Command, clients awsdevops.Clients, opts awsdevops.SetupOptions, provision, ask bool) error {
 	plan, err := awsdevops.PlanSetup(cmd.Context(), clients, opts, provision)
 	if err != nil {
 		return err
@@ -222,11 +223,18 @@ func confirmSetup(cmd *cobra.Command, clients awsdevops.Clients, opts awsdevops.
 
 	out := cmd.OutOrStdout()
 	_, _ = fmt.Fprintln(out, "\nSetup plan:")
-	_, _ = fmt.Fprintf(out, "  AWS account:  %s\n", plan.AccountID)
-	_, _ = fmt.Fprintf(out, "  Region:       %s\n", plan.Region)
-	_, _ = fmt.Fprintf(out, "  AWS profile:  %s\n", profileLabel(cmd))
-	_, _ = fmt.Fprintf(out, "  Agent space:  %s\n", plan.AgentSpace)
-	_, _ = fmt.Fprintf(out, "  MCP server:   %s\n\n", plan.MCPServer)
+	_, _ = fmt.Fprintf(out, "  AWS account:   %s\n", plan.AccountID)
+	_, _ = fmt.Fprintf(out, "  Region:        %s\n", plan.Region)
+	_, _ = fmt.Fprintf(out, "  AWS profile:   %s\n", profileLabel(cmd))
+	for _, role := range plan.Roles {
+		_, _ = fmt.Fprintf(out, "  IAM role:      %s\n", role)
+	}
+	_, _ = fmt.Fprintf(out, "  Agent space:   %s\n", plan.AgentSpace)
+	_, _ = fmt.Fprintf(out, "  Operator app:  %s\n", plan.OperatorApp)
+	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n\n", plan.MCPServer)
+	if !ask {
+		return nil
+	}
 	_, _ = fmt.Fprint(out, "Continue? [y/N]: ")
 
 	line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')

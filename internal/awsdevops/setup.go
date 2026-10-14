@@ -96,8 +96,10 @@ type SetupResult struct {
 type SetupPlan struct {
 	AccountID  string
 	Region     string
-	AgentSpace string
-	MCPServer  string
+	AgentSpace  string
+	MCPServer   string
+	Roles       []string
+	OperatorApp string
 }
 
 // PlanSetup describes a run without changing AWS.
@@ -114,8 +116,48 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	}
 
 	plan.MCPServer, err = planMCPServer(ctx, clients, opts)
+	if err != nil {
+		return plan, err
+	}
 
-	return plan, err
+	if !provision {
+		plan.Roles = []string{"No change"}
+		plan.OperatorApp = "No change"
+
+		return plan, nil
+	}
+	for _, name := range []string{AgentSpaceRoleName, OperatorAppRoleName} {
+		line, err := planRole(ctx, clients.IAM, name)
+		if err != nil {
+			return plan, err
+		}
+		plan.Roles = append(plan.Roles, line)
+	}
+	plan.OperatorApp = "Enable the operator app"
+
+	return plan, nil
+}
+
+// planRole says what setup will do to a role.
+func planRole(ctx context.Context, client IAMAPI, name string) (string, error) {
+	_, err := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
+	var missing *iamtypes.NoSuchEntityException
+	switch {
+	case errors.As(err, &missing):
+		return "Create role " + name, nil
+	case err != nil:
+		return "", fmt.Errorf("unable to read the %s role: %w", name, err)
+	}
+
+	managed, err := isManagedRole(ctx, client, name)
+	if err != nil {
+		return "", err
+	}
+	if !managed {
+		return fmt.Sprintf("Leave role %s unchanged, it has no %s tag", name, ManagedTagKey), nil
+	}
+
+	return fmt.Sprintf("Update the trust policy of role %s", name), nil
 }
 
 func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (string, error) {
