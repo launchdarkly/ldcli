@@ -92,13 +92,22 @@ func ValidateKey(key string) error {
 	}
 }
 
+// Reference links a variation to a prompt file elsewhere in the repository.
+// Format names the adapter that reads and writes the file.
+type Reference struct {
+	File   string `yaml:"file"`
+	Format string `yaml:"format"`
+}
+
 // SyncedResource is one variation compiled from the local workspace.
 type SyncedResource struct {
 	Kind       Kind
 	ProjectKey string
 	LookupKey  string
 	// Upsert lets sync create the variation in LaunchDarkly when it is absent.
-	Upsert    bool
+	Upsert bool
+	// Ref is the linked prompt file, or nil when the variation file holds the prompt.
+	Ref       *Reference
 	Variation Variation
 }
 

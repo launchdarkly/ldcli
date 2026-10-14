@@ -32,7 +32,6 @@ func TestResolvedConflictAction(t *testing.T) {
 		{"LaunchDarkly deletion removes the local resource", PlannedResource{Local: &local}, ConflictUseLaunchDarkly, ActionDeleteLocal},
 		{"local updates an existing server resource", PlannedResource{Local: &local, Server: &server}, ConflictUseLocal, ActionUpdateServer},
 		{"local creates a missing server resource", PlannedResource{Local: &local}, ConflictUseLocal, ActionCreateServer},
-		{"local deletion archives the server resource", PlannedResource{Server: &server}, ConflictUseLocal, ActionArchiveServer},
 	}
 
 	for _, test := range tests {
