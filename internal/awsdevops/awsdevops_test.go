@@ -369,7 +369,7 @@ func TestSetupLeavesARoleItDidNotCreateAlone(t *testing.T) {
 	assert.Equal(t, "customer-owned", iamClient.trustPolicies[awsdevops.AgentSpaceRoleName])
 	assert.Empty(t, iamClient.attachedPolicy[awsdevops.AgentSpaceRoleName])
 	assert.Empty(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName])
-	assert.Contains(t, strings.Join(logged, "\n"), "was not created by this CLI")
+	assert.Contains(t, strings.Join(logged, "\n"), "ldcli did not change it")
 }
 
 // launchDarklyMCPService is how AWS reports our registration: the endpoint is
