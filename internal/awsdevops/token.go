@@ -15,6 +15,9 @@ var ErrInvalidAccessToken = errors.New("LaunchDarkly rejected the access token")
 
 var ldHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
+// ldAPIVersion matches the rest of the CLI.
+const ldAPIVersion = "20240415"
+
 // ValidateAccessToken checks a token against the LaunchDarkly API before AWS
 // stores it. AWS keeps the token write-only, so replacing a working
 // registration with an unusable token cannot be undone.
@@ -32,6 +35,7 @@ func ValidateAccessToken(ctx context.Context, baseURI, token string) error {
 		return err
 	}
 	req.Header.Set("Authorization", token)
+	req.Header.Set("LD-API-Version", ldAPIVersion)
 
 	res, err := ldHTTPClient.Do(req)
 	if err != nil {
