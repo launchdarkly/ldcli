@@ -125,6 +125,8 @@ The AWS DevOps Agent is available in `us-east-1`, `us-east-2`, `us-west-2`, `ca-
 
 If the account already runs the AWS DevOps Agent, `setup` lists its agent spaces and asks which one to connect LaunchDarkly to. It then only registers and associates the LaunchDarkly MCP server on the space you pick, leaving its IAM roles, account association and operator app sign-in configuration alone. Pass `--agent-space-id <id>` to pick one without being asked, or `--new-agent-space` to provision another space.
 
+Before `setup` changes AWS, it shows the AWS account, region, profile, agent space, and MCP server that it will use. It then asks `Continue? [y/N]` and stops with an error unless you type `y` or `yes`. To skip the question, pass `--yes`. Without a terminal, or with `--output json`, `setup` does not ask.
+
 Without a terminal — in CI, or with `--output json` — `setup` reuses the space matching `--agent-space-name` so an unattended re-run stays idempotent, and fails asking for `--agent-space-id` or `--new-agent-space` when the only spaces are ones it did not create.
 
 Otherwise `setup` is safe to re-run: it reuses the IAM roles, the agent space, the account and MCP associations on it, and any LaunchDarkly MCP server already registered on the account. The IAM roles are account-wide and trust the agent spaces in every region, so running `setup` in a second region leaves the first one working; a role named `DevOpsAgentRole-AgentSpace` or `DevOpsAgentRole-WebappAdmin` that `setup` did not create is reused untouched, and it has to trust `aidevops.amazonaws.com` itself.

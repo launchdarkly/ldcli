@@ -2,6 +2,7 @@ package awsdevopsagent
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -27,6 +28,7 @@ const (
 	replaceMCPTokenFlag = "replace-mcp-token"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
+	yesFlag             = "yes"
 )
 
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
@@ -66,6 +68,8 @@ expires.`,
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to use, instead of the one registered at --mcp-endpoint")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register and look the server up by. Defaults to "+awsdevops.MCPServerEndpoint)
 
+	cmd.Flags().Bool(yesFlag, false, "Skip the confirmation before setup changes AWS")
+
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
 	return cmd
@@ -99,9 +103,30 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	provision, err := resolveAgentSpace(cmd, clients, &opts, plaintext && canPrompt())
+	return setupWith(cmd, clients, opts, plaintext, plaintext && canPrompt())
+}
+
+// setupWith runs setup on clients it is given.
+func setupWith(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	opts awsdevops.SetupOptions,
+	plaintext, interactive bool,
+) error {
+	// One reader, so no prompt loses input.
+	if _, isFile := cmd.InOrStdin().(*os.File); !isFile {
+		cmd.SetIn(bufio.NewReader(cmd.InOrStdin()))
+	}
+
+	provision, err := resolveAgentSpace(cmd, clients, &opts, interactive)
 	if err != nil {
 		return err
+	}
+
+	if interactive && !mustBool(cmd, yesFlag) {
+		if err := confirmSetup(cmd, clients, opts, provision); err != nil {
+			return err
+		}
 	}
 
 	run := awsdevops.Setup
@@ -186,6 +211,44 @@ func resolveAgentSpace(
 	opts.AgentSpaceID = choice
 
 	return false, nil
+}
+
+// confirmSetup shows the plan and asks.
+func confirmSetup(cmd *cobra.Command, clients awsdevops.Clients, opts awsdevops.SetupOptions, provision bool) error {
+	plan, err := awsdevops.PlanSetup(cmd.Context(), clients, opts, provision)
+	if err != nil {
+		return err
+	}
+
+	out := cmd.OutOrStdout()
+	_, _ = fmt.Fprintln(out, "\nSetup plan:")
+	_, _ = fmt.Fprintf(out, "  AWS account:  %s\n", plan.AccountID)
+	_, _ = fmt.Fprintf(out, "  Region:       %s\n", plan.Region)
+	_, _ = fmt.Fprintf(out, "  AWS profile:  %s\n", profileLabel(cmd))
+	_, _ = fmt.Fprintf(out, "  Agent space:  %s\n", plan.AgentSpace)
+	_, _ = fmt.Fprintf(out, "  MCP server:   %s\n\n", plan.MCPServer)
+	_, _ = fmt.Fprint(out, "Continue? [y/N]: ")
+
+	line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return nil
+	}
+	_, _ = fmt.Fprintln(out)
+
+	return errors.New("setup canceled before it changed AWS")
+}
+
+// profileLabel names the AWS profile in use.
+func profileLabel(cmd *cobra.Command) string {
+	if profile := mustString(cmd, profileFlag); profile != "" {
+		return profile
+	}
+	if profile := os.Getenv("AWS_PROFILE"); profile != "" {
+		return profile
+	}
+
+	return "default credentials"
 }
 
 // selectAgentSpace asks which agent space to connect LaunchDarkly to, and

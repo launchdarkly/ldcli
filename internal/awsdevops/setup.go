@@ -92,6 +92,79 @@ type SetupResult struct {
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 }
 
+// SetupPlan describes what setup will change.
+type SetupPlan struct {
+	AccountID  string
+	Region     string
+	AgentSpace string
+	MCPServer  string
+}
+
+// PlanSetup describes a run without changing AWS.
+func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (SetupPlan, error) {
+	accountID, err := clients.AccountID(ctx)
+	if err != nil {
+		return SetupPlan{}, err
+	}
+	plan := SetupPlan{AccountID: accountID, Region: clients.Region}
+
+	plan.AgentSpace, err = planAgentSpace(ctx, clients, opts, provision)
+	if err != nil {
+		return plan, err
+	}
+
+	plan.MCPServer, err = planMCPServer(ctx, clients, opts)
+
+	return plan, err
+}
+
+func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (string, error) {
+	id := opts.AgentSpaceID
+	if id == "" && !opts.NewAgentSpace {
+		found, err := FindAgentSpace(ctx, clients, opts.AgentSpaceName)
+		if err != nil {
+			return "", err
+		}
+		id = found
+	}
+	if id == "" {
+		return fmt.Sprintf("Create agent space %s", opts.AgentSpaceName), nil
+	}
+
+	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
+	if err != nil {
+		return "", fmt.Errorf("unable to read agent space %s: %w", id, err)
+	}
+	label := fmt.Sprintf("%s (%s)", aws.ToString(space.AgentSpace.Name), id)
+	if !provision {
+		return "Connect to agent space " + label, nil
+	}
+
+	return "Reuse agent space " + label, nil
+}
+
+func planMCPServer(ctx context.Context, clients Clients, opts SetupOptions) (string, error) {
+	existing := opts.MCPServiceID
+	if existing == "" {
+		found, err := FindMCPServer(ctx, clients, opts.mcpEndpoint())
+		if err != nil {
+			return "", err
+		}
+		existing = found
+	}
+
+	switch {
+	case existing != "" && opts.ReplaceMCPToken && opts.LDAccessToken != "":
+		return fmt.Sprintf("Replace the token of MCP server %s (%s)", MCPServerName, existing), nil
+	case existing != "":
+		return fmt.Sprintf("Reuse MCP server %s (%s)", MCPServerName, existing), nil
+	case opts.LDAccessToken != "":
+		return fmt.Sprintf("Register MCP server %s at %s", MCPServerName, opts.mcpEndpoint()), nil
+	default:
+		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName), nil
+	}
+}
+
 // Setup provisions the IAM roles, agent space, service associations and the
 // MCP server the AWS DevOps Agent needs to manage LaunchDarkly flags.
 func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
@@ -111,13 +184,13 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 	if err != nil {
 		return result, err
 	}
-	logf("Agent space role ready: %s", result.AgentSpaceRoleARN)
+	logf("Agent space role %s is ready", AgentSpaceRoleName)
 
 	result.OperatorAppRoleARN, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, logf)
 	if err != nil {
 		return result, err
 	}
-	logf("Operator app role ready: %s", result.OperatorAppRoleARN)
+	logf("Operator app role %s is ready", OperatorAppRoleName)
 
 	result.AgentSpaceID = opts.AgentSpaceID
 	if result.AgentSpaceID == "" && !opts.NewAgentSpace {
@@ -127,7 +200,8 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		}
 		if existing != "" {
 			result.AgentSpaceID = existing
-			logf("Reusing agent space %s (%s); pass --new-agent-space to create another", opts.AgentSpaceName, existing)
+			logf("Reused agent space %s (%s)", opts.AgentSpaceName, existing)
+			logf("Pass --new-agent-space to create another agent space")
 		}
 	}
 	if result.AgentSpaceID == "" {
@@ -147,14 +221,14 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		return result, err
 	}
 	if result.AWSAssociationID != "" {
-		logf("Account %s is already associated with the agent space", accountID)
+		logf("AWS account %s is already associated with the agent space", accountID)
 	} else {
 		awsAssociation, err := associateAWSAccount(ctx, clients, accountID, result, logf)
 		if err != nil {
 			return result, fmt.Errorf("unable to associate the AWS account with the agent space: %w", err)
 		}
 		result.AWSAssociationID = aws.ToString(awsAssociation.Association.AssociationId)
-		logf("Associated account %s with the agent space", accountID)
+		logf("Associated AWS account %s with the agent space", accountID)
 	}
 
 	operatorApp, err := clients.Agent.EnableOperatorApp(ctx, operatorAppInput(result.AgentSpaceID, result.OperatorAppRoleARN, opts))
@@ -162,7 +236,7 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		return result, fmt.Errorf("unable to enable the operator app: %w", err)
 	}
 	result.OperatorAppURL = aws.ToString(operatorApp.OperatorAppUrl)
-	logf("Operator app available at %s", result.OperatorAppURL)
+	logf("Enabled the operator app")
 
 	if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
 		return result, err
@@ -264,7 +338,7 @@ func associateAWSAccount(
 			return association, err
 		}
 		if first {
-			logf("Waiting for %s to become assumable", result.AgentSpaceRoleARN)
+			logf("Waiting for AWS to accept the agent space role")
 		}
 
 		select {
@@ -295,7 +369,7 @@ func registerWithRetry(
 			return registration, err
 		}
 		if first {
-			logf("AWS could not reach %s, retrying", endpoint)
+			logf("Waiting for AWS to reach the MCP server at %s", endpoint)
 		}
 
 		select {
@@ -353,12 +427,8 @@ func registerMCPServer(
 	}
 	if existing != "" && (!opts.ReplaceMCPToken || opts.LDAccessToken == "") {
 		result.MCPServiceID = existing
-		logf(
-			"Reusing the %s MCP server already registered on this account (%s); it keeps the access "+
-				"token it was registered with, so pass --access-token --replace-mcp-token to change it",
-			MCPServerName,
-			existing,
-		)
+		logf("Reused MCP server %s (%s) with its current token", MCPServerName, existing)
+		logf("Pass --access-token and --replace-mcp-token to change the token")
 
 		return associateMCPServer(ctx, clients, result, logf)
 	}
@@ -381,8 +451,7 @@ func registerMCPServer(
 		}); err != nil {
 			return fmt.Errorf("unable to deregister the existing LaunchDarkly MCP server %s: %w", existing, err)
 		}
-		logf("Deregistered the %s MCP server (%s) so it can be re-registered with the new access token",
-			MCPServerName, existing)
+		logf("Removed MCP server %s (%s) to replace its token", MCPServerName, existing)
 	}
 
 	input := &devopsagent.RegisterServiceInput{
@@ -418,11 +487,7 @@ func registerMCPServer(
 	}
 
 	result.MCPServiceID = aws.ToString(registration.ServiceId)
-	logf(
-		"Registered the %s MCP server (%s) against the LaunchDarkly account the access token belongs to",
-		MCPServerName,
-		result.MCPServiceID,
-	)
+	logf("Registered MCP server %s (%s)", MCPServerName, result.MCPServiceID)
 
 	if err := associateMCPServer(ctx, clients, result, logf); err != nil {
 		return err
@@ -437,7 +502,7 @@ func registerMCPServer(
 		if _, err := associateMCPServerWith(ctx, clients, agentSpaceID, result.MCPServiceID); err != nil {
 			return err
 		}
-		logf("Re-associated the %s MCP server with agent space %s", MCPServerName, agentSpaceID)
+		logf("Associated MCP server %s with agent space (%s) again", MCPServerName, agentSpaceID)
 	}
 
 	return nil
@@ -474,7 +539,7 @@ func disassociateEverywhere(
 		}); err != nil {
 			return nil, fmt.Errorf("unable to disassociate service %s from agent space %s: %w", serviceID, agentSpaceID, err)
 		}
-		logf("Disassociated service %s from agent space %s", serviceID, agentSpaceID)
+		logf("Disassociated service (%s) from agent space (%s)", serviceID, agentSpaceID)
 		detached = append(detached, agentSpaceID)
 	}
 
@@ -493,7 +558,7 @@ func associateMCPServer(
 	}
 	if existing != "" {
 		result.MCPAssociationID = existing
-		logf("The %s MCP server is already associated with the agent space", MCPServerName)
+		logf("MCP server %s is already associated with the agent space", MCPServerName)
 
 		return nil
 	}
@@ -503,7 +568,7 @@ func associateMCPServer(
 		return err
 	}
 	result.MCPAssociationID = associationID
-	logf("Associated the %s MCP server with the agent space", MCPServerName)
+	logf("Associated MCP server %s with the agent space", MCPServerName)
 
 	return nil
 }
@@ -650,11 +715,8 @@ func ensureRole(
 			return "", false, err
 		}
 		if !managed {
-			logf(
-				"Reusing %s as it is: it has no %s=%s tag, so it was not created by this CLI. "+
-					"It must trust aidevops.amazonaws.com and allow %s",
-				arn, ManagedTagKey, ManagedTagValue, policyARN,
-			)
+			logf("Role %s has no %s tag, so ldcli did not change it", name, ManagedTagKey)
+			logf("Role %s must trust aidevops.amazonaws.com and allow %s", name, policyName(policyARN))
 
 			return arn, false, nil
 		}
@@ -679,6 +741,11 @@ func ensureRole(
 	}
 
 	return arn, true, nil
+}
+
+// policyName is the last part of an ARN.
+func policyName(arn string) string {
+	return arn[strings.LastIndex(arn, "/")+1:]
 }
 
 func isManagedRole(ctx context.Context, client IAMAPI, name string) (bool, error) {
