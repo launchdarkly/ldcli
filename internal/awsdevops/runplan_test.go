@@ -624,15 +624,71 @@ func TestPlanSameFlowIsNotAChange(t *testing.T) {
 	assert.Contains(t, plan.OperatorApp, "IAM")
 }
 
-// Same IdC flow may hold new settings.
+// Same IdC or IdP flow can change settings.
 func TestPlanSameIdcFlowSaysUpdate(t *testing.T) {
-	agent := reuseWithApp(idcApp())
-	opts := runPlanOptions()
-	opts.AuthFlow, opts.AuthFlowSet = "idc", true
+	apps := map[string]*devopsagent.GetOperatorAppOutput{
+		"idc": idcApp(),
+		"idp": {Idp: &agenttypes.IdpAuthConfiguration{}, OperatorAppUrl: aws.String("https://space-7.aidevops.global.app.aws")},
+	}
+	for flow, app := range apps {
+		t.Run(flow, func(t *testing.T) {
+			agent := reuseWithApp(app)
+			opts := runPlanOptions()
+			opts.AuthFlow, opts.AuthFlowSet = flow, true
 
-	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+			plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+			require.NoError(t, err)
+			assert.NotContains(t, plan.OperatorApp, "again")
+			assert.Contains(t, strings.ToLower(plan.OperatorApp), "update")
+		})
+	}
+}
+
+func TestRunPlanStopsWhenReusedMCPServerIsGone(t *testing.T) {
+	for name, replace := range map[string]bool{"reuse": false, "replace": true} {
+		t.Run(name, func(t *testing.T) {
+			agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")}}
+			iamClient := newFakeIAM()
+			clients := newTestClients(agent, iamClient)
+			opts := runPlanOptions()
+			opts.ReplaceMCPToken = replace
+			plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+			require.NoError(t, err)
+			agent.services = nil
+
+			_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+			require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+			assert.Empty(t, iamClient.createdRoles)
+			assert.NotContains(t, agent.calls, "RegisterService")
+			assert.NotContains(t, agent.calls, "DeregisterService")
+		})
+	}
+}
+
+func TestRunPlanStopsWhenMCPServerAppears(t *testing.T) {
+	agent, iamClient := &fakeAgent{}, newFakeIAM()
+
+	err := planThenRun(t, agent, iamClient, func() {
+		agent.services = []agenttypes.RegisteredService{launchDarklyMCPService("mcp-new")}
+	})
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Empty(t, iamClient.createdRoles)
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+// Setup uses the planned server ID.
+func TestRunPlanKeepsThePlannedMCPServer(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")}}
+	clients := newTestClients(agent, newFakeIAM())
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+	agent.services = append([]agenttypes.RegisteredService{launchDarklyMCPService("mcp-other")}, agent.services...)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
 
 	require.NoError(t, err)
-	assert.NotContains(t, plan.OperatorApp, "again")
-	assert.Contains(t, strings.ToLower(plan.OperatorApp), "update")
+	assert.Equal(t, "mcp-old", result.MCPServiceID)
 }

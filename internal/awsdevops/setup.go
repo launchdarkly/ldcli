@@ -285,8 +285,25 @@ func checkApp(ctx context.Context, clients Clients, plan SetupPlan) error {
 	return nil
 }
 
+// MCPAction is the planned MCP server action.
+type MCPAction int
+
+const (
+	MCPRegister MCPAction = iota
+	MCPReuse
+	MCPReplace
+	MCPAsk
+)
+
+// MCPStep is the planned MCP server step.
+type MCPStep struct {
+	Action    MCPAction
+	ServiceID string
+}
+
 // SetupPlan describes what setup will change.
 type SetupPlan struct {
+	MCP         MCPStep
 	App         AppStep
 	AccountID   string
 	Region      string
@@ -359,10 +376,11 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	}
 	plan.AgentSpace = plan.Space.describe()
 
-	plan.MCPServer, err = planMCPServer(ctx, clients, opts)
+	plan.MCP, err = planMCPStep(ctx, clients, opts)
 	if err != nil {
 		return plan, err
 	}
+	plan.MCPServer = plan.MCP.describe(opts.mcpEndpoint())
 
 	if !provision {
 		plan.Roles = []string{"No change"}
@@ -474,26 +492,66 @@ func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
 	return nil
 }
 
-func planMCPServer(ctx context.Context, clients Clients, opts SetupOptions) (string, error) {
+func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions) (MCPStep, error) {
 	existing := opts.MCPServiceID
 	if existing == "" {
 		found, err := FindMCPServer(ctx, clients, opts.mcpEndpoint())
 		if err != nil {
-			return "", err
+			return MCPStep{}, err
 		}
 		existing = found
 	}
 
 	switch {
 	case existing != "" && opts.ReplaceMCPToken && opts.LDAccessToken != "":
-		return fmt.Sprintf("Replace the token of MCP server %s (%s)", MCPServerName, existing), nil
+		return MCPStep{Action: MCPReplace, ServiceID: existing}, nil
 	case existing != "":
-		return fmt.Sprintf("Reuse MCP server %s (%s)", MCPServerName, existing), nil
+		return MCPStep{Action: MCPReuse, ServiceID: existing}, nil
 	case opts.LDAccessToken != "":
-		return fmt.Sprintf("Register MCP server %s at %s", MCPServerName, opts.mcpEndpoint()), nil
+		return MCPStep{Action: MCPRegister}, nil
 	default:
-		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName), nil
+		return MCPStep{Action: MCPAsk}, nil
 	}
+}
+
+func (m MCPStep) describe(endpoint string) string {
+	switch m.Action {
+	case MCPReplace:
+		return fmt.Sprintf("Replace the token of MCP server %s (%s)", MCPServerName, m.ServiceID)
+	case MCPReuse:
+		return fmt.Sprintf("Reuse MCP server %s (%s)", MCPServerName, m.ServiceID)
+	case MCPRegister:
+		return fmt.Sprintf("Register MCP server %s at %s", MCPServerName, endpoint)
+	default:
+		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName)
+	}
+}
+
+// checkMCP compares AWS with the MCP step.
+func checkMCP(ctx context.Context, clients Clients, opts SetupOptions, step MCPStep) error {
+	if step.Action == MCPReuse || step.Action == MCPReplace {
+		services, err := listServices(ctx, clients)
+		if err != nil {
+			return err
+		}
+		for _, service := range services {
+			if aws.ToString(service.ServiceId) == step.ServiceID {
+				return nil
+			}
+		}
+
+		return planChanged("MCP server %s disappeared after the plan", step.ServiceID)
+	}
+
+	found, err := FindMCPServer(ctx, clients, opts.mcpEndpoint())
+	if err != nil {
+		return err
+	}
+	if found != "" {
+		return planChanged("an MCP server appeared at %s after the plan", opts.mcpEndpoint())
+	}
+
+	return nil
 }
 
 // Setup plans a run, then executes the plan.
@@ -536,6 +594,9 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		}
 	}
 	if err := checkApp(ctx, clients, plan); err != nil {
+		return result, err
+	}
+	if err := checkMCP(ctx, clients, opts, plan.MCP); err != nil {
 		return result, err
 	}
 	spaceRole, err := checkRole(ctx, clients.IAM, plan, AgentSpaceRoleName)
@@ -610,7 +671,7 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		logf("Enabled the operator app")
 	}
 
-	if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
+	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
 
@@ -674,7 +735,11 @@ func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (S
 	}
 	logf("Using agent space %s (%s)", aws.ToString(space.AgentSpace.Name), result.AgentSpaceID)
 
-	if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
+	step, err := planMCPStep(ctx, clients, opts)
+	if err != nil {
+		return result, err
+	}
+	if err := registerMCPServer(ctx, clients, opts, step, &result, logf); err != nil {
 		return result, err
 	}
 
@@ -773,31 +838,29 @@ func RegisterMCPServer(ctx context.Context, clients Clients, opts SetupOptions, 
 		logf = func(string, ...any) {}
 	}
 
-	return registerMCPServer(ctx, clients, opts, result, logf)
+	step, err := planMCPStep(ctx, clients, opts)
+	if err != nil {
+		return err
+	}
+
+	return registerMCPServer(ctx, clients, opts, step, result, logf)
 }
 
 func registerMCPServer(
 	ctx context.Context,
 	clients Clients,
 	opts SetupOptions,
+	step MCPStep,
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
 	endpoint := opts.mcpEndpoint()
-	existing := opts.MCPServiceID
-	if existing == "" {
-		found, err := FindMCPServer(ctx, clients, endpoint)
-		if err != nil {
-			return err
-		}
-		existing = found
-	}
-	if existing == "" && opts.LDAccessToken == "" {
-		// Nothing to reuse and no token to register with; the caller collects
-		// one and calls RegisterMCPServer afterwards.
+	existing := step.ServiceID
+	if step.Action == MCPAsk {
+		// The caller asks for a token.
 		return nil
 	}
-	if existing != "" && (!opts.ReplaceMCPToken || opts.LDAccessToken == "") {
+	if step.Action == MCPReuse {
 		result.MCPServiceID = existing
 		logf("Reused MCP server %s (%s) with its current token", MCPServerName, existing)
 		logf("Pass --access-token and --replace-mcp-token to change the token")
