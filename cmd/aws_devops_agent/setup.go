@@ -115,9 +115,7 @@ func setupWith(
 	}
 
 	// One reader, so no prompt loses input.
-	if _, isFile := cmd.InOrStdin().(*os.File); !isFile {
-		cmd.SetIn(bufio.NewReader(cmd.InOrStdin()))
-	}
+	sharedStdin(cmd)
 
 	provision, err := resolveAgentSpace(cmd, clients, &opts, interactive)
 	if err != nil {

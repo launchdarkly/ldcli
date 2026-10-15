@@ -6,8 +6,22 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
+
+// sharedStdin gives every prompt one reader.
+func sharedStdin(cmd *cobra.Command) io.Reader {
+	switch in := cmd.InOrStdin().(type) {
+	case *os.File, *bufio.Reader:
+		return in
+	default:
+		shared := bufio.NewReader(in)
+		cmd.SetIn(shared)
+
+		return shared
+	}
+}
 
 // readLine reads one line, which the terminal echoes as it is typed.
 func readLine(in io.Reader) string {

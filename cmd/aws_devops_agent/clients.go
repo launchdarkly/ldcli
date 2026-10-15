@@ -37,7 +37,7 @@ func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
 	return ssoLogin{
 		newClients:  awsdevops.NewClients,
 		configPath:  awsdevops.ConfigFilePath(),
-		in:          cmd.InOrStdin(),
+		in:          sharedStdin(cmd),
 		out:         cmd.ErrOrStderr(),
 		interactive: func() bool { return cliflags.GetOutputKind(cmd) != "json" && tty() },
 		lookPath:    exec.LookPath,

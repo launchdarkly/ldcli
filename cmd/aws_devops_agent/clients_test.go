@@ -240,3 +240,15 @@ func TestLoginAsksInPlaintextTerminal(t *testing.T) {
 
 	assert.True(t, l.interactive())
 }
+
+// The SSO prompt shares stdin with later prompts.
+func TestLoginPromptLeavesLaterLines(t *testing.T) {
+	cmd := NewSetupCmd(nil)
+	cmd.SetIn(strings.NewReader("y\n1\nyes\n"))
+
+	l := newSSOLogin(cmd, func() bool { return true })
+
+	assert.Equal(t, "y", readLine(l.in))
+	assert.Equal(t, "1", readLine(cmd.InOrStdin()))
+	assert.Equal(t, "yes", readLine(cmd.InOrStdin()))
+}
