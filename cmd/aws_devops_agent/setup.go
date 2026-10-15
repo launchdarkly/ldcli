@@ -45,12 +45,12 @@ that space as it is. Pass --agent-space-id to pick one without being asked, or
 app URL, where the agent is used.
 
 The MCP server is connected with --access-token, or with the token in your
-ldcli configuration when you do not pass one. With neither, setup reuses a
-registered MCP server, or asks for a service token in a terminal. Without a
+ldcli configuration when you do not pass one. AWS keeps the token and the agent
+acts as its account and role, so a session token from 'ldcli login' stops
+working once it expires. With no token, setup reuses a registered MCP server.
+If none exists, setup asks for a service token in a terminal. Without a
 terminal, with --output json, or with --yes, it stops and asks for
---access-token. AWS keeps that token and the agent acts as its
-account and role, so a session token from 'ldcli login' stops working once it
-expires.`,
+--access-token.`,
 		Args:   cobra.NoArgs,
 		PreRun: trackRun(analyticsTrackerFn),
 		RunE:   runSetup,

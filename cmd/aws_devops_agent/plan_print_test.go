@@ -168,3 +168,15 @@ func TestSetupWithYesSkipsSpaceChoice(t *testing.T) {
 	assert.Contains(t, err.Error(), "--agent-space-id")
 	assert.Empty(t, w.calls)
 }
+
+func TestSetupWithYesReusesMatchingSpace(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("ld-devops-agent")})
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+
+	assert.NotContains(t, w.calls, "CreateAgentSpace")
+	assert.Contains(t, w.calls, "EnableOperatorApp")
+}

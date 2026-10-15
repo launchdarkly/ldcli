@@ -39,7 +39,7 @@ func newSSOLogin(cmd *cobra.Command, tty func() bool) ssoLogin {
 		configPath:  awsdevops.ConfigFilePath(),
 		in:          sharedStdin(cmd),
 		out:         cmd.ErrOrStderr(),
-		interactive: func() bool { return cliflags.GetOutputKind(cmd) != "json" && tty() },
+		interactive: func() bool { return cliflags.GetOutputKind(cmd) != "json" && !yesSet(cmd) && tty() },
 		lookPath:    exec.LookPath,
 		run:         runAttached,
 	}
@@ -73,6 +73,13 @@ func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevop
 	}
 
 	return l.newClients(ctx, region, profile)
+}
+
+// yesSet reports a passed --yes flag.
+func yesSet(cmd *cobra.Command) bool {
+	yes, err := cmd.Flags().GetBool(yesFlag)
+
+	return err == nil && yes
 }
 
 // runAttached runs a command on the terminal.

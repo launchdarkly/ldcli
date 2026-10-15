@@ -252,3 +252,12 @@ func TestLoginPromptLeavesLaterLines(t *testing.T) {
 	assert.Equal(t, "1", readLine(cmd.InOrStdin()))
 	assert.Equal(t, "yes", readLine(cmd.InOrStdin()))
 }
+
+func TestLoginNeverAsksWithYes(t *testing.T) {
+	cmd := NewSetupCmd(nil)
+	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+
+	l := newSSOLogin(cmd, func() bool { return true })
+
+	assert.False(t, l.interactive())
+}

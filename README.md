@@ -127,7 +127,7 @@ If the account already runs the AWS DevOps Agent, `setup` lists its agent spaces
 
 Before `setup` changes AWS, it shows a plan. The plan names the AWS account, region, profile, IAM roles, agent space, operator app, and MCP server, and what `setup` will do to each. In a terminal, `setup` then asks `Continue? [y/N]` and stops with an error unless you type `y` or `yes`. To skip every question, pass `--yes`. Then `setup` acts as it does without a terminal. Without a terminal, `setup` shows the plan and does not ask. With `--output json`, `setup` shows no plan and does not ask.
 
-If the SSO session of your profile expired, `setup` and `status` offer to run `aws sso login --profile <name>` for you. They ask only in a terminal, and not with `--output json`.
+If the SSO session of your profile expired, `setup` and `status` offer to run `aws sso login --profile <name>` for you. They ask only in a terminal, and not with `--output json` or `--yes`.
 
 Without a terminal — in CI, or with `--output json` — `setup` reuses the space matching `--agent-space-name` so an unattended re-run stays idempotent, and fails asking for `--agent-space-id` or `--new-agent-space` when the only spaces are ones it did not create.
 
