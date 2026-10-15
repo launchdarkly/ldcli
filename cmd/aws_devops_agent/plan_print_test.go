@@ -3,6 +3,7 @@ package awsdevopsagent
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,4 +91,13 @@ func TestTokenPromptSilentWhenNotInteractive(t *testing.T) {
 	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, false))
 
 	assert.NotContains(t, w.calls, "RegisterService")
+}
+
+func TestSetupPlanNamesAccountAssociation(t *testing.T) {
+	cmd, out := setupTestCmd(t, "n\n")
+	clients, _ := countingClients()
+
+	_ = setupWith(cmd, clients, newSpaceOptions(), true, true)
+
+	assert.Contains(t, strings.ToLower(out.String()), "associate aws account "+testAccountID)
 }

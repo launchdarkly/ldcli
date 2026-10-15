@@ -162,12 +162,29 @@ func (s SpaceStep) describe() string {
 	}
 }
 
+// LinkStep is the planned account association.
+type LinkStep struct {
+	// Exists means the association was there.
+	Exists bool
+	ID     string
+}
+
+func (l LinkStep) describe(accountID string) string {
+	if l.Exists {
+		return fmt.Sprintf("Keep the AWS account %s association", accountID)
+	}
+
+	return fmt.Sprintf("Associate AWS account %s with the agent space", accountID)
+}
+
 // SetupPlan describes what setup will change.
 type SetupPlan struct {
 	AccountID   string
 	Region      string
 	AgentSpace  string
 	Space       SpaceStep
+	Association string
+	Link        LinkStep
 	MCPServer   string
 	Roles       []string
 	RoleSteps   []RoleStep
@@ -241,9 +258,18 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	if !provision {
 		plan.Roles = []string{"No change"}
 		plan.OperatorApp = "No change"
+		plan.Association = "No change"
 
 		return plan, nil
 	}
+	if plan.Space.Action != SpaceCreate {
+		plan.Link.ID, err = FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
+		if err != nil {
+			return plan, err
+		}
+		plan.Link.Exists = plan.Link.ID != ""
+	}
+	plan.Association = plan.Link.describe(accountID)
 	for _, name := range []string{AgentSpaceRoleName, OperatorAppRoleName} {
 		step, err := planRole(ctx, clients.IAM, name)
 		if err != nil {
@@ -386,6 +412,15 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	}
 	if err := checkSpace(ctx, clients, plan.Space); err != nil {
 		return result, err
+	}
+	if plan.Link.Exists {
+		found, err := FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
+		if err != nil {
+			return result, err
+		}
+		if found == "" {
+			return result, planChanged("the AWS account association disappeared after the plan")
+		}
 	}
 	spaceRole, err := checkRole(ctx, clients.IAM, plan, AgentSpaceRoleName)
 	if err != nil {

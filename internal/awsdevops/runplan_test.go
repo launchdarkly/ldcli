@@ -445,3 +445,57 @@ func TestRunPlanStopsWhenSpaceAppearsDuringPlan(t *testing.T) {
 	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
 	assert.NotContains(t, agent.calls, "CreateAgentSpace")
 }
+
+func awsLink() []agenttypes.Association {
+	return []agenttypes.Association{{AssociationId: aws.String("assoc-aws"), ServiceId: aws.String("aws")}}
+}
+
+func TestPlanNamesTheAccountAssociation(t *testing.T) {
+	for name, links := range map[string][]agenttypes.Association{"keep": awsLink(), "associate": nil} {
+		t.Run(name, func(t *testing.T) {
+			agent := &fakeAgent{
+				agentSpaces:  []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")},
+				associations: links,
+			}
+
+			plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), runPlanOptions(), true)
+
+			require.NoError(t, err)
+			assert.Contains(t, strings.ToLower(plan.Association), name)
+			assert.Contains(t, plan.Association, testAccountID)
+		})
+	}
+}
+
+func TestRunPlanStopsWhenKeptAssociationIsGone(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces:  []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")},
+		associations: awsLink(),
+	}
+	iamClient := newFakeIAM()
+
+	err := planThenRun(t, agent, iamClient, func() { agent.associations = nil })
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Empty(t, iamClient.createdRoles)
+	assert.NotContains(t, agent.calls, "AssociateService")
+}
+
+// An association that appeared is already done.
+func TestRunPlanReportsAssociationAlreadyThere(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	logged := collectLogs(&opts)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	agent.associations = awsLink()
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	for _, in := range agent.associationInputs {
+		assert.NotEqual(t, "aws", aws.ToString(in.ServiceId))
+	}
+	assert.Contains(t, strings.Join(*logged, "\n"), "already associated")
+}
