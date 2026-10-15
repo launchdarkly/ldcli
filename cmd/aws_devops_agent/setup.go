@@ -122,19 +122,23 @@ func setupWith(
 		return err
 	}
 
+	plan, err := awsdevops.PlanSetup(cmd.Context(), clients, opts, provision)
+	if err != nil {
+		return err
+	}
 	if plaintext {
 		ask := interactive && !mustBool(cmd, yesFlag)
-		if err := confirmSetup(cmd, clients, opts, provision, ask); err != nil {
+		if err := confirmSetup(cmd, plan, ask); err != nil {
 			return err
 		}
 	}
 
-	run := awsdevops.Setup
-	if !provision {
-		run = awsdevops.ConnectExisting
+	var result awsdevops.SetupResult
+	if provision {
+		result, err = awsdevops.RunPlan(cmd.Context(), clients, opts, plan)
+	} else {
+		result, err = awsdevops.ConnectExisting(cmd.Context(), clients, opts)
 	}
-
-	result, err := run(cmd.Context(), clients, opts)
 	if err != nil {
 		return err
 	}
@@ -214,12 +218,7 @@ func resolveAgentSpace(
 }
 
 // confirmSetup shows the plan and asks.
-func confirmSetup(cmd *cobra.Command, clients awsdevops.Clients, opts awsdevops.SetupOptions, provision, ask bool) error {
-	plan, err := awsdevops.PlanSetup(cmd.Context(), clients, opts, provision)
-	if err != nil {
-		return err
-	}
-
+func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error {
 	out := cmd.OutOrStdout()
 	_, _ = fmt.Fprintln(out, "\nSetup plan:")
 	_, _ = fmt.Fprintf(out, "  AWS account:   %s\n", plan.AccountID)

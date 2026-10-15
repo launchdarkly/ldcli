@@ -92,6 +92,35 @@ type SetupResult struct {
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 }
 
+// ErrPlanChanged means AWS changed after the plan.
+var ErrPlanChanged = errors.New("AWS changed since the plan. Run setup again")
+
+// RoleAction is what setup does to a role.
+type RoleAction int
+
+const (
+	RoleCreate RoleAction = iota
+	RoleUpdate
+	RoleLeave
+)
+
+// RoleStep is one planned role change.
+type RoleStep struct {
+	Name   string
+	Action RoleAction
+}
+
+func (s RoleStep) describe() string {
+	switch s.Action {
+	case RoleCreate:
+		return "Create role " + s.Name
+	case RoleUpdate:
+		return fmt.Sprintf("Update the trust policy of role %s", s.Name)
+	default:
+		return fmt.Sprintf("Leave role %s unchanged, it has no %s tag", s.Name, ManagedTagKey)
+	}
+}
+
 // SetupPlan describes what setup will change.
 type SetupPlan struct {
 	AccountID   string
@@ -99,7 +128,19 @@ type SetupPlan struct {
 	AgentSpace  string
 	MCPServer   string
 	Roles       []string
+	RoleSteps   []RoleStep
 	OperatorApp string
+}
+
+// roleAction is the planned action for name.
+func (p SetupPlan) roleAction(name string) (RoleAction, error) {
+	for _, step := range p.RoleSteps {
+		if step.Name == name {
+			return step.Action, nil
+		}
+	}
+
+	return 0, fmt.Errorf("the plan has no step for role %s", name)
 }
 
 // PlanSetup describes a run without changing AWS.
@@ -127,11 +168,12 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 		return plan, nil
 	}
 	for _, name := range []string{AgentSpaceRoleName, OperatorAppRoleName} {
-		line, err := planRole(ctx, clients.IAM, name)
+		step, err := planRole(ctx, clients.IAM, name)
 		if err != nil {
 			return plan, err
 		}
-		plan.Roles = append(plan.Roles, line)
+		plan.RoleSteps = append(plan.RoleSteps, step)
+		plan.Roles = append(plan.Roles, step.describe())
 	}
 	plan.OperatorApp = "Enable the operator app"
 
@@ -139,25 +181,25 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 }
 
 // planRole says what setup will do to a role.
-func planRole(ctx context.Context, client IAMAPI, name string) (string, error) {
+func planRole(ctx context.Context, client IAMAPI, name string) (RoleStep, error) {
 	_, err := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
 	var missing *iamtypes.NoSuchEntityException
 	switch {
 	case errors.As(err, &missing):
-		return "Create role " + name, nil
+		return RoleStep{Name: name, Action: RoleCreate}, nil
 	case err != nil:
-		return "", fmt.Errorf("unable to read the %s role: %w", name, err)
+		return RoleStep{}, fmt.Errorf("unable to read the %s role: %w", name, err)
 	}
 
 	managed, err := isManagedRole(ctx, client, name)
 	if err != nil {
-		return "", err
+		return RoleStep{}, err
 	}
 	if !managed {
-		return fmt.Sprintf("Leave role %s unchanged, it has no %s tag", name, ManagedTagKey), nil
+		return RoleStep{Name: name, Action: RoleLeave}, nil
 	}
 
-	return fmt.Sprintf("Update the trust policy of role %s", name), nil
+	return RoleStep{Name: name, Action: RoleUpdate}, nil
 }
 
 func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (string, error) {
@@ -207,9 +249,18 @@ func planMCPServer(ctx context.Context, clients Clients, opts SetupOptions) (str
 	}
 }
 
-// Setup provisions the IAM roles, agent space, service associations and the
-// MCP server the AWS DevOps Agent needs to manage LaunchDarkly flags.
+// Setup plans a run, then executes the plan.
 func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
+	plan, err := PlanSetup(ctx, clients, opts, true)
+	if err != nil {
+		return SetupResult{}, err
+	}
+
+	return RunPlan(ctx, clients, opts, plan)
+}
+
+// RunPlan executes a plan from PlanSetup.
+func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan SetupPlan) (SetupResult, error) {
 	logf := opts.Logf
 	if logf == nil {
 		logf = func(string, ...any) {}
@@ -222,13 +273,22 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 
 	result := SetupResult{AccountID: accountID, Region: clients.Region}
 
-	result.AgentSpaceRoleARN, err = ensureAgentSpaceRole(ctx, clients.IAM, accountID, logf)
+	spaceRole, err := plan.roleAction(AgentSpaceRoleName)
+	if err != nil {
+		return result, err
+	}
+	appRole, err := plan.roleAction(OperatorAppRoleName)
+	if err != nil {
+		return result, err
+	}
+
+	result.AgentSpaceRoleARN, err = ensureAgentSpaceRole(ctx, clients.IAM, accountID, spaceRole, logf)
 	if err != nil {
 		return result, err
 	}
 	logf("Agent space role %s is ready", AgentSpaceRoleName)
 
-	result.OperatorAppRoleARN, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, logf)
+	result.OperatorAppRoleARN, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, appRole, logf)
 	if err != nil {
 		return result, err
 	}
@@ -680,13 +740,13 @@ func operatorAppInput(agentSpaceID, roleARN string, opts SetupOptions) *devopsag
 	return input
 }
 
-func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID string, logf func(string, ...any)) (string, error) {
+func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID string, action RoleAction, logf func(string, ...any)) (string, error) {
 	trustPolicy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow",`+
 		`"Principal":{"Service":"aidevops.amazonaws.com"},"Action":"sts:AssumeRole",`+
 		`"Condition":{"StringEquals":{"aws:SourceAccount":"%[1]s"},`+
 		`"ArnLike":{"aws:SourceArn":"arn:aws:aidevops:*:%[1]s:agentspace/*"}}}]}`, accountID)
 
-	arn, ours, err := ensureRole(ctx, client, AgentSpaceRoleName, trustPolicy, AgentSpacePolicyARN, logf)
+	arn, ours, err := ensureRole(ctx, client, AgentSpaceRoleName, trustPolicy, AgentSpacePolicyARN, action, logf)
 	if err != nil {
 		return "", err
 	}
@@ -710,7 +770,7 @@ func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID string, 
 	return arn, nil
 }
 
-func ensureOperatorAppRole(ctx context.Context, client IAMAPI, accountID string, logf func(string, ...any)) (string, error) {
+func ensureOperatorAppRole(ctx context.Context, client IAMAPI, accountID string, action RoleAction, logf func(string, ...any)) (string, error) {
 	// sts:TagSession is required because the managed policy scopes web app
 	// access per space with an aws:PrincipalTag/AgentSpaceId condition.
 	trustPolicy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow",`+
@@ -718,71 +778,83 @@ func ensureOperatorAppRole(ctx context.Context, client IAMAPI, accountID string,
 		`"Condition":{"StringEquals":{"aws:SourceAccount":"%[1]s"},`+
 		`"ArnLike":{"aws:SourceArn":"arn:aws:aidevops:*:%[1]s:agentspace/*"}}}]}`, accountID)
 
-	arn, _, err := ensureRole(ctx, client, OperatorAppRoleName, trustPolicy, OperatorAppPolicyARN, logf)
+	arn, _, err := ensureRole(ctx, client, OperatorAppRoleName, trustPolicy, OperatorAppPolicyARN, action, logf)
 
 	return arn, err
 }
 
-// ensureRole creates the role, or reuses one that already has its name. The
-// second return value reports whether the role is one this CLI manages: a role
-// the customer created themselves is reused as it is, since rewriting its trust
-// policy or attaching policies to it would change something setup does not own.
+// ensureRole does the planned action on a role.
+// It reports whether ldcli manages the role.
 func ensureRole(
 	ctx context.Context,
 	client IAMAPI,
 	name, trustPolicy, policyARN string,
+	action RoleAction,
 	logf func(string, ...any),
 ) (string, bool, error) {
-	var arn string
-	created, err := client.CreateRole(ctx, &iam.CreateRoleInput{
-		RoleName:                 aws.String(name),
-		AssumeRolePolicyDocument: aws.String(trustPolicy),
-		Tags: []iamtypes.Tag{{
-			Key:   aws.String(ManagedTagKey),
-			Value: aws.String(ManagedTagValue),
-		}},
-	})
-	switch {
-	case err == nil:
-		arn = aws.ToString(created.Role.Arn)
-	case isAlreadyExists(err):
-		existing, getErr := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
-		if getErr != nil {
-			return "", false, fmt.Errorf("unable to read the existing %s role: %w", name, getErr)
-		}
-		arn = aws.ToString(existing.Role.Arn)
-
-		managed, err := isManagedRole(ctx, client, name)
-		if err != nil {
-			return "", false, err
-		}
-		if !managed {
-			logf("Role %s has no %s tag, so ldcli did not change it", name, ManagedTagKey)
-			logf("Role %s must trust aidevops.amazonaws.com and allow %s", name, policyName(policyARN))
-
-			return arn, false, nil
+	if action == RoleCreate {
+		created, err := client.CreateRole(ctx, &iam.CreateRoleInput{
+			RoleName:                 aws.String(name),
+			AssumeRolePolicyDocument: aws.String(trustPolicy),
+			Tags: []iamtypes.Tag{{
+				Key:   aws.String(ManagedTagKey),
+				Value: aws.String(ManagedTagValue),
+			}},
+		})
+		switch {
+		case isAlreadyExists(err):
+			return "", false, fmt.Errorf("role %s now exists. %w", name, ErrPlanChanged)
+		case err != nil:
+			return "", false, fmt.Errorf("unable to create the %s role: %w", name, err)
 		}
 
-		// Roles created before the trust policy covered every region are
-		// pinned to one region's agent spaces, so refresh it.
-		if _, err := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
-			RoleName:       aws.String(name),
-			PolicyDocument: aws.String(trustPolicy),
-		}); err != nil {
-			return "", false, fmt.Errorf("unable to update the trust policy on the %s role: %w", name, err)
-		}
-	default:
-		return "", false, fmt.Errorf("unable to create the %s role: %w", name, err)
+		return aws.ToString(created.Role.Arn), true, attachPolicy(ctx, client, name, policyARN)
 	}
 
+	existing, err := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
+	var missing *iamtypes.NoSuchEntityException
+	switch {
+	case errors.As(err, &missing):
+		return "", false, fmt.Errorf("role %s is gone. %w", name, ErrPlanChanged)
+	case err != nil:
+		return "", false, fmt.Errorf("unable to read the existing %s role: %w", name, err)
+	}
+	arn := aws.ToString(existing.Role.Arn)
+
+	managed, err := isManagedRole(ctx, client, name)
+	if err != nil {
+		return "", false, err
+	}
+	if managed != (action == RoleUpdate) {
+		return "", false, fmt.Errorf("the %s tag on role %s changed. %w", ManagedTagKey, name, ErrPlanChanged)
+	}
+	if !managed {
+		logf("Role %s has no %s tag, so ldcli did not change it", name, ManagedTagKey)
+		logf("Role %s must trust aidevops.amazonaws.com and allow %s", name, policyName(policyARN))
+
+		return arn, false, nil
+	}
+
+	// Older trust policies covered one region.
+	if _, err := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
+		RoleName:       aws.String(name),
+		PolicyDocument: aws.String(trustPolicy),
+	}); err != nil {
+		return "", false, fmt.Errorf("unable to update the trust policy on the %s role: %w", name, err)
+	}
+
+	return arn, true, attachPolicy(ctx, client, name, policyARN)
+}
+
+func attachPolicy(ctx context.Context, client IAMAPI, name, policyARN string) error {
 	if _, err := client.AttachRolePolicy(ctx, &iam.AttachRolePolicyInput{
 		RoleName:  aws.String(name),
 		PolicyArn: aws.String(policyARN),
 	}); err != nil {
-		return "", false, fmt.Errorf("unable to attach %s to %s: %w", policyARN, name, err)
+		return fmt.Errorf("unable to attach %s to %s: %w", policyARN, name, err)
 	}
 
-	return arn, true, nil
+	return nil
 }
 
 // policyName is the last part of an ARN.

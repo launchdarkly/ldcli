@@ -269,7 +269,8 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Contains(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName], "iam:CreateServiceLinkedRole")
 	assert.Equal(
 		t,
-		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
+		// The first ListServices is the plan's lookup.
+		[]string{"ListServices", "CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
 		agent.calls,
 	)
 }
