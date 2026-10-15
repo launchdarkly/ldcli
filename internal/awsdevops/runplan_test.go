@@ -774,9 +774,10 @@ func TestConnectPlanRejectsSetupPlan(t *testing.T) {
 
 func TestPlanRejectsBadMCPServiceID(t *testing.T) {
 	github := agenttypes.RegisteredService{ServiceId: aws.String("svc-gh"), ServiceType: agenttypes.ServiceGithub}
+	account := agenttypes.RegisteredService{ServiceId: aws.String("aws"), ServiceType: agenttypes.Service("aws")}
 	for name, id := range map[string]string{"unknown": "mcp-9", "aws": "aws", "not an MCP server": "svc-gh"} {
 		t.Run(name, func(t *testing.T) {
-			agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1"), github}}
+			agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1"), github, account}}
 			opts := runPlanOptions()
 			opts.MCPServiceID = id
 

@@ -112,5 +112,7 @@ func TestSetupRejectsUnknownMCPServiceID(t *testing.T) {
 	err := setupWith(cmd, clients, opts, true, false)
 
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mcp-9")
+	assert.NotErrorIs(t, err, awsdevops.ErrPlanChanged)
 	assert.Empty(t, w.calls)
 }

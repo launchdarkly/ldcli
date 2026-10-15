@@ -531,7 +531,7 @@ func checkMCPServiceID(ctx context.Context, clients Clients, id string) error {
 		}
 	}
 
-	return fmt.Errorf("no MCP server with ID %s is registered", id)
+	return fmt.Errorf("ID %s names no registered MCP server", id)
 }
 
 func (m MCPStep) describe(endpoint string) string {
