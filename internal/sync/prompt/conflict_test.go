@@ -394,7 +394,120 @@ func attachmentConflictVariations() (syncdomain.Variation, syncdomain.Variation,
 	return baseline, local, server
 }
 
+func TestResolveConflictsDoesNotPromptWhenDirectionDecides(t *testing.T) {
+	for _, test := range []struct {
+		direction syncdomain.Direction
+		action    Action
+	}{
+		{syncdomain.DirectionCodeCanonical, ActionUpdateServer},
+		{syncdomain.DirectionServerCanonical, ActionUpdateLocal},
+	} {
+		t.Run(string(test.direction), func(t *testing.T) {
+			plan := divergentPlanWithDirection(t, test.direction)
+			var output bytes.Buffer
+
+			result, err := resolveConflicts(Options{ErrorOutput: &output}, plan, strings.NewReader(""), false, nil)
+
+			require.NoError(t, err)
+			assert.Empty(t, result.resolutions)
+			assert.Empty(t, output.String())
+			assert.Equal(t, test.action, plan.Resources[0].Action)
+			assert.NoError(t, plan.BlockingError())
+		})
+	}
+}
+
+func TestResolveConflictsRejectsPolicyThatContradictsDirection(t *testing.T) {
+	id := testResourceID()
+	tests := []struct {
+		name      string
+		direction syncdomain.Direction
+		policy    ConflictPolicy
+		err       string
+	}{
+		{
+			"--conflict launchdarkly with code_canonical", syncdomain.DirectionCodeCanonical,
+			ConflictPolicy{Default: ConflictUseLaunchDarkly}, "--conflict launchdarkly does not agree",
+		},
+		{
+			"--resolve local with server_canonical", syncdomain.DirectionServerCanonical,
+			ConflictPolicy{Default: ConflictUseLaunchDarkly, Overrides: map[ResourceID]ConflictResolution{id: ConflictUseLocal}},
+			"--resolve local does not agree",
+		},
+		{"--conflict local with code_canonical", syncdomain.DirectionCodeCanonical, ConflictPolicy{Default: ConflictUseLocal}, ""},
+		{"--conflict abort with code_canonical", syncdomain.DirectionCodeCanonical, ConflictPolicy{Default: ConflictAbort}, ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			plan := divergentPlanWithDirection(t, test.direction)
+			options := Options{ConflictPolicy: test.policy, ErrorOutput: io.Discard}
+
+			_, err := resolveConflicts(options, plan, strings.NewReader(""), false, nil)
+
+			if test.err == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.err)
+			assert.ErrorContains(t, err, string(test.direction))
+		})
+	}
+}
+
+func TestResolveConflictsUsesDirectionOfVariationThatSharesAttachment(t *testing.T) {
+	tool := ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}
+	conflicted := PlannedResource{
+		ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/first"},
+		Action: ActionConflict, Direction: syncdomain.DirectionBoth, changedAttachments: []ResourceID{tool},
+	}
+	directed := PlannedResource{
+		ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/second"},
+		Action: ActionUpdateServer, Direction: syncdomain.DirectionCodeCanonical, RevertsServer: true,
+		directionDecided: true, changedAttachments: []ResourceID{tool},
+	}
+	plan := Plan{Resources: []PlannedResource{conflicted, directed}}
+	var output bytes.Buffer
+
+	result, err := resolveConflicts(Options{ErrorOutput: &output}, plan, strings.NewReader(""), false, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, ConflictUseLocal, result.resolutions[conflicted.ID])
+	assert.Contains(t, output.String(), "Using local.")
+
+	options := Options{
+		ConflictPolicy: ConflictPolicy{Overrides: map[ResourceID]ConflictResolution{conflicted.ID: ConflictUseLaunchDarkly}},
+		ErrorOutput:    io.Discard,
+	}
+	_, err = resolveConflicts(options, plan, strings.NewReader(""), false, nil)
+	require.ErrorContains(t, err, "does not agree with the sync direction")
+}
+
+func TestResolveConflictsRejectsSharedAttachmentWithOpposedDirections(t *testing.T) {
+	tool := ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}
+	resource := func(key string, direction syncdomain.Direction, action Action) PlannedResource {
+		return PlannedResource{
+			ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: key},
+			Action: action, Direction: direction, changedAttachments: []ResourceID{tool},
+		}
+	}
+	plan := Plan{Resources: []PlannedResource{
+		resource("config/first", syncdomain.DirectionBoth, ActionConflict),
+		resource("config/second", syncdomain.DirectionCodeCanonical, ActionUpdateServer),
+		resource("config/third", syncdomain.DirectionServerCanonical, ActionUpdateLocal),
+	}}
+
+	_, err := resolveConflicts(Options{ErrorOutput: io.Discard}, plan, strings.NewReader(""), true, nil)
+
+	require.ErrorContains(t, err, "sync directions do not agree")
+}
+
 func divergentPlan(t *testing.T) Plan {
+	t.Helper()
+	return divergentPlanWithDirection(t, syncdomain.DirectionBoth)
+}
+
+func divergentPlanWithDirection(t *testing.T, direction syncdomain.Direction) Plan {
 	t.Helper()
 
 	id := testResourceID()
@@ -411,7 +524,7 @@ func divergentPlan(t *testing.T) Plan {
 		}},
 	}
 	return BuildPlan(manifest, localResources(&local, true), map[ResourceID]ServerResource{
-		id: {Variation: &server, ConfigMode: syncdomain.VariationModeAgent},
+		id: {Variation: &server, ConfigMode: syncdomain.VariationModeAgent, Direction: direction},
 	})
 }
 

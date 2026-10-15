@@ -35,6 +35,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 	if err != nil {
 		return err
 	}
+	reviewed.writeSettingsWarnings(options.ErrorOutput)
 	if options.dryRun() {
 		if err := writePlanOutput(options.Output, options.OutputKind, reviewed.plan); err != nil {
 			return err

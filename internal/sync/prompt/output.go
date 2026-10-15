@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
 
@@ -31,7 +32,21 @@ type ResourceOutcome struct {
 	ID     ResourceID    `json:"-"`
 	Action Action        `json:"action"`
 	Status OutcomeStatus `json:"status"`
-	Error  string        `json:"error,omitempty"`
+	// Direction is empty for DirectionBoth, so that the JSON output leaves it out.
+	Direction syncdomain.Direction `json:"direction,omitempty"`
+	Reverts   bool                 `json:"reverts,omitempty"`
+	Discards  bool                 `json:"discards,omitempty"`
+	Error     string               `json:"error,omitempty"`
+}
+
+// outputDirection returns the direction for output. It is empty for
+// DirectionBoth, so that the output shows only a direction that changes
+// the sync.
+func outputDirection(direction syncdomain.Direction) syncdomain.Direction {
+	if direction.Normalized() == syncdomain.DirectionBoth {
+		return ""
+	}
+	return direction
 }
 
 // resourceOutput is the identity of a resource in JSON output.
@@ -57,17 +72,23 @@ func writePlanOutput(out io.Writer, outputKind string, plan Plan) error {
 
 	type planResourceOutput struct {
 		resourceOutput
-		Action          Action              `json:"action"`
-		SyncedElsewhere bool                `json:"syncedElsewhere,omitempty"`
-		Suggestion      string              `json:"suggestion,omitempty"`
-		Error           string              `json:"error,omitempty"`
-		Diff            variationDiffFields `json:"diff,omitempty"`
+		Action          Action               `json:"action"`
+		Direction       syncdomain.Direction `json:"direction,omitempty"`
+		Reverts         bool                 `json:"reverts,omitempty"`
+		Discards        bool                 `json:"discards,omitempty"`
+		SyncedElsewhere bool                 `json:"syncedElsewhere,omitempty"`
+		Suggestion      string               `json:"suggestion,omitempty"`
+		Error           string               `json:"error,omitempty"`
+		Diff            variationDiffFields  `json:"diff,omitempty"`
 	}
 	resources := make([]planResourceOutput, 0, len(plan.Resources))
 	for _, resource := range plan.Resources {
 		resources = append(resources, planResourceOutput{
 			resourceOutput:  newResourceOutput(resource.ID),
 			Action:          resource.Action,
+			Direction:       outputDirection(resource.Direction),
+			Reverts:         resource.RevertsServer,
+			Discards:        resource.DiscardsLocal,
 			SyncedElsewhere: resource.SyncedElsewhere,
 			Suggestion:      staleSuggestion(resource),
 			Error:           resource.Error,
@@ -102,7 +123,11 @@ func writeOutcomeOutput(out io.Writer, outputKind string, outcomes []ResourceOut
 		_ = console.Line("Sync results:")
 	}
 	for _, outcome := range outcomes {
-		_ = console.Printf("- %s  action=%s  status=%s\n", outcome.ID, outcome.Action, outcome.Status)
+		_ = console.Printf("- %s  action=%s  status=%s", outcome.ID, outcome.Action, outcome.Status)
+		if outcome.Direction != "" {
+			_ = console.Printf("  direction=%s", outcome.Direction)
+		}
+		_ = console.Line("")
 		if outcome.Error != "" {
 			_ = console.Printf("  Error: %s\n", outcome.Error)
 		}
@@ -168,6 +193,15 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 			_ = console.Printf("\n    %s\n      Action: %s\n", reviewHeading("Variation: "+variationKey, width), action)
 		}
 
+		if direction := outputDirection(resource.Direction); direction != "" {
+			detail("Direction", directionDescription(direction))
+		}
+		if resource.RevertsServer {
+			detail("Note", "Reverts a change made in LaunchDarkly")
+		}
+		if resource.DiscardsLocal {
+			detail("Note", "Discards a local change")
+		}
 		if resource.SyncedElsewhere {
 			detail("Note", "Another working copy synced this variation after your sync.lock.")
 			detail("Suggestion", staleSuggestion(resource))
@@ -184,6 +218,18 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 		}
 	}
 	return nil
+}
+
+// directionDescription describes a sync direction for the user.
+func directionDescription(direction syncdomain.Direction) string {
+	switch direction {
+	case syncdomain.DirectionCodeCanonical:
+		return "code_canonical (the local file wins)"
+	case syncdomain.DirectionServerCanonical:
+		return "server_canonical (LaunchDarkly wins)"
+	default:
+		return string(direction)
+	}
 }
 
 // staleSuggestion tells the user what to do when another working copy synced

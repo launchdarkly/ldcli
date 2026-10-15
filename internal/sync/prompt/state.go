@@ -3,10 +3,13 @@ package prompt
 import (
 	"errors"
 	"fmt"
+	"io"
+	"maps"
 	"slices"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
@@ -20,6 +23,9 @@ type workspaceState struct {
 	baseline    syncmanifest.Baseline
 	plan        Plan
 	localFiles  map[ResourceID]syncdomain.SyncedResource
+	// noSettings are the projects without sync settings. Each variation of
+	// these projects uses DirectionBoth.
+	noSettings []string
 }
 
 // loadState reads the baseline, the local files, and LaunchDarkly, and builds
@@ -35,28 +41,47 @@ func (workspace syncWorkspace) loadState(client syncapi.Client) (workspaceState,
 	if err != nil {
 		return workspaceState{}, err
 	}
-	plan, localFiles, err := loadWorkspacePlan(workspace.root, baseline, client)
+	loaded, err := loadWorkspacePlan(workspace.root, baseline, client)
 	if err != nil {
 		return workspaceState{}, err
 	}
-	return workspaceState{projectKeys: projectKeys, baseline: baseline, plan: plan, localFiles: localFiles}, nil
+	return workspaceState{
+		projectKeys: projectKeys, baseline: baseline, plan: loaded.plan, localFiles: loaded.localFiles,
+		noSettings: loaded.noSettings,
+	}, nil
 }
 
-// loadWorkspacePlan reads the local variations and their LaunchDarkly
-// versions, and compares both with the lock. It also returns the local
-// variations as their files store them.
+// writeSettingsWarnings tells the user about each project without sync
+// settings.
+func (state workspaceState) writeSettingsWarnings(output io.Writer) {
+	console := syncconsole.New(output)
+	for _, projectKey := range state.noSettings {
+		_ = console.Printf("Sync settings are not available for project %s. Sync uses both directions.\n", projectKey)
+	}
+}
+
+// loadedPlan is the plan and the inputs that loadWorkspacePlan read.
+type loadedPlan struct {
+	plan       Plan
+	localFiles map[ResourceID]syncdomain.SyncedResource
+	noSettings []string
+}
+
+// loadWorkspacePlan reads the local variations, their LaunchDarkly versions,
+// and their sync directions, and compares both sides with the lock. It also
+// returns the local variations as their files store them.
 func loadWorkspacePlan(
 	repositoryRoot string,
 	baseline syncmanifest.Baseline,
 	client syncapi.Client,
-) (Plan, map[ResourceID]syncdomain.SyncedResource, error) {
+) (loadedPlan, error) {
 	localFiles, err := compileWorkspace(repositoryRoot)
 	if err != nil {
-		return Plan{}, nil, err
+		return loadedPlan{}, err
 	}
 	local, err := canonicalizeLocalVariationModels(localFiles, client.ModelConfig)
 	if err != nil {
-		return Plan{}, nil, err
+		return loadedPlan{}, err
 	}
 
 	localFilesByID := make(map[ResourceID]syncdomain.SyncedResource, len(localFiles))
@@ -76,8 +101,17 @@ func loadWorkspacePlan(
 	for id := range ids {
 		resource, err := readServerResource(client, attachments, id)
 		if err != nil {
-			return Plan{}, nil, err
+			return loadedPlan{}, err
 		}
+		server[id] = resource
+	}
+	directions, noSettings, err := resolveDirections(client, ids)
+	if err != nil {
+		return loadedPlan{}, err
+	}
+	for id, direction := range directions {
+		resource := server[id]
+		resource.Direction = direction
 		server[id] = resource
 	}
 	plan := BuildPlan(baseline.Lock, local, server)
@@ -85,7 +119,41 @@ func loadWorkspacePlan(
 		plan.Resources[index].SyncedElsewhere = baseline.Stale(plan.Resources[index].ID)
 		planRestore(repositoryRoot, baseline, &plan.Resources[index])
 	}
-	return plan, localFilesByID, nil
+	return loadedPlan{plan: plan, localFiles: localFilesByID, noSettings: noSettings}, nil
+}
+
+// resolveDirections reads the sync direction of each variation, with one
+// request group for each project. It also returns the projects that have no
+// sync settings. Each variation of these projects uses DirectionBoth.
+func resolveDirections(
+	client syncapi.Client,
+	ids map[ResourceID]struct{},
+) (map[ResourceID]syncdomain.Direction, []string, error) {
+	byProject := make(map[string][]ResourceID)
+	for id := range ids {
+		byProject[id.ProjectKey] = append(byProject[id.ProjectKey], id)
+	}
+	projectKeys := slices.Sorted(maps.Keys(byProject))
+
+	directions := make(map[ResourceID]syncdomain.Direction, len(ids))
+	var noSettings []string
+	for _, projectKey := range projectKeys {
+		projectIDs := byProject[projectKey]
+		slices.SortFunc(projectIDs, syncdomain.CompareResourceIDs)
+		resolved, err := client.ResolveSyncSettings(projectKey, projectIDs)
+		switch {
+		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
+			noSettings = append(noSettings, projectKey)
+			for _, id := range projectIDs {
+				directions[id] = syncdomain.DirectionBoth
+			}
+		case err != nil:
+			return nil, nil, err
+		default:
+			maps.Copy(directions, resolved)
+		}
+	}
+	return directions, noSettings, nil
 }
 
 // planRestore checks a variation whose local file is missing. The restored
@@ -219,6 +287,7 @@ func samePlannedResourceState(reviewed, current PlannedResource) bool {
 		reviewed.LocalFingerprint == current.LocalFingerprint &&
 		reviewed.ServerFingerprint == current.ServerFingerprint &&
 		reviewed.ServerMode == current.ServerMode &&
+		reviewed.Direction == current.Direction &&
 		reviewed.Upsert == current.Upsert &&
 		reviewed.ServerHasStaleAttachmentPins == current.ServerHasStaleAttachmentPins &&
 		sameAttachmentPins(reviewed.Server, current.Server)

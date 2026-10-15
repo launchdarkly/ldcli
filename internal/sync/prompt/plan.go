@@ -36,12 +36,14 @@ func (action Action) changesLocal() bool {
 // ResourceID is the identity of a synchronized resource.
 type ResourceID = syncdomain.ResourceID
 
-// ServerResource is a variation in LaunchDarkly and the mode of its config.
-// Variation is nil when the variation does not exist. The config owns the
-// mode, and the variation API cannot change it.
+// ServerResource is a variation in LaunchDarkly, the mode of its config, and
+// its sync direction. Variation is nil when the variation does not exist. The
+// config owns the mode, and the variation API cannot change it. An empty
+// direction is DirectionBoth.
 type ServerResource struct {
 	Variation  *syncdomain.Variation
 	ConfigMode syncdomain.VariationMode
+	Direction  syncdomain.Direction
 }
 
 // PlannedResource is the local and the server state of one resource, and the
@@ -56,6 +58,17 @@ type PlannedResource struct {
 	ServerMode          syncdomain.VariationMode
 	Local               *syncdomain.Variation
 	Server              *syncdomain.Variation
+	// Direction is the side that wins when the two sides differ. The sync
+	// settings in LaunchDarkly set it.
+	Direction syncdomain.Direction
+	// RevertsServer is true when the action writes the local state to
+	// LaunchDarkly and removes a change that was made in LaunchDarkly. Only
+	// the direction code_canonical sets it.
+	RevertsServer bool
+	// DiscardsLocal is true when the action writes the LaunchDarkly state to
+	// the local file and removes a local change. Only the direction
+	// server_canonical sets it.
+	DiscardsLocal bool
 	// SyncedElsewhere is true when another working copy synced the resource
 	// after this working copy wrote its sync.lock file. The plan is still
 	// correct, because it compares against this working copy's lock.
@@ -70,6 +83,9 @@ type PlannedResource struct {
 	changedAttachments []ResourceID
 	// restoreRef is the link that a restored variation file keeps.
 	restoreRef *syncdomain.Reference
+	// directionDecided is true when both sides changed and the direction
+	// chose the side that wins. With DirectionBoth, the resource is a conflict.
+	directionDecided bool
 }
 
 // Plan is the sync decision for each resource, in identity order.
@@ -126,6 +142,7 @@ func planResource(
 ) PlannedResource {
 	resource := PlannedResource{
 		ID: id, BaselineFingerprint: baselineFingerprint, Server: server.Variation, ServerMode: server.ConfigMode,
+		Direction: server.Direction.Normalized(),
 	}
 	fail := func(message string) PlannedResource {
 		resource.Action, resource.Error = ActionError, message
@@ -150,10 +167,10 @@ func planResource(
 		}
 	}
 
-	resource.Action = chooseAction(tracked, resource)
-	if resource.Action == ActionError {
-		resource.Error = "variation does not exist in LaunchDarkly; set upsert: true to create it"
-	}
+	choice := chooseAction(tracked, resource)
+	resource.Action, resource.Error = choice.action, choice.err
+	resource.RevertsServer, resource.DiscardsLocal = choice.revertsServer, choice.discardsLocal
+	resource.directionDecided = choice.directionDecided
 	// The fingerprints do not include versions. If LaunchDarkly pins an older
 	// attachment version, sync updates the pin even when the content matches.
 	currentPins, latestPins, stalePins := attachmentPinDiff(resource.Server)
@@ -177,9 +194,83 @@ func planResource(
 	return resource
 }
 
-// chooseAction compares each fingerprint with the baseline to find which side
-// changed. It returns ActionError for a new local variation without upsert.
-func chooseAction(tracked bool, resource PlannedResource) Action {
+// actionChoice is the action for one resource and the reason for it.
+type actionChoice struct {
+	action           Action
+	err              string
+	revertsServer    bool
+	discardsLocal    bool
+	directionDecided bool
+}
+
+// chooseAction finds which side changed, and then applies the direction of
+// the resource. It returns ActionError for a new local variation that sync
+// cannot create.
+func chooseAction(tracked bool, resource PlannedResource) actionChoice {
+	action := chooseBothAction(tracked, resource)
+	switch resource.Direction.Normalized() {
+	case syncdomain.DirectionCodeCanonical:
+		return chooseCodeCanonicalAction(action, resource)
+	case syncdomain.DirectionServerCanonical:
+		return chooseServerCanonicalAction(action, resource)
+	default:
+		return withMissingServerError(actionChoice{action: action})
+	}
+}
+
+// chooseCodeCanonicalAction makes the local file win. A missing local file is
+// still restored, because the working copy does not have it yet.
+func chooseCodeCanonicalAction(action Action, resource PlannedResource) actionChoice {
+	switch {
+	case action == ActionUpdateLocal && resource.Local != nil:
+		// Only LaunchDarkly changed, so sync reverts the change.
+		return actionChoice{action: ActionUpdateServer, revertsServer: true}
+	case action == ActionDeleteLocal:
+		// The variation was archived in LaunchDarkly, so sync creates it again.
+		return actionChoice{action: ActionCreateServer, revertsServer: true}
+	case action == ActionConflict && resource.Server == nil:
+		return actionChoice{action: ActionCreateServer, revertsServer: true, directionDecided: true}
+	case action == ActionConflict:
+		return actionChoice{action: ActionUpdateServer, revertsServer: true, directionDecided: true}
+	default:
+		return withMissingServerError(actionChoice{action: action})
+	}
+}
+
+// chooseServerCanonicalAction makes LaunchDarkly win. Sync never creates a
+// variation in LaunchDarkly from a local file.
+func chooseServerCanonicalAction(action Action, resource PlannedResource) actionChoice {
+	switch {
+	case action == ActionUpdateServer:
+		// Only the local file changed, so sync discards the change.
+		return actionChoice{action: ActionUpdateLocal, discardsLocal: true}
+	case action == ActionCreateServer || action == ActionError:
+		return actionChoice{
+			action: ActionError,
+			err: "the variation does not exist in LaunchDarkly, and its sync direction is server_canonical. " +
+				"Create the variation in LaunchDarkly, and then run sync again",
+		}
+	case action == ActionConflict && resource.Server == nil:
+		return actionChoice{action: ActionDeleteLocal, discardsLocal: true, directionDecided: true}
+	case action == ActionConflict:
+		return actionChoice{action: ActionUpdateLocal, discardsLocal: true, directionDecided: true}
+	default:
+		return actionChoice{action: action}
+	}
+}
+
+// withMissingServerError adds the error message to an ActionError choice.
+func withMissingServerError(choice actionChoice) actionChoice {
+	if choice.action == ActionError {
+		choice.err = "variation does not exist in LaunchDarkly; set upsert: true to create it"
+	}
+	return choice
+}
+
+// chooseBothAction compares each fingerprint with the baseline to find which
+// side changed. It is the action for DirectionBoth. It returns ActionError for
+// a new local variation without upsert.
+func chooseBothAction(tracked bool, resource PlannedResource) Action {
 	localExists := resource.Local != nil
 	serverExists := resource.Server != nil
 
@@ -247,6 +338,14 @@ func (plan Plan) RequiresConfirmation() bool {
 func (plan Plan) HasDestructiveActions() bool {
 	return slices.ContainsFunc(plan.Resources, func(resource PlannedResource) bool {
 		return resource.Action == ActionDeleteLocal
+	})
+}
+
+// HasOverwrites reports whether the plan reverts a change made in
+// LaunchDarkly or discards a local change.
+func (plan Plan) HasOverwrites() bool {
+	return slices.ContainsFunc(plan.Resources, func(resource PlannedResource) bool {
+		return resource.RevertsServer || resource.DiscardsLocal
 	})
 }
 

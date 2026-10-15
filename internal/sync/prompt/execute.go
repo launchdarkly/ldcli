@@ -39,7 +39,11 @@ func executePlan(
 	}
 
 	for _, resource := range plan.Resources {
-		outcome := ResourceOutcome{ID: resource.ID, Action: resource.Action, Status: OutcomeSucceeded}
+		outcome := ResourceOutcome{
+			ID: resource.ID, Action: resource.Action, Status: OutcomeSucceeded,
+			Direction: outputDirection(resource.Direction),
+			Reverts:   resource.RevertsServer, Discards: resource.DiscardsLocal,
+		}
 		switch {
 		case resource.Action == ActionInSync:
 		case resource.Action == ActionUpdateManifest:

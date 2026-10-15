@@ -7,6 +7,7 @@ import (
 	"io"
 	"slices"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 )
@@ -72,6 +73,51 @@ func (policy ConflictPolicy) resolve(group conflictGroup) (ConflictResolution, b
 	return selected, true, nil
 }
 
+// checkDirections returns an error when the policy chooses the losing side
+// of a variation whose sync direction decides the conflict.
+func (policy ConflictPolicy) checkDirections(plan Plan) error {
+	for _, resource := range plan.Resources {
+		if !resource.directionDecided {
+			continue
+		}
+		selected, ok := policy.Overrides[resource.ID]
+		flag := "--resolve"
+		if !ok {
+			selected, flag = policy.Default, "--conflict"
+		}
+		winner := directionWinner(resource.Direction)
+		if selected == "" || selected == ConflictAbort || selected == winner {
+			continue
+		}
+		return fmt.Errorf(
+			"%s %s does not agree with the sync direction of %s. The direction is %s, so %s wins",
+			flag, selected, resource.ID, resource.Direction, directionWinnerName(winner),
+		)
+	}
+	return nil
+}
+
+// directionWinner returns the side that a direction makes win, or an empty
+// resolution for DirectionBoth.
+func directionWinner(direction syncdomain.Direction) ConflictResolution {
+	switch direction {
+	case syncdomain.DirectionCodeCanonical:
+		return ConflictUseLocal
+	case syncdomain.DirectionServerCanonical:
+		return ConflictUseLaunchDarkly
+	default:
+		return ""
+	}
+}
+
+// directionWinnerName describes the side that wins for the user.
+func directionWinnerName(winner ConflictResolution) string {
+	if winner == ConflictUseLocal {
+		return "the local file"
+	}
+	return "LaunchDarkly"
+}
+
 var errConflictAborted = errors.New("sync conflict left unresolved")
 
 // conflictGroup is one conflict choice. Variations that share a changed
@@ -79,6 +125,29 @@ var errConflictAborted = errors.New("sync conflict left unresolved")
 type conflictGroup struct {
 	resources  []PlannedResource
 	attachment bool
+}
+
+// directionResolution returns the side that the sync directions in the
+// group choose, or an empty resolution when every variation uses
+// DirectionBoth. It returns an error when two directions disagree.
+func (group conflictGroup) directionResolution() (ConflictResolution, error) {
+	var selected ConflictResolution
+	var selectedBy ResourceID
+	for _, resource := range group.resources {
+		winner := directionWinner(resource.Direction)
+		switch {
+		case winner == "":
+		case selected == "":
+			selected, selectedBy = winner, resource.ID
+		case selected != winner:
+			return "", fmt.Errorf(
+				"%s and %s share a changed attachment, but their sync directions do not agree. "+
+					"Change the sync direction of one variation, or stop sharing the attachment",
+				selectedBy, resource.ID,
+			)
+		}
+	}
+	return selected, nil
 }
 
 type conflictResolutionResult struct {
@@ -102,6 +171,9 @@ func resolveConflicts(
 	interactive bool,
 	watched *watchedSources,
 ) (conflictResolutionResult, error) {
+	if err := options.ConflictPolicy.checkDirections(plan); err != nil {
+		return conflictResolutionResult{}, err
+	}
 	groups := groupConflicts(plan)
 	if len(groups) == 0 {
 		return conflictResolutionResult{}, nil
@@ -117,8 +189,21 @@ func resolveConflicts(
 		if err != nil {
 			return conflictResolutionResult{}, err
 		}
+		directed, err := group.directionResolution()
+		if err != nil {
+			return conflictResolutionResult{}, err
+		}
 		var choice conflictChoice
 		switch {
+		case directed != "" && fromPolicy && resolution != directed:
+			return conflictResolutionResult{}, fmt.Errorf(
+				"the conflict choice %q does not agree with the sync direction of a variation that shares the attachment. "+
+					"Use %q, or change the sync direction", resolution, directed,
+			)
+		case directed != "":
+			// A variation in the group has a sync direction, so its side wins.
+			choice = conflictChoice{resolution: directed}
+			writeConflictChoice(options.ErrorOutput, choice)
 		case fromPolicy:
 			choice = conflictChoice{resolution: resolution, aborted: resolution == ConflictAbort}
 			writeConflictChoice(options.ErrorOutput, choice)

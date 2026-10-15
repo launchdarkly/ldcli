@@ -38,7 +38,9 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 		Use:   "prompts",
 		Short: "Synchronize local prompt variations with LaunchDarkly",
 		Long: "Bootstrap local prompt variations from LaunchDarkly, add more variations, or synchronize changes using the LaunchDarkly manifest. " +
-			"Sync rechecks state before every write, rerun sync after a change.",
+			"Sync rechecks state before every write, rerun sync after a change. " +
+			"The sync settings of a project can make the local file or LaunchDarkly win for a variation. " +
+			"Sync then does not ask about a conflict for that variation.",
 		Example: `  # Preview synchronization changes
   ldcli sync prompts --dry-run
 
