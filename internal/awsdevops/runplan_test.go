@@ -889,3 +889,46 @@ func TestRegisterMCPServerChecksPastedToken(t *testing.T) {
 	require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
 	assert.NotContains(t, agent.calls, "RegisterService")
 }
+
+func mcpLink(serviceID string) []agenttypes.Association {
+	return []agenttypes.Association{{AssociationId: aws.String("assoc-" + serviceID), ServiceId: aws.String(serviceID)}}
+}
+
+func replaceAcrossSpaces() *fakeAgent {
+	return &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{
+			namedSpace("space-1", "launchdarkly"), namedSpace("space-2", "other"), namedSpace("space-3", "third"),
+		},
+		services:   []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")},
+		spaceLinks: map[string][]agenttypes.Association{"space-1": mcpLink("mcp-old"), "space-3": mcpLink("mcp-old")},
+	}
+}
+
+// The replace plan names touched spaces.
+func TestPlanReplaceNamesEachSpace(t *testing.T) {
+	opts := runPlanOptions()
+	opts.ReplaceMCPToken = true
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(replaceAcrossSpaces(), newFakeIAM()), opts, true)
+
+	require.NoError(t, err)
+	assert.Contains(t, plan.MCPServer, "space-1")
+	assert.Contains(t, plan.MCPServer, "space-3")
+	assert.NotContains(t, plan.MCPServer, "space-2")
+}
+
+func TestRunPlanStopsWhenReplaceSpacesChange(t *testing.T) {
+	agent, iamClient := replaceAcrossSpaces(), newFakeIAM()
+	clients := newTestClients(agent, iamClient)
+	opts := runPlanOptions()
+	opts.ReplaceMCPToken = true
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	agent.spaceLinks["space-2"] = mcpLink("mcp-old")
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "DisassociateService")
+	assert.Empty(t, iamClient.createdRoles)
+}

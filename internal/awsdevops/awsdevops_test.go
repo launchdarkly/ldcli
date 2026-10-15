@@ -31,6 +31,8 @@ type fakeAgent struct {
 	goneSpaces      map[string]bool
 	getSpaceErr     error
 	afterListSpaces func()
+	// spaceLinks holds associations by space ID.
+	spaceLinks map[string][]agenttypes.Association
 	// operatorApps holds enabled apps by space.
 	operatorApps      map[string]*devopsagent.GetOperatorAppOutput
 	calls             []string
@@ -166,7 +168,11 @@ func (f *fakeAgent) ListServices(_ context.Context, in *devopsagent.ListServices
 }
 
 func (f *fakeAgent) ListAssociations(_ context.Context, in *devopsagent.ListAssociationsInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAssociationsOutput, error) {
-	items, next := page(f.associations, in.NextToken, f.paginate)
+	links := f.associations
+	if f.spaceLinks != nil {
+		links = f.spaceLinks[aws.ToString(in.AgentSpaceId)]
+	}
+	items, next := page(links, in.NextToken, f.paginate)
 
 	return &devopsagent.ListAssociationsOutput{Associations: items, NextToken: next}, nil
 }

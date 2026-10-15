@@ -299,6 +299,8 @@ const (
 type MCPStep struct {
 	Action    MCPAction
 	ServiceID string
+	// Spaces use the server a replace touches.
+	Spaces []string
 }
 
 // SetupPlan describes what setup will change.
@@ -509,7 +511,12 @@ func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions) (MCPSt
 
 	switch {
 	case existing != "" && opts.ReplaceMCPToken && opts.LDAccessToken != "":
-		return MCPStep{Action: MCPReplace, ServiceID: existing}, nil
+		spaces, err := spacesWith(ctx, clients, existing)
+		if err != nil {
+			return MCPStep{}, err
+		}
+
+		return MCPStep{Action: MCPReplace, ServiceID: existing, Spaces: spaces}, nil
 	case existing != "":
 		return MCPStep{Action: MCPReuse, ServiceID: existing}, nil
 	case opts.LDAccessToken != "":
@@ -537,7 +544,12 @@ func checkMCPServiceID(ctx context.Context, clients Clients, id string) error {
 func (m MCPStep) describe(endpoint string) string {
 	switch m.Action {
 	case MCPReplace:
-		return fmt.Sprintf("Replace the token of MCP server %s (%s)", MCPServerName, m.ServiceID)
+		line := fmt.Sprintf("Replace the token of MCP server %s (%s)", MCPServerName, m.ServiceID)
+		if len(m.Spaces) > 0 {
+			line += ", reconnecting " + strings.Join(m.Spaces, ", ")
+		}
+
+		return line
 	case MCPReuse:
 		return fmt.Sprintf("Reuse MCP server %s (%s)", MCPServerName, m.ServiceID)
 	case MCPRegister:
@@ -563,13 +575,25 @@ func checkMCP(ctx context.Context, clients Clients, opts SetupOptions, step MCPS
 		if err != nil {
 			return err
 		}
+		found := false
 		for _, service := range services {
-			if aws.ToString(service.ServiceId) == step.ServiceID {
-				return nil
-			}
+			found = found || aws.ToString(service.ServiceId) == step.ServiceID
+		}
+		if !found {
+			return planChanged("MCP server %s disappeared after the plan", step.ServiceID)
+		}
+		if step.Action != MCPReplace {
+			return nil
+		}
+		now, err := spacesWith(ctx, clients, step.ServiceID)
+		if err != nil {
+			return err
+		}
+		if !slices.Equal(now, step.Spaces) {
+			return planChanged("the spaces using MCP server %s changed", step.ServiceID)
 		}
 
-		return planChanged("MCP server %s disappeared after the plan", step.ServiceID)
+		return nil
 	}
 
 	found, err := FindMCPServer(ctx, clients, opts.mcpEndpoint())
@@ -987,6 +1011,28 @@ func registerMCPServer(
 // it, which AWS requires before the service can be deregistered. It returns
 // the agent spaces it was removed from, so the re-registered service can be
 // reconnected to them.
+// spacesWith lists spaces associated with serviceID.
+func spacesWith(ctx context.Context, clients Clients, serviceID string) ([]string, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, space := range spaces {
+		id := aws.ToString(space.AgentSpaceId)
+		link, err := FindAssociation(ctx, clients, id, serviceID)
+		if err != nil {
+			return nil, err
+		}
+		if link != "" {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+
+	return ids, nil
+}
+
 func disassociateEverywhere(
 	ctx context.Context,
 	clients Clients,
