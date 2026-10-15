@@ -180,3 +180,38 @@ func TestSetupWithYesReusesMatchingSpace(t *testing.T) {
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 }
+
+func twoSimilarSpaces() (awsdevops.Clients, *writes) {
+	return countingClients(
+		agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly")},
+		agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("LaunchDarkly")},
+	)
+}
+
+// A chosen space with --auth-flow gets full setup.
+func TestSetupChosenSpaceWithAuthFlow(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "2\ny\n")
+	require.NoError(t, cmd.Flags().Set(authFlowFlag, "iam"))
+	clients, w := twoSimilarSpaces()
+	opts, err := setupOptions(cmd)
+	require.NoError(t, err)
+	opts.LDAccessToken = "api-token"
+
+	require.NoError(t, setupWith(cmd, clients, opts, true, true))
+
+	assert.Contains(t, w.calls, "EnableOperatorApp")
+	assert.NotContains(t, w.calls, "CreateAgentSpace")
+	assert.Contains(t, stderrOf(cmd), "(space-2)")
+	assert.NotContains(t, stderrOf(cmd), "(space-1)")
+}
+
+func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "2\ny\n")
+	clients, w := twoSimilarSpaces()
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+
+	assert.NotContains(t, w.calls, "EnableOperatorApp")
+	assert.NotContains(t, w.calls, "CreateRole")
+	assert.Contains(t, stderrOf(cmd), "(space-2)")
+}

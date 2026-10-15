@@ -219,7 +219,7 @@ func resolveAgentSpace(
 	}
 	opts.AgentSpaceID = choice
 
-	return false, nil
+	return authFlagSet(cmd), nil
 }
 
 // confirmSetup shows the plan and asks.
