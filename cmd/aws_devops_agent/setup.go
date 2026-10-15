@@ -145,7 +145,7 @@ func setupWith(
 
 	var mcpErr error
 	if result.MCPServiceID == "" {
-		mcpErr = connectMCPServer(cmd, clients, opts, &result)
+		mcpErr = connectMCPServer(cmd, clients, opts, &result, interactive)
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)
@@ -319,9 +319,10 @@ func connectMCPServer(
 	clients awsdevops.Clients,
 	opts awsdevops.SetupOptions,
 	result *awsdevops.SetupResult,
+	interactive bool,
 ) error {
 	tokenURL := awsdevops.AccessTokenURL(opts.LDBaseURI)
-	if !canPrompt() {
+	if !interactive {
 		_, _ = fmt.Fprintf(
 			cmd.ErrOrStderr(),
 			"The LaunchDarkly MCP server is not connected. Create a service token at %s, "+

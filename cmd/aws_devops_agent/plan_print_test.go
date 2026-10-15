@@ -60,3 +60,30 @@ func TestSetupPlanNamesRolesAndOperatorApp(t *testing.T) {
 	assert.Contains(t, out.String(), awsdevops.OperatorAppRoleName)
 	assert.Contains(t, out.String(), "operator app")
 }
+
+func noTokenOptions() awsdevops.SetupOptions {
+	opts := newSpaceOptions()
+	opts.LDAccessToken = ""
+
+	return opts
+}
+
+// The token prompt follows the run's interactive value.
+func TestTokenPromptAsksWhenInteractive(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "y\napi-token\n")
+	clients, w := countingClients()
+
+	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, true))
+
+	assert.Contains(t, w.calls, "RegisterService")
+}
+
+func TestTokenPromptSilentWhenNotInteractive(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, w := countingClients()
+
+	_ = setupWith(cmd, clients, noTokenOptions(), true, false)
+
+	assert.NotContains(t, w.calls, "RegisterService")
+}
