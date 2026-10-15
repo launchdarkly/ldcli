@@ -27,6 +27,8 @@ import (
 const testAccountID = "123456789012"
 
 type fakeAgent struct {
+	// goneSpaces makes GetAgentSpace report not found.
+	goneSpaces        map[string]bool
 	calls             []string
 	services          []agenttypes.RegisteredService
 	associationInputs []*devopsagent.AssociateServiceInput
@@ -110,11 +112,19 @@ func (f *fakeAgent) EnableOperatorApp(_ context.Context, _ *devopsagent.EnableOp
 }
 
 func (f *fakeAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetAgentSpaceOutput, error) {
+	id := aws.ToString(in.AgentSpaceId)
+	if f.goneSpaces[id] {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+	name := "launchdarkly"
+	for _, space := range f.agentSpaces {
+		if aws.ToString(space.AgentSpaceId) == id && space.Name != nil {
+			name = aws.ToString(space.Name)
+		}
+	}
+
 	return &devopsagent.GetAgentSpaceOutput{
-		AgentSpace: &agenttypes.AgentSpace{
-			AgentSpaceId: in.AgentSpaceId,
-			Name:         aws.String("launchdarkly"),
-		},
+		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId, Name: aws.String(name)},
 	}, nil
 }
 

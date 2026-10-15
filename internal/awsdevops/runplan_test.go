@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -273,4 +274,61 @@ func TestRunPlanSilentWhenUpdateFails(t *testing.T) {
 			})
 		}
 	}
+}
+
+func namedSpace(id, name string) agenttypes.AgentSpace {
+	return agenttypes.AgentSpace{AgentSpaceId: aws.String(id), Name: aws.String(name)}
+}
+
+func TestRunPlanStopsWhenPlannedSpaceAppears(t *testing.T) {
+	agent, iamClient := &fakeAgent{}, newFakeIAM()
+
+	err := planThenRun(t, agent, iamClient, func() {
+		agent.agentSpaces = []agenttypes.AgentSpace{namedSpace("space-9", "launchdarkly")}
+	})
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+	assert.Empty(t, iamClient.createdRoles)
+}
+
+func TestRunPlanStopsWhenReusedSpaceIsGone(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	iamClient := newFakeIAM()
+
+	err := planThenRun(t, agent, iamClient, func() {
+		agent.goneSpaces = map[string]bool{"space-7": true}
+	})
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+	assert.Empty(t, iamClient.createdRoles)
+}
+
+// Setup does not search for the space again.
+func TestRunPlanKeepsThePlannedSpace(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	clients := newTestClients(agent, newFakeIAM())
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+	agent.agentSpaces = append([]agenttypes.AgentSpace{namedSpace("space-8", "LaunchDarkly")}, agent.agentSpaces...)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.NoError(t, err)
+	assert.Equal(t, "space-7", result.AgentSpaceID)
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+}
+
+// The reuse line shows the name from AWS.
+func TestRunPlanReuseLineUsesAWSName(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "LaunchDarkly")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	logged := collectLogs(&opts)
+
+	_, err := awsdevops.Setup(context.Background(), clients, opts)
+
+	require.NoError(t, err)
+	assert.Contains(t, strings.Join(*logged, "\n"), "LaunchDarkly (space-7)")
 }

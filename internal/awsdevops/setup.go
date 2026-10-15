@@ -131,11 +131,40 @@ func (s RoleStep) describe() string {
 	}
 }
 
+// SpaceAction is what setup does to the space.
+type SpaceAction int
+
+const (
+	SpaceCreate SpaceAction = iota
+	SpaceReuse
+	SpaceConnect
+)
+
+// SpaceStep is the planned agent space action.
+type SpaceStep struct {
+	Action SpaceAction
+	ID     string
+	Name   string
+}
+
+func (s SpaceStep) describe() string {
+	label := fmt.Sprintf("%s (%s)", s.Name, s.ID)
+	switch s.Action {
+	case SpaceCreate:
+		return "Create agent space " + s.Name
+	case SpaceConnect:
+		return "Connect to agent space " + label
+	default:
+		return "Reuse agent space " + label
+	}
+}
+
 // SetupPlan describes what setup will change.
 type SetupPlan struct {
 	AccountID   string
 	Region      string
 	AgentSpace  string
+	Space       SpaceStep
 	MCPServer   string
 	Roles       []string
 	RoleSteps   []RoleStep
@@ -195,10 +224,11 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	}
 	plan := SetupPlan{AccountID: accountID, Region: clients.Region}
 
-	plan.AgentSpace, err = planAgentSpace(ctx, clients, opts, provision)
+	plan.Space, err = planAgentSpace(ctx, clients, opts, provision)
 	if err != nil {
 		return plan, err
 	}
+	plan.AgentSpace = plan.Space.describe()
 
 	plan.MCPServer, err = planMCPServer(ctx, clients, opts)
 	if err != nil {
@@ -246,29 +276,55 @@ func planRole(ctx context.Context, client IAMAPI, name string) (RoleStep, error)
 	return RoleStep{Name: name, Action: RoleUpdate}, nil
 }
 
-func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (string, error) {
+func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (SpaceStep, error) {
 	id := opts.AgentSpaceID
 	if id == "" && !opts.NewAgentSpace {
 		found, err := FindAgentSpace(ctx, clients, opts.AgentSpaceName)
 		if err != nil {
-			return "", err
+			return SpaceStep{}, err
 		}
 		id = found
 	}
 	if id == "" {
-		return fmt.Sprintf("Create agent space %s", opts.AgentSpaceName), nil
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName}, nil
 	}
 
 	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
 	if err != nil {
-		return "", fmt.Errorf("unable to read agent space %s: %w", id, err)
+		return SpaceStep{}, fmt.Errorf("unable to read agent space %s: %w", id, err)
 	}
-	label := fmt.Sprintf("%s (%s)", aws.ToString(space.AgentSpace.Name), id)
+	step := SpaceStep{Action: SpaceReuse, ID: id, Name: aws.ToString(space.AgentSpace.Name)}
 	if !provision {
-		return "Connect to agent space " + label, nil
+		step.Action = SpaceConnect
 	}
 
-	return "Reuse agent space " + label, nil
+	return step, nil
+}
+
+// checkSpace compares AWS with the space step.
+func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
+	if step.Action == SpaceCreate {
+		found, err := FindAgentSpace(ctx, clients, step.Name)
+		if err != nil {
+			return err
+		}
+		if found != "" {
+			return planChanged("agent space %s appeared after the plan", step.Name)
+		}
+
+		return nil
+	}
+
+	_, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(step.ID)})
+	var missing *agenttypes.ResourceNotFoundException
+	switch {
+	case errors.As(err, &missing):
+		return planChanged("agent space %s disappeared after the plan", step.ID)
+	case err != nil:
+		return fmt.Errorf("unable to read agent space %s: %w", step.ID, err)
+	}
+
+	return nil
 }
 
 func planMCPServer(ctx context.Context, clients Clients, opts SetupOptions) (string, error) {
@@ -317,6 +373,9 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 
 	result := SetupResult{AccountID: accountID, Region: clients.Region}
 
+	if err := checkSpace(ctx, clients, plan.Space); err != nil {
+		return result, err
+	}
 	spaceRole, err := checkRole(ctx, clients.IAM, plan, AgentSpaceRoleName)
 	if err != nil {
 		return result, err
@@ -340,28 +399,22 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	reportExisting(plan, OperatorAppRoleName, appRole, existed, logf)
 	logf("Operator app role %s is ready", OperatorAppRoleName)
 
-	result.AgentSpaceID = opts.AgentSpaceID
-	if result.AgentSpaceID == "" && !opts.NewAgentSpace {
-		existing, err := FindAgentSpace(ctx, clients, opts.AgentSpaceName)
-		if err != nil {
-			return result, err
-		}
-		if existing != "" {
-			result.AgentSpaceID = existing
-			logf("Reused agent space %s (%s)", opts.AgentSpaceName, existing)
-			logf("Pass --new-agent-space to create another agent space")
-		}
-	}
-	if result.AgentSpaceID == "" {
+	if plan.Space.Action == SpaceCreate {
 		space, err := clients.Agent.CreateAgentSpace(ctx, &devopsagent.CreateAgentSpaceInput{
-			Name:        aws.String(opts.AgentSpaceName),
+			Name:        aws.String(plan.Space.Name),
 			Description: aws.String(agentSpaceDescription),
 		})
 		if err != nil {
 			return result, fmt.Errorf("unable to create the agent space: %w", err)
 		}
 		result.AgentSpaceID = aws.ToString(space.AgentSpace.AgentSpaceId)
-		logf("Created agent space %s (%s)", opts.AgentSpaceName, result.AgentSpaceID)
+		logf("Created agent space %s (%s)", plan.Space.Name, result.AgentSpaceID)
+	} else {
+		result.AgentSpaceID = plan.Space.ID
+		logf("Reused agent space %s (%s)", plan.Space.Name, plan.Space.ID)
+		if opts.AgentSpaceID == "" {
+			logf("Pass --new-agent-space to create another agent space")
+		}
 	}
 
 	result.AWSAssociationID, err = FindAssociation(ctx, clients, result.AgentSpaceID, awsServiceID)
