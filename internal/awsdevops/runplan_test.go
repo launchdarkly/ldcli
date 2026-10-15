@@ -624,7 +624,7 @@ func TestPlanSameFlowIsNotAChange(t *testing.T) {
 	assert.Contains(t, plan.OperatorApp, "IAM")
 }
 
-// Same IdC or IdP flow can change settings.
+// Same IdC or IdP flow changes settings.
 func TestPlanSameIdcFlowSaysUpdate(t *testing.T) {
 	apps := map[string]*devopsagent.GetOperatorAppOutput{
 		"idc": idcApp(),
@@ -691,4 +691,55 @@ func TestRunPlanKeepsThePlannedMCPServer(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "mcp-old", result.MCPServiceID)
+}
+
+// The pasted token uses the shown plan.
+func TestRegisterMCPServerStopsWhenServerAppears(t *testing.T) {
+	agent := &fakeAgent{}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.LDAccessToken = ""
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+	agent.services = []agenttypes.RegisteredService{launchDarklyMCPService("mcp-someone")}
+	opts.LDAccessToken, opts.ReplaceMCPToken = "pasted-token", true
+
+	err = awsdevops.RegisterMCPServer(context.Background(), clients, opts, plan.MCP, &result)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "DeregisterService")
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+func TestRegisterMCPServerRegistersAfterAsk(t *testing.T) {
+	agent := &fakeAgent{}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.LDAccessToken = ""
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+	opts.LDAccessToken = "pasted-token"
+
+	require.NoError(t, awsdevops.RegisterMCPServer(context.Background(), clients, opts, plan.MCP, &result))
+
+	assert.Contains(t, agent.calls, "RegisterService")
+}
+
+func TestConnectPlanStopsWhenServerAppears(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "platform")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+	agent.services = []agenttypes.RegisteredService{launchDarklyMCPService("mcp-someone")}
+
+	_, err = awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "AssociateService")
 }

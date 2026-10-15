@@ -710,6 +710,16 @@ func registrationFailed(err error, detached []string) error {
 // space, and re-enabling the operator app would overwrite its sign-in
 // configuration.
 func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
+	plan, err := PlanSetup(ctx, clients, opts, false)
+	if err != nil {
+		return SetupResult{}, err
+	}
+
+	return ConnectPlan(ctx, clients, opts, plan)
+}
+
+// ConnectPlan runs a connect plan.
+func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan SetupPlan) (SetupResult, error) {
 	logf := opts.Logf
 	if logf == nil {
 		logf = func(string, ...any) {}
@@ -735,11 +745,10 @@ func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (S
 	}
 	logf("Using agent space %s (%s)", aws.ToString(space.AgentSpace.Name), result.AgentSpaceID)
 
-	step, err := planMCPStep(ctx, clients, opts)
-	if err != nil {
+	if err := checkMCP(ctx, clients, opts, plan.MCP); err != nil {
 		return result, err
 	}
-	if err := registerMCPServer(ctx, clients, opts, step, &result, logf); err != nil {
+	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
 
@@ -832,15 +841,16 @@ func isRoleNotAssumableYet(err error) bool {
 
 // RegisterMCPServer registers and associates the LaunchDarkly MCP server on
 // its own, for a token collected after Setup has run.
-func RegisterMCPServer(ctx context.Context, clients Clients, opts SetupOptions, result *SetupResult) error {
+func RegisterMCPServer(ctx context.Context, clients Clients, opts SetupOptions, step MCPStep, result *SetupResult) error {
 	logf := opts.Logf
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
-
-	step, err := planMCPStep(ctx, clients, opts)
-	if err != nil {
+	if err := checkMCP(ctx, clients, opts, step); err != nil {
 		return err
+	}
+	if step.Action == MCPAsk {
+		step.Action = MCPRegister
 	}
 
 	return registerMCPServer(ctx, clients, opts, step, result, logf)

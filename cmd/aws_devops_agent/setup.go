@@ -137,7 +137,7 @@ func setupWith(
 	if provision {
 		result, err = awsdevops.RunPlan(cmd.Context(), clients, opts, plan)
 	} else {
-		result, err = awsdevops.ConnectExisting(cmd.Context(), clients, opts)
+		result, err = awsdevops.ConnectPlan(cmd.Context(), clients, opts, plan)
 	}
 	if err != nil {
 		return err
@@ -149,7 +149,7 @@ func setupWith(
 
 	var mcpErr error
 	if result.MCPServiceID == "" {
-		mcpErr = connectMCPServer(cmd, clients, opts, &result, interactive)
+		mcpErr = connectMCPServer(cmd, clients, opts, plan.MCP, &result, interactive)
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)
@@ -318,6 +318,7 @@ func connectMCPServer(
 	cmd *cobra.Command,
 	clients awsdevops.Clients,
 	opts awsdevops.SetupOptions,
+	step awsdevops.MCPStep,
 	result *awsdevops.SetupResult,
 	interactive bool,
 ) error {
@@ -341,7 +342,7 @@ func connectMCPServer(
 		return nil
 	}
 
-	return awsdevops.RegisterMCPServer(cmd.Context(), clients, opts, result)
+	return awsdevops.RegisterMCPServer(cmd.Context(), clients, opts, step, result)
 }
 
 func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
