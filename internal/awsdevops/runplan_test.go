@@ -177,7 +177,7 @@ func TestRunPlanStopsWhenUntaggedRoleRacesCreate(t *testing.T) {
 	assert.NotContains(t, agent.calls, "CreateAgentSpace")
 }
 
-// existsLines runs a plan and counts report lines.
+// existsLines counts "already exists" lines.
 func existsLines(t *testing.T, setup, change func(*fakeIAM)) (int, error) {
 	t.Helper()
 	agent, iamClient := &fakeAgent{}, newFakeIAM()
@@ -203,7 +203,7 @@ func existsLines(t *testing.T, setup, change func(*fakeIAM)) (int, error) {
 
 func none(*fakeIAM) {}
 
-// A create that became an update is reported once.
+// One line per role found on create.
 func TestRunPlanReportsRoleAlreadyThere(t *testing.T) {
 	for _, role := range planRoles {
 		for name, appear := range map[string]func(*fakeIAM){
@@ -228,7 +228,12 @@ func TestRunPlanSilentForCreatedAndLeftRoles(t *testing.T) {
 			f.existingRoles[role] = true
 		}
 	}
-	for name, setup := range map[string]func(*fakeIAM){"created": none, "left": unmanaged} {
+	managed := func(f *fakeIAM) {
+		for _, role := range planRoles {
+			f.addManagedRole(role)
+		}
+	}
+	for name, setup := range map[string]func(*fakeIAM){"created": none, "left": unmanaged, "updated": managed} {
 		t.Run(name, func(t *testing.T) {
 			count, err := existsLines(t, setup, none)
 
@@ -238,13 +243,24 @@ func TestRunPlanSilentForCreatedAndLeftRoles(t *testing.T) {
 	}
 }
 
-// The line follows the update, not precedes it.
+// No line when a role write fails.
 func TestRunPlanSilentWhenUpdateFails(t *testing.T) {
-	count, err := existsLines(t, none, func(f *fakeIAM) {
-		f.addManagedRole(awsdevops.AgentSpaceRoleName)
-		f.attachErr = errors.New("denied")
-	})
+	for _, call := range []string{
+		"UpdateAssumeRolePolicy " + awsdevops.AgentSpaceRoleName,
+		"AttachRolePolicy " + awsdevops.AgentSpaceRoleName,
+		"PutRolePolicy " + awsdevops.AgentSpaceRoleName,
+		"UpdateAssumeRolePolicy " + awsdevops.OperatorAppRoleName,
+		"AttachRolePolicy " + awsdevops.OperatorAppRoleName,
+	} {
+		t.Run(call, func(t *testing.T) {
+			role := call[strings.Index(call, " ")+1:]
+			count, err := existsLines(t, none, func(f *fakeIAM) {
+				f.addManagedRole(role)
+				f.failOn = map[string]error{call: errors.New("denied")}
+			})
 
-	require.Error(t, err)
-	assert.Zero(t, count)
+			require.Error(t, err)
+			assert.Zero(t, count)
+		})
+	}
 }

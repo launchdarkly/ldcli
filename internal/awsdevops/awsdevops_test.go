@@ -157,7 +157,8 @@ func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterS
 type fakeIAM struct {
 	// appearOnCreate makes a role appear on CreateRole.
 	appearOnCreate map[string][]iamtypes.Tag
-	attachErr      error
+	// failOn fails a call, keyed "Call role".
+	failOn         map[string]error
 	existingRoles  map[string]bool
 	roleTags       map[string][]iamtypes.Tag
 	createdRoles   []string
@@ -186,8 +187,8 @@ func (f *fakeIAM) addManagedRole(name string) {
 }
 
 func (f *fakeIAM) AttachRolePolicy(_ context.Context, in *iam.AttachRolePolicyInput, _ ...func(*iam.Options)) (*iam.AttachRolePolicyOutput, error) {
-	if f.attachErr != nil {
-		return nil, f.attachErr
+	if err := f.failOn["AttachRolePolicy "+aws.ToString(in.RoleName)]; err != nil {
+		return nil, err
 	}
 	f.attachedPolicy[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyArn)
 
@@ -229,12 +230,18 @@ func (f *fakeIAM) ListRoleTags(_ context.Context, in *iam.ListRoleTagsInput, _ .
 }
 
 func (f *fakeIAM) UpdateAssumeRolePolicy(_ context.Context, in *iam.UpdateAssumeRolePolicyInput, _ ...func(*iam.Options)) (*iam.UpdateAssumeRolePolicyOutput, error) {
+	if err := f.failOn["UpdateAssumeRolePolicy "+aws.ToString(in.RoleName)]; err != nil {
+		return nil, err
+	}
 	f.trustPolicies[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyDocument)
 
 	return &iam.UpdateAssumeRolePolicyOutput{}, nil
 }
 
 func (f *fakeIAM) PutRolePolicy(_ context.Context, in *iam.PutRolePolicyInput, _ ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
+	if err := f.failOn["PutRolePolicy "+aws.ToString(in.RoleName)]; err != nil {
+		return nil, err
+	}
 	f.inlinePolicies[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyDocument)
 
 	return &iam.PutRolePolicyOutput{}, nil

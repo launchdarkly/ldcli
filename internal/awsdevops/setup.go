@@ -829,8 +829,7 @@ func ensureOperatorAppRole(ctx context.Context, client IAMAPI, accountID string,
 	return arn, existed, err
 }
 
-// ensureRole does the planned action on a role.
-// It reports if ldcli manages it, and if a create found it.
+// ensureRole does the planned role action.
 func ensureRole(
 	ctx context.Context,
 	client IAMAPI,
