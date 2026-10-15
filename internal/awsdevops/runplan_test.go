@@ -411,7 +411,7 @@ func TestRunPlanRejectsConnectStep(t *testing.T) {
 	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "connect plan")
+	assert.Contains(t, err.Error(), "ConnectPlan")
 	assert.Empty(t, iamClient.createdRoles)
 }
 
@@ -742,4 +742,31 @@ func TestConnectPlanStopsWhenServerAppears(t *testing.T) {
 
 	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
 	assert.NotContains(t, agent.calls, "AssociateService")
+}
+
+func TestConnectPlanStopsWhenSpaceIsGone(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "platform")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+	agent.goneSpaces = map[string]bool{"space-7": true}
+
+	_, err = awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+func TestConnectPlanRejectsSetupPlan(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	clients := newTestClients(agent, newFakeIAM())
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+
+	_, err = awsdevops.ConnectPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.Error(t, err)
+	assert.NotContains(t, agent.calls, "RegisterService")
 }

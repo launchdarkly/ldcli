@@ -579,7 +579,7 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	result := SetupResult{AccountID: accountID, Region: clients.Region}
 
 	if plan.Space.Action == SpaceConnect {
-		return result, errors.New("a connect plan runs through ConnectExisting")
+		return result, errors.New("a connect plan runs through ConnectPlan")
 	}
 	if err := checkSpace(ctx, clients, plan.Space); err != nil {
 		return result, err
@@ -725,25 +725,24 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 		logf = func(string, ...any) {}
 	}
 
+	if plan.Space.Action != SpaceConnect {
+		return SetupResult{}, errors.New("a setup plan runs through RunPlan")
+	}
 	accountID, err := clients.AccountID(ctx)
 	if err != nil {
 		return SetupResult{}, err
 	}
-
-	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{
-		AgentSpaceId: aws.String(opts.AgentSpaceID),
-	})
-	if err != nil {
-		return SetupResult{}, fmt.Errorf("unable to read agent space %s: %w", opts.AgentSpaceID, err)
+	if err := checkSpace(ctx, clients, plan.Space); err != nil {
+		return SetupResult{}, err
 	}
 
 	result := SetupResult{
 		AccountID:      accountID,
 		Region:         clients.Region,
-		AgentSpaceID:   opts.AgentSpaceID,
-		OperatorAppURL: OperatorAppURL(opts.AgentSpaceID),
+		AgentSpaceID:   plan.Space.ID,
+		OperatorAppURL: OperatorAppURL(plan.Space.ID),
 	}
-	logf("Using agent space %s (%s)", aws.ToString(space.AgentSpace.Name), result.AgentSpaceID)
+	logf("Using agent space %s (%s)", plan.Space.Name, result.AgentSpaceID)
 
 	if err := checkMCP(ctx, clients, opts, plan.MCP); err != nil {
 		return result, err
