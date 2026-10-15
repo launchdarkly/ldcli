@@ -101,3 +101,16 @@ func TestSetupPlanNamesAccountAssociation(t *testing.T) {
 
 	assert.Contains(t, strings.ToLower(out.String()), "associate aws account "+testAccountID)
 }
+
+func TestSetupRejectsUnknownMCPServiceID(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, w := countingClients()
+	opts := newSpaceOptions()
+	opts.MCPServiceID = "mcp-9"
+
+	err := setupWith(cmd, clients, opts, true, false)
+
+	require.Error(t, err)
+	assert.Empty(t, w.calls)
+}

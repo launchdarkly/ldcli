@@ -768,5 +768,34 @@ func TestConnectPlanRejectsSetupPlan(t *testing.T) {
 	_, err = awsdevops.ConnectPlan(context.Background(), clients, runPlanOptions(), plan)
 
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "RunPlan")
 	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+func TestPlanRejectsBadMCPServiceID(t *testing.T) {
+	github := agenttypes.RegisteredService{ServiceId: aws.String("svc-gh"), ServiceType: agenttypes.ServiceGithub}
+	for name, id := range map[string]string{"unknown": "mcp-9", "aws": "aws", "not an MCP server": "svc-gh"} {
+		t.Run(name, func(t *testing.T) {
+			agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1"), github}}
+			opts := runPlanOptions()
+			opts.MCPServiceID = id
+
+			_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+			require.Error(t, err)
+			assert.NotErrorIs(t, err, awsdevops.ErrPlanChanged)
+			assert.Contains(t, err.Error(), id)
+		})
+	}
+}
+
+func TestPlanAcceptsRegisteredMCPServiceID(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")}}
+	opts := runPlanOptions()
+	opts.MCPServiceID = "mcp-1"
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+	require.NoError(t, err)
+	assert.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
 }

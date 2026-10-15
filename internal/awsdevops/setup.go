@@ -494,6 +494,11 @@ func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
 
 func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions) (MCPStep, error) {
 	existing := opts.MCPServiceID
+	if existing != "" {
+		if err := checkMCPServiceID(ctx, clients, existing); err != nil {
+			return MCPStep{}, err
+		}
+	}
 	if existing == "" {
 		found, err := FindMCPServer(ctx, clients, opts.mcpEndpoint())
 		if err != nil {
@@ -512,6 +517,21 @@ func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions) (MCPSt
 	default:
 		return MCPStep{Action: MCPAsk}, nil
 	}
+}
+
+// checkMCPServiceID needs a registered MCP server.
+func checkMCPServiceID(ctx context.Context, clients Clients, id string) error {
+	services, err := listServices(ctx, clients)
+	if err != nil {
+		return err
+	}
+	for _, service := range services {
+		if aws.ToString(service.ServiceId) == id && service.ServiceType == agenttypes.ServiceMcpServer {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("no MCP server with ID %s is registered", id)
 }
 
 func (m MCPStep) describe(endpoint string) string {
