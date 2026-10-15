@@ -245,22 +245,32 @@ func TestRunPlanSilentForCreatedAndLeftRoles(t *testing.T) {
 
 // No line when a role write fails.
 func TestRunPlanSilentWhenUpdateFails(t *testing.T) {
-	for _, call := range []string{
-		"UpdateAssumeRolePolicy " + awsdevops.AgentSpaceRoleName,
-		"AttachRolePolicy " + awsdevops.AgentSpaceRoleName,
-		"PutRolePolicy " + awsdevops.AgentSpaceRoleName,
-		"UpdateAssumeRolePolicy " + awsdevops.OperatorAppRoleName,
-		"AttachRolePolicy " + awsdevops.OperatorAppRoleName,
-	} {
-		t.Run(call, func(t *testing.T) {
-			role := call[strings.Index(call, " ")+1:]
-			count, err := existsLines(t, none, func(f *fakeIAM) {
-				f.addManagedRole(role)
-				f.failOn = map[string]error{call: errors.New("denied")}
-			})
+	calls := map[string]string{
+		"UpdateAssumeRolePolicy " + awsdevops.AgentSpaceRoleName:  "trust policy",
+		"AttachRolePolicy " + awsdevops.AgentSpaceRoleName:        "attach",
+		"PutRolePolicy " + awsdevops.AgentSpaceRoleName:           awsdevops.ServiceLinkedRolePolicyName,
+		"UpdateAssumeRolePolicy " + awsdevops.OperatorAppRoleName: "trust policy",
+		"AttachRolePolicy " + awsdevops.OperatorAppRoleName:       "attach",
+	}
+	appear := map[string]func(*fakeIAM, string){
+		"before the check": func(f *fakeIAM, role string) { f.addManagedRole(role) },
+		"during create": func(f *fakeIAM, role string) {
+			f.appearOnCreate = map[string][]iamtypes.Tag{role: managedTags}
+		},
+	}
+	for call, want := range calls {
+		for when, makeRole := range appear {
+			t.Run(call+" "+when, func(t *testing.T) {
+				role := call[strings.Index(call, " ")+1:]
+				count, err := existsLines(t, none, func(f *fakeIAM) {
+					makeRole(f, role)
+					f.failOn = map[string]error{call: errors.New("denied")}
+				})
 
-			require.Error(t, err)
-			assert.Zero(t, count)
-		})
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), want)
+				assert.Zero(t, count)
+			})
+		}
 	}
 }
