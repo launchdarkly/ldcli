@@ -200,8 +200,11 @@ func (a AppStep) describe(flow string) string {
 	case AppKeep:
 		return "Keep the operator app and its sign-in"
 	case AppChange:
-		if a.Flow == flow {
-			return fmt.Sprintf("Set the operator app sign-in to %s again", flowLabel(flow))
+		switch {
+		case a.Flow == flow && flow == "iam":
+			return "Set the operator app sign-in to IAM again"
+		case a.Flow == flow:
+			return fmt.Sprintf("Update the operator app %s sign-in settings", flowLabel(flow))
 		}
 
 		return "Change the operator app sign-in to " + flowLabel(flow)
@@ -221,7 +224,7 @@ func flowLabel(flow string) string {
 	}
 }
 
-// appState reads the operator app. Off is empty.
+// appState reads the app. Flow "" means off.
 func appState(ctx context.Context, clients Clients, spaceID string) (AppStep, error) {
 	app, err := clients.Agent.GetOperatorApp(ctx, &devopsagent.GetOperatorAppInput{AgentSpaceId: aws.String(spaceID)})
 	var missing *agenttypes.ResourceNotFoundException

@@ -623,3 +623,16 @@ func TestPlanSameFlowIsNotAChange(t *testing.T) {
 	assert.NotContains(t, strings.ToLower(plan.OperatorApp), "change")
 	assert.Contains(t, plan.OperatorApp, "IAM")
 }
+
+// Same IdC flow may hold new settings.
+func TestPlanSameIdcFlowSaysUpdate(t *testing.T) {
+	agent := reuseWithApp(idcApp())
+	opts := runPlanOptions()
+	opts.AuthFlow, opts.AuthFlowSet = "idc", true
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+	require.NoError(t, err)
+	assert.NotContains(t, plan.OperatorApp, "again")
+	assert.Contains(t, strings.ToLower(plan.OperatorApp), "update")
+}
