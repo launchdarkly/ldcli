@@ -30,6 +30,7 @@ type fakeAgent struct {
 	// goneSpaces makes GetAgentSpace report not found.
 	goneSpaces        map[string]bool
 	getSpaceErr       error
+	afterListSpaces   func()
 	calls             []string
 	services          []agenttypes.RegisteredService
 	associationInputs []*devopsagent.AssociateServiceInput
@@ -138,6 +139,9 @@ func (f *fakeAgent) ListAgentSpaces(_ context.Context, in *devopsagent.ListAgent
 		spaces = []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}}
 	}
 	items, next := page(spaces, in.NextToken, f.paginate)
+	if f.afterListSpaces != nil {
+		f.afterListSpaces()
+	}
 
 	return &devopsagent.ListAgentSpacesOutput{AgentSpaces: items, NextToken: next}, nil
 }

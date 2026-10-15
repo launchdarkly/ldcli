@@ -428,3 +428,20 @@ func TestRunPlanStopsWhenSpaceAppearsDuringRoles(t *testing.T) {
 	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
 	assert.NotContains(t, agent.calls, "CreateAgentSpace")
 }
+
+// A space listed after planning stops setup.
+func TestRunPlanStopsWhenSpaceAppearsDuringPlan(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "other")}}
+	agent.afterListSpaces = func() {
+		agent.agentSpaces = []agenttypes.AgentSpace{namedSpace("space-9", "launchdarkly")}
+		agent.afterListSpaces = nil
+	}
+	clients := newTestClients(agent, newFakeIAM())
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+}
