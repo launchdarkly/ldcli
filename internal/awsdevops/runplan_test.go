@@ -595,4 +595,31 @@ func TestPlanConnectChangesNothingElse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "No change", plan.Association)
 	assert.Equal(t, "No change", plan.OperatorApp)
+	assert.NotContains(t, agent.calls, "GetOperatorApp")
+}
+
+// An app with no sign-in is off.
+func TestPlanEnablesAppWithNoSignIn(t *testing.T) {
+	agent := reuseWithApp(&devopsagent.GetOperatorAppOutput{})
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), runPlanOptions(), true)
+
+	require.NoError(t, err)
+	assert.Contains(t, strings.ToLower(plan.OperatorApp), "enable")
+}
+
+// The same flow is not a change.
+func TestPlanSameFlowIsNotAChange(t *testing.T) {
+	agent := reuseWithApp(&devopsagent.GetOperatorAppOutput{
+		Iam:            &agenttypes.IamAuthConfiguration{},
+		OperatorAppUrl: aws.String("https://space-7.aidevops.global.app.aws"),
+	})
+	opts := runPlanOptions()
+	opts.AuthFlowSet = true
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+	require.NoError(t, err)
+	assert.NotContains(t, strings.ToLower(plan.OperatorApp), "change")
+	assert.Contains(t, plan.OperatorApp, "IAM")
 }

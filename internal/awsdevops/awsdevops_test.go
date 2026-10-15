@@ -108,6 +108,7 @@ func (f *fakeAgent) DisassociateService(_ context.Context, in *devopsagent.Disas
 }
 
 func (f *fakeAgent) GetOperatorApp(_ context.Context, in *devopsagent.GetOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error) {
+	f.calls = append(f.calls, "GetOperatorApp")
 	app, ok := f.operatorApps[aws.ToString(in.AgentSpaceId)]
 	if !ok {
 		return nil, &agenttypes.ResourceNotFoundException{}

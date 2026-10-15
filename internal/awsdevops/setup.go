@@ -59,7 +59,7 @@ type SetupOptions struct {
 	NewAgentSpace  bool
 
 	AuthFlow string
-	// AuthFlowSet means --auth-flow was passed.
+	// AuthFlowSet: the user passed --auth-flow.
 	AuthFlowSet     bool
 	IdcInstanceARN  string
 	IssuerURL       string
@@ -191,6 +191,8 @@ const (
 type AppStep struct {
 	Action AppAction
 	URL    string
+	// Flow is the sign-in at plan time.
+	Flow string
 }
 
 func (a AppStep) describe(flow string) string {
@@ -198,6 +200,10 @@ func (a AppStep) describe(flow string) string {
 	case AppKeep:
 		return "Keep the operator app and its sign-in"
 	case AppChange:
+		if a.Flow == flow {
+			return fmt.Sprintf("Set the operator app sign-in to %s again", flowLabel(flow))
+		}
+
 		return "Change the operator app sign-in to " + flowLabel(flow)
 	default:
 		return fmt.Sprintf("Enable the operator app with %s sign-in", flowLabel(flow))
@@ -215,38 +221,46 @@ func flowLabel(flow string) string {
 	}
 }
 
-// appState reads whether the operator app is on.
-func appState(ctx context.Context, clients Clients, spaceID string) (bool, string, error) {
+// appState reads the operator app. Off is empty.
+func appState(ctx context.Context, clients Clients, spaceID string) (AppStep, error) {
 	app, err := clients.Agent.GetOperatorApp(ctx, &devopsagent.GetOperatorAppInput{AgentSpaceId: aws.String(spaceID)})
 	var missing *agenttypes.ResourceNotFoundException
 	switch {
 	case errors.As(err, &missing):
-		return false, "", nil
+		return AppStep{}, nil
 	case err != nil:
-		return false, "", fmt.Errorf("unable to read the operator app of agent space %s: %w", spaceID, err)
+		return AppStep{}, fmt.Errorf("unable to read the operator app of agent space %s: %w", spaceID, err)
 	}
-	if app.Iam == nil && app.Idc == nil && app.Idp == nil {
-		return false, "", nil
+	state := AppStep{URL: aws.ToString(app.OperatorAppUrl)}
+	switch {
+	case app.Idc != nil:
+		state.Flow = "idc"
+	case app.Idp != nil:
+		state.Flow = "idp"
+	case app.Iam != nil:
+		state.Flow = "iam"
 	}
 
-	return true, aws.ToString(app.OperatorAppUrl), nil
+	return state, nil
 }
 
 func planApp(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep) (AppStep, error) {
 	if space.Action == SpaceCreate {
 		return AppStep{Action: AppEnable}, nil
 	}
-	on, url, err := appState(ctx, clients, space.ID)
+	state, err := appState(ctx, clients, space.ID)
 	switch {
 	case err != nil:
 		return AppStep{}, err
-	case !on:
+	case state.Flow == "":
 		return AppStep{Action: AppEnable}, nil
 	case opts.AuthFlowSet:
-		return AppStep{Action: AppChange, URL: url}, nil
+		state.Action = AppChange
 	default:
-		return AppStep{Action: AppKeep, URL: url}, nil
+		state.Action = AppKeep
 	}
+
+	return state, nil
 }
 
 // checkApp compares the app with its step.
@@ -254,7 +268,8 @@ func checkApp(ctx context.Context, clients Clients, plan SetupPlan) error {
 	if plan.Space.Action == SpaceCreate {
 		return nil
 	}
-	on, _, err := appState(ctx, clients, plan.Space.ID)
+	state, err := appState(ctx, clients, plan.Space.ID)
+	on := state.Flow != ""
 	switch {
 	case err != nil:
 		return err
