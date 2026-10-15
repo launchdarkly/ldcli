@@ -932,3 +932,36 @@ func TestRunPlanStopsWhenReplaceSpacesChange(t *testing.T) {
 	assert.NotContains(t, agent.calls, "DisassociateService")
 	assert.Empty(t, iamClient.createdRoles)
 }
+
+// List order does not change the set.
+func TestRunPlanReplaceIgnoresListOrder(t *testing.T) {
+	agent, iamClient := replaceAcrossSpaces(), newFakeIAM()
+	agent.afterListSpaces = func() {
+		agent.agentSpaces = []agenttypes.AgentSpace{agent.agentSpaces[2], agent.agentSpaces[1], agent.agentSpaces[0]}
+	}
+	clients := newTestClients(agent, iamClient)
+	opts := rejectingOptions(t, http.StatusOK)
+	opts.ReplaceMCPToken = true
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+}
+
+// A link added during writes stops replace.
+func TestRunPlanStopsWhenSpaceLinksDuringRoles(t *testing.T) {
+	agent, iamClient := replaceAcrossSpaces(), newFakeIAM()
+	iamClient.onCreateRole = func(string) { agent.spaceLinks["space-2"] = mcpLink("mcp-old") }
+	clients := newTestClients(agent, iamClient)
+	opts := rejectingOptions(t, http.StatusOK)
+	opts.ReplaceMCPToken = true
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "DisassociateService")
+}

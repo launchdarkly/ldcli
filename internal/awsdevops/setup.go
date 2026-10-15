@@ -299,7 +299,7 @@ const (
 type MCPStep struct {
 	Action    MCPAction
 	ServiceID string
-	// Spaces use the server a replace touches.
+	// Spaces lists spaces linked to the server.
 	Spaces []string
 }
 
@@ -940,7 +940,14 @@ func registerMCPServer(
 	}
 	var detached []string
 	if existing != "" {
-		var err error
+		// Narrow the window after other writes.
+		now, err := spacesWith(ctx, clients, existing)
+		if err != nil {
+			return err
+		}
+		if !slices.Equal(now, step.Spaces) {
+			return planChanged("the spaces using MCP server %s changed", existing)
+		}
 		detached, err = disassociateEverywhere(ctx, clients, existing, logf)
 		if err != nil {
 			return err
@@ -1007,10 +1014,6 @@ func registerMCPServer(
 	return nil
 }
 
-// disassociateEverywhere removes a service from every agent space that uses
-// it, which AWS requires before the service can be deregistered. It returns
-// the agent spaces it was removed from, so the re-registered service can be
-// reconnected to them.
 // spacesWith lists spaces associated with serviceID.
 func spacesWith(ctx context.Context, clients Clients, serviceID string) ([]string, error) {
 	spaces, err := listAgentSpaces(ctx, clients)
@@ -1033,6 +1036,10 @@ func spacesWith(ctx context.Context, clients Clients, serviceID string) ([]strin
 	return ids, nil
 }
 
+// disassociateEverywhere removes a service from every agent space that uses
+// it, which AWS requires before the service can be deregistered. It returns
+// the agent spaces it was removed from, so the re-registered service can be
+// reconnected to them.
 func disassociateEverywhere(
 	ctx context.Context,
 	clients Clients,
