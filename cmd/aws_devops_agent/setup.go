@@ -56,7 +56,7 @@ expires.`,
 
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
-	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. A sign-in flag runs full setup on it")
+	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. --auth-flow runs full setup on it")
 	cmd.Flags().String(agentSpaceNameFlag, "launchdarkly", "Name of the agent space to create")
 	cmd.Flags().Bool(newAgentSpaceFlag, false, "Provision a new agent space instead of asking which existing one to use")
 	cmd.MarkFlagsMutuallyExclusive(agentSpaceIDFlag, newAgentSpaceFlag)
@@ -260,15 +260,9 @@ func profileLabel(cmd *cobra.Command) string {
 	return "default credentials"
 }
 
-// authFlagSet reports a passed sign-in flag.
+// authFlagSet reports a passed --auth-flow.
 func authFlagSet(cmd *cobra.Command) bool {
-	for _, name := range []string{authFlowFlag, idcInstanceARNFlag, issuerURLFlag, idpClientIDFlag, idpClientSecretFlag} {
-		if cmd.Flags().Changed(name) {
-			return true
-		}
-	}
-
-	return false
+	return cmd.Flags().Changed(authFlowFlag)
 }
 
 // selectAgentSpace asks which agent space to connect LaunchDarkly to, and
@@ -366,6 +360,15 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		ReplaceMCPToken: mustBool(cmd, replaceMCPTokenFlag),
 		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
+	}
+
+	idcSet := opts.IdcInstanceARN != ""
+	idpSet := opts.IssuerURL != "" || opts.IdpClientID != "" || opts.IdpClientSecret != ""
+	if idcSet && opts.AuthFlow != "idc" {
+		return opts, fmt.Errorf("--%s needs --%s=idc", idcInstanceARNFlag, authFlowFlag)
+	}
+	if idpSet && opts.AuthFlow != "idp" {
+		return opts, fmt.Errorf("--%s, --%s and --%s need --%s=idp", issuerURLFlag, idpClientIDFlag, idpClientSecretFlag, authFlowFlag)
 	}
 
 	switch opts.AuthFlow {
