@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -79,18 +81,56 @@ func TestTokenPromptAsksWhenInteractive(t *testing.T) {
 	assert.Contains(t, w.calls, "RegisterService")
 }
 
-// A terminal alone does not allow a prompt.
-func TestTokenPromptSilentWhenNotInteractive(t *testing.T) {
-	old := canPrompt
-	canPrompt = func() bool { return true }
-	t.Cleanup(func() { canPrompt = old })
+// No token, no prompt: stop first.
+func TestSetupNeedsATokenItCannotAsk(t *testing.T) {
+	cases := map[string]struct {
+		plaintext, interactive, yes bool
+	}{
+		"no terminal":     {plaintext: true},
+		"json":            {},
+		"yes in terminal": {plaintext: true, interactive: true, yes: true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			old := canPrompt
+			canPrompt = func() bool { return true }
+			t.Cleanup(func() { canPrompt = old })
+			cmd, out := setupTestCmd(t, "")
+			cmd.SetIn(noReadStdin{t})
+			if c.yes {
+				require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+			}
+			clients, w := countingClients()
+
+			err := setupWith(cmd, clients, noTokenOptions(), c.plaintext, c.interactive)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "--access-token")
+			assert.Empty(t, w.calls)
+			assert.NotContains(t, out.String(), "Setup plan")
+		})
+	}
+}
+
+// A registered server needs no token.
+func TestSetupWithoutTokenReusesServer(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "")
 	cmd.SetIn(noReadStdin{t})
 	clients, w := countingClients()
+	agent := clients.Agent.(countingAgent)
+	agent.services = []agenttypes.RegisteredService{{
+		ServiceId:   aws.String("mcp-1"),
+		ServiceType: agenttypes.ServiceMcpServer,
+		AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
+			Value: agenttypes.RegisteredMCPServerDetails{Endpoint: aws.String(awsdevops.MCPServerEndpoint)},
+		},
+	}}
+	clients.Agent = agent
 
 	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, false))
 
 	assert.NotContains(t, w.calls, "RegisterService")
+	assert.Contains(t, w.calls, "AssociateService")
 }
 
 func TestSetupPlanNamesAccountAssociation(t *testing.T) {

@@ -126,8 +126,11 @@ func setupWith(
 	if err != nil {
 		return err
 	}
+	ask := interactive && !mustBool(cmd, yesFlag)
+	if plan.MCP.Action == awsdevops.MCPAsk && !ask {
+		return errors.New("pass --access-token with a LaunchDarkly service token")
+	}
 	if plaintext {
-		ask := interactive && !mustBool(cmd, yesFlag)
 		if err := confirmSetup(cmd, plan, ask); err != nil {
 			return err
 		}
@@ -149,7 +152,7 @@ func setupWith(
 
 	var mcpErr error
 	if result.MCPServiceID == "" {
-		mcpErr = connectMCPServer(cmd, clients, opts, plan.MCP, &result, interactive)
+		mcpErr = connectMCPServer(cmd, clients, opts, plan.MCP, &result, ask)
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)

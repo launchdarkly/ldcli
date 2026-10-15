@@ -17,7 +17,8 @@ import (
 )
 
 type stubAgent struct {
-	spaces []agenttypes.AgentSpace
+	spaces   []agenttypes.AgentSpace
+	services []agenttypes.RegisteredService
 }
 
 func (s stubAgent) AssociateService(context.Context, *devopsagent.AssociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.AssociateServiceOutput, error) {
@@ -57,7 +58,7 @@ func (s stubAgent) ListAssociations(context.Context, *devopsagent.ListAssociatio
 }
 
 func (s stubAgent) ListServices(context.Context, *devopsagent.ListServicesInput, ...func(*devopsagent.Options)) (*devopsagent.ListServicesOutput, error) {
-	return &devopsagent.ListServicesOutput{}, nil
+	return &devopsagent.ListServicesOutput{Services: s.services}, nil
 }
 
 func (s stubAgent) RegisterService(context.Context, *devopsagent.RegisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.RegisterServiceOutput, error) {
