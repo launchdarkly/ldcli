@@ -333,7 +333,7 @@ func TestRunPlanReuseLineUsesAWSName(t *testing.T) {
 	assert.Contains(t, strings.Join(*logged, "\n"), "LaunchDarkly (space-7)")
 }
 
-// A same-name space the plan saw is fine.
+// A same-name space seen at plan is fine.
 func TestRunPlanNewSpaceBesideSameName(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
 	clients := newTestClients(agent, newFakeIAM())
@@ -372,7 +372,7 @@ func TestRunPlanStopsWhenSpaceAppearsInOtherCase(t *testing.T) {
 	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
 }
 
-// A read error is not a plan change.
+// Read errors are not plan changes.
 func TestRunPlanWrapsSpaceReadError(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
 
@@ -410,5 +410,21 @@ func TestRunPlanRejectsConnectStep(t *testing.T) {
 	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
 
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "connect plan")
 	assert.Empty(t, iamClient.createdRoles)
+}
+
+// The create re-checks after role writes.
+func TestRunPlanStopsWhenSpaceAppearsDuringRoles(t *testing.T) {
+	agent, iamClient := &fakeAgent{}, newFakeIAM()
+	iamClient.onCreateRole = func(name string) {
+		if name == awsdevops.OperatorAppRoleName {
+			agent.agentSpaces = []agenttypes.AgentSpace{namedSpace("space-9", "launchdarkly")}
+		}
+	}
+
+	err := planThenRun(t, agent, iamClient, func() {})
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
 }

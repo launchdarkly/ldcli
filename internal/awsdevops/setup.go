@@ -146,7 +146,7 @@ type SpaceStep struct {
 	Action SpaceAction
 	ID     string
 	Name   string
-	// Seen holds same-name space IDs at plan time.
+	// Seen lists same-name spaces at plan.
 	Seen []string
 }
 
@@ -281,19 +281,17 @@ func planRole(ctx context.Context, client IAMAPI, name string) (RoleStep, error)
 
 func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (SpaceStep, error) {
 	id := opts.AgentSpaceID
-	if id == "" && !opts.NewAgentSpace {
-		found, err := FindAgentSpace(ctx, clients, opts.AgentSpaceName)
-		if err != nil {
+	var seen []string
+	if id == "" {
+		var err error
+		if seen, err = spacesNamed(ctx, clients, opts.AgentSpaceName); err != nil {
 			return SpaceStep{}, err
 		}
-		id = found
+		if !opts.NewAgentSpace && len(seen) > 0 {
+			id = seen[0]
+		}
 	}
 	if id == "" {
-		seen, err := spacesNamed(ctx, clients, opts.AgentSpaceName)
-		if err != nil {
-			return SpaceStep{}, err
-		}
-
 		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, Seen: seen}, nil
 	}
 

@@ -173,6 +173,7 @@ type fakeIAM struct {
 	appearOnCreate map[string][]iamtypes.Tag
 	// failOn fails a call, keyed "Call role".
 	failOn         map[string]error
+	onCreateRole   func(name string)
 	existingRoles  map[string]bool
 	roleTags       map[string][]iamtypes.Tag
 	createdRoles   []string
@@ -211,6 +212,9 @@ func (f *fakeIAM) AttachRolePolicy(_ context.Context, in *iam.AttachRolePolicyIn
 
 func (f *fakeIAM) CreateRole(_ context.Context, in *iam.CreateRoleInput, _ ...func(*iam.Options)) (*iam.CreateRoleOutput, error) {
 	name := aws.ToString(in.RoleName)
+	if f.onCreateRole != nil {
+		f.onCreateRole(name)
+	}
 	if tags, ok := f.appearOnCreate[name]; ok {
 		f.existingRoles[name] = true
 		f.roleTags[name] = tags
