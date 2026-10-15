@@ -93,7 +93,17 @@ type SetupResult struct {
 }
 
 // ErrPlanChanged means AWS changed after the plan.
-var ErrPlanChanged = errors.New("AWS changed since the plan. Run setup again")
+var ErrPlanChanged = errors.New("AWS changed after the plan")
+
+type planChangedErr struct{ msg string }
+
+func (e planChangedErr) Error() string { return e.msg + ". Run setup again" }
+
+func (e planChangedErr) Is(target error) bool { return target == ErrPlanChanged }
+
+func planChanged(format string, args ...any) error {
+	return planChangedErr{msg: fmt.Sprintf(format, args...)}
+}
 
 // RoleAction is what setup does to a role.
 type RoleAction int
@@ -117,7 +127,7 @@ func (s RoleStep) describe() string {
 	case RoleUpdate:
 		return fmt.Sprintf("Update the trust policy of role %s", s.Name)
 	default:
-		return fmt.Sprintf("Leave role %s unchanged, it has no %s tag", s.Name, ManagedTagKey)
+		return fmt.Sprintf("Leave role %s unchanged because it has no %s tag", s.Name, ManagedTagKey)
 	}
 }
 
@@ -130,6 +140,32 @@ type SetupPlan struct {
 	Roles       []string
 	RoleSteps   []RoleStep
 	OperatorApp string
+}
+
+// checkRole compares a role with its step.
+func checkRole(ctx context.Context, client IAMAPI, plan SetupPlan, name string) (RoleAction, error) {
+	action, err := plan.roleAction(name)
+	if err != nil {
+		return action, err
+	}
+	now, err := planRole(ctx, client, name)
+	if err != nil {
+		return action, err
+	}
+
+	switch {
+	case now.Action == action:
+		return action, nil
+	case action == RoleCreate && now.Action == RoleUpdate:
+		// Another ldcli run created it.
+		return RoleUpdate, nil
+	case now.Action == RoleCreate:
+		return action, planChanged("role %s disappeared after the plan", name)
+	case action == RoleCreate:
+		return action, planChanged("role %s appeared after the plan", name)
+	default:
+		return action, planChanged("the %s tag on role %s changed", ManagedTagKey, name)
+	}
 }
 
 // roleAction is the planned action for name.
@@ -273,11 +309,11 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 
 	result := SetupResult{AccountID: accountID, Region: clients.Region}
 
-	spaceRole, err := plan.roleAction(AgentSpaceRoleName)
+	spaceRole, err := checkRole(ctx, clients.IAM, plan, AgentSpaceRoleName)
 	if err != nil {
 		return result, err
 	}
-	appRole, err := plan.roleAction(OperatorAppRoleName)
+	appRole, err := checkRole(ctx, clients.IAM, plan, OperatorAppRoleName)
 	if err != nil {
 		return result, err
 	}
@@ -803,19 +839,20 @@ func ensureRole(
 		})
 		switch {
 		case isAlreadyExists(err):
-			return "", false, fmt.Errorf("role %s now exists. %w", name, ErrPlanChanged)
+			// A tagged role is already done.
+			action = RoleUpdate
 		case err != nil:
 			return "", false, fmt.Errorf("unable to create the %s role: %w", name, err)
+		default:
+			return aws.ToString(created.Role.Arn), true, attachPolicy(ctx, client, name, policyARN)
 		}
-
-		return aws.ToString(created.Role.Arn), true, attachPolicy(ctx, client, name, policyARN)
 	}
 
 	existing, err := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
 	var missing *iamtypes.NoSuchEntityException
 	switch {
 	case errors.As(err, &missing):
-		return "", false, fmt.Errorf("role %s is gone. %w", name, ErrPlanChanged)
+		return "", false, planChanged("role %s disappeared after the plan", name)
 	case err != nil:
 		return "", false, fmt.Errorf("unable to read the existing %s role: %w", name, err)
 	}
@@ -826,7 +863,7 @@ func ensureRole(
 		return "", false, err
 	}
 	if managed != (action == RoleUpdate) {
-		return "", false, fmt.Errorf("the %s tag on role %s changed. %w", ManagedTagKey, name, ErrPlanChanged)
+		return "", false, planChanged("the %s tag on role %s changed", ManagedTagKey, name)
 	}
 	if !managed {
 		logf("Role %s has no %s tag, so ldcli did not change it", name, ManagedTagKey)

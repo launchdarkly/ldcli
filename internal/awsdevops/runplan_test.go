@@ -84,3 +84,57 @@ func TestRunPlanRunsWhenNothingChanged(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, agent.calls, "CreateAgentSpace")
 }
+
+// A tagged role that appeared is already done.
+func TestRunPlanContinuesWhenManagedRoleAppears(t *testing.T) {
+	agent, iamClient := &fakeAgent{}, newFakeIAM()
+
+	err := planThenRun(t, agent, iamClient, func() {
+		iamClient.addManagedRole(awsdevops.AgentSpaceRoleName)
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, agent.calls, "CreateAgentSpace")
+}
+
+// No role write before every role checks out.
+func TestRunPlanChecksAllRolesFirst(t *testing.T) {
+	agent, iamClient := &fakeAgent{}, newFakeIAM()
+
+	err := planThenRun(t, agent, iamClient, func() {
+		iamClient.existingRoles[awsdevops.OperatorAppRoleName] = true
+	})
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Empty(t, iamClient.createdRoles)
+	assert.Empty(t, iamClient.attachedPolicy)
+	assert.Empty(t, iamClient.inlinePolicies)
+}
+
+func TestRunPlanStopsWhenUpdatedRoleLosesTag(t *testing.T) {
+	agent, iamClient := &fakeAgent{}, newFakeIAM()
+	for _, role := range planRoles {
+		iamClient.addManagedRole(role)
+	}
+
+	err := planThenRun(t, agent, iamClient, func() {
+		iamClient.roleTags[awsdevops.OperatorAppRoleName] = nil
+	})
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Empty(t, iamClient.trustPolicies)
+	assert.Empty(t, iamClient.attachedPolicy)
+}
+
+func TestRunPlanStopsWhenLeftRoleIsGone(t *testing.T) {
+	agent, iamClient := &fakeAgent{}, newFakeIAM()
+	for _, role := range planRoles {
+		iamClient.existingRoles[role] = true
+	}
+
+	err := planThenRun(t, agent, iamClient, func() {
+		delete(iamClient.existingRoles, awsdevops.OperatorAppRoleName)
+	})
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+}

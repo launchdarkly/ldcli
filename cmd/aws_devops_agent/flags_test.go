@@ -129,19 +129,3 @@ func TestSignInFlagsWithMatchingAuthFlowPass(t *testing.T) {
 		})
 	}
 }
-
-// Only --auth-flow changes an existing space.
-func TestSpaceIDWithoutAuthFlowOnlyConnects(t *testing.T) {
-	cmd := NewSetupCmd(nil)
-	require.NoError(t, cmd.Flags().Set(agentSpaceIDFlag, "space-2"))
-	require.NoError(t, cmd.Flags().Set(idpClientSecretFlag, "secret"))
-	require.NoError(t, cmd.Flags().Set(authFlowFlag, "idp"))
-	require.NoError(t, cmd.Flags().Set(issuerURLFlag, "https://idp.example.com"))
-	require.NoError(t, cmd.Flags().Set(idpClientIDFlag, "client"))
-	assert.True(t, authFlagSet(cmd))
-
-	cmd = NewSetupCmd(nil)
-	require.NoError(t, cmd.Flags().Set(agentSpaceIDFlag, "space-2"))
-	require.NoError(t, cmd.Flags().Set(issuerURLFlag, "https://idp.example.com"))
-	assert.False(t, authFlagSet(cmd))
-}

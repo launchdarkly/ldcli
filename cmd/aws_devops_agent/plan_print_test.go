@@ -78,12 +78,16 @@ func TestTokenPromptAsksWhenInteractive(t *testing.T) {
 	assert.Contains(t, w.calls, "RegisterService")
 }
 
+// A terminal alone does not allow a prompt.
 func TestTokenPromptSilentWhenNotInteractive(t *testing.T) {
+	old := canPrompt
+	canPrompt = func() bool { return true }
+	t.Cleanup(func() { canPrompt = old })
 	cmd, _ := setupTestCmd(t, "")
 	cmd.SetIn(noReadStdin{t})
 	clients, w := countingClients()
 
-	_ = setupWith(cmd, clients, noTokenOptions(), true, false)
+	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, false))
 
 	assert.NotContains(t, w.calls, "RegisterService")
 }
