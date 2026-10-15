@@ -58,7 +58,9 @@ type SetupOptions struct {
 	AgentSpaceName string
 	NewAgentSpace  bool
 
-	AuthFlow        string
+	AuthFlow string
+	// AuthFlowSet means --auth-flow was passed.
+	AuthFlowSet     bool
 	IdcInstanceARN  string
 	IssuerURL       string
 	IdpClientID     string
@@ -166,7 +168,6 @@ func (s SpaceStep) describe() string {
 type LinkStep struct {
 	// Exists means the association was there.
 	Exists bool
-	ID     string
 }
 
 func (l LinkStep) describe(accountID string) string {
@@ -177,8 +178,98 @@ func (l LinkStep) describe(accountID string) string {
 	return fmt.Sprintf("Associate AWS account %s with the agent space", accountID)
 }
 
+// AppAction is the planned operator app action.
+type AppAction int
+
+const (
+	AppEnable AppAction = iota
+	AppKeep
+	AppChange
+)
+
+// AppStep is the planned operator app step.
+type AppStep struct {
+	Action AppAction
+	URL    string
+}
+
+func (a AppStep) describe(flow string) string {
+	switch a.Action {
+	case AppKeep:
+		return "Keep the operator app and its sign-in"
+	case AppChange:
+		return "Change the operator app sign-in to " + flowLabel(flow)
+	default:
+		return fmt.Sprintf("Enable the operator app with %s sign-in", flowLabel(flow))
+	}
+}
+
+func flowLabel(flow string) string {
+	switch flow {
+	case "idc":
+		return "IdC"
+	case "idp":
+		return "IdP"
+	default:
+		return "IAM"
+	}
+}
+
+// appState reads whether the operator app is on.
+func appState(ctx context.Context, clients Clients, spaceID string) (bool, string, error) {
+	app, err := clients.Agent.GetOperatorApp(ctx, &devopsagent.GetOperatorAppInput{AgentSpaceId: aws.String(spaceID)})
+	var missing *agenttypes.ResourceNotFoundException
+	switch {
+	case errors.As(err, &missing):
+		return false, "", nil
+	case err != nil:
+		return false, "", fmt.Errorf("unable to read the operator app of agent space %s: %w", spaceID, err)
+	}
+	if app.Iam == nil && app.Idc == nil && app.Idp == nil {
+		return false, "", nil
+	}
+
+	return true, aws.ToString(app.OperatorAppUrl), nil
+}
+
+func planApp(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep) (AppStep, error) {
+	if space.Action == SpaceCreate {
+		return AppStep{Action: AppEnable}, nil
+	}
+	on, url, err := appState(ctx, clients, space.ID)
+	switch {
+	case err != nil:
+		return AppStep{}, err
+	case !on:
+		return AppStep{Action: AppEnable}, nil
+	case opts.AuthFlowSet:
+		return AppStep{Action: AppChange, URL: url}, nil
+	default:
+		return AppStep{Action: AppKeep, URL: url}, nil
+	}
+}
+
+// checkApp compares the app with its step.
+func checkApp(ctx context.Context, clients Clients, plan SetupPlan) error {
+	if plan.Space.Action == SpaceCreate {
+		return nil
+	}
+	on, _, err := appState(ctx, clients, plan.Space.ID)
+	switch {
+	case err != nil:
+		return err
+	case on && plan.App.Action == AppEnable:
+		return planChanged("the operator app was enabled after the plan")
+	case !on && plan.App.Action != AppEnable:
+		return planChanged("the operator app was disabled after the plan")
+	}
+
+	return nil
+}
+
 // SetupPlan describes what setup will change.
 type SetupPlan struct {
+	App         AppStep
 	AccountID   string
 	Region      string
 	AgentSpace  string
@@ -263,11 +354,11 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 		return plan, nil
 	}
 	if plan.Space.Action != SpaceCreate {
-		plan.Link.ID, err = FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
+		id, err := FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
 		if err != nil {
 			return plan, err
 		}
-		plan.Link.Exists = plan.Link.ID != ""
+		plan.Link.Exists = id != ""
 	}
 	plan.Association = plan.Link.describe(accountID)
 	for _, name := range []string{AgentSpaceRoleName, OperatorAppRoleName} {
@@ -278,7 +369,11 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 		plan.RoleSteps = append(plan.RoleSteps, step)
 		plan.Roles = append(plan.Roles, step.describe())
 	}
-	plan.OperatorApp = "Enable the operator app"
+	plan.App, err = planApp(ctx, clients, opts, plan.Space)
+	if err != nil {
+		return plan, err
+	}
+	plan.OperatorApp = plan.App.describe(opts.AuthFlow)
 
 	return plan, nil
 }
@@ -422,6 +517,9 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 			return result, planChanged("the AWS account association disappeared after the plan")
 		}
 	}
+	if err := checkApp(ctx, clients, plan); err != nil {
+		return result, err
+	}
 	spaceRole, err := checkRole(ctx, clients.IAM, plan, AgentSpaceRoleName)
 	if err != nil {
 		return result, err
@@ -482,12 +580,17 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		logf("Associated AWS account %s with the agent space", accountID)
 	}
 
-	operatorApp, err := clients.Agent.EnableOperatorApp(ctx, operatorAppInput(result.AgentSpaceID, result.OperatorAppRoleARN, opts))
-	if err != nil {
-		return result, fmt.Errorf("unable to enable the operator app: %w", err)
+	if plan.App.Action == AppKeep {
+		result.OperatorAppURL = plan.App.URL
+		logf("Kept the operator app and its sign-in")
+	} else {
+		operatorApp, err := clients.Agent.EnableOperatorApp(ctx, operatorAppInput(result.AgentSpaceID, result.OperatorAppRoleARN, opts))
+		if err != nil {
+			return result, fmt.Errorf("unable to enable the operator app: %w", err)
+		}
+		result.OperatorAppURL = aws.ToString(operatorApp.OperatorAppUrl)
+		logf("Enabled the operator app")
 	}
-	result.OperatorAppURL = aws.ToString(operatorApp.OperatorAppUrl)
-	logf("Enabled the operator app")
 
 	if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
 		return result, err

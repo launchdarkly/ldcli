@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/assert"
@@ -498,4 +499,100 @@ func TestRunPlanReportsAssociationAlreadyThere(t *testing.T) {
 		assert.NotEqual(t, "aws", aws.ToString(in.ServiceId))
 	}
 	assert.Contains(t, strings.Join(*logged, "\n"), "already associated")
+}
+
+func reuseWithApp(app *devopsagent.GetOperatorAppOutput) *fakeAgent {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	if app != nil {
+		agent.operatorApps = map[string]*devopsagent.GetOperatorAppOutput{"space-7": app}
+	}
+
+	return agent
+}
+
+func idcApp() *devopsagent.GetOperatorAppOutput {
+	return &devopsagent.GetOperatorAppOutput{
+		Idc:            &agenttypes.IdcAuthConfiguration{},
+		OperatorAppUrl: aws.String("https://space-7.aidevops.global.app.aws"),
+	}
+}
+
+// Without --auth-flow, the sign-in stays.
+func TestRunPlanKeepsAppSignIn(t *testing.T) {
+	agent := reuseWithApp(idcApp())
+	clients := newTestClients(agent, newFakeIAM())
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.NoError(t, err)
+	assert.Contains(t, strings.ToLower(plan.OperatorApp), "keep")
+	assert.NotContains(t, agent.calls, "EnableOperatorApp")
+	assert.Equal(t, "https://space-7.aidevops.global.app.aws", result.OperatorAppURL)
+}
+
+func TestRunPlanChangesSignInWithAuthFlow(t *testing.T) {
+	agent := reuseWithApp(idcApp())
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.AuthFlowSet = true
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+	assert.Contains(t, strings.ToLower(plan.OperatorApp), "change")
+	assert.Contains(t, agent.calls, "EnableOperatorApp")
+}
+
+// Unverified: a disabled app reads as not found.
+func TestRunPlanEnablesAppWhenOff(t *testing.T) {
+	for name, agent := range map[string]*fakeAgent{"reused space": reuseWithApp(nil), "new space": {}} {
+		t.Run(name, func(t *testing.T) {
+			clients := newTestClients(agent, newFakeIAM())
+			plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+			require.NoError(t, err)
+
+			_, err = awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+			require.NoError(t, err)
+			assert.Contains(t, strings.ToLower(plan.OperatorApp), "enable")
+			assert.Contains(t, agent.calls, "EnableOperatorApp")
+		})
+	}
+}
+
+func TestRunPlanStopsWhenKeptAppTurnsOff(t *testing.T) {
+	agent, iamClient := reuseWithApp(idcApp()), newFakeIAM()
+
+	err := planThenRun(t, agent, iamClient, func() { agent.operatorApps = nil })
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Empty(t, iamClient.createdRoles)
+}
+
+func TestRunPlanStopsWhenAppTurnsOn(t *testing.T) {
+	agent, iamClient := reuseWithApp(nil), newFakeIAM()
+
+	err := planThenRun(t, agent, iamClient, func() {
+		agent.operatorApps = map[string]*devopsagent.GetOperatorAppOutput{"space-7": idcApp()}
+	})
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Empty(t, iamClient.createdRoles)
+	assert.NotContains(t, agent.calls, "EnableOperatorApp")
+}
+
+func TestPlanConnectChangesNothingElse(t *testing.T) {
+	agent := reuseWithApp(idcApp())
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, "No change", plan.Association)
+	assert.Equal(t, "No change", plan.OperatorApp)
 }

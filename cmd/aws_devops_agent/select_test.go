@@ -36,6 +36,10 @@ func (s stubAgent) DisassociateService(context.Context, *devopsagent.Disassociat
 	return nil, nil
 }
 
+func (s stubAgent) GetOperatorApp(context.Context, *devopsagent.GetOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error) {
+	return nil, &agenttypes.ResourceNotFoundException{}
+}
+
 func (s stubAgent) EnableOperatorApp(context.Context, *devopsagent.EnableOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error) {
 	return nil, nil
 }

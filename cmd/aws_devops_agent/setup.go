@@ -349,6 +349,7 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		AgentSpaceID:    mustString(cmd, agentSpaceIDFlag),
 		AgentSpaceName:  mustString(cmd, agentSpaceNameFlag),
 		AuthFlow:        strings.ToLower(mustString(cmd, authFlowFlag)),
+		AuthFlowSet:     cmd.Flags().Changed(authFlowFlag),
 		IdcInstanceARN:  mustString(cmd, idcInstanceARNFlag),
 		IssuerURL:       mustString(cmd, issuerURLFlag),
 		IdpClientID:     mustString(cmd, idpClientIDFlag),

@@ -28,9 +28,11 @@ const testAccountID = "123456789012"
 
 type fakeAgent struct {
 	// goneSpaces makes GetAgentSpace report not found.
-	goneSpaces        map[string]bool
-	getSpaceErr       error
-	afterListSpaces   func()
+	goneSpaces      map[string]bool
+	getSpaceErr     error
+	afterListSpaces func()
+	// operatorApps holds enabled apps by space.
+	operatorApps      map[string]*devopsagent.GetOperatorAppOutput
 	calls             []string
 	services          []agenttypes.RegisteredService
 	associationInputs []*devopsagent.AssociateServiceInput
@@ -103,6 +105,15 @@ func (f *fakeAgent) DisassociateService(_ context.Context, in *devopsagent.Disas
 	f.disassociatedIDs = append(f.disassociatedIDs, aws.ToString(in.AssociationId))
 
 	return &devopsagent.DisassociateServiceOutput{}, nil
+}
+
+func (f *fakeAgent) GetOperatorApp(_ context.Context, in *devopsagent.GetOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error) {
+	app, ok := f.operatorApps[aws.ToString(in.AgentSpaceId)]
+	if !ok {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+
+	return app, nil
 }
 
 func (f *fakeAgent) EnableOperatorApp(_ context.Context, _ *devopsagent.EnableOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error) {
