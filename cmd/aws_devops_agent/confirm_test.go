@@ -139,13 +139,14 @@ func (r noReadStdin) Read([]byte) (int, error) {
 	return 0, nil
 }
 
+// setupTestCmd returns stdout. Stderr is separate.
 func setupTestCmd(t *testing.T, stdin string) (*cobra.Command, *bytes.Buffer) {
 	t.Helper()
 	t.Setenv("AWS_PROFILE", "")
 	cmd := NewSetupCmd(nil)
 	out := &bytes.Buffer{}
 	cmd.SetOut(out)
-	cmd.SetErr(out)
+	cmd.SetErr(&bytes.Buffer{})
 	cmd.SetIn(strings.NewReader(stdin))
 	cmd.SetContext(context.Background())
 
@@ -280,4 +281,20 @@ func TestSetupConfirmsAfterTheSpaceChoice(t *testing.T) {
 	assert.Contains(t, strings.ToLower(err.Error()), "cancel")
 	assert.Empty(t, w.calls)
 	assert.Contains(t, out.String(), "platform (space-2)")
+}
+
+func stderrOf(cmd *cobra.Command) string {
+	return cmd.ErrOrStderr().(*bytes.Buffer).String()
+}
+
+// Progress belongs on stderr only.
+func TestSetupProgressGoesToStderr(t *testing.T) {
+	cmd, out := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, _ := countingClients()
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, false))
+
+	assert.Contains(t, stderrOf(cmd), "Created agent space")
+	assert.NotContains(t, out.String(), "Created agent space")
 }

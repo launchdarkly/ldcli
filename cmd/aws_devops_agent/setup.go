@@ -98,12 +98,6 @@ func runSetup(cmd *cobra.Command, args []string) error {
 				"Pass --access-token with a service token if that one expires",
 		)
 	}
-	if plaintext {
-		opts.Logf = func(format string, args ...any) {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
-		}
-	}
-
 	return setupWith(cmd, clients, opts, plaintext, plaintext && canPrompt())
 }
 
@@ -114,6 +108,12 @@ func setupWith(
 	opts awsdevops.SetupOptions,
 	plaintext, interactive bool,
 ) error {
+	if plaintext {
+		opts.Logf = func(format string, args ...any) {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
+		}
+	}
+
 	// One reader, so no prompt loses input.
 	if _, isFile := cmd.InOrStdin().(*os.File); !isFile {
 		cmd.SetIn(bufio.NewReader(cmd.InOrStdin()))
