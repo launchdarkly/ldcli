@@ -547,8 +547,7 @@ func (m MCPStep) describe(endpoint string) string {
 	}
 }
 
-// checkSentToken checks a token setup will send.
-// AWS stores tokens write-only, so check first.
+// AWS stores tokens write-only. Check them first.
 func checkSentToken(ctx context.Context, opts SetupOptions, step MCPStep) error {
 	if step.Action != MCPRegister && step.Action != MCPReplace {
 		return nil

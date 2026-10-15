@@ -810,7 +810,7 @@ func rejectingOptions(t *testing.T, status int) awsdevops.SetupOptions {
 	return opts
 }
 
-// A token setup sends is checked first.
+// Setup checks a sent token first.
 func TestRunPlanChecksTokenBeforeWrites(t *testing.T) {
 	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
