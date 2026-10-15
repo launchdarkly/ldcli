@@ -188,9 +188,9 @@ func twoSimilarSpaces() (awsdevops.Clients, *writes) {
 	)
 }
 
-// A chosen space with --auth-flow gets full setup.
+// --auth-flow runs full setup on choice.
 func TestSetupChosenSpaceWithAuthFlow(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "2\ny\n")
+	cmd, out := setupTestCmd(t, "2\ny\n")
 	require.NoError(t, cmd.Flags().Set(authFlowFlag, "iam"))
 	clients, w := twoSimilarSpaces()
 	opts, err := setupOptions(cmd)
@@ -199,6 +199,7 @@ func TestSetupChosenSpaceWithAuthFlow(t *testing.T) {
 
 	require.NoError(t, setupWith(cmd, clients, opts, true, true))
 
+	assert.Contains(t, out.String(), "Reuse agent space LaunchDarkly (space-2)")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
 	assert.Contains(t, stderrOf(cmd), "(space-2)")
