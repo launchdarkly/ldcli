@@ -157,6 +157,7 @@ func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterS
 type fakeIAM struct {
 	// appearOnCreate makes a role appear on CreateRole.
 	appearOnCreate map[string][]iamtypes.Tag
+	attachErr      error
 	existingRoles  map[string]bool
 	roleTags       map[string][]iamtypes.Tag
 	createdRoles   []string
@@ -185,6 +186,9 @@ func (f *fakeIAM) addManagedRole(name string) {
 }
 
 func (f *fakeIAM) AttachRolePolicy(_ context.Context, in *iam.AttachRolePolicyInput, _ ...func(*iam.Options)) (*iam.AttachRolePolicyOutput, error) {
+	if f.attachErr != nil {
+		return nil, f.attachErr
+	}
 	f.attachedPolicy[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyArn)
 
 	return &iam.AttachRolePolicyOutput{}, nil

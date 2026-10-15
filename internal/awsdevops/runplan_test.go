@@ -2,6 +2,7 @@ package awsdevops_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -176,31 +177,74 @@ func TestRunPlanStopsWhenUntaggedRoleRacesCreate(t *testing.T) {
 	assert.NotContains(t, agent.calls, "CreateAgentSpace")
 }
 
-// A create that became an update is reported.
+// existsLines runs a plan and counts report lines.
+func existsLines(t *testing.T, setup, change func(*fakeIAM)) (int, error) {
+	t.Helper()
+	agent, iamClient := &fakeAgent{}, newFakeIAM()
+	setup(iamClient)
+	clients := newTestClients(agent, iamClient)
+	opts := runPlanOptions()
+	logged := collectLogs(&opts)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	change(iamClient)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	count := 0
+	for _, line := range *logged {
+		if strings.Contains(line, "already exists") {
+			count++
+		}
+	}
+
+	return count, err
+}
+
+func none(*fakeIAM) {}
+
+// A create that became an update is reported once.
 func TestRunPlanReportsRoleAlreadyThere(t *testing.T) {
-	for name, appear := range map[string]func(*fakeIAM){
-		"before the check": func(f *fakeIAM) { f.addManagedRole(awsdevops.AgentSpaceRoleName) },
-		"during create": func(f *fakeIAM) {
-			f.appearOnCreate = map[string][]iamtypes.Tag{awsdevops.AgentSpaceRoleName: managedTags}
-		},
-	} {
+	for _, role := range planRoles {
+		for name, appear := range map[string]func(*fakeIAM){
+			"before the check": func(f *fakeIAM) { f.addManagedRole(role) },
+			"during create": func(f *fakeIAM) {
+				f.appearOnCreate = map[string][]iamtypes.Tag{role: managedTags}
+			},
+		} {
+			t.Run(role+" "+name, func(t *testing.T) {
+				count, err := existsLines(t, none, appear)
+
+				require.NoError(t, err)
+				assert.Equal(t, 1, count)
+			})
+		}
+	}
+}
+
+func TestRunPlanSilentForCreatedAndLeftRoles(t *testing.T) {
+	unmanaged := func(f *fakeIAM) {
+		for _, role := range planRoles {
+			f.existingRoles[role] = true
+		}
+	}
+	for name, setup := range map[string]func(*fakeIAM){"created": none, "left": unmanaged} {
 		t.Run(name, func(t *testing.T) {
-			agent, iamClient := &fakeAgent{}, newFakeIAM()
-			clients := newTestClients(agent, iamClient)
-			opts := runPlanOptions()
-			logged := collectLogs(&opts)
-			plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
-			require.NoError(t, err)
-			appear(iamClient)
-
-			_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+			count, err := existsLines(t, setup, none)
 
 			require.NoError(t, err)
-			found := false
-			for _, line := range *logged {
-				found = found || (strings.Contains(line, awsdevops.AgentSpaceRoleName) && strings.Contains(line, "already exists"))
-			}
-			assert.True(t, found, "no line reports the existing role: %q", *logged)
+			assert.Zero(t, count)
 		})
 	}
+}
+
+// The line follows the update, not precedes it.
+func TestRunPlanSilentWhenUpdateFails(t *testing.T) {
+	count, err := existsLines(t, none, func(f *fakeIAM) {
+		f.addManagedRole(awsdevops.AgentSpaceRoleName)
+		f.attachErr = errors.New("denied")
+	})
+
+	require.Error(t, err)
+	assert.Zero(t, count)
 }
