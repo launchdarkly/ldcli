@@ -3,6 +3,7 @@ package awsdevops_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -799,4 +800,92 @@ func TestPlanAcceptsRegisteredMCPServiceID(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+}
+
+func rejectingOptions(t *testing.T, status int) awsdevops.SetupOptions {
+	t.Helper()
+	opts := runPlanOptions()
+	opts.LDBaseURI = stubLaunchDarkly(t, status)
+
+	return opts
+}
+
+// A token setup sends is checked first.
+func TestRunPlanChecksTokenBeforeWrites(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			agent, iamClient := &fakeAgent{}, newFakeIAM()
+			clients := newTestClients(agent, iamClient)
+			opts := rejectingOptions(t, status)
+			plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+			require.NoError(t, err)
+
+			_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+			require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
+			assert.Empty(t, iamClient.createdRoles)
+			assert.NotContains(t, agent.calls, "CreateAgentSpace")
+		})
+	}
+}
+
+func TestRunPlanChecksReplaceTokenBeforeWrites(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")}}
+	iamClient := newFakeIAM()
+	clients := newTestClients(agent, iamClient)
+	opts := rejectingOptions(t, http.StatusUnauthorized)
+	opts.ReplaceMCPToken = true
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
+	assert.Empty(t, iamClient.createdRoles)
+}
+
+// A reused server keeps its token.
+func TestRunPlanSkipsTokenItWillNotSend(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-old")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.LDBaseURI = "http://127.0.0.1:1"
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.NoError(t, err)
+}
+
+func TestConnectPlanChecksTokenBeforeWrites(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "platform")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := rejectingOptions(t, http.StatusUnauthorized)
+	opts.AgentSpaceID = "space-7"
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+
+	_, err = awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+func TestRegisterMCPServerChecksPastedToken(t *testing.T) {
+	agent := &fakeAgent{}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.LDAccessToken = ""
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	result, err := awsdevops.RunPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+	opts.LDAccessToken = "api-token"
+	opts.LDBaseURI = stubLaunchDarkly(t, http.StatusUnauthorized)
+
+	err = awsdevops.RegisterMCPServer(context.Background(), clients, opts, plan.MCP, &result)
+
+	require.ErrorIs(t, err, awsdevops.ErrInvalidAccessToken)
+	assert.NotContains(t, agent.calls, "RegisterService")
 }

@@ -547,6 +547,16 @@ func (m MCPStep) describe(endpoint string) string {
 	}
 }
 
+// checkSentToken checks a token setup will send.
+// AWS stores tokens write-only, so check first.
+func checkSentToken(ctx context.Context, opts SetupOptions, step MCPStep) error {
+	if step.Action != MCPRegister && step.Action != MCPReplace {
+		return nil
+	}
+
+	return CheckToken(ctx, opts.LDBaseURI, opts.LDAccessToken)
+}
+
 // checkMCP compares AWS with the MCP step.
 func checkMCP(ctx context.Context, clients Clients, opts SetupOptions, step MCPStep) error {
 	if step.Action == MCPReuse || step.Action == MCPReplace {
@@ -617,6 +627,9 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		return result, err
 	}
 	if err := checkMCP(ctx, clients, opts, plan.MCP); err != nil {
+		return result, err
+	}
+	if err := checkSentToken(ctx, opts, plan.MCP); err != nil {
 		return result, err
 	}
 	spaceRole, err := checkRole(ctx, clients.IAM, plan, AgentSpaceRoleName)
@@ -767,6 +780,9 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 	if err := checkMCP(ctx, clients, opts, plan.MCP); err != nil {
 		return result, err
 	}
+	if err := checkSentToken(ctx, opts, plan.MCP); err != nil {
+		return result, err
+	}
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
@@ -871,6 +887,9 @@ func RegisterMCPServer(ctx context.Context, clients Clients, opts SetupOptions, 
 	if step.Action == MCPAsk {
 		step.Action = MCPRegister
 	}
+	if err := checkSentToken(ctx, opts, step); err != nil {
+		return err
+	}
 
 	return registerMCPServer(ctx, clients, opts, step, result, logf)
 }
@@ -898,13 +917,6 @@ func registerMCPServer(
 	}
 	var detached []string
 	if existing != "" {
-		// AWS stores the token write-only, so the old registration cannot be
-		// restored once it is deregistered. Reject a token LaunchDarkly will
-		// not accept while the working registration is still in place.
-		if err := ValidateAccessToken(ctx, opts.LDBaseURI, opts.LDAccessToken); err != nil {
-			return err
-		}
-
 		var err error
 		detached, err = disassociateEverywhere(ctx, clients, existing, logf)
 		if err != nil {
