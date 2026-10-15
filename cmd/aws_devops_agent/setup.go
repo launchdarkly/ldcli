@@ -45,8 +45,10 @@ that space as it is. Pass --agent-space-id to pick one without being asked, or
 app URL, where the agent is used.
 
 The MCP server is connected with --access-token, or with the token in your
-ldcli configuration when you do not pass one. With neither, setup asks for a
-LaunchDarkly service token. AWS keeps that token and the agent acts as its
+ldcli configuration when you do not pass one. With neither, setup reuses a
+registered MCP server, or asks for a service token in a terminal. Without a
+terminal, with --output json, or with --yes, it stops and asks for
+--access-token. AWS keeps that token and the agent acts as its
 account and role, so a session token from 'ldcli login' stops working once it
 expires.`,
 		Args:   cobra.NoArgs,
@@ -69,7 +71,7 @@ expires.`,
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to use, instead of the one registered at --mcp-endpoint")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register and look the server up by. Defaults to "+awsdevops.MCPServerEndpoint)
 
-	cmd.Flags().Bool(yesFlag, false, "Skip the confirmation before setup changes AWS")
+	cmd.Flags().Bool(yesFlag, false, "Ask no questions, as in a run without a terminal")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -117,7 +119,8 @@ func setupWith(
 	// One reader, so no prompt loses input.
 	sharedStdin(cmd)
 
-	provision, err := resolveAgentSpace(cmd, clients, &opts, interactive)
+	ask := interactive && !mustBool(cmd, yesFlag)
+	provision, err := resolveAgentSpace(cmd, clients, &opts, ask)
 	if err != nil {
 		return err
 	}
@@ -126,9 +129,8 @@ func setupWith(
 	if err != nil {
 		return err
 	}
-	ask := interactive && !mustBool(cmd, yesFlag)
 	if plan.MCP.Action == awsdevops.MCPAsk && !ask {
-		return errors.New("pass --access-token with a LaunchDarkly service token")
+		return fmt.Errorf("create a service token at %s, then pass --access-token", awsdevops.AccessTokenURL(opts.LDBaseURI))
 	}
 	if plaintext {
 		if err := confirmSetup(cmd, plan, ask); err != nil {
@@ -152,7 +154,7 @@ func setupWith(
 
 	var mcpErr error
 	if result.MCPServiceID == "" {
-		mcpErr = connectMCPServer(cmd, clients, opts, plan.MCP, &result, ask)
+		mcpErr = connectMCPServer(cmd, clients, opts, plan.MCP, &result)
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)
@@ -323,20 +325,8 @@ func connectMCPServer(
 	opts awsdevops.SetupOptions,
 	step awsdevops.MCPStep,
 	result *awsdevops.SetupResult,
-	interactive bool,
 ) error {
 	tokenURL := awsdevops.AccessTokenURL(opts.LDBaseURI)
-	if !interactive {
-		_, _ = fmt.Fprintf(
-			cmd.ErrOrStderr(),
-			"The LaunchDarkly MCP server is not connected. Create a service token at %s, "+
-				"then re-run setup with --access-token\n",
-			tokenURL,
-		)
-
-		return nil
-	}
-
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
 	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Paste the token, or press Enter to skip: ")
 	opts.LDAccessToken = readSecret(cmd.InOrStdin())

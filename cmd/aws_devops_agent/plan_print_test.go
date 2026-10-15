@@ -92,9 +92,6 @@ func TestSetupNeedsATokenItCannotAsk(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			old := canPrompt
-			canPrompt = func() bool { return true }
-			t.Cleanup(func() { canPrompt = old })
 			cmd, out := setupTestCmd(t, "")
 			cmd.SetIn(noReadStdin{t})
 			if c.yes {
@@ -106,6 +103,7 @@ func TestSetupNeedsATokenItCannotAsk(t *testing.T) {
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "--access-token")
+			assert.Contains(t, err.Error(), awsdevops.AccessTokenURL(""))
 			assert.Empty(t, w.calls)
 			assert.NotContains(t, out.String(), "Setup plan")
 		})
@@ -154,5 +152,19 @@ func TestSetupRejectsUnknownMCPServiceID(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mcp-9")
 	assert.NotErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Empty(t, w.calls)
+}
+
+// --yes asks no question at all.
+func TestSetupWithYesSkipsSpaceChoice(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")})
+
+	err := setupWith(cmd, clients, newSpaceOptions(), true, true)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--agent-space-id")
 	assert.Empty(t, w.calls)
 }
