@@ -29,6 +29,7 @@ const testAccountID = "123456789012"
 type fakeAgent struct {
 	// goneSpaces makes GetAgentSpace report not found.
 	goneSpaces        map[string]bool
+	getSpaceErr       error
 	calls             []string
 	services          []agenttypes.RegisteredService
 	associationInputs []*devopsagent.AssociateServiceInput
@@ -115,6 +116,9 @@ func (f *fakeAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpa
 	id := aws.ToString(in.AgentSpaceId)
 	if f.goneSpaces[id] {
 		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+	if f.getSpaceErr != nil {
+		return nil, f.getSpaceErr
 	}
 	name := "launchdarkly"
 	for _, space := range f.agentSpaces {

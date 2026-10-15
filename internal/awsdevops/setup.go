@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -131,7 +132,7 @@ func (s RoleStep) describe() string {
 	}
 }
 
-// SpaceAction is what setup does to the space.
+// SpaceAction is the planned space action.
 type SpaceAction int
 
 const (
@@ -145,6 +146,8 @@ type SpaceStep struct {
 	Action SpaceAction
 	ID     string
 	Name   string
+	// Seen holds same-name space IDs at plan time.
+	Seen []string
 }
 
 func (s SpaceStep) describe() string {
@@ -286,7 +289,12 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 		id = found
 	}
 	if id == "" {
-		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName}, nil
+		seen, err := spacesNamed(ctx, clients, opts.AgentSpaceName)
+		if err != nil {
+			return SpaceStep{}, err
+		}
+
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, Seen: seen}, nil
 	}
 
 	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
@@ -304,12 +312,14 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 // checkSpace compares AWS with the space step.
 func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
 	if step.Action == SpaceCreate {
-		found, err := FindAgentSpace(ctx, clients, step.Name)
+		now, err := spacesNamed(ctx, clients, step.Name)
 		if err != nil {
 			return err
 		}
-		if found != "" {
-			return planChanged("agent space %s appeared after the plan", step.Name)
+		for _, id := range now {
+			if !slices.Contains(step.Seen, id) {
+				return planChanged("agent space %s appeared after the plan", step.Name)
+			}
 		}
 
 		return nil
@@ -373,6 +383,9 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 
 	result := SetupResult{AccountID: accountID, Region: clients.Region}
 
+	if plan.Space.Action == SpaceConnect {
+		return result, errors.New("a connect plan runs through ConnectExisting")
+	}
 	if err := checkSpace(ctx, clients, plan.Space); err != nil {
 		return result, err
 	}
@@ -400,6 +413,10 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	logf("Operator app role %s is ready", OperatorAppRoleName)
 
 	if plan.Space.Action == SpaceCreate {
+		// Narrow the window after role writes.
+		if err := checkSpace(ctx, clients, plan.Space); err != nil {
+			return result, err
+		}
 		space, err := clients.Agent.CreateAgentSpace(ctx, &devopsagent.CreateAgentSpaceInput{
 			Name:        aws.String(plan.Space.Name),
 			Description: aws.String(agentSpaceDescription),

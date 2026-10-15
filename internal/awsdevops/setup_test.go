@@ -188,7 +188,7 @@ func TestPlanSetupNamesTheSpaceItConnectsTo(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	// The fake names every space launchdarkly.
+	// Unlisted spaces are named launchdarkly.
 	assert.Contains(t, plan.AgentSpace, "launchdarkly (space-2)")
 	assert.Contains(t, strings.ToLower(plan.AgentSpace), "connect")
 }

@@ -305,7 +305,7 @@ func TestRunPlanStopsWhenReusedSpaceIsGone(t *testing.T) {
 	assert.Empty(t, iamClient.createdRoles)
 }
 
-// Setup does not search for the space again.
+// No second search by name.
 func TestRunPlanKeepsThePlannedSpace(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
 	clients := newTestClients(agent, newFakeIAM())
@@ -320,7 +320,7 @@ func TestRunPlanKeepsThePlannedSpace(t *testing.T) {
 	assert.NotContains(t, agent.calls, "CreateAgentSpace")
 }
 
-// The reuse line shows the name from AWS.
+// The reuse line uses the AWS name.
 func TestRunPlanReuseLineUsesAWSName(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "LaunchDarkly")}}
 	clients := newTestClients(agent, newFakeIAM())
@@ -331,4 +331,84 @@ func TestRunPlanReuseLineUsesAWSName(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, strings.Join(*logged, "\n"), "LaunchDarkly (space-7)")
+}
+
+// A same-name space the plan saw is fine.
+func TestRunPlanNewSpaceBesideSameName(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.NewAgentSpace = true
+
+	_, err := awsdevops.Setup(context.Background(), clients, opts)
+
+	require.NoError(t, err)
+	assert.Contains(t, agent.calls, "CreateAgentSpace")
+}
+
+func TestRunPlanNewSpaceStopsOnSecondSameName(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.NewAgentSpace = true
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, true)
+	require.NoError(t, err)
+	agent.agentSpaces = append(agent.agentSpaces, namedSpace("space-8", "LaunchDarkly"))
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+}
+
+// Names match without regard to case.
+func TestRunPlanStopsWhenSpaceAppearsInOtherCase(t *testing.T) {
+	agent, iamClient := &fakeAgent{}, newFakeIAM()
+
+	err := planThenRun(t, agent, iamClient, func() {
+		agent.agentSpaces = []agenttypes.AgentSpace{namedSpace("space-9", "LaunchDarkly")}
+	})
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+}
+
+// A read error is not a plan change.
+func TestRunPlanWrapsSpaceReadError(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+
+	err := planThenRun(t, agent, newFakeIAM(), func() {
+		agent.getSpaceErr = errors.New("throttled")
+	})
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Contains(t, err.Error(), "throttled")
+}
+
+func TestRunPlanHintOnlyForNameMatch(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+	logged := collectLogs(&opts)
+
+	_, err := awsdevops.Setup(context.Background(), clients, opts)
+
+	require.NoError(t, err)
+	assert.NotContains(t, strings.Join(*logged, "\n"), "--new-agent-space")
+}
+
+func TestRunPlanRejectsConnectStep(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	iamClient := newFakeIAM()
+	clients := newTestClients(agent, iamClient)
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, opts, plan)
+
+	require.Error(t, err)
+	assert.Empty(t, iamClient.createdRoles)
 }
