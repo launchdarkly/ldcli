@@ -155,6 +155,8 @@ func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterS
 }
 
 type fakeIAM struct {
+	// appearOnCreate makes a role appear on CreateRole.
+	appearOnCreate map[string][]iamtypes.Tag
 	existingRoles  map[string]bool
 	roleTags       map[string][]iamtypes.Tag
 	createdRoles   []string
@@ -190,6 +192,10 @@ func (f *fakeIAM) AttachRolePolicy(_ context.Context, in *iam.AttachRolePolicyIn
 
 func (f *fakeIAM) CreateRole(_ context.Context, in *iam.CreateRoleInput, _ ...func(*iam.Options)) (*iam.CreateRoleOutput, error) {
 	name := aws.ToString(in.RoleName)
+	if tags, ok := f.appearOnCreate[name]; ok {
+		f.existingRoles[name] = true
+		f.roleTags[name] = tags
+	}
 	if f.existingRoles[name] {
 		return nil, &iamtypes.EntityAlreadyExistsException{}
 	}

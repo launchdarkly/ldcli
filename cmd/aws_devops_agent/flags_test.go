@@ -65,6 +65,10 @@ func TestSpaceIDWithAuthFlagRunsFullSetup(t *testing.T) {
 	cases := map[string]map[string]string{
 		"auth-flow":        {authFlowFlag: "iam"},
 		"idc-instance-arn": {authFlowFlag: "idc", idcInstanceARNFlag: "arn:aws:sso:::instance/ssoins-1"},
+		"idp": {
+			authFlowFlag: "idp", issuerURLFlag: "https://idp.example.com",
+			idpClientIDFlag: "client", idpClientSecretFlag: "secret",
+		},
 	}
 	for name, flags := range cases {
 		t.Run(name, func(t *testing.T) {

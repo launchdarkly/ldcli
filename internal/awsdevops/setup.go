@@ -142,6 +142,8 @@ type SetupPlan struct {
 	OperatorApp string
 }
 
+const roleExistsLine = "Role %s already exists, so ldcli updated it"
+
 // checkRole compares a role with its step.
 func checkRole(ctx context.Context, client IAMAPI, plan SetupPlan, name string) (RoleAction, error) {
 	action, err := plan.roleAction(name)
@@ -316,6 +318,11 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	appRole, err := checkRole(ctx, clients.IAM, plan, OperatorAppRoleName)
 	if err != nil {
 		return result, err
+	}
+	for _, step := range []RoleStep{{AgentSpaceRoleName, spaceRole}, {OperatorAppRoleName, appRole}} {
+		if planned, _ := plan.roleAction(step.Name); planned == RoleCreate && step.Action == RoleUpdate {
+			logf(roleExistsLine, step.Name)
+		}
 	}
 
 	result.AgentSpaceRoleARN, err = ensureAgentSpaceRole(ctx, clients.IAM, accountID, spaceRole, logf)
@@ -828,6 +835,7 @@ func ensureRole(
 	action RoleAction,
 	logf func(string, ...any),
 ) (string, bool, error) {
+	raced := false
 	if action == RoleCreate {
 		created, err := client.CreateRole(ctx, &iam.CreateRoleInput{
 			RoleName:                 aws.String(name),
@@ -840,7 +848,7 @@ func ensureRole(
 		switch {
 		case isAlreadyExists(err):
 			// A tagged role is already done.
-			action = RoleUpdate
+			action, raced = RoleUpdate, true
 		case err != nil:
 			return "", false, fmt.Errorf("unable to create the %s role: %w", name, err)
 		default:
@@ -862,8 +870,13 @@ func ensureRole(
 	if err != nil {
 		return "", false, err
 	}
-	if managed != (action == RoleUpdate) {
+	switch {
+	case raced && !managed:
+		return "", false, planChanged("role %s appeared after the plan", name)
+	case managed != (action == RoleUpdate):
 		return "", false, planChanged("the %s tag on role %s changed", ManagedTagKey, name)
+	case raced:
+		logf(roleExistsLine, name)
 	}
 	if !managed {
 		logf("Role %s has no %s tag, so ldcli did not change it", name, ManagedTagKey)
