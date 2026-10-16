@@ -2,6 +2,7 @@ package setup
 
 import (
 	"io"
+	"sync"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
@@ -14,6 +15,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	"github.com/launchdarkly/ldcli/internal/errors"
 	"github.com/launchdarkly/ldcli/internal/setup"
+	"github.com/launchdarkly/ldcli/internal/setup/agent"
 )
 
 // copyState records how the visible snippet was copied, so the view can confirm a
@@ -39,6 +41,9 @@ const (
 	stepPlan
 	stepInstall
 	stepCreateFlag
+	// stepAgent runs the setup agent. It replaces stepInit when the agent can
+	// run, and it falls back to stepInit in auto mode when the agent fails.
+	stepAgent
 	stepInit
 	stepWaitForApp
 	stepVerify
@@ -98,6 +103,24 @@ type wizardModel struct {
 	flagKey        string
 	initResult     *setup.InitResult
 	verifyResult   *setup.VerifyResult
+
+	agentMode   agentMode
+	agentRunner agent.Runner
+	// agentRuns records every run that starts, so setup can close a run whose
+	// start finished after the user quit.
+	agentRuns *runTracker
+	agentRun  agent.Run
+	// agentLog holds one line per finished tool call, newest last.
+	agentLog []string
+	// agentFiles are the files that the agent changed.
+	agentFiles []string
+	// agentPermission is the request that waits for the user's answer.
+	agentPermission *agent.PermissionRequest
+	agentUsage      *agent.Usage
+	agentDone       bool
+	// agentNote tells the user why setup used the templates after the agent
+	// could not run.
+	agentNote string
 
 	// nativeCopy puts content on the operating system's clipboard, and clipboard
 	// receives the OSC 52 sequence used when that is not available. Both are fields
@@ -188,13 +211,28 @@ type flagCreatedMsg struct{ key string }
 type initDoneMsg struct{ result *setup.InitResult }
 type copiedMsg struct{ viaTerminal bool }
 type verifyDoneMsg struct{ result *setup.VerifyResult }
+type agentStartedMsg struct{ run agent.Run }
+type agentFailedMsg struct{ err error }
+type agentEventMsg struct {
+	run agent.Run
+	ev  agent.Event
+	// closed reports that the run's event channel closed without a last event.
+	closed bool
+}
+type agentRepliedMsg struct{ err error }
 type wizardErrMsg struct{ err error }
 
 func runSetupWizard(
 	analyticsTrackerFn analytics.TrackerFn,
 	svc setup.Service,
+	runner agent.Runner,
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
+		mode, err := parseAgentMode(getFlag(cmd, agentFlag))
+		if err != nil {
+			return err
+		}
+
 		// Pre-flight: the wizard's first action is an authenticated API call, so
 		// bail early with clear guidance rather than dumping a raw 401 mid-TUI.
 		if viper.GetString(cliflags.AccessTokenFlag) == "" {
@@ -216,12 +254,47 @@ func runSetupWizard(
 			clipboard:     terminalWriter(),
 			nativeCopy:    clipboard.WriteAll,
 			remoteSession: isRemoteSession(),
+			agentMode:     mode,
+			agentRunner:   runner,
+			agentRuns:     &runTracker{},
 		}
 
 		p := tea.NewProgram(m, tea.WithAltScreen())
-		_, err := p.Run()
+		_, err = p.Run()
+		// The wizard closes a run when the user quits, but a run can finish
+		// starting after that. OpenCode must not outlive setup.
+		m.agentRuns.closeAll()
 		return err
 	}
+}
+
+// runTracker records agent runs. It is a pointer in the model, so every copy
+// of the model shares one tracker.
+type runTracker struct {
+	mu     sync.Mutex
+	runs   []agent.Run
+	closed bool
+}
+
+// add records a run. If the tracker is already closed, it closes the run.
+func (t *runTracker) add(run agent.Run) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		_ = run.Close()
+		return
+	}
+	t.runs = append(t.runs, run)
+}
+
+func (t *runTracker) closeAll() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.closed = true
+	for _, r := range t.runs {
+		_ = r.Close()
+	}
+	t.runs = nil
 }
 
 func (m wizardModel) Init() tea.Cmd {
