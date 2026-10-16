@@ -213,7 +213,7 @@ func sharesChangedAttachment(left, right PlannedResource) bool {
 
 // promptConflictResolution asks the user which side wins one conflict.
 func promptConflictResolution(ctx context.Context, input io.Reader, output io.Writer) (conflictChoice, error) {
-	resolution, canceled, err := syncinteractive.SelectContext(
+	resolution, canceled, err := syncinteractive.SelectInline(
 		ctx,
 		input,
 		output,
@@ -307,14 +307,11 @@ func resolvedConflictAction(resource PlannedResource, resolution ConflictResolut
 		}
 		return ActionUpdateLocal
 	case ConflictUseLocal:
-		switch {
-		case resource.Local == nil:
-			return ActionArchiveServer
-		case resource.Server == nil:
+		// A conflict always has a local file, because a missing file is restored.
+		if resource.Server == nil {
 			return ActionCreateServer
-		default:
-			return ActionUpdateServer
 		}
+		return ActionUpdateServer
 	default:
 		return ActionConflict
 	}

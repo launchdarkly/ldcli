@@ -17,7 +17,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v6
       with:
         # The version the module declares, not whatever is newest. golangci-lint
         # reads type data written by the compiler, and a Go release newer than the

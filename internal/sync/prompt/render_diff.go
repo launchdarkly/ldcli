@@ -110,11 +110,11 @@ func diffSections(field string, diff variationFieldDiff, presentation variationD
 		)
 	}
 
-	before, err := formatDiffValue(diff.Before, presentation.beforeLabel, "")
+	before, err := formatDiffValue(diff.Before, presentation.beforeLabel)
 	if err != nil {
 		return nil, err
 	}
-	after, err := formatDiffValue(diff.After, presentation.afterLabel, presentation.missingAfter)
+	after, err := formatDiffValue(diff.After, presentation.afterLabel)
 	if err != nil {
 		return nil, err
 	}
@@ -473,11 +473,8 @@ func changedParts(before, after string) (prefix, removed, added, suffix string) 
 
 // formatDiffValue pretty-prints JSON and substitutes readable absence markers
 // for missing local or LaunchDarkly resources.
-func formatDiffValue(value json.RawMessage, label string, missingValue string) (string, error) {
+func formatDiffValue(value json.RawMessage, label string) (string, error) {
 	if len(value) == 0 || bytes.Equal(value, []byte("null")) {
-		if missingValue != "" {
-			return missingValue, nil
-		}
 		if strings.HasPrefix(label, "LaunchDarkly") {
 			return "(does not exist in LaunchDarkly)", nil
 		}
