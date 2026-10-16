@@ -67,6 +67,9 @@ func (runner Runner) Run(options Options) error {
 	if err != nil {
 		return err
 	}
+	// Each write to LaunchDarkly names the repository, so that LaunchDarkly
+	// can tell a sync write from another write.
+	options.syncSource = resolved.Source
 	local := synclocal.NewStore(resolved.Root)
 	workspace := syncWorkspace{
 		root:      resolved.Root,
@@ -237,7 +240,7 @@ func (runner Runner) bootstrapOptions(
 
 // api returns the LaunchDarkly client for the command.
 func (runner Runner) api(options Options) syncapi.Client {
-	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI)
+	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI).WithSyncSource(options.syncSource)
 }
 
 // interactive reports whether the command can ask the user for input.

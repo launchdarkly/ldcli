@@ -3,7 +3,9 @@ package api
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -562,6 +564,94 @@ func TestContextualAPIErrorPreservesSpecificMutationFailure(t *testing.T) {
 		"statusCode":404,
 		"suggestion":"Select an existing model config version."
 	}`, err.Error())
+}
+
+// sourceHeaderServer records the sync source header of each request.
+type sourceHeaderServer struct {
+	server  *httptest.Server
+	headers map[string][]string
+}
+
+func newSourceHeaderServer(t *testing.T) *sourceHeaderServer {
+	t.Helper()
+	recorder := &sourceHeaderServer{headers: map[string][]string{}}
+	recorder.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorder.headers[r.Method+" "+r.URL.Path] = r.Header.Values(SyncSourceHeader)
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/configs/sync/manifests"):
+			_, _ = w.Write([]byte(`{"source":"git:example.com/acme/app","items":[]}`))
+		case strings.HasSuffix(r.URL.Path, "/configs/sync/settings"):
+			_, _ = w.Write([]byte(`{"items":[]}`))
+		case strings.Contains(r.URL.Path, "/ai-tools"):
+			_, _ = w.Write([]byte(`{"key":"search","schema":{},"version":1}`))
+		default:
+			_, _ = w.Write([]byte(`{"key":"support","mode":"agent","variations":[]}`))
+		}
+	}))
+	t.Cleanup(recorder.server.Close)
+	return recorder
+}
+
+func TestClientSendsSyncSourceOnEveryWrite(t *testing.T) {
+	recorder := newSourceHeaderServer(t)
+	source := "git:example.com/acme/app"
+	client := NewClient(resources.NewClient("test"), "token", recorder.server.URL).WithSyncSource(source)
+	variation := testVariation(syncdomain.VariationModeAgent)
+	tool := syncdomain.Attachment{
+		Kind: syncdomain.AttachmentTool, Tool: &syncdomain.Tool{Key: "search", Schema: map[string]any{}},
+	}
+	id := syncdomain.VariationID("project", "support", "helpful")
+
+	require.NoError(t, client.CreateVariation("project", "support", variation))
+	require.NoError(t, client.UpdateVariation("project", "support", variation))
+	require.NoError(t, client.CreateAttachment("project", tool))
+	require.NoError(t, client.UpdateAttachment("project", tool))
+	_, err := client.PatchSyncManifest("project", source, nil, nil)
+	require.NoError(t, err)
+	writes := map[string][]string{
+		"POST /api/v2/projects/project/ai-configs/support/variations":          {source},
+		"PATCH /api/v2/projects/project/ai-configs/support/variations/helpful": {source},
+		"POST /api/v2/projects/project/ai-tools":                               {source},
+		"PATCH /api/v2/projects/project/ai-tools/search":                       {source},
+		"PATCH /api/v2/projects/project/configs/sync/manifests":                {source},
+	}
+	assert.Equal(t, writes, recorder.headers)
+
+	require.NoError(t, client.ArchiveVariation("project", "support", "helpful"))
+	assert.Equal(t, []string{source}, recorder.headers["PATCH /api/v2/projects/project/ai-configs/support/variations/helpful"])
+
+	recorder.headers = map[string][]string{}
+	_, err = client.ReadVariation("project", "support", "helpful")
+	require.NoError(t, err)
+	_, err = client.GetSyncManifest("project", source)
+	require.NoError(t, err)
+	_, err = client.ResolveSyncSettings("project", []syncdomain.ResourceID{id})
+	require.NoError(t, err)
+	_, err = client.ReadAttachment("project", syncdomain.AttachmentTool, "search")
+	require.NoError(t, err)
+	require.Len(t, recorder.headers, 4)
+	for request, values := range recorder.headers {
+		assert.Empty(t, values, "read %s sent the sync source header", request)
+	}
+}
+
+func TestClientWithoutSyncSourceSendsNoHeader(t *testing.T) {
+	recorder := newSourceHeaderServer(t)
+	client := NewClient(resources.NewClient("test"), "token", recorder.server.URL)
+
+	require.NoError(t, client.UpdateVariation("project", "support", testVariation(syncdomain.VariationModeAgent)))
+
+	assert.Empty(t, recorder.headers["PATCH /api/v2/projects/project/ai-configs/support/variations/helpful"])
+}
+
+func TestClientWritesWithoutHeaderWhenTransportCannotSendHeaders(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{[]byte(`{}`)}}
+	client := NewClient(transport, "token", "https://example.com").WithSyncSource("git:example.com/acme/app")
+
+	require.NoError(t, client.UpdateVariation("project", "support", testVariation(syncdomain.VariationModeAgent)))
+
+	require.Len(t, transport.Requests, 1)
+	assert.Equal(t, http.MethodPatch, transport.Requests[0].Method)
 }
 
 func testVariation(mode syncdomain.VariationMode) syncdomain.Variation {

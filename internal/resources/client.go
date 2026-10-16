@@ -33,7 +33,21 @@ type ResourcesClient struct {
 	cliVersion string
 }
 
-var _ Client = ResourcesClient{}
+// HeaderClient is a Client that can also send extra request headers. It is a
+// separate interface, so that the generated resource commands and their mocks
+// do not change.
+type HeaderClient interface {
+	Client
+	MakeRequestWithHeaders(
+		accessToken, method, path, contentType string,
+		query url.Values,
+		data []byte,
+		isBeta bool,
+		headers http.Header,
+	) ([]byte, error)
+}
+
+var _ HeaderClient = ResourcesClient{}
 
 func NewClient(cliVersion string) ResourcesClient {
 	return ResourcesClient{cliVersion: cliVersion}
@@ -53,6 +67,19 @@ func (c ResourcesClient) MakeRequest(
 	data []byte,
 	isBeta bool,
 ) ([]byte, error) {
+	return c.MakeRequestWithHeaders(accessToken, method, path, contentType, query, data, isBeta, nil)
+}
+
+// MakeRequestWithHeaders sends a request as MakeRequest does, and also sends
+// each header in headers. A header in headers replaces a default header that
+// has the same name.
+func (c ResourcesClient) MakeRequestWithHeaders(
+	accessToken, method, path, contentType string,
+	query url.Values,
+	data []byte,
+	isBeta bool,
+	headers http.Header,
+) ([]byte, error) {
 	client := http.Client{}
 	req, _ := http.NewRequest(method, path, bytes.NewReader(data))
 	req.Header.Add("Authorization", accessToken)
@@ -62,6 +89,12 @@ func (c ResourcesClient) MakeRequest(
 		req.Header.Set("LD-API-Version", "beta")
 	} else {
 		req.Header.Set("LD-API-Version", apiVersion)
+	}
+	for name, values := range headers {
+		req.Header.Del(name)
+		for _, value := range values {
+			req.Header.Add(name, value)
+		}
 	}
 	req.URL.RawQuery = query.Encode()
 

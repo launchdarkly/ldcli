@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -210,6 +211,53 @@ func TestMakeRequestAPIVersion(t *testing.T) {
 			assert.Equal(t, []string{tt.expected}, got)
 		})
 	}
+}
+
+func TestMakeRequestWithHeaders(t *testing.T) {
+	var received http.Header
+	var query string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received = r.Header.Clone()
+		query = r.URL.RawQuery
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+	var c resources.HeaderClient = resources.NewClient("test-version")
+
+	t.Run("sends the extra headers with the default headers", func(t *testing.T) {
+		response, err := c.MakeRequestWithHeaders(
+			"token", http.MethodPatch, server.URL, "application/json",
+			url.Values{"limit": {"1"}}, []byte(`{}`), false,
+			http.Header{"LD-Sync-Source": {"git:example.com/acme/app"}},
+		)
+
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"ok":true}`, string(response))
+		assert.Equal(t, []string{"git:example.com/acme/app"}, received.Values("LD-Sync-Source"))
+		assert.Equal(t, "token", received.Get("Authorization"))
+		assert.Equal(t, "application/json", received.Get("Content-Type"))
+		assert.Equal(t, "launchdarkly-cli/vtest-version", received.Get("User-Agent"))
+		assert.Equal(t, "20240415", received.Get("LD-API-Version"))
+		assert.Equal(t, "limit=1", query)
+	})
+
+	t.Run("an extra header replaces a default header", func(t *testing.T) {
+		_, err := c.MakeRequestWithHeaders(
+			"token", http.MethodGet, server.URL, "application/json", nil, nil, false,
+			http.Header{"Ld-Api-Version": {"beta"}},
+		)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"beta"}, received.Values("LD-API-Version"))
+	})
+
+	t.Run("MakeRequest sends no sync source header", func(t *testing.T) {
+		_, err := c.MakeRequest("token", http.MethodPatch, server.URL, "application/json", nil, []byte(`{}`), false)
+
+		require.NoError(t, err)
+		assert.Empty(t, received.Values("LD-Sync-Source"))
+	})
 }
 
 func makeServer(t *testing.T, statusResponse int, responseBody string) *httptest.Server {

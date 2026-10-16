@@ -12,16 +12,32 @@ import (
 	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
+// SyncSourceHeader is the request header that marks a write by sync. Its
+// value is the sync source of the repository, for example
+// "git:github.com/acme/app".
+const SyncSourceHeader = "LD-Sync-Source"
+
 // Client calls the LaunchDarkly REST API with one access token.
 type Client struct {
 	transport   resources.Client
 	accessToken string
 	baseURI     string
+	// syncSource is the repository that sync runs in. Each write sends it in
+	// the SyncSourceHeader header. An empty value sends no header.
+	syncSource string
 }
 
 // NewClient creates a client for the API at baseURI.
 func NewClient(transport resources.Client, accessToken, baseURI string) Client {
 	return Client{transport: transport, accessToken: accessToken, baseURI: baseURI}
+}
+
+// WithSyncSource returns a copy of the client that sends source with each
+// write. If the transport cannot send extra headers, the client sends the
+// write without the header.
+func (client Client) WithSyncSource(source string) Client {
+	client.syncSource = source
+	return client
 }
 
 // Page is one server-filtered page of catalog items.
@@ -65,11 +81,23 @@ func (client Client) mutate(request mutation, path ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.transport.MakeRequest(client.accessToken, request.method, endpoint, "application/json", nil, body, false)
+	response, err := client.write(request.method, endpoint, body)
 	if err != nil {
 		return nil, newMutationError(request.action, request.resource, request.key, err)
 	}
 	return response, nil
+}
+
+// write sends one JSON write request with the sync source header. If the
+// transport cannot send extra headers, it sends the request without it.
+func (client Client) write(method, endpoint string, body []byte) ([]byte, error) {
+	transport, sendsHeaders := client.transport.(resources.HeaderClient)
+	if client.syncSource == "" || !sendsHeaders {
+		return client.transport.MakeRequest(client.accessToken, method, endpoint, "application/json", nil, body, false)
+	}
+	headers := http.Header{}
+	headers.Set(SyncSourceHeader, client.syncSource)
+	return transport.MakeRequestWithHeaders(client.accessToken, method, endpoint, "application/json", nil, body, false, headers)
 }
 
 func (client Client) endpoint(path ...string) (string, error) {

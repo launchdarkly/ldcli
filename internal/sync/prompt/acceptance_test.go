@@ -1174,6 +1174,57 @@ func TestPromptStopsWhenSyncDirectionChangesAfterReview(t *testing.T) {
 	assert.Equal(t, baseline.Name, api.variation.Name)
 }
 
+func TestPromptMarksEachWriteWithSyncSource(t *testing.T) {
+	root := initRepository(t)
+	baseline, local := variation("Baseline"), variation("Local")
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, baseline)
+	api := &headerRecordingAPI{directAPI: &directAPI{variation: pointer(baseline)}}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Equal(t, local.Name, api.variation.Name)
+	require.NotEmpty(t, api.sources)
+	writes := 0
+	for _, request := range api.requests {
+		source, sent := api.sources[request]
+		if strings.HasPrefix(request, "GET ") {
+			assert.False(t, sent, "read %s used the header client", request)
+			continue
+		}
+		writes++
+		assert.Equal(t, "git:example/repo", source, request)
+	}
+	assert.Equal(t, 2, writes, "sync updates the variation and the manifest")
+}
+
+// headerRecordingAPI is a transport that can send extra headers. It records
+// the sync source header of each request that sends headers.
+type headerRecordingAPI struct {
+	*directAPI
+	sources map[string]string
+}
+
+var _ resources.HeaderClient = &headerRecordingAPI{}
+
+func (api *headerRecordingAPI) MakeRequestWithHeaders(
+	accessToken string,
+	method string,
+	path string,
+	contentType string,
+	query url.Values,
+	body []byte,
+	beta bool,
+	headers http.Header,
+) ([]byte, error) {
+	if api.sources == nil {
+		api.sources = map[string]string{}
+	}
+	api.sources[method+" "+path] = headers.Get(syncapi.SyncSourceHeader)
+	return api.directAPI.MakeRequest(accessToken, method, path, contentType, query, body, beta)
+}
+
 type ambiguousWriteAPI struct {
 	directAPI
 }
@@ -1327,6 +1378,8 @@ func runPrompt(t *testing.T, root string, client resources.Client, arguments ...
 	case *ambiguousWriteAPI:
 		api.manifest = manifest
 	case *changingReadAPI:
+		api.manifest = manifest
+	case *headerRecordingAPI:
 		api.manifest = manifest
 	}
 	args := []string{
