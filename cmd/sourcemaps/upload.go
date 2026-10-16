@@ -2,6 +2,7 @@ package sourcemaps
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 
 	cmdAnalytics "github.com/launchdarkly/ldcli/cmd/analytics"
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
@@ -33,6 +35,8 @@ const (
 
 	defaultPath       = "."
 	defaultBackendUrl = "https://pri.observability.app.launchdarkly.com"
+
+	uploadConcurrency = 8
 
 	getSourceMapUrlsQuery = `
 	  query GetSourceMapUploadUrls($api_key: String!, $project_id: String!, $paths: [String!]!) {
@@ -157,10 +161,8 @@ func runE(client resources.Client) func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("failed to get upload URLs: %w", err)
 		}
 
-		for i, file := range files {
-			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
-				return fmt.Errorf("failed to upload file %s: %w", file.Path, err)
-			}
+		if err := uploadFiles(files, uploadUrls); err != nil {
+			return err
 		}
 
 		fmt.Println("Successfully uploaded all sourcemaps")
@@ -307,6 +309,29 @@ func getSourceMapUploadUrls(apiKey, projectID string, paths []string, backendUrl
 	}
 
 	return urlsResp.Data.GetSourceMapUploadUrls, nil
+}
+
+// uploadFiles uploads each file to its presigned URL, running up to
+// uploadConcurrency uploads at once. After the first failure it starts no new
+// uploads and returns that failure.
+func uploadFiles(files []SourceMapFile, uploadUrls []string) error {
+	g, ctx := errgroup.WithContext(context.Background())
+	g.SetLimit(uploadConcurrency)
+
+	for i, file := range files {
+		g.Go(func() error {
+			if ctx.Err() != nil {
+				return nil
+			}
+
+			if err := uploadFile(file.Path, uploadUrls[i], file.Name); err != nil {
+				return fmt.Errorf("failed to upload file %s: %w", file.Path, err)
+			}
+			return nil
+		})
+	}
+
+	return g.Wait()
 }
 
 func uploadFile(filePath, uploadUrl, name string) error {

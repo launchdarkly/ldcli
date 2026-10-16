@@ -9,7 +9,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -126,6 +128,68 @@ func TestUploadFile(t *testing.T) {
 	err = uploadFile(tempFile, errorServer.URL, "test.js.map")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "upload failed with status code: 500")
+}
+
+func writeUploadTestFiles(t *testing.T, n int) []SourceMapFile {
+	tempDir := t.TempDir()
+	files := make([]SourceMapFile, 0, n)
+	for i := 0; i < n; i++ {
+		name := fmt.Sprintf("chunk%d.js.map", i)
+		path := filepath.Join(tempDir, name)
+		assert.NoError(t, os.WriteFile(path, []byte("{}"), 0644))
+		files = append(files, SourceMapFile{Path: path, Name: name})
+	}
+	return files
+}
+
+func TestUploadFilesRunsConcurrently(t *testing.T) {
+	files := writeUploadTestFiles(t, uploadConcurrency*4)
+
+	var inFlight, maxInFlight, uploaded atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := inFlight.Add(1)
+		defer inFlight.Add(-1)
+		for {
+			m := maxInFlight.Load()
+			if n <= m || maxInFlight.CompareAndSwap(m, n) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		uploaded.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	urls := make([]string, len(files))
+	for i := range urls {
+		urls[i] = fmt.Sprintf("%s/%d", server.URL, i)
+	}
+
+	assert.NoError(t, uploadFiles(files, urls))
+	assert.Equal(t, int32(len(files)), uploaded.Load())
+	assert.Greater(t, maxInFlight.Load(), int32(1))
+	assert.LessOrEqual(t, maxInFlight.Load(), int32(uploadConcurrency))
+}
+
+func TestUploadFilesStopsAfterFirstError(t *testing.T) {
+	files := writeUploadTestFiles(t, uploadConcurrency*10)
+
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	urls := make([]string, len(files))
+	for i := range urls {
+		urls[i] = server.URL
+	}
+
+	err := uploadFiles(files, urls)
+	assert.ErrorContains(t, err, "upload failed with status code: 403")
+	assert.Less(t, requests.Load(), int32(len(files)))
 }
 
 func TestNewUploadCmd(t *testing.T) {
