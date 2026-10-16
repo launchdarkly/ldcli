@@ -1,7 +1,9 @@
 package setup
 
 import (
+	"errors"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -10,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/launchdarkly/ldcli/internal/setup"
+	"github.com/launchdarkly/ldcli/internal/setup/agent"
 )
 
 func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -37,6 +40,7 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			m.quitting = true
+			m.closeAgent()
 			return m, tea.Quit
 		// esc is not used due to arrow keys becoming the escape sequence.
 		case "q":
@@ -44,7 +48,14 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break // let the list receive 'q' as filter input
 			}
 			m.quitting = true
+			m.closeAgent()
 			return m, tea.Quit
+		case "y", "n":
+			if m.step == stepAgent && m.agentPermission != nil && m.agentRun != nil {
+				req := *m.agentPermission
+				m.agentPermission = nil
+				return m, replyAgent(m.agentRun, req, msg.String() == "y")
+			}
 		case "left", "h":
 			if m.isFiltering() {
 				break // let the list receive the key as filter input
@@ -143,8 +154,28 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case flagCreatedMsg:
 		m.flagKey = msg.key
+		if m.agentMode != agentOff && m.agentRunner != nil {
+			m.step = stepAgent
+			return m, m.startAgent()
+		}
 		m.step = stepInit
 		return m, m.runInit()
+
+	case agentStartedMsg:
+		m.agentRun = msg.run
+		return m, waitForAgentEvent(msg.run)
+
+	case agentFailedMsg:
+		return m.agentFailed(msg.err)
+
+	case agentRepliedMsg:
+		if msg.err != nil {
+			return m.agentFailed(msg.err)
+		}
+		return m, nil
+
+	case agentEventMsg:
+		return m.handleAgentEvent(msg)
 
 	case initDoneMsg:
 		m.initResult = msg.result
@@ -215,6 +246,72 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, cmd
+}
+
+// handleAgentEvent applies one event of the agent run and asks for the next.
+func (m wizardModel) handleAgentEvent(msg agentEventMsg) (tea.Model, tea.Cmd) {
+	// An event of a run that already ended, for example after a fallback, has
+	// nothing left to change.
+	if m.agentRun == nil || msg.run != m.agentRun {
+		return m, nil
+	}
+	if msg.closed {
+		return m.agentFailed(errors.New("the setup agent stopped without a result"))
+	}
+	ev := msg.ev
+	switch ev.Kind {
+	case agent.EventTool:
+		if ev.Tool.Status != "running" {
+			m.agentLog = append(m.agentLog, describeTool(ev.Tool))
+		}
+	case agent.EventFileEdited:
+		if !slices.Contains(m.agentFiles, ev.File) {
+			m.agentFiles = append(m.agentFiles, ev.File)
+		}
+	case agent.EventUsage:
+		u := ev.Usage
+		m.agentUsage = &u
+	case agent.EventPermission:
+		req := ev.Permission
+		m.agentPermission = &req
+	case agent.EventDone:
+		m.agentDone = true
+		m.closeAgent()
+		// As after init: without an installed SDK, the app cannot connect.
+		if m.installResult != nil && m.installResult.Failed {
+			m.step = stepDone
+			return m, nil
+		}
+		m.step = stepWaitForApp
+		return m, nil
+	case agent.EventError:
+		return m.agentFailed(errors.New(ev.Text))
+	}
+	return m, waitForAgentEvent(m.agentRun)
+}
+
+// agentFailed ends the agent run. In auto mode, setup continues with the init
+// templates, but only if the agent changed no files: a template on top of a
+// partial edit can initialize the SDK twice.
+func (m wizardModel) agentFailed(err error) (tea.Model, tea.Cmd) {
+	m.closeAgent()
+	m.agentRun = nil
+	m.agentPermission = nil
+	if m.agentMode == agentOn || len(m.agentFiles) > 0 {
+		m.err = errors.New("The setup agent failed: " + err.Error())
+		return m, nil
+	}
+	m.agentNote = "The setup agent could not run, so setup used the built-in template. " + err.Error()
+	m.agentLog = nil
+	m.step = stepInit
+	return m, m.runInit()
+}
+
+// closeAgent stops OpenCode if a run is active.
+func (m wizardModel) closeAgent() {
+	if m.agentRun != nil {
+		_ = m.agentRun.Close()
+	}
 }
 
 // keepEscFromQuitting rebinds a list's quit key to q alone. bubbles binds it to
