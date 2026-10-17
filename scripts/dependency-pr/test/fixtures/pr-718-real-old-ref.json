@@ -1,0 +1,11 @@
+{
+  "pr": 718,
+  "why": "#718 moves launchdarkly/gh-actions release-secrets to v1.2.0. manual-publish.yml pinned v1.0.1 and release-please.yml already had v1.2.0. On 2026-10-06 the verifier took the highest old ref and compared v1.2.0 with itself (0 commits, no notes). The comparison must use v1.0.1, the ref that the PR replaces.",
+  "head": "4ee96f2b2ded117c4994a097e040e657a335ca28",
+  "base": "9197f925f3ce12da4eb7864a0644451d12977788",
+  "agent_inputs": "agent-inputs/pr-718",
+  "expect": {
+    "verdict": "safe-to-merge",
+    "updates": {"launchdarkly/gh-actions/actions/release-secrets": {"from": "release-secrets-v1.0.1", "to": "release-secrets-v1.2.0", "semver": "minor"}}
+  }
+}

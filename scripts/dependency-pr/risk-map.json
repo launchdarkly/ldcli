@@ -1,0 +1,25 @@
+{
+  "rules": [
+    { "match": "^github.com/oapi-codegen/", "tags": ["codegen"], "tier": "high", "why": "Generator output (server.gen.go) is committed; tool and runtime must move together (#720)." },
+    { "match": "^github.com/getkin/kin-openapi$", "tags": ["codegen"], "tier": "high", "why": "Drives cmd/resources/gen_resources.go and oapi-codegen; can rewrite ~600 KB of generated commands." },
+    { "match": "^github.com/iancoleman/strcase$", "tags": ["codegen"], "tier": "high", "why": "Used by the resource command generator; changes command and flag names." },
+    { "match": "^go.uber.org/mock$", "tags": ["codegen", "mocks"], "tier": "medium", "why": "Six go:generate mockgen directives produce committed mocks." },
+    { "match": "^github.com/mattn/go-sqlite3$", "tags": ["cgo", "dev-server"], "tier": "medium", "why": "CGO; PR CI builds linux/amd64 glibc only while releases cross-compile (musl static, mingw, osxcross)." },
+    { "match": "^github.com/launchdarkly/(go-server-sdk|go-sdk-common|go-server-sdk-evaluation)", "tags": ["ld-sdk", "dev-server"], "tier": "medium", "why": "The dev server proxies SDK streaming and evaluation." },
+    { "match": "^github.com/launchdarkly/api-client-go", "tags": ["ld-sdk", "codegen"], "tier": "medium", "why": "Generated resource commands call the API client." },
+    { "match": "^github.com/launchdarkly/sdk-meta", "tags": ["ld-sdk", "setup"], "tier": "medium", "why": "Feeds the setup/quickstart SDK lists." },
+    { "match": "^github.com/spf13/(cobra|pflag|viper)$", "tags": ["cli-surface"], "tier": "medium", "why": "Flag parsing, config precedence, usage templates." },
+    { "match": "^github.com/go-viper/mapstructure", "tags": ["cli-surface"], "tier": "medium", "why": "Config decoding behind viper." },
+    { "match": "^github.com/charmbracelet/", "tags": ["tui"], "tier": "medium", "why": "Interactive setup/quickstart flows with little test coverage." },
+    { "match": "^@launchpad-ui/", "tags": ["ui-design-system", "peer-deps"], "tier": "medium", "why": "Peer-dependency tangles with React 18 / react-router-dom v6 overrides (#638, #642, #723)." },
+    { "match": "^(react|react-dom|react-router|react-router-dom|@remix-run/router)$", "tags": ["ui-framework", "peer-deps"], "tier": "medium", "why": "Framework peers of @launchpad-ui; overrides pin react-router-dom v6." },
+    { "match": "^launchdarkly-js-client-sdk$", "tags": ["ld-sdk", "dev-server-ui"], "tier": "medium", "why": "UI evaluates flags against the dev server." },
+    { "match": "^(vite|vite-plugin-singlefile|@vitejs/plugin-react|typescript)$", "tags": ["ui-build"], "tier": "medium", "why": "Changes the embedded single-file dist/index.html." },
+    { "match": "^googleapis/release-please-action$", "tags": ["release-tooling"], "tier": "high", "why": "Release workflow never runs on pull_request." },
+    { "match": "^launchdarkly/gh-actions", "tags": ["release-tooling"], "tier": "medium", "why": "Release secrets / shared org workflows." },
+    { "match": "^actions/(attest|upload-artifact|setup-node)$", "tags": ["release-tooling"], "tier": "medium", "why": "Used by publish/attestation steps that only run at release." },
+    { "match": "^docker/", "tags": ["release-tooling"], "tier": "medium", "why": "Image build happens only at release." },
+    { "match": "^alpine$", "tags": ["docker-base-image", "release-tooling"], "tier": "medium", "why": "Base of the published Docker image; never built on PRs." },
+    { "match": "^@go-task/go-npm$", "tags": ["npm-wrapper", "release-tooling"], "tier": "high", "why": "postinstall downloads the release binary for every npm user." }
+  ]
+}

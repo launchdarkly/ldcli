@@ -1,0 +1,12 @@
+{
+  "pr": 737,
+  "why": "#737 is a grouped security update. Dependabot's description names only golang.org/x/net, which needs golang.org/x/term 0.43.0. On the second 2026-10-06 run, pr-disclosure counted the name x/term in the Cursor Bugbot summary block as disclosure and passed. Text in bot blocks must not count. The x/term update is forced by x/net, so it is a note, not a decision.",
+  "head": "c52ac08369cdccb31ddb37a7ea1d6adbc84e8df9",
+  "base": "9197f925f3ce12da4eb7864a0644451d12977788",
+  "pr_meta": "pr-meta/pr-737.json",
+  "expect": {
+    "verdict": "block",
+    "checks": {"pr-disclosure": "info"},
+    "summaries_contain": {"pr-disclosure": "golang.org/x/term v0.40.0 → v0.43.0, required by golang.org/x/net v0.55.0"}
+  }
+}

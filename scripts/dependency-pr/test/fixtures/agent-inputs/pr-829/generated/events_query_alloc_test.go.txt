@@ -1,0 +1,45 @@
+package events_db
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"path/filepath"
+	"testing"
+)
+
+// QueryEvents runs under the HTTP request's (cancellable) context. go-sqlite3
+// < 1.14.51 spawned a goroutine and a channel for every row in that case.
+func TestVerifyQueryEventsCancellationOverhead(t *testing.T) {
+	const rows = 500
+	ctx := context.Background()
+	store, err := NewSqlite(ctx, filepath.Join(t.TempDir(), "events.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateDebugSession(ctx, "verify"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < rows; i++ {
+		if err := store.WriteEvent(ctx, "verify", "feature", json.RawMessage(fmt.Sprintf(`{"i":%d}`, i))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	measure := func(c context.Context) float64 {
+		return testing.AllocsPerRun(5, func() {
+			page, err := store.QueryEvents(c, "verify", nil, rows, 0)
+			if err != nil || len(page.Events) != rows {
+				t.Fatalf("QueryEvents: %v (%d events)", err, len(page.Events))
+			}
+		})
+	}
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	plain := measure(ctx)
+	cancellable := measure(cctx)
+	perRow := (cancellable - plain) / rows
+	fmt.Printf("allocs: background=%.0f cancellable=%.0f extra/row=%.2f\n", plain, cancellable, perRow)
+	if perRow > 0.5 {
+		t.Fatalf("cancellable context costs %.2f extra allocations per row", perRow)
+	}
+}

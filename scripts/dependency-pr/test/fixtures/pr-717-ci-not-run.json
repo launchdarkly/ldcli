@@ -1,0 +1,13 @@
+{
+  "pr": 717,
+  "why": "On 2026-10-13 the head of #717 was 348e5d8 (a merge of main). The Go and dev-server UI runs on that head ended failure with zero jobs, and Dependency Scan and Lint PR title stayed queued. The status-check rollup showed only Bugbot, Semgrep, and the bot-oversight check, so ci-status said all 3 checks were green and the verdict was safe-to-merge. CI did not run, so the verdict must be incomplete.",
+  "head": "348e5d8bd25abfeefa62f61b5195746f6dd64e70",
+  "base": "b818ae4f75f75ed9a9e226ea0aa9cb6a09fc9c21",
+  "agent_inputs": "agent-inputs/pr-717-head-348e5d8",
+  "pr_meta": "pr-meta/pr-717-head-348e5d8.json",
+  "expect": {
+    "verdict": "incomplete",
+    "checks": {"ci-status": "incomplete", "actions-coverage": "pass"},
+    "incomplete_contain": ["Go (ended `failure` with 0 jobs", "dev-server UI (ended `failure` with 0 jobs", "Dependency Scan (queued since 2026-10-07)"]
+  }
+}
