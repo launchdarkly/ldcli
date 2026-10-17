@@ -27,6 +27,14 @@ import (
 const testAccountID = "123456789012"
 
 type fakeAgent struct {
+	// goneSpaces makes GetAgentSpace report not found.
+	goneSpaces      map[string]bool
+	getSpaceErr     error
+	afterListSpaces func()
+	// spaceLinks holds associations by space ID.
+	spaceLinks map[string][]agenttypes.Association
+	// operatorApps holds enabled apps by space.
+	operatorApps      map[string]*devopsagent.GetOperatorAppOutput
 	calls             []string
 	services          []agenttypes.RegisteredService
 	associationInputs []*devopsagent.AssociateServiceInput
@@ -101,6 +109,16 @@ func (f *fakeAgent) DisassociateService(_ context.Context, in *devopsagent.Disas
 	return &devopsagent.DisassociateServiceOutput{}, nil
 }
 
+func (f *fakeAgent) GetOperatorApp(_ context.Context, in *devopsagent.GetOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error) {
+	f.calls = append(f.calls, "GetOperatorApp")
+	app, ok := f.operatorApps[aws.ToString(in.AgentSpaceId)]
+	if !ok {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+
+	return app, nil
+}
+
 func (f *fakeAgent) EnableOperatorApp(_ context.Context, _ *devopsagent.EnableOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error) {
 	f.calls = append(f.calls, "EnableOperatorApp")
 
@@ -110,11 +128,22 @@ func (f *fakeAgent) EnableOperatorApp(_ context.Context, _ *devopsagent.EnableOp
 }
 
 func (f *fakeAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetAgentSpaceOutput, error) {
+	id := aws.ToString(in.AgentSpaceId)
+	if f.goneSpaces[id] {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+	if f.getSpaceErr != nil {
+		return nil, f.getSpaceErr
+	}
+	name := "launchdarkly"
+	for _, space := range f.agentSpaces {
+		if aws.ToString(space.AgentSpaceId) == id && space.Name != nil {
+			name = aws.ToString(space.Name)
+		}
+	}
+
 	return &devopsagent.GetAgentSpaceOutput{
-		AgentSpace: &agenttypes.AgentSpace{
-			AgentSpaceId: in.AgentSpaceId,
-			Name:         aws.String("launchdarkly"),
-		},
+		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId, Name: aws.String(name)},
 	}, nil
 }
 
@@ -124,6 +153,9 @@ func (f *fakeAgent) ListAgentSpaces(_ context.Context, in *devopsagent.ListAgent
 		spaces = []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-1")}}
 	}
 	items, next := page(spaces, in.NextToken, f.paginate)
+	if f.afterListSpaces != nil {
+		f.afterListSpaces()
+	}
 
 	return &devopsagent.ListAgentSpacesOutput{AgentSpaces: items, NextToken: next}, nil
 }
@@ -136,7 +168,11 @@ func (f *fakeAgent) ListServices(_ context.Context, in *devopsagent.ListServices
 }
 
 func (f *fakeAgent) ListAssociations(_ context.Context, in *devopsagent.ListAssociationsInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListAssociationsOutput, error) {
-	items, next := page(f.associations, in.NextToken, f.paginate)
+	links := f.associations
+	if f.spaceLinks != nil {
+		links = f.spaceLinks[aws.ToString(in.AgentSpaceId)]
+	}
+	items, next := page(links, in.NextToken, f.paginate)
 
 	return &devopsagent.ListAssociationsOutput{Associations: items, NextToken: next}, nil
 }
@@ -155,6 +191,11 @@ func (f *fakeAgent) RegisterService(_ context.Context, in *devopsagent.RegisterS
 }
 
 type fakeIAM struct {
+	// appearOnCreate makes a role appear on CreateRole.
+	appearOnCreate map[string][]iamtypes.Tag
+	// failOn fails a call, keyed "Call role".
+	failOn         map[string]error
+	onCreateRole   func(name string)
 	existingRoles  map[string]bool
 	roleTags       map[string][]iamtypes.Tag
 	createdRoles   []string
@@ -183,6 +224,9 @@ func (f *fakeIAM) addManagedRole(name string) {
 }
 
 func (f *fakeIAM) AttachRolePolicy(_ context.Context, in *iam.AttachRolePolicyInput, _ ...func(*iam.Options)) (*iam.AttachRolePolicyOutput, error) {
+	if err := f.failOn["AttachRolePolicy "+aws.ToString(in.RoleName)]; err != nil {
+		return nil, err
+	}
 	f.attachedPolicy[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyArn)
 
 	return &iam.AttachRolePolicyOutput{}, nil
@@ -190,6 +234,13 @@ func (f *fakeIAM) AttachRolePolicy(_ context.Context, in *iam.AttachRolePolicyIn
 
 func (f *fakeIAM) CreateRole(_ context.Context, in *iam.CreateRoleInput, _ ...func(*iam.Options)) (*iam.CreateRoleOutput, error) {
 	name := aws.ToString(in.RoleName)
+	if f.onCreateRole != nil {
+		f.onCreateRole(name)
+	}
+	if tags, ok := f.appearOnCreate[name]; ok {
+		f.existingRoles[name] = true
+		f.roleTags[name] = tags
+	}
 	if f.existingRoles[name] {
 		return nil, &iamtypes.EntityAlreadyExistsException{}
 	}
@@ -219,12 +270,18 @@ func (f *fakeIAM) ListRoleTags(_ context.Context, in *iam.ListRoleTagsInput, _ .
 }
 
 func (f *fakeIAM) UpdateAssumeRolePolicy(_ context.Context, in *iam.UpdateAssumeRolePolicyInput, _ ...func(*iam.Options)) (*iam.UpdateAssumeRolePolicyOutput, error) {
+	if err := f.failOn["UpdateAssumeRolePolicy "+aws.ToString(in.RoleName)]; err != nil {
+		return nil, err
+	}
 	f.trustPolicies[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyDocument)
 
 	return &iam.UpdateAssumeRolePolicyOutput{}, nil
 }
 
 func (f *fakeIAM) PutRolePolicy(_ context.Context, in *iam.PutRolePolicyInput, _ ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
+	if err := f.failOn["PutRolePolicy "+aws.ToString(in.RoleName)]; err != nil {
+		return nil, err
+	}
 	f.inlinePolicies[aws.ToString(in.RoleName)] = aws.ToString(in.PolicyDocument)
 
 	return &iam.PutRolePolicyOutput{}, nil
@@ -269,7 +326,8 @@ func TestSetupCreatesRolesAgentSpaceAndAssociations(t *testing.T) {
 	assert.Contains(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName], "iam:CreateServiceLinkedRole")
 	assert.Equal(
 		t,
-		[]string{"CreateAgentSpace", "AssociateService", "EnableOperatorApp", "ListServices", "RegisterService", "AssociateService"},
+		// Plan lookup, then the pre-write check.
+		[]string{"ListServices", "ListServices", "CreateAgentSpace", "AssociateService", "EnableOperatorApp", "RegisterService", "AssociateService"},
 		agent.calls,
 	)
 }
@@ -369,7 +427,7 @@ func TestSetupLeavesARoleItDidNotCreateAlone(t *testing.T) {
 	assert.Equal(t, "customer-owned", iamClient.trustPolicies[awsdevops.AgentSpaceRoleName])
 	assert.Empty(t, iamClient.attachedPolicy[awsdevops.AgentSpaceRoleName])
 	assert.Empty(t, iamClient.inlinePolicies[awsdevops.AgentSpaceRoleName])
-	assert.Contains(t, strings.Join(logged, "\n"), "was not created by this CLI")
+	assert.Contains(t, strings.Join(logged, "\n"), "ldcli did not change it")
 }
 
 // launchDarklyMCPService is how AWS reports our registration: the endpoint is
@@ -667,9 +725,9 @@ func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {
 }
 
 func TestNewClientsRejectsUnsupportedRegion(t *testing.T) {
-	_, err := awsdevops.NewClients(context.Background(), "us-east-2", "")
+	_, err := awsdevops.NewClients(context.Background(), "us-east-3", "")
 
-	assert.ErrorContains(t, err, "AWS DevOps Agent is not available in us-east-2")
+	assert.ErrorContains(t, err, "AWS DevOps Agent is not available in us-east-3")
 }
 
 func TestNewClientsRequiresCredentials(t *testing.T) {
@@ -684,7 +742,7 @@ func TestNewClientsRequiresCredentials(t *testing.T) {
 	_, err := awsdevops.NewClients(context.Background(), "us-east-1", "")
 
 	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
-	assert.ErrorContains(t, err, "Authenticate first")
+	assert.ErrorContains(t, err, "aws sso login")
 }
 
 func TestNewClientsSuggestsSelectingAProfile(t *testing.T) {

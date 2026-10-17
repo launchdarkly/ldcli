@@ -22,6 +22,7 @@ import (
 // SupportedRegions are the regions where the AWS DevOps Agent control plane is available.
 var SupportedRegions = []string{
 	"us-east-1",
+	"us-east-2",
 	"us-west-2",
 	"ca-central-1",
 	"sa-east-1",
@@ -29,9 +30,12 @@ var SupportedRegions = []string{
 	"ap-southeast-1",
 	"ap-southeast-2",
 	"ap-northeast-1",
+	"ap-northeast-2",
 	"eu-central-1",
 	"eu-west-1",
 	"eu-west-2",
+	"eu-west-3",
+	"eu-north-1",
 }
 
 var (
@@ -50,6 +54,7 @@ type AgentAPI interface {
 	DeregisterService(context.Context, *devopsagent.DeregisterServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DeregisterServiceOutput, error)
 	DisassociateService(context.Context, *devopsagent.DisassociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.DisassociateServiceOutput, error)
 	EnableOperatorApp(context.Context, *devopsagent.EnableOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error)
+	GetOperatorApp(context.Context, *devopsagent.GetOperatorAppInput, ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error)
 	GetAgentSpace(context.Context, *devopsagent.GetAgentSpaceInput, ...func(*devopsagent.Options)) (*devopsagent.GetAgentSpaceOutput, error)
 	ListAgentSpaces(context.Context, *devopsagent.ListAgentSpacesInput, ...func(*devopsagent.Options)) (*devopsagent.ListAgentSpacesOutput, error)
 	ListAssociations(context.Context, *devopsagent.ListAssociationsInput, ...func(*devopsagent.Options)) (*devopsagent.ListAssociationsOutput, error)
@@ -140,24 +145,18 @@ func (c Clients) AccountID(ctx context.Context) (string, error) {
 	return *out.Account, nil
 }
 
-// noCredsErr wraps a formatted message while still satisfying
-// errors.Is(err, ErrNoCredentials). Callers get an actionable message
-// without losing the ability to branch on the sentinel.
+// noCredsErr hides its cause from Error.
 type noCredsErr struct {
 	msg   string
 	cause error
 }
 
-func (e *noCredsErr) Error() string {
-	if e.cause == nil {
-		return e.msg
-	}
-
-	return fmt.Sprintf("%s: %s", e.msg, e.cause)
-}
-
+func (e *noCredsErr) Error() string        { return e.msg }
 func (e *noCredsErr) Unwrap() error        { return e.cause }
 func (e *noCredsErr) Is(target error) bool { return target == ErrNoCredentials }
+
+// maxListedProfiles caps the profile names in an error.
+const maxListedProfiles = 5
 
 // noCredentialsError builds the surfaced message for a credential-resolution
 // failure. profile is the value passed via --profile; cause is the underlying
@@ -168,30 +167,37 @@ func noCredentialsError(profile string, cause error) error {
 		active = os.Getenv("AWS_PROFILE")
 	}
 
+	var msg string
+	profiles := knownProfiles()
 	switch {
 	case active != "":
-		return &noCredsErr{
-			msg: fmt.Sprintf(
-				"no AWS credentials found for profile %q. Run `aws sso login --profile %s` (or refresh the profile's credentials), then re-run this command",
-				active, active,
-			),
-			cause: cause,
-		}
-	case len(knownProfiles()) > 0:
-		profiles := knownProfiles()
-		return &noCredsErr{
-			msg: fmt.Sprintf(
-				"no AWS credentials found and no AWS profile selected. Pass --profile <name> or set AWS_PROFILE, then re-run. Profiles configured on this machine: %s",
-				strings.Join(profiles, ", "),
-			),
-			cause: cause,
-		}
+		msg = fmt.Sprintf(
+			"no AWS credentials for profile %q. Run `aws sso login --profile %s`, then run this command again",
+			active, active,
+		)
+	case len(profiles) > 0:
+		msg = fmt.Sprintf(
+			"no AWS profile selected. Pass --profile <name> or set AWS_PROFILE. Profiles: %s. Run `aws configure list-profiles` to see all",
+			summarizeProfiles(profiles),
+		)
 	default:
-		return &noCredsErr{
-			msg:   "no AWS credentials found. Authenticate first (for example `aws sso login --profile my-profile` or exporting AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN), then re-run this command",
-			cause: cause,
-		}
+		msg = "no AWS credentials found. Run `aws sso login --profile <name>` or set AWS_ACCESS_KEY_ID"
 	}
+
+	return &noCredsErr{msg: msg, cause: cause}
+}
+
+// summarizeProfiles lists the first few names.
+func summarizeProfiles(profiles []string) string {
+	if len(profiles) <= maxListedProfiles {
+		return strings.Join(profiles, ", ")
+	}
+
+	return fmt.Sprintf(
+		"%s and %d more",
+		strings.Join(profiles[:maxListedProfiles], ", "),
+		len(profiles)-maxListedProfiles,
+	)
 }
 
 // knownProfiles returns the profile names configured in the shared AWS

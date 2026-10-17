@@ -70,6 +70,33 @@ func listAssociations(ctx context.Context, clients Clients, agentSpaceID string)
 	}
 }
 
+// AgentSpaceSummary identifies an agent space the account already has, for a
+// caller that has to pick one.
+type AgentSpaceSummary struct {
+	AgentSpaceID string `json:"agentSpaceId"`
+	Name         string `json:"name"`
+	Description  string `json:"description,omitempty"`
+}
+
+// AgentSpaces lists the agent spaces in the account and region.
+func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]AgentSpaceSummary, 0, len(spaces))
+	for _, space := range spaces {
+		summaries = append(summaries, AgentSpaceSummary{
+			AgentSpaceID: aws.ToString(space.AgentSpaceId),
+			Name:         aws.ToString(space.Name),
+			Description:  aws.ToString(space.Description),
+		})
+	}
+
+	return summaries, nil
+}
+
 // FindMCPServer returns the ID of the MCP server registered at endpoint, if the
 // account has one. AWS keeps MCP servers at the account level, so a second
 // agent space reuses the existing registration.
@@ -87,20 +114,31 @@ func FindMCPServer(ctx context.Context, clients Clients, endpoint string) (strin
 	return "", nil
 }
 
-// FindAgentSpace returns the ID of the agent space with the given name, or an
-// empty string when the account has none.
-func FindAgentSpace(ctx context.Context, clients Clients, name string) (string, error) {
+// spacesNamed lists IDs of spaces named name.
+func spacesNamed(ctx context.Context, clients Clients, name string) ([]string, error) {
 	spaces, err := listAgentSpaces(ctx, clients)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	var ids []string
 	for _, space := range spaces {
 		if strings.EqualFold(aws.ToString(space.Name), name) {
-			return aws.ToString(space.AgentSpaceId), nil
+			ids = append(ids, aws.ToString(space.AgentSpaceId))
 		}
 	}
 
-	return "", nil
+	return ids, nil
+}
+
+// FindAgentSpace returns the ID of the agent space with the given name, or an
+// empty string when the account has none.
+func FindAgentSpace(ctx context.Context, clients Clients, name string) (string, error) {
+	ids, err := spacesNamed(ctx, clients, name)
+	if err != nil || len(ids) == 0 {
+		return "", err
+	}
+
+	return ids[0], nil
 }
 
 // FindAssociation returns the ID of an existing association between an agent
