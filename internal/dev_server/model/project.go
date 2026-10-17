@@ -144,6 +144,11 @@ func (project Project) GetFlagStateWithOverridesForProject(ctx context.Context) 
 		}
 		withOverrides[flagKey] = flagState
 	}
+	for _, override := range overrides {
+		if _, synced := project.AllFlagsState[override.FlagKey]; override.Active && !synced {
+			withOverrides[override.FlagKey] = override.Apply(FlagState{})
+		}
+	}
 	return withOverrides, nil
 }
 
