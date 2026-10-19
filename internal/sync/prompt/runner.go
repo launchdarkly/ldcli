@@ -21,6 +21,7 @@ import (
 	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
+	syncrepository "github.com/launchdarkly/ldcli/internal/sync/repository"
 	syncsource "github.com/launchdarkly/ldcli/internal/sync/source"
 )
 
@@ -40,6 +41,8 @@ type Runner struct {
 	link       func(synclink.Options) (string, error)
 	watch      watchRunner
 	isTerminal func(io.Reader, io.Writer) bool
+	// revisions finds the commit and the pull request of the repository.
+	revisions syncrepository.RevisionReader
 }
 
 // NewRunner creates a runner that calls LaunchDarkly through client.
@@ -51,6 +54,7 @@ func NewRunner(client resources.Client) Runner {
 		link:       synclink.Run,
 		watch:      watchWorkspace,
 		isTerminal: syncinteractive.StreamsAreTerminal,
+		revisions:  syncrepository.NewRevisionReader(),
 	}
 }
 
@@ -70,6 +74,7 @@ func (runner Runner) Run(options Options) error {
 	// Each write to LaunchDarkly names the repository, so that LaunchDarkly
 	// can tell a sync write from another write.
 	options.syncSource = resolved.Source
+	options.revision = runner.revision(resolved.Root)
 	local := synclocal.NewStore(resolved.Root)
 	workspace := syncWorkspace{
 		root:      resolved.Root,
@@ -114,7 +119,7 @@ func (runner Runner) runSync(options Options, workspace syncWorkspace, action Sy
 		return err
 	}
 	if !exists && len(projectKeys) == 0 {
-		if err := runner.bootstrap(runner.bootstrapOptions(options, workspace, true, action.DryRun, nil)); err != nil {
+		if err := runner.bootstrap(runner.bootstrapOptions(options, workspace, true, action.DryRun, true, nil)); err != nil {
 			return err
 		}
 		if !action.Watch {
@@ -132,7 +137,10 @@ func (runner Runner) runSync(options Options, workspace syncWorkspace, action Sy
 	defer stop()
 	options.Context = ctx
 	return runner.watch(ctx, workspace.root, watchDebounce, func(watcher *sourceWatcher) error {
-		return runner.runWorkspaceSync(options, workspace, watcher)
+		// HEAD can change while the watch runs, so find it for each cycle.
+		cycle := options
+		cycle.revision = runner.revision(workspace.root)
+		return runner.runWorkspaceSync(cycle, workspace, watcher)
 	}, options.ErrorOutput)
 }
 
@@ -141,7 +149,7 @@ func (runner Runner) runAdd(options Options, workspace syncWorkspace, action Add
 	if err != nil {
 		return err
 	}
-	return runner.bootstrap(runner.bootstrapOptions(options, workspace, !exists, action.DryRun, action.Variations))
+	return runner.bootstrap(runner.bootstrapOptions(options, workspace, !exists, action.DryRun, !action.NoAdopt, action.Variations))
 }
 
 func (runner Runner) runDetach(options Options, workspace syncWorkspace, action DetachAction) error {
@@ -162,6 +170,8 @@ func (runner Runner) runDetach(options Options, workspace syncWorkspace, action 
 		Archiver:       runner.api(options),
 		Yes:            options.Yes,
 		Context:        options.Context,
+		Settings:       runner.api(options),
+		ErrorOutput:    options.ErrorOutput,
 	})
 }
 
@@ -220,11 +230,17 @@ func (runner Runner) runAttach(options Options, workspace syncWorkspace, action 
 func (runner Runner) bootstrapOptions(
 	options Options,
 	workspace syncWorkspace,
-	initial, dryRun bool,
+	initial, dryRun, adopt bool,
 	selections []syncdomain.ResourceID,
 ) syncbootstrap.Options {
 	api := runner.api(options)
+	var settings syncbootstrap.SettingsWriter
+	if adopt {
+		settings = api
+	}
 	return syncbootstrap.Options{
+		Settings:    settings,
+		ErrorOutput: options.ErrorOutput,
 		Catalog:     api,
 		Attachments: api,
 		Store:       workspace.local,
@@ -240,7 +256,18 @@ func (runner Runner) bootstrapOptions(
 
 // api returns the LaunchDarkly client for the command.
 func (runner Runner) api(options Options) syncapi.Client {
-	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI).WithSyncSource(options.syncSource)
+	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI).
+		WithSyncSource(options.syncSource).
+		WithSyncCommit(options.revision.Commit)
+}
+
+// revision returns the commit and the pull request of the repository at root.
+// A runner without a revision reader knows neither.
+func (runner Runner) revision(root string) syncrepository.Revision {
+	if runner.revisions == nil {
+		return syncrepository.Revision{}
+	}
+	return runner.revisions.Revision(root)
 }
 
 // interactive reports whether the command can ask the user for input.

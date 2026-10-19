@@ -31,14 +31,26 @@ type AttachmentReader interface {
 	ReadAttachment(projectKey string, kind syncdomain.AttachmentKind, key string) (syncdomain.Attachment, error)
 }
 
+// SettingsWriter writes the sync settings rules of a project.
+type SettingsWriter interface {
+	PatchSyncSettings(projectKey string, upserts []syncapi.SyncSettingRule, deletions []syncapi.SyncSettingPattern) error
+}
+
 // Options are the dependencies and the input of one add.
 type Options struct {
 	Catalog     Catalog
 	Attachments AttachmentReader
 	Store       synclocal.Store
 	Baselines   syncmanifest.Baselines
-	Input       io.Reader
-	Output      io.Writer
+	// Settings makes each added variation code canonical. Code canonical
+	// means that the local file is the source of truth, and LaunchDarkly
+	// rejects a change that does not come from sync. If Settings is nil, add
+	// does not change the sync settings.
+	Settings SettingsWriter
+	Input    io.Reader
+	Output   io.Writer
+	// ErrorOutput gets the warnings. If it is nil, the warnings go to Output.
+	ErrorOutput io.Writer
 	// Initial is true when the workspace has no .launchdarkly directory.
 	Initial bool
 	DryRun  bool
@@ -240,6 +252,12 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if err != nil {
 		return err
 	}
+	// Write the rules before the files. If a later step fails, the same add
+	// can run again, because a rule upsert can repeat.
+	adopted, err := adoptVariations(options, files)
+	if err != nil {
+		return err
+	}
 
 	var creation synclocal.Creation
 	if options.Initial {
@@ -259,7 +277,53 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	}
 
 	writeSummary(options.Output, options.Initial, len(creation.VariationPaths))
+	if adopted {
+		_ = syncconsole.New(options.Output).Line(
+			"The local files are now the source of truth for these variations. LaunchDarkly rejects other changes to them.",
+		)
+	}
 	return nil
+}
+
+// adoptVariations writes an exact code canonical rule for each file, with one
+// request group for each project. It reports whether every project has the
+// rules. If a project has no sync settings, it writes a warning and continues.
+func adoptVariations(options Options, files []synclocal.VariationFile) (bool, error) {
+	if options.Settings == nil {
+		return false, nil
+	}
+	byProject := make(map[string][]syncdomain.ResourceID)
+	var projectKeys []string
+	for _, file := range files {
+		if _, ok := byProject[file.ProjectKey]; !ok {
+			projectKeys = append(projectKeys, file.ProjectKey)
+		}
+		byProject[file.ProjectKey] = append(
+			byProject[file.ProjectKey], syncdomain.VariationID(file.ProjectKey, file.ConfigKey, file.Variation.Key),
+		)
+	}
+	slices.Sort(projectKeys)
+
+	errorOutput := options.ErrorOutput
+	if errorOutput == nil {
+		errorOutput = options.Output
+	}
+	adopted := true
+	for _, projectKey := range projectKeys {
+		rules := syncapi.ExactVariationRules(byProject[projectKey], syncdomain.DirectionCodeCanonical)
+		err := options.Settings.PatchSyncSettings(projectKey, rules, nil)
+		switch {
+		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
+			adopted = false
+			_ = syncconsole.New(errorOutput).Printf(
+				"Warning: sync settings are not available for project %s. "+
+					"Add did not make the local files the source of truth.\n", projectKey,
+			)
+		case err != nil:
+			return false, err
+		}
+	}
+	return adopted, nil
 }
 
 // recordCreatedVariations returns a copy of the manifest with a baseline for

@@ -219,7 +219,7 @@ func TestClientCreateVariation(t *testing.T) {
 		},
 	}
 
-	err := client.CreateVariation("project", "support", variation)
+	_, err := client.CreateVariation("project", "support", variation)
 
 	require.NoError(t, err)
 	require.Len(t, transport.Requests, 1)
@@ -256,7 +256,7 @@ func TestClientCreateAgentVariationOmitsCompletionFields(t *testing.T) {
 	variation := testVariation(syncdomain.VariationModeAgent)
 	variation.Messages = []syncdomain.Message{{Role: "user", Content: "stale completion message"}}
 
-	require.NoError(t, client.CreateVariation("project", "support", variation))
+	require.NoError(t, discardVersion(client.CreateVariation("project", "support", variation)))
 
 	require.Len(t, transport.Requests, 1)
 	assert.Contains(t, string(transport.Requests[0].Body), `"instructions":"Help the user."`)
@@ -270,7 +270,7 @@ func TestClientCreateVariationReturnsTransportError(t *testing.T) {
 		"https://example.com",
 	)
 
-	err := client.CreateVariation(
+	_, err := client.CreateVariation(
 		"project",
 		"support",
 		testVariation(syncdomain.VariationModeAgent),
@@ -287,7 +287,7 @@ func TestClientMutationRecognizesDefinitiveAPIError(t *testing.T) {
 		"https://example.com",
 	)
 
-	err := client.CreateVariation(
+	_, err := client.CreateVariation(
 		"project",
 		"support",
 		testVariation(syncdomain.VariationModeAgent),
@@ -303,7 +303,7 @@ func TestClientCreateVariationReturnsEncodeError(t *testing.T) {
 	variation := testVariation(syncdomain.VariationModeAgent)
 	variation.Model = map[string]any{"invalid": make(chan int)}
 
-	err := client.CreateVariation("project", "support", variation)
+	_, err := client.CreateVariation("project", "support", variation)
 
 	require.ErrorContains(t, err, `encode config variation "helpful"`)
 	assert.Empty(t, transport.Requests)
@@ -320,7 +320,7 @@ func TestClientUpdateVariation(t *testing.T) {
 	variation.ModelConfigVersion = 3
 	variation.OutputFormat = map[string]any{"type": "object"}
 
-	err := client.UpdateVariation("project", "support", variation)
+	_, err := client.UpdateVariation("project", "support", variation)
 
 	require.NoError(t, err)
 	require.Len(t, transport.Requests, 1)
@@ -357,7 +357,7 @@ func TestClientUpdateVariationSendsEmptyOwnedFieldsToClearThem(t *testing.T) {
 		Name: "Helpful",
 	}
 
-	require.NoError(t, client.UpdateVariation("project", "support", variation))
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", variation)))
 
 	require.Len(t, transport.Requests, 1)
 	assert.JSONEq(t, `{
@@ -368,28 +368,13 @@ func TestClientUpdateVariationSendsEmptyOwnedFieldsToClearThem(t *testing.T) {
 	}`, string(transport.Requests[0].Body))
 }
 
-func TestClientUpdateVariationOmitsEmptyModelConfigKey(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
-	variation := testVariation(syncdomain.VariationModeAgent)
-	variation.ModelConfigKey = ""
-
-	require.NoError(t, client.UpdateVariation("project", "support", variation))
-	require.NoError(t, client.CreateVariation("project", "support", variation))
-
-	require.Len(t, transport.Requests, 2)
-	for _, request := range transport.Requests {
-		assert.NotContains(t, string(request.Body), `"modelConfigKey"`, request.Method)
-	}
-}
-
 func TestClientUpdateCompletionVariationOmitsAgentFields(t *testing.T) {
 	transport := &recordingClient{}
 	client := NewClient(transport, "token", "https://example.com")
 	variation := testVariation(syncdomain.VariationModeCompletion)
 	variation.Messages = []syncdomain.Message{{Role: "system", Content: "Help the user."}}
 
-	require.NoError(t, client.UpdateVariation("project", "support", variation))
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", variation)))
 
 	require.Len(t, transport.Requests, 1)
 	assert.JSONEq(t, `{
@@ -408,7 +393,7 @@ func TestClientUpdateCompletionVariationSendsEmptyMessagesToClearThem(t *testing
 	client := NewClient(transport, "token", "https://example.com")
 	variation := testVariation(syncdomain.VariationModeCompletion)
 
-	require.NoError(t, client.UpdateVariation("project", "support", variation))
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", variation)))
 
 	require.Len(t, transport.Requests, 1)
 	assert.Contains(t, string(transport.Requests[0].Body), `"messages":[]`)
@@ -422,7 +407,7 @@ func TestClientUpdateVariationReturnsTransportError(t *testing.T) {
 		"https://example.com",
 	)
 
-	err := client.UpdateVariation(
+	_, err := client.UpdateVariation(
 		"project",
 		"support",
 		testVariation(syncdomain.VariationModeAgent),
@@ -437,7 +422,7 @@ func TestClientUpdateVariationReturnsEncodeError(t *testing.T) {
 	variation := testVariation(syncdomain.VariationModeAgent)
 	variation.Model = map[string]any{"invalid": make(chan int)}
 
-	err := client.UpdateVariation("project", "support", variation)
+	_, err := client.UpdateVariation("project", "support", variation)
 
 	require.ErrorContains(t, err, `encode config variation "helpful"`)
 	assert.Empty(t, transport.Requests)
@@ -616,8 +601,8 @@ func TestClientSendsSyncSourceOnEveryWrite(t *testing.T) {
 	}
 	id := syncdomain.VariationID("project", "support", "helpful")
 
-	require.NoError(t, client.CreateVariation("project", "support", variation))
-	require.NoError(t, client.UpdateVariation("project", "support", variation))
+	require.NoError(t, discardVersion(client.CreateVariation("project", "support", variation)))
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", variation)))
 	require.NoError(t, client.CreateAttachment("project", tool))
 	require.NoError(t, client.UpdateAttachment("project", tool))
 	_, err := client.PatchSyncManifest("project", source, nil, nil)
@@ -653,7 +638,7 @@ func TestClientWithoutSyncSourceSendsNoHeader(t *testing.T) {
 	recorder := newSourceHeaderServer(t)
 	client := NewClient(resources.NewClient("test"), "token", recorder.server.URL)
 
-	require.NoError(t, client.UpdateVariation("project", "support", testVariation(syncdomain.VariationModeAgent)))
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", testVariation(syncdomain.VariationModeAgent))))
 
 	assert.Empty(t, recorder.headers["PATCH /api/v2/projects/project/ai-configs/support/variations/helpful"])
 }
@@ -662,7 +647,7 @@ func TestClientWritesWithoutHeaderWhenTransportCannotSendHeaders(t *testing.T) {
 	transport := &recordingClient{Responses: [][]byte{[]byte(`{}`)}}
 	client := NewClient(transport, "token", "https://example.com").WithSyncSource("git:example.com/acme/app")
 
-	require.NoError(t, client.UpdateVariation("project", "support", testVariation(syncdomain.VariationModeAgent)))
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", testVariation(syncdomain.VariationModeAgent))))
 
 	require.Len(t, transport.Requests, 1)
 	assert.Equal(t, http.MethodPatch, transport.Requests[0].Method)
@@ -677,4 +662,93 @@ func testVariation(mode syncdomain.VariationMode) syncdomain.Variation {
 		ModelConfigKey: "claude",
 		Model:          map[string]any{"modelName": "claude-3-5-sonnet"},
 	}
+}
+
+// discardVersion returns the error of a variation write.
+func discardVersion(_ int, err error) error {
+	return err
+}
+
+func TestClientVariationWritesReturnTheWrittenVersion(t *testing.T) {
+	transport := &recordingClient{Responses: [][]byte{
+		[]byte(`{"key":"helpful","version":1}`),
+		[]byte(`{"key":"helpful","version":7}`),
+		[]byte(`{}`),
+		[]byte(`not json`),
+	}}
+	client := NewClient(transport, "token", "https://example.com")
+	variation := testVariation(syncdomain.VariationModeAgent)
+
+	created, err := client.CreateVariation("project", "support", variation)
+	require.NoError(t, err)
+	updated, err := client.UpdateVariation("project", "support", variation)
+	require.NoError(t, err)
+	withoutVersion, err := client.UpdateVariation("project", "support", variation)
+	require.NoError(t, err)
+	notJSON, err := client.UpdateVariation("project", "support", variation)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, created)
+	assert.Equal(t, 7, updated)
+	assert.Zero(t, withoutVersion)
+	assert.Zero(t, notJSON)
+}
+
+func TestClientUpdateVariationOmitsEmptyModelConfigKey(t *testing.T) {
+	transport := &recordingClient{}
+	client := NewClient(transport, "token", "https://example.com")
+	variation := testVariation(syncdomain.VariationModeAgent)
+	variation.ModelConfigKey = ""
+
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", variation)))
+	require.NoError(t, discardVersion(client.CreateVariation("project", "support", variation)))
+
+	require.Len(t, transport.Requests, 2)
+	for _, request := range transport.Requests {
+		assert.NotContains(t, string(request.Body), `"modelConfigKey"`, request.Method)
+	}
+}
+
+func TestClientSendsSyncCommitWithSyncSource(t *testing.T) {
+	commits := map[string][]string{}
+	sources := map[string][]string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		commits[r.Method+" "+r.URL.Path] = r.Header.Values(SyncCommitHeader)
+		sources[r.Method+" "+r.URL.Path] = r.Header.Values(SyncSourceHeader)
+		_, _ = w.Write([]byte(`{"key":"support","mode":"agent","variations":[]}`))
+	}))
+	t.Cleanup(server.Close)
+	const commit = "3f9c2ae8d1b7c4e5f6a7b8c9d0e1f2a3b4c5d6e7"
+	source := "git:example.com/acme/app"
+	update := "PATCH /api/v2/projects/project/ai-configs/support/variations/helpful"
+	report := "POST /api/v2/projects/project/configs/sync/reports"
+	settings := "PATCH /api/v2/projects/project/configs/sync/settings"
+	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "helpful")}
+
+	client := NewClient(resources.NewClient("test"), "token", server.URL).WithSyncSource(source).WithSyncCommit(commit)
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", testVariation(syncdomain.VariationModeAgent))))
+	require.NoError(t, client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil))
+	require.NoError(t, client.PostSyncReport("project", SyncReport{Source: source, Resources: []SyncReportResource{
+		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/helpful", Status: ReportStatusSucceeded},
+	}}))
+	_, err := client.ReadVariation("project", "support", "helpful")
+	require.NoError(t, err)
+
+	for _, write := range []string{update, settings, report} {
+		assert.Equal(t, []string{commit}, commits[write], write)
+		assert.Equal(t, []string{source}, sources[write], write)
+	}
+	assert.Empty(t, commits["GET /api/v2/projects/project/ai-configs/support"])
+
+	// Without a known commit, the write sends only the source.
+	client = NewClient(resources.NewClient("test"), "token", server.URL).WithSyncSource(source)
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", testVariation(syncdomain.VariationModeAgent))))
+	assert.Empty(t, commits[update])
+	assert.Equal(t, []string{source}, sources[update])
+
+	// Without a source, the write sends neither header.
+	client = NewClient(resources.NewClient("test"), "token", server.URL).WithSyncCommit(commit)
+	require.NoError(t, discardVersion(client.UpdateVariation("project", "support", testVariation(syncdomain.VariationModeAgent))))
+	assert.Empty(t, commits[update])
+	assert.Empty(t, sources[update])
 }

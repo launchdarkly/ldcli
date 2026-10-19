@@ -26,6 +26,7 @@ const (
 	formatFlag         = "format"
 	modelConfigKeyFlag = "model-config-key"
 	nameFlag           = "name"
+	noAdoptFlag        = "no-adopt"
 	noInputFlag        = "no-input"
 	resolveFlag        = "resolve"
 	toFlag             = "to"
@@ -140,6 +141,11 @@ func newAddCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add [project-key/config-key/variation-key...]",
 		Short: "Add prompt variations from LaunchDarkly",
+		Long: "Write LaunchDarkly prompt variations as local files, and start to sync them. " +
+			"Add also makes each variation code canonical. " +
+			"Code canonical means that the local file is the source of truth. " +
+			"LaunchDarkly then rejects each change to the variation that does not come from sync. " +
+			"To keep the sync settings of the variations as they are, use --no-adopt.",
 		Example: `  # Choose variations interactively
   ldcli sync prompts add
 
@@ -147,7 +153,10 @@ func newAddCmd(client resources.Client) *cobra.Command {
   ldcli sync prompts add production/support/default
 
   # Add multiple variations without prompting
-  ldcli sync prompts add production/support/default production/chat/concise --no-input`,
+  ldcli sync prompts add production/support/default production/chat/concise --no-input
+
+  # Add one variation and keep its sync settings
+  ldcli sync prompts add production/support/default --no-adopt`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
 		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
@@ -155,10 +164,12 @@ func newAddCmd(client resources.Client) *cobra.Command {
 				return nil, err
 			}
 			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-			return syncprompt.AddAction{Variations: variations, DryRun: dryRun}, nil
+			noAdopt, _ := cmd.Flags().GetBool(noAdoptFlag)
+			return syncprompt.AddAction{Variations: variations, DryRun: dryRun, NoAdopt: noAdopt}, nil
 		}),
 	}
 	cmd.Flags().Bool(dryRunFlag, false, "Preview local files without creating them")
+	cmd.Flags().Bool(noAdoptFlag, false, "Do not make the variations code canonical in the sync settings")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
 }
@@ -213,6 +224,9 @@ func newDetachCmd(client resources.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "detach [project-key/config-key/variation-key...]",
 		Short: "Stop syncing local prompt variations",
+		Long: "Stop syncing local prompt variations. Detach deletes the local files of the variations. " +
+			"It also deletes the exact sync settings rule of each variation, so that LaunchDarkly accepts changes to it again. " +
+			"LaunchDarkly keeps the variations, unless you use --archive.",
 		Example: `  # Choose variations interactively
   ldcli sync prompts detach
 

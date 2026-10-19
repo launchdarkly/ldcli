@@ -1,0 +1,337 @@
+package prompt_test
+
+import (
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	lderrors "github.com/launchdarkly/ldcli/internal/errors"
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
+)
+
+// clearGitHubEnvironment makes the pull request rules use only the commit,
+// also when the tests run in GitHub Actions.
+func clearGitHubEnvironment(t *testing.T) {
+	t.Helper()
+	t.Setenv("GITHUB_EVENT_NAME", "")
+	t.Setenv("GITHUB_REF", "")
+}
+
+func decodeReports(t *testing.T, bodies []string) []syncapi.SyncReport {
+	t.Helper()
+	reports := make([]syncapi.SyncReport, 0, len(bodies))
+	for _, body := range bodies {
+		var report syncapi.SyncReport
+		require.NoError(t, json.Unmarshal([]byte(body), &report), body)
+		reports = append(reports, report)
+	}
+	return reports
+}
+
+func TestPromptAddMakesVariationCodeCanonical(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{variation: pointer(variation("Server"))}
+
+	stdout, _, err := runPrompt(t, root, api, "add", "production/support/default", "--no-input")
+
+	require.NoError(t, err)
+	require.Len(t, api.settingsPatches, 1)
+	assert.JSONEq(t, `{
+		"upserts": [{"resourceKind":"variation","resourcePattern":"support/default","direction":"code_canonical"}],
+		"deletions": []
+	}`, api.settingsPatches[0])
+	assert.Contains(t, stdout, "The local files are now the source of truth for these variations.")
+	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
+
+func TestPromptAddWithNoAdoptKeepsSyncSettings(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{variation: pointer(variation("Server"))}
+
+	stdout, _, err := runPrompt(t, root, api, "add", "production/support/default", "--no-input", "--no-adopt")
+
+	require.NoError(t, err)
+	assert.Empty(t, api.settingsPatches)
+	assert.NotContains(t, stdout, "source of truth")
+	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
+
+func TestPromptAddWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{
+		variation: pointer(variation("Server")),
+		settingsPatchErr: lderrors.NewError(
+			`{"code":"forbidden","message":"Plan does not allow this operation","statusCode":403}`,
+		),
+	}
+
+	stdout, stderr, err := runPrompt(t, root, api, "add", "production/support/default", "--no-input")
+
+	require.NoError(t, err)
+	assert.Len(t, api.settingsPatches, 1)
+	assert.Contains(t, stderr, "Warning: sync settings are not available for project production.")
+	assert.NotContains(t, stdout, "source of truth")
+	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
+
+func TestPromptAddDryRunWritesNoRule(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{variation: pointer(variation("Server"))}
+
+	_, _, err := runPrompt(t, root, api, "add", "production/support/default", "--no-input", "--dry-run")
+
+	require.NoError(t, err)
+	assert.Empty(t, api.settingsPatches)
+	assert.Empty(t, api.reports)
+}
+
+func TestPromptDetachDeletesExactRule(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err := runPrompt(t, root, api, "detach", "production/support/default", "--no-input")
+
+	require.NoError(t, err)
+	require.Len(t, api.settingsPatches, 1)
+	assert.JSONEq(t, `{
+		"upserts": [],
+		"deletions": [{"resourceKind":"variation","resourcePattern":"support/default"}]
+	}`, api.settingsPatches[0])
+	assert.Empty(t, api.reports, "detach does not sync")
+}
+
+func TestPromptDetachWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{
+		variation:        pointer(baseline),
+		settingsPatchErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
+	}
+
+	_, stderr, err := runPrompt(t, root, api, "detach", "production/support/default", "--no-input")
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Warning: sync settings are not available for project production.")
+	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestPromptReportsWrittenVersion(t *testing.T) {
+	clearGitHubEnvironment(t)
+	root := initRepository(t)
+	baseline, local := variation("Baseline"), variation("Local")
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline), version: 6}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	reports := decodeReports(t, api.reports)
+	require.Len(t, reports, 1)
+	assert.Equal(t, syncapi.SyncReport{
+		Source: "git:example/repo",
+		Resources: []syncapi.SyncReportResource{{
+			ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default",
+			Status: syncapi.ReportStatusSucceeded, Version: 7,
+		}},
+	}, reports[0])
+}
+
+func TestPromptReportsInSyncResourceWithoutVersion(t *testing.T) {
+	clearGitHubEnvironment(t)
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline), version: 6}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	reports := decodeReports(t, api.reports)
+	require.Len(t, reports, 1)
+	assert.Equal(t, []syncapi.SyncReportResource{{
+		ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Status: syncapi.ReportStatusSucceeded,
+	}}, reports[0].Resources)
+}
+
+func TestPromptReportsPulledResourceWithoutVersion(t *testing.T) {
+	root := initRepository(t)
+	baseline, server := variation("Baseline"), variation("Server")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(server)}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	reports := decodeReports(t, api.reports)
+	require.Len(t, reports, 1)
+	assert.Equal(t, []syncapi.SyncReportResource{{
+		ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Status: syncapi.ReportStatusSucceeded,
+	}}, reports[0].Resources)
+}
+
+func TestPromptReportsFailedWrites(t *testing.T) {
+	root := initRepository(t)
+	firstBaseline, secondBaseline := variationWithKey("first", "First baseline"), variationWithKey("second", "Second baseline")
+	firstLocal, secondLocal := variationWithKey("first", "First local"), variationWithKey("second", "Second local")
+	_, err := synclocal.NewStore(root).Add([]synclocal.VariationFile{
+		{ProjectKey: "production", ConfigKey: "support", Upsert: true, Variation: firstLocal},
+		{ProjectKey: "production", ConfigKey: "support", Upsert: true, Variation: secondLocal},
+	})
+	require.NoError(t, err)
+	writeManifestResources(t, root, firstBaseline, secondBaseline)
+	api := &multiDirectAPI{
+		variations: map[string]syncdomain.Variation{"first": firstBaseline, "second": secondBaseline},
+		failKey:    "second",
+	}
+
+	_, _, err = runPrompt(t, root, api, "--yes")
+
+	require.ErrorContains(t, err, "second")
+	reports := decodeReports(t, api.reports)
+	require.Len(t, reports, 1)
+	require.Len(t, reports[0].Resources, 2)
+	assert.Equal(t, syncapi.SyncReportResource{
+		ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/first", Status: syncapi.ReportStatusSucceeded,
+	}, reports[0].Resources[0])
+	failed := reports[0].Resources[1]
+	assert.Equal(t, "support/second", failed.ResourceLookupKey)
+	assert.Equal(t, syncapi.ReportStatusFailed, failed.Status)
+	assert.Contains(t, failed.Error, "write failed for second")
+	assert.Zero(t, failed.Version)
+}
+
+func TestPromptReportFailureKeepsExitCode(t *testing.T) {
+	root := initRepository(t)
+	baseline, local := variation("Baseline"), variation("Local")
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{
+		variation: pointer(baseline),
+		reportErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
+	}
+
+	_, stderr, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	assert.Len(t, api.reports, 1)
+	assert.Contains(t, stderr, "Warning: sync did not send its report to LaunchDarkly for project production")
+	assert.Equal(t, local.Name, api.variation.Name)
+	assertManifestFingerprint(t, root, local)
+}
+
+func TestPromptDryRunSendsNoReport(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, variation("Local"), false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err := runPrompt(t, root, api, "--dry-run")
+
+	require.NoError(t, err)
+	assert.Empty(t, api.reports)
+}
+
+func TestPromptCanceledSyncSendsNoReport(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, variation("Local"), false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(variation("Server"))}
+
+	// The local and the server changes conflict, and --conflict=abort stops
+	// the sync before any write.
+	_, _, _ = runPrompt(t, root, api, "--yes", "--no-input", "--conflict=abort")
+
+	assert.Empty(t, api.reports)
+}
+
+func TestPromptSendsCommitAndPullRequest(t *testing.T) {
+	t.Setenv("GITHUB_EVENT_NAME", "pull_request")
+	t.Setenv("GITHUB_REF", "refs/pull/142/merge")
+	root := initRepository(t)
+	commit := commitAll(t, root, "Add the support prompt (#58)")
+	baseline, local := variation("Baseline"), variation("Local")
+	writeVariation(t, root, local, false)
+	writeManifest(t, root, baseline)
+	api := &headerRecordingAPI{directAPI: &directAPI{variation: pointer(baseline)}}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	writes := 0
+	for request, source := range api.sources {
+		if strings.HasPrefix(request, "GET ") {
+			continue
+		}
+		writes++
+		assert.Equal(t, "git:example/repo", source, request)
+		assert.Equal(t, commit, api.commits[request], request)
+	}
+	assert.Equal(t, 3, writes, "sync updates the variation and the manifest, and sends the report")
+	reports := decodeReports(t, api.reports)
+	require.Len(t, reports, 1)
+	assert.Equal(t, commit, reports[0].Commit)
+	assert.Equal(t, 142, reports[0].PullRequest)
+}
+
+func TestPromptFindsPullRequestInCommitSubject(t *testing.T) {
+	clearGitHubEnvironment(t)
+	root := initRepository(t)
+	commit := commitAll(t, root, "Add the support prompt (#58)")
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.NoError(t, err)
+	reports := decodeReports(t, api.reports)
+	require.Len(t, reports, 1)
+	assert.Equal(t, commit, reports[0].Commit)
+	assert.Equal(t, 58, reports[0].PullRequest)
+}
+
+// commitAll makes a commit with subject in the repository, and returns its
+// full SHA.
+func commitAll(t *testing.T, root, subject string) string {
+	t.Helper()
+	git := func(args ...string) string {
+		command := exec.Command("git", append([]string{
+			"-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false",
+		}, args...)...)
+		command.Dir = root
+		output, err := command.CombinedOutput()
+		require.NoError(t, err, "%s", output)
+		return strings.TrimSpace(string(output))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(root, "README.md"), []byte("test\n"), 0o644))
+	git("add", "README.md")
+	git("commit", "--quiet", "-m", subject)
+	return git("rev-parse", "HEAD")
+}

@@ -17,6 +17,10 @@ import (
 // "git:github.com/acme/app".
 const SyncSourceHeader = "LD-Sync-Source"
 
+// SyncCommitHeader is the request header that names the Git commit of a sync
+// write. A write sends it only with SyncSourceHeader.
+const SyncCommitHeader = "LD-Sync-Commit"
+
 // Client calls the LaunchDarkly REST API with one access token.
 type Client struct {
 	transport   resources.Client
@@ -25,6 +29,10 @@ type Client struct {
 	// syncSource is the repository that sync runs in. Each write sends it in
 	// the SyncSourceHeader header. An empty value sends no header.
 	syncSource string
+	// syncCommit is the full SHA of the commit that sync runs at. Each write
+	// that sends syncSource also sends it in the SyncCommitHeader header. An
+	// empty value sends no header.
+	syncCommit string
 }
 
 // NewClient creates a client for the API at baseURI.
@@ -37,6 +45,13 @@ func NewClient(transport resources.Client, accessToken, baseURI string) Client {
 // write without the header.
 func (client Client) WithSyncSource(source string) Client {
 	client.syncSource = source
+	return client
+}
+
+// WithSyncCommit returns a copy of the client that sends commit with each
+// write that sends the sync source.
+func (client Client) WithSyncCommit(commit string) Client {
+	client.syncCommit = commit
 	return client
 }
 
@@ -88,8 +103,9 @@ func (client Client) mutate(request mutation, path ...string) ([]byte, error) {
 	return response, nil
 }
 
-// write sends one JSON write request with the sync source header. If the
-// transport cannot send extra headers, it sends the request without it.
+// write sends one JSON write request with the sync source header and, when
+// the commit is known, the sync commit header. If the transport cannot send
+// extra headers, it sends the request without them.
 func (client Client) write(method, endpoint string, body []byte) ([]byte, error) {
 	transport, sendsHeaders := client.transport.(resources.HeaderClient)
 	if client.syncSource == "" || !sendsHeaders {
@@ -97,6 +113,9 @@ func (client Client) write(method, endpoint string, body []byte) ([]byte, error)
 	}
 	headers := http.Header{}
 	headers.Set(SyncSourceHeader, client.syncSource)
+	if client.syncCommit != "" {
+		headers.Set(SyncCommitHeader, client.syncCommit)
+	}
 	return transport.MakeRequestWithHeaders(client.accessToken, method, endpoint, "application/json", nil, body, false, headers)
 }
 

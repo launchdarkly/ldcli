@@ -44,6 +44,17 @@ type directAPI struct {
 	// request, directionsAfterFirstRead replaces directions when it is set.
 	settingsReads            int
 	directionsAfterFirstRead map[string]syncdomain.Direction
+	// settingsPatches are the bodies of the sync settings patches.
+	settingsPatches []string
+	// settingsPatchErr is the error that a sync settings patch returns.
+	settingsPatchErr error
+	// reports are the bodies of the sync reports.
+	reports []string
+	// reportErr is the error that the sync report API returns.
+	reportErr error
+	// version is the version of the variation. Each create and update adds
+	// one, and the response includes it.
+	version int
 }
 
 // handleSettingsRequest serves the sync settings API in request order.
@@ -117,7 +128,15 @@ func (api *directAPI) MakeRequest(
 		return handleManifestRequest(api.manifest, method, query, body)
 	}
 	if strings.HasSuffix(path, "/configs/sync/settings") {
+		if method == http.MethodPatch {
+			api.settingsPatches = append(api.settingsPatches, string(body))
+			return nil, api.settingsPatchErr
+		}
 		return api.handleSettingsRequest(query)
+	}
+	if strings.HasSuffix(path, "/configs/sync/reports") {
+		api.reports = append(api.reports, string(body))
+		return nil, api.reportErr
 	}
 	if strings.HasSuffix(path, "/ai-tools") && method == http.MethodPost {
 		var tool versionedTool
@@ -192,6 +211,8 @@ func (api *directAPI) MakeRequest(
 		variation.Mode = syncdomain.VariationModeAgent
 		api.variation = &variation
 		api.variationState = "published"
+		api.version++
+		return json.Marshal(map[string]any{"key": variation.Key, "version": api.version})
 	case "PATCH":
 		var state struct {
 			State string `json:"state"`
@@ -238,6 +259,8 @@ func (api *directAPI) MakeRequest(
 			OutputFormat: update.OutputFormat, Tools: tools, Skills: skills,
 		}
 		api.variationState = "published"
+		api.version++
+		return json.Marshal(map[string]any{"key": key, "version": api.version})
 	}
 	return []byte(`{}`), nil
 }
@@ -1196,7 +1219,7 @@ func TestPromptMarksEachWriteWithSyncSource(t *testing.T) {
 		writes++
 		assert.Equal(t, "git:example/repo", source, request)
 	}
-	assert.Equal(t, 2, writes, "sync updates the variation and the manifest")
+	assert.Equal(t, 3, writes, "sync updates the variation and the manifest, and sends the report")
 }
 
 // headerRecordingAPI is a transport that can send extra headers. It records
@@ -1204,6 +1227,7 @@ func TestPromptMarksEachWriteWithSyncSource(t *testing.T) {
 type headerRecordingAPI struct {
 	*directAPI
 	sources map[string]string
+	commits map[string]string
 }
 
 var _ resources.HeaderClient = &headerRecordingAPI{}
@@ -1220,8 +1244,10 @@ func (api *headerRecordingAPI) MakeRequestWithHeaders(
 ) ([]byte, error) {
 	if api.sources == nil {
 		api.sources = map[string]string{}
+		api.commits = map[string]string{}
 	}
 	api.sources[method+" "+path] = headers.Get(syncapi.SyncSourceHeader)
+	api.commits[method+" "+path] = headers.Get(syncapi.SyncCommitHeader)
 	return api.directAPI.MakeRequest(accessToken, method, path, contentType, query, body, beta)
 }
 
@@ -1305,6 +1331,7 @@ type multiDirectAPI struct {
 	failKey    string
 	manifest   *syncapi.SyncManifest
 	requests   []string
+	reports    []string
 }
 
 func (api *multiDirectAPI) MakeRequest(
@@ -1319,6 +1346,10 @@ func (api *multiDirectAPI) MakeRequest(
 	api.requests = append(api.requests, method+" "+path)
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
 		return handleManifestRequest(api.manifest, method, query, body)
+	}
+	if strings.HasSuffix(path, "/configs/sync/reports") {
+		api.reports = append(api.reports, string(body))
+		return nil, nil
 	}
 	if method == "GET" {
 		variations := make([]syncdomain.Variation, 0, len(api.variations))
@@ -1617,7 +1648,8 @@ func requireOnlyReads(t *testing.T, requests []string) {
 		require.True(
 			t,
 			strings.HasPrefix(request, "GET ") ||
-				(strings.HasPrefix(request, "PATCH ") && strings.HasSuffix(request, "/configs/sync/manifests")),
+				(strings.HasPrefix(request, "PATCH ") && strings.HasSuffix(request, "/configs/sync/manifests")) ||
+				(strings.HasPrefix(request, "POST ") && strings.HasSuffix(request, "/configs/sync/reports")),
 			request,
 		)
 	}

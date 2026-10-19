@@ -108,3 +108,86 @@ func TestClientResolveSyncSettingsRejectsUnknownDirection(t *testing.T) {
 
 	require.ErrorContains(t, err, `unsupported sync direction "sideways"`)
 }
+
+func TestClientPatchSyncSettingsUpsertsExactRule(t *testing.T) {
+	transport := &recordingClient{}
+	client := NewClient(transport, "token", "https://example.com")
+	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support-bot", "default")}
+
+	err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil)
+
+	require.NoError(t, err)
+	require.Len(t, transport.Requests, 1)
+	request := transport.Requests[0]
+	assert.Equal(t, http.MethodPatch, request.Method)
+	assert.Equal(t, "https://example.com/api/v2/projects/project/configs/sync/settings", request.Path)
+	assert.Equal(t, "application/json", request.ContentType)
+	assert.JSONEq(t, `{
+		"upserts": [{"resourceKind":"variation","resourcePattern":"support-bot/default","direction":"code_canonical"}],
+		"deletions": []
+	}`, string(request.Body))
+}
+
+func TestClientPatchSyncSettingsDeletesExactRule(t *testing.T) {
+	transport := &recordingClient{}
+	client := NewClient(transport, "token", "https://example.com")
+	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support-bot", "default")}
+
+	require.NoError(t, client.PatchSyncSettings("project", nil, ExactVariationPatterns(ids)))
+
+	require.Len(t, transport.Requests, 1)
+	assert.JSONEq(t, `{
+		"upserts": [],
+		"deletions": [{"resourceKind":"variation","resourcePattern":"support-bot/default"}]
+	}`, string(transport.Requests[0].Body))
+}
+
+func TestClientPatchSyncSettingsSendsAtMostOneHundredRulesInEachList(t *testing.T) {
+	ids := make([]syncdomain.ResourceID, 0, 150)
+	for index := range 150 {
+		ids = append(ids, syncdomain.VariationID("project", "support", fmt.Sprintf("v%03d", index)))
+	}
+	transport := &recordingClient{}
+	client := NewClient(transport, "token", "https://example.com")
+
+	require.NoError(t, client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil))
+
+	require.Len(t, transport.Requests, 2)
+	var first, second struct {
+		Upserts   []SyncSettingRule    `json:"upserts"`
+		Deletions []SyncSettingPattern `json:"deletions"`
+	}
+	require.NoError(t, json.Unmarshal(transport.Requests[0].Body, &first))
+	require.NoError(t, json.Unmarshal(transport.Requests[1].Body, &second))
+	assert.Len(t, first.Upserts, 100)
+	assert.Len(t, second.Upserts, 50)
+	assert.Equal(t, "support/v100", second.Upserts[0].ResourcePattern)
+	assert.NotNil(t, second.Deletions)
+}
+
+func TestClientPatchSyncSettingsReturnsSentinelWhenUnavailable(t *testing.T) {
+	for _, body := range []string{
+		`{"code":"forbidden","message":"Plan does not allow this operation","statusCode":403}`,
+		`{"code":"not_found","message":"Not found","statusCode":404}`,
+	} {
+		transport := &recordingClient{Err: lderrors.NewError(body)}
+		client := NewClient(transport, "token", "https://example.com")
+		ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
+
+		err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil)
+
+		require.ErrorIs(t, err, ErrSyncSettingsUnavailable, body)
+	}
+}
+
+func TestClientPatchSyncSettingsReturnsOtherErrors(t *testing.T) {
+	transport := &recordingClient{Err: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)}
+	client := NewClient(transport, "token", "https://example.com")
+	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
+
+	err := client.PatchSyncSettings("project", nil, ExactVariationPatterns(ids))
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrSyncSettingsUnavailable)
+	assert.ErrorContains(t, err, "boom")
+}

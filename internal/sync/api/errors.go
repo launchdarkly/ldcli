@@ -92,3 +92,16 @@ func responseError(err error) (map[string]any, bool) {
 	}
 	return nil, false
 }
+
+// ErrorText returns the message of an API error, without the other fields of
+// the JSON response. If text is not a JSON API error, it returns text.
+func ErrorText(text string) string {
+	var response map[string]any
+	if json.Unmarshal([]byte(text), &response) != nil {
+		return text
+	}
+	if message, ok := response["message"].(string); ok && message != "" {
+		return message
+	}
+	return text
+}

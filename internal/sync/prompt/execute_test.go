@@ -48,7 +48,7 @@ func TestApplyServerChangeDoesNotRereadAfterDefinitiveAPIError(t *testing.T) {
 	}
 
 	client := syncapi.NewClient(transport, "token", "https://example.com")
-	err := applyServerChange(client, newAttachmentResolver(client), resource)
+	_, err := applyServerChange(client, newAttachmentResolver(client), resource)
 
 	require.ErrorContains(t, err, `"statusCode":400`)
 	assert.Zero(t, transport.reads)
@@ -191,7 +191,7 @@ func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
 	transport := &variationUpdateAPI{}
 	client := syncapi.NewClient(transport, "token", "https://example.com")
 
-	err = applyResourceChange(
+	_, err = applyResourceChange(
 		root,
 		store,
 		client,

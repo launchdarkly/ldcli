@@ -26,6 +26,11 @@ type Archiver interface {
 	ArchiveVariation(projectKey, configKey, variationKey string) error
 }
 
+// SettingsWriter writes the sync settings rules of a project.
+type SettingsWriter interface {
+	PatchSyncSettings(projectKey string, upserts []syncapi.SyncSettingRule, deletions []syncapi.SyncSettingPattern) error
+}
+
 // Options are the dependencies and the input of one detach.
 type Options struct {
 	RepositoryRoot string
@@ -45,6 +50,11 @@ type Options struct {
 	Yes      bool
 	// Context stops the archive confirmation and the archive when it ends.
 	Context context.Context
+	// Settings deletes the exact sync settings rule of each detached
+	// variation. If it is nil, detach does not change the sync settings.
+	Settings SettingsWriter
+	// ErrorOutput gets the warnings. If it is nil, the warnings go to Output.
+	ErrorOutput io.Writer
 
 	// isTerminal reports whether the streams are a terminal. Tests replace it.
 	isTerminal func(io.Reader, io.Writer) bool
@@ -99,6 +109,11 @@ func Run(options Options) error {
 		if err := archiveVariations(options.context(), options.Archiver, selected); err != nil {
 			return err
 		}
+	}
+	// Delete the rules before the local files. If a later step fails, the
+	// same command can run again, because a rule deletion can repeat.
+	if err := releaseVariations(options, selected); err != nil {
+		return err
 	}
 	if err := detachResources(options, baseline, selected); err != nil {
 		return err
@@ -182,6 +197,45 @@ func archiveVariations(ctx context.Context, archiver Archiver, selected []syncdo
 		}
 		if err := archiver.ArchiveVariation(resource.ProjectKey, configKey, variationKey); err != nil && !syncapi.IsNotFound(err) {
 			return fmt.Errorf("archive variation %s: %w", resource, err)
+		}
+	}
+	return nil
+}
+
+// releaseVariations deletes the exact sync settings rule of each variation,
+// with one request group for each project. If a project has no sync
+// settings, it writes a warning and continues.
+func releaseVariations(options Options, selected []syncdomain.ResourceID) error {
+	if options.Settings == nil {
+		return nil
+	}
+	byProject := make(map[string][]syncdomain.ResourceID)
+	var projectKeys []string
+	for _, resource := range selected {
+		if resource.Kind != syncdomain.KindVariation {
+			continue
+		}
+		if _, ok := byProject[resource.ProjectKey]; !ok {
+			projectKeys = append(projectKeys, resource.ProjectKey)
+		}
+		byProject[resource.ProjectKey] = append(byProject[resource.ProjectKey], resource)
+	}
+	slices.Sort(projectKeys)
+
+	errorOutput := options.ErrorOutput
+	if errorOutput == nil {
+		errorOutput = options.Output
+	}
+	for _, projectKey := range projectKeys {
+		err := options.Settings.PatchSyncSettings(projectKey, nil, syncapi.ExactVariationPatterns(byProject[projectKey]))
+		switch {
+		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
+			_ = syncconsole.New(errorOutput).Printf(
+				"Warning: sync settings are not available for project %s. "+
+					"Detach did not delete the sync settings rules of the variations.\n", projectKey,
+			)
+		case err != nil:
+			return err
 		}
 	}
 	return nil

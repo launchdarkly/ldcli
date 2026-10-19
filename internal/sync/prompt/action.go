@@ -8,6 +8,7 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
+	syncrepository "github.com/launchdarkly/ldcli/internal/sync/repository"
 )
 
 // CommandAction is one prompt sync operation.
@@ -21,10 +22,13 @@ type SyncAction struct {
 	DryRun bool
 }
 
-// AddAction writes selected LaunchDarkly variations as local files.
+// AddAction writes selected LaunchDarkly variations as local files. It also
+// makes each variation code canonical, unless NoAdopt is set.
 type AddAction struct {
 	Variations []syncdomain.ResourceID
 	DryRun     bool
+	// NoAdopt keeps the sync settings of the variations as they are.
+	NoAdopt bool
 }
 
 // AttachAction adds a tool or a skill to a local variation, and then syncs.
@@ -100,6 +104,10 @@ type Options struct {
 	// syncSource is the repository that the command syncs. Run sets it, and
 	// each write to LaunchDarkly sends it.
 	syncSource string
+	// revision is the commit that the command runs at, and its pull request.
+	// Run sets it. Each write sends the commit, and each sync report sends
+	// both.
+	revision syncrepository.Revision
 }
 
 // validateOptions rejects an action whose flags conflict.

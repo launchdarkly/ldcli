@@ -37,6 +37,9 @@ type ResourceOutcome struct {
 	Reverts   bool                 `json:"reverts,omitempty"`
 	Discards  bool                 `json:"discards,omitempty"`
 	Error     string               `json:"error,omitempty"`
+	// Version is the LaunchDarkly version that the action wrote, or 0. The
+	// sync report sends it. The command output does not show it.
+	Version int `json:"-"`
 }
 
 // outputDirection returns the direction for output. It is empty for

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
@@ -61,8 +62,10 @@ func (client Client) ReadVariation(projectKey, configKey, variationKey string) (
 	return state, nil
 }
 
-// CreateVariation creates a variation in a config.
-func (client Client) CreateVariation(projectKey, configKey string, variation syncdomain.Variation) error {
+// CreateVariation creates a variation in a config. It returns the version
+// that LaunchDarkly gives the new variation, or 0 when the response has no
+// version.
+func (client Client) CreateVariation(projectKey, configKey string, variation syncdomain.Variation) (int, error) {
 	request := createVariationRequest{
 		Key:                variation.Key,
 		Name:               variation.Name,
@@ -81,14 +84,16 @@ func (client Client) CreateVariation(projectKey, configKey string, variation syn
 		request.Messages = variation.Messages
 	}
 
-	_, err := client.mutate(mutation{
+	response, err := client.mutate(mutation{
 		method: http.MethodPost, action: "create", resource: variationResource, key: variation.Key, body: request,
 	}, variationPath(projectKey, configKey)...)
-	return err
+	return writtenVersion(response), err
 }
 
-// UpdateVariation replaces every field of the variation that sync owns.
-func (client Client) UpdateVariation(projectKey, configKey string, variation syncdomain.Variation) error {
+// UpdateVariation replaces every field of the variation that sync owns. It
+// returns the new version of the variation, or 0 when the response has no
+// version.
+func (client Client) UpdateVariation(projectKey, configKey string, variation syncdomain.Variation) (int, error) {
 	// The API keeps the current value when model or outputFormat is absent or
 	// null. An empty object clears the value.
 	request := updateVariationRequest{
@@ -114,10 +119,22 @@ func (client Client) UpdateVariation(projectKey, configKey string, variation syn
 		request.Messages = &messages
 	}
 
-	_, err := client.mutate(mutation{
+	response, err := client.mutate(mutation{
 		method: http.MethodPatch, action: "update", resource: variationResource, key: variation.Key, body: request,
 	}, variationPath(projectKey, configKey, variation.Key)...)
-	return err
+	return writtenVersion(response), err
+}
+
+// writtenVersion returns the version in a variation write response. The write
+// succeeded, so a response without a usable version returns 0 and no error.
+func writtenVersion(response []byte) int {
+	var written struct {
+		Version int `json:"version"`
+	}
+	if len(response) == 0 || json.Unmarshal(response, &written) != nil || written.Version < 0 {
+		return 0
+	}
+	return written.Version
 }
 
 // ArchiveVariation archives one variation. LaunchDarkly keeps an archived
