@@ -383,7 +383,7 @@ func (m wizardModel) planView() string {
 	if m.agentMode != agentOff && m.agentRunner != nil {
 		note := "(asks before it runs a command)"
 		if m.agentMode == agentAuto {
-			note = "(asks before it runs a command · uses the template if OpenCode cannot run)"
+			note = "(asks before it runs a command · uses the template if the agent cannot run)"
 		}
 		add("Use the setup agent to add initialization code " + mutedStyle.Render(note))
 		add("Verify the SDK connects to LaunchDarkly")
@@ -440,9 +440,9 @@ func (m wizardModel) agentView() string {
 				mutedStyle.Render(hint))
 		return body + question + "\n"
 	}
-	status := " OpenCode is working..."
+	status := " The agent is working..."
 	if m.agentRun == nil {
-		status = " Starting OpenCode..."
+		status = " Starting the agent..."
 	}
 	return body + m.spinner.View() + status + "\n\n" + mutedStyle.Render("q quit")
 }
@@ -461,9 +461,13 @@ func (m wizardModel) agentWaitView() string {
 		}
 		body += "\n"
 	}
-	if exports := credentialExports(m.sdkKey, m.clientSideID, m.mobileKey); len(exports) > 0 {
+	sdkID := ""
+	if m.detectResult != nil {
+		sdkID = m.detectResult.SDKID
+	}
+	if export := credentialExport(sdkID, m.sdkKey, m.clientSideID, m.mobileKey); export != "" {
 		body += m.wrap("Set the credential that your SDK uses before you start the application:") + "\n\n" +
-			code(strings.Join(exports, "\n")) + "\n\n"
+			code(export) + "\n\n"
 	}
 	if m.agentUsage != nil && m.agentUsage.ModelID != "" {
 		body += mutedStyle.Render(m.wrap(fmt.Sprintf("Model: %s/%s", m.agentUsage.ProviderID, m.agentUsage.ModelID))) + "\n\n"

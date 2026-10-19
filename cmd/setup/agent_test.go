@@ -128,7 +128,7 @@ func TestWizard_AgentAuto_StartsAgentWithTheTask(t *testing.T) {
 	assert.Equal(t, "index.js", runner.tasks[0].EntryPoint)
 	assert.Equal(t, "my-new-flag", runner.tasks[0].FlagKey)
 	assert.NotEmpty(t, runner.tasks[0].Dir)
-	assert.Contains(t, m.View(), "Starting OpenCode")
+	assert.Contains(t, m.View(), "Starting the agent")
 }
 
 func TestWizard_AgentUnavailable_AutoFallsBackToInit(t *testing.T) {
@@ -169,7 +169,7 @@ func TestWizard_AgentPermission_YAllows(t *testing.T) {
 	req := agent.PermissionRequest{ID: "per1", Permission: "bash", Patterns: []string{"npm test"}}
 
 	m, _ = update(t, m, agentEventMsg{run: run, ev: agent.Event{Kind: agent.EventPermission, Permission: req}})
-	assert.Contains(t, m.View(), "OpenCode asks to use bash: npm test")
+	assert.Contains(t, m.View(), "The agent asks to use bash: npm test")
 
 	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
 	require.NotNil(t, cmd)
@@ -202,6 +202,7 @@ func TestWizard_AgentDone_GoesToWaitForAppWithExports(t *testing.T) {
 	view := m.View()
 	assert.Contains(t, view, "index.js")
 	assert.Contains(t, view, "export LAUNCHDARKLY_SDK_KEY=sdk-123")
+	assert.NotContains(t, view, "LAUNCHDARKLY_MOBILE_KEY", "only the SDK's own credential is shown")
 
 	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 	assert.Equal(t, stepVerify, m.step)
@@ -282,7 +283,7 @@ func TestWizard_Plan_AgentMode_SaysAgent(t *testing.T) {
 	view := m.View()
 
 	assert.Contains(t, view, "Use the setup agent to add initialization code")
-	assert.Contains(t, view, "uses the template if OpenCode cannot run")
+	assert.Contains(t, view, "uses the template if the agent cannot run")
 }
 
 func TestStreamAgent_AnswersPermissionAndReturnsFiles(t *testing.T) {
@@ -300,7 +301,7 @@ func TestStreamAgent_AnswersPermissionAndReturnsFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"a.js", "b.js"}, files)
 	assert.Equal(t, []fakeReply{{id: "per1", allow: true}}, run.replies)
-	assert.Contains(t, out.String(), "OpenCode asks to use bash: npm test")
+	assert.Contains(t, out.String(), "The agent asks to use bash: npm test")
 }
 
 func TestStreamAgent_EmptyAnswerRejects(t *testing.T) {
@@ -324,8 +325,11 @@ func TestStreamAgent_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "no API key")
 }
 
-func TestCredentialExports_SkipsEmptyValues(t *testing.T) {
-	assert.Equal(t, []string{"export LAUNCHDARKLY_CLIENT_SIDE_ID=abc"}, credentialExports("", "abc", ""))
+func TestCredentialExport_ShowsOnlyTheSDKsCredential(t *testing.T) {
+	assert.Equal(t, "export LAUNCHDARKLY_SDK_KEY=sdk-1", credentialExport("python-server-sdk", "sdk-1", "cid", "mob-1"))
+	assert.Equal(t, "export LAUNCHDARKLY_CLIENT_SIDE_ID=cid", credentialExport("react-client-sdk", "sdk-1", "cid", "mob-1"))
+	assert.Equal(t, "export LAUNCHDARKLY_MOBILE_KEY=mob-1", credentialExport("android", "sdk-1", "cid", "mob-1"))
+	assert.Equal(t, "", credentialExport("node-server", "", "cid", "mob-1"), "no value, no line")
 }
 
 // OpenCode can ask for several tool calls at once. Each one must get its own
@@ -349,5 +353,5 @@ func TestWizard_AgentPermissions_AreQueued(t *testing.T) {
 
 	assert.Equal(t, []fakeReply{{id: "per1", allow: true}, {id: "per2", allow: false}, {id: "per3", allow: true}}, run.replies)
 	assert.Empty(t, m.agentPermissions)
-	assert.Contains(t, m.View(), "OpenCode is working")
+	assert.Contains(t, m.View(), "The agent is working")
 }

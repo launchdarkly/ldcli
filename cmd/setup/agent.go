@@ -60,20 +60,22 @@ func agentTask(dir string, detection *setup.DetectResult, flagKey string, sdkIns
 	return t
 }
 
-// credentialExports returns the shell commands that set the credentials the
-// agent's code reads. The agent never sees the values, so the user must set
-// them before the application starts.
-func credentialExports(sdkKey, clientSideID, mobileKey string) []string {
-	var lines []string
-	add := func(name, value string) {
-		if value != "" {
-			lines = append(lines, fmt.Sprintf("export %s=%s", name, value))
-		}
+// credentialExport returns the shell command that sets the credential that
+// the agent's code reads for the SDK, or an empty string if that credential is
+// not known. The agent never sees the value, so the user must set it before
+// the application starts. Only the SDK's own credential is shown, so the
+// screen does not print keys that the application does not use.
+func credentialExport(sdkID, sdkKey, clientSideID, mobileKey string) string {
+	name := agent.CredentialEnvVar(sdkID)
+	value := map[string]string{
+		agent.SDKKeyEnvVar:       sdkKey,
+		agent.ClientSideIDEnvVar: clientSideID,
+		agent.MobileKeyEnvVar:    mobileKey,
+	}[name]
+	if value == "" {
+		return ""
 	}
-	add(agent.SDKKeyEnvVar, sdkKey)
-	add(agent.ClientSideIDEnvVar, clientSideID)
-	add(agent.MobileKeyEnvVar, mobileKey)
-	return lines
+	return fmt.Sprintf("export %s=%s", name, value)
 }
 
 // describeTool returns one line for a tool call.
@@ -94,9 +96,9 @@ func describeTool(tc agent.ToolCall) string {
 // describePermission returns the question for a permission request.
 func describePermission(req agent.PermissionRequest) string {
 	if len(req.Patterns) == 0 {
-		return fmt.Sprintf("OpenCode asks to use %s.", req.Permission)
+		return fmt.Sprintf("The agent asks to use %s.", req.Permission)
 	}
-	return fmt.Sprintf("OpenCode asks to use %s: %s", req.Permission, strings.Join(req.Patterns, ", "))
+	return fmt.Sprintf("The agent asks to use %s: %s", req.Permission, strings.Join(req.Patterns, ", "))
 }
 
 func newAgentCmd(svc setup.Service, runner agent.Runner) *cobra.Command {
@@ -176,12 +178,10 @@ func runAgent(svc setup.Service, runner agent.Runner) func(*cobra.Command, []str
 				fmt.Fprintf(out, "  %s\n", f)
 			}
 		}
-		if exports := credentialExports(getFlag(cmd, sdkKeyFlag), getFlag(cmd, clientIDFlag), getFlag(cmd, mobileFlag)); len(exports) > 0 {
+		if export := credentialExport(sdkID, getFlag(cmd, sdkKeyFlag), getFlag(cmd, clientIDFlag), getFlag(cmd, mobileFlag)); export != "" {
 			fmt.Fprintln(out)
 			fmt.Fprintln(out, "Set the credential before you start your application:")
-			for _, e := range exports {
-				fmt.Fprintf(out, "  %s\n", e)
-			}
+			fmt.Fprintf(out, "  %s\n", export)
 		}
 		return nil
 	}
@@ -221,7 +221,7 @@ func streamAgent(ctx context.Context, run agent.Run, out io.Writer, in *bufio.Re
 			answer, _ := in.ReadString('\n')
 			allow := strings.EqualFold(strings.TrimSpace(answer), "y")
 			if err := run.Reply(ctx, ev.Permission, allow); err != nil {
-				return nil, fmt.Errorf("could not answer OpenCode: %w", err)
+				return nil, fmt.Errorf("could not answer the agent: %w", err)
 			}
 		case agent.EventDone:
 			return sortedKeys(changed), nil
