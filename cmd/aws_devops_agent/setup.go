@@ -197,23 +197,7 @@ func resolveAgentSpace(
 	}
 
 	if !interactive {
-		// Reuse the space that setup made, so an unattended re-run stays
-		// idempotent, but never guess between spaces that setup did not make.
-		if own := ownSpace(spaces, opts.AgentSpaceName); own >= 0 {
-			opts.AgentSpaceID = spaces[own].AgentSpaceID
-
-			return true, nil
-		}
-
-		return false, fmt.Errorf(
-			"this AWS account already has agent spaces in %s (%s); pass --%s to connect "+
-				"LaunchDarkly to one of them, or --%s with --%s to provision another",
-			clients.Region,
-			strings.Join(agentSpaceLabels(spaces), ", "),
-			agentSpaceIDFlag,
-			newAgentSpaceFlag,
-			agentSpaceNameFlag,
-		)
+		return pickWithoutAsking(spaces, opts, clients.Region)
 	}
 
 	choice, err := selectAgentSpace(cmd, spaces, clients.Region, opts.AgentSpaceName)
@@ -229,6 +213,54 @@ func resolveAgentSpace(
 	opts.AgentSpaceID = choice.id
 
 	return opts.AuthFlowSet || managedSpace(spaces, choice.id), nil
+}
+
+// pickWithoutAsking picks a space for a run that cannot ask. With a name, it
+// does what Enter does at the list: it uses the one space with that name, or
+// creates the space when no space has the name. Without a name, it reuses the
+// one space that setup made, so an unattended re-run stays idempotent. It never
+// guesses between spaces that setup did not make.
+func pickWithoutAsking(spaces []awsdevops.AgentSpaceSummary, opts *awsdevops.SetupOptions, region string) (bool, error) {
+	name := opts.AgentSpaceName
+	if name != "" {
+		if i := spaceNamed(spaces, name); i >= 0 {
+			opts.AgentSpaceID = spaces[i].AgentSpaceID
+
+			return opts.AuthFlowSet || spaces[i].ManagedByLDCLI, nil
+		}
+		if !hasSpaceNamed(spaces, name) {
+			opts.NewAgentSpace = true
+
+			return true, nil
+		}
+
+		var named []awsdevops.AgentSpaceSummary
+		for _, space := range spaces {
+			if strings.EqualFold(space.Name, name) {
+				named = append(named, space)
+			}
+		}
+
+		return false, fmt.Errorf(
+			"more than one agent space in %s is named %s (%s); pass --%s to pick one",
+			region, name, strings.Join(agentSpaceLabels(named), ", "), agentSpaceIDFlag,
+		)
+	}
+
+	if own := ownSpace(spaces); own >= 0 {
+		opts.AgentSpaceID = spaces[own].AgentSpaceID
+
+		return true, nil
+	}
+
+	return false, fmt.Errorf(
+		"this AWS account already has agent spaces in %s (%s); pass --%s to connect "+
+			"LaunchDarkly to one of them, or --%s to use or create a space by name",
+		region,
+		strings.Join(agentSpaceLabels(spaces), ", "),
+		agentSpaceIDFlag,
+		agentSpaceNameFlag,
+	)
 }
 
 // nameNewSpace makes sure that a new space has a name, and asks for one in a
@@ -270,13 +302,12 @@ func askSpaceName(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary) (str
 	}
 }
 
-// ownSpace returns the index of the one space that setup made, with this name
-// when name is not empty. It returns -1 when there is no such space or more
-// than one.
-func ownSpace(spaces []awsdevops.AgentSpaceSummary, name string) int {
+// ownSpace returns the index of the one space that setup made, or -1 when
+// there is no such space or more than one.
+func ownSpace(spaces []awsdevops.AgentSpaceSummary) int {
 	own := -1
 	for i, space := range spaces {
-		if !space.ManagedByLDCLI || (name != "" && !strings.EqualFold(space.Name, name)) {
+		if !space.ManagedByLDCLI {
 			continue
 		}
 		if own >= 0 {

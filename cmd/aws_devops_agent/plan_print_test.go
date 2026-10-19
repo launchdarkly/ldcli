@@ -161,10 +161,44 @@ func TestSetupWithYesSkipsSpaceChoice(t *testing.T) {
 	cmd.SetIn(noReadStdin{t})
 	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
 	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")})
+	opts := newSpaceOptions()
+	opts.AgentSpaceName = ""
+
+	err := setupWith(cmd, clients, opts, true, true)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--agent-space-id")
+	assert.Contains(t, err.Error(), "--agent-space-name")
+	assert.Empty(t, w.calls)
+}
+
+// The same command works on the first run and on every later run.
+func TestSetupWithYesCreatesTheNamedSpaceWhenNoSpaceHasTheName(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")})
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+
+	assert.Contains(t, stderrOf(cmd), "Create agent space ld-devops-agent")
+	assert.Contains(t, w.calls, "CreateAgentSpace")
+}
+
+func TestSetupWithYesStopsOnTwoSpacesWithTheName(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+	clients, w := countingClients(
+		agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("ld-devops-agent")},
+		agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("LD-DevOps-Agent")},
+	)
 
 	err := setupWith(cmd, clients, newSpaceOptions(), true, true)
 
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "space-1")
+	assert.Contains(t, err.Error(), "space-2")
 	assert.Contains(t, err.Error(), "--agent-space-id")
 	assert.Empty(t, w.calls)
 }
@@ -189,18 +223,20 @@ func ldcliSpace(id, name string) agenttypes.AgentSpace {
 	}
 }
 
-// The name alone does not make a space ours.
-func TestSetupWithYesStopsOnASameNameSpaceItDidNotMake(t *testing.T) {
+// A named space that setup did not make only gets the MCP server.
+func TestSetupWithYesConnectsToANamedSpaceItDidNotMake(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "")
 	cmd.SetIn(noReadStdin{t})
 	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
 	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("ld-devops-agent")})
 
-	err := setupWith(cmd, clients, newSpaceOptions(), true, true)
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--agent-space-id")
-	assert.Empty(t, w.calls)
+	assert.Contains(t, stderrOf(cmd), "Connect to agent space ld-devops-agent (space-2)")
+	assert.Contains(t, w.calls, "AssociateService")
+	assert.NotContains(t, w.calls, "CreateRole")
+	assert.NotContains(t, w.calls, "EnableOperatorApp")
+	assert.NotContains(t, w.calls, "CreateAgentSpace")
 }
 
 // Enter and an unattended run do the same thing on the space setup made.

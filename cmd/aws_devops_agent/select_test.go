@@ -197,20 +197,16 @@ func TestOwnSpace(t *testing.T) {
 	}
 	cases := map[string]struct {
 		spaces []awsdevops.AgentSpaceSummary
-		name   string
 		want   int
 	}{
-		"one made by setup":            {[]awsdevops.AgentSpaceSummary{other("a", "platform"), managed("b", "LaunchDarkly")}, "launchdarkly", 1},
-		"same name, not made by setup": {[]awsdevops.AgentSpaceSummary{other("a", "launchdarkly")}, "launchdarkly", -1},
-		"made by setup, other name":    {[]awsdevops.AgentSpaceSummary{managed("a", "ops")}, "launchdarkly", -1},
-		"two made by setup":            {[]awsdevops.AgentSpaceSummary{managed("a", "launchdarkly"), managed("b", "launchdarkly")}, "launchdarkly", -1},
-		"no name, one made by setup":   {[]awsdevops.AgentSpaceSummary{other("a", "platform"), managed("b", "ops")}, "", 1},
-		"no name, two made by setup":   {[]awsdevops.AgentSpaceSummary{managed("a", "ops"), managed("b", "oncall")}, "", -1},
-		"no spaces":                    {nil, "launchdarkly", -1},
+		"one made by setup":  {[]awsdevops.AgentSpaceSummary{other("a", "platform"), managed("b", "ops")}, 1},
+		"none made by setup": {[]awsdevops.AgentSpaceSummary{other("a", "launchdarkly")}, -1},
+		"two made by setup":  {[]awsdevops.AgentSpaceSummary{managed("a", "ops"), managed("b", "oncall")}, -1},
+		"no spaces":          {nil, -1},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, c.want, ownSpace(c.spaces, c.name))
+			assert.Equal(t, c.want, ownSpace(c.spaces))
 		})
 	}
 }
@@ -256,7 +252,7 @@ func TestResolveAgentSpaceReusesTheOwnSpaceWithoutATerminal(t *testing.T) {
 
 func TestResolveAgentSpaceFailsOnSomeoneElsesSpaceWithoutATerminal(t *testing.T) {
 	cmd, _ := testCmd("")
-	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly"}
+	opts := awsdevops.SetupOptions{}
 	clients := newStubClients(agenttypes.AgentSpace{
 		AgentSpaceId: aws.String("space-2"),
 		Name:         aws.String("platform"),
