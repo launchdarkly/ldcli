@@ -85,33 +85,58 @@ func testSpaces() []awsdevops.AgentSpaceSummary {
 func TestSelectAgentSpaceTakesTheChosenSpace(t *testing.T) {
 	cmd, out := testCmd("2\n")
 
-	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", -1)
+	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "")
 	require.NoError(t, err)
 
-	assert.Equal(t, "space-2", chosen)
+	assert.Equal(t, spaceChoice{id: "space-2"}, chosen)
 	assert.Contains(t, out.String(), "2) platform (space-2)")
 }
 
-func TestSelectAgentSpaceEnterPicksTheDefault(t *testing.T) {
-	cmd, out := testCmd("\n")
+// Without a name, Enter picks nothing.
+func TestSelectAgentSpaceWithoutANameHasNoDefault(t *testing.T) {
+	cmd, out := testCmd("\n3\n")
 
-	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", 1)
+	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "")
 	require.NoError(t, err)
 
-	assert.Equal(t, "space-2", chosen)
-	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Equal(t, spaceChoice{newSpace: true}, chosen)
+	assert.Contains(t, out.String(), "3) provision a new agent space\n")
+	assert.NotContains(t, out.String(), "named")
+	assert.NotContains(t, out.String(), "[")
+	assert.Equal(t, 1, strings.Count(out.String(), "Enter a number between 1 and 3"))
 }
 
-// Without a default, Enter must not pick a space that setup did not make.
-func TestSelectAgentSpaceWithoutDefaultAsksAgainOnEnter(t *testing.T) {
-	cmd, out := testCmd("\n2\n")
+func TestSelectAgentSpaceDefaultsToTheSpaceWithTheName(t *testing.T) {
+	cmd, out := testCmd("\n")
 
-	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", -1)
+	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "Platform")
 	require.NoError(t, err)
 
-	assert.Equal(t, "space-2", chosen)
-	assert.NotContains(t, out.String(), "[1]")
-	assert.Equal(t, 1, strings.Count(out.String(), "Enter a number between 1 and 3"))
+	assert.Equal(t, spaceChoice{id: "space-2"}, chosen)
+	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "3) provision a new agent space\n")
+	assert.NotContains(t, out.String(), "named")
+}
+
+func TestSelectAgentSpaceDefaultsToANewSpaceWithAnUnusedName(t *testing.T) {
+	cmd, out := testCmd("\n")
+
+	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "payments")
+	require.NoError(t, err)
+
+	assert.Equal(t, spaceChoice{newSpace: true, name: "payments"}, chosen)
+	assert.Contains(t, out.String(), "3) provision a new agent space named payments")
+	assert.Contains(t, out.String(), "4) provision a new agent space\n")
+	assert.Contains(t, out.String(), "connect to? [3] ")
+}
+
+func TestSelectAgentSpaceLetsYouNameANewSpaceAfterAName(t *testing.T) {
+	cmd, _ := testCmd("4\n")
+
+	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "payments")
+	require.NoError(t, err)
+
+	assert.Equal(t, spaceChoice{newSpace: true}, chosen)
 }
 
 func TestSelectAgentSpaceMarksTheSpacesSetupMade(t *testing.T) {
@@ -119,11 +144,48 @@ func TestSelectAgentSpaceMarksTheSpacesSetupMade(t *testing.T) {
 	spaces := testSpaces()
 	spaces[0].ManagedByLDCLI = true
 
-	_, err := selectAgentSpace(cmd, spaces, "us-east-1", 0)
+	_, err := selectAgentSpace(cmd, spaces, "us-east-1", "")
 	require.NoError(t, err)
 
 	assert.Contains(t, out.String(), "1) launchdarkly (space-1), made by ldcli")
 	assert.Contains(t, out.String(), "2) platform (space-2)\n")
+}
+
+func TestSelectAgentSpaceAsksAgainAfterAnInvalidAnswer(t *testing.T) {
+	cmd, out := testCmd("9\nnope\n1\n")
+
+	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, spaceChoice{id: "space-1"}, chosen)
+	assert.Equal(t, 2, strings.Count(out.String(), "Enter a number between 1 and 3"))
+}
+
+func TestSelectAgentSpaceFailsWithoutAnAnswer(t *testing.T) {
+	cmd, _ := testCmd("")
+
+	_, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", "")
+
+	assert.ErrorContains(t, err, "no agent space was chosen")
+}
+
+func TestAskSpaceNameAsksAgainForAnEmptyOrUsedName(t *testing.T) {
+	cmd, out := testCmd("\nPLATFORM\n  payments  \n")
+
+	name, err := askSpaceName(cmd, testSpaces())
+	require.NoError(t, err)
+
+	assert.Equal(t, "payments", name)
+	assert.Contains(t, out.String(), "Enter a name\n")
+	assert.Contains(t, out.String(), "An agent space named PLATFORM already exists")
+}
+
+func TestAskSpaceNameFailsWithoutAnAnswer(t *testing.T) {
+	cmd, _ := testCmd("")
+
+	_, err := askSpaceName(cmd, testSpaces())
+
+	assert.ErrorContains(t, err, "--agent-space-name")
 }
 
 func TestOwnSpace(t *testing.T) {
@@ -135,47 +197,22 @@ func TestOwnSpace(t *testing.T) {
 	}
 	cases := map[string]struct {
 		spaces []awsdevops.AgentSpaceSummary
+		name   string
 		want   int
 	}{
-		"one made by setup":            {[]awsdevops.AgentSpaceSummary{other("a", "platform"), managed("b", "LaunchDarkly")}, 1},
-		"same name, not made by setup": {[]awsdevops.AgentSpaceSummary{other("a", "launchdarkly")}, -1},
-		"made by setup, other name":    {[]awsdevops.AgentSpaceSummary{managed("a", "ops")}, -1},
-		"two made by setup":            {[]awsdevops.AgentSpaceSummary{managed("a", "launchdarkly"), managed("b", "launchdarkly")}, -1},
-		"no spaces":                    {nil, -1},
+		"one made by setup":            {[]awsdevops.AgentSpaceSummary{other("a", "platform"), managed("b", "LaunchDarkly")}, "launchdarkly", 1},
+		"same name, not made by setup": {[]awsdevops.AgentSpaceSummary{other("a", "launchdarkly")}, "launchdarkly", -1},
+		"made by setup, other name":    {[]awsdevops.AgentSpaceSummary{managed("a", "ops")}, "launchdarkly", -1},
+		"two made by setup":            {[]awsdevops.AgentSpaceSummary{managed("a", "launchdarkly"), managed("b", "launchdarkly")}, "launchdarkly", -1},
+		"no name, one made by setup":   {[]awsdevops.AgentSpaceSummary{other("a", "platform"), managed("b", "ops")}, "", 1},
+		"no name, two made by setup":   {[]awsdevops.AgentSpaceSummary{managed("a", "ops"), managed("b", "oncall")}, "", -1},
+		"no spaces":                    {nil, "launchdarkly", -1},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, c.want, ownSpace(c.spaces, "launchdarkly"))
+			assert.Equal(t, c.want, ownSpace(c.spaces, c.name))
 		})
 	}
-}
-
-func TestSelectAgentSpaceAsksAgainAfterAnInvalidAnswer(t *testing.T) {
-	cmd, out := testCmd("9\nnope\n1\n")
-
-	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", -1)
-	require.NoError(t, err)
-
-	assert.Equal(t, "space-1", chosen)
-	assert.Equal(t, 2, strings.Count(out.String(), "Enter a number between 1 and 3"))
-}
-
-func TestSelectAgentSpaceProvisionsANewSpaceOnTheLastChoice(t *testing.T) {
-	cmd, out := testCmd("3\n")
-
-	chosen, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", -1)
-	require.NoError(t, err)
-
-	assert.Empty(t, chosen)
-	assert.Contains(t, out.String(), "3) provision a new agent space")
-}
-
-func TestSelectAgentSpaceFailsWithoutAnAnswer(t *testing.T) {
-	cmd, _ := testCmd("")
-
-	_, err := selectAgentSpace(cmd, testSpaces(), "us-east-1", -1)
-
-	assert.ErrorContains(t, err, "no agent space was chosen")
 }
 
 func newStubClients(spaces ...agenttypes.AgentSpace) awsdevops.Clients {
@@ -247,7 +284,7 @@ func TestResolveAgentSpaceAsksAndConnectsToTheChosenSpace(t *testing.T) {
 }
 
 func TestResolveAgentSpaceProvisionsANewSpaceWhenAsked(t *testing.T) {
-	cmd, _ := testCmd("2\n")
+	cmd, _ := testCmd("2\nfresh\n")
 	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly"}
 	clients := newStubClients(agenttypes.AgentSpace{
 		AgentSpaceId: aws.String("space-1"),
@@ -262,4 +299,48 @@ func TestResolveAgentSpaceProvisionsANewSpaceWhenAsked(t *testing.T) {
 	// Without this the matching name makes Setup reuse the space the answer
 	// declined.
 	assert.True(t, opts.NewAgentSpace)
+	assert.Equal(t, "fresh", opts.AgentSpaceName)
+}
+
+func TestResolveAgentSpaceAsksForANameInAnEmptyAccount(t *testing.T) {
+	cmd, out := testCmd("payments\n")
+	opts := awsdevops.SetupOptions{}
+
+	provision, err := resolveAgentSpace(cmd, newStubClients(), &opts, true)
+	require.NoError(t, err)
+
+	assert.True(t, provision)
+	assert.Equal(t, "payments", opts.AgentSpaceName)
+	assert.NotContains(t, out.String(), "Which one")
+}
+
+// Nobody can type a name, so the run needs the flag.
+func TestResolveAgentSpaceNeedsANameWithoutATerminal(t *testing.T) {
+	for name, opts := range map[string]awsdevops.SetupOptions{
+		"empty account":   {},
+		"new-agent-space": {NewAgentSpace: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _ := testCmd("")
+
+			_, err := resolveAgentSpace(cmd, newStubClients(), &opts, false)
+
+			assert.ErrorContains(t, err, "--agent-space-name")
+		})
+	}
+}
+
+func TestResolveAgentSpaceReusesTheOnlySpaceSetupMadeWithoutAName(t *testing.T) {
+	cmd, _ := testCmd("")
+	opts := awsdevops.SetupOptions{}
+	clients := newStubClients(
+		agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")},
+		ldcliSpace("space-2", "oncall"),
+	)
+
+	provision, err := resolveAgentSpace(cmd, clients, &opts, false)
+	require.NoError(t, err)
+
+	assert.True(t, provision)
+	assert.Equal(t, "space-2", opts.AgentSpaceID)
 }

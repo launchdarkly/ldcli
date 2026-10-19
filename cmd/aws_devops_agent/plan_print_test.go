@@ -270,14 +270,14 @@ func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
 	assert.NotContains(t, stdoutOf(cmd), "Open the DevOps Agent at")
 }
 
-// A new space from the list must not reuse a name.
-func TestSetupNewSpaceChoiceRefusesAUsedName(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "2\n")
+// A new space from the list asks for a name until no space uses it.
+func TestSetupNewSpaceChoiceAsksForAnUnusedName(t *testing.T) {
+	cmd, out := setupTestCmd(t, "2\nld-devops-agent\nfresh\ny\n")
 	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("ld-devops-agent")})
 
-	err := setupWith(cmd, clients, newSpaceOptions(), true, true)
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--agent-space-name")
-	assert.Empty(t, w.calls)
+	assert.Contains(t, out.String(), "An agent space named ld-devops-agent already exists")
+	assert.Contains(t, out.String(), "Create agent space fresh")
+	assert.Contains(t, w.calls, "CreateAgentSpace")
 }

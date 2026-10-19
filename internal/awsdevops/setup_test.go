@@ -237,3 +237,15 @@ func TestPlanSetupNamesTheMCPServerAction(t *testing.T) {
 		})
 	}
 }
+
+func TestPlanSetupNeedsANameForANewSpace(t *testing.T) {
+	agent := &fakeAgent{}
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{
+		NewAgentSpace: true,
+	}, true)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--agent-space-name")
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+}

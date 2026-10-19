@@ -42,8 +42,9 @@ When the account already has agent spaces, setup asks which one to connect
 LaunchDarkly to. On a space that setup did not make, setup only registers the
 MCP server. On a space that setup made, or with --auth-flow, setup runs the
 full setup. Pass --agent-space-id to pick a space without the list, or
---new-agent-space to provision another space. The run ends with the operator
-app URL, where the agent is used.
+--new-agent-space to provision another space. A new space needs a name: pass
+--agent-space-name, or type one when setup asks. The run ends with the
+operator app URL, where the agent is used.
 
 The MCP server is connected with --access-token, or with the token in your
 ldcli configuration when you do not pass one. AWS keeps the token and the agent
@@ -60,7 +61,7 @@ terminal, with --output json, or with --yes, it stops and asks for
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
 	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. --auth-flow runs full setup on a space that setup did not make")
-	cmd.Flags().String(agentSpaceNameFlag, "launchdarkly", "Name of the agent space to create")
+	cmd.Flags().String(agentSpaceNameFlag, "", "Name of the agent space to use or create. In a terminal, setup asks for a name if it needs one")
 	cmd.Flags().Bool(newAgentSpaceFlag, false, "Provision a new agent space instead of asking which existing one to use")
 	cmd.MarkFlagsMutuallyExclusive(agentSpaceIDFlag, newAgentSpaceFlag)
 	cmd.Flags().String(authFlowFlag, "iam", "Operator app sign-in method: iam, idc or idp")
@@ -173,34 +174,32 @@ func setupWith(
 // connects LaunchDarkly to one the account already has, asking which one when
 // the flags leave the choice open. A space that setup made gets the full setup.
 // A space that setup did not make only gets the MCP server, unless --auth-flow
-// is passed. It reports whether to provision, and sets opts.AgentSpaceID when
-// it uses an existing space.
+// is passed. It reports whether to provision. It sets opts.AgentSpaceID when it
+// uses an existing space, and opts.AgentSpaceName when it creates one.
 func resolveAgentSpace(
 	cmd *cobra.Command,
 	clients awsdevops.Clients,
 	opts *awsdevops.SetupOptions,
 	interactive bool,
 ) (bool, error) {
-	if opts.NewAgentSpace {
-		return true, nil
-	}
-
 	spaces, err := awsdevops.AgentSpaces(cmd.Context(), clients)
 	if err != nil {
 		return false, err
 	}
+	// The flags conflict, so at most one of these is set.
 	if opts.AgentSpaceID != "" {
 		return opts.AuthFlowSet || managedSpace(spaces, opts.AgentSpaceID), nil
 	}
-	if len(spaces) == 0 {
-		return true, nil
+	if opts.NewAgentSpace || len(spaces) == 0 {
+		opts.NewAgentSpace = true
+
+		return true, nameNewSpace(cmd, spaces, opts, interactive)
 	}
 
-	own := ownSpace(spaces, opts.AgentSpaceName)
 	if !interactive {
 		// Reuse the space that setup made, so an unattended re-run stays
 		// idempotent, but never guess between spaces that setup did not make.
-		if own >= 0 {
+		if own := ownSpace(spaces, opts.AgentSpaceName); own >= 0 {
 			opts.AgentSpaceID = spaces[own].AgentSpaceID
 
 			return true, nil
@@ -208,34 +207,76 @@ func resolveAgentSpace(
 
 		return false, fmt.Errorf(
 			"this AWS account already has agent spaces in %s (%s); pass --%s to connect "+
-				"LaunchDarkly to one of them, or --%s to provision another",
+				"LaunchDarkly to one of them, or --%s with --%s to provision another",
 			clients.Region,
 			strings.Join(agentSpaceLabels(spaces), ", "),
 			agentSpaceIDFlag,
 			newAgentSpaceFlag,
+			agentSpaceNameFlag,
 		)
 	}
 
-	choice, err := selectAgentSpace(cmd, spaces, clients.Region, own)
+	choice, err := selectAgentSpace(cmd, spaces, clients.Region, opts.AgentSpaceName)
 	if err != nil {
 		return false, err
 	}
-	if choice == "" {
+	if choice.newSpace {
 		opts.NewAgentSpace = true
+		opts.AgentSpaceName = choice.name
 
-		return true, nil
+		return true, nameNewSpace(cmd, spaces, opts, interactive)
 	}
-	opts.AgentSpaceID = choice
+	opts.AgentSpaceID = choice.id
 
-	return opts.AuthFlowSet || managedSpace(spaces, choice), nil
+	return opts.AuthFlowSet || managedSpace(spaces, choice.id), nil
 }
 
-// ownSpace returns the index of the one space that setup made with this name,
-// or -1 when there is no such space or more than one.
+// nameNewSpace makes sure that a new space has a name, and asks for one in a
+// terminal. The check that no space has the name is in PlanSetup.
+func nameNewSpace(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary, opts *awsdevops.SetupOptions, interactive bool) error {
+	if opts.AgentSpaceName != "" {
+		return nil
+	}
+	if !interactive {
+		return fmt.Errorf("a new agent space needs a name; pass --%s", agentSpaceNameFlag)
+	}
+
+	name, err := askSpaceName(cmd, spaces)
+	opts.AgentSpaceName = name
+
+	return err
+}
+
+// askSpaceName asks until the answer is a name that no space uses.
+func askSpaceName(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary) (string, error) {
+	out := cmd.ErrOrStderr()
+	reader := bufio.NewReader(sharedStdin(cmd))
+	for {
+		_, _ = fmt.Fprint(out, "Name for the new agent space: ")
+		line, err := reader.ReadString('\n')
+		if err != nil && line == "" {
+			return "", fmt.Errorf("no agent space name was given; pass --%s", agentSpaceNameFlag)
+		}
+
+		name := strings.TrimSpace(line)
+		switch {
+		case name == "":
+			_, _ = fmt.Fprintln(out, "Enter a name")
+		case hasSpaceNamed(spaces, name):
+			_, _ = fmt.Fprintf(out, "An agent space named %s already exists. Enter another name\n", name)
+		default:
+			return name, nil
+		}
+	}
+}
+
+// ownSpace returns the index of the one space that setup made, with this name
+// when name is not empty. It returns -1 when there is no such space or more
+// than one.
 func ownSpace(spaces []awsdevops.AgentSpaceSummary, name string) int {
 	own := -1
 	for i, space := range spaces {
-		if !space.ManagedByLDCLI || !strings.EqualFold(space.Name, name) {
+		if !space.ManagedByLDCLI || (name != "" && !strings.EqualFold(space.Name, name)) {
 			continue
 		}
 		if own >= 0 {
@@ -245,6 +286,34 @@ func ownSpace(spaces []awsdevops.AgentSpaceSummary, name string) int {
 	}
 
 	return own
+}
+
+// spaceNamed returns the index of the one space with this name, or -1 when
+// name is empty or no single space has it.
+func spaceNamed(spaces []awsdevops.AgentSpaceSummary, name string) int {
+	found := -1
+	for i, space := range spaces {
+		if name == "" || !strings.EqualFold(space.Name, name) {
+			continue
+		}
+		if found >= 0 {
+			return -1
+		}
+		found = i
+	}
+
+	return found
+}
+
+// hasSpaceNamed reports whether any space has this name.
+func hasSpaceNamed(spaces []awsdevops.AgentSpaceSummary, name string) bool {
+	for _, space := range spaces {
+		if strings.EqualFold(space.Name, name) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // managedSpace reports whether setup made the space with this ID.
@@ -277,7 +346,7 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	}
 	_, _ = fmt.Fprint(out, "Continue? [y/N]: ")
 
-	line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	line, _ := bufio.NewReader(sharedStdin(cmd)).ReadString('\n')
 	switch strings.ToLower(strings.TrimSpace(line)) {
 	case "y", "yes":
 		return nil
@@ -299,26 +368,49 @@ func profileLabel(cmd *cobra.Command) string {
 	return "default credentials"
 }
 
-// selectAgentSpace asks which agent space to connect LaunchDarkly to, and
-// returns an empty string when the answer is to provision a new one. An empty
-// answer picks spaces[defaultIndex], or asks again when defaultIndex is -1.
+// spaceChoice is an answer at the space list. If newSpace is true, name is
+// the name for the new space, or empty when setup must ask for one.
+type spaceChoice struct {
+	id       string
+	newSpace bool
+	name     string
+}
+
+// selectAgentSpace asks which agent space to connect LaunchDarkly to. With a
+// name, Enter picks the space with that name, or a new space with that name
+// when no space has it. Without a name, there is no default.
 func selectAgentSpace(
 	cmd *cobra.Command,
 	spaces []awsdevops.AgentSpaceSummary,
 	region string,
-	defaultIndex int,
-) (string, error) {
-	out := cmd.ErrOrStderr()
-	_, _ = fmt.Fprintf(out, "\nThis AWS account already runs the DevOps Agent in %s:\n\n", region)
-	for i, space := range spaces {
+	name string,
+) (spaceChoice, error) {
+	choices := make([]spaceChoice, 0, len(spaces)+2)
+	labels := make([]string, 0, len(spaces)+2)
+	for _, space := range spaces {
 		label := fmt.Sprintf("%s (%s)", space.Name, space.AgentSpaceID)
 		if space.ManagedByLDCLI {
 			label += ", made by ldcli"
 		}
+		choices = append(choices, spaceChoice{id: space.AgentSpaceID})
+		labels = append(labels, label)
+	}
+
+	defaultIndex := spaceNamed(spaces, name)
+	if name != "" && !hasSpaceNamed(spaces, name) {
+		defaultIndex = len(choices)
+		choices = append(choices, spaceChoice{newSpace: true, name: name})
+		labels = append(labels, "provision a new agent space named "+name)
+	}
+	choices = append(choices, spaceChoice{newSpace: true})
+	labels = append(labels, "provision a new agent space")
+
+	out := cmd.ErrOrStderr()
+	_, _ = fmt.Fprintf(out, "\nThis AWS account already runs the DevOps Agent in %s:\n\n", region)
+	for i, label := range labels {
 		_, _ = fmt.Fprintf(out, "  %d) %s\n", i+1, label)
 	}
-	newSpaceChoice := len(spaces) + 1
-	_, _ = fmt.Fprintf(out, "  %d) provision a new agent space\n\n", newSpaceChoice)
+	_, _ = fmt.Fprintln(out)
 
 	question := "Which one should LaunchDarkly connect to? "
 	if defaultIndex >= 0 {
@@ -327,30 +419,27 @@ func selectAgentSpace(
 
 	// One reader for the whole prompt, so a retry does not lose input the
 	// previous read already buffered.
-	reader := bufio.NewReader(cmd.InOrStdin())
+	reader := bufio.NewReader(sharedStdin(cmd))
 	for {
 		_, _ = fmt.Fprint(out, question)
 		line, err := reader.ReadString('\n')
 		if err != nil && line == "" {
-			return "", fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
+			return spaceChoice{}, fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
 		}
 
 		answer := strings.TrimSpace(line)
 		if answer == "" && defaultIndex >= 0 {
-			return spaces[defaultIndex].AgentSpaceID, nil
+			return choices[defaultIndex], nil
 		}
 
 		choice, err := strconv.Atoi(answer)
-		if err != nil || choice < 1 || choice > newSpaceChoice {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Enter a number between 1 and %d\n", newSpaceChoice)
+		if err != nil || choice < 1 || choice > len(choices) {
+			_, _ = fmt.Fprintf(out, "Enter a number between 1 and %d\n", len(choices))
 
 			continue
 		}
-		if choice == newSpaceChoice {
-			return "", nil
-		}
 
-		return spaces[choice-1].AgentSpaceID, nil
+		return choices[choice-1], nil
 	}
 }
 

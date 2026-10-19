@@ -462,6 +462,9 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 			id = seen[0]
 		}
 	}
+	if id == "" && opts.AgentSpaceName == "" {
+		return SpaceStep{}, errors.New("a new agent space needs a name. Pass --agent-space-name")
+	}
 	if id == "" {
 		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName}, nil
 	}
