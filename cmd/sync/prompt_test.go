@@ -13,7 +13,7 @@ import (
 func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 	command := NewPromptCmd(nil)
 
-	assert.Equal(t, "prompt", command.Use)
+	assert.Equal(t, "prompts", command.Use)
 	for _, name := range []string{"watch", "add", "attach", "detach", "link"} {
 		child, _, err := command.Find([]string{name})
 		require.NoError(t, err)
@@ -34,13 +34,13 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 func TestSyncCommandIncludesExamples(t *testing.T) {
 	command := NewSyncCmd(nil, nil)
 
-	assert.Contains(t, command.Example, "ldcli sync prompt")
+	assert.Contains(t, command.Example, "ldcli sync prompts")
 }
 
 func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 	command := NewPromptCmd(nil)
 	tests := map[string][]string{
-		"prompt":       {},
+		"prompts":      {},
 		"watch":        {"watch"},
 		"add":          {"add"},
 		"attach":       {"attach"},
@@ -59,7 +59,7 @@ func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			assert.Contains(t, target.Example, "ldcli sync prompt")
+			assert.Contains(t, target.Example, "ldcli sync prompts")
 		})
 	}
 }

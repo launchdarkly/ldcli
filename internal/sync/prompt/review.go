@@ -1,16 +1,12 @@
 package prompt
 
 import (
-	"bufio"
-	"context"
-	"errors"
-	"fmt"
-	"io"
 	"slices"
 	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
+	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
 
@@ -39,7 +35,7 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 		return true, nil
 	}
 
-	confirmed, err := confirm(options.Context, options.Input, options.ErrorOutput, interactive, applyQuestion)
+	confirmed, err := syncinteractive.Confirm(options.Context, options.Input, options.ErrorOutput, interactive, applyQuestion)
 	if err != nil {
 		return false, err
 	}
@@ -47,55 +43,6 @@ func reviewAndConfirmPlan(options Options, plan Plan, interactive bool) (bool, e
 		_ = syncconsole.New(options.ErrorOutput).Line("Sync canceled.")
 	}
 	return confirmed, nil
-}
-
-// confirm asks a yes or no question and stops when ctx ends. A nil ctx never
-// ends.
-func confirm(ctx context.Context, input io.Reader, output io.Writer, interactive bool, question string) (bool, error) {
-	if !interactive {
-		return false, errors.New("interactive confirmation requires a terminal; rerun with --yes to apply non-interactively")
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return false, err
-	}
-
-	// A read from io.Reader cannot stop when ctx ends, so read in a goroutine.
-	// The channel has a buffer, so the goroutine can finish after confirm
-	// returns.
-	type answer struct {
-		confirmed bool
-		err       error
-	}
-	answers := make(chan answer, 1)
-	go func() {
-		confirmed, err := readConfirmation(input, output, question)
-		answers <- answer{confirmed: confirmed, err: err}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return false, ctx.Err()
-	case result := <-answers:
-		if err := ctx.Err(); err != nil {
-			return false, err
-		}
-		return result.confirmed, result.err
-	}
-}
-
-func readConfirmation(input io.Reader, output io.Writer, question string) (bool, error) {
-	if err := syncconsole.New(output).Write(question); err != nil {
-		return false, err
-	}
-	line, err := bufio.NewReader(input).ReadString('\n')
-	if err != nil && err != io.EOF {
-		return false, fmt.Errorf("read apply confirmation: %w", err)
-	}
-	line = strings.ToLower(strings.TrimSpace(line))
-	return line == "y" || line == "yes", nil
 }
 
 // cleanupOrphanedAttachments shows the tool and skill files that no local
@@ -127,7 +74,7 @@ func cleanupOrphanedAttachments(options Options, store synclocal.Store, interact
 		return nil
 	}
 	if !options.Yes {
-		confirmed, err := confirm(
+		confirmed, err := syncinteractive.Confirm(
 			options.Context, options.Input, options.ErrorOutput, interactive,
 			"\nDelete these unreferenced local files? [y/N] ",
 		)
