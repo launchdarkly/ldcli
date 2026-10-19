@@ -14,6 +14,25 @@ const (
 	MobileKeyEnvVar    = "LAUNCHDARKLY_MOBILE_KEY"
 )
 
+// clientSideSDKs read the client-side ID, and mobileSDKs read the mobile key.
+// Every other SDK reads the server-side SDK key.
+var (
+	clientSideSDKs = map[string]bool{"react-client-sdk": true, "js-client-sdk": true}
+	mobileSDKs     = map[string]bool{"react-native": true, "android": true, "swift-client-sdk": true}
+)
+
+// CredentialEnvVar returns the environment variable that the agent's code
+// must read for the SDK.
+func CredentialEnvVar(sdkID string) string {
+	switch {
+	case clientSideSDKs[sdkID]:
+		return ClientSideIDEnvVar
+	case mobileSDKs[sdkID]:
+		return MobileKeyEnvVar
+	}
+	return SDKKeyEnvVar
+}
+
 // DefaultInstructions is the system prompt that the built-in configuration
 // uses.
 const DefaultInstructions = `You are the LaunchDarkly setup agent. You add LaunchDarkly SDK initialization code to the project in the current directory.
@@ -45,8 +64,7 @@ func BuildPrompt(t Task) string {
 		b.WriteString("The SDK package is not installed. Install it with the project's package manager.\n")
 	}
 	fmt.Fprintf(&b, "Evaluate the boolean flag %q once after the SDK initializes, and print or log its value.\n", t.FlagKey)
-	fmt.Fprintf(&b, "Read the credential from an environment variable: %s for a server-side SDK, %s for a client-side JavaScript SDK, or %s for a mobile SDK.\n",
-		SDKKeyEnvVar, ClientSideIDEnvVar, MobileKeyEnvVar)
+	fmt.Fprintf(&b, "Read the credential from the environment variable %s.\n", CredentialEnvVar(t.SDKID))
 	if t.EntryPoint == "" {
 		b.WriteString("ldcli did not find an entry point. Find where the application starts before you edit.\n")
 	}

@@ -30,8 +30,15 @@ func TestBuildPrompt_NamesTheTaskAndNoCredential(t *testing.T) {
 	assert.Contains(t, prompt, "- Entry point: index.js")
 	assert.Contains(t, prompt, "- Framework: unknown")
 	assert.Contains(t, prompt, "already installed")
-	assert.Contains(t, prompt, SDKKeyEnvVar)
+	assert.Contains(t, prompt, "environment variable "+SDKKeyEnvVar)
+	assert.NotContains(t, prompt, MobileKeyEnvVar, "the prompt names only the SDK's own credential")
 	assert.NotContains(t, prompt, "did not find an entry point")
+}
+
+func TestCredentialEnvVar(t *testing.T) {
+	assert.Equal(t, SDKKeyEnvVar, CredentialEnvVar("python-server-sdk"))
+	assert.Equal(t, ClientSideIDEnvVar, CredentialEnvVar("js-client-sdk"))
+	assert.Equal(t, MobileKeyEnvVar, CredentialEnvVar("swift-client-sdk"))
 }
 
 func TestBuildPrompt_NoEntryPoint_AsksTheAgentToFindOne(t *testing.T) {
