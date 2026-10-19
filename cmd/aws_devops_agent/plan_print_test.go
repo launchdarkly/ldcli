@@ -1,7 +1,6 @@
 package awsdevopsagent
 
 import (
-	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -40,17 +39,18 @@ func TestSetupWithoutTerminalStillPrintsPlan(t *testing.T) {
 	assert.NotContains(t, out.String(), "Continue?")
 }
 
-// JSON stdout must stay parseable.
-func TestSetupJSONPrintsNoPlan(t *testing.T) {
-	cmd, _ := setupTestCmd(t, "")
+// A JSON run shows the plan on stderr. Stdout must stay parseable.
+func TestSetupJSONPrintsPlanToStderr(t *testing.T) {
+	cmd, errOut := setupTestCmd(t, "")
 	cmd.SetIn(noReadStdin{t})
-	stdout := &bytes.Buffer{}
-	cmd.SetOut(stdout)
 	clients, _ := countingClients()
 
 	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), false, false))
 
-	assert.True(t, json.Valid(stdout.Bytes()), "stdout is not JSON: %s", stdout.String())
+	assert.True(t, json.Valid([]byte(stdoutOf(cmd))), "stdout is not JSON: %s", stdoutOf(cmd))
+	assert.Contains(t, errOut.String(), "Setup plan")
+	assert.Contains(t, errOut.String(), testAccountID)
+	assert.NotContains(t, errOut.String(), "Continue?")
 }
 
 func TestSetupPlanNamesRolesAndOperatorApp(t *testing.T) {
@@ -202,8 +202,8 @@ func TestSetupChosenSpaceWithAuthFlow(t *testing.T) {
 	assert.Contains(t, out.String(), "Reuse agent space LaunchDarkly (space-2)")
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
-	assert.Contains(t, stderrOf(cmd), "(space-2)")
-	assert.NotContains(t, stderrOf(cmd), "(space-1)")
+	assert.Contains(t, out.String(), "Reused agent space LaunchDarkly (space-2)")
+	assert.NotContains(t, out.String(), "agent space launchdarkly (space-1)")
 }
 
 func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
@@ -214,5 +214,5 @@ func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
 
 	assert.NotContains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateRole")
-	assert.Contains(t, stderrOf(cmd), "(space-2)")
+	assert.Contains(t, stderrOf(cmd), "Using agent space LaunchDarkly (space-2)")
 }

@@ -139,18 +139,18 @@ func (r noReadStdin) Read([]byte) (int, error) {
 	return 0, nil
 }
 
-// setupTestCmd returns stdout. Stderr is separate.
+// setupTestCmd returns stderr, where the plan and prompts go. Stdout is separate.
 func setupTestCmd(t *testing.T, stdin string) (*cobra.Command, *bytes.Buffer) {
 	t.Helper()
 	t.Setenv("AWS_PROFILE", "")
 	cmd := NewSetupCmd(nil)
-	out := &bytes.Buffer{}
-	cmd.SetOut(out)
-	cmd.SetErr(&bytes.Buffer{})
+	errOut := &bytes.Buffer{}
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(errOut)
 	cmd.SetIn(strings.NewReader(stdin))
 	cmd.SetContext(context.Background())
 
-	return cmd, out
+	return cmd, errOut
 }
 
 func newSpaceOptions() awsdevops.SetupOptions {
@@ -287,14 +287,36 @@ func stderrOf(cmd *cobra.Command) string {
 	return cmd.ErrOrStderr().(*bytes.Buffer).String()
 }
 
-// Progress belongs on stderr only.
+func stdoutOf(cmd *cobra.Command) string {
+	return cmd.OutOrStdout().(*bytes.Buffer).String()
+}
+
+// The plan and progress go to stderr. Stdout keeps only the result.
 func TestSetupProgressGoesToStderr(t *testing.T) {
-	cmd, out := setupTestCmd(t, "")
+	cmd, _ := setupTestCmd(t, "")
 	cmd.SetIn(noReadStdin{t})
 	clients, _ := countingClients()
 
 	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, false))
 
+	assert.Contains(t, stderrOf(cmd), "Setup plan")
 	assert.Contains(t, stderrOf(cmd), "Created agent space")
-	assert.NotContains(t, out.String(), "Created agent space")
+	assert.NotContains(t, stdoutOf(cmd), "Setup plan")
+	assert.NotContains(t, stdoutOf(cmd), "Created agent space")
+	assert.Contains(t, stdoutOf(cmd), "Open the DevOps Agent at")
+}
+
+// Prompts go to stderr, so a redirected stdout does not hide them.
+func TestSetupPromptsGoToStderr(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "1\nn\n")
+	clients, _ := countingClients(agenttypes.AgentSpace{
+		AgentSpaceId: aws.String("space-2"),
+		Name:         aws.String("platform"),
+	})
+
+	_ = setupWith(cmd, clients, newSpaceOptions(), true, true)
+
+	assert.Contains(t, stderrOf(cmd), "Which one should LaunchDarkly connect to?")
+	assert.Contains(t, stderrOf(cmd), "Continue? [y/N]")
+	assert.Empty(t, stdoutOf(cmd))
 }

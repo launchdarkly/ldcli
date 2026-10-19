@@ -132,10 +132,9 @@ func setupWith(
 	if plan.MCP.Action == awsdevops.MCPAsk && !ask {
 		return fmt.Errorf("create a service token at %s, then pass --access-token", awsdevops.AccessTokenURL(opts.LDBaseURI))
 	}
-	if plaintext {
-		if err := confirmSetup(cmd, plan, ask); err != nil {
-			return err
-		}
+	// The plan goes to stderr, so a json run shows it too.
+	if err := confirmSetup(cmd, plan, ask); err != nil {
+		return err
 	}
 
 	var result awsdevops.SetupResult
@@ -224,7 +223,7 @@ func resolveAgentSpace(
 
 // confirmSetup shows the plan and asks.
 func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error {
-	out := cmd.OutOrStdout()
+	out := cmd.ErrOrStderr()
 	_, _ = fmt.Fprintln(out, "\nSetup plan:")
 	_, _ = fmt.Fprintf(out, "  AWS account:   %s\n", plan.AccountID)
 	_, _ = fmt.Fprintf(out, "  Region:        %s\n", plan.Region)
@@ -271,7 +270,7 @@ func authFlagSet(cmd *cobra.Command) bool {
 // selectAgentSpace asks which agent space to connect LaunchDarkly to, and
 // returns an empty string when the answer is to provision a new one.
 func selectAgentSpace(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary, region string) (string, error) {
-	out := cmd.OutOrStdout()
+	out := cmd.ErrOrStderr()
 	_, _ = fmt.Fprintf(out, "\nThis AWS account already runs the DevOps Agent in %s:\n\n", region)
 	for i, space := range spaces {
 		_, _ = fmt.Fprintf(out, "  %d) %s (%s)\n", i+1, space.Name, space.AgentSpaceID)
@@ -327,10 +326,11 @@ func connectMCPServer(
 	result *awsdevops.SetupResult,
 ) error {
 	tokenURL := awsdevops.AccessTokenURL(opts.LDBaseURI)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
-	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Paste the token, or press Enter to skip: ")
+	out := cmd.ErrOrStderr()
+	_, _ = fmt.Fprintf(out, "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
+	_, _ = fmt.Fprint(out, "Paste the token, or press Enter to skip: ")
 	opts.LDAccessToken = readSecret(cmd.InOrStdin())
-	_, _ = fmt.Fprintln(cmd.OutOrStdout())
+	_, _ = fmt.Fprintln(out)
 	if opts.LDAccessToken == "" {
 		return nil
 	}
