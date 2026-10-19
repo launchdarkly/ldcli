@@ -38,16 +38,13 @@ func TestAIConfigSource_RealSDKThroughTheProxy(t *testing.T) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, RelayPath+"/stream/") {
-			w.Header().Set("Content-Type", "text/event-stream")
-			fmt.Fprintf(w, "event: put\ndata: {\"path\":\"/\",\"data\":{\"flags\":{\"ldcli-setup-agent\":%s},\"segments\":{}}}\n\n",
-				strings.ReplaceAll(setupAgentFlag, "\n", ""))
-			w.(http.Flusher).Flush()
-			<-r.Context().Done()
+		if r.URL.Path == RelayPath+"/polling/sdk/latest-all" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set(RelayEnvironmentIDHeader, "catfood-client-id")
+			fmt.Fprintf(w, `{"flags":{"ldcli-setup-agent":%s},"segments":{}}`, strings.ReplaceAll(setupAgentFlag, "\n", ""))
 			return
 		}
 		_, _ = io.Copy(io.Discard, r.Body)
-		w.Header().Set(RelayEnvironmentIDHeader, "catfood-client-id")
 		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer relay.Close()
@@ -68,7 +65,9 @@ func TestAIConfigSource_RealSDKThroughTheProxy(t *testing.T) {
 	for _, p := range paths {
 		assert.Contains(t, p, RelayPath+"/", "every request goes to a relay route")
 	}
-	assert.Contains(t, strings.Join(paths, "\n"), "GET "+RelayPath+"/stream/all")
+	joined := strings.Join(paths, "\n")
+	assert.Contains(t, joined, "GET "+RelayPath+"/polling/sdk/latest-all", "the SDK polls")
+	assert.NotContains(t, joined, RelayPath+"/stream/", "the SDK does not open the flag stream")
 	t.Logf("requests: %v", paths)
 }
 

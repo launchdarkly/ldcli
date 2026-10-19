@@ -146,6 +146,10 @@ func setEnvironmentID(id string) {
 // initQuietClient starts the AI SDK with a LaunchDarkly client that does not
 // log. The SDK's own client logs to the terminal, which breaks the wizard's
 // full-screen view, and InitOptions cannot turn its logs off.
+//
+// The client polls and does not open the flag stream. Setup reads the config
+// once per run, so one polling request is all it needs, and it does not
+// depend on a long-lived connection through the relay and the load balancer.
 func initQuietClient(ctx context.Context, opts aiserver.InitOptions) error {
 	aiserver.SetLogger(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	client, err := ld.MakeCustomClient(opts.SDKKey, ld.Config{
@@ -154,6 +158,7 @@ func initQuietClient(ctx context.Context, opts aiserver.InitOptions) error {
 			Streaming: opts.StreamURI,
 			Events:    opts.EventsURI,
 		},
+		DataSource:       ldcomponents.PollingDataSource(),
 		Logging:          ldcomponents.NoLogging(),
 		DiagnosticOptOut: true,
 	}, opts.WaitFor)
