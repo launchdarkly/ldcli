@@ -2,6 +2,11 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -9,30 +14,26 @@ import (
 
 	"github.com/launchdarkly/go-ai-sdk/aiserver"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	ld "github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 )
 
 // SetupAgentConfigKey is the key of the setup-agent AI Config.
 const SetupAgentConfigKey = "ldcli-setup-agent"
 
-// Environment variables for development against catfood. They are temporary:
-// the relay in gonfalon will replace them, and then no SDK key is on the
-// user's machine. They do not start with LD_, because ldcli and the AI SDK
-// both read LD_ variables for other purposes.
-const (
-	// SDKKeyEnv turns on the AI Config source. Its value is the SDK key of the
-	// environment that holds the setup-agent AI Config.
-	SDKKeyEnv = "LDCLI_SETUP_AGENT_SDK_KEY"
-	// BaseURIEnv is the app URL of the LaunchDarkly instance that holds the AI
-	// Config. The default is catfood.
-	BaseURIEnv = "LDCLI_SETUP_AGENT_BASE_URI"
-	// OTLPEndpointEnv is the trace endpoint. The default is the AI SDK default.
-	OTLPEndpointEnv = "LDCLI_SETUP_AGENT_OTLP_ENDPOINT"
-)
+// SetupAgentEnvironmentID is the client-side ID of the catfood environment that
+// holds the setup-agent AI Config. The AI SDK sends it with its events and
+// spans, so AgentControl can link runs to the config's Monitoring tab. It is
+// not a secret. If it is empty, the SDK sends no environment ID.
+var SetupAgentEnvironmentID = ""
 
 const (
-	defaultSetupAgentBaseURI = "https://app.ld.catamorphic.com"
-	contextKind              = "ldcli-setup"
-	initTimeout              = 5 * time.Second
+	contextKind = "ldcli-setup"
+	initTimeout = 5 * time.Second
+	// environmentIDEnv is the only setting that the AI SDK reads from the
+	// environment and that InitOptions cannot set.
+	environmentIDEnv = "LD_ENVIRONMENT_ID"
 )
 
 // AIConfigSource reads the setup-agent AI Config with the LaunchDarkly AI SDK.
@@ -40,13 +41,23 @@ const (
 // attributes, so targeting can give each kind of project its own
 // instructions and model.
 //
-// If the SDK cannot start, or the config is missing or off, it returns the
-// configuration of Fallback. Setup must not fail because the config is
-// unavailable.
+// The SDK reaches the config through the relay in gonfalon, which holds the
+// real SDK key. The SDK gets a placeholder key, and a loopback proxy adds the
+// user's access token to each request. So no SDK key is on the user's
+// machine.
+//
+// If the SDK cannot start, for example because the relay refuses the request,
+// or the config is missing or off, it returns the configuration of Fallback.
+// Setup must not fail because the config is unavailable.
 type AIConfigSource struct {
-	Key      string
-	Options  aiserver.InitOptions
-	Fallback ConfigSource
+	Key string
+	// RelayBaseURI is the user's base URI. The relay is at RelayPath under it.
+	RelayBaseURI string
+	AccessToken  string
+	// EnvironmentID is the client-side ID of the environment that holds the
+	// config.
+	EnvironmentID string
+	Fallback      ConfigSource
 
 	// initClient and inspect are fields so that tests can replace them.
 	initClient func(ctx context.Context, opts aiserver.InitOptions) error
@@ -54,72 +65,109 @@ type AIConfigSource struct {
 
 	once    sync.Once
 	initErr error
+	proxy   *relayProxy
 	// started reports that this source started the SDK's global client, so
 	// Close must stop it.
 	started bool
 }
 
-// ConfigSourceFromEnv returns an AIConfigSource if SDKKeyEnv is set, and
-// DefaultConfigSource if not.
-func ConfigSourceFromEnv() ConfigSource {
-	key := strings.TrimSpace(os.Getenv(SDKKeyEnv))
-	if key == "" {
+// NewAIConfigSource returns an AIConfigSource for a logged-in user, and
+// DefaultConfigSource if there is no access token.
+func NewAIConfigSource(baseURI, accessToken string) ConfigSource {
+	if strings.TrimSpace(accessToken) == "" || strings.TrimSpace(baseURI) == "" {
 		return DefaultConfigSource{}
 	}
 	return &AIConfigSource{
-		Key: SetupAgentConfigKey,
-		Options: initOptions(key,
-			strings.TrimSpace(os.Getenv(BaseURIEnv)),
-			strings.TrimSpace(os.Getenv(OTLPEndpointEnv))),
-		Fallback: DefaultConfigSource{},
+		Key:           SetupAgentConfigKey,
+		RelayBaseURI:  baseURI,
+		AccessToken:   accessToken,
+		EnvironmentID: SetupAgentEnvironmentID,
+		Fallback:      DefaultConfigSource{},
 	}
 }
 
-// initOptions sets every connection option of the AI SDK. The SDK fills an
-// empty option from an environment variable, such as LD_BASE_URI or
-// OTEL_EXPORTER_OTLP_ENDPOINT. ldcli uses LD_BASE_URI for its own API
-// address, so an empty option would connect the SDK to the wrong place.
-func initOptions(sdkKey, baseURI, otlpEndpoint string) aiserver.InitOptions {
-	if baseURI == "" {
-		baseURI = defaultSetupAgentBaseURI
-	}
-	baseURI = strings.TrimRight(baseURI, "/")
-	if otlpEndpoint == "" {
-		otlpEndpoint = aiserver.DefaultOTLPEndpoint
-	}
+// relayOptions sets every connection option of the AI SDK to the loopback
+// proxy. The SDK fills an empty option from an environment variable, such as
+// LD_BASE_URI or OTEL_EXPORTER_OTLP_ENDPOINT. ldcli uses LD_BASE_URI for its own
+// API address, so an empty option would connect the SDK to the wrong place.
+//
+// The paths under the proxy match the relay routes: the SDK adds its own
+// paths, such as /all for the stream and /v1/traces for spans.
+func relayOptions(proxyBase string) aiserver.InitOptions {
 	return aiserver.InitOptions{
-		SDKKey:       sdkKey,
-		BaseURI:      baseURI,
-		StreamURI:    serviceURI(baseURI, "stream"),
-		EventsURI:    serviceURI(baseURI, "events"),
-		OTLPEndpoint: otlpEndpoint,
+		SDKKey:       RelayPlaceholderKey,
+		BaseURI:      proxyBase + "/polling",
+		StreamURI:    proxyBase + "/stream",
+		EventsURI:    proxyBase + "/events",
+		OTLPEndpoint: proxyBase + "/otel",
 		ServiceName:  "ldcli",
 		Environment:  "ldcli-setup",
 		WaitFor:      initTimeout,
 	}
 }
 
-// serviceURI derives a service address from the app address of a LaunchDarkly
-// instance. An instance serves the SDK streams and events on subdomains named
-// for the service, for example https://stream.ld.catamorphic.com for
-// https://app.ld.catamorphic.com. An address that does not start with app. is
-// used as it is.
-func serviceURI(baseURI, service string) string {
-	scheme, host, ok := strings.Cut(baseURI, "://")
-	if !ok || !strings.HasPrefix(host, "app.") {
-		return baseURI
+func (s *AIConfigSource) start(ctx context.Context) error {
+	proxy, err := startRelayProxy(s.RelayBaseURI, s.AccessToken)
+	if err != nil {
+		return err
 	}
-	return scheme + "://" + service + "." + strings.TrimPrefix(host, "app.")
+	s.proxy = proxy
+	opts := relayOptions(proxy.baseURL)
+	// Set the variable for this process even when the ID is empty, so a value
+	// in the user's shell for their own app does not reach the SDK. OpenCode
+	// does not get it, because the CLI removes LD_ variables from OpenCode's
+	// environment.
+	if s.EnvironmentID == "" {
+		_ = os.Unsetenv(environmentIDEnv)
+	} else {
+		_ = os.Setenv(environmentIDEnv, s.EnvironmentID)
+	}
+	if s.initClient != nil {
+		return s.initClient(ctx, opts)
+	}
+	if err := initQuietClient(ctx, opts); err != nil {
+		return err
+	}
+	s.started = true
+	return nil
+}
+
+// initQuietClient starts the AI SDK with a LaunchDarkly client that does not
+// log. The SDK's own client logs to the terminal, which breaks the wizard's
+// full-screen view, and InitOptions cannot turn its logs off.
+func initQuietClient(ctx context.Context, opts aiserver.InitOptions) error {
+	if err := checkRelay(ctx, opts.BaseURI); err != nil {
+		return err
+	}
+	aiserver.SetLogger(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	client, err := ld.MakeCustomClient(opts.SDKKey, ld.Config{
+		ServiceEndpoints: interfaces.ServiceEndpoints{
+			Polling:   opts.BaseURI,
+			Streaming: opts.StreamURI,
+			Events:    opts.EventsURI,
+		},
+		Logging:          ldcomponents.NoLogging(),
+		DiagnosticOptOut: true,
+	}, opts.WaitFor)
+	if err != nil {
+		if client != nil {
+			_ = client.Close()
+		}
+		return err
+	}
+	if _, err := aiserver.InitWithClient(ctx, client, opts); err != nil {
+		_ = client.Close()
+		return err
+	}
+	return nil
 }
 
 func (s *AIConfigSource) Resolve(ctx context.Context, task Task) (Config, error) {
 	s.once.Do(func() {
-		if s.initClient != nil {
-			s.initErr = s.initClient(ctx, s.Options)
-			return
+		s.initErr = s.start(ctx)
+		if s.initErr != nil {
+			s.closeProxy(ctx)
 		}
-		_, s.initErr = aiserver.InitClient(ctx, s.Options)
-		s.started = s.initErr == nil
 	})
 	if s.initErr != nil {
 		return s.fallback(ctx, task)
@@ -147,12 +195,23 @@ func (s *AIConfigSource) fallback(ctx context.Context, task Task) (Config, error
 	return s.Fallback.Resolve(ctx, task)
 }
 
-// Close flushes the SDK events and stops the SDK client.
+// Close flushes the SDK events through the relay, stops the SDK client, and
+// then stops the proxy.
 func (s *AIConfigSource) Close(ctx context.Context) error {
-	if !s.started {
-		return nil
+	var err error
+	if s.started {
+		err = aiserver.Shutdown(ctx)
+		s.started = false
 	}
-	return aiserver.Shutdown(ctx)
+	s.closeProxy(ctx)
+	return err
+}
+
+func (s *AIConfigSource) closeProxy(ctx context.Context) {
+	if s.proxy != nil {
+		_ = s.proxy.close(ctx)
+		s.proxy = nil
+	}
 }
 
 // setupContext is the evaluation context for one run. Its attributes are the
@@ -211,4 +270,52 @@ func configFromAI(c *aiserver.AiConfig) Config {
 		cfg.ProviderID, cfg.ModelID = "", ""
 	}
 	return cfg
+}
+
+// RelayError is a refusal from the relay, for example because the kill switch
+// is off or the access token is not valid.
+type RelayError struct {
+	Status  int
+	Code    string
+	Message string
+}
+
+func (e *RelayError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("the setup agent service refused the request (%s): %s", e.Code, e.Message)
+	}
+	if e.Code != "" {
+		return fmt.Sprintf("the setup agent service refused the request (%s)", e.Code)
+	}
+	return fmt.Sprintf("the setup agent service returned HTTP %d", e.Status)
+}
+
+// checkRelay makes one polling request through the proxy before the SDK
+// starts. The Go server SDK retries a refused stream until its start timeout
+// ends, so without this check a refusal would delay every setup run.
+func checkRelay(ctx context.Context, pollingBase string) error {
+	ctx, cancel := context.WithTimeout(ctx, initTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pollingBase+"/sdk/latest-all", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", RelayPlaceholderKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not reach the setup agent service: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 300 {
+		return nil
+	}
+	refusal := &RelayError{Status: resp.StatusCode}
+	var body struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil {
+		refusal.Code, refusal.Message = body.Code, body.Message
+	}
+	return refusal
 }

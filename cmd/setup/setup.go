@@ -29,11 +29,6 @@ func NewSetupCmd(
 		Initializer: setup.Initializer{},
 	}
 	runner := agent.NewOpenCode()
-	// With LDCLI_SETUP_AGENT_SDK_KEY set, the agent reads its instructions and
-	// model from the setup-agent AI Config. Without it, the built-in
-	// configuration applies.
-	source := agent.ConfigSourceFromEnv()
-	runner.Config = source
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Set up LaunchDarkly in your project",
@@ -58,7 +53,7 @@ initialization code if OpenCode is installed, and the built-in templates if not.
 				viper.GetBool(cliflags.AnalyticsOptOut),
 			).SendCommandRunEvent(cmdAnalytics.CmdRunEventProperties(cmd, "setup", nil))
 		},
-		RunE: closingSource(source, runSetupWizard(analyticsTrackerFn, svc, runner)),
+		RunE: withConfigSource(runner, runSetupWizard(analyticsTrackerFn, svc, runner)),
 	}
 	cmd.Flags().String(agentFlag, "auto", "Use the setup agent to add initialization code: auto, on, or off")
 
@@ -66,25 +61,31 @@ initialization code if OpenCode is installed, and the built-in templates if not.
 	cmd.AddCommand(newInstallCmd(svc))
 	cmd.AddCommand(newInitCmd(svc))
 	agentCmd := newAgentCmd(svc, runner)
-	agentCmd.RunE = closingSource(source, agentCmd.RunE)
+	agentCmd.RunE = withConfigSource(runner, agentCmd.RunE)
 	cmd.AddCommand(agentCmd)
 
 	return cmd
 }
 
-// closingSource closes the config source after the command runs, so the AI
-// SDK sends its events before ldcli exits.
-func closingSource(source agent.ConfigSource, run func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
-	closer, ok := source.(interface{ Close(context.Context) error })
-	if !ok {
-		return run
-	}
+// withConfigSource gives the agent the setup-agent AI Config for the
+// logged-in user, and closes it after the command runs, so the AI SDK sends
+// its events before ldcli exits. The source is built when the command runs,
+// because the access token and the base URI come from flags and the
+// configuration file.
+func withConfigSource(runner *agent.OpenCode, run func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = closer.Close(ctx)
-		}()
+		source := agent.NewAIConfigSource(
+			viper.GetString(cliflags.BaseURIFlag),
+			viper.GetString(cliflags.AccessTokenFlag),
+		)
+		runner.Config = source
+		if closer, ok := source.(interface{ Close(context.Context) error }); ok {
+			defer func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = closer.Close(ctx)
+			}()
+		}
 		return run(cmd, args)
 	}
 }

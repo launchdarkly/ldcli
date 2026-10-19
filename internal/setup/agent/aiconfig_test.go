@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/launchdarkly/go-ai-sdk/aiserver"
@@ -11,46 +13,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInitOptions_SetsEveryConnectionOption(t *testing.T) {
-	// These are what the SDK reads when an option is empty. None of them may
-	// reach it.
-	t.Setenv("LD_SDK_KEY", "sdk-wrong")
-	t.Setenv("LD_BASE_URI", "https://wrong.example.com")
-	t.Setenv("LD_STREAM_URI", "https://wrong.example.com")
-	t.Setenv("LD_EVENTS_URI", "https://wrong.example.com")
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://wrong.example.com")
-
-	opts := initOptions("sdk-test", "", "")
+func TestRelayOptions_SetsEveryConnectionOption(t *testing.T) {
+	opts := relayOptions("http://127.0.0.1:5000/secret")
 
 	assert.Equal(t, aiserver.InitOptions{
-		SDKKey:       "sdk-test",
-		BaseURI:      "https://app.ld.catamorphic.com",
-		StreamURI:    "https://stream.ld.catamorphic.com",
-		EventsURI:    "https://events.ld.catamorphic.com",
-		OTLPEndpoint: aiserver.DefaultOTLPEndpoint,
+		SDKKey:       RelayPlaceholderKey,
+		BaseURI:      "http://127.0.0.1:5000/secret/polling",
+		StreamURI:    "http://127.0.0.1:5000/secret/stream",
+		EventsURI:    "http://127.0.0.1:5000/secret/events",
+		OTLPEndpoint: "http://127.0.0.1:5000/secret/otel",
 		ServiceName:  "ldcli",
 		Environment:  "ldcli-setup",
 		WaitFor:      initTimeout,
-	}, opts)
+	}, opts, "an empty option would make the SDK read an LD_ variable")
 }
 
-func TestServiceURI(t *testing.T) {
-	assert.Equal(t, "https://stream.launchdarkly.com", serviceURI("https://app.launchdarkly.com", "stream"))
-	assert.Equal(t, "https://events.eu.launchdarkly.com", serviceURI("https://app.eu.launchdarkly.com", "events"))
-	assert.Equal(t, "http://localhost:8765", serviceURI("http://localhost:8765", "stream"), "an address without app. is used as it is")
-}
+func TestNewAIConfigSource(t *testing.T) {
+	assert.Equal(t, DefaultConfigSource{}, NewAIConfigSource("https://app.launchdarkly.com", ""), "no login, no AI Config")
 
-func TestConfigSourceFromEnv(t *testing.T) {
-	t.Setenv(SDKKeyEnv, "")
-	assert.Equal(t, DefaultConfigSource{}, ConfigSourceFromEnv())
-
-	t.Setenv(SDKKeyEnv, "sdk-test")
-	t.Setenv(BaseURIEnv, "https://app.example.com/")
-	source, ok := ConfigSourceFromEnv().(*AIConfigSource)
+	source, ok := NewAIConfigSource("https://app.launchdarkly.com", "api-123").(*AIConfigSource)
 	require.True(t, ok)
 	assert.Equal(t, SetupAgentConfigKey, source.Key)
-	assert.Equal(t, "https://app.example.com", source.Options.BaseURI)
-	assert.Equal(t, "https://stream.example.com", source.Options.StreamURI)
+	assert.Equal(t, "https://app.launchdarkly.com", source.RelayBaseURI)
+	assert.Equal(t, "api-123", source.AccessToken)
+}
+
+func TestAIConfigSource_StartsTheSDKBehindTheProxy(t *testing.T) {
+	t.Setenv(environmentIDEnv, "the-users-own-app")
+	var got aiserver.InitOptions
+	s := &AIConfigSource{
+		RelayBaseURI:  "https://app.launchdarkly.com",
+		AccessToken:   "api-123",
+		EnvironmentID: "catfood-client-id",
+		initClient: func(_ context.Context, opts aiserver.InitOptions) error {
+			got = opts
+			return nil
+		},
+		inspect: func(context.Context, string, ldcontext.Context) aiserver.InspectResult {
+			return aiserver.InspectResult{}
+		},
+	}
+	defer s.Close(context.Background())
+
+	_, err := s.Resolve(context.Background(), Task{})
+
+	require.NoError(t, err)
+	assert.Equal(t, RelayPlaceholderKey, got.SDKKey)
+	assert.True(t, strings.HasPrefix(got.StreamURI, "http://127.0.0.1:"), got.StreamURI)
+	assert.NotContains(t, got.StreamURI, "api-123", "the token is never in an SDK option")
+	assert.Equal(t, "catfood-client-id", os.Getenv(environmentIDEnv))
+}
+
+func TestAIConfigSource_NoEnvironmentID_ClearsTheUsersValue(t *testing.T) {
+	t.Setenv(environmentIDEnv, "the-users-own-app")
+	s, _ := fakeSource(nil, aiserver.InspectResult{})
+	defer s.Close(context.Background())
+
+	_, _ = s.Resolve(context.Background(), Task{})
+
+	_, set := os.LookupEnv(environmentIDEnv)
+	assert.False(t, set)
 }
 
 type inspectCall struct {
@@ -61,8 +83,10 @@ type inspectCall struct {
 func fakeSource(initErr error, res aiserver.InspectResult) (*AIConfigSource, *[]inspectCall) {
 	var calls []inspectCall
 	s := &AIConfigSource{
-		Key:        "setup",
-		initClient: func(context.Context, aiserver.InitOptions) error { return initErr },
+		Key:          "setup",
+		RelayBaseURI: "https://app.launchdarkly.com",
+		AccessToken:  "api-123",
+		initClient:   func(context.Context, aiserver.InitOptions) error { return initErr },
 		inspect: func(_ context.Context, key string, c ldcontext.Context) aiserver.InspectResult {
 			calls = append(calls, inspectCall{key: key, ctx: c})
 			return res
@@ -150,7 +174,8 @@ func TestAIConfigSource_FallsBack(t *testing.T) {
 func TestAIConfigSource_InitsOnce(t *testing.T) {
 	inits := 0
 	s := &AIConfigSource{
-		initClient: func(context.Context, aiserver.InitOptions) error { inits++; return nil },
+		RelayBaseURI: "https://app.launchdarkly.com",
+		initClient:   func(context.Context, aiserver.InitOptions) error { inits++; return nil },
 		inspect: func(context.Context, string, ldcontext.Context) aiserver.InspectResult {
 			return aiserver.InspectResult{}
 		},
