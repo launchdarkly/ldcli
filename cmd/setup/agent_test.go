@@ -175,7 +175,7 @@ func TestWizard_AgentPermission_YAllows(t *testing.T) {
 	require.NotNil(t, cmd)
 	m, _ = update(t, m, cmd())
 
-	assert.Nil(t, m.agentPermission)
+	assert.Empty(t, m.agentPermissions)
 	assert.Equal(t, []fakeReply{{id: "per1", allow: true}}, run.replies)
 }
 
@@ -326,4 +326,28 @@ func TestStreamAgent_Error(t *testing.T) {
 
 func TestCredentialExports_SkipsEmptyValues(t *testing.T) {
 	assert.Equal(t, []string{"export LAUNCHDARKLY_CLIENT_SIDE_ID=abc"}, credentialExports("", "abc", ""))
+}
+
+// OpenCode can ask for several tool calls at once. Each one must get its own
+// answer, or OpenCode waits forever.
+func TestWizard_AgentPermissions_AreQueued(t *testing.T) {
+	run := newFakeRun()
+	m := startedAgent(t, agentAuto, run)
+	for _, id := range []string{"per1", "per2", "per3"} {
+		m, _ = update(t, m, agentEventMsg{run: run, ev: agent.Event{Kind: agent.EventPermission, Permission: agent.PermissionRequest{ID: id, Permission: "bash", Patterns: []string{id}}}})
+	}
+	view := m.View()
+	assert.Contains(t, view, "bash: per1", "the oldest request is shown first")
+	assert.Contains(t, view, "2 more waiting")
+
+	for _, key := range []string{"y", "n", "y"} {
+		var cmd tea.Cmd
+		m, cmd = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)})
+		require.NotNil(t, cmd)
+		cmd()
+	}
+
+	assert.Equal(t, []fakeReply{{id: "per1", allow: true}, {id: "per2", allow: false}, {id: "per3", allow: true}}, run.replies)
+	assert.Empty(t, m.agentPermissions)
+	assert.Contains(t, m.View(), "OpenCode is working")
 }

@@ -114,10 +114,12 @@ type wizardModel struct {
 	agentLog []string
 	// agentFiles are the files that the agent changed.
 	agentFiles []string
-	// agentPermission is the request that waits for the user's answer.
-	agentPermission *agent.PermissionRequest
-	agentUsage      *agent.Usage
-	agentDone       bool
+	// agentPermissions are the requests that wait for the user's answer, oldest
+	// first. OpenCode can ask for several tool calls at once, and each one
+	// waits until it gets its own answer.
+	agentPermissions []agent.PermissionRequest
+	agentUsage       *agent.Usage
+	agentDone        bool
 	// agentNote tells the user why setup used the templates after the agent
 	// could not run.
 	agentNote string

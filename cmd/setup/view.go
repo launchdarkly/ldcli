@@ -430,10 +430,14 @@ func (m wizardModel) agentView() string {
 	if len(log) > 0 {
 		body += "\n"
 	}
-	if m.agentPermission != nil {
+	if len(m.agentPermissions) > 0 {
+		hint := "y allow once · n reject"
+		if waiting := len(m.agentPermissions) - 1; waiting > 0 {
+			hint += fmt.Sprintf(" · %d more waiting", waiting)
+		}
 		question := box(true, m.sdkBoxWidth()).Render(
-			wrapText(describePermission(*m.agentPermission), m.sdkBoxWidth()-4) + "\n" +
-				mutedStyle.Render("y allow once · n reject"))
+			wrapText(describePermission(m.agentPermissions[0]), m.sdkBoxWidth()-4) + "\n" +
+				mutedStyle.Render(hint))
 		return body + question + "\n"
 	}
 	status := " OpenCode is working..."
