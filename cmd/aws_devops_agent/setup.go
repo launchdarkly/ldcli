@@ -190,7 +190,7 @@ func resolveAgentSpace(
 		return false, err
 	}
 	if opts.AgentSpaceID != "" {
-		return authFlagSet(cmd) || managedSpace(spaces, opts.AgentSpaceID), nil
+		return opts.AuthFlowSet || managedSpace(spaces, opts.AgentSpaceID), nil
 	}
 	if len(spaces) == 0 {
 		return true, nil
@@ -227,7 +227,7 @@ func resolveAgentSpace(
 	}
 	opts.AgentSpaceID = choice
 
-	return authFlagSet(cmd) || managedSpace(spaces, choice), nil
+	return opts.AuthFlowSet || managedSpace(spaces, choice), nil
 }
 
 // ownSpace returns the index of the one space that setup made with this name,
@@ -297,11 +297,6 @@ func profileLabel(cmd *cobra.Command) string {
 	}
 
 	return "default credentials"
-}
-
-// authFlagSet reports a passed --auth-flow.
-func authFlagSet(cmd *cobra.Command) bool {
-	return cmd.Flags().Changed(authFlowFlag)
 }
 
 // selectAgentSpace asks which agent space to connect LaunchDarkly to, and

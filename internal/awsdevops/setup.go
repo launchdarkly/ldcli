@@ -617,16 +617,6 @@ func checkMCP(ctx context.Context, clients Clients, opts SetupOptions, step MCPS
 	return nil
 }
 
-// Setup plans a run, then executes the plan.
-func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
-	plan, err := PlanSetup(ctx, clients, opts, true)
-	if err != nil {
-		return SetupResult{}, err
-	}
-
-	return RunPlan(ctx, clients, opts, plan)
-}
-
 // RunPlan executes a plan from PlanSetup.
 func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan SetupPlan) (SetupResult, error) {
 	logf := opts.Logf
@@ -768,20 +758,6 @@ func registrationFailed(err error, detached []string) error {
 		err,
 		strings.Join(detached, ", "),
 	)
-}
-
-// ConnectExisting connects LaunchDarkly to an agent space the customer already
-// set up. Only the MCP server is touched: the IAM roles, the AWS account
-// association and the operator app belong to however they provisioned that
-// space, and re-enabling the operator app would overwrite its sign-in
-// configuration.
-func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
-	plan, err := PlanSetup(ctx, clients, opts, false)
-	if err != nil {
-		return SetupResult{}, err
-	}
-
-	return ConnectPlan(ctx, clients, opts, plan)
 }
 
 // ConnectPlan runs a connect plan.
