@@ -77,7 +77,8 @@ func (store Store) Update(previous, next Manifest) (Manifest, error) {
 		after := next.project(projectKey)
 		upserts, deletions := changes(before, after)
 		if len(upserts) == 0 && len(deletions) == 0 {
-			result.Resources = append(result.Resources, withVersions(after, before)...)
+			unchanged := Manifest{Resources: after}.WithVersionsFrom(Manifest{Resources: before})
+			result.Resources = append(result.Resources, unchanged.Resources...)
 			continue
 		}
 
@@ -220,20 +221,6 @@ func changesApplied(
 	return true
 }
 
-// withVersions copies the remote version of each entry in before to the
-// matching entry in after.
-func withVersions(after, before []Resource) []Resource {
-	versions := make(map[syncdomain.ResourceID]int, len(before))
-	for _, resource := range before {
-		versions[resource.ID()] = resource.Version
-	}
-	result := slices.Clone(after)
-	for index := range result {
-		result[index].Version = versions[result[index].ID()]
-	}
-	return result
-}
-
 // project returns the entries of one project.
 func (manifest Manifest) project(projectKey string) []Resource {
 	var resources []Resource
@@ -251,14 +238,8 @@ func sorted(resources []Resource) []Resource {
 	return manifest.Resources
 }
 
-func projectKeys(manifests ...Manifest) []string {
-	var keys []string
-	for _, manifest := range manifests {
-		for _, resource := range manifest.Resources {
-			keys = append(keys, resource.ProjectKey)
-		}
-	}
-	return uniqueSorted(keys)
+func projectKeys(previous, next Manifest) []string {
+	return uniqueSorted(append(previous.ProjectKeys(), next.ProjectKeys()...))
 }
 
 func uniqueSorted(values []string) []string {

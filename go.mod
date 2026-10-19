@@ -35,11 +35,11 @@ require (
 	github.com/muesli/reflow v0.3.0
 	github.com/oapi-codegen/oapi-codegen/v2 v2.7.1
 	github.com/oapi-codegen/runtime v1.1.2
-	github.com/pelletier/go-toml/v2 v2.2.4
+	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
-	github.com/samber/lo v1.51.0
+	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0

@@ -25,11 +25,11 @@ func TestBuildPlanThreeWayMatrix(t *testing.T) {
 		{"server edit", &baseline, &serverChange, ActionUpdateLocal},
 		{"same edit", &localChange, &localChange, ActionUpdateManifest},
 		{"divergent edits", &localChange, &serverChange, ActionConflict},
-		{"local deletion", nil, &baseline, ActionArchiveServer},
+		{"missing local file is restored", nil, &baseline, ActionUpdateLocal},
 		{"server deletion", &baseline, nil, ActionDeleteLocal},
 		{"both deleted", nil, nil, ActionRemoveManifest},
 		{"local edit after server deletion", &localChange, nil, ActionConflict},
-		{"server edit after local deletion", nil, &serverChange, ActionConflict},
+		{"missing local file after a server edit is restored", nil, &serverChange, ActionUpdateLocal},
 	}
 
 	for _, test := range tests {
@@ -138,11 +138,10 @@ func TestPlanHasDestructiveActions(t *testing.T) {
 		action      Action
 		destructive bool
 	}{
-		"create server":  {action: ActionCreateServer},
-		"update server":  {action: ActionUpdateServer},
-		"archive server": {action: ActionArchiveServer, destructive: true},
-		"update local":   {action: ActionUpdateLocal},
-		"delete local":   {action: ActionDeleteLocal, destructive: true},
+		"create server": {action: ActionCreateServer},
+		"update server": {action: ActionUpdateServer},
+		"update local":  {action: ActionUpdateLocal},
+		"delete local":  {action: ActionDeleteLocal, destructive: true},
 	}
 
 	for name, test := range tests {
