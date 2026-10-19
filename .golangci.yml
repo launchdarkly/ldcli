@@ -1,0 +1,15 @@
+version: "2"
+
+linters:
+  settings:
+    staticcheck:
+      # The v1 defaults: the staticcheck (SA) and gosimple (S1) checks. v2 adds
+      # the stylecheck (ST) and quickfix (QF) checks to staticcheck.
+      checks:
+        - "SA*"
+        - "S1*"
+  exclusions:
+    # The v1 default exclusions: unchecked Close, Flush, and print calls are
+    # not errors here.
+    presets:
+      - std-error-handling
