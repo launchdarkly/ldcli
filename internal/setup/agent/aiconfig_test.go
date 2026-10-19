@@ -42,9 +42,9 @@ func TestAIConfigSource_StartsTheSDKBehindTheProxy(t *testing.T) {
 	t.Setenv(environmentIDEnv, "the-users-own-app")
 	var got aiserver.InitOptions
 	s := &AIConfigSource{
-		RelayBaseURI:  "https://app.launchdarkly.com",
-		AccessToken:   "api-123",
-		EnvironmentID: "catfood-client-id",
+		RelayBaseURI: "https://app.launchdarkly.com",
+		AccessToken:  "api-123",
+		checkRelay:   func(context.Context, string) (string, error) { return "catfood-client-id", nil },
 		initClient: func(_ context.Context, opts aiserver.InitOptions) error {
 			got = opts
 			return nil
@@ -61,7 +61,7 @@ func TestAIConfigSource_StartsTheSDKBehindTheProxy(t *testing.T) {
 	assert.Equal(t, RelayPlaceholderKey, got.SDKKey)
 	assert.True(t, strings.HasPrefix(got.StreamURI, "http://127.0.0.1:"), got.StreamURI)
 	assert.NotContains(t, got.StreamURI, "api-123", "the token is never in an SDK option")
-	assert.Equal(t, "catfood-client-id", os.Getenv(environmentIDEnv))
+	assert.Equal(t, "catfood-client-id", os.Getenv(environmentIDEnv), "the ID comes from the relay")
 }
 
 func TestAIConfigSource_NoEnvironmentID_ClearsTheUsersValue(t *testing.T) {
@@ -86,6 +86,7 @@ func fakeSource(initErr error, res aiserver.InspectResult) (*AIConfigSource, *[]
 		Key:          "setup",
 		RelayBaseURI: "https://app.launchdarkly.com",
 		AccessToken:  "api-123",
+		checkRelay:   noRelayCheck,
 		initClient:   func(context.Context, aiserver.InitOptions) error { return initErr },
 		inspect: func(_ context.Context, key string, c ldcontext.Context) aiserver.InspectResult {
 			calls = append(calls, inspectCall{key: key, ctx: c})
@@ -175,6 +176,7 @@ func TestAIConfigSource_InitsOnce(t *testing.T) {
 	inits := 0
 	s := &AIConfigSource{
 		RelayBaseURI: "https://app.launchdarkly.com",
+		checkRelay:   noRelayCheck,
 		initClient:   func(context.Context, aiserver.InitOptions) error { inits++; return nil },
 		inspect: func(context.Context, string, ldcontext.Context) aiserver.InspectResult {
 			return aiserver.InspectResult{}
@@ -189,3 +191,7 @@ func TestAIConfigSource_InitsOnce(t *testing.T) {
 }
 
 func first(s *AIConfigSource, _ *[]inspectCall) *AIConfigSource { return s }
+
+// noRelayCheck stands in for the request to the relay, so unit tests make no
+// network calls.
+func noRelayCheck(context.Context, string) (string, error) { return "", nil }

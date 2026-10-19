@@ -22,18 +22,18 @@ import (
 // SetupAgentConfigKey is the key of the setup-agent AI Config.
 const SetupAgentConfigKey = "ldcli-setup-agent"
 
-// SetupAgentEnvironmentID is the client-side ID of the catfood environment that
-// holds the setup-agent AI Config. The AI SDK sends it with its events and
-// spans, so AgentControl can link runs to the config's Monitoring tab. It is
-// not a secret. If it is empty, the SDK sends no environment ID.
-var SetupAgentEnvironmentID = ""
-
 const (
 	contextKind = "ldcli-setup"
 	initTimeout = 5 * time.Second
 	// environmentIDEnv is the only setting that the AI SDK reads from the
 	// environment and that InitOptions cannot set.
 	environmentIDEnv = "LD_ENVIRONMENT_ID"
+	// RelayEnvironmentIDHeader is the response header in which the relay sends
+	// the client-side ID of the environment that it forwards to. The AI SDK
+	// sends that ID with its events and spans, so AgentControl can link runs
+	// to the config's Monitoring tab. The ID is not a secret, and the relay
+	// knows it because it holds that environment's SDK key.
+	RelayEnvironmentIDHeader = "X-LD-Setup-Agent-Environment-ID"
 )
 
 // AIConfigSource reads the setup-agent AI Config with the LaunchDarkly AI SDK.
@@ -54,12 +54,11 @@ type AIConfigSource struct {
 	// RelayBaseURI is the user's base URI. The relay is at RelayPath under it.
 	RelayBaseURI string
 	AccessToken  string
-	// EnvironmentID is the client-side ID of the environment that holds the
-	// config.
-	EnvironmentID string
-	Fallback      ConfigSource
+	Fallback     ConfigSource
 
-	// initClient and inspect are fields so that tests can replace them.
+	// checkRelay, initClient, and inspect are fields so that tests can replace
+	// them.
+	checkRelay func(ctx context.Context, pollingBase string) (string, error)
 	initClient func(ctx context.Context, opts aiserver.InitOptions) error
 	inspect    func(ctx context.Context, key string, c ldcontext.Context) aiserver.InspectResult
 
@@ -78,11 +77,10 @@ func NewAIConfigSource(baseURI, accessToken string) ConfigSource {
 		return DefaultConfigSource{}
 	}
 	return &AIConfigSource{
-		Key:           SetupAgentConfigKey,
-		RelayBaseURI:  baseURI,
-		AccessToken:   accessToken,
-		EnvironmentID: SetupAgentEnvironmentID,
-		Fallback:      DefaultConfigSource{},
+		Key:          SetupAgentConfigKey,
+		RelayBaseURI: baseURI,
+		AccessToken:  accessToken,
+		Fallback:     DefaultConfigSource{},
 	}
 }
 
@@ -113,15 +111,15 @@ func (s *AIConfigSource) start(ctx context.Context) error {
 	}
 	s.proxy = proxy
 	opts := relayOptions(proxy.baseURL)
-	// Set the variable for this process even when the ID is empty, so a value
-	// in the user's shell for their own app does not reach the SDK. OpenCode
-	// does not get it, because the CLI removes LD_ variables from OpenCode's
-	// environment.
-	if s.EnvironmentID == "" {
-		_ = os.Unsetenv(environmentIDEnv)
-	} else {
-		_ = os.Setenv(environmentIDEnv, s.EnvironmentID)
+	check := s.checkRelay
+	if check == nil {
+		check = checkRelay
 	}
+	environmentID, err := check(ctx, opts.BaseURI)
+	if err != nil {
+		return err
+	}
+	setEnvironmentID(environmentID)
 	if s.initClient != nil {
 		return s.initClient(ctx, opts)
 	}
@@ -132,13 +130,22 @@ func (s *AIConfigSource) start(ctx context.Context) error {
 	return nil
 }
 
+// setEnvironmentID sets LD_ENVIRONMENT_ID for this process, and clears it when
+// the relay sent no ID, so a value in the user's shell for their own app does
+// not reach the SDK. OpenCode does not get the variable, because the CLI
+// removes LD_ variables from OpenCode's environment.
+func setEnvironmentID(id string) {
+	if id == "" {
+		_ = os.Unsetenv(environmentIDEnv)
+		return
+	}
+	_ = os.Setenv(environmentIDEnv, id)
+}
+
 // initQuietClient starts the AI SDK with a LaunchDarkly client that does not
 // log. The SDK's own client logs to the terminal, which breaks the wizard's
 // full-screen view, and InitOptions cannot turn its logs off.
 func initQuietClient(ctx context.Context, opts aiserver.InitOptions) error {
-	if err := checkRelay(ctx, opts.BaseURI); err != nil {
-		return err
-	}
 	aiserver.SetLogger(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	client, err := ld.MakeCustomClient(opts.SDKKey, ld.Config{
 		ServiceEndpoints: interfaces.ServiceEndpoints{
@@ -292,22 +299,23 @@ func (e *RelayError) Error() string {
 
 // checkRelay makes one polling request through the proxy before the SDK
 // starts. The Go server SDK retries a refused stream until its start timeout
-// ends, so without this check a refusal would delay every setup run.
-func checkRelay(ctx context.Context, pollingBase string) error {
+// ends, so without this check a refusal would delay every setup run. It
+// returns the environment ID that the relay sends, or an empty string.
+func checkRelay(ctx context.Context, pollingBase string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pollingBase+"/sdk/latest-all", nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	req.Header.Set("Authorization", RelayPlaceholderKey)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("could not reach the setup agent service: %w", err)
+		return "", fmt.Errorf("could not reach the setup agent service: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 300 {
-		return nil
+		return strings.TrimSpace(resp.Header.Get(RelayEnvironmentIDHeader)), nil
 	}
 	refusal := &RelayError{Status: resp.StatusCode}
 	var body struct {
@@ -317,5 +325,5 @@ func checkRelay(ctx context.Context, pollingBase string) error {
 	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil {
 		refusal.Code, refusal.Message = body.Code, body.Message
 	}
-	return refusal
+	return "", refusal
 }

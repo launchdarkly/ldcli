@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -46,9 +47,11 @@ func TestAIConfigSource_RealSDKThroughTheProxy(t *testing.T) {
 			return
 		}
 		_, _ = io.Copy(io.Discard, r.Body)
+		w.Header().Set(RelayEnvironmentIDHeader, "catfood-client-id")
 		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer relay.Close()
+	t.Setenv(environmentIDEnv, "the-users-own-app")
 
 	source := NewAIConfigSource(relay.URL, "api-123")
 	closer := source.(*AIConfigSource)
@@ -58,6 +61,7 @@ func TestAIConfigSource_RealSDKThroughTheProxy(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, Config{ProviderID: "anthropic", ModelID: "claude-sonnet-5", Instructions: "From AgentControl."}, cfg)
+	assert.Equal(t, "catfood-client-id", os.Getenv(environmentIDEnv), "the ID from the relay header reaches the SDK")
 	require.NoError(t, closer.Close(context.Background()))
 	mu.Lock()
 	defer mu.Unlock()
