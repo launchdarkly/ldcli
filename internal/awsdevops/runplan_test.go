@@ -335,21 +335,25 @@ func TestRunPlanReuseLineUsesAWSName(t *testing.T) {
 	assert.Contains(t, strings.Join(*logged, "\n"), "LaunchDarkly (space-7)")
 }
 
-// A same-name space seen at plan is fine.
-func TestRunPlanNewSpaceBesideSameName(t *testing.T) {
-	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
-	clients := newTestClients(agent, newFakeIAM())
+// Two spaces with one name make the next run unable to pick.
+func TestRunPlanNewSpaceRefusesAUsedName(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "LaunchDarkly")}}
+	iamClient := newFakeIAM()
 	opts := runPlanOptions()
 	opts.NewAgentSpace = true
 
-	_, err := awsdevops.Setup(context.Background(), clients, opts)
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, iamClient), opts)
 
-	require.NoError(t, err)
-	assert.Contains(t, agent.calls, "CreateAgentSpace")
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Contains(t, err.Error(), "space-7")
+	assert.Contains(t, err.Error(), "--agent-space-name")
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+	assert.Empty(t, iamClient.createdRoles)
 }
 
-func TestRunPlanNewSpaceStopsOnSecondSameName(t *testing.T) {
-	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+func TestRunPlanNewSpaceStopsWhenTheNameAppears(t *testing.T) {
+	agent := &fakeAgent{}
 	clients := newTestClients(agent, newFakeIAM())
 	opts := runPlanOptions()
 	opts.NewAgentSpace = true

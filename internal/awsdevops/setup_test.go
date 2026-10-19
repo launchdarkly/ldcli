@@ -149,7 +149,7 @@ func TestPlanSetupReusesTheSpaceWithTheSameName(t *testing.T) {
 }
 
 // The name matches, but the user asked for a new one.
-func TestPlanSetupCreatesWhenANewSpaceIsAsked(t *testing.T) {
+func TestPlanSetupRefusesANewSpaceWithAUsedName(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{{
 		AgentSpaceId: aws.String("space-existing"),
 		Name:         aws.String("launchdarkly"),
@@ -159,10 +159,10 @@ func TestPlanSetupCreatesWhenANewSpaceIsAsked(t *testing.T) {
 		AgentSpaceName: "launchdarkly",
 		NewAgentSpace:  true,
 	}, true)
-	require.NoError(t, err)
 
-	assert.Contains(t, strings.ToLower(plan.AgentSpace), "create")
-	assert.NotContains(t, plan.AgentSpace, "space-existing")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "an agent space named launchdarkly already exists (space-existing)")
+	assert.Empty(t, plan.AgentSpace)
 }
 
 // A name that only starts the same is not a match.

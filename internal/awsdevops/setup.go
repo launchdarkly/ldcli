@@ -148,8 +148,6 @@ type SpaceStep struct {
 	Action SpaceAction
 	ID     string
 	Name   string
-	// Seen lists same-name spaces at plan.
-	Seen []string
 }
 
 func (s SpaceStep) describe() string {
@@ -449,18 +447,23 @@ func planRole(ctx context.Context, client IAMAPI, name string) (RoleStep, error)
 
 func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (SpaceStep, error) {
 	id := opts.AgentSpaceID
-	var seen []string
 	if id == "" {
-		var err error
-		if seen, err = spacesNamed(ctx, clients, opts.AgentSpaceName); err != nil {
+		seen, err := spacesNamed(ctx, clients, opts.AgentSpaceName)
+		switch {
+		case err != nil:
 			return SpaceStep{}, err
-		}
-		if !opts.NewAgentSpace && len(seen) > 0 {
+		case len(seen) > 0 && opts.NewAgentSpace:
+			// Two spaces with one name make the next run unable to pick.
+			return SpaceStep{}, fmt.Errorf(
+				"an agent space named %s already exists (%s). Pass --agent-space-name with another name",
+				opts.AgentSpaceName, strings.Join(seen, ", "),
+			)
+		case len(seen) > 0:
 			id = seen[0]
 		}
 	}
 	if id == "" {
-		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, Seen: seen}, nil
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName}, nil
 	}
 
 	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
@@ -482,10 +485,8 @@ func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
 		if err != nil {
 			return err
 		}
-		for _, id := range now {
-			if !slices.Contains(step.Seen, id) {
-				return planChanged("agent space %s appeared after the plan", step.Name)
-			}
+		if len(now) > 0 {
+			return planChanged("agent space %s appeared after the plan", step.Name)
 		}
 
 		return nil
