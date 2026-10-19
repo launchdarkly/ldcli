@@ -363,10 +363,24 @@ func TestClientUpdateVariationSendsEmptyOwnedFieldsToClearThem(t *testing.T) {
 	assert.JSONEq(t, `{
 		"name": "Helpful",
 		"instructions": "",
-		"modelConfigKey": "",
 		"model": {},
 		"outputFormat": {}
 	}`, string(transport.Requests[0].Body))
+}
+
+func TestClientUpdateVariationOmitsEmptyModelConfigKey(t *testing.T) {
+	transport := &recordingClient{}
+	client := NewClient(transport, "token", "https://example.com")
+	variation := testVariation(syncdomain.VariationModeAgent)
+	variation.ModelConfigKey = ""
+
+	require.NoError(t, client.UpdateVariation("project", "support", variation))
+	require.NoError(t, client.CreateVariation("project", "support", variation))
+
+	require.Len(t, transport.Requests, 2)
+	for _, request := range transport.Requests {
+		assert.NotContains(t, string(request.Body), `"modelConfigKey"`, request.Method)
+	}
 }
 
 func TestClientUpdateCompletionVariationOmitsAgentFields(t *testing.T) {
