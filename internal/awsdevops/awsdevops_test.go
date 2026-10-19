@@ -790,6 +790,7 @@ func TestNewClientsNamesTheSelectedProfile(t *testing.T) {
 	_, err := awsdevops.NewClients(context.Background(), "us-east-1", "my-profile")
 
 	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
-	assert.ErrorContains(t, err, `profile "my-profile"`)
-	assert.ErrorContains(t, err, "aws sso login --profile my-profile")
+	assert.ErrorContains(t, err, `profile "my-profile" has no AWS credentials`)
+	assert.NotContains(t, err.Error(), "sso login")
+	assert.NotContains(t, err.Error(), "ec2imds")
 }

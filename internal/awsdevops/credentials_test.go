@@ -15,6 +15,26 @@ import (
 const imdsCause = "operation error ec2imds: GetMetadata, exceeded maximum number of attempts, 3, " +
 	"request send failed, Get \"http://169.254.169.254/latest/meta-data/iam/security-credentials/\""
 
+// imdsErr acts like the SDK error from the EC2 metadata service.
+type imdsErr struct{}
+
+func (imdsErr) Error() string   { return imdsCause }
+func (imdsErr) Service() string { return "ec2imds" }
+
+func imdsFailure() error {
+	return fmt.Errorf("failed to refresh cached credentials, no EC2 IMDS role found, %w", imdsErr{})
+}
+
+// writeConfig points the SDK at a temp config with this content.
+func writeConfig(t *testing.T, content string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	t.Setenv("AWS_CONFIG_FILE", path)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+	t.Setenv("AWS_PROFILE", "")
+}
+
 // writeProfiles points the SDK at a temp config.
 func writeProfiles(t *testing.T, names ...string) {
 	t.Helper()
@@ -41,7 +61,7 @@ func TestCredentialErrorHidesTheSDKCause(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			writeProfiles(t, tc.profiles...)
-			cause := errors.New(imdsCause)
+			cause := imdsFailure()
 
 			err := noCredentialsError(tc.selected, cause)
 
@@ -54,12 +74,39 @@ func TestCredentialErrorHidesTheSDKCause(t *testing.T) {
 }
 
 func TestCredentialErrorNamesTheProfileAndLogin(t *testing.T) {
-	writeProfiles(t, "dev")
+	writeConfig(t, "[profile dev]\nsso_session = corp\n")
 
-	err := noCredentialsError("dev", errors.New(imdsCause))
+	err := noCredentialsError("dev", imdsFailure())
 
 	assert.Contains(t, err.Error(), `"dev"`)
 	assert.Contains(t, err.Error(), "aws sso login --profile dev")
+}
+
+// Only SSO profiles get the SSO advice.
+func TestCredentialErrorShowsTheCauseForOtherProfiles(t *testing.T) {
+	writeConfig(t, "[profile ci]\ncredential_process = /usr/local/bin/get-creds\n")
+	cause := errors.New("process provider error: exit status 1")
+
+	err := noCredentialsError("ci", cause)
+
+	assert.Contains(t, err.Error(), `profile "ci"`)
+	assert.Contains(t, err.Error(), "exit status 1")
+	assert.NotContains(t, err.Error(), "sso login")
+	assert.ErrorIs(t, err, ErrNoCredentials)
+}
+
+func TestCredentialErrorSaysAProfileHasNoCredentials(t *testing.T) {
+	writeProfiles(t, "dev")
+
+	for name, cause := range map[string]error{"imds": imdsFailure(), "no keys": nil} {
+		t.Run(name, func(t *testing.T) {
+			err := noCredentialsError("dev", cause)
+
+			assert.Contains(t, err.Error(), `profile "dev" has no AWS credentials`)
+			assert.NotContains(t, err.Error(), "sso login")
+			assert.NotContains(t, err.Error(), "169.254.169.254")
+		})
+	}
 }
 
 func TestCredentialErrorShowsFiveProfilesAtMost(t *testing.T) {
@@ -120,7 +167,7 @@ func TestCredentialErrorCountsDuplicateProfilesOnce(t *testing.T) {
 func TestCredentialErrorHasNoSemicolonOrDash(t *testing.T) {
 	writeProfiles(t, "a1", "b2", "c3", "d4", "e5", "f6")
 	for _, profile := range []string{"", "a1"} {
-		msg := noCredentialsError(profile, errors.New(imdsCause)).Error()
+		msg := noCredentialsError(profile, imdsFailure()).Error()
 		assert.NotContains(t, msg, ";")
 		assert.NotContains(t, msg, "—")
 	}
