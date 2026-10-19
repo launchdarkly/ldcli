@@ -729,6 +729,10 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		result.OperatorAppURL = aws.ToString(operatorApp.OperatorAppUrl)
 		logf("Enabled the operator app")
 	}
+	// The app is on here, so an empty URL means only that AWS sent none.
+	if result.OperatorAppURL == "" {
+		result.OperatorAppURL = OperatorAppURL(result.AgentSpaceID)
+	}
 
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err

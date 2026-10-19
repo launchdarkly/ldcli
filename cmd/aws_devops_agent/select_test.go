@@ -314,6 +314,20 @@ func TestResolveAgentSpaceAsksForANameInAnEmptyAccount(t *testing.T) {
 	assert.NotContains(t, out.String(), "Which one")
 }
 
+func TestResolveAgentSpaceAsksForANameWithNewAgentSpace(t *testing.T) {
+	cmd, out := testCmd("platform\npayments\n")
+	opts := awsdevops.SetupOptions{NewAgentSpace: true}
+	clients := newStubClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")})
+
+	provision, err := resolveAgentSpace(cmd, clients, &opts, true)
+	require.NoError(t, err)
+
+	assert.True(t, provision)
+	assert.Equal(t, "payments", opts.AgentSpaceName)
+	assert.Contains(t, out.String(), "An agent space named platform already exists")
+	assert.NotContains(t, out.String(), "Which one")
+}
+
 // Nobody can type a name, so the run needs the flag.
 func TestResolveAgentSpaceNeedsANameWithoutATerminal(t *testing.T) {
 	for name, opts := range map[string]awsdevops.SetupOptions{

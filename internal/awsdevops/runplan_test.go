@@ -537,6 +537,21 @@ func TestRunPlanKeepsAppSignIn(t *testing.T) {
 	assert.Equal(t, "https://space-7.aidevops.global.app.aws", result.OperatorAppURL)
 }
 
+// An app that is on must never look off to the caller.
+func TestRunPlanKeptAppWithoutAURLGetsOne(t *testing.T) {
+	app := idcApp()
+	app.OperatorAppUrl = nil
+	agent := reuseWithApp(app)
+	clients := newTestClients(agent, newFakeIAM())
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+
+	result, err := awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.NoError(t, err)
+	assert.Equal(t, awsdevops.OperatorAppURL("space-7"), result.OperatorAppURL)
+}
+
 func TestRunPlanChangesSignInWithAuthFlow(t *testing.T) {
 	agent := reuseWithApp(idcApp())
 	clients := newTestClients(agent, newFakeIAM())
