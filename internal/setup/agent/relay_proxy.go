@@ -17,8 +17,10 @@ const (
 	// URI.
 	RelayPath = "/internal/ldcli-setup-agent/sdk"
 	// RelayTokenHeader carries the user's access token to the relay. The relay
-	// cannot use Authorization, because the SDK puts its key there.
-	RelayTokenHeader = "X-LD-CLI-Token"
+	// cannot use Authorization, because the SDK puts its key there. The name
+	// must not start with X-LD-: gonfalon removes client request headers with
+	// that prefix, because its private auth headers use it.
+	RelayTokenHeader = "LD-CLI-Token"
 	// RelayPlaceholderKey is the SDK key that the CLI gives the AI SDK. The
 	// relay replaces it with the real key on the way to catfood.
 	RelayPlaceholderKey = "ldcli-placeholder"

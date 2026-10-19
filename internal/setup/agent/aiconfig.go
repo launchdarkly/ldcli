@@ -32,8 +32,9 @@ const (
 	// the client-side ID of the environment that it forwards to. The AI SDK
 	// sends that ID with its events and spans, so AgentControl can link runs
 	// to the config's Monitoring tab. The ID is not a secret, and the relay
-	// knows it because it holds that environment's SDK key.
-	RelayEnvironmentIDHeader = "X-LD-Setup-Agent-Environment-ID"
+	// knows it because it holds that environment's SDK key. Like
+	// RelayTokenHeader, the name does not start with X-LD-.
+	RelayEnvironmentIDHeader = "LD-Setup-Agent-Environment-ID"
 )
 
 // AIConfigSource reads the setup-agent AI Config with the LaunchDarkly AI SDK.
