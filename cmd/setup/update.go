@@ -51,9 +51,9 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.closeAgent()
 			return m, tea.Quit
 		case "y", "n":
-			if m.step == stepAgent && m.agentPermission != nil && m.agentRun != nil {
-				req := *m.agentPermission
-				m.agentPermission = nil
+			if m.step == stepAgent && len(m.agentPermissions) > 0 && m.agentRun != nil {
+				req := m.agentPermissions[0]
+				m.agentPermissions = m.agentPermissions[1:]
 				return m, replyAgent(m.agentRun, req, msg.String() == "y")
 			}
 		case "left", "h":
@@ -273,7 +273,7 @@ func (m wizardModel) handleAgentEvent(msg agentEventMsg) (tea.Model, tea.Cmd) {
 		m.agentUsage = &u
 	case agent.EventPermission:
 		req := ev.Permission
-		m.agentPermission = &req
+		m.agentPermissions = append(m.agentPermissions, req)
 	case agent.EventDone:
 		m.agentDone = true
 		m.closeAgent()
@@ -296,7 +296,7 @@ func (m wizardModel) handleAgentEvent(msg agentEventMsg) (tea.Model, tea.Cmd) {
 func (m wizardModel) agentFailed(err error) (tea.Model, tea.Cmd) {
 	m.closeAgent()
 	m.agentRun = nil
-	m.agentPermission = nil
+	m.agentPermissions = nil
 	if m.agentMode == agentOn || len(m.agentFiles) > 0 {
 		m.err = errors.New("The setup agent failed: " + err.Error())
 		return m, nil
