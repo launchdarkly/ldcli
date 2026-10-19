@@ -76,6 +76,8 @@ type AgentSpaceSummary struct {
 	AgentSpaceID string `json:"agentSpaceId"`
 	Name         string `json:"name"`
 	Description  string `json:"description,omitempty"`
+	// ManagedByLDCLI means that setup made the space.
+	ManagedByLDCLI bool `json:"managedByLdcli"`
 }
 
 // AgentSpaces lists the agent spaces in the account and region.
@@ -88,9 +90,10 @@ func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, err
 	summaries := make([]AgentSpaceSummary, 0, len(spaces))
 	for _, space := range spaces {
 		summaries = append(summaries, AgentSpaceSummary{
-			AgentSpaceID: aws.ToString(space.AgentSpaceId),
-			Name:         aws.ToString(space.Name),
-			Description:  aws.ToString(space.Description),
+			AgentSpaceID:   aws.ToString(space.AgentSpaceId),
+			Name:           aws.ToString(space.Name),
+			Description:    aws.ToString(space.Description),
+			ManagedByLDCLI: aws.ToString(space.Description) == agentSpaceDescription,
 		})
 	}
 

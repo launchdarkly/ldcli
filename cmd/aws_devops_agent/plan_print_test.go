@@ -173,11 +173,61 @@ func TestSetupWithYesReusesMatchingSpace(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "")
 	cmd.SetIn(noReadStdin{t})
 	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
-	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("ld-devops-agent")})
+	clients, w := countingClients(ldcliSpace("space-2", "ld-devops-agent"))
 
 	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
 
 	assert.NotContains(t, w.calls, "CreateAgentSpace")
+	assert.Contains(t, w.calls, "EnableOperatorApp")
+}
+
+func ldcliSpace(id, name string) agenttypes.AgentSpace {
+	return agenttypes.AgentSpace{
+		AgentSpaceId: aws.String(id),
+		Name:         aws.String(name),
+		Description:  aws.String("Managed by the LaunchDarkly CLI"),
+	}
+}
+
+// The name alone does not make a space ours.
+func TestSetupWithYesStopsOnASameNameSpaceItDidNotMake(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("ld-devops-agent")})
+
+	err := setupWith(cmd, clients, newSpaceOptions(), true, true)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--agent-space-id")
+	assert.Empty(t, w.calls)
+}
+
+// Enter and an unattended run do the same thing on the space setup made.
+func TestSetupEnterGivesFullSetupOnTheSpaceSetupMade(t *testing.T) {
+	cmd, out := setupTestCmd(t, "\ny\n")
+	clients, w := countingClients(
+		agenttypes.AgentSpace{AgentSpaceId: aws.String("space-1"), Name: aws.String("platform")},
+		ldcliSpace("space-2", "ld-devops-agent"),
+	)
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+
+	assert.Contains(t, out.String(), "connect to? [2] ")
+	assert.Contains(t, out.String(), "Reuse agent space ld-devops-agent (space-2)")
+	assert.Contains(t, w.calls, "EnableOperatorApp")
+	assert.NotContains(t, w.calls, "CreateAgentSpace")
+}
+
+func TestSetupAgentSpaceIDGivesFullSetupOnTheSpaceSetupMade(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, w := countingClients(ldcliSpace("space-2", "ld-devops-agent"))
+	opts := newSpaceOptions()
+	opts.AgentSpaceID = "space-2"
+
+	require.NoError(t, setupWith(cmd, clients, opts, true, false))
+
 	assert.Contains(t, w.calls, "EnableOperatorApp")
 }
 

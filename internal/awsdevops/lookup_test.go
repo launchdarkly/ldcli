@@ -78,8 +78,8 @@ func TestAgentSpacesListsEveryPage(t *testing.T) {
 	agent := &fakeAgent{
 		paginate: true,
 		agentSpaces: []agenttypes.AgentSpace{
-			{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly")},
-			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
+			{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly"), Description: aws.String("Managed by the LaunchDarkly CLI")},
+			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform"), Description: aws.String("Team space")},
 		},
 	}
 
@@ -87,8 +87,8 @@ func TestAgentSpacesListsEveryPage(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []awsdevops.AgentSpaceSummary{
-		{AgentSpaceID: "space-1", Name: "launchdarkly"},
-		{AgentSpaceID: "space-2", Name: "platform"},
+		{AgentSpaceID: "space-1", Name: "launchdarkly", Description: "Managed by the LaunchDarkly CLI", ManagedByLDCLI: true},
+		{AgentSpaceID: "space-2", Name: "platform", Description: "Team space"},
 	}, spaces)
 }
 
