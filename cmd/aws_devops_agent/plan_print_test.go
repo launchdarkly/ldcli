@@ -265,4 +265,7 @@ func TestSetupChosenSpaceWithoutAuthFlowConnects(t *testing.T) {
 	assert.NotContains(t, w.calls, "EnableOperatorApp")
 	assert.NotContains(t, w.calls, "CreateRole")
 	assert.Contains(t, stderrOf(cmd), "Using agent space LaunchDarkly (space-2)")
+	assert.Contains(t, stderrOf(cmd), "No change. The operator app is off")
+	assert.Contains(t, stdoutOf(cmd), "The operator app of agent space space-2 is off")
+	assert.NotContains(t, stdoutOf(cmd), "Open the DevOps Agent at")
 }

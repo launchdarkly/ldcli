@@ -157,7 +157,13 @@ func setupWith(
 		mcpErr = connectMCPServer(cmd, clients, opts, plan.MCP, &result)
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)
+	if result.OperatorAppURL == "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+			"\nThe operator app of agent space %s is off. To turn it on, run setup again with --%s.\n",
+			result.AgentSpaceID, authFlowFlag)
+	} else {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)
+	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Manage it in the AWS console at:\n  %s\n", awsdevops.ConsoleURL(result.Region))
 
 	return mcpErr

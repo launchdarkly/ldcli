@@ -385,8 +385,17 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	plan.MCPServer = plan.MCP.describe(opts.mcpEndpoint())
 
 	if !provision {
+		// Read the app, so the run does not print a URL that does not work.
+		plan.App, err = appState(ctx, clients, plan.Space.ID)
+		if err != nil {
+			return plan, err
+		}
+		plan.App.Action = AppKeep
 		plan.Roles = []string{"No change"}
 		plan.OperatorApp = "No change"
+		if plan.App.Flow == "" {
+			plan.OperatorApp = "No change. The operator app is off"
+		}
 		plan.Association = "No change"
 
 		return plan, nil
@@ -793,10 +802,16 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 	}
 
 	result := SetupResult{
-		AccountID:      accountID,
-		Region:         clients.Region,
-		AgentSpaceID:   plan.Space.ID,
-		OperatorAppURL: OperatorAppURL(plan.Space.ID),
+		AccountID:    accountID,
+		Region:       clients.Region,
+		AgentSpaceID: plan.Space.ID,
+	}
+	// An app that is off has no URL.
+	if plan.App.Flow != "" {
+		result.OperatorAppURL = plan.App.URL
+		if result.OperatorAppURL == "" {
+			result.OperatorAppURL = OperatorAppURL(plan.Space.ID)
+		}
 	}
 	logf("Using agent space %s (%s)", plan.Space.Name, result.AgentSpaceID)
 

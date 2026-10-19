@@ -596,7 +596,41 @@ func TestPlanConnectChangesNothingElse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "No change", plan.Association)
 	assert.Equal(t, "No change", plan.OperatorApp)
-	assert.NotContains(t, agent.calls, "GetOperatorApp")
+	assert.Contains(t, agent.calls, "GetOperatorApp")
+	assert.NotContains(t, agent.calls, "EnableOperatorApp")
+}
+
+// A connect run must not print a URL for an app that is off.
+func TestConnectPlanReportsAnAppThatIsOff(t *testing.T) {
+	agent := reuseWithApp(nil)
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+	assert.Equal(t, "No change. The operator app is off", plan.OperatorApp)
+
+	result, err := awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+	assert.Empty(t, result.OperatorAppURL)
+	assert.NotContains(t, agent.calls, "EnableOperatorApp")
+}
+
+func TestConnectPlanUsesTheURLThatAWSReturns(t *testing.T) {
+	app := idcApp()
+	app.OperatorAppUrl = aws.String("https://custom.example")
+	agent := reuseWithApp(app)
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+	result, err := awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://custom.example", result.OperatorAppURL)
 }
 
 // An app with no sign-in is off.

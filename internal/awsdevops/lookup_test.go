@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,6 +97,9 @@ func TestConnectExistingOnlyConnectsTheMCPServer(t *testing.T) {
 	agent := &fakeAgent{
 		agentSpaces: []agenttypes.AgentSpace{
 			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
+		},
+		operatorApps: map[string]*devopsagent.GetOperatorAppOutput{
+			"space-2": {Iam: &agenttypes.IamAuthConfiguration{}},
 		},
 	}
 	iamClient := newFakeIAM()
