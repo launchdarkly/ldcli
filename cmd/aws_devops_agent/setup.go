@@ -158,7 +158,7 @@ func setupWith(
 		mcpErr = connectMCPServer(cmd, clients, opts, plan.MCP, &result)
 	}
 
-	if result.OperatorAppURL == "" {
+	if !result.OperatorAppEnabled {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"\nThe operator app of agent space %s is off. To turn it on, run setup again with --%s.\n",
 			result.AgentSpaceID, authFlowFlag)

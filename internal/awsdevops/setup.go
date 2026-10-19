@@ -91,6 +91,8 @@ type SetupResult struct {
 	OperatorAppRoleARN string `json:"operatorAppRoleArn,omitempty"`
 	AWSAssociationID   string `json:"awsAssociationId,omitempty"`
 	OperatorAppURL     string `json:"operatorAppUrl,omitempty"`
+	// OperatorAppEnabled is false when a connect run found the app off.
+	OperatorAppEnabled bool   `json:"operatorAppEnabled"`
 	MCPServiceID       string `json:"mcpServiceId,omitempty"`
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 }
@@ -698,9 +700,6 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	} else {
 		result.AgentSpaceID = plan.Space.ID
 		logf("Reused agent space %s (%s)", plan.Space.Name, plan.Space.ID)
-		if opts.AgentSpaceID == "" {
-			logf("Pass --new-agent-space to create another agent space")
-		}
 	}
 
 	result.AWSAssociationID, err = FindAssociation(ctx, clients, result.AgentSpaceID, awsServiceID)
@@ -730,6 +729,7 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		logf("Enabled the operator app")
 	}
 	// The app is on here, so an empty URL means only that AWS sent none.
+	result.OperatorAppEnabled = true
 	if result.OperatorAppURL == "" {
 		result.OperatorAppURL = OperatorAppURL(result.AgentSpaceID)
 	}
@@ -791,7 +791,8 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 		AgentSpaceID: plan.Space.ID,
 	}
 	// An app that is off has no URL.
-	if plan.App.Flow != "" {
+	result.OperatorAppEnabled = plan.App.Flow != ""
+	if result.OperatorAppEnabled {
 		result.OperatorAppURL = plan.App.URL
 		if result.OperatorAppURL == "" {
 			result.OperatorAppURL = OperatorAppURL(plan.Space.ID)

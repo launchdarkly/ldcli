@@ -2,6 +2,7 @@ package awsdevops_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -550,6 +551,7 @@ func TestRunPlanKeptAppWithoutAURLGetsOne(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, awsdevops.OperatorAppURL("space-7"), result.OperatorAppURL)
+	assert.True(t, result.OperatorAppEnabled)
 }
 
 func TestRunPlanChangesSignInWithAuthFlow(t *testing.T) {
@@ -633,7 +635,12 @@ func TestConnectPlanReportsAnAppThatIsOff(t *testing.T) {
 	result, err := awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
 	require.NoError(t, err)
 	assert.Empty(t, result.OperatorAppURL)
+	assert.False(t, result.OperatorAppEnabled)
 	assert.NotContains(t, agent.calls, "EnableOperatorApp")
+
+	encoded, err := json.Marshal(result)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"operatorAppEnabled":false`)
 }
 
 func TestConnectPlanUsesTheURLThatAWSReturns(t *testing.T) {
@@ -650,6 +657,7 @@ func TestConnectPlanUsesTheURLThatAWSReturns(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "https://custom.example", result.OperatorAppURL)
+	assert.True(t, result.OperatorAppEnabled)
 }
 
 // An app with no sign-in is off.
