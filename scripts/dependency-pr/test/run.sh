@@ -648,6 +648,54 @@ check "actions-coverage reports a new input that defaults to true (#865)" 1 \
   "$(grep -c 'adds the input `package-manager-cache`, which defaults to `true`' <<<"$details")"
 check "the question evidence names the new on-by-default input" 1 "$(grep -c 'new inputs on by default: package-manager-cache' <<<"$out")"
 
+# Oct 16 bugs 2 and 9, and #719: upstream-changes read @v7 as 7.0.0, so it
+# dropped v7.0.1 and kept releases that main already had. It trusted a meta
+# package CHANGELOG that says "version bump only", and it did not say that
+# v6.0.3 lacks commits of v4.4.0 (the compare status is "diverged").
+out=$(python3 -B - "$LIB" <<'PY'
+import base64, io, json, sys, contextlib
+sys.path.insert(0, sys.argv[1])
+import upstream
+rel = lambda t: {"tag_name": t, "body": f"notes {t}"}
+routes = {
+    "repos/actions/checkout/commits/v4": {"sha": "a44"},
+    "repos/actions/checkout/commits/v7": {"sha": "c701"},
+    "repos/actions/checkout/git/matching-refs/tags/v4.": [{"ref": "refs/tags/v4.3.0", "object": {"sha": "b43", "type": "commit"}},
+                                                        {"ref": "refs/tags/v4.4.0", "object": {"sha": "a44", "type": "commit"}}],
+    "repos/actions/checkout/git/matching-refs/tags/v7.": [{"ref": "refs/tags/v7.0.0", "object": {"sha": "c700", "type": "commit"}},
+                                                        {"ref": "refs/tags/v7.0.1", "object": {"sha": "c701", "type": "commit"}}],
+    "repos/actions/checkout/compare/v4.4.0...v7.0.1": {"status": "diverged", "ahead_by": 30, "behind_by": 1, "total_commits": 30,
+                                                      "html_url": "https://github.com/actions/checkout/compare/v4.4.0...v7.0.1", "files": []},
+    "repos/actions/checkout/compare/v7.0.1...v4.4.0": {"commits": [{"sha": "e" * 40, "commit": {"message": "enforce pull_request_target\n\nbody"}}]},
+    "repos/actions/checkout/releases?per_page=100&page=1": [rel("v7.0.1"), rel("v7.0.0"), rel("v5.0.0"), rel("v4.4.0"), rel("v4.3.0")],
+}
+upstream.gh_json = lambda p: routes.get(p)
+cls = {"updates": [{"ecosystem": "github-actions", "name": "actions/checkout", "from": "v4", "to": "v7",
+                    "from_ref": "v4", "to_ref": "v7", "direct": True}]}
+import tempfile, os
+d = tempfile.mkdtemp()
+json.dump(cls, open(os.path.join(d, "c.json"), "w"))
+sys.argv = ["upstream.py", os.path.join(d, "c.json"), d, os.path.join(d, "notes")]
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    upstream.main()
+e = json.loads(buf.getvalue())[0]
+notes = open(os.path.join(d, "notes", e["notes_file"])).read()
+print(e["from_resolved"], e["to_resolved"], "v7.0.1" in notes, "v4.3.0" in notes, "## v4.4.0" in notes)
+print(e["diverged"]["count"], e["diverged"]["commits"][0])
+meta = ("## 8.71.1 (2026-10-05)\n\nThis was a version bump only for typescript-eslint to align it with other projects, there were no code changes.\n\n"
+        "See [GitHub Releases](https://x) for more information.\n\n## 8.70.0\n\n### Fixes\n\n- a fix\n\n## 8.24.1\n\n- old\n")
+upstream.gh_json = lambda p: {"content": base64.b64encode(meta.encode()).decode()} if "CHANGELOG" in p else None
+_, cov = upstream.changelog_section("t/t", "packages/typescript-eslint/CHANGELOG.md", "8.24.1", "8.71.1", "v8.71.1")
+print(cov["status"], cov["bump_only"], cov["entries"])
+PY
+)
+check "upstream: a floating ref resolves to its release, so the notes cover v7.0.1 and not releases main has" \
+  "v4.4.0 v7.0.1 True False False" "$(sed -n 1p <<<"$out")"
+check "upstream: diverged refs list the commits that the new ref lacks (#719)" \
+  "1 eeeeeee enforce pull_request_target" "$(sed -n 2p <<<"$out")"
+check "upstream: \"version bump only\" entries make the coverage partial" "partial 1 2" "$(sed -n 3p <<<"$out")"
+
 # Posting log, 2026-10-17 (#869): the npm-only PR got "block" because the Go
 # job failed in `go test` (the flaky TestStreamClientV2Handler on main). A
 # failure in steps that read none of the changed files needs a rerun.

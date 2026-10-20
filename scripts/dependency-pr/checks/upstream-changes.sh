@@ -18,20 +18,24 @@ cat "$ARTIFACTS/report.json"
 n=$(jq length "$ARTIFACTS/report.json")
 [ "$n" -eq 0 ] && skip "no direct update with an upstream source"
 
-jq -r '.[] | "- `\(.name)` \(.from) → \(.to): \(if .repo then "[\(.repo)](https://github.com/\(.repo))" else "source not found" end)\(if .compare_url then ", [\(.commits) commits, \(.files_changed) files](\(.compare_url))" else "" end)\(if .tags_missing then ", no upstream tag for " + (.tags_missing | join(" and ")) + ", so no compare link" else "" end), notes: \(
+jq -r '.[] | "- `\(.name)` \(.from)\(if .from_resolved then " (\(.from_resolved))" else "" end) → \(.to)\(if .to_resolved then " (\(.to_resolved))" else "" end): \(if .repo then "[\(.repo)](https://github.com/\(.repo))" else "source not found" end)\(if .compare_url then ", [\(.commits) commits, \(.files_changed) files](\(.compare_url))" else "" end)\(if .tags_missing then ", no upstream tag for " + (.tags_missing | join(" and ")) + ", so no compare link" else "" end), notes: \(
     if .notes_coverage == "full" then "\(.notes_source), full range"
+    elif .notes_coverage == "partial" and .notes_bump_only then "\(.notes_source), **partial** (\(.notes_bump_only) of \(.notes_entries) versions say only \"version bump only\")"
+    elif .notes_coverage == "partial" and .unresolved_refs then "\(.notes_source), **partial** (could not resolve the floating ref \(.unresolved_refs | join(" and ")) to a release)"
     elif .notes_coverage == "partial" then "\(.notes_source), **partial** (back to \(.notes_lowest // "?") only, not \(.from))"
-    else "**none found**" end)\(if (.keywords // {}) != {} then ", mentions: " + ([.keywords | to_entries[] | "\(.key) (\(.value))"] | join(", ")) else "" end)"' \
+    else "**none found**" end)\(if .notes_reexported then ", plus the CHANGELOG of " + (.notes_reexported | map(.package) | join(", ")) else "" end)\(if (.keywords // {}) != {} then ", mentions: " + ([.keywords | to_entries[] | "\(.key) (\(.value))"] | join(", ")) else "" end)",
+  (if .diverged then "  - **The refs diverged**: \(.to_resolved // .to) does not contain \(.diverged.count) commit(s) of \(.from_resolved // .from). The compare link does not show them:", (.diverged.commits[] | "    - \(.)") else empty end)' \
   "$ARTIFACTS/report.json" >>"$ARTIFACTS/details.md"
 
 coverage=$(jq -r '
   (map(select(.notes_coverage == "full")) | length) as $full
   | [ "Upstream notes cover the full range for \($full) of \(length) direct update(s)",
-      (map(select(.notes_coverage == "partial")) | if length > 0 then "partial for " + (map("\(.name) (back to \(.notes_lowest // "?"), not \(.from))") | join(", ")) else empty end),
+      (map(select(.notes_coverage == "partial")) | if length > 0 then "partial for " + (map("\(.name) (" + (if .notes_bump_only then "\(.notes_bump_only) of \(.notes_entries) versions say only \"version bump only\"" elif .unresolved_refs then "floating ref \(.unresolved_refs | join(" and ")) not resolved" else "back to \(.notes_lowest // "?"), not \(.from_resolved // .from)" end) + ")") | join(", ")) else empty end),
+      (map(select(.diverged)) | if length > 0 then (map("\(.name) \(.to_resolved // .to) lacks \(.diverged.count) commit(s) of \(.from_resolved // .from)") | join(", ")) else empty end),
       (map(select(.notes_coverage == "none")) | if length > 0 then "none for " + (map(.name) | join(", ")) else empty end) ]
   | join("; ")' "$ARTIFACTS/report.json")
 flags=$(jq -r '[.[] | (.keywords // {}) | keys[]] | group_by(.) | map("\(.[0]) (\(length))") | join(", ")' "$ARTIFACTS/report.json")
-gaps=$(jq '[.[] | select(.notes_coverage != "full")] | length' "$ARTIFACTS/report.json")
+gaps=$(jq '[.[] | select(.notes_coverage != "full" or .diverged)] | length' "$ARTIFACTS/report.json")
 tail=""
 if [ "$(jq -r '.tier' "$CLASSIFICATION")" != low ]; then
   tail=". The impact review must cover them"

@@ -106,6 +106,28 @@ def resolve(update, wt):
     return None, None, None, None
 
 
+EXACT = re.compile(r"^v?\d+\.\d+\.\d+$")
+FLOATING = re.compile(r"^v?\d+(\.\d+)?$")
+
+
+def resolve_floating(repo, ref):
+    """The exact release that a floating action tag (v7, v4.1) points to today,
+    or None. Read as a version, v7 is 7.0.0, which drops v7.0.1 to v7.x."""
+    if not ref or not FLOATING.match(ref):
+        return ref
+    sha = (gh_json(f"repos/{repo}/commits/{ref}") or {}).get("sha")
+    refs = gh_json(f"repos/{repo}/git/matching-refs/tags/{ref}.") or []
+    tags = sorted(((vtuple(t), t, r.get("object") or {}) for r in refs if isinstance(r, dict)
+                   for t in [r.get("ref", "").removeprefix("refs/tags/")] if EXACT.match(t)), reverse=True)
+    for _, tag, obj in tags[:20] if sha else []:
+        target = obj.get("sha")
+        if obj.get("type") == "tag":
+            target = ((gh_json(f"repos/{repo}/git/tags/{target}") or {}).get("object") or {}).get("sha")
+        if target == sha:
+            return tag
+    return None
+
+
 HEAD_VERSION = re.compile(r"^#+\s.*?\bv?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)")
 MAX_CHANGELOG_LINES = 6000
 MAX_RELEASE_PAGES = 10
@@ -137,10 +159,33 @@ def changelog_section(repo, path, frm, to, to_tag):
         if not m:
             continue
         if lo and vtuple(m.group(1)) <= lo:
-            return "\n".join(text[start:i]), {"status": "full", "lowest": lowest}
+            return "\n".join(text[start:i]), bump_only({"status": "full", "lowest": lowest}, text[start:i])
         lowest = m.group(1)
     end = min(len(text), start + MAX_CHANGELOG_LINES)
-    return "\n".join(text[start:end]), {"status": "partial", "lowest": lowest}
+    return "\n".join(text[start:end]), bump_only({"status": "partial", "lowest": lowest}, text[start:end])
+
+
+BUMP_ONLY = re.compile(r"version bump only|there were no code changes", re.I)
+
+
+def bump_only(cov, lines):
+    """A meta package CHANGELOG (typescript-eslint) says "version bump only"
+    for releases whose changes are in the packages that it re-exports. Such
+    an entry is not a note, so the coverage is partial."""
+    entries, current = [], None
+    for line in lines:
+        if HEAD_VERSION.match(line):
+            current = []
+            entries.append(current)
+        elif current is not None and line.strip():
+            current.append(line)
+    # An entry that says so and lists no change item. The entries also have
+    # boilerplate lines ("See GitHub Releases ...").
+    n = sum(1 for e in entries if any(BUMP_ONLY.search(l) for l in e)
+            and not any(re.match(r"\s*([-*]\s|#)", l) for l in e))
+    if n:
+        cov = cov | {"status": "partial", "bump_only": n, "entries": len(entries)}
+    return cov
 
 
 def release_notes(repo, frm, to, to_tag, name=None, subdir=None):
@@ -149,6 +194,13 @@ def release_notes(repo, frm, to, to_tag, name=None, subdir=None):
     # releases can only link to it (react-router) or tag other packages.
     if subdir:
         text, cov = changelog_section(repo, f"{subdir}/CHANGELOG.md", frm, to, to_tag)
+        if text and (cov or {}).get("bump_only") and name:
+            extra, dirs = reexported_notes(repo, name, frm, to, to_tag)
+            if extra:
+                text += "\n\n" + extra
+                cov = cov | {"reexported": dirs}
+                if all(d["status"] == "full" for d in dirs):
+                    cov["status"] = "full"
         if text:
             return f"{subdir}/CHANGELOG.md", text, cov
     lo, hi = vtuple(frm), vtuple(to)
@@ -187,6 +239,44 @@ def release_notes(repo, frm, to, to_tag, name=None, subdir=None):
     return None, "", None
 
 
+def reexported_notes(repo, name, frm, to, to_tag):
+    """The CHANGELOG sections of the packages that a meta package depends on
+    at the same version and that live in the same repository."""
+    out = sh(["npm", "view", f"{name}@{to}", "dependencies", "--json"])
+    try:
+        deps = json.loads(out) if out else {}
+    except json.JSONDecodeError:
+        deps = {}
+    texts, dirs = [], []
+    for dep, spec in sorted((deps or {}).items()):
+        if str(spec).lstrip("^~=") != to:
+            continue
+        meta = sh(["npm", "view", f"{dep}@{to}", "repository", "--json"])
+        try:
+            meta = json.loads(meta) if meta else {}
+        except json.JSONDecodeError:
+            meta = {}
+        d = (meta.get("directory") or "").strip("/") if isinstance(meta, dict) else ""
+        if not d or github_repo(meta.get("url")) != repo:
+            continue
+        text, cov = changelog_section(repo, f"{d}/CHANGELOG.md", frm, to, to_tag)
+        if text:
+            texts.append(f"# {dep} (re-exported by {name})\n\n{text}")
+            dirs.append({"package": dep, "status": (cov or {}).get("status", "none")})
+    return "\n\n".join(texts), dirs
+
+
+def missing_commits(repo, from_ref, to_ref, cmp):
+    """When the new ref does not contain the old ref (GitHub reports
+    "diverged"), the commits of the old ref that the new one lacks."""
+    if (cmp or {}).get("status") != "diverged":
+        return None
+    back = gh_json(f"repos/{repo}/compare/{to_ref}...{from_ref}") or {}
+    commits = back.get("commits") or []
+    return {"count": cmp.get("behind_by") or len(commits),
+            "commits": [f"{c['sha'][:7]} {(c.get('commit') or {}).get('message', '').splitlines()[0]}" for c in commits[-20:]]}
+
+
 def commit_log(cmp):
     """Commit subjects from a compare result, for repositories without notes (golang.org/x/*)."""
     commits = (cmp or {}).get("commits") or []
@@ -211,6 +301,21 @@ def main():
         repo, from_ref, to_ref, subdir = resolve(u, wt)
         entry["repo"] = repo
         entry["notes_coverage"] = "none"
+        frm, to, unresolved = u["from"], u["to"], []
+        if repo and u["ecosystem"] == "github-actions":
+            # Compare and read notes between the releases that the floating
+            # tags point to today (v4 → v4.4.0, v7 → v7.0.1).
+            for side, ref in (("from", from_ref), ("to", to_ref)):
+                exact = resolve_floating(repo, ref)
+                if exact is None:
+                    unresolved.append(ref)
+                elif exact != ref:
+                    entry[f"{side}_resolved"] = exact
+            from_ref = entry.get("from_resolved", from_ref)
+            to_ref = entry.get("to_resolved", to_ref)
+            frm, to = entry.get("from_resolved", frm), entry.get("to_resolved", to)
+            if unresolved:
+                entry["unresolved_refs"] = unresolved
         if repo:
             missing = [v for v, r in ((u["from"], from_ref), (u["to"], to_ref)) if not r]
             if missing:
@@ -220,14 +325,23 @@ def main():
                 entry["compare_url"] = cmp.get("html_url")
                 entry["commits"] = cmp.get("total_commits")
                 entry["files_changed"] = len(cmp.get("files") or [])
+                diverged = missing_commits(repo, from_ref, to_ref, cmp)
+                if diverged:
+                    entry["diverged"] = diverged
             npm_subdir = subdir if u["ecosystem"] in ("npm-ui", "npm-wrapper") else None
-            source, text, cov = release_notes(repo, u["from"], u["to"], to_ref, u["name"], npm_subdir)
+            source, text, cov = release_notes(repo, frm, to, to_ref, u["name"], npm_subdir)
             if not text and u["ecosystem"] == "gomod":
                 text, cov = commit_log(cmp)
                 source = "commit messages" if text else None
             entry["notes_source"] = source
             entry["notes_coverage"] = (cov or {}).get("status", "none")
+            # A floating tag that could not be resolved may point past the notes.
+            if unresolved and entry["notes_coverage"] == "full":
+                entry["notes_coverage"] = "partial"
             entry["notes_lowest"] = (cov or {}).get("lowest")
+            for k in ("bump_only", "entries", "reexported"):
+                if (cov or {}).get(k):
+                    entry[f"notes_{k}"] = cov[k]
             if text:
                 fname = re.sub(r"[^A-Za-z0-9._-]", "_", u["name"]) + ".md"
                 with open(os.path.join(notes_dir, fname), "w") as f:
