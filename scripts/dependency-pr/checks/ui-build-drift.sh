@@ -7,6 +7,12 @@ cd "$WT/$UI_DIR_REL" || exit 1
 
 run npm run build 2>&1 | tee "$ARTIFACTS/build.out"
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+  # tsc reports "error TS<n>", and vite reports "error during build". Without
+  # either, npm or the tool crashed before it read the code.
+  if ! grep -qE 'error TS[0-9]+|error during build|\[vite[^]]*\]|RollupError' "$ARTIFACTS/build.out"; then
+    detail_block "$ARTIFACTS/build.out" 30
+    incomplete "npm run build did not finish (no tsc or vite error reported): $(grep -m1 -iE 'error|cannot' "$ARTIFACTS/build.out" | cut -c1-160)"
+  fi
   grep -E 'error|Error' "$ARTIFACTS/build.out" | sed -E "s#$WT/##g; s/\([0-9]+,[0-9]+\)//" | sort -u >"$ARTIFACTS/build.errs"
   fingerprint_file "$ARTIFACTS/build.errs"
   detail_block "$ARTIFACTS/build.out" 30

@@ -7,6 +7,7 @@ run npm ls --all >/dev/null 2>"$ARTIFACTS/ls.err"
 if [ $? -ne 0 ]; then
   cat "$ARTIFACTS/ls.err"
   grep -E 'npm error (invalid|missing|extraneous|peer)' "$ARTIFACTS/ls.err" | sed -E "s#$WT/##g" | sort -u >"$ARTIFACTS/problems"
+  [ -s "$ARTIFACTS/problems" ] || incomplete "npm ls did not finish (no tree problem reported): $(grep -m1 'npm error' "$ARTIFACTS/ls.err" | cut -c1-160)"
   findings_file "$ARTIFACTS/problems"
   detail_block "$ARTIFACTS/problems" 20
   recommend "Fix the dependency tree (coordinated upgrade or a scoped \`overrides\` entry) so that \`npm ls --all\` reports no new problems."

@@ -587,6 +587,31 @@ rm "$tmp/rs-api/release-secrets-v1.2.1.b64"
 out=$(BASE_WT="$tmp/rs-b" run_check actions-coverage "$tmp/rs-p" PATH="$tmp/bin-rs:$PATH" CLASSIFICATION="$tmp/cls-rs.json")
 check "actions-coverage: an action.yml that cannot be fetched is incomplete, even for a patch" "incomplete" "${out%%|*}"
 
+# Lenient bug (#870): npx crashed before prettier started. The check recorded
+# "prettier would reformat 0 file(s)", base crashed the same way, and the
+# failure counted as pre-existing, so the verdict was safe to merge.
+ui="$tmp/uiwt/internal/dev_server/ui" && mkdir -p "$ui/node_modules/.bin"
+echo '{"packages": {}}' >"$ui/package-lock.json"
+sha256sum <"$ui/package-lock.json" | cut -c1-16 >"$ui/node_modules/.verify-lock-hash"
+crash='echo "npm error Class extends value undefined is not a constructor or null" >&2; exit 1'
+stub "$tmp/bin-crash" npx "$crash"
+stub "$tmp/bin-crash" npm "$crash"
+stub "$ui/node_modules/.bin" prettier "$crash"
+out=$(run_check ui-prettier "$tmp/uiwt" PATH="$tmp/bin-crash:$PATH")
+check "ui-prettier: a crash before prettier reports a file is incomplete, not a format failure" "incomplete" "${out%%|*}"
+stub "$ui/node_modules/.bin" prettier '[ "$1" = --version ] && { echo 3.8.4; exit 0; }; echo "Checking formatting..."; echo "All matched files use Prettier code style!"'
+out=$(run_check ui-prettier "$tmp/uiwt" PATH="$tmp/bin-crash:$PATH")
+check "ui-prettier runs the installed prettier, so a broken npx on PATH does not matter" "pass|prettier --check clean (3.8.4)" "${out%|*}"
+stub "$ui/node_modules/.bin" prettier 'echo "Checking formatting..."; echo "[warn] src/App.tsx"; echo "[warn] Code style issues found in the above file. Run Prettier with --write to fix."; exit 1'
+out=$(run_check ui-prettier "$tmp/uiwt" PATH="$tmp/bin-crash:$PATH")
+check "ui-prettier: a file to reformat is still a failure" "fail|prettier would reformat 1 file(s)" "${out%|*}"
+check "ui-lint: an npm crash is incomplete" "incomplete" "$(run_check ui-lint "$tmp/uiwt" PATH="$tmp/bin-crash:$PATH" | cut -d'|' -f1)"
+check "ui-test: an npm crash is incomplete" "incomplete" "$(run_check ui-test "$tmp/uiwt" PATH="$tmp/bin-crash:$PATH" | cut -d'|' -f1)"
+check "ui-build-drift: an npm crash is incomplete" "incomplete" "$(run_check ui-build-drift "$tmp/uiwt" PATH="$tmp/bin-crash:$PATH" | cut -d'|' -f1)"
+check "ui-npm-ls: an npm crash is incomplete" "incomplete" "$(run_check ui-npm-ls "$tmp/uiwt" PATH="$tmp/bin-crash:$PATH" | cut -d'|' -f1)"
+stub "$tmp/bin-lintfail" npm 'printf "/w/src/App.tsx\n  3:1  error  x is unused  no-unused-vars\n\n✖ 1 problem (1 error, 0 warnings)\n"; exit 1'
+check "ui-lint: an eslint finding is still a failure" "fail" "$(run_check ui-lint "$tmp/uiwt" PATH="$tmp/bin-lintfail:$PATH" | cut -d'|' -f1)"
+
 # Bug 3: a generated check inherited the global git configuration, and an
 # `insteadOf` rule with an access token showed up in its log. The tokens are
 # built at run time, so this file holds no token-shaped string.
