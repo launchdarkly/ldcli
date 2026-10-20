@@ -440,6 +440,24 @@ func (m wizardModel) agentView() string {
 				mutedStyle.Render(hint))
 		return body + question + "\n"
 	}
+	if len(m.agentQuestions) > 0 {
+		req := m.agentQuestions[0]
+		question := req.Questions[len(m.agentAnswers)]
+		width := m.sdkBoxWidth() - 4
+		text := headerStyle.Render(question.Header) + "\n" + wrapText(question.Text, width) + "\n\n"
+		for i, o := range question.Options {
+			line := fmt.Sprintf("%d. %s", i+1, o.Label)
+			if o.Description != "" {
+				line += " — " + o.Description
+			}
+			text += wrapText(line, width) + "\n"
+		}
+		hint := fmt.Sprintf("1-%d choose · s skip", len(question.Options))
+		if total := len(req.Questions); total > 1 {
+			hint = fmt.Sprintf("question %d of %d · ", len(m.agentAnswers)+1, total) + hint
+		}
+		return body + box(true, m.sdkBoxWidth()).Render(text+"\n"+mutedStyle.Render(hint)) + "\n"
+	}
 	status := " The agent is working..."
 	if m.agentRun == nil {
 		status = " Starting the agent..."

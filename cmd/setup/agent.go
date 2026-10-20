@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -223,12 +224,54 @@ func streamAgent(ctx context.Context, run agent.Run, out io.Writer, in *bufio.Re
 			if err := run.Reply(ctx, ev.Permission, allow); err != nil {
 				return nil, fmt.Errorf("could not answer the agent: %w", err)
 			}
+		case agent.EventQuestion:
+			answers, err := askQuestions(out, in, ev.Question)
+			if err != nil {
+				return nil, err
+			}
+			if err := run.Answer(ctx, ev.Question, answers); err != nil {
+				return nil, fmt.Errorf("could not answer the agent: %w", err)
+			}
 		case agent.EventDone:
 			return sortedKeys(changed), nil
 		case agent.EventError:
 			return nil, errors.NewError("The setup agent failed: " + ev.Text)
 		}
 	}
+}
+
+// askQuestions prints each question with numbered options and reads the
+// user's choice. An empty answer skips the request, and the agent goes on
+// without answers.
+func askQuestions(out io.Writer, in *bufio.Reader, req agent.QuestionRequest) ([][]string, error) {
+	var answers [][]string
+	for _, q := range req.Questions {
+		fmt.Fprintf(out, "\nThe agent asks: %s\n", q.Text)
+		for i, o := range q.Options {
+			fmt.Fprintf(out, "  %d. %s", i+1, o.Label)
+			if o.Description != "" {
+				fmt.Fprintf(out, " — %s", o.Description)
+			}
+			fmt.Fprintln(out)
+		}
+		for {
+			fmt.Fprintf(out, "Choose 1-%d, or press Enter to skip: ", len(q.Options))
+			line, err := in.ReadString('\n')
+			line = strings.TrimSpace(line)
+			if line == "" {
+				return nil, nil
+			}
+			choice, convErr := strconv.Atoi(line)
+			if convErr == nil && choice >= 1 && choice <= len(q.Options) {
+				answers = append(answers, []string{q.Options[choice-1].Label})
+				break
+			}
+			if err != nil {
+				return nil, nil
+			}
+		}
+	}
+	return answers, nil
 }
 
 func sortedKeys(m map[string]bool) []string {

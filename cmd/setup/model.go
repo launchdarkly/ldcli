@@ -118,8 +118,13 @@ type wizardModel struct {
 	// first. OpenCode can ask for several tool calls at once, and each one
 	// waits until it gets its own answer.
 	agentPermissions []agent.PermissionRequest
-	agentUsage       *agent.Usage
-	agentDone        bool
+	// agentQuestions are the agent's question requests that wait for answers,
+	// oldest first. agentAnswers holds the answers to the first request so far,
+	// one for each of its questions that the user answered.
+	agentQuestions []agent.QuestionRequest
+	agentAnswers   [][]string
+	agentUsage     *agent.Usage
+	agentDone      bool
 	// agentNote tells the user why setup used the templates after the agent
 	// could not run.
 	agentNote string

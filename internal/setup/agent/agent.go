@@ -61,6 +61,9 @@ const (
 	EventTool
 	// EventPermission asks the user to allow or reject a tool call.
 	EventPermission
+	// EventQuestion asks the user to choose an option for each question in
+	// Question.
+	EventQuestion
 	// EventFileEdited reports a file that OpenCode changed, in File.
 	EventFileEdited
 	// EventUsage reports the model and the tokens of one finished reply.
@@ -78,6 +81,7 @@ type Event struct {
 	Text       string
 	Tool       ToolCall
 	Permission PermissionRequest
+	Question   QuestionRequest
 	File       string
 	Usage      Usage
 }
@@ -106,6 +110,30 @@ type PermissionRequest struct {
 	legacy bool
 }
 
+// QuestionRequest is a set of questions from the agent that waits for the
+// user's answers. The agent asks with OpenCode's question tool.
+type QuestionRequest struct {
+	ID        string
+	SessionID string
+	Questions []Question
+}
+
+// Question is one question with its choices.
+type Question struct {
+	// Header is a short label, at most 30 characters.
+	Header  string
+	Text    string
+	Options []QuestionOption
+	// Multiple reports that the user can choose more than one option.
+	Multiple bool
+}
+
+// QuestionOption is one choice for a question.
+type QuestionOption struct {
+	Label       string
+	Description string
+}
+
 // Usage is the model and the token counts of one finished reply.
 type Usage struct {
 	ProviderID   string
@@ -131,6 +159,10 @@ type Run interface {
 	Events() <-chan Event
 	// Reply answers a permission request.
 	Reply(ctx context.Context, req PermissionRequest, allow bool) error
+	// Answer replies to a question request with the chosen option labels, one
+	// list for each question, in order. A nil answers value dismisses the
+	// questions, and the agent continues without answers.
+	Answer(ctx context.Context, req QuestionRequest, answers [][]string) error
 	// Close stops OpenCode. It is safe to call more than once.
 	Close() error
 }

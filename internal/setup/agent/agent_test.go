@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -175,6 +176,18 @@ func TestDecoder_Permission(t *testing.T) {
 	assert.Equal(t, PermissionRequest{ID: "per1", SessionID: "ses", Permission: "bash", Patterns: []string{"npm test"}}, out[0].Permission)
 }
 
+func TestDecoder_Question(t *testing.T) {
+	d := newDecoder("ses")
+
+	out := decodeAll(d, `{"type":"question.asked","properties":{"id":"que1","sessionID":"ses","questions":[{"question":"Where?","header":"Secret","options":[{"label":".env","description":"gitignored"}]}]}}`)
+
+	require.Len(t, out, 1)
+	assert.Equal(t, EventQuestion, out[0].Kind)
+	assert.Equal(t, QuestionRequest{ID: "que1", SessionID: "ses", Questions: []Question{{
+		Header: "Secret", Text: "Where?", Options: []QuestionOption{{Label: ".env", Description: "gitignored"}},
+	}}}, out[0].Question)
+}
+
 func TestDecoder_LegacyPermission(t *testing.T) {
 	d := newDecoder("ses")
 
@@ -253,6 +266,13 @@ func newFakeOpenCode(t *testing.T) *fakeOpenCode {
 		f.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 	})
+	mux.HandleFunc("POST /question/{id}/{action}", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		f.mu.Lock()
+		f.replies = append(f.replies, r.PathValue("id")+" "+r.PathValue("action")+" "+strings.TrimSpace(string(body)))
+		f.mu.Unlock()
+		_, _ = w.Write([]byte("true"))
+	})
 	mux.HandleFunc("POST /permission/{id}/reply", func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
@@ -323,6 +343,21 @@ func TestRun_RepliesToPermission(t *testing.T) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	assert.Equal(t, []string{"per1=once", "per1=reject"}, f.replies)
+}
+
+func TestRun_AnswersQuestion(t *testing.T) {
+	f := newFakeOpenCode(t)
+	run, err := startRun(context.Background(), f.client(), Config{}, "task")
+	require.NoError(t, err)
+	defer run.Close()
+	req := QuestionRequest{ID: "que1"}
+
+	require.NoError(t, run.Answer(context.Background(), req, [][]string{{".env"}}))
+	require.NoError(t, run.Answer(context.Background(), req, nil))
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	assert.Equal(t, []string{`que1 reply {"answers":[[".env"]]}`, "que1 reject {}"}, f.replies)
 }
 
 func TestRun_StreamEndsEarly_ReportsError(t *testing.T) {
