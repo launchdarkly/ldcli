@@ -46,6 +46,7 @@ You write three things in the out dir: `agent/plan.json`, `generated/checks.json
 - `claims[].checks`: the ids of the checks that prove the claim. A claim without checks needs `no_local_proof`, and the report then asks a person to accept it.
 - `claims[].baseline`: optional. Ids of baseline checks in `scripts/release/checks/registry.json` that prove the claim, for example `["docker-image"]`. If the baseline check passes, it counts as proof. Do not write a check that repeats a baseline check.
 - `findings`: a `block` finding needs `fix`. A `decide` finding needs a `question` that ends with a question mark.
+- `findings[].about`: optional. The checks that the finding explains: check ids, or `baseline:<id>` for a baseline check. If one of them blocks, the report shows the problem one time, with the text of the finding. Without `about`, the tools look for check ids and `state/checks/<id>/` paths in `evidence`.
 
 ## agent/units/&lt;id&gt;.json
 

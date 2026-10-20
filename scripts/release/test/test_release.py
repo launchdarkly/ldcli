@@ -219,7 +219,10 @@ class VerdictTest(unittest.TestCase):
         self.f.result("dev-loopback", "base", "pass")
         self.f.result("dev-loopback", "pr", "fail")
         self.f.judge([{"id": "dev-loopback", "assessment": "confirmed-bug"}])
-        self.assertEqual(self.f.build()["verdict"], "block")
+        r = self.f.build()
+        self.assertEqual(r["verdict"], "block")
+        self.assertEqual(r["units"][0]["claims"][0]["status"], "disproved")
+        self.assertEqual(r["incomplete"], [])
         self.f.judge([{"id": "dev-loopback", "assessment": "false-positive"}])
         r = self.f.build()
         self.assertEqual(r["verdict"], "incomplete")
@@ -274,6 +277,26 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(self.f.build()["verdict"], "safe-to-release")
         self.f.judge(findings=[{"unit": "dev", "index": 0, "assessment": "confirmed"}])
         self.assertEqual(self.f.build()["verdict"], "block")
+
+    def test_finding_that_explains_a_block_replaces_it(self):
+        self.f.baseline("changelog-accuracy", "fail", required=True)
+        self.f.result("dev-loopback", "base", "pass")
+        self.f.result("dev-loopback", "pr", "fail")
+        self.f.plan([
+            {"id": "dev", "commits": ["aaaaaaa"], "risk": "high",
+             "claims": [{"id": "loopback", "text": "x", "checks": ["dev-loopback"]}],
+             "findings": [
+                 {"severity": "block", "text": "the bug, explained", "fix": "f", "evidence": ["logs/pr/generated-dev-loopback.log"]},
+                 {"severity": "block", "text": "the changelog, explained", "fix": "g", "about": ["baseline:changelog-accuracy"]},
+                 {"severity": "decide", "question": "Ship X?", "text": "t", "evidence": ["logs/pr/generated-dev-loopback-other.log"]}]},
+            {"id": "docs", "commits": ["bbbbbbb"], "risk": "low", "claims": [{"id": "ok", "text": "x", "baseline": ["go-test"]}]},
+        ], [{"id": "dev-loopback", "unit": "dev", "claims": ["loopback"], "kind": "discriminating",
+             "adversarial": True, "script": "dev-loopback.sh"}])
+        self.f.judge([{"id": "dev-loopback", "assessment": "confirmed-bug"}],
+                     findings=[{"unit": "dev", "index": i, "assessment": "confirmed"} for i in range(3)])
+        r = self.f.build()
+        self.assertEqual([b["text"] for b in r["blocks"]], ["the bug, explained", "the changelog, explained"])
+        self.assertEqual([d["question"] for d in r["decisions"]], ["Ship X?"])
 
 
 class PlanTest(unittest.TestCase):

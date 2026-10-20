@@ -14,6 +14,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -167,6 +168,7 @@ def unit_checks(out_dir, manifest, judgement, items):
         src = f"unit:{uid}:{cid}"
         title = c.get("title") or cid
         summary = (pr or {}).get("summary") or ""
+        n_blocks = len(items.blocks)
         if judgement is not None and j is None and outcome != "not-run":
             items.incomplete.append({"source": src, "unit": uid, "text": f"The judge did not review check {cid}."})
         if outcome == "not-run":
@@ -201,8 +203,26 @@ def unit_checks(out_dir, manifest, judgement, items):
         results[cid] = {"id": cid, "unit": uid, "title": title, "kind": c.get("kind"),
                         "adversarial": bool(c.get("adversarial")), "claims": c.get("claims", []),
                         "rationale": c.get("rationale"), "outcome": outcome, "counts": counts,
+                        "blocks": len(items.blocks) > n_blocks,
                         "judge": j, "base": base, "pr": pr, "revert": revert}
     return results
+
+
+def finding_refs(finding, uid, checks):
+    """The checks that a finding explains, as item sources.
+
+    The finding names them in "about" (check ids, or "baseline:<id>"). Without
+    "about", a check id of the same unit or a baseline result path
+    (state/checks/<id>/) in the evidence counts.
+    """
+    about = finding.get("about")
+    if about is None:
+        ev = finding.get("evidence") or []
+        text = " ".join(ev) if isinstance(ev, list) else str(ev)
+        about = [cid for cid, r in checks.items() if r["unit"] == uid
+                 and re.search(rf"(?:(?<![\w-])|(?<=generated-)){re.escape(cid)}(?![\w-])", text)]
+        about += [f"baseline:{b}" for b in re.findall(r"state/checks/([a-z0-9-]+)/", text)]
+    return [a if a.startswith("baseline:") else f"unit:{uid}:{a}" for a in about]
 
 
 # ------------------------------------------------------------------ main
@@ -254,6 +274,10 @@ def build(out_dir):
         unit_items.setdefault(g.get("unit"), Items()).incomplete.append(
             {"source": "judge:gap", "unit": g.get("unit"), "text": f"The judge found a change that no claim covers: {g.get('text')}"})
 
+    blocking_sources = {b["source"] for b in overall.blocks}
+    blocking_sources |= {b["source"] for it in unit_items.values() for b in it.blocks}
+    superseded = set()
+
     judged_findings = {(f.get("unit"), f.get("index")): f for f in (judgement or {}).get("findings", [])}
     judged_claims = {(c.get("unit"), c.get("claim")): c for c in (judgement or {}).get("claims", [])}
     commits = {c["short"]: c for c in inv.get("commits", [])}
@@ -266,30 +290,45 @@ def build(out_dir):
             covered_by = [cid for cid, r in checks.items() if r["unit"] == uid and cl.get("id") in r["claims"] and r["counts"]]
             covered_by += [f"baseline:{bid}" for bid in cl.get("baseline", [])
                            if baseline_by_id.get(bid, {}).get("outcome") in ("pass", "info")]
+            disproved_by = [cid for cid, r in checks.items() if r["unit"] == uid and cl.get("id") in r["claims"] and r["blocks"]]
             jc = judged_claims.get((uid, cl.get("id")))
             status = "covered" if covered_by else "not-covered"
             if covered_by and jc and jc.get("assessment") == "not-covered":
                 status = "not-covered"
                 it.notes.append({"source": f"judge:{uid}", "unit": uid, "text": f"The judge says the checks do not cover claim {cl.get('id')}: {jc.get('reason', '')}"})
-            if status == "not-covered":
+            if disproved_by:
+                # A failing check already blocks the release for this claim.
+                status = "disproved"
+            elif status == "not-covered":
                 if cl.get("no_local_proof"):
                     status = "no-local-proof"
                     it.decisions.append({"source": f"unit:{uid}", "unit": uid,
-                                         "question": f"Release without a local check of this claim: {cl.get('text')}?",
+                                         "question": f"Release without a local check of this claim: {(cl.get('text') or '').rstrip('. ')}?",
                                          "evidence": cl.get("no_local_proof")})
                 else:
                     it.incomplete.append({"source": f"unit:{uid}", "unit": uid,
                                           "text": f"Claim {uid}/{cl.get('id')} has no check that counts as proof: {cl.get('text')}"})
             claims.append({"id": cl.get("id"), "text": cl.get("text"), "source": cl.get("source"),
-                           "status": status, "covered_by": covered_by, "no_local_proof": cl.get("no_local_proof")})
+                           "status": status, "covered_by": covered_by, "disproved_by": disproved_by,
+                           "no_local_proof": cl.get("no_local_proof")})
         for i, f in enumerate(u.get("findings", [])):
             sev, jf = f.get("severity"), judged_findings.get((uid, i))
             a = (jf or {}).get("assessment")
             src = f"finding:{uid}:{i}"
+            refs = finding_refs(f, uid, checks)
+            explains = [r for r in refs if r in blocking_sources]
             if sev == "info":
                 it.notes.append({"source": src, "unit": uid, "text": f.get("text"), "evidence": f.get("evidence")})
             elif sev in ("block", "decide") and a == "rejected":
                 it.notes.append({"source": src, "unit": uid, "text": f"The judge rejected this finding: {f.get('text')} ({jf.get('reason', '')})"})
+            elif explains:
+                # The finding explains a check that already blocks. Show the
+                # problem once, with the explanation of the agent.
+                superseded.update(explains)
+                it.blocks.append({"source": src, "unit": uid, "text": f.get("text"), "evidence": f.get("evidence"),
+                                  "fix": [f["fix"]] if f.get("fix") else [], "explains": explains})
+                if judgement is not None and jf is None:
+                    it.incomplete.append({"source": src, "unit": uid, "text": f"The judge did not review finding {i} of unit {uid}."})
             elif sev == "block" and a == "unclear":
                 it.decisions.append({"source": src, "unit": uid, "question": f.get("question") or f"Is this a release blocker: {f.get('text')}?",
                                      "evidence": f.get("evidence")})
@@ -309,6 +348,9 @@ def build(out_dir):
             "verdict": it.verdict(),
             "blocks": it.blocks, "decisions": it.decisions, "incomplete": it.incomplete, "notes": it.notes,
         })
+    overall.blocks = [b for b in overall.blocks if b["source"] not in superseded]
+    for u in units:
+        u["blocks"] = [b for b in u["blocks"] if b["source"] not in superseded]
     for key, it in unit_items.items():
         if key is None or key not in {u["id"] for u in units}:
             overall.incomplete += it.incomplete

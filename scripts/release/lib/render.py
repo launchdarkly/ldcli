@@ -21,7 +21,7 @@ def fix_lines(item):
     if item.get("evidence"):
         ev = item["evidence"]
         ev = "; ".join(ev) if isinstance(ev, list) else ev
-        out.append(f"   Evidence: {cell(ev, 400)}")
+        out.append(f"   Evidence: {cell(ev, 300)}")
     return out
 
 
@@ -54,14 +54,14 @@ def render(res):
         L += ["### What blocks the release", ""]
         for i, b in enumerate(res["blocks"], 1):
             unit = f" (unit `{b['unit']}`)" if b.get("unit") else ""
-            L.append(f"{i}. {cell(b['text'], 600)}{unit}")
+            L.append(f"{i}. {cell(b['text'], 1500)}{unit}")
             L += fix_lines(b)
         L.append("")
     if res["decisions"]:
         L += ["### Questions for a person", "", "Answer each question with yes or no.", ""]
         for i, d in enumerate(res["decisions"], 1):
             unit = f" (unit `{d['unit']}`)" if d.get("unit") else ""
-            L.append(f"{i}. {cell(d['question'], 600)}{unit}")
+            L.append(f"{i}. {cell(d['question'], 1500)}{unit}")
             L += fix_lines(d)
         L.append("")
     if res["incomplete"]:
