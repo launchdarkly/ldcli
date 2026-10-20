@@ -1,7 +1,7 @@
 package awsdevopsagent
 
 import (
-	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -27,6 +27,7 @@ const (
 	replaceMCPTokenFlag = "replace-mcp-token"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
+	yesFlag             = "yes"
 )
 
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
@@ -54,9 +55,10 @@ expires.`,
 
 	cmd.Flags().String(regionFlag, "", "AWS region to provision in. Defaults to the region of the current AWS session")
 	cmd.Flags().String(profileFlag, "", "Named AWS profile to use. Overrides AWS_PROFILE for this command")
-	cmd.Flags().String(agentSpaceIDFlag, "", "Connect LaunchDarkly to this existing agent space instead of asking which one to use")
+	cmd.Flags().String(agentSpaceIDFlag, "", "Use this agent space. --auth-flow runs full setup on it")
 	cmd.Flags().String(agentSpaceNameFlag, "launchdarkly", "Name of the agent space to create")
 	cmd.Flags().Bool(newAgentSpaceFlag, false, "Provision a new agent space instead of asking which existing one to use")
+	cmd.MarkFlagsMutuallyExclusive(agentSpaceIDFlag, newAgentSpaceFlag)
 	cmd.Flags().String(authFlowFlag, "iam", "Operator app sign-in method: iam, idc or idp")
 	cmd.Flags().String(idcInstanceARNFlag, "", "IAM Identity Center instance ARN, required when --auth-flow=idc")
 	cmd.Flags().String(issuerURLFlag, "", "OIDC issuer URL, required when --auth-flow=idp")
@@ -65,6 +67,8 @@ expires.`,
 	cmd.Flags().Bool(replaceMCPTokenFlag, false, "Re-register the LaunchDarkly MCP server so it uses the token passed with --access-token")
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to use, instead of the one registered at --mcp-endpoint")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register and look the server up by. Defaults to "+awsdevops.MCPServerEndpoint)
+
+	cmd.Flags().Bool(yesFlag, false, "Skip the confirmation before setup changes AWS")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -93,14 +97,33 @@ func runSetup(cmd *cobra.Command, args []string) error {
 				"Pass --access-token with a service token if that one expires",
 		)
 	}
+	return setupWith(cmd, clients, opts, plaintext, plaintext && canPrompt())
+}
+
+// setupWith runs setup on clients it is given.
+func setupWith(
+	cmd *cobra.Command,
+	clients awsdevops.Clients,
+	opts awsdevops.SetupOptions,
+	plaintext, interactive bool,
+) error {
 	if plaintext {
 		opts.Logf = func(format string, args ...any) {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
 		}
 	}
 
-	provision, err := resolveAgentSpace(cmd, clients, &opts, plaintext && canPrompt())
+	// One reader, so no prompt loses input.
+	sharedStdin(cmd)
+
+	provision, err := resolveAgentSpace(cmd, clients, &opts, interactive)
 	if err != nil {
+		return err
+	}
+
+	ask := interactive && !mustBool(cmd, yesFlag)
+	// The plan goes to stderr, so a json run shows it too.
+	if err := confirmSetup(cmd, clients, opts, provision, ask); err != nil {
 		return err
 	}
 
@@ -120,7 +143,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	var mcpErr error
 	if result.MCPServiceID == "" {
-		mcpErr = connectMCPServer(cmd, clients, opts, &result)
+		mcpErr = connectMCPServer(cmd, clients, opts, &result, interactive)
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nOpen the DevOps Agent at:\n  %s\n", result.OperatorAppURL)
@@ -142,7 +165,7 @@ func resolveAgentSpace(
 		return true, nil
 	}
 	if opts.AgentSpaceID != "" {
-		return false, nil
+		return authFlagSet(cmd), nil
 	}
 
 	spaces, err := awsdevops.AgentSpaces(cmd.Context(), clients)
@@ -187,10 +210,59 @@ func resolveAgentSpace(
 	return false, nil
 }
 
+// confirmSetup shows the plan and asks.
+func confirmSetup(cmd *cobra.Command, clients awsdevops.Clients, opts awsdevops.SetupOptions, provision, ask bool) error {
+	plan, err := awsdevops.PlanSetup(cmd.Context(), clients, opts, provision)
+	if err != nil {
+		return err
+	}
+
+	out := cmd.ErrOrStderr()
+	_, _ = fmt.Fprintln(out, "\nSetup plan:")
+	_, _ = fmt.Fprintf(out, "  AWS account:   %s\n", plan.AccountID)
+	_, _ = fmt.Fprintf(out, "  Region:        %s\n", plan.Region)
+	_, _ = fmt.Fprintf(out, "  AWS profile:   %s\n", profileLabel(cmd))
+	for _, role := range plan.Roles {
+		_, _ = fmt.Fprintf(out, "  IAM role:      %s\n", role)
+	}
+	_, _ = fmt.Fprintf(out, "  Agent space:   %s\n", plan.AgentSpace)
+	_, _ = fmt.Fprintf(out, "  Operator app:  %s\n", plan.OperatorApp)
+	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n\n", plan.MCPServer)
+	if !ask {
+		return nil
+	}
+	_, _ = fmt.Fprint(out, "Continue? [y/N]: ")
+
+	switch strings.ToLower(readLine(sharedStdin(cmd))) {
+	case "y", "yes":
+		return nil
+	}
+	_, _ = fmt.Fprintln(out)
+
+	return errors.New("setup canceled before it changed AWS")
+}
+
+// profileLabel names the AWS profile in use.
+func profileLabel(cmd *cobra.Command) string {
+	if profile := mustString(cmd, profileFlag); profile != "" {
+		return profile
+	}
+	if profile := os.Getenv("AWS_PROFILE"); profile != "" {
+		return profile
+	}
+
+	return "default credentials"
+}
+
+// authFlagSet reports a passed --auth-flow.
+func authFlagSet(cmd *cobra.Command) bool {
+	return cmd.Flags().Changed(authFlowFlag)
+}
+
 // selectAgentSpace asks which agent space to connect LaunchDarkly to, and
 // returns an empty string when the answer is to provision a new one.
 func selectAgentSpace(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary, region string) (string, error) {
-	out := cmd.OutOrStdout()
+	out := cmd.ErrOrStderr()
 	_, _ = fmt.Fprintf(out, "\nThis AWS account already runs the DevOps Agent in %s:\n\n", region)
 	for i, space := range spaces {
 		_, _ = fmt.Fprintf(out, "  %d) %s (%s)\n", i+1, space.Name, space.AgentSpaceID)
@@ -198,12 +270,10 @@ func selectAgentSpace(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary, 
 	newSpaceChoice := len(spaces) + 1
 	_, _ = fmt.Fprintf(out, "  %d) provision a new agent space\n\n", newSpaceChoice)
 
-	// One reader for the whole prompt, so a retry does not lose input the
-	// previous read already buffered.
-	reader := bufio.NewReader(cmd.InOrStdin())
+	in := sharedStdin(cmd)
 	for {
 		_, _ = fmt.Fprint(out, "Which one should LaunchDarkly connect to? [1]: ")
-		line, err := reader.ReadString('\n')
+		line, err := nextLine(in)
 		if err != nil && line == "" {
 			return "", fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
 		}
@@ -243,9 +313,10 @@ func connectMCPServer(
 	clients awsdevops.Clients,
 	opts awsdevops.SetupOptions,
 	result *awsdevops.SetupResult,
+	interactive bool,
 ) error {
 	tokenURL := awsdevops.AccessTokenURL(opts.LDBaseURI)
-	if !canPrompt() {
+	if !interactive {
 		_, _ = fmt.Fprintf(
 			cmd.ErrOrStderr(),
 			"The LaunchDarkly MCP server is not connected. Create a service token at %s, "+
@@ -256,10 +327,11 @@ func connectMCPServer(
 		return nil
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
-	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Paste the token, or press Enter to skip: ")
+	out := cmd.ErrOrStderr()
+	_, _ = fmt.Fprintf(out, "\nCreate a LaunchDarkly service token at:\n  %s\n\n", tokenURL)
+	_, _ = fmt.Fprint(out, "Paste the token, or press Enter to skip: ")
 	opts.LDAccessToken = readSecret(cmd.InOrStdin())
-	_, _ = fmt.Fprintln(cmd.OutOrStdout())
+	_, _ = fmt.Fprintln(out)
 	if opts.LDAccessToken == "" {
 		return nil
 	}
@@ -282,6 +354,15 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 		ReplaceMCPToken: mustBool(cmd, replaceMCPTokenFlag),
 		MCPServiceID:    mustString(cmd, mcpServiceIDFlag),
 		MCPEndpoint:     mustString(cmd, mcpEndpointFlag),
+	}
+
+	idcSet := opts.IdcInstanceARN != ""
+	idpSet := opts.IssuerURL != "" || opts.IdpClientID != "" || opts.IdpClientSecret != ""
+	if idcSet && opts.AuthFlow != "idc" {
+		return opts, fmt.Errorf("--%s needs --%s=idc", idcInstanceARNFlag, authFlowFlag)
+	}
+	if idpSet && opts.AuthFlow != "idp" {
+		return opts, fmt.Errorf("--%s, --%s and --%s need --%s=idp", issuerURLFlag, idpClientIDFlag, idpClientSecretFlag, authFlowFlag)
 	}
 
 	switch opts.AuthFlow {
