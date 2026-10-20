@@ -135,8 +135,8 @@ func seatbeltProfile(p sandboxPaths) string {
 	for _, parent := range parentFolders(p) {
 		fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", sbString(parent))
 	}
-	// A cache or OpenCode folder can be missing on first use. Its missing
-	// parents can be created, but nothing else can be written in them.
+	// A cache or OpenCode folder can be missing on first use. Commands can
+	// create its missing parent folders, but cannot write anything else there.
 	for _, parent := range writeParents(p) {
 		fmt.Fprintf(&b, "(allow file-write-create (literal %s))\n", sbString(parent))
 	}
