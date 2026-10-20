@@ -667,9 +667,9 @@ func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {
 }
 
 func TestNewClientsRejectsUnsupportedRegion(t *testing.T) {
-	_, err := awsdevops.NewClients(context.Background(), "us-east-2", "")
+	_, err := awsdevops.NewClients(context.Background(), "us-east-3", "")
 
-	assert.ErrorContains(t, err, "AWS DevOps Agent is not available in us-east-2")
+	assert.ErrorContains(t, err, "AWS DevOps Agent is not available in us-east-3")
 }
 
 func TestNewClientsRequiresCredentials(t *testing.T) {

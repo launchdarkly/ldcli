@@ -22,6 +22,7 @@ import (
 // SupportedRegions are the regions where the AWS DevOps Agent control plane is available.
 var SupportedRegions = []string{
 	"us-east-1",
+	"us-east-2",
 	"us-west-2",
 	"ca-central-1",
 	"sa-east-1",
@@ -29,9 +30,12 @@ var SupportedRegions = []string{
 	"ap-southeast-1",
 	"ap-southeast-2",
 	"ap-northeast-1",
+	"ap-northeast-2",
 	"eu-central-1",
 	"eu-west-1",
 	"eu-west-2",
+	"eu-west-3",
+	"eu-north-1",
 }
 
 var (
