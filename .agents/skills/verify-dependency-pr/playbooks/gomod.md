@@ -38,7 +38,7 @@ A diligent reviewer makes sure that these statements are true for a Go update:
 | Tag or module | What to look at | Generated-check ideas |
 |---|---|---|
 | `codegen`: oapi-codegen, kin-openapi, strcase | The generator and its runtime library must change together (for example `oapi-codegen/runtime`). `go-generate-drift` must not become worse than on base. | Regenerate in `work/pr`, build, and run `go test ./internal/dev_server/api/...`. |
-| `mocks`: go.uber.org/mock | The repository commits the mocks. A diff after regeneration means that the mock format changed. | Regenerate the mocks and run `go test ./internal/dev_server/...`. |
+| `mocks`: go.uber.org/mock | The repository commits the mocks. A diff after regeneration means that the mock format changed. The baseline check `mocks-regenerate` runs each mockgen directive and requires one directive for each committed MockGen file. | Read the `mocks-regenerate` result. If it fails, map the diff to the mockgen change. |
 | `cgo`, `dev-server`: mattn/go-sqlite3 | The dev server stores its state in SQLite: `internal/dev_server/db`, `events_db`, `db/backup`. | A temporary test in the affected package. For example, the #829 check measures allocations per row in `events_db.QueryEvents`. |
 | `ld-sdk`: go-server-sdk, go-sdk-common | The dev server forwards SDK streams and evaluations (`internal/dev_server/sdk`, `adapters`). | Start the dev server, import a project from a fixture, and evaluate a flag through the `/sdk` endpoints. |
 | `setup`: sdk-meta | It supplies the SDK lists for `setup` and quickstart. | Compare the SDK list output on base and PR. Make sure that each SDK ID that ldcli uses still exists. |
