@@ -37,6 +37,16 @@ func (m wizardModel) View() string {
 		return titleStyle.Render("Error") + "\n\n" + m.err.Error() + "\n\nPress ctrl+c to quit."
 	}
 
+	view := m.stepView()
+	// Say why setup used a template on every screen that follows, so the user
+	// knows that the agent did not run.
+	if m.agentNote != "" && (m.step == stepWaitForApp || m.step == stepDone) {
+		view = mutedStyle.Render(m.wrap("Note: "+m.agentNote)) + "\n\n" + view
+	}
+	return view
+}
+
+func (m wizardModel) stepView() string {
 	switch m.step {
 	case stepSelectProject:
 		if !m.projectsLoaded {
@@ -81,7 +91,13 @@ func (m wizardModel) View() string {
 	case stepInit:
 		return m.spinner.View() + " Injecting initialization code..."
 
+	case stepAgent:
+		return m.agentView()
+
 	case stepWaitForApp:
+		if m.agentDone {
+			return m.agentWaitView()
+		}
 		// The newline stays outside the wrap: wrapping pads each line to the full
 		// width, so a trailing one inside would put a row of spaces in front of the
 		// path and push it past the edge of the terminal.
@@ -364,7 +380,14 @@ func (m wizardModel) planView() string {
 		add(fmt.Sprintf("Add the %s SDK %s", name, mutedStyle.Render("(manual install)")))
 	}
 	add(fmt.Sprintf("Create a feature flag in %s / %s", m.selectedProject, m.selectedEnv))
-	if setup.InjectsInPlace(m.detectResult.SDKID) {
+	if m.agentMode != agentOff && m.agentRunner != nil {
+		note := "(asks you only when it needs information)"
+		if m.agentMode == agentAuto {
+			note = "(asks you only when it needs information · uses the template if the agent cannot run)"
+		}
+		add("Use the setup agent to add initialization code " + mutedStyle.Render(note))
+		add("Verify the SDK connects to LaunchDarkly")
+	} else if setup.InjectsInPlace(m.detectResult.SDKID) {
 		// Say when the entry file does not exist yet: a file we create is not loaded
 		// by the project, so the user needs the chance to back out and point us at
 		// the real entry point.
@@ -389,3 +412,83 @@ func (m wizardModel) planView() string {
 // orchestration service: it calls a step method and maps the result or error
 // onto a wizard message. All API/filesystem work and business rules live in
 // internal/setup.Service.
+
+// agentLogLines is how many finished tool calls the agent screen shows.
+const agentLogLines = 8
+
+// agentView shows the agent's progress, and the question when a tool call
+// waits for the user's answer.
+func (m wizardModel) agentView() string {
+	body := titleStyle.Render("Setting up the SDK with the setup agent") + "\n\n"
+	log := m.agentLog
+	if len(log) > agentLogLines {
+		log = log[len(log)-agentLogLines:]
+	}
+	for _, line := range log {
+		body += m.wrap(line) + "\n"
+	}
+	if len(log) > 0 {
+		body += "\n"
+	}
+	if len(m.agentPermissions) > 0 {
+		hint := "y allow once · n reject"
+		if waiting := len(m.agentPermissions) - 1; waiting > 0 {
+			hint += fmt.Sprintf(" · %d more waiting", waiting)
+		}
+		question := box(true, m.sdkBoxWidth()).Render(
+			wrapText(describePermission(m.agentPermissions[0]), m.sdkBoxWidth()-4) + "\n" +
+				mutedStyle.Render(hint))
+		return body + question + "\n"
+	}
+	if len(m.agentQuestions) > 0 {
+		req := m.agentQuestions[0]
+		question := req.Questions[len(m.agentAnswers)]
+		width := m.sdkBoxWidth() - 4
+		text := headerStyle.Render(question.Header) + "\n" + wrapText(question.Text, width) + "\n\n"
+		for i, o := range question.Options {
+			line := fmt.Sprintf("%d. %s", i+1, o.Label)
+			if o.Description != "" {
+				line += " — " + o.Description
+			}
+			text += wrapText(line, width) + "\n"
+		}
+		hint := fmt.Sprintf("1-%d choose · s skip", len(question.Options))
+		if total := len(req.Questions); total > 1 {
+			hint = fmt.Sprintf("question %d of %d · ", len(m.agentAnswers)+1, total) + hint
+		}
+		return body + box(true, m.sdkBoxWidth()).Render(text+"\n"+mutedStyle.Render(hint)) + "\n"
+	}
+	status := " The agent is working..."
+	if m.agentRun == nil {
+		status = " Starting the agent..."
+	}
+	return body + m.spinner.View() + status + "\n\n" + mutedStyle.Render("q quit")
+}
+
+// agentWaitView replaces the wait-for-app screen after an agent run. The
+// agent's code reads the credential from an environment variable, so the
+// user must set it before the application starts.
+func (m wizardModel) agentWaitView() string {
+	body := titleStyle.Render("Start your application") + "\n\n"
+	if len(m.agentFiles) == 0 {
+		body += m.wrap("The setup agent finished but did not report changed files.") + "\n\n"
+	} else {
+		body += m.wrap("The setup agent changed these files:") + "\n"
+		for _, f := range m.agentFiles {
+			body += m.wrap("  "+f) + "\n"
+		}
+		body += "\n"
+	}
+	sdkID := ""
+	if m.detectResult != nil {
+		sdkID = m.detectResult.SDKID
+	}
+	if export := credentialExport(sdkID, m.sdkKey, m.clientSideID, m.mobileKey); export != "" {
+		body += m.wrap("Set the credential that your SDK uses before you start the application:") + "\n\n" +
+			code(export) + "\n\n"
+	}
+	if m.agentUsage != nil && m.agentUsage.ModelID != "" {
+		body += mutedStyle.Render(m.wrap(fmt.Sprintf("Model: %s/%s", m.agentUsage.ProviderID, m.agentUsage.ModelID))) + "\n\n"
+	}
+	return body + m.wrap("Start your application now, then press Enter to verify the connection.") + "\n"
+}
