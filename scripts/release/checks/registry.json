@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "_doc": "Baseline checks for a release, in execution order. A release ships the whole product, so every check runs. script: path under scripts/. compare_base: when the candidate result is fail or decide, run the check on the last release too, to find problems that the last release already had. required: if the check does not run, the verdict is 'incomplete'. gate: the check must pass on the candidate, even if the last release had the same failure. profile: fast (default) or full.",
+  "checks": [
+    { "id": "release-metadata", "title": "Version files agree, and the version bump matches the commits", "script": "release/checks/release-metadata.sh", "required": true, "gate": true, "timeout": 120 },
+    { "id": "changelog-accuracy", "title": "The changelog describes what ships", "script": "release/checks/changelog-accuracy.sh", "required": true, "timeout": 60 },
+    { "id": "release-ci", "title": "CI ran and passed on the candidate, or on the main commit below it", "script": "release/checks/release-ci.sh", "required": true, "timeout": 60 },
+
+    { "id": "go-mod-tidy", "title": "go mod tidy makes no change to go.mod or go.sum", "script": "dependency-pr/checks/go-mod-tidy.sh", "compare_base": true, "required": true, "timeout": 600 },
+    { "id": "go-build-vet", "title": "go build and go vet", "script": "dependency-pr/checks/go-build-vet.sh", "compare_base": true, "required": true, "gate": true, "timeout": 900 },
+    { "id": "go-test", "title": "go test ./... (isolated environment)", "script": "dependency-pr/checks/go-test.sh", "compare_base": true, "required": true, "gate": true, "timeout": 1800 },
+    { "id": "go-generate-drift", "title": "go generate makes no change, and the generated code builds", "script": "dependency-pr/checks/go-generate-drift.sh", "compare_base": true, "required": true, "timeout": 900 },
+    { "id": "govulncheck", "title": "govulncheck: no new reachable vulnerabilities since the last release", "script": "dependency-pr/checks/govulncheck.sh", "required": true, "timeout": 900 },
+    { "id": "golangci-lint", "title": "golangci-lint (pre-commit configuration)", "script": "dependency-pr/checks/golangci-lint.sh", "compare_base": true, "required": false, "profile": "full", "timeout": 900 },
+
+    { "id": "ui-npm-ci", "title": "UI: npm ci resolves", "script": "dependency-pr/checks/ui-npm-ci.sh", "compare_base": true, "required": true, "gate": true, "timeout": 900 },
+    { "id": "ui-lint", "title": "UI lint (eslint)", "script": "dependency-pr/checks/ui-lint.sh", "compare_base": true, "required": true, "timeout": 600 },
+    { "id": "ui-prettier", "title": "UI format (prettier --check)", "script": "dependency-pr/checks/ui-prettier.sh", "compare_base": true, "required": true, "timeout": 600 },
+    { "id": "ui-test", "title": "UI tests (vitest)", "script": "dependency-pr/checks/ui-test.sh", "compare_base": true, "required": true, "gate": true, "timeout": 900 },
+    { "id": "ui-build-drift", "title": "UI builds, and the committed dist/ is current", "script": "dependency-pr/checks/ui-build-drift.sh", "compare_base": true, "required": true, "gate": true, "timeout": 900 },
+    { "id": "ui-npm-audit", "title": "UI: npm audit (runtime dependencies), no new advisories", "script": "dependency-pr/checks/ui-npm-audit.sh", "required": false, "timeout": 300 },
+
+    { "id": "actionlint", "title": "actionlint", "script": "dependency-pr/checks/actionlint.sh", "compare_base": true, "required": true, "timeout": 600 },
+    { "id": "actions-pinning", "title": "Third-party actions use a commit SHA (SEC-7924)", "script": "dependency-pr/checks/actions-pinning.sh", "compare_base": true, "required": true, "timeout": 120 },
+
+    { "id": "binary-smoke", "title": "Binary smoke test: --version, help for all commands, dev-server serves the UI and API", "script": "dependency-pr/checks/binary-smoke.sh", "compare_base": true, "required": true, "gate": true, "timeout": 600 },
+    { "id": "cli-surface", "title": "Commands, flags, and defaults compared with the last release", "script": "release/checks/cli-surface.sh", "required": true, "timeout": 600 },
+    { "id": "npm-package-contents", "title": "The npm package contains only the files it needs", "script": "release/checks/npm-package-contents.sh", "required": true, "timeout": 300 },
+    { "id": "release-snapshot", "title": "All release targets cross-compile in goreleaser-cross (CGO)", "script": "dependency-pr/checks/release-snapshot.sh", "compare_base": true, "required": true, "gate": true, "profile": "full", "timeout": 2400 },
+    { "id": "docker-image", "title": "The release image builds and runs", "script": "dependency-pr/checks/docker-image.sh", "compare_base": true, "required": true, "gate": true, "profile": "full", "timeout": 900 }
+  ]
+}

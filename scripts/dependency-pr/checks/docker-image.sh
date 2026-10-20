@@ -84,7 +84,7 @@ if [ "$up" = true ] && jq -e 'type == "array"' <<<"$out" >/dev/null 2>&1; then
 else
   docker logs "$cid" >"$ARTIFACTS/dev-server.log" 2>&1
   detail_block "$ARTIFACTS/dev-server.log" 15
-  problems+=("dev-server does not start in the image")
+  problems+=("dev-server in the image does not answer on the published port (see dev-server.log)")
 fi
 
 if [ ${#problems[@]} -gt 0 ]; then

@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "_doc": "Product areas of ldcli. The inventory gives each changed file the first area whose paths match it. risk: low, medium, or high. why: the reason for the risk, for the agent and the report. tags: inputs for the 'when' field of checks/registry.json. shipped: false if the area is not in the binary, the npm package, or the Docker image.",
+  "areas": [
+    {
+      "id": "release-workflows",
+      "risk": "high",
+      "why": "Builds, signs, and publishes the release. PR CI does not run these files, so a mistake shows up only when the release runs.",
+      "paths": [".github/workflows/release-please.yml", ".github/workflows/manual-publish.yml", ".github/actions/**", "release-please-config.json", ".release-please-manifest.json", "scripts/publish-npm.sh"],
+      "tags": ["workflows"],
+      "shipped": false
+    },
+    {
+      "id": "release-artifacts",
+      "risk": "high",
+      "why": "Sets what goes into the binaries, the Docker image, and the npm package.",
+      "paths": [".goreleaser.yaml", "Dockerfile.goreleaser", "package.json", "package-lock.json", ".npmignore", "PROVENANCE.md"],
+      "tags": ["docker", "npm-package"],
+      "shipped": true
+    },
+    {
+      "id": "ci",
+      "risk": "medium",
+      "why": "Workflows that check pull requests. A broken workflow can let a bad change merge without a signal.",
+      "paths": [".github/**"],
+      "tags": ["workflows"],
+      "shipped": false
+    },
+    {
+      "id": "prompt-sync",
+      "risk": "high",
+      "why": "Writes files in the working copy of the user, and creates, changes, or deletes resources in LaunchDarkly.",
+      "paths": ["cmd/sync/**", "internal/sync/**"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "dev-server-network",
+      "risk": "high",
+      "why": "Opens a port on the machine of the user. SDKs and browsers connect to it.",
+      "paths": ["cmd/dev_server/**", "internal/dev_server/dev_server.go", "internal/dev_server/body_limit*.go", "internal/dev_server/sdk/**", "internal/dev_server/api/**", "internal/dev_server/adapters/**"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "dev-server-data",
+      "risk": "high",
+      "why": "Stores the data of the user in SQLite. A user upgrades with an existing database from an older version.",
+      "paths": ["internal/dev_server/db/**", "internal/dev_server/model/**", "internal/dev_server/events_db/**"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "dev-server-ui",
+      "risk": "medium",
+      "why": "The web UI of the dev server. The built dist/ is in the repository and goes into the binary.",
+      "paths": ["internal/dev_server/ui/**"],
+      "tags": ["ui"],
+      "shipped": true
+    },
+    {
+      "id": "dev-server-other",
+      "risk": "medium",
+      "why": "Other dev server code.",
+      "paths": ["internal/dev_server/**"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "auth-config",
+      "risk": "high",
+      "why": "Reads and stores access tokens and the configuration file. A mistake can leak a token or use the wrong account.",
+      "paths": ["cmd/login/**", "cmd/config/**", "cmd/cliflags/**", "internal/config/**", "internal/login/**"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "api-client",
+      "risk": "high",
+      "why": "Every command that calls the LaunchDarkly API goes through this code.",
+      "paths": ["internal/client/**", "internal/resources/**", "internal/flags/**", "internal/members/**", "internal/projects/**", "internal/environments/**", "internal/errors/**"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "aws-devops-agent",
+      "risk": "high",
+      "why": "Runs the AWS CLI and creates IAM roles and other resources in the AWS account of the user.",
+      "paths": ["cmd/aws_devops_agent/**", "internal/awsdevops/**"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "generated-commands",
+      "risk": "medium",
+      "why": "Resource commands generated from the OpenAPI spec.",
+      "paths": ["cmd/resources/**", "ld-openapi.json"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "go-dependencies",
+      "risk": "medium",
+      "why": "Go modules that go into the binary.",
+      "paths": ["go.mod", "go.sum"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "cli-core",
+      "risk": "medium",
+      "why": "The root command, help templates, analytics, and other commands.",
+      "paths": ["main.go", "cmd/**", "internal/**"],
+      "tags": ["go"],
+      "shipped": true
+    },
+    {
+      "id": "agent-tooling",
+      "risk": "low",
+      "why": "Instructions and hooks for coding agents. Not in the binary, the npm package, or the Docker image.",
+      "paths": [".agents/**", ".claude/**", ".cursor/**", ".codex/**", "AGENTS.md", "CLAUDE.md"],
+      "tags": [],
+      "shipped": false
+    },
+    {
+      "id": "repo-tooling",
+      "risk": "low",
+      "why": "Scripts and configuration for contributors. Not shipped.",
+      "paths": ["scripts/**", "Makefile", ".pre-commit-config.yaml", ".gitignore", "tools.go", "CODEOWNERS"],
+      "tags": [],
+      "shipped": false
+    },
+    {
+      "id": "docs",
+      "risk": "low",
+      "why": "Documentation only.",
+      "paths": ["**/*.md", "LICENSE"],
+      "tags": [],
+      "shipped": false
+    },
+    {
+      "id": "other",
+      "risk": "medium",
+      "why": "No area matches this path. Find out what it does.",
+      "paths": ["**"],
+      "tags": [],
+      "shipped": true
+    }
+  ]
+}
