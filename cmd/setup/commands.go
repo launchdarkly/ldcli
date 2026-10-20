@@ -109,22 +109,6 @@ func (m wizardModel) runCreateFlag() tea.Cmd {
 	}
 }
 
-func (m wizardModel) runInit() tea.Cmd {
-	return func() tea.Msg {
-		cfg := setup.InitConfig{
-			SDKKey:       m.sdkKey,
-			ClientSideID: m.clientSideID,
-			MobileKey:    m.mobileKey,
-			FlagKey:      m.flagKey,
-		}
-		result, err := m.svc.Inject(m.detectResult.SDKID, m.detectResult.EntryPoint, cfg)
-		if err != nil {
-			return wizardErrMsg{err: err}
-		}
-		return initDoneMsg{result: result}
-	}
-}
-
 func (m wizardModel) runVerify() tea.Cmd {
 	return func() tea.Msg {
 		result, err := m.svc.Verify(m.auth, m.selectedProject, m.selectedEnv, m.detectResult.SDKID)
