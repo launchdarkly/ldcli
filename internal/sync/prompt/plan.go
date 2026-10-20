@@ -12,10 +12,15 @@ import (
 type Action string
 
 const (
-	ActionInSync         Action = "in_sync"
-	ActionCreateServer   Action = "create_server"
-	ActionUpdateServer   Action = "update_server"
-	ActionUpdateLocal    Action = "update_local"
+	ActionInSync       Action = "in_sync"
+	ActionCreateServer Action = "create_server"
+	ActionUpdateServer Action = "update_server"
+	ActionUpdateLocal  Action = "update_local"
+	// ActionUpdateBoth writes the merged variation to LaunchDarkly and to the
+	// local file. Only a code_canonical variation uses it: LaunchDarkly gets
+	// the local prompt back, and the local file gets the other settings that
+	// changed in LaunchDarkly.
+	ActionUpdateBoth     Action = "update_both"
 	ActionDeleteLocal    Action = "delete_local"
 	ActionUpdateManifest Action = "update_manifest"
 	ActionRemoveManifest Action = "remove_manifest"
@@ -25,12 +30,12 @@ const (
 
 // changesServer reports whether the action writes to LaunchDarkly.
 func (action Action) changesServer() bool {
-	return action == ActionCreateServer || action == ActionUpdateServer
+	return action == ActionCreateServer || action == ActionUpdateServer || action == ActionUpdateBoth
 }
 
 // changesLocal reports whether the action writes a local file.
 func (action Action) changesLocal() bool {
-	return action == ActionUpdateLocal || action == ActionDeleteLocal
+	return action == ActionUpdateLocal || action == ActionDeleteLocal || action == ActionUpdateBoth
 }
 
 // ResourceID is the identity of a synchronized resource.
@@ -61,9 +66,14 @@ type PlannedResource struct {
 	// Direction is the side that wins when the two sides differ. The sync
 	// settings in LaunchDarkly set it.
 	Direction syncdomain.Direction
-	// RevertsServer is true when the action writes the local state to
-	// LaunchDarkly and removes a change that was made in LaunchDarkly. Only
-	// the direction code_canonical sets it.
+	// Merged is the local prompt with the other settings of LaunchDarkly. Only
+	// a code_canonical variation that exists on both sides has it, because
+	// that direction decides only the prompt.
+	Merged            *syncdomain.Variation
+	MergedFingerprint string
+	// RevertsServer is true when the action writes the local prompt to
+	// LaunchDarkly and removes a prompt change that was made in LaunchDarkly.
+	// Only the direction code_canonical sets it.
 	RevertsServer bool
 	// DiscardsLocal is true when the action writes the LaunchDarkly state to
 	// the local file and removes a local change. Only the direction
@@ -77,12 +87,18 @@ type PlannedResource struct {
 	// version of a tool or skill than its latest version.
 	ServerHasStaleAttachmentPins bool
 	Diff                         variationDiffFields
-	Error                        string
+	// LocalDiff is the change to the local file of an ActionUpdateBoth. Diff
+	// is then the change to LaunchDarkly.
+	LocalDiff variationDiffFields
+	Error     string
 	// changedAttachments are the tools and skills whose content differs
 	// between the local file and LaunchDarkly.
 	changedAttachments []ResourceID
 	// restoreRef is the link that a restored variation file keeps.
 	restoreRef *syncdomain.Reference
+	// swappedFingerprint is the fingerprint of the local settings with the
+	// LaunchDarkly prompt. Only a variation with Merged has it.
+	swappedFingerprint string
 	// directionDecided is true when both sides changed and the direction
 	// chose the side that wins. With DirectionBoth, the resource is a conflict.
 	directionDecided bool
@@ -167,6 +183,21 @@ func planResource(
 		}
 	}
 
+	if resource.Direction == syncdomain.DirectionCodeCanonical && resource.Local != nil && server.Variation != nil {
+		merged := server.Variation.WithPromptOf(*resource.Local)
+		if resource.MergedFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, merged); err != nil {
+			return fail(fmt.Sprintf("invalid merged variation: %s", err))
+		}
+		resource.Merged = &merged
+		// The local settings with the LaunchDarkly prompt. When it matches the
+		// baseline, the local file changed only the prompt and LaunchDarkly
+		// changed only the other settings.
+		swapped := resource.Local.WithPromptOf(*server.Variation)
+		if resource.swappedFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, swapped); err != nil {
+			return fail(fmt.Sprintf("invalid merged variation: %s", err))
+		}
+	}
+
 	choice := chooseAction(tracked, resource)
 	resource.Action, resource.Error = choice.action, choice.err
 	resource.RevertsServer, resource.DiscardsLocal = choice.revertsServer, choice.discardsLocal
@@ -181,7 +212,13 @@ func planResource(
 
 	// The diff shows only changes in behavior. The raw JSON can differ when
 	// the fingerprints match, for example because the API adds defaults.
-	if resource.LocalFingerprint != resource.ServerFingerprint {
+	switch {
+	case resource.Action == ActionUpdateBoth:
+		// LaunchDarkly gets the local prompt, and the local file gets the
+		// other settings of LaunchDarkly. Each side has its own diff.
+		resource.Diff = variationDiff(resource.Server, resource.Merged)
+		resource.LocalDiff = variationDiff(resource.Local, resource.Merged)
+	case resource.LocalFingerprint != resource.ServerFingerprint:
 		resource.Diff = variationDiff(resource.Server, resource.Local)
 	}
 	if stalePins && resource.Action != ActionConflict {
@@ -218,22 +255,59 @@ func chooseAction(tracked bool, resource PlannedResource) actionChoice {
 	}
 }
 
-// chooseCodeCanonicalAction makes the local file win. A missing local file is
-// still restored, because the working copy does not have it yet.
+// chooseCodeCanonicalAction makes the local prompt win. The other settings
+// sync in both directions. A missing local file is still restored, because
+// the working copy does not have it yet. A variation that is missing in
+// LaunchDarkly is created again from the local file.
 func chooseCodeCanonicalAction(action Action, resource PlannedResource) actionChoice {
 	switch {
 	case action == ActionUpdateLocal && resource.Local != nil:
-		// Only LaunchDarkly changed, so sync reverts the change.
-		return actionChoice{action: ActionUpdateServer, revertsServer: true}
+		// Only LaunchDarkly changed.
+		return chooseCodeCanonicalMerge(resource, false)
 	case action == ActionDeleteLocal:
 		// The variation was archived in LaunchDarkly, so sync creates it again.
 		return actionChoice{action: ActionCreateServer, revertsServer: true}
 	case action == ActionConflict && resource.Server == nil:
 		return actionChoice{action: ActionCreateServer, revertsServer: true, directionDecided: true}
 	case action == ActionConflict:
-		return actionChoice{action: ActionUpdateServer, revertsServer: true, directionDecided: true}
+		// Both sides changed, or sync has no baseline.
+		return chooseCodeCanonicalMerge(resource, true)
 	default:
 		return withMissingServerError(actionChoice{action: action})
+	}
+}
+
+// chooseCodeCanonicalMerge compares the merged variation with each side. The
+// merge differs from LaunchDarkly when the prompts differ, and it differs
+// from the local file when the other settings differ. bothChanged is true
+// when the local file also changed, so a difference in the other settings
+// is a conflict.
+func chooseCodeCanonicalMerge(resource PlannedResource, bothChanged bool) actionChoice {
+	promptDiffers := resource.MergedFingerprint != resource.ServerFingerprint
+	settingsDiffer := resource.MergedFingerprint != resource.LocalFingerprint
+	tracked := resource.BaselineFingerprint != ""
+	switch {
+	case bothChanged && tracked && resource.MergedFingerprint == resource.BaselineFingerprint:
+		// LaunchDarkly changed only the prompt, and the local file changed only
+		// the other settings. The local file has the result.
+		return actionChoice{action: ActionUpdateServer, revertsServer: true, directionDecided: true}
+	case bothChanged && tracked && resource.swappedFingerprint == resource.BaselineFingerprint:
+		// The local file changed only the prompt, and LaunchDarkly changed only
+		// the other settings. The merge has both changes.
+		return actionChoice{action: ActionUpdateBoth}
+	case settingsDiffer && bothChanged:
+		// Both sides changed the other settings. The prompt is still decided:
+		// each conflict choice keeps the local prompt.
+		return actionChoice{action: ActionConflict}
+	case promptDiffers && settingsDiffer:
+		return actionChoice{action: ActionUpdateBoth, revertsServer: true}
+	case promptDiffers:
+		return actionChoice{action: ActionUpdateServer, revertsServer: true, directionDecided: bothChanged}
+	case settingsDiffer:
+		// Only the other settings changed in LaunchDarkly, so the file follows.
+		return actionChoice{action: ActionUpdateLocal}
+	default:
+		return actionChoice{action: ActionUpdateManifest}
 	}
 }
 
@@ -341,7 +415,7 @@ func (plan Plan) HasDestructiveActions() bool {
 	})
 }
 
-// HasOverwrites reports whether the plan reverts a change made in
+// HasOverwrites reports whether the plan reverts a prompt change made in
 // LaunchDarkly or discards a local change.
 func (plan Plan) HasOverwrites() bool {
 	return slices.ContainsFunc(plan.Resources, func(resource PlannedResource) bool {

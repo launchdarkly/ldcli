@@ -96,6 +96,8 @@ func attachmentManifestState(resource PlannedResource) *syncdomain.Variation {
 		return resource.Local
 	case ActionUpdateLocal:
 		return resource.Server
+	case ActionUpdateBoth:
+		return resource.Merged
 	default:
 		return nil
 	}
@@ -106,6 +108,8 @@ func recordSuccessfulChange(manifest *syncmanifest.Manifest, resource PlannedRes
 	switch {
 	case resource.Action == ActionDeleteLocal:
 		manifest.Remove(resource.ID)
+	case resource.Action == ActionUpdateBoth:
+		manifest.SetFingerprint(resource.ID, resource.MergedFingerprint)
 	case resource.Action.changesServer():
 		manifest.SetFingerprint(resource.ID, resource.LocalFingerprint)
 	default:
@@ -125,6 +129,9 @@ func applyResourceChange(
 	resource PlannedResource,
 	localFile *syncdomain.Variation,
 ) (int, error) {
+	if resource.Action == ActionUpdateBoth {
+		return applyMergedChange(repositoryRoot, localStore, client, attachments, resource, localFile)
+	}
 	if resource.Action.changesServer() {
 		return applyServerChange(client, attachments, resource)
 	}
@@ -158,6 +165,39 @@ func applyResourceChange(
 		return client.UpdateVariation(resource.ID.ProjectKey, configKey, pinned)
 	}
 	return 0, nil
+}
+
+// applyMergedChange writes the merged variation of an ActionUpdateBoth to
+// LaunchDarkly first, and then to the local file. If the server write fails,
+// the local file does not change.
+func applyMergedChange(
+	repositoryRoot string,
+	localStore synclocal.Store,
+	client syncapi.Client,
+	attachments *attachmentResolver,
+	resource PlannedResource,
+	localFile *syncdomain.Variation,
+) (int, error) {
+	if resource.Merged == nil {
+		return 0, errors.New("the merged variation is missing")
+	}
+	toServer := resource
+	toServer.Action = ActionUpdateServer
+	toServer.Local, toServer.LocalFingerprint = resource.Merged, resource.MergedFingerprint
+	version, err := applyServerChange(client, attachments, toServer)
+	if err != nil {
+		return 0, err
+	}
+
+	// The local write uses the form of the local file, as ActionUpdateLocal does.
+	toLocal := resource
+	toLocal.Action = ActionUpdateLocal
+	variation := variationForLocalFile(*resource.Merged, localFile, resource.Local)
+	toLocal.Server = &variation
+	if err := applyLocalChange(localStore, toLocal); err != nil {
+		return version, err
+	}
+	return version, verifyLocalResult(repositoryRoot, toLocal)
 }
 
 // applyServerChange writes one variation to LaunchDarkly, and returns the

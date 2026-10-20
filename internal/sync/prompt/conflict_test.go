@@ -403,7 +403,7 @@ func TestResolveConflictsDoesNotPromptWhenDirectionDecides(t *testing.T) {
 		{syncdomain.DirectionServerCanonical, ActionUpdateLocal},
 	} {
 		t.Run(string(test.direction), func(t *testing.T) {
-			plan := divergentPlanWithDirection(t, test.direction)
+			plan := divergentPromptPlan(t, test.direction)
 			var output bytes.Buffer
 
 			result, err := resolveConflicts(Options{ErrorOutput: &output}, plan, strings.NewReader(""), false, nil)
@@ -425,10 +425,9 @@ func TestResolveConflictsRejectsPolicyThatContradictsDirection(t *testing.T) {
 		policy    ConflictPolicy
 		err       string
 	}{
-		{
-			"--conflict launchdarkly with code_canonical", syncdomain.DirectionCodeCanonical,
-			ConflictPolicy{Default: ConflictUseLaunchDarkly}, "--conflict launchdarkly does not agree",
-		},
+		// A code_canonical direction decides only the prompt, so a choice of
+		// LaunchDarkly takes its other settings and keeps the local prompt.
+		{"--conflict launchdarkly with code_canonical", syncdomain.DirectionCodeCanonical, ConflictPolicy{Default: ConflictUseLaunchDarkly}, ""},
 		{
 			"--resolve local with server_canonical", syncdomain.DirectionServerCanonical,
 			ConflictPolicy{Default: ConflictUseLaunchDarkly, Overrides: map[ResourceID]ConflictResolution{id: ConflictUseLocal}},
@@ -440,7 +439,7 @@ func TestResolveConflictsRejectsPolicyThatContradictsDirection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			plan := divergentPlanWithDirection(t, test.direction)
+			plan := divergentPromptPlan(t, test.direction)
 			options := Options{ConflictPolicy: test.policy, ErrorOutput: io.Discard}
 
 			_, err := resolveConflicts(options, plan, strings.NewReader(""), false, nil)
@@ -463,7 +462,7 @@ func TestResolveConflictsUsesDirectionOfVariationThatSharesAttachment(t *testing
 	}
 	directed := PlannedResource{
 		ID:     ResourceID{Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/second"},
-		Action: ActionUpdateServer, Direction: syncdomain.DirectionCodeCanonical, RevertsServer: true,
+		Action: ActionUpdateLocal, Direction: syncdomain.DirectionServerCanonical, DiscardsLocal: true,
 		directionDecided: true, changedAttachments: []ResourceID{tool},
 	}
 	plan := Plan{Resources: []PlannedResource{conflicted, directed}}
@@ -472,18 +471,18 @@ func TestResolveConflictsUsesDirectionOfVariationThatSharesAttachment(t *testing
 	result, err := resolveConflicts(Options{ErrorOutput: &output}, plan, strings.NewReader(""), false, nil)
 
 	require.NoError(t, err)
-	assert.Equal(t, ConflictUseLocal, result.resolutions[conflicted.ID])
-	assert.Contains(t, output.String(), "Using local.")
+	assert.Equal(t, ConflictUseLaunchDarkly, result.resolutions[conflicted.ID])
+	assert.Contains(t, output.String(), "Using LaunchDarkly.")
 
 	options := Options{
-		ConflictPolicy: ConflictPolicy{Overrides: map[ResourceID]ConflictResolution{conflicted.ID: ConflictUseLaunchDarkly}},
+		ConflictPolicy: ConflictPolicy{Overrides: map[ResourceID]ConflictResolution{conflicted.ID: ConflictUseLocal}},
 		ErrorOutput:    io.Discard,
 	}
 	_, err = resolveConflicts(options, plan, strings.NewReader(""), false, nil)
 	require.ErrorContains(t, err, "does not agree with the sync direction")
 }
 
-func TestResolveConflictsRejectsSharedAttachmentWithOpposedDirections(t *testing.T) {
+func TestResolveConflictsDoesNotLetCodeCanonicalChooseSharedAttachment(t *testing.T) {
 	tool := ResourceID{Kind: syncdomain.KindTool, ProjectKey: "project", LookupKey: "search"}
 	resource := func(key string, direction syncdomain.Direction, action Action) PlannedResource {
 		return PlannedResource{
@@ -497,9 +496,70 @@ func TestResolveConflictsRejectsSharedAttachmentWithOpposedDirections(t *testing
 		resource("config/third", syncdomain.DirectionServerCanonical, ActionUpdateLocal),
 	}}
 
-	_, err := resolveConflicts(Options{ErrorOutput: io.Discard}, plan, strings.NewReader(""), true, nil)
+	result, err := resolveConflicts(Options{ErrorOutput: io.Discard}, plan, strings.NewReader(""), false, nil)
 
-	require.ErrorContains(t, err, "sync directions do not agree")
+	// A tool is not part of the prompt, so only server_canonical chooses a side.
+	require.NoError(t, err)
+	assert.Equal(t, ConflictUseLaunchDarkly, result.resolutions[plan.Resources[0].ID])
+}
+
+func TestResolveConflictsCodeCanonicalKeepsLocalPrompt(t *testing.T) {
+	baseline := testVariation("baseline")
+	local, server := baseline, baseline
+	local.Name, server.Name = "local", "server"
+	local.Instructions, server.Instructions = "Local prompt", "Server prompt"
+	tests := []struct {
+		name       string
+		resolution ConflictResolution
+		server     syncdomain.Variation
+		action     Action
+		reverts    bool
+	}{
+		{"LaunchDarkly with a different prompt", ConflictUseLaunchDarkly, server, ActionUpdateBoth, true},
+		{"LaunchDarkly with the same prompt", ConflictUseLaunchDarkly, withInstructions(server, "Local prompt"), ActionUpdateLocal, false},
+		{"local", ConflictUseLocal, server, ActionUpdateServer, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			plan := planWithBaseline(t, baseline, local, test.server, syncdomain.DirectionCodeCanonical)
+			require.Equal(t, ActionConflict, plan.Resources[0].Action)
+			options := Options{ConflictPolicy: ConflictPolicy{Default: test.resolution}, ErrorOutput: io.Discard}
+
+			result, err := resolveConflicts(options, plan, strings.NewReader(""), false, nil)
+			require.NoError(t, err)
+			resolved := applyConflictResolutions(plan, result.resolutions)
+
+			resource := resolved.Resources[0]
+			assert.Equal(t, test.action, resource.Action)
+			assert.Equal(t, test.reverts, resource.RevertsServer)
+			assert.Equal(t, "Local prompt", resource.Merged.Instructions)
+			assert.Equal(t, test.server.Name, resource.Merged.Name)
+		})
+	}
+}
+
+func withInstructions(variation syncdomain.Variation, instructions string) syncdomain.Variation {
+	variation.Instructions = instructions
+	return variation
+}
+
+// divergentPromptPlan is a plan in which both sides changed only the prompt.
+func divergentPromptPlan(t *testing.T, direction syncdomain.Direction) Plan {
+	t.Helper()
+	baseline := testVariation("baseline")
+	return planWithBaseline(t, baseline, withInstructions(baseline, "Local prompt"), withInstructions(baseline, "Server prompt"), direction)
+}
+
+func planWithBaseline(t *testing.T, baseline, local, server syncdomain.Variation, direction syncdomain.Direction) Plan {
+	t.Helper()
+	id := testResourceID()
+	baselineFingerprint, err := syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, baseline)
+	require.NoError(t, err)
+	manifest := syncmanifest.New()
+	manifest.SetFingerprint(id, baselineFingerprint)
+	return BuildPlan(manifest, localResources(&local, true), map[ResourceID]ServerResource{
+		id: {Variation: &server, ConfigMode: syncdomain.VariationModeAgent, Direction: direction},
+	})
 }
 
 func divergentPlan(t *testing.T) Plan {

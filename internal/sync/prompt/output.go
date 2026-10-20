@@ -83,6 +83,7 @@ func writePlanOutput(out io.Writer, outputKind string, plan Plan) error {
 		Suggestion      string               `json:"suggestion,omitempty"`
 		Error           string               `json:"error,omitempty"`
 		Diff            variationDiffFields  `json:"diff,omitempty"`
+		LocalDiff       variationDiffFields  `json:"localDiff,omitempty"`
 	}
 	resources := make([]planResourceOutput, 0, len(plan.Resources))
 	for _, resource := range plan.Resources {
@@ -96,6 +97,7 @@ func writePlanOutput(out io.Writer, outputKind string, plan Plan) error {
 			Suggestion:      staleSuggestion(resource),
 			Error:           resource.Error,
 			Diff:            resource.Diff,
+			LocalDiff:       resource.LocalDiff,
 		})
 	}
 	return writeJSON(out, map[string]any{"resources": resources})
@@ -200,7 +202,7 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 			detail("Direction", directionDescription(direction))
 		}
 		if resource.RevertsServer {
-			detail("Note", "Reverts a change made in LaunchDarkly")
+			detail("Note", "Reverts a prompt change made in LaunchDarkly")
 		}
 		if resource.DiscardsLocal {
 			detail("Note", "Discards a local change")
@@ -219,6 +221,13 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 			}
 			_ = console.Write(rendered)
 		}
+		if len(resource.LocalDiff) != 0 {
+			rendered, err := renderVariationDiff(resource.LocalDiff, outputKind, width, diffPresentation(ActionUpdateLocal))
+			if err != nil {
+				return err
+			}
+			_ = console.Write(rendered)
+		}
 	}
 	return nil
 }
@@ -227,7 +236,7 @@ func writePlanReview(out io.Writer, outputKind string, plan Plan, width int) err
 func directionDescription(direction syncdomain.Direction) string {
 	switch direction {
 	case syncdomain.DirectionCodeCanonical:
-		return "code_canonical (the local file wins)"
+		return "code_canonical (the local prompt wins, and the other settings sync both ways)"
 	case syncdomain.DirectionServerCanonical:
 		return "server_canonical (LaunchDarkly wins)"
 	default:
@@ -271,6 +280,8 @@ func actionDescription(action Action) string {
 		return "Update LaunchDarkly from the local file"
 	case ActionUpdateLocal:
 		return "Update the local file from LaunchDarkly"
+	case ActionUpdateBoth:
+		return "Keep the local prompt in LaunchDarkly, and update the other settings in the local file"
 	case ActionDeleteLocal:
 		return "Delete the local file"
 	case ActionUpdateManifest:
@@ -299,7 +310,7 @@ func diffPresentation(action Action) variationDiffPresentation {
 	switch action {
 	case ActionUpdateLocal, ActionDeleteLocal:
 		return variationDiffPresentation{beforeLabel: "Local file now", afterLabel: "Local file after sync", reverse: true}
-	case ActionCreateServer, ActionUpdateServer:
+	case ActionCreateServer, ActionUpdateServer, ActionUpdateBoth:
 		return variationDiffPresentation{beforeLabel: "LaunchDarkly now", afterLabel: "LaunchDarkly after sync"}
 	default:
 		return variationDiffPresentation{beforeLabel: "LaunchDarkly now", afterLabel: "Local file now"}

@@ -59,7 +59,8 @@ func (runner Runner) runSourceOfTruth(options Options, workspace syncWorkspace, 
 // variations now is.
 func sourceOfTruthSummary(direction syncdomain.Direction) string {
 	if direction == syncdomain.DirectionCodeCanonical {
-		return "The local files are now the source of truth for these variations. LaunchDarkly rejects other changes to them."
+		return "The local files are now the source of truth for the prompts of these variations. " +
+			"LaunchDarkly rejects other changes to the prompts. The other settings sync both ways."
 	}
 	return "The LaunchDarkly UI and the local files can now both change these variations. " +
 		"If both sides change a variation, sync asks which side to keep."

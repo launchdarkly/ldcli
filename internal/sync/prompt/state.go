@@ -286,6 +286,7 @@ func samePlannedResourceState(reviewed, current PlannedResource) bool {
 		reviewed.BaselineFingerprint == current.BaselineFingerprint &&
 		reviewed.LocalFingerprint == current.LocalFingerprint &&
 		reviewed.ServerFingerprint == current.ServerFingerprint &&
+		reviewed.MergedFingerprint == current.MergedFingerprint &&
 		reviewed.ServerMode == current.ServerMode &&
 		reviewed.Direction == current.Direction &&
 		reviewed.Upsert == current.Upsert &&

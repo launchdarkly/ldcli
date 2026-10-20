@@ -17,6 +17,7 @@ type ConflictResolution string
 
 const (
 	// ConflictUseLaunchDarkly writes the LaunchDarkly state to the local file.
+	// A code_canonical variation keeps its local prompt.
 	ConflictUseLaunchDarkly ConflictResolution = "launchdarkly"
 	// ConflictUseLocal writes the local state to LaunchDarkly.
 	ConflictUseLocal ConflictResolution = "local"
@@ -86,7 +87,7 @@ func (policy ConflictPolicy) checkDirections(plan Plan) error {
 			selected, flag = policy.Default, "--conflict"
 		}
 		winner := directionWinner(resource.Direction)
-		if selected == "" || selected == ConflictAbort || selected == winner {
+		if winner == "" || selected == "" || selected == ConflictAbort || selected == winner {
 			continue
 		}
 		return fmt.Errorf(
@@ -98,11 +99,12 @@ func (policy ConflictPolicy) checkDirections(plan Plan) error {
 }
 
 // directionWinner returns the side that a direction makes win, or an empty
-// resolution for DirectionBoth.
+// resolution when the direction does not choose a side. DirectionBoth does
+// not choose. DirectionCodeCanonical decides only the prompt, and every
+// conflict choice keeps the local prompt, so it does not choose a side for
+// the other settings either.
 func directionWinner(direction syncdomain.Direction) ConflictResolution {
 	switch direction {
-	case syncdomain.DirectionCodeCanonical:
-		return ConflictUseLocal
 	case syncdomain.DirectionServerCanonical:
 		return ConflictUseLaunchDarkly
 	default:
@@ -378,6 +380,12 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 		resource := &resolved.Resources[index]
 		if resolution, ok := resolutions[resource.ID]; ok {
 			resource.Action = resolvedConflictAction(*resource, resolution)
+			if resource.Merged != nil {
+				// A code_canonical choice writes the local prompt to LaunchDarkly
+				// when the prompts differ.
+				resource.RevertsServer = resource.Action.changesServer() &&
+					resource.MergedFingerprint != resource.ServerFingerprint
+			}
 		}
 	}
 	return resolved
@@ -387,10 +395,16 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 func resolvedConflictAction(resource PlannedResource, resolution ConflictResolution) Action {
 	switch resolution {
 	case ConflictUseLaunchDarkly:
-		if resource.Server == nil {
+		switch {
+		case resource.Server == nil:
 			return ActionDeleteLocal
+		case resource.Merged != nil && resource.MergedFingerprint != resource.ServerFingerprint:
+			// A code_canonical variation keeps the local prompt. LaunchDarkly
+			// gets it back, and the local file gets the other settings.
+			return ActionUpdateBoth
+		default:
+			return ActionUpdateLocal
 		}
-		return ActionUpdateLocal
 	case ConflictUseLocal:
 		// A conflict always has a local file, because a missing file is restored.
 		if resource.Server == nil {

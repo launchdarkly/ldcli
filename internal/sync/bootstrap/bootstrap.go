@@ -43,9 +43,9 @@ type Options struct {
 	Store       synclocal.Store
 	Baselines   syncmanifest.Baselines
 	// Settings makes each added variation code canonical. Code canonical
-	// means that the local file is the source of truth, and LaunchDarkly
-	// rejects a change that does not come from sync. If Settings is nil, add
-	// does not change the sync settings.
+	// means that the local file is the source of truth for the prompt, and
+	// LaunchDarkly rejects a prompt change that does not come from sync. If
+	// Settings is nil, add does not change the sync settings.
 	Settings SettingsWriter
 	Input    io.Reader
 	Output   io.Writer
@@ -279,7 +279,8 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	writeSummary(options.Output, options.Initial, len(creation.VariationPaths))
 	if adopted {
 		_ = syncconsole.New(options.Output).Line(
-			"The local files are now the source of truth for these variations. LaunchDarkly rejects other changes to them.",
+			"The local files are now the source of truth for the prompts of these variations. " +
+				"LaunchDarkly rejects other changes to the prompts. The other settings sync both ways.",
 		)
 	}
 	return nil

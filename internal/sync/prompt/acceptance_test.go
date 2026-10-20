@@ -1100,8 +1100,10 @@ func TestPromptCodeCanonicalRevertsChangeMadeInLaunchDarkly(t *testing.T) {
 	baseline := variation("Baseline")
 	writeVariation(t, root, baseline, false)
 	writeManifest(t, root, baseline)
+	changed := baseline
+	changed.Instructions = "Changed in the UI"
 	api := &directAPI{
-		variation:  pointer(variation("Changed in the UI")),
+		variation:  pointer(changed),
 		directions: map[string]syncdomain.Direction{"support/default": syncdomain.DirectionCodeCanonical},
 	}
 
@@ -1110,16 +1112,45 @@ func TestPromptCodeCanonicalRevertsChangeMadeInLaunchDarkly(t *testing.T) {
 	assert.Contains(t, stdout, `"action": "update_server"`)
 	assert.Contains(t, stdout, `"direction": "code_canonical"`)
 	assert.Contains(t, stdout, `"reverts": true`)
-	assert.Equal(t, "Changed in the UI", api.variation.Name)
+	assert.Equal(t, "Changed in the UI", api.variation.Instructions)
 
 	stdout, stderr, err := runPrompt(t, root, api, "--yes", "--output", "json")
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Direction: code_canonical (the local file wins)")
-	assert.Contains(t, stderr, "Reverts a change made in LaunchDarkly")
+	assert.Contains(t, stderr, "Direction: code_canonical (the local prompt wins, and the other settings sync both ways)")
+	assert.Contains(t, stderr, "Reverts a prompt change made in LaunchDarkly")
 	assert.Contains(t, stdout, `"reverts": true`)
-	assert.Equal(t, baseline.Name, api.variation.Name)
+	assert.Equal(t, baseline.Instructions, api.variation.Instructions)
 	assertManifestFingerprint(t, root, baseline)
+}
+
+func TestPromptCodeCanonicalRevertsPromptAndPullsOtherSettings(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	changed := baseline
+	changed.Instructions = "Changed in the UI"
+	changed.Model = map[string]any{"name": "gpt-5"}
+	api := &directAPI{
+		variation:  pointer(changed),
+		directions: map[string]syncdomain.Direction{"support/default": syncdomain.DirectionCodeCanonical},
+	}
+
+	stdout, stderr, err := runPrompt(t, root, api, "--yes", "--output", "json")
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, `"action": "update_both"`)
+	assert.Contains(t, stdout, `"reverts": true`)
+	assert.Contains(t, stderr, "Keep the local prompt in LaunchDarkly, and update the other settings in the local file")
+	merged := baseline
+	merged.Model = changed.Model
+	assert.Equal(t, baseline.Instructions, api.variation.Instructions, "LaunchDarkly gets the local prompt back")
+	assert.Equal(t, changed.Model, api.variation.Model, "LaunchDarkly keeps its model")
+	local := readVariation(t, root)
+	assert.Equal(t, baseline.Instructions, local.Instructions, "the local prompt does not change")
+	assert.Equal(t, changed.Model, local.Model, "the local file gets the model")
+	assertManifestFingerprint(t, root, merged)
 }
 
 func TestPromptServerCanonicalDiscardsLocalChange(t *testing.T) {
@@ -1678,4 +1709,13 @@ func toolAttachment(tool syncdomain.Tool, version int) syncdomain.Attachment {
 
 func pointer[T any](value T) *T {
 	return &value
+}
+
+// readVariation returns the variation of the support config's local file.
+func readVariation(t *testing.T, root string) syncdomain.Variation {
+	t.Helper()
+	resources, err := synclocal.CompileWorkspace(root)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	return resources[0].Variation
 }

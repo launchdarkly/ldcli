@@ -219,3 +219,14 @@ func (variation Variation) attachmentIndex(kind AttachmentKind, key string) int 
 		return attachment.Kind == kind && attachment.Key() == key
 	})
 }
+
+// WithPromptOf returns a copy of the variation that has the prompt of source.
+// The prompt is the instructions of an agent variation and the messages of a
+// completion or judge variation. A code_canonical direction decides only the
+// prompt, so sync builds this merge of the local prompt and the other
+// settings in LaunchDarkly.
+func (variation Variation) WithPromptOf(source Variation) Variation {
+	variation.Instructions = source.Instructions
+	variation.Messages = slices.Clone(source.Messages)
+	return variation
+}

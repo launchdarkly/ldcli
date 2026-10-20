@@ -86,8 +86,17 @@ func TestBuildPlanFirstSync(t *testing.T) {
 
 func TestBuildPlanDirectionMatrix(t *testing.T) {
 	baseline := testVariation("baseline")
-	localChange := testVariation("local")
-	serverChange := testVariation("server")
+	// localChange and serverChange change the prompt. A code_canonical
+	// direction decides the prompt.
+	localChange, serverChange := baseline, baseline
+	localChange.Instructions, serverChange.Instructions = "Local prompt", "Server prompt"
+	// The settings changes change the name, which is not part of the prompt.
+	localSettings, serverSettings := baseline, baseline
+	localSettings.Name, serverSettings.Name = "local", "server"
+	localPromptAndSettings := localChange
+	localPromptAndSettings.Name = "local"
+	serverPromptAndSettings := serverChange
+	serverPromptAndSettings.Name = "server"
 	both, code, server := syncdomain.DirectionBoth, syncdomain.DirectionCodeCanonical, syncdomain.DirectionServerCanonical
 
 	type expectation struct {
@@ -152,6 +161,21 @@ func TestBuildPlanDirectionMatrix(t *testing.T) {
 		{"no baseline and different, server", false, &localChange, &serverChange, false, server,
 			expectation{action: ActionUpdateLocal, discards: true, decided: true}},
 
+		{"only LaunchDarkly changed other settings, code", true, &baseline, &serverSettings, false, code,
+			expectation{action: ActionUpdateLocal}},
+		{"LaunchDarkly changed the prompt and other settings, code", true, &baseline, &serverPromptAndSettings, false, code,
+			expectation{action: ActionUpdateBoth, reverts: true}},
+		{"local changed the prompt, LaunchDarkly changed other settings, code", true, &localChange, &serverSettings, false, code,
+			expectation{action: ActionUpdateBoth}},
+		{"local changed other settings, LaunchDarkly changed the prompt, code", true, &localSettings, &serverChange, false, code,
+			expectation{action: ActionUpdateServer, reverts: true, decided: true}},
+		{"both changed the prompt and other settings differently, code", true, &localPromptAndSettings, &serverPromptAndSettings, false, code,
+			expectation{action: ActionConflict}},
+		{"both changed other settings differently, code", true, &localSettings, &serverSettings, false, code,
+			expectation{action: ActionConflict}},
+		{"no baseline and different other settings, code", false, &localSettings, &serverSettings, false, code,
+			expectation{action: ActionConflict}},
+
 		{"unchanged, code", true, &baseline, &baseline, false, code, expectation{action: ActionInSync}},
 		{"unchanged, server", true, &baseline, &baseline, false, server, expectation{action: ActionInSync}},
 		{"same edit, code", true, &localChange, &localChange, false, code, expectation{action: ActionUpdateManifest}},
@@ -203,7 +227,8 @@ func TestBuildPlanUpdatesStalePinsOfCodeCanonicalRevert(t *testing.T) {
 	baseline := testVariation("baseline")
 	baseline.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
 	baseline.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Tool: &tool}}
-	server := testVariation("server")
+	server := testVariation("baseline")
+	server.Instructions = "Changed in LaunchDarkly"
 	server.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
 	server.Attachments = []syncdomain.Attachment{{Kind: syncdomain.AttachmentTool, Version: 2, Tool: &tool}}
 

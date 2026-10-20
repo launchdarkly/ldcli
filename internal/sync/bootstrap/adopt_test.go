@@ -69,7 +69,7 @@ func TestFinishSelectionAdoptsEachVariation(t *testing.T) {
 		{projectKey: "alpha", upserts: []syncapi.SyncSettingRule{rule("support-bot/default"), rule("support-bot/short")}},
 		{projectKey: "beta", upserts: []syncapi.SyncSettingRule{rule("support-bot/default")}},
 	}, settings.patches)
-	assert.Contains(t, output.String(), "The local files are now the source of truth for these variations.")
+	assert.Contains(t, output.String(), "The local files are now the source of truth for the prompts of these variations.")
 }
 
 func TestFinishSelectionWithoutSettingsWriterWritesNoRule(t *testing.T) {

@@ -48,7 +48,7 @@ func TestPromptAddMakesVariationCodeCanonical(t *testing.T) {
 		"upserts": [{"resourceKind":"variation","resourcePattern":"support/default","direction":"code_canonical"}],
 		"deletions": []
 	}`, api.settingsPatches[0])
-	assert.Contains(t, stdout, "The local files are now the source of truth for these variations.")
+	assert.Contains(t, stdout, "The local files are now the source of truth for the prompts of these variations.")
 	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
 	require.NoError(t, err)
 	assert.True(t, exists)
@@ -83,7 +83,7 @@ func TestPromptSourceOfTruthChangesRuleAndKeepsFile(t *testing.T) {
 		"upserts": [{"resourceKind":"variation","resourcePattern":"support/default","direction":"code_canonical"}],
 		"deletions": []
 	}`, api.settingsPatches[0])
-	assert.Contains(t, stdout, "The local files are now the source of truth for these variations.")
+	assert.Contains(t, stdout, "The local files are now the source of truth for the prompts of these variations.")
 	assert.Empty(t, api.reports, "source-of-truth does not sync")
 	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
 	require.NoError(t, err)

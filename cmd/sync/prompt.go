@@ -41,7 +41,7 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 		Long: "Bootstrap local prompt variations from LaunchDarkly, add more variations, or synchronize changes using the LaunchDarkly manifest. " +
 			"Sync rechecks state before every write, rerun sync after a change. " +
 			"The sync settings of a project can make the local file or LaunchDarkly win for a variation. " +
-			"Sync then does not ask about a conflict for that variation.",
+			"A code canonical variation keeps the prompt of its local file, and its other settings sync both ways.",
 		Example: `  # Preview synchronization changes
   ldcli sync prompts --dry-run
 
@@ -144,8 +144,9 @@ func newAddCmd(client resources.Client) *cobra.Command {
 		Short: "Add prompt variations from LaunchDarkly",
 		Long: "Write LaunchDarkly prompt variations as local files, and start to sync them. " +
 			"Add also makes each variation code canonical. " +
-			"Code canonical means that the local file is the source of truth. " +
-			"LaunchDarkly then rejects each change to the variation that does not come from sync. " +
+			"Code canonical means that the local file is the source of truth for the prompt. " +
+			"LaunchDarkly then rejects each prompt change that does not come from sync. " +
+			"The other settings, such as the model and the tools, sync both ways. " +
 			"To keep the sync settings of the variations as they are, use --no-adopt.",
 		Example: `  # Choose variations interactively
   ldcli sync prompts add
@@ -308,7 +309,7 @@ func newSourceOfTruthCmd(client resources.Client) *cobra.Command {
 		Long: "Change the source of truth of prompt variations that already sync. " +
 			"The command writes the sync settings rule of each variation and keeps the local files. " +
 			"With ui-and-code, the LaunchDarkly UI and the local file can both change the variation. " +
-			"With code-only, LaunchDarkly rejects each change to the variation that does not come from sync. " +
+			"With code-only, LaunchDarkly rejects each prompt change that does not come from sync, and the other settings sync both ways. " +
 			"To add a variation that does not sync yet, use add.",
 		Example: `  # Make the local file the only source of truth
   ldcli sync prompts source-of-truth code-only production/support/default
