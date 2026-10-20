@@ -86,11 +86,7 @@ func (o *OpenCode) Start(ctx context.Context, task Task) (Run, error) {
 		return nil, err
 	}
 
-	prompt := cfg.Task
-	if prompt == "" {
-		prompt = BuildPrompt(task)
-	}
-	run, err := startRun(ctx, srv.client, cfg, prompt)
+	run, err := startRun(ctx, srv.client, cfg, BuildPrompt(task))
 	if err != nil {
 		srv.stop()
 		return nil, err

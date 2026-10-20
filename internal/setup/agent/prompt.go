@@ -46,33 +46,6 @@ Follow these rules:
 - Follow the code style of the project.
 - When you finish, list the files that you changed and say in one sentence how the user can see the flag value.`
 
-// StartMessage is the task message when the AI Config's instructions describe
-// the task themselves.
-const StartMessage = "Do the setup task that your instructions describe, in the project in the current directory."
-
-// TaskVariables are the values that an AI Config's instructions can use as
-// {{name}} placeholders. They are the facts that the CLI detected and the
-// choices that it made earlier in setup.
-//
-//   - sdkId: the SDK, for example python-server-sdk
-//   - language, framework, packageManager: detected facts; empty if unknown
-//   - entryPoint: the detected entry point; empty if none was found
-//   - sdkInstalled: true if the install step added the SDK package
-//   - flagKey: the flag that the new code evaluates
-//   - credentialEnvVar: the environment variable that holds the SDK credential
-func TaskVariables(t Task) map[string]any {
-	return map[string]any{
-		"sdkId":            t.SDKID,
-		"language":         t.Language,
-		"framework":        t.Framework,
-		"packageManager":   t.PackageManager,
-		"entryPoint":       t.EntryPoint,
-		"sdkInstalled":     t.SDKInstalled,
-		"flagKey":          t.FlagKey,
-		"credentialEnvVar": CredentialEnvVar(t.SDKID),
-	}
-}
-
 // BuildPrompt returns the task message for one run.
 func BuildPrompt(t Task) string {
 	var b strings.Builder
