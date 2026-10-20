@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -98,6 +99,17 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectList.SetShowStatusBar(false)
 		keepEscFromQuitting(&m.projectList)
 		m.projectList.AdditionalShortHelpKeys = listHints(false)
+		if preset := m.presetProject; preset != "" && m.step == stepSelectProject {
+			m.presetProject = ""
+			if !slices.ContainsFunc(msg.projects, func(p projectItem) bool { return p.key == preset }) {
+				m.err = errors.New("Setup could not find the project " + strconv.Quote(preset) + ". Check the --project value.")
+				return m, nil
+			}
+			m.selectedProject = preset
+			m.resetEnvSelection()
+			m.step = stepSelectEnvironment
+			return m, m.fetchEnvironments()
+		}
 		return m, nil
 
 	case envsFetchedMsg:
@@ -116,6 +128,15 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.envList.SetShowStatusBar(false)
 		keepEscFromQuitting(&m.envList)
 		m.envList.AdditionalShortHelpKeys = listHints(true)
+		if preset := m.presetEnv; preset != "" && m.step == stepSelectEnvironment {
+			m.presetEnv = ""
+			if !slices.ContainsFunc(msg.environments, func(e envItem) bool { return e.key == preset }) {
+				m.err = errors.New("Setup could not find the environment " + strconv.Quote(preset) + " in the project " + strconv.Quote(m.selectedProject) + ". Check the --environment value.")
+				return m, nil
+			}
+			m.selectedEnv = preset
+			return m, m.fetchEnvDetails()
+		}
 		return m, nil
 
 	case envDetailsFetchedMsg:
@@ -158,12 +179,8 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case flagCreatedMsg:
 		m.flagKey = msg.key
-		if m.agentMode != agentOff && m.agentRunner != nil {
-			m.step = stepAgent
-			return m, m.startAgent()
-		}
-		m.step = stepInit
-		return m, m.runInit()
+		m.step = stepAgent
+		return m, m.startAgent()
 
 	case agentStartedMsg:
 		m.agentRun = msg.run
@@ -180,17 +197,6 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case agentEventMsg:
 		return m.handleAgentEvent(msg)
-
-	case initDoneMsg:
-		m.initResult = msg.result
-		// Skip the live verify if init didn't inject runnable code, or if the SDK
-		// wasn't actually installed (auto-install failed) — the app can't connect.
-		if !msg.result.Success || (m.installResult != nil && m.installResult.Failed) {
-			m.step = stepDone
-			return m, nil
-		}
-		m.step = stepWaitForApp
-		return m, nil
 
 	case verifyDoneMsg:
 		m.verifyResult = msg.result
@@ -296,23 +302,15 @@ func (m wizardModel) handleAgentEvent(msg agentEventMsg) (tea.Model, tea.Cmd) {
 	return m, waitForAgentEvent(m.agentRun)
 }
 
-// agentFailed ends the agent run. In auto mode, setup continues with the init
-// templates, but only if the agent changed no files: a template on top of a
-// partial edit can initialize the SDK twice.
+// agentFailed ends the agent run and stops setup with the error.
 func (m wizardModel) agentFailed(err error) (tea.Model, tea.Cmd) {
 	m.closeAgent()
 	m.agentRun = nil
 	m.agentPermissions = nil
 	m.agentQuestions = nil
 	m.agentAnswers = nil
-	if m.agentMode == agentOn || len(m.agentFiles) > 0 {
-		m.err = errors.New("The setup agent failed: " + err.Error())
-		return m, nil
-	}
-	m.agentNote = "The setup agent could not run, so setup used the built-in template. " + err.Error()
-	m.agentLog = nil
-	m.step = stepInit
-	return m, m.runInit()
+	m.err = errors.New("The setup agent failed: " + err.Error())
+	return m, nil
 }
 
 // answerAgentQuestion records the user's choice for the current question. A

@@ -36,8 +36,8 @@ Detects your project's language and framework, installs the correct SDK,
 initializes it with your environment's SDK key, creates a feature flag,
 and verifies the connection.
 
-With --agent=auto (the default), setup uses the setup agent to add the
-initialization code if OpenCode is installed, and the built-in templates if not.`,
+The setup agent adds the initialization code. It needs OpenCode. To skip the
+project and environment screens, pass --project and --environment.`,
 		PreRun: func(cmd *cobra.Command, args []string) {
 			// Dim the notice and set it off with a blank line so it reads as a
 			// transitional notice, visually distinct from command output.
@@ -53,7 +53,8 @@ initialization code if OpenCode is installed, and the built-in templates if not.
 		},
 		RunE: runSetupWizard(analyticsTrackerFn, svc, runner),
 	}
-	cmd.Flags().String(agentFlag, "auto", "Use the setup agent to add initialization code: auto, on, or off")
+	cmd.Flags().String(cliflags.ProjectFlag, "", "The project key. Setup skips the project screen.")
+	cmd.Flags().String(cliflags.EnvironmentFlag, "", "The environment key. Setup skips the environment screen.")
 
 	cmd.AddCommand(newDetectCmd(svc))
 	cmd.AddCommand(newInstallCmd(svc))
