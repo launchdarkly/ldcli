@@ -2,7 +2,10 @@ package setup
 
 import (
 	"io"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
@@ -267,6 +270,17 @@ func runSetupWizard(
 		}
 
 		p := tea.NewProgram(m, tea.WithAltScreen())
+		// Bubble Tea quits on SIGINT and SIGTERM. A closed terminal sends
+		// SIGHUP, which would end ldcli at once and leave OpenCode running, so
+		// it quits the wizard the same way.
+		hangup := make(chan os.Signal, 1)
+		signal.Notify(hangup, syscall.SIGHUP)
+		defer signal.Stop(hangup)
+		go func() {
+			if _, ok := <-hangup; ok {
+				p.Quit()
+			}
+		}()
 		_, err = p.Run()
 		// The wizard closes a run when the user quits, but a run can finish
 		// starting after that. OpenCode must not outlive setup.

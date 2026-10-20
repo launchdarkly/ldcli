@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -151,7 +152,8 @@ func runAgent(svc setup.Service, runner agent.Runner) func(*cobra.Command, []str
 		}
 		task := agentTask(dir, detection, getFlag(cmd, flagKeyFlag), setup.IsInstalled(dir, sdkID))
 
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
+		// Stop OpenCode on Ctrl-C, on kill, and when the terminal closes.
+		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 		defer stop()
 
 		if err := runner.Check(ctx); err != nil {
