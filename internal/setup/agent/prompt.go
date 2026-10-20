@@ -15,10 +15,30 @@ const (
 )
 
 // clientSideSDKs read the client-side ID, and mobileSDKs read the mobile key.
-// Every other SDK reads the server-side SDK key.
+// Every other SDK reads the server-side SDK key. The lists include each ID
+// and alias that the installer and the templates accept.
 var (
-	clientSideSDKs = map[string]bool{"react-client-sdk": true, "js-client-sdk": true}
-	mobileSDKs     = map[string]bool{"react-native": true, "android": true, "swift-client-sdk": true}
+	clientSideSDKs = map[string]bool{
+		"js-client-sdk":                 true,
+		"launchdarkly-js-client-sdk":    true,
+		"react-client-sdk":              true,
+		"launchdarkly-react-client-sdk": true,
+		"vue-client-sdk":                true,
+		"node-client-sdk":               true,
+		"electron-client-sdk":           true,
+	}
+	mobileSDKs = map[string]bool{
+		"android":                 true,
+		"android-client-sdk":      true,
+		"ios-client-sdk":          true,
+		"swift-client-sdk":        true,
+		"react-native":            true,
+		"react-native-client-sdk": true,
+		"flutter-client-sdk":      true,
+		"dotnet-client-sdk":       true,
+		"cpp-client-sdk":          true,
+		"roku-client-sdk":         true,
+	}
 )
 
 // CredentialEnvVar returns the environment variable that the agent's code

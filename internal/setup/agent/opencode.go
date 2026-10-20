@@ -367,11 +367,39 @@ func (r *openCodeRun) Close() error {
 		if r.cancelSDK != nil {
 			r.cancelSDK()
 		}
+		r.end()
 		if r.stopServer != nil {
 			r.stopServer()
 		}
 	})
 	return nil
+}
+
+// end gives a run that Close stopped before its last event a final error
+// event, and closes the channel and the tap, so a reader of Events and the
+// OpenCode handler do not wait forever.
+// A send that waits on a full channel returns when r.closed closes, so end
+// does not block.
+func (r *openCodeRun) end() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.finished {
+		return
+	}
+	r.finished = true
+	ev := Event{Kind: EventError, Text: "The run was closed before it finished."}
+	select {
+	case r.events <- ev:
+	default:
+	}
+	close(r.events)
+	if r.tap != nil {
+		select {
+		case r.tap <- ev:
+		default:
+		}
+		close(r.tap)
+	}
 }
 
 // binaryVersion runs `opencode --version`.

@@ -389,6 +389,42 @@ func TestRun_StreamEndsEarly_ReportsError(t *testing.T) {
 	assert.Equal(t, EventError, ev.Kind)
 }
 
+func TestRun_CloseEndsTheEventsOfAnUnfinishedRun(t *testing.T) {
+	f := newFakeOpenCode(t)
+	run, err := startRun(context.Background(), f.client(), Config{}, "task")
+	require.NoError(t, err)
+
+	done := make(chan []Event)
+	go func() {
+		var got []Event
+		for ev := range run.Events() {
+			got = append(got, ev)
+		}
+		done <- got
+	}()
+	require.NoError(t, run.Close())
+
+	select {
+	case got := <-done:
+		require.NotEmpty(t, got)
+		assert.Equal(t, EventError, got[len(got)-1].Kind, "the last event says that the run did not finish")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Events stayed open after Close")
+	}
+}
+
+func TestCredentialEnvVar_CoversEveryAlias(t *testing.T) {
+	for _, id := range []string{"js-client-sdk", "launchdarkly-react-client-sdk", "vue-client-sdk", "electron-client-sdk"} {
+		assert.Equal(t, ClientSideIDEnvVar, CredentialEnvVar(id), id)
+	}
+	for _, id := range []string{"android", "android-client-sdk", "ios-client-sdk", "swift-client-sdk", "react-native", "react-native-client-sdk", "flutter-client-sdk"} {
+		assert.Equal(t, MobileKeyEnvVar, CredentialEnvVar(id), id)
+	}
+	for _, id := range []string{"node-server-sdk", "python-server-sdk", "go-server-sdk"} {
+		assert.Equal(t, SDKKeyEnvVar, CredentialEnvVar(id), id)
+	}
+}
+
 func TestRun_CloseIsSafeTwice(t *testing.T) {
 	f := newFakeOpenCode(t)
 	run, err := startRun(context.Background(), f.client(), Config{}, "task")
