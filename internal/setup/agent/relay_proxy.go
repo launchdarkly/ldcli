@@ -105,7 +105,7 @@ func startRelayProxy(relayBase, accessToken string) (*relayProxy, error) {
 		case hasPathPrefix(r.URL.Path, prefix):
 		case hasPathPrefix(r.URL.Path, bedrockPrefix):
 			// OpenCode calls only the Bedrock model routes, with POST.
-			if r.Method != http.MethodPost || !strings.HasPrefix(r.URL.Path, bedrockPrefix+"/model/") {
+			if r.Method != http.MethodPost || !isModelPath(strings.TrimPrefix(r.URL.Path, bedrockPrefix)) {
 				http.NotFound(w, r)
 				return
 			}
@@ -132,6 +132,23 @@ func startRelayProxy(relayBase, accessToken string) (*relayProxy, error) {
 		}
 	}()
 	return p, nil
+}
+
+// isModelPath reports whether path is /model/{modelId}/{operation}, with no
+// empty, "." or ".." segment. The check stops a path such as
+// /model/../../sdk/... from leaving the model relay with the user's token.
+// URL.Path is already decoded, so an encoded "%2e%2e" is also refused.
+func isModelPath(path string) bool {
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	if len(parts) != 3 || parts[0] != "model" {
+		return false
+	}
+	for _, p := range parts {
+		if p == "" || p == "." || p == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // hasPathPrefix reports whether path is prefix or is under it.

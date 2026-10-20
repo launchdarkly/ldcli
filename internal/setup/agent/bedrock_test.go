@@ -64,6 +64,10 @@ func TestRelayProxy_BedrockRouteReachesOnlyTheModelRelay(t *testing.T) {
 		{http.MethodGet, "/model/us.anthropic.claude-sonnet-4-6/converse-stream"},
 		{http.MethodPost, "/polling/sdk/latest-all"},
 		{http.MethodPost, ""},
+		{http.MethodPost, "/model/../../sdk/polling/sdk/latest-all"},
+		{http.MethodPost, "/model/%2e%2e/%2e%2e/sdk/events/bulk"},
+		{http.MethodPost, "/model/x/../converse"},
+		{http.MethodPost, "/model/us.anthropic.claude-sonnet-4-6/converse-stream/extra"},
 	} {
 		req, err := http.NewRequest(tc.method, p.bedrockURL+tc.path, nil)
 		require.NoError(t, err)
@@ -84,7 +88,7 @@ func TestAIConfigSource_ManagedModel(t *testing.T) {
 	s, _ := fakeSource(nil, enabled(agentConfig("Bedrock", "anthropic.claude-sonnet-4-6", "Wire the call.")))
 	defer func() { _ = s.Close(context.Background()) }()
 
-	m, err := s.managedModel(context.Background(), Task{SDKID: "python-server-sdk"})
+	m, err := s.managedModel(context.Background(), setupContext(Task{SDKID: "python-server-sdk"}))
 
 	require.NoError(t, err)
 	assert.Equal(t, "anthropic.claude-sonnet-4-6", m.ModelID)
@@ -100,7 +104,7 @@ func TestAIConfigSource_ManagedModel_Refusals(t *testing.T) {
 			s, _ := fakeSource(nil, res)
 			defer func() { _ = s.Close(context.Background()) }()
 
-			_, err := s.managedModel(context.Background(), Task{})
+			_, err := s.managedModel(context.Background(), setupContext(Task{}))
 
 			assert.Error(t, err, "setup must not fall back to the user's own provider")
 		})
@@ -152,4 +156,16 @@ func TestBedrockRoute_RealOpenCode(t *testing.T) {
 	for _, got := range paths {
 		assert.Equal(t, "POST "+BedrockRelayPath+"/model/us.anthropic.claude-sonnet-4-6/converse-stream token=api-secret-token auth=", got)
 	}
+}
+
+func TestAIConfigSource_ManagedModelUsesTheRunsContext(t *testing.T) {
+	s, calls := fakeSource(nil, enabled(agentConfig("Bedrock", "anthropic.claude-sonnet-4-6", "Wire the call.")))
+	defer func() { _ = s.Close(context.Background()) }()
+	runCtx := setupContext(Task{SDKID: "python-server-sdk"})
+
+	_, err := s.managedModel(context.Background(), runCtx)
+
+	require.NoError(t, err)
+	require.Len(t, *calls, 1)
+	assert.Equal(t, runCtx.Key(), (*calls)[0].ctx.Key(), "the model and the run's stream must use the same context key")
 }

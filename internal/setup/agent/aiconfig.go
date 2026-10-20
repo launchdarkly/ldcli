@@ -213,7 +213,9 @@ func (s *AIConfigSource) Resolve(ctx context.Context, task Task) (Config, error)
 
 // managedModel resolves the model for a run that LaunchDarkly pays for. It
 // does not fall back: the config must be on and must name a Bedrock model.
-func (s *AIConfigSource) managedModel(ctx context.Context, task Task) (*managedModel, error) {
+// runCtx must be the same context that the run's AI SDK stream uses, so that
+// percentage targeting picks the same variation in both evaluations.
+func (s *AIConfigSource) managedModel(ctx context.Context, runCtx ldcontext.Context) (*managedModel, error) {
 	if err := s.Ready(ctx); err != nil {
 		return nil, err
 	}
@@ -221,7 +223,7 @@ func (s *AIConfigSource) managedModel(ctx context.Context, task Task) (*managedM
 	if inspect == nil {
 		inspect = aiserver.InspectConfig
 	}
-	res := inspect(ctx, s.key(), setupContext(task))
+	res := inspect(ctx, s.key(), runCtx)
 	if !res.Enabled || res.Config == nil {
 		return nil, errors.New("the setup agent configuration is off")
 	}
