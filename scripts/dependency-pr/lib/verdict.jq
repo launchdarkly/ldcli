@@ -104,6 +104,13 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
   | (if ($nlp | length) > 0 and ($others | length) > 0
      then ($others | .[0].evidence += $nlp[0].evidence)
      else $decisions end) as $decisions
+  # The playbooks give the guard results as evidence for a decision, next to
+  # the question, not only in the generated checks section.
+  | [ $gen[] | select(.outcome | IN("holds", "proven"))
+      | "\(.title): \({"holds": "guard holds on base and PR", "proven": "proven (fails on base, passes on PR)"}[.outcome])" ] as $gen_ev
+  | (if ($gen_ev | length) > 0
+     then $decisions | map(.evidence += ["Generated checks: " + ($gen_ev | join("; "))])
+     else $decisions end) as $decisions
 
   # Each incomplete item says what closes it. Most need a verify.sh rerun or
   # agent work; a check can name another fix (ci-status: a rerun on GitHub).

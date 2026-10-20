@@ -142,6 +142,10 @@ check "block beats incomplete beats needs-human" "block 1 1 1" "$(v '"\(.verdict
 out=$(verdict "[$(chk h decide), $(chk d incomplete)]" '[]' low)
 check "incomplete outranks needs-human: a question waits until verification is complete (#719)" "incomplete 2 1" "$(v '"\(.verdict) \(.exit_code) \(.decisions | length)"')"
 
+out=$(verdict "[$(chk ac decide)]" "[$(gen g1 guard pass pass), $(gen g2 discriminating fail pass)]" high)
+check "a decision gives the guard results as evidence (Oct 16 bug 4)" \
+  "Generated checks: g1: guard holds on base and PR; g2: proven (fails on base, passes on PR)" "$(v '.decisions[0].evidence | last')"
+
 # ---- rendering
 
 tmp=$(mktemp -d)
