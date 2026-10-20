@@ -24,8 +24,13 @@ run_one() {
         CLASSIFICATION="$STATE/classification.json" PR_META="$STATE/pr.json" \
         PROFILE="$PROFILE" VERIFY_ROOT="$VERIFY_ROOT" \
         timeout --kill-after=30 "$timeout" bash "$script"
-  ) >"$logf" 2>&1 </dev/null
+  ) >"$logf" 2>&1 </dev/null &
+  local pid=$!
+  wait "$pid"
   rc=$?
+  # timeout leads its own process group. A server that the check started and
+  # did not stop stays in that group; it holds ports and inherited lock files.
+  kill -- -"$pid" 2>/dev/null
   local files=()
   # The log and the top-level evidence files, which result.json and the comment read.
   mapfile -t files < <(find "$art" -maxdepth 1 -type f)
