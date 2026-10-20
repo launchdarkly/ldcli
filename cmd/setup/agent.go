@@ -21,33 +21,6 @@ import (
 	"github.com/launchdarkly/ldcli/internal/setup/agent"
 )
 
-// agentMode is the value of the --agent flag.
-type agentMode string
-
-const (
-	// agentOff always uses the init templates. It is the zero value, so a wizard
-	// built without a mode never starts OpenCode.
-	agentOff agentMode = ""
-	// agentAuto uses the agent if it can run, and the init templates if not.
-	agentAuto agentMode = "auto"
-	// agentOn uses the agent, and stops with an error if it cannot run.
-	agentOn agentMode = "on"
-)
-
-const agentFlag = "agent"
-
-func parseAgentMode(s string) (agentMode, error) {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "auto":
-		return agentAuto, nil
-	case "on":
-		return agentOn, nil
-	case "off":
-		return agentOff, nil
-	}
-	return agentOff, errors.NewError(fmt.Sprintf("--agent must be auto, on, or off, not %q", s))
-}
-
 // agentTask builds the agent task from the wizard's detection result.
 func agentTask(dir string, detection *setup.DetectResult, flagKey string, sdkInstalled bool, projectKey, envKey string) agent.Task {
 	t := agent.Task{
@@ -113,9 +86,9 @@ func describePermission(req agent.PermissionRequest) string {
 
 func newAgentCmd(svc setup.Service, runner agent.Runner) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "agent",
-		Short: "Use the setup agent to add SDK initialization code to a project",
-		Long: `Runs only the agent step of setup.
+		Use:   "agentcontrol",
+		Short: "Use the setup agent to set up LaunchDarkly AgentControl in a project",
+		Long: `Runs only the agent step of setup, without the wizard.
 
 The setup agent uses OpenCode to edit the project. OpenCode must be installed.
 The agent runs commands in the project without asking, and it asks you only

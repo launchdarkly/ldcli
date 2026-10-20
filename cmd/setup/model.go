@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -44,10 +45,8 @@ const (
 	stepPlan
 	stepInstall
 	stepCreateFlag
-	// stepAgent runs the setup agent. It replaces stepInit when the agent can
-	// run, and it falls back to stepInit in auto mode when the agent fails.
+	// stepAgent runs the setup agent, which adds the initialization code.
 	stepAgent
-	stepInit
 	stepWaitForApp
 	stepVerify
 	stepDone
@@ -107,7 +106,11 @@ type wizardModel struct {
 	initResult     *setup.InitResult
 	verifyResult   *setup.VerifyResult
 
-	agentMode   agentMode
+	// presetProject and presetEnv come from --project and --environment. The
+	// wizard selects them when their list loads, and then clears them.
+	presetProject string
+	presetEnv     string
+
 	agentRunner agent.Runner
 	// agentRuns records every run that starts, so setup can close a run whose
 	// start finished after the user quit.
@@ -128,9 +131,6 @@ type wizardModel struct {
 	agentAnswers   [][]string
 	agentUsage     *agent.Usage
 	agentDone      bool
-	// agentNote tells the user why setup used the templates after the agent
-	// could not run.
-	agentNote string
 
 	// nativeCopy puts content on the operating system's clipboard, and clipboard
 	// receives the OSC 52 sequence used when that is not available. Both are fields
@@ -218,7 +218,6 @@ type detectDoneMsg struct{ result *setup.DetectResult }
 type detectFailedMsg struct{}
 type installDoneMsg struct{ result *setup.InstallResult }
 type flagCreatedMsg struct{ key string }
-type initDoneMsg struct{ result *setup.InitResult }
 type copiedMsg struct{ viaTerminal bool }
 type verifyDoneMsg struct{ result *setup.VerifyResult }
 type agentStartedMsg struct{ run agent.Run }
@@ -238,11 +237,6 @@ func runSetupWizard(
 	runner agent.Runner,
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		mode, err := parseAgentMode(getFlag(cmd, agentFlag))
-		if err != nil {
-			return err
-		}
-
 		// Pre-flight: the wizard's first action is an authenticated API call, so
 		// bail early with clear guidance rather than dumping a raw 401 mid-TUI.
 		if viper.GetString(cliflags.AccessTokenFlag) == "" {
@@ -264,7 +258,8 @@ func runSetupWizard(
 			clipboard:     terminalWriter(),
 			nativeCopy:    clipboard.WriteAll,
 			remoteSession: isRemoteSession(),
-			agentMode:     mode,
+			presetProject: strings.TrimSpace(getFlag(cmd, cliflags.ProjectFlag)),
+			presetEnv:     strings.TrimSpace(getFlag(cmd, cliflags.EnvironmentFlag)),
 			agentRunner:   runner,
 			agentRuns:     &runTracker{},
 		}
@@ -281,7 +276,7 @@ func runSetupWizard(
 				p.Quit()
 			}
 		}()
-		_, err = p.Run()
+		_, err := p.Run()
 		// The wizard closes a run when the user quits, but a run can finish
 		// starting after that. OpenCode must not outlive setup.
 		m.agentRuns.closeAll()
