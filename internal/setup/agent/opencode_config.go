@@ -41,6 +41,10 @@ func openCodeConfig() ([]byte, error) {
 // after it.
 var bashRules = [][2]string{
 	{"*", "allow"},
+	// ldcli and the skills installer reach LaunchDarkly or change the repo
+	// outside the agent's task. The CLI does the LaunchDarkly work itself.
+	{"ldcli*", "deny"},
+	{"npx skills*", "deny"},
 	{"git commit*", "deny"},
 	{"git push*", "deny"},
 	{"git reset*", "deny"},
