@@ -273,8 +273,10 @@ def missing_commits(repo, from_ref, to_ref, cmp):
         return None
     back = gh_json(f"repos/{repo}/compare/{to_ref}...{from_ref}") or {}
     commits = back.get("commits") or []
+    # A bare #N in an upstream subject would link to an ldcli PR.
+    subject = lambda c: re.sub(r"(?<![\w/.#-])#(\d+)\b", rf"{repo}#\1", (c.get("commit") or {}).get("message", "").splitlines()[0])
     return {"count": cmp.get("behind_by") or len(commits),
-            "commits": [f"{c['sha'][:7]} {(c.get('commit') or {}).get('message', '').splitlines()[0]}" for c in commits[-20:]]}
+            "commits": [f"{c['sha'][:7]} {subject(c)}" for c in commits[-20:]]}
 
 
 def commit_log(cmp):

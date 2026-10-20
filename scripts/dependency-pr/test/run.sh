@@ -679,7 +679,7 @@ routes = {
                                                         {"ref": "refs/tags/v7.0.1", "object": {"sha": "c701", "type": "commit"}}],
     "repos/actions/checkout/compare/v4.4.0...v7.0.1": {"status": "diverged", "ahead_by": 30, "behind_by": 1, "total_commits": 30,
                                                       "html_url": "https://github.com/actions/checkout/compare/v4.4.0...v7.0.1", "files": []},
-    "repos/actions/checkout/compare/v7.0.1...v4.4.0": {"commits": [{"sha": "e" * 40, "commit": {"message": "enforce pull_request_target\n\nbody"}}]},
+    "repos/actions/checkout/compare/v7.0.1...v4.4.0": {"commits": [{"sha": "e" * 40, "commit": {"message": "enforce pull_request_target (#2502)\n\nbody"}}]},
     "repos/actions/checkout/releases?per_page=100&page=1": [rel("v7.0.1"), rel("v7.0.0"), rel("v5.0.0"), rel("v4.4.0"), rel("v4.3.0")],
 }
 upstream.gh_json = lambda p: routes.get(p)
@@ -706,7 +706,7 @@ PY
 check "upstream: a floating ref resolves to its release, so the notes cover v7.0.1 and not releases main has" \
   "v4.4.0 v7.0.1 True False False" "$(sed -n 1p <<<"$out")"
 check "upstream: diverged refs list the commits that the new ref lacks (#719)" \
-  "1 eeeeeee enforce pull_request_target" "$(sed -n 2p <<<"$out")"
+  "1 eeeeeee enforce pull_request_target (actions/checkout#2502)" "$(sed -n 2p <<<"$out")"
 check "upstream: \"version bump only\" entries make the coverage partial" "partial 1 2" "$(sed -n 3p <<<"$out")"
 
 # Oct 16 bug 10 (#868): license-changes took the first base license for a
@@ -750,6 +750,22 @@ check "transitive-changes labels a 0.x minor update as 0.x minor, not major" "0.
   "$(python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import deps; print(deps.semver("v0.41.0", "v0.45.0"), deps.semver("v1.2.0", "v2.0.0"), deps.semver("v1.2.0", "v1.3.0"))' "$LIB")"
 verdict "[$(chk a pass)]" '[]' low null '[]' '[{"name": "golang.org/x/sys", "direct": false, "from": "v0.41.0", "to": "v0.45.0", "semver": "minor", "breaking": true, "ecosystem": "gomod"}]' | render >"$tmp/c6.md"
 check "the comment labels the transitive 0.x minor update the same way" 1 "$(grep -c '^- `golang.org/x/sys` v0.41.0 → v0.45.0 (0.x minor)$' "$tmp/c6.md")"
+
+# PR #723 (2026-10-20) and #621: bare npm scopes such as @launchpad-ui/core
+# became GitHub mentions, and upstream #258 linked to ldcli PR #258.
+mention_impact='{"summary": "Core drops @launchpad-ui/markdown.", "tier": "low",
+  "changelog": [{"package": "go.uber.org/mock", "range": "v0.5.2..v0.6.0", "notes": "Archive mode (#258), see also uber-go/mock#276 and @types/x.", "url": "https://github.com/uber-go/mock/compare/v0.5.2...v0.6.0"}],
+  "findings": [{"severity": "decide", "question": "Remove @types/react-window and react-window instead of updating them?", "text": "Nothing imports @types/react-window."},
+               {"severity": "info", "text": "Replace with @launchpad-ui/components."}]}'
+verdict "[$(chk ui-npm-ci fail pass "" "" '{"pr": {"status": "fail", "summary": "npm ci fails with ERESOLVE peer conflict: peer react@\"^19\" from @launchpad-ui/core@0.59.18 (#720 is unrelated)", "recommendations": ["Comment `@dependabot rebase`."], "details": "- `dist/ldcli_linux/ldcli`: Mach-O flags:<NOUNDEFS|PIE>"}}')]" '[]' low "$mention_impact" | render >"$tmp/c7.md"
+check "the comment has no bare @-token or raw <...> outside code" "rc=0" "$(python3 "$LIB/comment_safe.py" --check "$tmp/c7.md" 2>&1; echo "rc=$?")"
+check "a scoped package in a check summary is in backticks, in the block list and the table" 2 "$(grep -c 'from `@launchpad-ui/core@0.59.18` (#720 is unrelated)' "$tmp/c7.md")"
+check "a scoped package in a decision question is in backticks" 1 "$(grep -c '^1\. \*\*Remove `@types/react-window` and react-window instead of updating them?\*\*$' "$tmp/c7.md")"
+check "a scoped package in the impact review is in backticks" 2 "$(grep -c '`@launchpad-ui/markdown`\|`@launchpad-ui/components`' "$tmp/c7.md")"
+check "an upstream #N in a changelog entry links to the upstream repository" 1 \
+  "$(grep -c 'Archive mode (uber-go/mock#258), see also uber-go/mock#276 and `@types/x`.' "$tmp/c7.md")"
+check "text that is already code stays as it is" 1 "$(grep -c 'Comment `@dependabot rebase`.' "$tmp/c7.md")"
+check "raw angle text from a tool goes in backticks" 1 "$(grep -c 'flags:`<NOUNDEFS|PIE>`' "$tmp/c7.md")"
 
 # Posting log, 2026-10-17 (#869): the npm-only PR got "block" because the Go
 # job failed in `go test` (the flaky TestStreamClientV2Handler on main). A

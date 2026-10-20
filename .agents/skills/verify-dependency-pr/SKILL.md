@@ -75,7 +75,7 @@ For each direct update, do these steps:
 4. Map each upstream change to the ldcli code that it reaches. A change that no ldcli code reaches is "not reachable".
 5. Read the `transitive-changes` and `license-changes` details. Explain each new module, major transitive update, and license change.
 
-Write `agent/impact.json` in the output directory:
+Write `agent/impact.json` in the output directory. Write an upstream issue or PR as `owner/repo#N`, because a bare `#N` links to an ldcli issue. In a `changelog` entry, the renderer adds the repository of the entry to a bare `#N`. It also puts bare `@` names, such as npm scopes, in backticks.
 
 ```json
 {

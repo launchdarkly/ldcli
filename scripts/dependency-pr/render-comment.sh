@@ -4,11 +4,21 @@ set -euo pipefail
 
 RESULT="${1:?usage: render-comment.sh <result.json>}"
 MAX_CHARS=60000 # GitHub caps comments at 65536 characters.
+LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
+# The upstream repository of each direct update, from the upstream-changes
+# check of the same run, to qualify bare #N references in its notes.
+UPSTREAM="$(dirname "$RESULT")/state/checks/upstream-changes/pr/report.json"
+[ -f "$UPSTREAM" ] || UPSTREAM=/dev/null
 
 render() {
   local with_details="$1"
-  jq -r --argjson with_details "$with_details" '
+  jq -r --argjson with_details "$with_details" --slurpfile upstream <(cat "$UPSTREAM" 2>/dev/null; echo '[]') '
     def esc: tostring | gsub("\\|"; "\\|") | gsub("\n"; " ");
+    # A bare #N links to an ldcli issue or PR. In upstream text it means the
+    # upstream repository, so it becomes owner/repo#N.
+    def qualify($repo): if $repo == null or $repo == "launchdarkly/ldcli" then .
+      else gsub("(?<![A-Za-z0-9_/.#-])#(?<n>[0-9]+)\\b"; "\($repo)#\(.n)") end;
+    def url_repo: (. // "") | capture("github\\.com/(?<r>[^/]+/[^/#?]+)").r // null;
     def rlabel:
       {"pass": "pass", "info": "pass (note)", "fail": "**FAIL**", "decide": "decision", "skip": "does not apply",
        "incomplete": "**not run**", "error": "**ERROR**",
@@ -21,7 +31,8 @@ render() {
        "error": "**ERROR**", "incomplete": "**not run**"}[.] // .;
     def sha7: if . == null then "?" else .[0:7] end;
 
-    . as $r
+    ([$upstream[0][]? | select(type == "object" and .repo != null) | {key: .name, value: .repo}] | from_entries) as $repos
+    | . as $r
     | $r.pr as $pr
     | $r.classification as $c
     | ($c.updates | map(select(.direct))) as $direct
@@ -125,7 +136,8 @@ render() {
           "",
           ($r.impact.summary // empty),
           "",
-          (($r.impact.changelog // [])[] | "- **\(.package)** \(.range // ""): \(.notes)\(if .breaking then " **(breaking)**" else "" end)\(if .url then " ([source](\(.url)))" else "" end)"),
+          (($r.impact.changelog // [])[] | ((.url | url_repo) // $repos[.package]) as $repo
+            | "- **\(.package)** \(.range // ""): \(.notes | qualify($repo))\(if .breaking then " **(breaking)**" else "" end)\(if .url then " ([source](\(.url)))" else "" end)"),
           (if (($r.impact.usage // []) | length) > 0 then "- Used in: " + ($r.impact.usage | map("`\(.)`") | join(", ")) else empty end),
           (if ($r.impact | has("behavior_changes_reachable")) then
              "- Upstream behavior changes that reach ldcli: \(if $r.impact.behavior_changes_reachable then "yes" else "no" end)"
@@ -159,8 +171,10 @@ render() {
     | .[]' "$RESULT"
 }
 
-out=$(render true)
+# Bare @-tokens (npm scopes, action refs) and raw <...> text go in backticks,
+# so that GitHub shows them as text, not as mentions or HTML.
+out=$(render true | python3 "$LIB/comment_safe.py")
 if [ "${#out}" -gt "$MAX_CHARS" ]; then
-  out=$(render false)
+  out=$(render false | python3 "$LIB/comment_safe.py")
 fi
 printf '%s\n' "$out"
