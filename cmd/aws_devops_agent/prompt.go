@@ -69,6 +69,6 @@ func readSecret(in io.Reader) string {
 	return strings.TrimSpace(string(typed))
 }
 
-func canPrompt() bool {
+var canPrompt = func() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }

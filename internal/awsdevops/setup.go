@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -57,7 +58,9 @@ type SetupOptions struct {
 	AgentSpaceName string
 	NewAgentSpace  bool
 
-	AuthFlow        string
+	AuthFlow string
+	// AuthFlowSet: the user passed --auth-flow.
+	AuthFlowSet     bool
 	IdcInstanceARN  string
 	IssuerURL       string
 	IdpClientID     string
@@ -92,14 +95,273 @@ type SetupResult struct {
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 }
 
+// ErrPlanChanged means AWS changed after the plan.
+var ErrPlanChanged = errors.New("AWS changed after the plan")
+
+type planChangedErr struct{ msg string }
+
+func (e planChangedErr) Error() string { return e.msg + ". Run setup again" }
+
+func (e planChangedErr) Is(target error) bool { return target == ErrPlanChanged }
+
+func planChanged(format string, args ...any) error {
+	return planChangedErr{msg: fmt.Sprintf(format, args...)}
+}
+
+// RoleAction is what setup does to a role.
+type RoleAction int
+
+const (
+	RoleCreate RoleAction = iota
+	RoleUpdate
+	RoleLeave
+)
+
+// RoleStep is one planned role change.
+type RoleStep struct {
+	Name   string
+	Action RoleAction
+}
+
+func (s RoleStep) describe() string {
+	switch s.Action {
+	case RoleCreate:
+		return "Create role " + s.Name
+	case RoleUpdate:
+		return fmt.Sprintf("Update the trust policy of role %s", s.Name)
+	default:
+		return fmt.Sprintf("Leave role %s unchanged because it has no %s tag", s.Name, ManagedTagKey)
+	}
+}
+
+// SpaceAction is the planned space action.
+type SpaceAction int
+
+const (
+	SpaceCreate SpaceAction = iota
+	SpaceReuse
+	SpaceConnect
+)
+
+// SpaceStep is the planned agent space action.
+type SpaceStep struct {
+	Action SpaceAction
+	ID     string
+	Name   string
+	// Seen lists same-name spaces at plan.
+	Seen []string
+}
+
+func (s SpaceStep) describe() string {
+	label := fmt.Sprintf("%s (%s)", s.Name, s.ID)
+	switch s.Action {
+	case SpaceCreate:
+		return "Create agent space " + s.Name
+	case SpaceConnect:
+		return "Connect to agent space " + label
+	default:
+		return "Reuse agent space " + label
+	}
+}
+
+// LinkStep is the planned account association.
+type LinkStep struct {
+	// Exists means the association was there.
+	Exists bool
+}
+
+func (l LinkStep) describe(accountID string) string {
+	if l.Exists {
+		return fmt.Sprintf("Keep the AWS account %s association", accountID)
+	}
+
+	return fmt.Sprintf("Associate AWS account %s with the agent space", accountID)
+}
+
+// AppAction is the planned operator app action.
+type AppAction int
+
+const (
+	AppEnable AppAction = iota
+	AppKeep
+	AppChange
+)
+
+// AppStep is the planned operator app step.
+type AppStep struct {
+	Action AppAction
+	URL    string
+	// Flow is the sign-in at plan time.
+	Flow string
+}
+
+func (a AppStep) describe(flow string) string {
+	switch a.Action {
+	case AppKeep:
+		return "Keep the operator app and its sign-in"
+	case AppChange:
+		switch {
+		case a.Flow == flow && flow == "iam":
+			return "Set the operator app sign-in to IAM again"
+		case a.Flow == flow:
+			return fmt.Sprintf("Update the operator app %s sign-in settings", flowLabel(flow))
+		}
+
+		return "Change the operator app sign-in to " + flowLabel(flow)
+	default:
+		return fmt.Sprintf("Enable the operator app with %s sign-in", flowLabel(flow))
+	}
+}
+
+func flowLabel(flow string) string {
+	switch flow {
+	case "idc":
+		return "IdC"
+	case "idp":
+		return "IdP"
+	default:
+		return "IAM"
+	}
+}
+
+// appState reads the app. Flow "" means off.
+func appState(ctx context.Context, clients Clients, spaceID string) (AppStep, error) {
+	app, err := clients.Agent.GetOperatorApp(ctx, &devopsagent.GetOperatorAppInput{AgentSpaceId: aws.String(spaceID)})
+	var missing *agenttypes.ResourceNotFoundException
+	switch {
+	case errors.As(err, &missing):
+		return AppStep{}, nil
+	case err != nil:
+		return AppStep{}, fmt.Errorf("unable to read the operator app of agent space %s: %w", spaceID, err)
+	}
+	state := AppStep{URL: aws.ToString(app.OperatorAppUrl)}
+	switch {
+	case app.Idc != nil:
+		state.Flow = "idc"
+	case app.Idp != nil:
+		state.Flow = "idp"
+	case app.Iam != nil:
+		state.Flow = "iam"
+	}
+
+	return state, nil
+}
+
+func planApp(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep) (AppStep, error) {
+	if space.Action == SpaceCreate {
+		return AppStep{Action: AppEnable}, nil
+	}
+	state, err := appState(ctx, clients, space.ID)
+	switch {
+	case err != nil:
+		return AppStep{}, err
+	case state.Flow == "":
+		return AppStep{Action: AppEnable}, nil
+	case opts.AuthFlowSet:
+		state.Action = AppChange
+	default:
+		state.Action = AppKeep
+	}
+
+	return state, nil
+}
+
+// checkApp compares the app with its step.
+func checkApp(ctx context.Context, clients Clients, plan SetupPlan) error {
+	if plan.Space.Action == SpaceCreate {
+		return nil
+	}
+	state, err := appState(ctx, clients, plan.Space.ID)
+	on := state.Flow != ""
+	switch {
+	case err != nil:
+		return err
+	case on && plan.App.Action == AppEnable:
+		return planChanged("the operator app was enabled after the plan")
+	case !on && plan.App.Action != AppEnable:
+		return planChanged("the operator app was disabled after the plan")
+	}
+
+	return nil
+}
+
+// MCPAction is the planned MCP server action.
+type MCPAction int
+
+const (
+	MCPRegister MCPAction = iota
+	MCPReuse
+	MCPReplace
+	MCPAsk
+)
+
+// MCPStep is the planned MCP server step.
+type MCPStep struct {
+	Action    MCPAction
+	ServiceID string
+	// Spaces lists spaces linked to the server.
+	Spaces []string
+}
+
 // SetupPlan describes what setup will change.
 type SetupPlan struct {
+	MCP         MCPStep
+	App         AppStep
 	AccountID   string
 	Region      string
 	AgentSpace  string
+	Space       SpaceStep
+	Association string
+	Link        LinkStep
 	MCPServer   string
 	Roles       []string
+	RoleSteps   []RoleStep
 	OperatorApp string
+}
+
+// reportExisting notes a planned create that updated.
+func reportExisting(plan SetupPlan, name string, action RoleAction, existed bool, logf func(string, ...any)) {
+	planned, _ := plan.roleAction(name)
+	if existed || (planned == RoleCreate && action == RoleUpdate) {
+		logf("Role %s already exists, so ldcli updated it", name)
+	}
+}
+
+// checkRole compares a role with its step.
+func checkRole(ctx context.Context, client IAMAPI, plan SetupPlan, name string) (RoleAction, error) {
+	action, err := plan.roleAction(name)
+	if err != nil {
+		return action, err
+	}
+	now, err := planRole(ctx, client, name)
+	if err != nil {
+		return action, err
+	}
+
+	switch {
+	case now.Action == action:
+		return action, nil
+	case action == RoleCreate && now.Action == RoleUpdate:
+		// Another ldcli run created it.
+		return RoleUpdate, nil
+	case now.Action == RoleCreate:
+		return action, planChanged("role %s disappeared after the plan", name)
+	case action == RoleCreate:
+		return action, planChanged("role %s appeared after the plan", name)
+	default:
+		return action, planChanged("the %s tag on role %s changed", ManagedTagKey, name)
+	}
+}
+
+// roleAction is the planned action for name.
+func (p SetupPlan) roleAction(name string) (RoleAction, error) {
+	for _, step := range p.RoleSteps {
+		if step.Name == name {
+			return step.Action, nil
+		}
+	}
+
+	return 0, fmt.Errorf("the plan has no step for role %s", name)
 }
 
 // PlanSetup describes a run without changing AWS.
@@ -110,106 +372,253 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	}
 	plan := SetupPlan{AccountID: accountID, Region: clients.Region}
 
-	plan.AgentSpace, err = planAgentSpace(ctx, clients, opts, provision)
+	plan.Space, err = planAgentSpace(ctx, clients, opts, provision)
 	if err != nil {
 		return plan, err
 	}
+	plan.AgentSpace = plan.Space.describe()
 
-	plan.MCPServer, err = planMCPServer(ctx, clients, opts)
+	plan.MCP, err = planMCPStep(ctx, clients, opts)
 	if err != nil {
 		return plan, err
 	}
+	plan.MCPServer = plan.MCP.describe(opts.mcpEndpoint())
 
 	if !provision {
 		plan.Roles = []string{"No change"}
 		plan.OperatorApp = "No change"
+		plan.Association = "No change"
 
 		return plan, nil
 	}
-	for _, name := range []string{AgentSpaceRoleName, OperatorAppRoleName} {
-		line, err := planRole(ctx, clients.IAM, name)
+	if plan.Space.Action != SpaceCreate {
+		id, err := FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
 		if err != nil {
 			return plan, err
 		}
-		plan.Roles = append(plan.Roles, line)
+		plan.Link.Exists = id != ""
 	}
-	plan.OperatorApp = "Enable the operator app"
+	plan.Association = plan.Link.describe(accountID)
+	for _, name := range []string{AgentSpaceRoleName, OperatorAppRoleName} {
+		step, err := planRole(ctx, clients.IAM, name)
+		if err != nil {
+			return plan, err
+		}
+		plan.RoleSteps = append(plan.RoleSteps, step)
+		plan.Roles = append(plan.Roles, step.describe())
+	}
+	plan.App, err = planApp(ctx, clients, opts, plan.Space)
+	if err != nil {
+		return plan, err
+	}
+	plan.OperatorApp = plan.App.describe(opts.AuthFlow)
 
 	return plan, nil
 }
 
 // planRole says what setup will do to a role.
-func planRole(ctx context.Context, client IAMAPI, name string) (string, error) {
+func planRole(ctx context.Context, client IAMAPI, name string) (RoleStep, error) {
 	_, err := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
 	var missing *iamtypes.NoSuchEntityException
 	switch {
 	case errors.As(err, &missing):
-		return "Create role " + name, nil
+		return RoleStep{Name: name, Action: RoleCreate}, nil
 	case err != nil:
-		return "", fmt.Errorf("unable to read the %s role: %w", name, err)
+		return RoleStep{}, fmt.Errorf("unable to read the %s role: %w", name, err)
 	}
 
 	managed, err := isManagedRole(ctx, client, name)
 	if err != nil {
-		return "", err
+		return RoleStep{}, err
 	}
 	if !managed {
-		return fmt.Sprintf("Leave role %s unchanged, it has no %s tag", name, ManagedTagKey), nil
+		return RoleStep{Name: name, Action: RoleLeave}, nil
 	}
 
-	return fmt.Sprintf("Update the trust policy of role %s", name), nil
+	return RoleStep{Name: name, Action: RoleUpdate}, nil
 }
 
-func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (string, error) {
+func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (SpaceStep, error) {
 	id := opts.AgentSpaceID
-	if id == "" && !opts.NewAgentSpace {
-		found, err := FindAgentSpace(ctx, clients, opts.AgentSpaceName)
-		if err != nil {
-			return "", err
+	var seen []string
+	if id == "" {
+		var err error
+		if seen, err = spacesNamed(ctx, clients, opts.AgentSpaceName); err != nil {
+			return SpaceStep{}, err
 		}
-		id = found
+		if !opts.NewAgentSpace && len(seen) > 0 {
+			id = seen[0]
+		}
 	}
 	if id == "" {
-		return fmt.Sprintf("Create agent space %s", opts.AgentSpaceName), nil
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, Seen: seen}, nil
 	}
 
 	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
 	if err != nil {
-		return "", fmt.Errorf("unable to read agent space %s: %w", id, err)
+		return SpaceStep{}, fmt.Errorf("unable to read agent space %s: %w", id, err)
 	}
-	label := fmt.Sprintf("%s (%s)", aws.ToString(space.AgentSpace.Name), id)
+	step := SpaceStep{Action: SpaceReuse, ID: id, Name: aws.ToString(space.AgentSpace.Name)}
 	if !provision {
-		return "Connect to agent space " + label, nil
+		step.Action = SpaceConnect
 	}
 
-	return "Reuse agent space " + label, nil
+	return step, nil
 }
 
-func planMCPServer(ctx context.Context, clients Clients, opts SetupOptions) (string, error) {
+// checkSpace compares AWS with the space step.
+func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
+	if step.Action == SpaceCreate {
+		now, err := spacesNamed(ctx, clients, step.Name)
+		if err != nil {
+			return err
+		}
+		for _, id := range now {
+			if !slices.Contains(step.Seen, id) {
+				return planChanged("agent space %s appeared after the plan", step.Name)
+			}
+		}
+
+		return nil
+	}
+
+	_, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(step.ID)})
+	var missing *agenttypes.ResourceNotFoundException
+	switch {
+	case errors.As(err, &missing):
+		return planChanged("agent space %s disappeared after the plan", step.ID)
+	case err != nil:
+		return fmt.Errorf("unable to read agent space %s: %w", step.ID, err)
+	}
+
+	return nil
+}
+
+func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions) (MCPStep, error) {
 	existing := opts.MCPServiceID
+	if existing != "" {
+		if err := checkMCPServiceID(ctx, clients, existing); err != nil {
+			return MCPStep{}, err
+		}
+	}
 	if existing == "" {
 		found, err := FindMCPServer(ctx, clients, opts.mcpEndpoint())
 		if err != nil {
-			return "", err
+			return MCPStep{}, err
 		}
 		existing = found
 	}
 
 	switch {
 	case existing != "" && opts.ReplaceMCPToken && opts.LDAccessToken != "":
-		return fmt.Sprintf("Replace the token of MCP server %s (%s)", MCPServerName, existing), nil
+		spaces, err := spacesWith(ctx, clients, existing)
+		if err != nil {
+			return MCPStep{}, err
+		}
+
+		return MCPStep{Action: MCPReplace, ServiceID: existing, Spaces: spaces}, nil
 	case existing != "":
-		return fmt.Sprintf("Reuse MCP server %s (%s)", MCPServerName, existing), nil
+		return MCPStep{Action: MCPReuse, ServiceID: existing}, nil
 	case opts.LDAccessToken != "":
-		return fmt.Sprintf("Register MCP server %s at %s", MCPServerName, opts.mcpEndpoint()), nil
+		return MCPStep{Action: MCPRegister}, nil
 	default:
-		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName), nil
+		return MCPStep{Action: MCPAsk}, nil
 	}
 }
 
-// Setup provisions the IAM roles, agent space, service associations and the
-// MCP server the AWS DevOps Agent needs to manage LaunchDarkly flags.
+// checkMCPServiceID needs a registered MCP server.
+func checkMCPServiceID(ctx context.Context, clients Clients, id string) error {
+	services, err := listServices(ctx, clients)
+	if err != nil {
+		return err
+	}
+	for _, service := range services {
+		if aws.ToString(service.ServiceId) == id && service.ServiceType == agenttypes.ServiceMcpServer {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("ID %s names no registered MCP server", id)
+}
+
+func (m MCPStep) describe(endpoint string) string {
+	switch m.Action {
+	case MCPReplace:
+		line := fmt.Sprintf("Replace the token of MCP server %s (%s)", MCPServerName, m.ServiceID)
+		if len(m.Spaces) > 0 {
+			line += ", reconnecting " + strings.Join(m.Spaces, ", ")
+		}
+
+		return line
+	case MCPReuse:
+		return fmt.Sprintf("Reuse MCP server %s (%s)", MCPServerName, m.ServiceID)
+	case MCPRegister:
+		return fmt.Sprintf("Register MCP server %s at %s", MCPServerName, endpoint)
+	default:
+		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName)
+	}
+}
+
+// AWS stores tokens write-only. Check them first.
+func checkSentToken(ctx context.Context, opts SetupOptions, step MCPStep) error {
+	if step.Action != MCPRegister && step.Action != MCPReplace {
+		return nil
+	}
+
+	return CheckToken(ctx, opts.LDBaseURI, opts.LDAccessToken)
+}
+
+// checkMCP compares AWS with the MCP step.
+func checkMCP(ctx context.Context, clients Clients, opts SetupOptions, step MCPStep) error {
+	if step.Action == MCPReuse || step.Action == MCPReplace {
+		services, err := listServices(ctx, clients)
+		if err != nil {
+			return err
+		}
+		found := false
+		for _, service := range services {
+			found = found || aws.ToString(service.ServiceId) == step.ServiceID
+		}
+		if !found {
+			return planChanged("MCP server %s disappeared after the plan", step.ServiceID)
+		}
+		if step.Action != MCPReplace {
+			return nil
+		}
+		now, err := spacesWith(ctx, clients, step.ServiceID)
+		if err != nil {
+			return err
+		}
+		if !slices.Equal(now, step.Spaces) {
+			return planChanged("the spaces using MCP server %s changed", step.ServiceID)
+		}
+
+		return nil
+	}
+
+	found, err := FindMCPServer(ctx, clients, opts.mcpEndpoint())
+	if err != nil {
+		return err
+	}
+	if found != "" {
+		return planChanged("an MCP server appeared at %s after the plan", opts.mcpEndpoint())
+	}
+
+	return nil
+}
+
+// Setup plans a run, then executes the plan.
 func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
+	plan, err := PlanSetup(ctx, clients, opts, true)
+	if err != nil {
+		return SetupResult{}, err
+	}
+
+	return RunPlan(ctx, clients, opts, plan)
+}
+
+// RunPlan executes a plan from PlanSetup.
+func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan SetupPlan) (SetupResult, error) {
 	logf := opts.Logf
 	if logf == nil {
 		logf = func(string, ...any) {}
@@ -222,40 +631,73 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 
 	result := SetupResult{AccountID: accountID, Region: clients.Region}
 
-	result.AgentSpaceRoleARN, err = ensureAgentSpaceRole(ctx, clients.IAM, accountID, logf)
-	if err != nil {
+	if plan.Space.Action == SpaceConnect {
+		return result, errors.New("a connect plan runs through ConnectPlan")
+	}
+	if err := checkSpace(ctx, clients, plan.Space); err != nil {
 		return result, err
 	}
-	logf("Agent space role %s is ready", AgentSpaceRoleName)
-
-	result.OperatorAppRoleARN, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, logf)
-	if err != nil {
-		return result, err
-	}
-	logf("Operator app role %s is ready", OperatorAppRoleName)
-
-	result.AgentSpaceID = opts.AgentSpaceID
-	if result.AgentSpaceID == "" && !opts.NewAgentSpace {
-		existing, err := FindAgentSpace(ctx, clients, opts.AgentSpaceName)
+	if plan.Link.Exists {
+		found, err := FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
 		if err != nil {
 			return result, err
 		}
-		if existing != "" {
-			result.AgentSpaceID = existing
-			logf("Reused agent space %s (%s)", opts.AgentSpaceName, existing)
-			logf("Pass --new-agent-space to create another agent space")
+		if found == "" {
+			return result, planChanged("the AWS account association disappeared after the plan")
 		}
 	}
-	if result.AgentSpaceID == "" {
+	if err := checkApp(ctx, clients, plan); err != nil {
+		return result, err
+	}
+	if err := checkMCP(ctx, clients, opts, plan.MCP); err != nil {
+		return result, err
+	}
+	if err := checkSentToken(ctx, opts, plan.MCP); err != nil {
+		return result, err
+	}
+	spaceRole, err := checkRole(ctx, clients.IAM, plan, AgentSpaceRoleName)
+	if err != nil {
+		return result, err
+	}
+	appRole, err := checkRole(ctx, clients.IAM, plan, OperatorAppRoleName)
+	if err != nil {
+		return result, err
+	}
+	var existed bool
+	result.AgentSpaceRoleARN, existed, err = ensureAgentSpaceRole(ctx, clients.IAM, accountID, spaceRole, logf)
+	if err != nil {
+		return result, err
+	}
+	reportExisting(plan, AgentSpaceRoleName, spaceRole, existed, logf)
+	logf("Agent space role %s is ready", AgentSpaceRoleName)
+
+	result.OperatorAppRoleARN, existed, err = ensureOperatorAppRole(ctx, clients.IAM, accountID, appRole, logf)
+	if err != nil {
+		return result, err
+	}
+	reportExisting(plan, OperatorAppRoleName, appRole, existed, logf)
+	logf("Operator app role %s is ready", OperatorAppRoleName)
+
+	if plan.Space.Action == SpaceCreate {
+		// Narrow the window after role writes.
+		if err := checkSpace(ctx, clients, plan.Space); err != nil {
+			return result, err
+		}
 		space, err := clients.Agent.CreateAgentSpace(ctx, &devopsagent.CreateAgentSpaceInput{
-			Name:        aws.String(opts.AgentSpaceName),
+			Name:        aws.String(plan.Space.Name),
 			Description: aws.String(agentSpaceDescription),
 		})
 		if err != nil {
 			return result, fmt.Errorf("unable to create the agent space: %w", err)
 		}
 		result.AgentSpaceID = aws.ToString(space.AgentSpace.AgentSpaceId)
-		logf("Created agent space %s (%s)", opts.AgentSpaceName, result.AgentSpaceID)
+		logf("Created agent space %s (%s)", plan.Space.Name, result.AgentSpaceID)
+	} else {
+		result.AgentSpaceID = plan.Space.ID
+		logf("Reused agent space %s (%s)", plan.Space.Name, plan.Space.ID)
+		if opts.AgentSpaceID == "" {
+			logf("Pass --new-agent-space to create another agent space")
+		}
 	}
 
 	result.AWSAssociationID, err = FindAssociation(ctx, clients, result.AgentSpaceID, awsServiceID)
@@ -273,14 +715,23 @@ func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult
 		logf("Associated AWS account %s with the agent space", accountID)
 	}
 
-	operatorApp, err := clients.Agent.EnableOperatorApp(ctx, operatorAppInput(result.AgentSpaceID, result.OperatorAppRoleARN, opts))
-	if err != nil {
-		return result, fmt.Errorf("unable to enable the operator app: %w", err)
+	if plan.App.Action == AppKeep {
+		result.OperatorAppURL = plan.App.URL
+		logf("Kept the operator app and its sign-in")
+	} else {
+		operatorApp, err := clients.Agent.EnableOperatorApp(ctx, operatorAppInput(result.AgentSpaceID, result.OperatorAppRoleARN, opts))
+		if err != nil {
+			return result, fmt.Errorf("unable to enable the operator app: %w", err)
+		}
+		result.OperatorAppURL = aws.ToString(operatorApp.OperatorAppUrl)
+		logf("Enabled the operator app")
 	}
-	result.OperatorAppURL = aws.ToString(operatorApp.OperatorAppUrl)
-	logf("Enabled the operator app")
+	// The app is on here, so an empty URL means only that AWS sent none.
+	if result.OperatorAppURL == "" {
+		result.OperatorAppURL = OperatorAppURL(result.AgentSpaceID)
+	}
 
-	if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
+	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
 
@@ -319,32 +770,47 @@ func registrationFailed(err error, detached []string) error {
 // space, and re-enabling the operator app would overwrite its sign-in
 // configuration.
 func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
+	plan, err := PlanSetup(ctx, clients, opts, false)
+	if err != nil {
+		return SetupResult{}, err
+	}
+
+	return ConnectPlan(ctx, clients, opts, plan)
+}
+
+// ConnectPlan runs a connect plan.
+func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan SetupPlan) (SetupResult, error) {
 	logf := opts.Logf
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
 
+	if plan.Space.Action != SpaceConnect {
+		return SetupResult{}, errors.New("a setup plan runs through RunPlan")
+	}
 	accountID, err := clients.AccountID(ctx)
 	if err != nil {
 		return SetupResult{}, err
 	}
-
-	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{
-		AgentSpaceId: aws.String(opts.AgentSpaceID),
-	})
-	if err != nil {
-		return SetupResult{}, fmt.Errorf("unable to read agent space %s: %w", opts.AgentSpaceID, err)
+	if err := checkSpace(ctx, clients, plan.Space); err != nil {
+		return SetupResult{}, err
 	}
 
 	result := SetupResult{
 		AccountID:      accountID,
 		Region:         clients.Region,
-		AgentSpaceID:   opts.AgentSpaceID,
-		OperatorAppURL: OperatorAppURL(opts.AgentSpaceID),
+		AgentSpaceID:   plan.Space.ID,
+		OperatorAppURL: OperatorAppURL(plan.Space.ID),
 	}
-	logf("Using agent space %s (%s)", aws.ToString(space.AgentSpace.Name), result.AgentSpaceID)
+	logf("Using agent space %s (%s)", plan.Space.Name, result.AgentSpaceID)
 
-	if err := registerMCPServer(ctx, clients, opts, &result, logf); err != nil {
+	if err := checkMCP(ctx, clients, opts, plan.MCP); err != nil {
+		return result, err
+	}
+	if err := checkSentToken(ctx, opts, plan.MCP); err != nil {
+		return result, err
+	}
+	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}
 
@@ -437,37 +903,39 @@ func isRoleNotAssumableYet(err error) bool {
 
 // RegisterMCPServer registers and associates the LaunchDarkly MCP server on
 // its own, for a token collected after Setup has run.
-func RegisterMCPServer(ctx context.Context, clients Clients, opts SetupOptions, result *SetupResult) error {
+func RegisterMCPServer(ctx context.Context, clients Clients, opts SetupOptions, step MCPStep, result *SetupResult) error {
 	logf := opts.Logf
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
+	if err := checkMCP(ctx, clients, opts, step); err != nil {
+		return err
+	}
+	if step.Action == MCPAsk {
+		step.Action = MCPRegister
+	}
+	if err := checkSentToken(ctx, opts, step); err != nil {
+		return err
+	}
 
-	return registerMCPServer(ctx, clients, opts, result, logf)
+	return registerMCPServer(ctx, clients, opts, step, result, logf)
 }
 
 func registerMCPServer(
 	ctx context.Context,
 	clients Clients,
 	opts SetupOptions,
+	step MCPStep,
 	result *SetupResult,
 	logf func(string, ...any),
 ) error {
 	endpoint := opts.mcpEndpoint()
-	existing := opts.MCPServiceID
-	if existing == "" {
-		found, err := FindMCPServer(ctx, clients, endpoint)
-		if err != nil {
-			return err
-		}
-		existing = found
-	}
-	if existing == "" && opts.LDAccessToken == "" {
-		// Nothing to reuse and no token to register with; the caller collects
-		// one and calls RegisterMCPServer afterwards.
+	existing := step.ServiceID
+	if step.Action == MCPAsk {
+		// The caller asks for a token.
 		return nil
 	}
-	if existing != "" && (!opts.ReplaceMCPToken || opts.LDAccessToken == "") {
+	if step.Action == MCPReuse {
 		result.MCPServiceID = existing
 		logf("Reused MCP server %s (%s) with its current token", MCPServerName, existing)
 		logf("Pass --access-token and --replace-mcp-token to change the token")
@@ -476,14 +944,14 @@ func registerMCPServer(
 	}
 	var detached []string
 	if existing != "" {
-		// AWS stores the token write-only, so the old registration cannot be
-		// restored once it is deregistered. Reject a token LaunchDarkly will
-		// not accept while the working registration is still in place.
-		if err := ValidateAccessToken(ctx, opts.LDBaseURI, opts.LDAccessToken); err != nil {
+		// Narrow the window after other writes.
+		now, err := spacesWith(ctx, clients, existing)
+		if err != nil {
 			return err
 		}
-
-		var err error
+		if !slices.Equal(now, step.Spaces) {
+			return planChanged("the spaces using MCP server %s changed", existing)
+		}
 		detached, err = disassociateEverywhere(ctx, clients, existing, logf)
 		if err != nil {
 			return err
@@ -548,6 +1016,28 @@ func registerMCPServer(
 	}
 
 	return nil
+}
+
+// spacesWith lists spaces associated with serviceID.
+func spacesWith(ctx context.Context, clients Clients, serviceID string) ([]string, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, space := range spaces {
+		id := aws.ToString(space.AgentSpaceId)
+		link, err := FindAssociation(ctx, clients, id, serviceID)
+		if err != nil {
+			return nil, err
+		}
+		if link != "" {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+
+	return ids, nil
 }
 
 // disassociateEverywhere removes a service from every agent space that uses
@@ -680,18 +1170,18 @@ func operatorAppInput(agentSpaceID, roleARN string, opts SetupOptions) *devopsag
 	return input
 }
 
-func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID string, logf func(string, ...any)) (string, error) {
+func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID string, action RoleAction, logf func(string, ...any)) (string, bool, error) {
 	trustPolicy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow",`+
 		`"Principal":{"Service":"aidevops.amazonaws.com"},"Action":"sts:AssumeRole",`+
 		`"Condition":{"StringEquals":{"aws:SourceAccount":"%[1]s"},`+
 		`"ArnLike":{"aws:SourceArn":"arn:aws:aidevops:*:%[1]s:agentspace/*"}}}]}`, accountID)
 
-	arn, ours, err := ensureRole(ctx, client, AgentSpaceRoleName, trustPolicy, AgentSpacePolicyARN, logf)
+	arn, ours, existed, err := ensureRole(ctx, client, AgentSpaceRoleName, trustPolicy, AgentSpacePolicyARN, action, logf)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if !ours {
-		return arn, nil
+		return arn, false, nil
 	}
 
 	// Topology discovery creates the Resource Explorer service-linked role on
@@ -704,13 +1194,13 @@ func ensureAgentSpaceRole(ctx context.Context, client IAMAPI, accountID string, 
 		PolicyName:     aws.String(ServiceLinkedRolePolicyName),
 		PolicyDocument: aws.String(inlinePolicy),
 	}); err != nil {
-		return "", fmt.Errorf("unable to add the %s policy to %s: %w", ServiceLinkedRolePolicyName, AgentSpaceRoleName, err)
+		return "", false, fmt.Errorf("unable to add the %s policy to %s: %w", ServiceLinkedRolePolicyName, AgentSpaceRoleName, err)
 	}
 
-	return arn, nil
+	return arn, existed, nil
 }
 
-func ensureOperatorAppRole(ctx context.Context, client IAMAPI, accountID string, logf func(string, ...any)) (string, error) {
+func ensureOperatorAppRole(ctx context.Context, client IAMAPI, accountID string, action RoleAction, logf func(string, ...any)) (string, bool, error) {
 	// sts:TagSession is required because the managed policy scopes web app
 	// access per space with an aws:PrincipalTag/AgentSpaceId condition.
 	trustPolicy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow",`+
@@ -718,71 +1208,87 @@ func ensureOperatorAppRole(ctx context.Context, client IAMAPI, accountID string,
 		`"Condition":{"StringEquals":{"aws:SourceAccount":"%[1]s"},`+
 		`"ArnLike":{"aws:SourceArn":"arn:aws:aidevops:*:%[1]s:agentspace/*"}}}]}`, accountID)
 
-	arn, _, err := ensureRole(ctx, client, OperatorAppRoleName, trustPolicy, OperatorAppPolicyARN, logf)
+	arn, _, existed, err := ensureRole(ctx, client, OperatorAppRoleName, trustPolicy, OperatorAppPolicyARN, action, logf)
 
-	return arn, err
+	return arn, existed, err
 }
 
-// ensureRole creates the role, or reuses one that already has its name. The
-// second return value reports whether the role is one this CLI manages: a role
-// the customer created themselves is reused as it is, since rewriting its trust
-// policy or attaching policies to it would change something setup does not own.
+// ensureRole does the planned role action.
 func ensureRole(
 	ctx context.Context,
 	client IAMAPI,
 	name, trustPolicy, policyARN string,
+	action RoleAction,
 	logf func(string, ...any),
-) (string, bool, error) {
-	var arn string
-	created, err := client.CreateRole(ctx, &iam.CreateRoleInput{
-		RoleName:                 aws.String(name),
-		AssumeRolePolicyDocument: aws.String(trustPolicy),
-		Tags: []iamtypes.Tag{{
-			Key:   aws.String(ManagedTagKey),
-			Value: aws.String(ManagedTagValue),
-		}},
-	})
-	switch {
-	case err == nil:
-		arn = aws.ToString(created.Role.Arn)
-	case isAlreadyExists(err):
-		existing, getErr := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
-		if getErr != nil {
-			return "", false, fmt.Errorf("unable to read the existing %s role: %w", name, getErr)
+) (arn string, ours, existed bool, err error) {
+	raced := false
+	if action == RoleCreate {
+		created, createErr := client.CreateRole(ctx, &iam.CreateRoleInput{
+			RoleName:                 aws.String(name),
+			AssumeRolePolicyDocument: aws.String(trustPolicy),
+			Tags: []iamtypes.Tag{{
+				Key:   aws.String(ManagedTagKey),
+				Value: aws.String(ManagedTagValue),
+			}},
+		})
+		switch {
+		case isAlreadyExists(createErr):
+			// A tagged role is already done.
+			action, raced = RoleUpdate, true
+		case createErr != nil:
+			return "", false, false, fmt.Errorf("unable to create the %s role: %w", name, createErr)
+		default:
+			return aws.ToString(created.Role.Arn), true, false, attachPolicy(ctx, client, name, policyARN)
 		}
-		arn = aws.ToString(existing.Role.Arn)
-
-		managed, err := isManagedRole(ctx, client, name)
-		if err != nil {
-			return "", false, err
-		}
-		if !managed {
-			logf("Role %s has no %s tag, so ldcli did not change it", name, ManagedTagKey)
-			logf("Role %s must trust aidevops.amazonaws.com and allow %s", name, policyName(policyARN))
-
-			return arn, false, nil
-		}
-
-		// Roles created before the trust policy covered every region are
-		// pinned to one region's agent spaces, so refresh it.
-		if _, err := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
-			RoleName:       aws.String(name),
-			PolicyDocument: aws.String(trustPolicy),
-		}); err != nil {
-			return "", false, fmt.Errorf("unable to update the trust policy on the %s role: %w", name, err)
-		}
-	default:
-		return "", false, fmt.Errorf("unable to create the %s role: %w", name, err)
 	}
 
+	existing, err := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
+	var missing *iamtypes.NoSuchEntityException
+	switch {
+	case errors.As(err, &missing):
+		return "", false, false, planChanged("role %s disappeared after the plan", name)
+	case err != nil:
+		return "", false, false, fmt.Errorf("unable to read the existing %s role: %w", name, err)
+	}
+	arn = aws.ToString(existing.Role.Arn)
+
+	managed, err := isManagedRole(ctx, client, name)
+	if err != nil {
+		return "", false, false, err
+	}
+	switch {
+	case raced && !managed:
+		return "", false, false, planChanged("role %s appeared after the plan", name)
+	case managed != (action == RoleUpdate):
+		return "", false, false, planChanged("the %s tag on role %s changed", ManagedTagKey, name)
+	}
+	if !managed {
+		logf("Role %s has no %s tag, so ldcli did not change it", name, ManagedTagKey)
+		logf("Role %s must trust aidevops.amazonaws.com and allow %s", name, policyName(policyARN))
+
+		return arn, false, false, nil
+	}
+
+	// Older trust policies covered one region.
+	if _, err := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
+		RoleName:       aws.String(name),
+		PolicyDocument: aws.String(trustPolicy),
+	}); err != nil {
+		return "", false, false, fmt.Errorf("unable to update the trust policy on the %s role: %w", name, err)
+	}
+
+	return arn, true, raced, attachPolicy(ctx, client, name, policyARN)
+}
+
+func attachPolicy(ctx context.Context, client IAMAPI, name, policyARN string) error {
 	if _, err := client.AttachRolePolicy(ctx, &iam.AttachRolePolicyInput{
 		RoleName:  aws.String(name),
 		PolicyArn: aws.String(policyARN),
 	}); err != nil {
-		return "", false, fmt.Errorf("unable to attach %s to %s: %w", policyARN, name, err)
+		return fmt.Errorf("unable to attach %s to %s: %w", policyARN, name, err)
 	}
 
-	return arn, true, nil
+	return nil
 }
 
 // policyName is the last part of an ARN.

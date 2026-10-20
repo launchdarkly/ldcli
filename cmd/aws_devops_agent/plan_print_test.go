@@ -2,8 +2,11 @@ package awsdevopsagent
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -78,12 +81,102 @@ func TestTokenPromptAsksWhenInteractive(t *testing.T) {
 	assert.Contains(t, w.calls, "RegisterService")
 }
 
-func TestTokenPromptSilentWhenNotInteractive(t *testing.T) {
+// No token, no prompt: stop first.
+func TestSetupNeedsATokenItCannotAsk(t *testing.T) {
+	cases := map[string]struct {
+		plaintext, interactive, yes bool
+	}{
+		"no terminal":     {plaintext: true},
+		"json":            {},
+		"yes in terminal": {plaintext: true, interactive: true, yes: true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			cmd, out := setupTestCmd(t, "")
+			cmd.SetIn(noReadStdin{t})
+			if c.yes {
+				require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+			}
+			clients, w := countingClients()
+
+			err := setupWith(cmd, clients, noTokenOptions(), c.plaintext, c.interactive)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "--access-token")
+			assert.Contains(t, err.Error(), awsdevops.AccessTokenURL(""))
+			assert.Empty(t, w.calls)
+			assert.NotContains(t, out.String(), "Setup plan")
+		})
+	}
+}
+
+// A registered server needs no token.
+func TestSetupWithoutTokenReusesServer(t *testing.T) {
 	cmd, _ := setupTestCmd(t, "")
 	cmd.SetIn(noReadStdin{t})
 	clients, w := countingClients()
+	agent := clients.Agent.(countingAgent)
+	agent.services = []agenttypes.RegisteredService{{
+		ServiceId:   aws.String("mcp-1"),
+		ServiceType: agenttypes.ServiceMcpServer,
+		AdditionalServiceDetails: &agenttypes.AdditionalServiceDetailsMemberMcpserver{
+			Value: agenttypes.RegisteredMCPServerDetails{Endpoint: aws.String(awsdevops.MCPServerEndpoint)},
+		},
+	}}
+	clients.Agent = agent
 
-	_ = setupWith(cmd, clients, noTokenOptions(), true, false)
+	require.NoError(t, setupWith(cmd, clients, noTokenOptions(), true, false))
 
 	assert.NotContains(t, w.calls, "RegisterService")
+	assert.Contains(t, w.calls, "AssociateService")
+}
+
+func TestSetupPlanNamesAccountAssociation(t *testing.T) {
+	cmd, out := setupTestCmd(t, "n\n")
+	clients, _ := countingClients()
+
+	_ = setupWith(cmd, clients, newSpaceOptions(), true, true)
+
+	assert.Contains(t, strings.ToLower(out.String()), "associate aws account "+testAccountID)
+}
+
+func TestSetupRejectsUnknownMCPServiceID(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	clients, w := countingClients()
+	opts := newSpaceOptions()
+	opts.MCPServiceID = "mcp-9"
+
+	err := setupWith(cmd, clients, opts, true, false)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mcp-9")
+	assert.NotErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Empty(t, w.calls)
+}
+
+// --yes asks no question at all.
+func TestSetupWithYesSkipsSpaceChoice(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")})
+
+	err := setupWith(cmd, clients, newSpaceOptions(), true, true)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--agent-space-id")
+	assert.Empty(t, w.calls)
+}
+
+func TestSetupWithYesReusesMatchingSpace(t *testing.T) {
+	cmd, _ := setupTestCmd(t, "")
+	cmd.SetIn(noReadStdin{t})
+	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+	clients, w := countingClients(agenttypes.AgentSpace{AgentSpaceId: aws.String("space-2"), Name: aws.String("ld-devops-agent")})
+
+	require.NoError(t, setupWith(cmd, clients, newSpaceOptions(), true, true))
+
+	assert.NotContains(t, w.calls, "CreateAgentSpace")
+	assert.Contains(t, w.calls, "EnableOperatorApp")
 }

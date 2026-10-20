@@ -65,6 +65,10 @@ func TestSpaceIDWithAuthFlagRunsFullSetup(t *testing.T) {
 	cases := map[string]map[string]string{
 		"auth-flow":        {authFlowFlag: "iam"},
 		"idc-instance-arn": {authFlowFlag: "idc", idcInstanceARNFlag: "arn:aws:sso:::instance/ssoins-1"},
+		"idp": {
+			authFlowFlag: "idp", issuerURLFlag: "https://idp.example.com",
+			idpClientIDFlag: "client", idpClientSecretFlag: "secret",
+		},
 	}
 	for name, flags := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -130,18 +134,14 @@ func TestSignInFlagsWithMatchingAuthFlowPass(t *testing.T) {
 	}
 }
 
-// Only --auth-flow changes an existing space.
-func TestSpaceIDWithoutAuthFlowOnlyConnects(t *testing.T) {
+func TestSetupOptionsRecordsAuthFlow(t *testing.T) {
 	cmd := NewSetupCmd(nil)
-	require.NoError(t, cmd.Flags().Set(agentSpaceIDFlag, "space-2"))
-	require.NoError(t, cmd.Flags().Set(idpClientSecretFlag, "secret"))
-	require.NoError(t, cmd.Flags().Set(authFlowFlag, "idp"))
-	require.NoError(t, cmd.Flags().Set(issuerURLFlag, "https://idp.example.com"))
-	require.NoError(t, cmd.Flags().Set(idpClientIDFlag, "client"))
-	assert.True(t, authFlagSet(cmd))
+	opts, err := setupOptions(cmd)
+	require.NoError(t, err)
+	assert.False(t, opts.AuthFlowSet)
 
-	cmd = NewSetupCmd(nil)
-	require.NoError(t, cmd.Flags().Set(agentSpaceIDFlag, "space-2"))
-	require.NoError(t, cmd.Flags().Set(issuerURLFlag, "https://idp.example.com"))
-	assert.False(t, authFlagSet(cmd))
+	require.NoError(t, cmd.Flags().Set(authFlowFlag, "iam"))
+	opts, err = setupOptions(cmd)
+	require.NoError(t, err)
+	assert.True(t, opts.AuthFlowSet)
 }
