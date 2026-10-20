@@ -35,6 +35,8 @@ type Sdk interface {
 type streamingSdk struct {
 	streamingUrl string
 	initTimeout  time.Duration
+	// logger replaces the default SDK log output. It is nil except in tests.
+	logger ldlog.BaseLogger
 }
 
 func newSdk(streamingUrl string, initTimeout time.Duration) Sdk {
@@ -48,24 +50,35 @@ func newSdk(streamingUrl string, initTimeout time.Duration) Sdk {
 }
 
 func (s streamingSdk) GetAllFlagsState(ctx context.Context, ldContext ldcontext.Context, sdkKey string) (flagstate.AllFlags, error) {
+	logging := ldcomponents.Logging()
+	if s.logger != nil {
+		var loggers ldlog.Loggers
+		loggers.SetBaseLogger(s.logger)
+		logging = logging.Loggers(loggers)
+	}
 	config := ldsdk.Config{
 		DiagnosticOptOut: true,
 		Events:           ldcomponents.NoEvents(),
-		Logging:          ldcomponents.Logging().MinLevel(ldlog.Debug),
+		Logging:          logging.MinLevel(ldlog.Debug),
 	}
 	if s.streamingUrl != "" {
 		config.ServiceEndpoints.Streaming = s.streamingUrl
 	}
 	ldClient, err := ldsdk.MakeCustomClient(sdkKey, config, s.initTimeout)
 	if err != nil {
+		// After a timeout, MakeCustomClient still returns a client that keeps retrying in the background.
+		if ldClient != nil {
+			closeClient(ldClient)
+		}
 		return flagstate.AllFlags{}, errors.Wrap(err, "unable to get source flags from LD SDK")
 	}
-	defer func() {
-		err := ldClient.Close()
-		if err != nil {
-			log.Printf("error while closing SDK client: %+v", err)
-		}
-	}()
+	defer closeClient(ldClient)
 	flags := ldClient.AllFlagsState(ldContext)
 	return flags, nil
+}
+
+func closeClient(ldClient *ldsdk.LDClient) {
+	if err := ldClient.Close(); err != nil {
+		log.Printf("error while closing SDK client: %+v", err)
+	}
 }
