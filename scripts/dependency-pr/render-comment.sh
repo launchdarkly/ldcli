@@ -52,7 +52,8 @@ render() {
 
         (if ($r.decisions | length) > 0 then
           "### Decisions for a human", "",
-          "Verification is complete for these items. Each one needs a choice, not more checks.", "",
+          "Verification is complete for these items. Each one needs a choice, not more checks."
+            + (if ($r.incomplete | length) > 0 then " The verdict stays incomplete until the items under \"Incomplete verification\" are closed." else "" end), "",
           ($r.decisions | to_entries[]
            | "\(.key + 1). **\(.value.question)**",
              (.value.evidence[] | "   - \(.)")),

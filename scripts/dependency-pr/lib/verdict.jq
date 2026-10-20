@@ -3,8 +3,11 @@
 #
 # Verdicts, strongest first:
 #   block          the PR must not merge as it is (breakage, or a fix is required)
-#   needs-human    verification is complete, but a person must answer a specific question
 #   incomplete     a required check, gate, or review did not run or proved nothing; a rerun or the agent closes it, not a person
+#   needs-human    verification is complete, but a person must answer a specific question
+#
+# incomplete outranks needs-human: a question is ready for a person only when
+# nothing is left to verify.
 #
 # A gate (registry "gate": true, or a matched "required_for_tags") must pass.
 # "pre-existing" or "incomplete" never satisfies a gate.
@@ -139,8 +142,8 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
       | {source: .id, reason: "\(.title): \(.pr.summary)"} ] as $not_run
 
   | (if ($blocks | length) > 0 then "block"
-     elif ($decisions | length) > 0 then "needs-human"
      elif ($incomplete | length) > 0 then "incomplete"
+     elif ($decisions | length) > 0 then "needs-human"
      else "safe-to-merge" end) as $verdict
   | {
       schema: 2,

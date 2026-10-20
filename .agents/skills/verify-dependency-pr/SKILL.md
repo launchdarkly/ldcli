@@ -16,9 +16,11 @@ All paths are relative to the repository root. Output goes to `.verify-out/pr-<N
 | Verdict | Meaning | Exit code |
 |---|---|---|
 | `block` | The PR must not merge as it is. The comment gives the fix. | 1 |
-| `needs-human` | Verification is complete. A person must answer one or more specific questions. | 1 |
 | `incomplete` | A required check, gate, or review did not run, or proved nothing. A rerun or more agent work closes it, not a person. | 2 |
+| `needs-human` | Verification is complete. A person must answer one or more specific questions. | 1 |
 | `safe-to-merge` | Every required check and review ran and passed. | 0 |
+
+The table gives the verdicts from strongest to weakest. If an item is incomplete, the verdict is `incomplete`, even when a question is ready. The comment still lists the questions.
 
 A gate is a check that must pass, for example the build or the tests. A failure that also happens on base is "pre-existing" and does not count against the PR. Some checks list separate findings: actionlint, golangci-lint, prettier, and `npm ls`. If each finding of the PR also occurs on base, the failure is pre-existing. A pre-existing failure never satisfies a gate.
 

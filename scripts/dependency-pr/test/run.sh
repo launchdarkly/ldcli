@@ -137,7 +137,10 @@ out=$(verdict "[$(chk a pass)]" '[]' low '{"tier": "high", "findings": []}')
 check "agent can raise the tier" "high incomplete" "$(v '"\(.tier) \(.verdict)"')"
 
 out=$(verdict "[$(chk b fail pass), $(chk h decide), $(chk d incomplete)]" '[]' low)
-check "block beats needs-human beats incomplete" "block 1 1 1" "$(v '"\(.verdict) \(.blocks | length) \(.decisions | length) \(.incomplete | length)"')"
+check "block beats incomplete beats needs-human" "block 1 1 1" "$(v '"\(.verdict) \(.blocks | length) \(.decisions | length) \(.incomplete | length)"')"
+
+out=$(verdict "[$(chk h decide), $(chk d incomplete)]" '[]' low)
+check "incomplete outranks needs-human: a question waits until verification is complete (#719)" "incomplete 2 1" "$(v '"\(.verdict) \(.exit_code) \(.decisions | length)"')"
 
 # ---- rendering
 
@@ -149,7 +152,8 @@ render() {
 }
 verdict "[$(chk drift fail fail fp1 fp1), $(chk help decide), $(chk docker incomplete)]" "[$(gen g1 discriminating fail pass)]" medium "$REVIEWED" '[]' "$SQL" | render >"$tmp/c1.md"
 check "comment has marker" 1 "$(grep -c '^<!-- ldcli-dependency-verify -->$' "$tmp/c1.md")"
-check "comment headline" 1 "$(grep -c '^## Dependency verification: NEEDS A HUMAN DECISION$' "$tmp/c1.md")"
+check "comment headline: incomplete when a decision and an incomplete item are both open" 1 "$(grep -c '^## Dependency verification: INCOMPLETE$' "$tmp/c1.md")"
+check "comment says that the questions wait for the incomplete items" 1 "$(grep -c 'The verdict stays incomplete until' "$tmp/c1.md")"
 check "comment asks the exact question" 1 "$(grep -c '^1\. \*\*Accept help?\*\*$' "$tmp/c1.md")"
 check "comment lists incomplete items separately" 1 "$(grep -c '^### Incomplete verification$' "$tmp/c1.md")"
 check "comment lists pre-existing issue" 1 "$(grep -c 'Already failing on `main`' "$tmp/c1.md")"

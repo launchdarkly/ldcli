@@ -26,8 +26,9 @@
 # Generated per-PR checks are read from <out-dir>/generated/checks.json and the
 # agent's impact review from <out-dir>/agent/impact.json, when present.
 #
-# Verdicts: safe-to-merge, needs-human (a specific decision), block (must fix),
-# incomplete (a required check or review did not run; rerun or finish the review).
+# Verdicts, strongest first: block (must fix), incomplete (a required check or
+# review did not run; rerun or finish the review), needs-human (a specific
+# decision), safe-to-merge.
 # Exit: 0 safe to merge, 1 needs-human or block, 2 incomplete or verifier error.
 # This script does not push, comment, approve, or merge. The caller runs
 # post-comment.sh to post the comment.
