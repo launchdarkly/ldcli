@@ -196,3 +196,40 @@ func TestSandboxCommand_CreatesMissingCacheFolders(t *testing.T) {
 	assert.Error(t, err, "a parent folder opens for the create only")
 	assert.Contains(t, out, "Operation not permitted")
 }
+
+func TestParentFolders_CoversFoldersUnderTheTemporaryFolder(t *testing.T) {
+	p := sandboxPaths{
+		Home:      "/Users/me",
+		Temp:      "/private/tmp",
+		RunTemp:   "/private/tmp/ldcli-agent-run-1",
+		ReadWrite: []string{"/private/tmp/work/demo/app", "/Users/me/.cache/uv"},
+	}
+
+	got := parentFolders(p)
+
+	assert.Subset(t, got, []string{"/Users/me", "/Users/me/.cache", "/private/tmp", "/private/tmp/work", "/private/tmp/work/demo"})
+	assert.NotContains(t, got, "/private/tmp/work/demo/app", "an open folder is not a parent")
+}
+
+func TestSandboxCommand_ResolvesAProjectUnderTheTemporaryFolder(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	t.Setenv("HOME", t.TempDir())
+	base, err := os.MkdirTemp(sharedTemp, "ldcli-sandbox-test-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(base) })
+	project := filepath.Join(base, "nested", "app")
+	require.NoError(t, os.MkdirAll(project, 0o700))
+
+	box, err := sandboxCommand("/bin/realpath", []string{project}, project, os.Environ())
+	require.NoError(t, err)
+	defer box.Cleanup()
+	out, err := exec.Command(box.Name, box.Args...).CombinedOutput()
+
+	require.NoError(t, err, string(out))
+	assert.Equal(t, project, strings.TrimSpace(string(out)))
+}

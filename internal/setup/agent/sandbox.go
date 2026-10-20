@@ -153,7 +153,8 @@ func seatbeltProfile(p sandboxPaths) string {
 }
 
 // parentFolders returns the closed folders between each open folder and the
-// home folder, the home folder included, without repeats.
+// closed folder that holds it, the home folder or the shared temporary folder.
+// It includes those two folders and has no repeats.
 func parentFolders(p sandboxPaths) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -163,13 +164,19 @@ func parentFolders(p sandboxPaths) []string {
 			out = append(out, path)
 		}
 	}
-	add(p.Home)
-	for _, path := range append(append([]string{}, p.ReadWrite...), p.ReadOnly...) {
-		if !strings.HasPrefix(path, p.Home+"/") {
+	open := append(append([]string{p.RunTemp}, p.ReadWrite...), p.ReadOnly...)
+	for _, root := range []string{p.Home, p.Temp} {
+		if root == "" {
 			continue
 		}
-		for dir := filepath.Dir(path); dir != p.Home && strings.HasPrefix(dir, p.Home+"/"); dir = filepath.Dir(dir) {
-			add(dir)
+		add(root)
+		for _, path := range open {
+			if path == "" || !strings.HasPrefix(path, root+"/") {
+				continue
+			}
+			for dir := filepath.Dir(path); dir != root && strings.HasPrefix(dir, root+"/"); dir = filepath.Dir(dir) {
+				add(dir)
+			}
 		}
 	}
 	return out
