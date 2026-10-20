@@ -25,6 +25,7 @@ const (
 	replaceMCPTokenFlag = "replace-mcp-token"
 	mcpServiceIDFlag    = "mcp-service-id"
 	mcpEndpointFlag     = "mcp-endpoint"
+	yesFlag             = "yes"
 )
 
 func NewSetupCmd(analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
@@ -73,7 +74,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	clients, err := awsdevops.NewClients(cmd.Context(), mustString(cmd, regionFlag), mustString(cmd, profileFlag))
+	clients, err := loadClients(cmd)
 	if err != nil {
 		return err
 	}
