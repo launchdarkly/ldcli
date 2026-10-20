@@ -31,3 +31,9 @@ func TestBuildFacts_HasProjectEnvironmentAndKeyNames(t *testing.T) {
 	assert.Contains(t, facts, "Do not look for keys")
 	assert.Contains(t, BuildFacts(Task{}), "- Model provider keys that are set: none")
 }
+
+func TestProviderKeys_BlankQuotedValueIsNotSet(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("OPENAI_API_KEY=\"   \"\nANTHROPIC_API_KEY=' x '\n"), 0o600))
+	assert.Equal(t, []string{"ANTHROPIC_API_KEY"}, ProviderKeys(dir, nil))
+}

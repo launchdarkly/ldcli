@@ -440,3 +440,13 @@ func TestRun_CloseIsSafeTwice(t *testing.T) {
 	assert.NoError(t, run.Close())
 	assert.NoError(t, run.Close())
 }
+
+func TestBuildPrompt_HasTheSameFactsAsBuildFacts(t *testing.T) {
+	task := Task{SDKID: "python-server-sdk", FlagKey: "f", ProjectKey: "proj", EnvironmentKey: "prod", ProviderKeys: []string{"ANTHROPIC_API_KEY"}}
+	for _, p := range []string{BuildPrompt(task), BuildFacts(task)} {
+		assert.Contains(t, p, "LaunchDarkly project: proj")
+		assert.Contains(t, p, "LaunchDarkly environment: prod")
+		assert.Contains(t, p, "ANTHROPIC_API_KEY (names only)")
+		assert.Contains(t, p, "$TMPDIR")
+	}
+}

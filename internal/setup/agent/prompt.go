@@ -93,9 +93,16 @@ func BuildFacts(t Task) string {
 	writeFact(&b, "Flag created by setup", t.FlagKey)
 	writeFact(&b, "Environment variable for the SDK credential", CredentialEnvVar(t.SDKID))
 	writeFact(&b, "Model provider keys that are set", providerKeysFact(t.ProviderKeys))
-	b.WriteString("\nldcli gives the user the SDK credential. Do not look for keys, print the environment, or ask the user for a key. Use your temporary folder in $TMPDIR, not /tmp.\n")
+	if t.SDKID == flutterSDK {
+		writeFact(&b, "Environment variable for a Flutter web app", ClientSideIDEnvVar)
+	}
+	b.WriteString("\n" + setupRules)
 	return b.String()
 }
+
+// setupRules ends both prompts, so the agent gets the same rules with or
+// without the AI Config.
+const setupRules = "ldcli gives the user the SDK credential. Do not look for keys, print the environment, or ask the user for a key. Use your temporary folder in $TMPDIR, not /tmp.\n"
 
 func providerKeysFact(names []string) string {
 	if len(names) == 0 {
@@ -114,6 +121,9 @@ func BuildPrompt(t Task) string {
 	writeFact(&b, "Framework", t.Framework)
 	writeFact(&b, "Package manager", t.PackageManager)
 	writeFact(&b, "Entry point", t.EntryPoint)
+	writeFact(&b, "LaunchDarkly project", t.ProjectKey)
+	writeFact(&b, "LaunchDarkly environment", t.EnvironmentKey)
+	writeFact(&b, "Model provider keys that are set", providerKeysFact(t.ProviderKeys))
 	b.WriteString("\n")
 
 	if t.SDKInstalled {
@@ -129,6 +139,7 @@ func BuildPrompt(t Task) string {
 	if t.EntryPoint == "" {
 		b.WriteString("ldcli did not find an entry point. Find where the application starts before you edit.\n")
 	}
+	b.WriteString(setupRules)
 	return b.String()
 }
 

@@ -61,7 +61,7 @@ func dotEnvNames(path string) map[string]bool {
 			continue
 		}
 		name, value, ok := strings.Cut(line, "=")
-		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		value = strings.TrimSpace(strings.Trim(strings.TrimSpace(value), `"'`))
 		if ok && value != "" {
 			names[strings.TrimSpace(name)] = true
 		}
