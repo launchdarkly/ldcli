@@ -161,7 +161,7 @@ check "comment says that the questions wait for the incomplete items" 1 "$(grep 
 check "comment asks the exact question" 1 "$(grep -c '^1\. \*\*Accept help?\*\*$' "$tmp/c1.md")"
 check "comment lists incomplete items separately" 1 "$(grep -c '^### Incomplete verification$' "$tmp/c1.md")"
 check "comment lists pre-existing issue" 1 "$(grep -c 'Already failing on `main`' "$tmp/c1.md")"
-check "comment shows proven generated check" 1 "$(grep -c 'proven (fails on base, passes on PR)' "$tmp/c1.md")"
+check "comment shows proven generated check" 1 "$(grep -c '| proven (fails on base, passes on PR) |' "$tmp/c1.md")"
 verdict "[$(chk tidy fail pass fp1)]" '[]' low | render >"$tmp/c2.md"
 check "block comment shows the mechanical fix" 1 "$(grep -c 'Mechanical fix: `make tidy`' "$tmp/c2.md")"
 verdict "[$(chk a pass)]" '[]' low | render >"$tmp/c3.md"
