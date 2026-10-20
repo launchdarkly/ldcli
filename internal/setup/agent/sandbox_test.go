@@ -148,3 +148,33 @@ func TestSandboxCommand_CreatesMissingCacheFolders(t *testing.T) {
 	assert.Error(t, err, "a parent folder opens for the create only")
 	assert.Contains(t, out, "Operation not permitted")
 }
+
+func TestSandboxCommand_SymlinkedHomeKeepsSharedBinFolderClosed(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	// On macOS, t.TempDir is under /var, which is a symlink to /private/var.
+	home := t.TempDir()
+	realHome, err := filepath.EvalSymlinks(home)
+	require.NoError(t, err)
+	require.NotEqual(t, home, realHome, "the test needs a home path with a symlink")
+	t.Setenv("HOME", home)
+	bin := filepath.Join(home, ".local", "bin", "opencode")
+	require.NoError(t, os.MkdirAll(filepath.Dir(bin), 0o700))
+	require.NoError(t, os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o700))
+
+	project := filepath.Join(home, "app")
+	require.NoError(t, os.MkdirAll(project, 0o700))
+
+	_, args, cleanup, err := sandboxCommand(bin, nil, project, os.Environ())
+	require.NoError(t, err)
+	defer cleanup()
+	profile, err := os.ReadFile(args[1])
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(profile), "(subpath "+sbString(filepath.Join(realHome, ".local"))+")", "the shared ~/.local folder stays closed")
+	assert.Contains(t, string(profile), "(subpath "+sbString(filepath.Join(realHome, ".local", "bin"))+")")
+}
