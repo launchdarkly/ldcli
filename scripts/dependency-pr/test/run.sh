@@ -722,6 +722,10 @@ lk "$tmp/lic-b" '{"node_modules/minimatch": ["3.1.2", "ISC"], "node_modules/x/no
 lk "$tmp/lic-p" '{"node_modules/minimatch": ["3.1.2", "ISC"], "node_modules/x/node_modules/minimatch": ["10.2.6", "BlueOak-1.0.0"]}'
 out=$(BASE_WT="$tmp/lic-b" run_check license-changes "$tmp/lic-p" CLASSIFICATION="$tmp/cls-npm.json")
 check "license-changes compares the copy at the same lockfile path, not the first copy with the name" "pass" "${out%%|*}"
+lk "$tmp/lic-b" '{"node_modules/js-yaml": ["4.1.0", null]}'
+lk "$tmp/lic-p" '{"node_modules/js-yaml": ["4.1.1", "MIT"]}'
+out=$(BASE_WT="$tmp/lic-b" run_check license-changes "$tmp/lic-p" CLASSIFICATION="$tmp/cls-npm.json")
+check "license-changes: a base entry without a license field is not a license change (#635)" "pass" "${out%%|*}"
 lk "$tmp/lic-b" '{"node_modules/minimatch": ["3.1.2", "ISC"]}'
 lk "$tmp/lic-p" '{"node_modules/minimatch": ["3.1.2", "ISC"], "node_modules/typescript-eslint/node_modules/minimatch": ["10.2.6", "BlueOak-1.0.0"]}'
 out=$(BASE_WT="$tmp/lic-b" run_check license-changes "$tmp/lic-p" CLASSIFICATION="$tmp/cls-npm.json")

@@ -209,13 +209,14 @@ def licenses(base, pr, eco, policy):
         for key in sorted(set(p) - set(b)):
             e = p[key]
             to = e["license"] or "unknown"
-            same = [bp[path]["license"] or "unknown" for path in e["paths"] if path in bp]
+            # A base entry without a license field gives no license to compare.
+            same = [bp[path]["license"] for path in e["paths"] if path in bp]
             where = None
             if same:
                 frm = same[0]
             else:
                 # A new path: compare with the other copies of the package on base.
-                others = sorted({x["license"] or "unknown" for path, x in bp.items() if x["name"] == e["name"]})
+                others = sorted({x["license"] for path, x in bp.items() if x["name"] == e["name"] and x["license"]})
                 frm = None if not others or to in others else ", ".join(others)
                 parents = sorted({pp_ for pp_ in map(parent_package, e["paths"]) if pp_})
                 if others and parents:
