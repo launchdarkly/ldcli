@@ -1279,7 +1279,7 @@ func (api *headerRecordingAPI) MakeRequestWithHeaders(
 	}
 	api.sources[method+" "+path] = headers.Get(syncapi.SyncSourceHeader)
 	api.commits[method+" "+path] = headers.Get(syncapi.SyncCommitHeader)
-	return api.directAPI.MakeRequest(accessToken, method, path, contentType, query, body, beta)
+	return api.MakeRequest(accessToken, method, path, contentType, query, body, beta)
 }
 
 type ambiguousWriteAPI struct {

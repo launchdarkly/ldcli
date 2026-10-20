@@ -280,7 +280,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if adopted {
 		_ = syncconsole.New(options.Output).Line(
 			"The local files are now the source of truth for the prompts of these variations. " +
-				"LaunchDarkly rejects other changes to the prompts. The other settings sync both ways.",
+				"LaunchDarkly rejects a prompt change that does not come from sync. The other settings sync both ways.",
 		)
 	}
 	return nil

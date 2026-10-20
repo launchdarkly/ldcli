@@ -91,18 +91,19 @@ func (policy ConflictPolicy) checkDirections(plan Plan) error {
 			continue
 		}
 		return fmt.Errorf(
-			"%s %s does not agree with the sync direction of %s. The direction is %s, so %s wins",
-			flag, selected, resource.ID, resource.Direction, directionWinnerName(winner),
+			"%s %s does not agree with the sync direction of %s. The direction is %s, so LaunchDarkly wins",
+			flag, selected, resource.ID, resource.Direction,
 		)
 	}
 	return nil
 }
 
 // directionWinner returns the side that a direction makes win, or an empty
-// resolution when the direction does not choose a side. DirectionBoth does
-// not choose. DirectionCodeCanonical decides only the prompt, and every
-// conflict choice keeps the local prompt, so it does not choose a side for
-// the other settings either.
+// resolution when the direction does not choose a side. Only
+// DirectionServerCanonical chooses a side. DirectionBoth does not choose.
+// DirectionCodeCanonical decides only the prompt, and every conflict choice
+// keeps the local prompt, so it does not choose a side for the other
+// settings.
 func directionWinner(direction syncdomain.Direction) ConflictResolution {
 	switch direction {
 	case syncdomain.DirectionServerCanonical:
@@ -110,14 +111,6 @@ func directionWinner(direction syncdomain.Direction) ConflictResolution {
 	default:
 		return ""
 	}
-}
-
-// directionWinnerName describes the side that wins for the user.
-func directionWinnerName(winner ConflictResolution) string {
-	if winner == ConflictUseLocal {
-		return "the local file"
-	}
-	return "LaunchDarkly"
 }
 
 var errConflictAborted = errors.New("sync conflict left unresolved")
@@ -130,26 +123,15 @@ type conflictGroup struct {
 }
 
 // directionResolution returns the side that the sync directions in the
-// group choose, or an empty resolution when every variation uses
-// DirectionBoth. It returns an error when two directions disagree.
-func (group conflictGroup) directionResolution() (ConflictResolution, error) {
-	var selected ConflictResolution
-	var selectedBy ResourceID
+// group choose, or an empty resolution when no direction chooses a side.
+// Only one direction chooses a side, so two directions cannot disagree.
+func (group conflictGroup) directionResolution() ConflictResolution {
 	for _, resource := range group.resources {
-		winner := directionWinner(resource.Direction)
-		switch {
-		case winner == "":
-		case selected == "":
-			selected, selectedBy = winner, resource.ID
-		case selected != winner:
-			return "", fmt.Errorf(
-				"%s and %s share a changed attachment, but their sync directions do not agree. "+
-					"Change the sync direction of one variation, or stop sharing the attachment",
-				selectedBy, resource.ID,
-			)
+		if winner := directionWinner(resource.Direction); winner != "" {
+			return winner
 		}
 	}
-	return selected, nil
+	return ""
 }
 
 type conflictResolutionResult struct {
@@ -191,10 +173,7 @@ func resolveConflicts(
 		if err != nil {
 			return conflictResolutionResult{}, err
 		}
-		directed, err := group.directionResolution()
-		if err != nil {
-			return conflictResolutionResult{}, err
-		}
+		directed := group.directionResolution()
 		var choice conflictChoice
 		switch {
 		case directed != "" && fromPolicy && resolution != directed:
