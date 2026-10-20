@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -198,7 +199,7 @@ func (s *AIConfigSource) Resolve(ctx context.Context, task Task) (Config, error)
 	if !res.Enabled || res.Config == nil {
 		return s.fallback(ctx, task)
 	}
-	return configFromAI(res.Config), nil
+	return configFromAI(res.Config, task), nil
 }
 
 func (s *AIConfigSource) fallback(ctx context.Context, task Task) (Config, error) {
@@ -255,10 +256,19 @@ var openCodeProviders = map[string]string{
 	"gemini":  "google",
 }
 
+// placeholderPattern matches a {{name}} variable, with the same rule as
+// aiserver.ParseTemplate.
+var placeholderPattern = regexp.MustCompile(`\{\{[\w.]+\}\}`)
+
 // configFromAI turns an AI Config variation into an agent configuration. An
 // agent-mode config has instructions. A completion-mode config has messages,
 // and its system messages become the instructions.
-func configFromAI(c *aiserver.AiConfig) Config {
+//
+// If the instructions use at least one {{variable}}, they describe the task
+// themselves: the CLI fills the variables from TaskVariables and sends only
+// StartMessage. Instructions without variables keep the CLI's own task
+// message, so a config can add guidance without taking over the task.
+func configFromAI(c *aiserver.AiConfig, task Task) Config {
 	cfg := Config{Instructions: c.Instructions, ModelID: c.Model.Name}
 	if cfg.Instructions == "" {
 		var system []string
@@ -271,6 +281,9 @@ func configFromAI(c *aiserver.AiConfig) Config {
 	}
 	if cfg.Instructions == "" {
 		cfg.Instructions = DefaultInstructions
+	} else if placeholderPattern.MatchString(cfg.Instructions) {
+		cfg.Instructions = aiserver.ParseTemplate(cfg.Instructions, TaskVariables(task))
+		cfg.Task = StartMessage
 	}
 	provider := strings.ToLower(strings.TrimSpace(c.Provider.Name))
 	if mapped, ok := openCodeProviders[provider]; ok {

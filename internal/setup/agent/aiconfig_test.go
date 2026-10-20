@@ -128,6 +128,27 @@ func TestAIConfigSource_AgentMode(t *testing.T) {
 	}
 }
 
+func TestAIConfigSource_InstructionsWithVariables_OwnTheTask(t *testing.T) {
+	s, _ := fakeSource(nil, enabled(agentConfig("anthropic", "claude-sonnet-5",
+		"Set up {{sdkId}} in {{entryPoint}}, read {{credentialEnvVar}}, evaluate {{flagKey}}. Installed: {{sdkInstalled}}. Keep {{unknown}}.")))
+
+	cfg, err := s.Resolve(context.Background(), Task{SDKID: "python-server-sdk", EntryPoint: "main.py", FlagKey: "my-new-flag", SDKInstalled: true})
+
+	require.NoError(t, err)
+	assert.Equal(t, "Set up python-server-sdk in main.py, read LAUNCHDARKLY_SDK_KEY, evaluate my-new-flag. Installed: true. Keep {{unknown}}.", cfg.Instructions)
+	assert.Equal(t, StartMessage, cfg.Task, "the config describes the task, so the CLI sends only the start message")
+}
+
+func TestAIConfigSource_InstructionsWithoutVariables_KeepTheCLITask(t *testing.T) {
+	s, _ := fakeSource(nil, enabled(agentConfig("anthropic", "claude-sonnet-5", "Prefer small diffs.")))
+
+	cfg, err := s.Resolve(context.Background(), Task{SDKID: "python-server-sdk"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "Prefer small diffs.", cfg.Instructions)
+	assert.Empty(t, cfg.Task, "the run sends the CLI's own task message")
+}
+
 func TestAIConfigSource_CompletionModeUsesSystemMessages(t *testing.T) {
 	c := agentConfig("openai", "gpt-6", "")
 	c.Messages = []aiserver.Message{{Role: "system", Text: "One"}, {Role: "user", Text: "skip"}, {Role: "system", Text: "Two"}}
