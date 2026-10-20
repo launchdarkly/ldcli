@@ -42,6 +42,17 @@ func TestCredentialEnvVar(t *testing.T) {
 	assert.Equal(t, MobileKeyEnvVar, CredentialEnvVar("swift-client-sdk"))
 }
 
+func TestBuildFacts_GivesFactsAndNoTask(t *testing.T) {
+	facts := BuildFacts(Task{SDKID: "python-server-sdk", Language: "Python", EntryPoint: "main.py", FlagKey: "my-new-flag", SDKInstalled: true})
+
+	assert.Contains(t, facts, "- SDK: python-server-sdk")
+	assert.Contains(t, facts, "- Entry point: main.py")
+	assert.Contains(t, facts, "- SDK package installed: yes")
+	assert.Contains(t, facts, "- Flag created by setup: my-new-flag")
+	assert.Contains(t, facts, "- Environment variable for the SDK credential: LAUNCHDARKLY_SDK_KEY")
+	assert.NotContains(t, facts, "Evaluate")
+}
+
 func TestBuildPrompt_NoEntryPoint_AsksTheAgentToFindOne(t *testing.T) {
 	prompt := BuildPrompt(Task{SDKID: "go-server-sdk", FlagKey: "f"})
 
