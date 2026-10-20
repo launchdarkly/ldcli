@@ -425,6 +425,13 @@ func TestCredentialEnvVar_CoversEveryAlias(t *testing.T) {
 	}
 }
 
+func TestBuildPrompt_FlutterNamesTheWebCredential(t *testing.T) {
+	p := BuildPrompt(Task{SDKID: "flutter-client-sdk", FlagKey: "f"})
+	assert.Contains(t, p, MobileKeyEnvVar)
+	assert.Contains(t, p, "If the app runs on the web, read the client-side ID from "+ClientSideIDEnvVar)
+	assert.NotContains(t, BuildPrompt(Task{SDKID: "android", FlagKey: "f"}), ClientSideIDEnvVar)
+}
+
 func TestRun_CloseIsSafeTwice(t *testing.T) {
 	f := newFakeOpenCode(t)
 	run, err := startRun(context.Background(), f.client(), Config{}, "task")
