@@ -31,6 +31,8 @@ jq -r '.actions[] | select(.upstream.status == "ok" and ((.upstream.outputs_unde
   | "- `\(.name)` does not declare the outputs \(.upstream.outputs_undeclared | join(", ")) in either version. The action sets them at run time, so this check cannot compare them."' "$R" >>"$ARTIFACTS/details.md"
 jq -r '.actions[] | select(.upstream.status == "ok" and ((.upstream.defaults_same_on_github_com // []) | length) > 0)
   | "- `\(.name)`: the default of \([.upstream.defaults_same_on_github_com[].input] | join(", ")) changed only for GitHub Enterprise Server. It gives the same value on github.com."' "$R" >>"$ARTIFACTS/details.md"
+jq -r '.actions[] | select(.composite != null)
+  | "- `\(.name)` is a composite action. \(.composite.summary | sub("^composite steps: "; "Its steps changed: "))\(if .composite.breaking and (.breaking | not) then ". A nested action changed by a major version or was added or removed, so this update counts as breaking" else "" end)."' "$R" >>"$ARTIFACTS/details.md"
 jq -r '.permissions_changes[] | "- permissions changed in \(.where): `\(.from)` → `\(.to)`"' "$R" >>"$ARTIFACTS/details.md"
 jq -r '.actions[] | .name as $n | .stale_pins[]
   | "- `\($n)@\(.pin)` is an exact pin. `@\(.floating)`\(if .kind == "replaced" then ", which the PR replaces," else "" end) resolves to the newer \(.resolves_to) today, so the pin \(if .kind == "replaced" then "moves the workflows back to an older release" else "does not get the later releases" end)."' "$R" >>"$ARTIFACTS/details.md"
@@ -46,7 +48,9 @@ if [ -n "$broken" ]; then
   fail "Workflow steps do not match the new action interface: $broken"
 fi
 
-unfetched=$(jq -r '[.actions[] | select(.breaking and .upstream.status != "ok") | .name] | join(", ")' "$R")
+# Without the upstream action.yml, the check cannot see the interface or the
+# steps of a composite action, so even a patch update is not verified.
+unfetched=$(jq -r '[.actions[] | select(.upstream != null and .upstream.status != "ok") | .name] | join(", ")' "$R")
 [ -n "$unfetched" ] && incomplete "could not fetch the upstream action.yml to compare inputs and outputs for: $unfetched"
 
 questions=()
@@ -57,9 +61,9 @@ perm=$(jq -r '[.permissions_changes[] | "\(.where): \(.from) → \(.to)"] | join
 # go.yml will use the runner's Python 3.12 ..."), and the others by name.
 # Fields are joined with the unit separator, not a tab. Tab is IFS whitespace,
 # so read would merge empty fields and shift the later fields left.
-while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted used effects plain; do
+while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted used effects plain composite; do
   [ -n "$name" ] || continue
-  ev="$name $change: inputs and outputs that the repo uses are unchanged; runtime $runtime${defaults:+; changed defaults: $defaults}${selfhosted:+; non-standard runner labels: $selfhosted}"
+  ev="$name $change: inputs and outputs that the repo uses are unchanged; runtime $runtime${defaults:+; changed defaults: $defaults}${selfhosted:+; non-standard runner labels: $selfhosted}${composite:+; $composite}"
   evidence+=("$ev")
   if [ -n "$untested" ]; then
     questions+=("accept $name $to in workflows that PR CI does not run ($untested)")
@@ -67,7 +71,7 @@ while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted us
     [ -n "$effects" ] && questions+=("accept that $effects")
     [ -n "$plain" ] && questions+=("accept the changed input defaults of $name in $used ($plain)")
   fi
-done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking or (.upstream.defaults_changed | length) > 0) |
+done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking_effective or (.upstream.defaults_changed | length) > 0) |
   [.name, .change, .to,
    ([.usages[] | select(.runs_on_pr | not) | .workflows[]] | unique | map(sub("^\\.github/workflows/"; "")) | join(", ")),
    (.upstream.runs_using | join(" → ")),
@@ -75,7 +79,8 @@ done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking
    (.self_hosted_runners | join(", ")),
    ([.usages[].workflows[]] | unique | map(sub("^\\.github/workflows/"; "")) | join(", ")),
    ([.upstream.defaults_changed[] | (.effects // [])[]] | join(" and ")),
-   ([.upstream.defaults_changed[] | select((.effects // []) | length == 0) | "\(.input): \(.from // "none") → \(.to // "none")"] | join(", "))]
+   ([.upstream.defaults_changed[] | select((.effects // []) | length == 0) | "\(.input): \(.from // "none") → \(.to // "none")"] | join(", ")),
+   (.composite.summary // "")]
   | map(. // "" | tostring) | join("\u001f")' "$R")
 
 while IFS=$'\x1f' read -r q ev; do
@@ -94,7 +99,7 @@ if [ ${#questions[@]} -gt 0 ]; then
   decide "${q^}?" "$(join_by ' | ' "${evidence[@]}")"
 fi
 
-untested_minor=$(jq -r '[.actions[] | select(.breaking | not) | .usages[] | select(.runs_on_pr | not) | .workflows[]] | unique | join(", ")' "$R")
+untested_minor=$(jq -r '[.actions[] | select(.breaking_effective | not) | .usages[] | select(.runs_on_pr | not) | .workflows[]] | unique | join(", ")' "$R")
 if [ -n "$untested_minor" ]; then
   info "Interfaces match. Non-breaking update also used in workflows that PR CI does not run: $untested_minor"
 fi

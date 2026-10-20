@@ -533,6 +533,60 @@ out=$(BASE_WT="$tmp/py-b" run_check actions-coverage "$tmp/py-p" PATH="$tmp/bin-
 check "actions-coverage: with a .python-version file, the effect names that version" \
   "Accept that pre-commit in go.yml will use the Python in .python-version (3.11) instead of the newest 3.x in the tool cache?" "${out##*|}"
 
+# ---- 2026-10-20 fixes
+
+# Lenient bug (#863): release-secrets v1.2.0 → v1.2.1 is a patch, but its
+# composite steps move configure-aws-credentials from v4 to v6 and replace the
+# SSM loader action with new code. The release-only workflow does not run on
+# PR CI, so a person must accept it. The old check said "Interfaces match".
+for side in b p; do mkdir -p "$tmp/rs-$side/.github/workflows"; done
+printf 'on: push\njobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: launchdarkly/gh-actions/actions/release-secrets@release-secrets-v1.2.0\n        with:\n          aws_assume_role: x\n' >"$tmp/rs-b/.github/workflows/release.yml"
+sed 's/v1.2.0$/v1.2.1/' "$tmp/rs-b/.github/workflows/release.yml" >"$tmp/rs-p/.github/workflows/release.yml"
+printf '.github/workflows/release.yml\n' >"$tmp/rs-changed.txt"
+"$LIB/classify.sh" "$tmp/rs-b" "$tmp/rs-p" "$tmp/rs-changed.txt" "$tmp/pr0.json" "$tmp/cls-rs.json" 2>>"$tmp/classify.err"
+mkdir -p "$tmp/rs-api"
+cat >"$tmp/rs-api/release-secrets-v1.2.0" <<'YML'
+inputs:
+  aws_assume_role:
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+    - name: Load environment variables
+      uses: dkershner6/aws-ssm-getparameters-action@4fcb4872421f387a6c43058473acc1b22443fe13
+YML
+cat >"$tmp/rs-api/release-secrets-v1.2.1" <<'YML'
+inputs:
+  aws_assume_role:
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+    - name: Load environment variables
+      shell: bash
+      run: node "$GITHUB_ACTION_PATH/ssm/dist/index.js"
+YML
+for f in "$tmp"/rs-api/release-secrets-v*; do base64 -w0 "$f" >"$f.b64"; done
+echo '{"files": [{"filename": "actions/release-secrets/action.yml"}, {"filename": "actions/release-secrets/ssm/dist/index.js"}, {"filename": "actions/other/action.yml"}]}' >"$tmp/rs-api/compare"
+stub "$tmp/bin-rs" gh "case \"\$2\" in
+  *action.yml\\?ref=*) f=\"$tmp/rs-api/\${2##*ref=}.b64\"; [ -f \"\$f\" ] && cat \"\$f\" || exit 1 ;;
+  *compare/*) cat \"$tmp/rs-api/compare\" ;;
+  *) exit 1 ;;
+esac"
+out=$(BASE_WT="$tmp/rs-b" run_check actions-coverage "$tmp/rs-p" PATH="$tmp/bin-rs:$PATH" CLASSIFICATION="$tmp/cls-rs.json")
+check "actions-coverage: a nested major update in a composite action asks about release-only workflows (#863)" \
+  "decide|Accept launchdarkly/gh-actions/actions/release-secrets release-secrets-v1.2.1 in workflows that PR CI does not run (release.yml)?" \
+  "${out%%|*}|${out##*|}"
+check "actions-coverage names the nested changes of the composite action" 1 \
+  "$(grep -c 'composite steps: aws-actions/configure-aws-credentials v4 → v6 (major); dkershner6/aws-ssm-getparameters-action removed (4fcb4872421f387a6c43058473acc1b22443fe13); run step "Load environment variables" added; 2 file(s) changed in actions/release-secrets' <<<"$out")"
+rm "$tmp/rs-api/release-secrets-v1.2.1.b64"
+out=$(BASE_WT="$tmp/rs-b" run_check actions-coverage "$tmp/rs-p" PATH="$tmp/bin-rs:$PATH" CLASSIFICATION="$tmp/cls-rs.json")
+check "actions-coverage: an action.yml that cannot be fetched is incomplete, even for a patch" "incomplete" "${out%%|*}"
+
 # Bug 3: a generated check inherited the global git configuration, and an
 # `insteadOf` rule with an access token showed up in its log. The tokens are
 # built at run time, so this file holds no token-shaped string.

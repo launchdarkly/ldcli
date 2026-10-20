@@ -2,6 +2,7 @@
 """For each updated action: where the repo uses it, whether those workflows run
 on pull_request, and (with gh) how the upstream action.yml changed between the
 two refs: inputs, input defaults, outputs that the repo reads, and runtime.
+For a composite action, it also compares the nested actions and `run:` steps.
 It also compares the `permissions` blocks of all workflows between base and PR.
 
 Usage: actions_analysis.py <pr-worktree> <updates.json> <base-worktree>   (prints JSON)
@@ -186,6 +187,9 @@ def stale_pins(name, old_refs, new_ref):
     return found
 
 
+_raw_yml = {}
+
+
 def gh_action_yml(name, ref):
     parts = name.split("/")
     repo, sub = "/".join(parts[:2]), "/".join(parts[2:])
@@ -197,8 +201,92 @@ def gh_action_yml(name, ref):
         except (OSError, subprocess.TimeoutExpired):
             return None
         if out.returncode == 0 and out.stdout.strip():
-            return yaml.safe_load(base64.b64decode(out.stdout.strip()))
+            raw = base64.b64decode(out.stdout.strip()).decode("utf-8", "replace")
+            _raw_yml[(name, ref)] = raw
+            return yaml.safe_load(raw) or {}
     return None
+
+
+# A `uses:` line with an optional version comment, as Dependabot writes for SHA pins.
+USES_LINE = re.compile(r"""^\s*-?\s*uses:\s*["']?([^\s"'#]+)["']?(?:[ \t]*#[ \t]*(\S+))?""", re.M)
+SHA = re.compile(r"^[0-9a-f]{40}$")
+
+
+def nested_uses(raw):
+    """{action: [version, ...]} for the remote actions that a composite action calls.
+    A SHA pin uses its version comment when it has one."""
+    out = {}
+    for m in USES_LINE.finditer(raw or ""):
+        target, comment = m.group(1), m.group(2)
+        if target.startswith(("./", "docker://")) or "@" not in target:
+            continue
+        action, ref = target.split("@", 1)
+        version = comment if SHA.match(ref) and comment else ref
+        if version not in out.setdefault(action, []):
+            out[action].append(version)
+    return out
+
+
+def nested_change(old, new):
+    """major, minor, patch, or unknown, for two version lists of one nested action."""
+    a = [vtuple(v) for v in old]
+    b = [vtuple(v) for v in new]
+    if not all(a) or not all(b) or any(SHA.match(v) for v in old + new):
+        return "unknown"
+    lo, hi = min(a), max(b)
+    if lo[0] != hi[0]:
+        return "major"
+    if len(lo) > 1 and len(hi) > 1 and lo[1] != hi[1]:
+        return "minor (0.x)" if lo[0] == 0 else "minor"
+    return "patch"
+
+
+def action_dir_files(name, old_ref, new_ref):
+    """Files that changed in the action's directory between the two refs.
+    Composite steps run scripts from that directory ($GITHUB_ACTION_PATH)."""
+    parts = name.split("/")
+    repo, sub = "/".join(parts[:2]), "/".join(parts[2:])
+    cmp = gh_api(f"repos/{repo}/compare/{old_ref}...{new_ref}")
+    if not isinstance(cmp, dict):
+        return None
+    files = [f.get("filename", "") for f in cmp.get("files") or []]
+    return sorted(f for f in files if not sub or f.startswith(sub + "/"))
+
+
+def composite_diff(name, old_ref, old, new_ref, new):
+    """How the steps of a composite action changed: the nested actions that it
+    calls, and its `run:` steps. A nested major update, or a nested action
+    that is added, removed, or changed to an unknown version, is breaking,
+    whatever the version of the composite action says."""
+    using = lambda d: str((d.get("runs") or {}).get("using"))
+    if using(old) != "composite" and using(new) != "composite":
+        return None
+    ou, nu = nested_uses(_raw_yml.get((name, old_ref))), nested_uses(_raw_yml.get((name, new_ref)))
+    uses_changes = []
+    for action in sorted(set(ou) | set(nu)):
+        a, b = ou.get(action, []), nu.get(action, [])
+        if sorted(a) == sorted(b):
+            continue
+        kind = "added" if not a else "removed" if not b else nested_change(a, b)
+        uses_changes.append({"action": action, "from": ", ".join(a) or None, "to": ", ".join(b) or None, "change": kind})
+
+    def run_steps(doc):
+        steps = [s for s in ((doc.get("runs") or {}).get("steps") or []) if isinstance(s, dict)]
+        return {str(s.get("name") or s.get("id") or f"step {i + 1}"): " ".join(str(s["run"]).split())
+                for i, s in enumerate(steps) if s.get("run")}
+    ro, rn = run_steps(old), run_steps(new)
+    run_changes = [{"step": k, "change": "added" if k not in ro else "removed" if k not in rn else "changed"}
+                   for k in sorted(set(ro) | set(rn)) if ro.get(k) != rn.get(k)]
+    files = action_dir_files(name, old_ref, new_ref)
+    breaking = [c for c in uses_changes if c["change"] in ("major", "minor (0.x)", "unknown", "added", "removed")]
+    parts = [f"{c['action']} {c['from']} → {c['to']} ({c['change']})" if c["change"] not in ("added", "removed")
+             else f"{c['action']} {c['change']}" + (f" ({c['from'] or c['to']})") for c in uses_changes]
+    parts += [f"run step \"{c['step']}\" {c['change']}" for c in run_changes]
+    if files:
+        parts.append(f"{len(files)} file(s) changed in {'/'.join(name.split('/')[2:]) or 'the repository'}")
+    return {"compared": [old_ref, new_ref], "uses_changes": uses_changes, "run_changes": run_changes,
+            "files_changed": files, "breaking": bool(breaking),
+            "summary": "composite steps: " + ("; ".join(parts) if parts else "unchanged")}
 
 
 def main():
@@ -290,6 +378,15 @@ def main():
                     outputs_missing |= {o for o in read if o in old_out and o not in new_out}
                 for c in defaults_changed:
                     c["effects"] = default_effects(name, c, usages, wt)
+                diffs = [d for r, o in zip(old_refs, olds) for d in [composite_diff(name, r, o, new_ref, new)] if d]
+                if diffs:
+                    entry["composite"] = {
+                        "breaking": any(d["breaking"] for d in diffs),
+                        "uses_changes": [c for d in diffs for c in d["uses_changes"]],
+                        "run_changes": [c for d in diffs for c in d["run_changes"]],
+                        "files_changed": sorted({f for d in diffs for f in d["files_changed"] or []}),
+                        "summary": "; ".join(dict.fromkeys(d["summary"] for d in diffs)),
+                    }
                 old_runtimes = sorted({str((o.get("runs") or {}).get("using")) for o in olds})
                 entry["upstream"] = {
                     "status": "ok",
@@ -306,6 +403,7 @@ def main():
                     "runs_using": [", ".join(old_runtimes), str((new.get("runs") or {}).get("using"))],
                 }
         entry["self_hosted_runners"] = sorted({r for us in usages for r in us["runners"] if not GITHUB_HOSTED.match(r)})
+        entry["breaking_effective"] = entry["breaking"] or bool((entry.get("composite") or {}).get("breaking"))
         report.append(entry)
 
     pb, pp = permissions(base_wt), permissions(wt)
