@@ -1,4 +1,4 @@
-.PHONY: build generate log test vendor verify-dependency-pr
+.PHONY: build generate log test vendor verify-dependency-pr verify-release
 
 build:
 	go build -o ldcli
@@ -31,3 +31,6 @@ vendor:
 
 verify-dependency-pr:
 	scripts/dependency-pr/verify.sh $(ARGS)
+
+verify-release:
+	scripts/release/verify.sh $(ARGS)

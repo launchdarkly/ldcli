@@ -142,6 +142,16 @@ To verify a Dependabot PR, follow the `verify-dependency-pr` skill (`.agents/ski
 - The caller runs `post-comment.sh` to post the comment.
 - Unit tests: `scripts/dependency-pr/test/run.sh`. Replays of past PRs (needs network): `scripts/dependency-pr/test/replay.sh`.
 
+## Release Verification
+
+To verify a release before it ships, follow the `verify-release` skill (`.agents/skills/verify-release/SKILL.md`). The skill compares the release-please PR with the last release tag. The agent decides how to test each change, and a separate judge agent reviews the evidence.
+
+- Run `scripts/release/verify.sh --pr <N> --phase baseline`, or `make verify-release ARGS="--pr <N> --phase baseline"`. Without `--pr`, the script finds the open release-please PR.
+- The agent writes `agent/plan.json`, `agent/units/<unit>.json`, and checks in `generated/` in `.verify-out/release-pr-<N>/`. Then it runs `--phase units`, gets a judge review in `agent/judgement.json`, and runs `--phase render`.
+- The script writes `result.json` and `report.md`. It does not post, approve, merge, or tag.
+- The verdict is `safe-to-release`, `needs-human`, `block`, or `incomplete`.
+- Unit tests: `scripts/release/test/run.sh`.
+
 ## Linting
 
 - Go: `golangci-lint` (v1.63.4) via pre-commit
