@@ -176,6 +176,8 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
       pr: $meta,
       classification: $cls,
       tier: $tier,
+      # The impact review gives a reason when it raises the tier (SKILL.md).
+      tier_reasons: (($cls.tier_reasons // []) + [ ($impact.tier_reasons // [])[] | "impact review: \(.)" ]),
       verdict: $verdict,
       exit_code: ({"safe-to-merge": 0, "needs-human": 1, "block": 1, "incomplete": 2}[$verdict]),
       blocks: $blocks,

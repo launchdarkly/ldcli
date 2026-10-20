@@ -35,6 +35,9 @@ render() {
              then "tested as merged into `\($pr.base_ref)` @ `\($pr.base_sha | sha7)`"
              else "conflicts with `\($pr.base_ref)`, so it was tested as it is against merge base `\($pr.merge_base | sha7)`" end),
         "",
+        (if (($r.impact.tier_reasons // []) | length) > 0 and $r.tier != $c.tier then
+          "The impact review raised the tier from \($c.tier) to \($r.tier): \($r.impact.tier_reasons | join("; "))", ""
+         else empty end),
         (if $r.verdict == "safe-to-merge" then
           "Every required check ran and passed. No decision is necessary.", ""
          else empty end),

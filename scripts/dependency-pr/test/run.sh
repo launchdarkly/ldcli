@@ -166,6 +166,11 @@ verdict "[$(chk tidy fail pass fp1)]" '[]' low | render >"$tmp/c2.md"
 check "block comment shows the mechanical fix" 1 "$(grep -c 'Mechanical fix: `make tidy`' "$tmp/c2.md")"
 verdict "[$(chk a pass)]" '[]' low | render >"$tmp/c3.md"
 check "safe comment says no decision is necessary" 1 "$(grep -c 'No decision is necessary' "$tmp/c3.md")"
+out=$(verdict "[$(chk a pass)]" '[]' medium '{"tier": "high", "tier_reasons": ["release-only step"], "findings": []}')
+check "the impact review's tier reasons reach result.json (Oct 16 bug 6)" '["test","impact review: release-only step"]' "$(v '.tier_reasons | tostring')"
+check "the comment says why the impact review raised the tier" 1 \
+  "$(render <<<"$out" | grep -c '^The impact review raised the tier from medium to high: release-only step$')"
+
 
 # PR #719: the incomplete CI item said to run verify.sh again. Its fix is a
 # rerun on GitHub, which the check names.
