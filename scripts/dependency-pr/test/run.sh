@@ -709,6 +709,26 @@ check "upstream: diverged refs list the commits that the new ref lacks (#719)" \
   "1 eeeeeee enforce pull_request_target" "$(sed -n 2p <<<"$out")"
 check "upstream: \"version bump only\" entries make the coverage partial" "partial 1 2" "$(sed -n 3p <<<"$out")"
 
+# Oct 16 bug 10 (#868): license-changes took the first base license for a
+# package name. An update of the BlueOak-1.0.0 copy of minimatch read as a
+# change from the ISC copy.
+lk() {
+  # lk <dir> <json of {path: [version, license]}>
+  mkdir -p "$1/internal/dev_server/ui"
+  jq -n --argjson m "$2" '{packages: ({"": {}} + ($m | with_entries(.value = {version: .value[0], license: .value[1], dev: true})))}' \
+    >"$1/internal/dev_server/ui/package-lock.json"
+}
+lk "$tmp/lic-b" '{"node_modules/minimatch": ["3.1.2", "ISC"], "node_modules/x/node_modules/minimatch": ["10.2.5", "BlueOak-1.0.0"]}'
+lk "$tmp/lic-p" '{"node_modules/minimatch": ["3.1.2", "ISC"], "node_modules/x/node_modules/minimatch": ["10.2.6", "BlueOak-1.0.0"]}'
+out=$(BASE_WT="$tmp/lic-b" run_check license-changes "$tmp/lic-p" CLASSIFICATION="$tmp/cls-npm.json")
+check "license-changes compares the copy at the same lockfile path, not the first copy with the name" "pass" "${out%%|*}"
+lk "$tmp/lic-b" '{"node_modules/minimatch": ["3.1.2", "ISC"]}'
+lk "$tmp/lic-p" '{"node_modules/minimatch": ["3.1.2", "ISC"], "node_modules/typescript-eslint/node_modules/minimatch": ["10.2.6", "BlueOak-1.0.0"]}'
+out=$(BASE_WT="$tmp/lic-b" run_check license-changes "$tmp/lic-p" CLASSIFICATION="$tmp/cls-npm.json")
+check "license-changes names the new copy and its consumer" \
+  "decide|Accept the license change from ISC to BlueOak-1.0.0 for minimatch 10.2.6 (a new copy for typescript-eslint) (dev-only build tools)?" \
+  "$(cut -d'|' -f1,3 <<<"$out")"
+
 # Posting log, 2026-10-17 (#869): the npm-only PR got "block" because the Go
 # job failed in `go test` (the flaky TestStreamClientV2Handler on main). A
 # failure in steps that read none of the changed files needs a rerun.

@@ -31,6 +31,7 @@ if [ -s "$ARTIFACTS/problems.jsonl" ]; then
     | map((.members | length) as $n | (.members | all(.dev)) as $dev
           | "\(.root | lic_label) for \(.root.name) \(.root.version)"
             + (if $n > 1 then " and \($n - 1) \(.root.name)-* package(s)" else "" end)
+            + (if $n == 1 and (.root.where // null) then " (\(.root.where))" else "" end)
             + (if $dev then " (dev-only build tools)" elif $n == 1 and (.root.file // null) then " (\(.root.file))" else "" end))
     | join("; ")' "$ARTIFACTS/problems.jsonl" >"$ARTIFACTS/question.txt"
   jq -s -r '.[] | .package' "$ARTIFACTS/problems.jsonl" | sort -u >"$ARTIFACTS/problem-packages"

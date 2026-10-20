@@ -82,11 +82,22 @@ def npm_entries(wt, eco):
         lic = meta.get("license")
         if isinstance(lic, dict):
             lic = lic.get("type")
-        entries.setdefault(f"{name}@{version}", {
+        e = entries.setdefault(f"{name}@{version}", {
             "name": name, "version": version, "license": lic,
-            "install_script": bool(meta.get("hasInstallScript")), "dev": bool(meta.get("dev")),
+            "install_script": bool(meta.get("hasInstallScript")), "dev": bool(meta.get("dev")), "paths": [],
         })
+        e["paths"].append(key)
     return entries
+
+
+def by_path(entries):
+    return {path: e for e in entries.values() for path in e["paths"]}
+
+
+def parent_package(path):
+    """The package that a nested copy belongs to: node_modules/a/node_modules/b → a."""
+    parts = path.split("node_modules/")
+    return parts[-2].rstrip("/") if len(parts) > 2 else None
 
 
 # ---------------------------------------------------------------- licenses
@@ -186,15 +197,28 @@ def licenses(base, pr, eco, policy):
             findings.append({"package": f"{name}@{p[name]}", "name": name, "version": p[name],
                              "from": old, "to": new, "file": new_file, "dev": False})
     else:
+        # Compare each new copy with the copy at the same lockfile path. A
+        # package can have several copies with different licenses (minimatch 3
+        # is ISC, minimatch 10 is BlueOak-1.0.0), so the name alone is not enough.
         b, p = npm_entries(base, eco), npm_entries(pr, eco)
-        old_by_name = {}
-        for e in b.values():
-            old_by_name.setdefault(e["name"], e["license"])
+        bp, pp = by_path(b), by_path(p)
         for key in sorted(set(p) - set(b)):
             e = p[key]
+            to = e["license"] or "unknown"
+            same = [bp[path]["license"] or "unknown" for path in e["paths"] if path in bp]
+            where = None
+            if same:
+                frm = same[0]
+            else:
+                # A new path: compare with the other copies of the package on base.
+                others = sorted({x["license"] or "unknown" for path, x in bp.items() if x["name"] == e["name"]})
+                frm = None if not others or to in others else ", ".join(others)
+                parents = sorted({pp_ for pp_ in map(parent_package, e["paths"]) if pp_})
+                if others and parents:
+                    where = f"a new copy for {', '.join(parents)}"
             findings.append({"package": key, "name": e["name"], "version": e["version"],
-                             "from": old_by_name.get(e["name"]), "to": e["license"] or "unknown", "file": None,
-                             "dev": e["dev"]})
+                             "from": frm, "to": to, "file": None, "where": where,
+                             "paths": e["paths"], "dev": e["dev"]})
     for f in findings:
         f["changed"] = f["from"] is not None and f["from"] != f["to"]
         f["allowed"] = allowed(f["to"], policy)
