@@ -76,7 +76,7 @@ render() {
          else
           "| Package | From | To | Change | Ecosystem | Tier |",
           "|---|---|---|---|---|---|",
-          ($direct[] | "| `\(.name)` | \(.from // "∅") | \(.to // "∅") | \(.semver)\(if .breaking and .semver != "major" then " (0.x: breaking allowed)" else "" end) | \(.ecosystem)\(if .dev then ", dev" else "" end) | \(.tier) |"),
+          ($direct[] | "| `\(.name)` | \(.from // "∅") | \(.to // "∅") | \(.semver)\(if .breaking and .semver != "major" then " (0.x: breaking allowed)" else "" end) | \(.ecosystem)\(if .test_only then ", test-only" elif .dev then ", dev" else "" end) | \(.tier) |"),
           (if ($transitive | length) > 0 then
             "",
             "<details><summary>\($transitive | length) transitive update(s)</summary>",

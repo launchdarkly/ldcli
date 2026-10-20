@@ -69,6 +69,20 @@ docker_json() {
   printf '%s\n' "$out"
 }
 
+# Modules in the ldcli binary on either side. A direct module in neither is
+# used only by tests or tools (samber/lo), so it is not a runtime dependency.
+# null when go.mod did not change or go list fails.
+binary_modules() {
+  { (cd "$BASE_WT" && go list -deps -f '{{with .Module}}{{.Path}}{{end}}' .) &&
+    (cd "$PR_WT" && go list -deps -f '{{with .Module}}{{.Path}}{{end}}' .); } 2>/dev/null |
+    sort -u | jq -R -s 'split("\n") | map(select(length > 0))'
+}
+if grep -qx 'go.mod' "$CHANGED" && [ -f "$PR_WT/go.mod" ] && binary_modules >"$TMP/binmods.json" && [ -s "$TMP/binmods.json" ]; then
+  :
+else
+  echo null >"$TMP/binmods.json"
+fi
+
 go_mod_json "$BASE_WT" >"$TMP/go.base.json"
 go_mod_json "$PR_WT" >"$TMP/go.pr.json"
 npm_json "$BASE_WT" "$UI_DIR" >"$TMP/ui.base.json"
@@ -88,7 +102,8 @@ jq -n -L "$VERIFY_ROOT/lib" \
   --slurpfile uib "$TMP/ui.base.json" --slurpfile uip "$TMP/ui.pr.json" \
   --slurpfile rootb "$TMP/root.base.json" --slurpfile rootp "$TMP/root.pr.json" \
   --slurpfile actb "$TMP/actions.base.json" --slurpfile actp "$TMP/actions.pr.json" \
-  --slurpfile dockb "$TMP/docker.base.json" --slurpfile dockp "$TMP/docker.pr.json" '
+  --slurpfile dockb "$TMP/docker.base.json" --slurpfile dockp "$TMP/docker.pr.json" \
+  --slurpfile binmods "$TMP/binmods.json" '
 include "semver";
 
 def vsort: sort_by(vparse | if . == null then [-1] else .nums end);
@@ -100,8 +115,9 @@ def go_updates:
   ($gob[0] | reqmap) as $b | ($gop[0] | reqmap) as $p
   | [ (($b | keys) + ($p | keys) | unique)[] as $k
       | select($b[$k].v != $p[$k].v)
+      | ($binmods[0] != null and ($binmods[0] | index($k)) == null) as $test_only
       | {ecosystem: "gomod", name: $k, from: $b[$k].v, to: $p[$k].v,
-         direct: ((($p[$k] // $b[$k]).indirect) | not), dev: false} ];
+         direct: ((($p[$k] // $b[$k]).indirect) | not), dev: $test_only, test_only: $test_only} ];
 
 def npm_updates($eco; $b; $p):
   [ (($b.lock | keys) + ($p.lock | keys) | unique)[] as $k

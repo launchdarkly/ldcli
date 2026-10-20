@@ -729,6 +729,21 @@ check "license-changes names the new copy and its consumer" \
   "decide|Accept the license change from ISC to BlueOak-1.0.0 for minimatch 10.2.6 (a new copy for typescript-eslint) (dev-only build tools)?" \
   "$(cut -d'|' -f1,3 <<<"$out")"
 
+# Oct 16 bug 11 (#874): samber/lo is used only in tests, but it got the
+# medium tier of a runtime dependency. `go list -deps .` shows the binary.
+for side in b p; do mkdir -p "$tmp/lo-$side" && touch "$tmp/lo-$side/go.mod"; done
+lo_req() { jq -n --arg lo "$1" '{Go: "1.25", Require: [{Path: "github.com/samber/lo", Version: $lo}, {Path: "github.com/spf13/pflag", Version: "v1.0.6"}]}'; }
+lo_req v1.51.0 >"$tmp/lo-b/mod.json" && lo_req v1.53.0 >"$tmp/lo-p/mod.json"
+stub "$tmp/bin-lo" go 'case "$1 $2" in
+  "mod edit") cat "$PWD/mod.json" ;;
+  "list -deps") echo github.com/spf13/pflag ;;
+  *) exit 1 ;;
+esac'
+printf 'go.mod\ngo.sum\n' >"$tmp/lo-changed.txt"
+PATH="$tmp/bin-lo:$PATH" "$LIB/classify.sh" "$tmp/lo-b" "$tmp/lo-p" "$tmp/lo-changed.txt" "$tmp/pr0.json" "$tmp/cls-lo.json" 2>>"$tmp/classify.err"
+check "classify: a Go module outside the binary is test-only and low tier (Oct 16 bug 11)" "true low" \
+  "$(jq -r '.updates[] | select(.name == "github.com/samber/lo") | "\(.test_only) \(.tier)"' "$tmp/cls-lo.json")"
+
 # Posting log, 2026-10-17 (#869): the npm-only PR got "block" because the Go
 # job failed in `go test` (the flaky TestStreamClientV2Handler on main). A
 # failure in steps that read none of the changed files needs a rerun.
