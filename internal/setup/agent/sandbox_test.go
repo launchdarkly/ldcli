@@ -41,6 +41,17 @@ func TestBuildSandboxPaths_OpensOnlyOpenCodesXDGFolders(t *testing.T) {
 	}
 }
 
+func TestBuildSandboxPaths_OpensTheGoSettingsFile(t *testing.T) {
+	p := buildSandboxPaths("/Users/me", "/Users/me/app", "", nil)
+	assert.Contains(t, p.ReadOnly, "/Users/me/Library/Application Support/go/env")
+
+	p = buildSandboxPaths("/Users/me", "/Users/me/app", "", []string{"GOENV=/Users/me/goenv"})
+	assert.Contains(t, p.ReadOnly, "/Users/me/goenv")
+
+	p = buildSandboxPaths("/Users/me", "/Users/me/app", "", []string{"GOENV=off"})
+	assert.NotContains(t, p.ReadOnly, "off")
+}
+
 func TestInstallDir(t *testing.T) {
 	assert.Equal(t, "/opt/homebrew/lib/node_modules/opencode-ai", installDir("/Users/me", "/opt/homebrew/lib/node_modules/opencode-ai/bin/opencode.exe"))
 	assert.Equal(t, "/Users/me/.opencode", installDir("/Users/me", "/Users/me/.opencode/bin/opencode"))

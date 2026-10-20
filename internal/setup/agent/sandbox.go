@@ -80,6 +80,8 @@ var readOnlyUnderHome = []string{
 	".sdkman",
 	".gitconfig",
 	".config/git",
+	// Go reads user settings, such as GOPROXY and GOPRIVATE, from this file.
+	"Library/Application Support/go/env",
 }
 
 // buildSandboxPaths returns the folders to open for a run in dir. opencodeDir
@@ -106,6 +108,10 @@ func buildSandboxPaths(home, dir, opencodeDir string, env []string) sandboxPaths
 		} else {
 			p.ReadOnly = append(p.ReadOnly, folder)
 		}
+	}
+	// GOENV moves the Go settings file. The value "off" turns the file off.
+	if goenv := envValue(env, "GOENV"); goenv != "" && goenv != "off" {
+		p.ReadOnly = append(p.ReadOnly, goenv)
 	}
 	if opencodeDir != "" {
 		p.ReadOnly = append(p.ReadOnly, opencodeDir)
