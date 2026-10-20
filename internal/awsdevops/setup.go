@@ -91,6 +91,8 @@ type SetupResult struct {
 	OperatorAppRoleARN string `json:"operatorAppRoleArn,omitempty"`
 	AWSAssociationID   string `json:"awsAssociationId,omitempty"`
 	OperatorAppURL     string `json:"operatorAppUrl,omitempty"`
+	// OperatorAppEnabled is false when a connect run found the app off.
+	OperatorAppEnabled bool   `json:"operatorAppEnabled"`
 	MCPServiceID       string `json:"mcpServiceId,omitempty"`
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 }
@@ -148,8 +150,6 @@ type SpaceStep struct {
 	Action SpaceAction
 	ID     string
 	Name   string
-	// Seen lists same-name spaces at plan.
-	Seen []string
 }
 
 func (s SpaceStep) describe() string {
@@ -385,8 +385,17 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	plan.MCPServer = plan.MCP.describe(opts.mcpEndpoint())
 
 	if !provision {
+		// Read the app, so the run does not print a URL that does not work.
+		plan.App, err = appState(ctx, clients, plan.Space.ID)
+		if err != nil {
+			return plan, err
+		}
+		plan.App.Action = AppKeep
 		plan.Roles = []string{"No change"}
 		plan.OperatorApp = "No change"
+		if plan.App.Flow == "" {
+			plan.OperatorApp = "No change. The operator app is off"
+		}
 		plan.Association = "No change"
 
 		return plan, nil
@@ -440,18 +449,26 @@ func planRole(ctx context.Context, client IAMAPI, name string) (RoleStep, error)
 
 func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (SpaceStep, error) {
 	id := opts.AgentSpaceID
-	var seen []string
 	if id == "" {
-		var err error
-		if seen, err = spacesNamed(ctx, clients, opts.AgentSpaceName); err != nil {
+		seen, err := spacesNamed(ctx, clients, opts.AgentSpaceName)
+		switch {
+		case err != nil:
 			return SpaceStep{}, err
-		}
-		if !opts.NewAgentSpace && len(seen) > 0 {
+		case len(seen) > 0 && opts.NewAgentSpace:
+			// Two spaces with one name make the next run unable to pick.
+			return SpaceStep{}, fmt.Errorf(
+				"an agent space named %s already exists (%s). Pass --agent-space-name with another name",
+				opts.AgentSpaceName, strings.Join(seen, ", "),
+			)
+		case len(seen) > 0:
 			id = seen[0]
 		}
 	}
+	if id == "" && opts.AgentSpaceName == "" {
+		return SpaceStep{}, errors.New("a new agent space needs a name. Pass --agent-space-name")
+	}
 	if id == "" {
-		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName, Seen: seen}, nil
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName}, nil
 	}
 
 	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
@@ -473,10 +490,8 @@ func checkSpace(ctx context.Context, clients Clients, step SpaceStep) error {
 		if err != nil {
 			return err
 		}
-		for _, id := range now {
-			if !slices.Contains(step.Seen, id) {
-				return planChanged("agent space %s appeared after the plan", step.Name)
-			}
+		if len(now) > 0 {
+			return planChanged("agent space %s appeared after the plan", step.Name)
 		}
 
 		return nil
@@ -607,16 +622,6 @@ func checkMCP(ctx context.Context, clients Clients, opts SetupOptions, step MCPS
 	return nil
 }
 
-// Setup plans a run, then executes the plan.
-func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
-	plan, err := PlanSetup(ctx, clients, opts, true)
-	if err != nil {
-		return SetupResult{}, err
-	}
-
-	return RunPlan(ctx, clients, opts, plan)
-}
-
 // RunPlan executes a plan from PlanSetup.
 func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan SetupPlan) (SetupResult, error) {
 	logf := opts.Logf
@@ -695,9 +700,6 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	} else {
 		result.AgentSpaceID = plan.Space.ID
 		logf("Reused agent space %s (%s)", plan.Space.Name, plan.Space.ID)
-		if opts.AgentSpaceID == "" {
-			logf("Pass --new-agent-space to create another agent space")
-		}
 	}
 
 	result.AWSAssociationID, err = FindAssociation(ctx, clients, result.AgentSpaceID, awsServiceID)
@@ -727,6 +729,7 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		logf("Enabled the operator app")
 	}
 	// The app is on here, so an empty URL means only that AWS sent none.
+	result.OperatorAppEnabled = true
 	if result.OperatorAppURL == "" {
 		result.OperatorAppURL = OperatorAppURL(result.AgentSpaceID)
 	}
@@ -764,20 +767,6 @@ func registrationFailed(err error, detached []string) error {
 	)
 }
 
-// ConnectExisting connects LaunchDarkly to an agent space the customer already
-// set up. Only the MCP server is touched: the IAM roles, the AWS account
-// association and the operator app belong to however they provisioned that
-// space, and re-enabling the operator app would overwrite its sign-in
-// configuration.
-func ConnectExisting(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {
-	plan, err := PlanSetup(ctx, clients, opts, false)
-	if err != nil {
-		return SetupResult{}, err
-	}
-
-	return ConnectPlan(ctx, clients, opts, plan)
-}
-
 // ConnectPlan runs a connect plan.
 func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan SetupPlan) (SetupResult, error) {
 	logf := opts.Logf
@@ -797,10 +786,17 @@ func ConnectPlan(ctx context.Context, clients Clients, opts SetupOptions, plan S
 	}
 
 	result := SetupResult{
-		AccountID:      accountID,
-		Region:         clients.Region,
-		AgentSpaceID:   plan.Space.ID,
-		OperatorAppURL: OperatorAppURL(plan.Space.ID),
+		AccountID:    accountID,
+		Region:       clients.Region,
+		AgentSpaceID: plan.Space.ID,
+	}
+	// An app that is off has no URL.
+	result.OperatorAppEnabled = plan.App.Flow != ""
+	if result.OperatorAppEnabled {
+		result.OperatorAppURL = plan.App.URL
+		if result.OperatorAppURL == "" {
+			result.OperatorAppURL = OperatorAppURL(plan.Space.ID)
+		}
 	}
 	logf("Using agent space %s (%s)", plan.Space.Name, result.AgentSpaceID)
 

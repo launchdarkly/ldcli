@@ -2,6 +2,7 @@ package awsdevops_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -335,21 +336,25 @@ func TestRunPlanReuseLineUsesAWSName(t *testing.T) {
 	assert.Contains(t, strings.Join(*logged, "\n"), "LaunchDarkly (space-7)")
 }
 
-// A same-name space seen at plan is fine.
-func TestRunPlanNewSpaceBesideSameName(t *testing.T) {
-	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
-	clients := newTestClients(agent, newFakeIAM())
+// Two spaces with one name make the next run unable to pick.
+func TestRunPlanNewSpaceRefusesAUsedName(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "LaunchDarkly")}}
+	iamClient := newFakeIAM()
 	opts := runPlanOptions()
 	opts.NewAgentSpace = true
 
-	_, err := awsdevops.Setup(context.Background(), clients, opts)
+	_, err := awsdevops.Setup(context.Background(), newTestClients(agent, iamClient), opts)
 
-	require.NoError(t, err)
-	assert.Contains(t, agent.calls, "CreateAgentSpace")
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.Contains(t, err.Error(), "space-7")
+	assert.Contains(t, err.Error(), "--agent-space-name")
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+	assert.Empty(t, iamClient.createdRoles)
 }
 
-func TestRunPlanNewSpaceStopsOnSecondSameName(t *testing.T) {
-	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+func TestRunPlanNewSpaceStopsWhenTheNameAppears(t *testing.T) {
+	agent := &fakeAgent{}
 	clients := newTestClients(agent, newFakeIAM())
 	opts := runPlanOptions()
 	opts.NewAgentSpace = true
@@ -546,6 +551,7 @@ func TestRunPlanKeptAppWithoutAURLGetsOne(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, awsdevops.OperatorAppURL("space-7"), result.OperatorAppURL)
+	assert.True(t, result.OperatorAppEnabled)
 }
 
 func TestRunPlanChangesSignInWithAuthFlow(t *testing.T) {
@@ -611,7 +617,47 @@ func TestPlanConnectChangesNothingElse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "No change", plan.Association)
 	assert.Equal(t, "No change", plan.OperatorApp)
-	assert.NotContains(t, agent.calls, "GetOperatorApp")
+	assert.Contains(t, agent.calls, "GetOperatorApp")
+	assert.NotContains(t, agent.calls, "EnableOperatorApp")
+}
+
+// A connect run must not print a URL for an app that is off.
+func TestConnectPlanReportsAnAppThatIsOff(t *testing.T) {
+	agent := reuseWithApp(nil)
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+	assert.Equal(t, "No change. The operator app is off", plan.OperatorApp)
+
+	result, err := awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+	assert.Empty(t, result.OperatorAppURL)
+	assert.False(t, result.OperatorAppEnabled)
+	assert.NotContains(t, agent.calls, "EnableOperatorApp")
+
+	encoded, err := json.Marshal(result)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"operatorAppEnabled":false`)
+}
+
+func TestConnectPlanUsesTheURLThatAWSReturns(t *testing.T) {
+	app := idcApp()
+	app.OperatorAppUrl = aws.String("https://custom.example")
+	agent := reuseWithApp(app)
+	clients := newTestClients(agent, newFakeIAM())
+	opts := runPlanOptions()
+	opts.AgentSpaceID = "space-7"
+
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, opts, false)
+	require.NoError(t, err)
+	result, err := awsdevops.ConnectPlan(context.Background(), clients, opts, plan)
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://custom.example", result.OperatorAppURL)
+	assert.True(t, result.OperatorAppEnabled)
 }
 
 // An app with no sign-in is off.

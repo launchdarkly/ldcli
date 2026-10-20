@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,8 +79,8 @@ func TestAgentSpacesListsEveryPage(t *testing.T) {
 	agent := &fakeAgent{
 		paginate: true,
 		agentSpaces: []agenttypes.AgentSpace{
-			{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly")},
-			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
+			{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly"), Description: aws.String("Managed by the LaunchDarkly CLI")},
+			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform"), Description: aws.String("Team space")},
 		},
 	}
 
@@ -87,8 +88,8 @@ func TestAgentSpacesListsEveryPage(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []awsdevops.AgentSpaceSummary{
-		{AgentSpaceID: "space-1", Name: "launchdarkly"},
-		{AgentSpaceID: "space-2", Name: "platform"},
+		{AgentSpaceID: "space-1", Name: "launchdarkly", Description: "Managed by the LaunchDarkly CLI", ManagedByLDCLI: true},
+		{AgentSpaceID: "space-2", Name: "platform", Description: "Team space"},
 	}, spaces)
 }
 
@@ -96,6 +97,9 @@ func TestConnectExistingOnlyConnectsTheMCPServer(t *testing.T) {
 	agent := &fakeAgent{
 		agentSpaces: []agenttypes.AgentSpace{
 			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
+		},
+		operatorApps: map[string]*devopsagent.GetOperatorAppOutput{
+			"space-2": {Iam: &agenttypes.IamAuthConfiguration{}},
 		},
 	}
 	iamClient := newFakeIAM()

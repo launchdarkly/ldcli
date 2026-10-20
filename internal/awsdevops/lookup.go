@@ -76,6 +76,8 @@ type AgentSpaceSummary struct {
 	AgentSpaceID string `json:"agentSpaceId"`
 	Name         string `json:"name"`
 	Description  string `json:"description,omitempty"`
+	// ManagedByLDCLI means that setup made the space.
+	ManagedByLDCLI bool `json:"managedByLdcli"`
 }
 
 // AgentSpaces lists the agent spaces in the account and region.
@@ -88,9 +90,10 @@ func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, err
 	summaries := make([]AgentSpaceSummary, 0, len(spaces))
 	for _, space := range spaces {
 		summaries = append(summaries, AgentSpaceSummary{
-			AgentSpaceID: aws.ToString(space.AgentSpaceId),
-			Name:         aws.ToString(space.Name),
-			Description:  aws.ToString(space.Description),
+			AgentSpaceID:   aws.ToString(space.AgentSpaceId),
+			Name:           aws.ToString(space.Name),
+			Description:    aws.ToString(space.Description),
+			ManagedByLDCLI: aws.ToString(space.Description) == agentSpaceDescription,
 		})
 	}
 
@@ -128,17 +131,6 @@ func spacesNamed(ctx context.Context, clients Clients, name string) ([]string, e
 	}
 
 	return ids, nil
-}
-
-// FindAgentSpace returns the ID of the agent space with the given name, or an
-// empty string when the account has none.
-func FindAgentSpace(ctx context.Context, clients Clients, name string) (string, error) {
-	ids, err := spacesNamed(ctx, clients, name)
-	if err != nil || len(ids) == 0 {
-		return "", err
-	}
-
-	return ids[0], nil
 }
 
 // FindAssociation returns the ID of an existing association between an agent
