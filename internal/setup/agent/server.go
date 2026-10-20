@@ -51,6 +51,9 @@ func startServer(ctx context.Context, binary, dir string, config []byte) (*serve
 	cmd.Dir = dir
 	cmd.Env = childEnv(os.Environ(), map[string]string{
 		"OPENCODE_SERVER_PASSWORD": password,
+		// Set the user name too, so a value in the user's shell does not
+		// make OpenCode refuse the client's basic auth.
+		"OPENCODE_SERVER_USERNAME": serverUsername,
 		"OPENCODE_CONFIG_CONTENT":  string(config),
 	})
 	// Ask OpenCode to stop so it can end its own child processes, and kill it if
