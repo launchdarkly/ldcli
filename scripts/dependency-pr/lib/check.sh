@@ -16,6 +16,7 @@
 #   info "summary"                no problem, but the summary is worth showing
 #   fail "summary"                the PR must not merge as it is (add `recommend` for the fix)
 #   decide "question" "evidence"  only a person can make this choice; ask one exact question
+#   decide_asked "summary"        like decide, for the separate questions given to `ask`
 #   incomplete "reason"           the check could not run here (missing tool, no network)
 #   skip "reason"                 the check does not apply to this PR
 # Everything printed to stdout/stderr goes to the check's log.
@@ -38,6 +39,17 @@ incomplete() { _finish incomplete "$@"; }
 decide() {
   printf '%s\n' "$1" >"$ARTIFACTS/question"
   shift
+  _finish decide "$@"
+}
+# For separate choices, call `ask` once for each, then `decide_asked`. Each
+# question becomes its own decision, which a person can answer alone.
+#   ask "question" "evidence"
+#   decide_asked "summary"
+ask() {
+  jq -nc --arg q "$1" --arg e "${2:-}" '{question: $q, evidence: $e}' >>"$ARTIFACTS/questions.jsonl"
+}
+decide_asked() {
+  jq -r '.question' "$ARTIFACTS/questions.jsonl" >"$ARTIFACTS/question"
   _finish decide "$@"
 }
 

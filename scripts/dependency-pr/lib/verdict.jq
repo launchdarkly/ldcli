@@ -80,8 +80,14 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
 
   | [ ( $checks[]
         | select(.pr.status == "decide" and .outcome != "pre-existing")
-        | {source: .id, question: (.pr.question // .title), evidence: ([.pr.summary] + (.pr.recommendations // [])),
-           recipe: .pr.fix} ),
+        | if ((.pr.questions // []) | length) > 0 then
+            . as $c | .pr.questions[]
+            | {source: $c.id, question: .question, evidence: ([.evidence] + ($c.pr.recommendations // []) | map(select(. != ""))),
+               recipe: $c.pr.fix}
+          else
+            {source: .id, question: (.pr.question // .title), evidence: ([.pr.summary] + (.pr.recommendations // [])),
+             recipe: .pr.fix}
+          end ),
       ( if $tier != "low" and ($impact.behavior_changes_reachable // false) and $proven == 0 and (($impact.no_local_proof // "") != "") then
           {source: "impact", question: "Accept the upstream behavior changes that reach ldcli, which no local check can prove?",
            evidence: ([$impact.no_local_proof] + [($impact.changelog // [])[] | "\(.package) \(.range // ""): \(.notes)"]), recipe: null}

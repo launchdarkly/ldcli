@@ -53,10 +53,13 @@ fi
 unfetched=$(jq -r '[.actions[] | select(.upstream != null and .upstream.status != "ok") | .name] | join(", ")' "$R")
 [ -n "$unfetched" ] && incomplete "could not fetch the upstream action.yml to compare inputs and outputs for: $unfetched"
 
+# Each choice is its own question with its own evidence, so that a person can
+# accept one and reject another (#719 asked about v6 and the exact pin at once).
 questions=()
 evidence=()
+add_question() { questions+=("$1"); evidence+=("$2"); }
 perm=$(jq -r '[.permissions_changes[] | "\(.where): \(.from) → \(.to)"] | join("; ")' "$R")
-[ -n "$perm" ] && questions+=("accept the workflow permission changes ($perm)")
+[ -n "$perm" ] && add_question "Accept the workflow permission changes ($perm)?" "permissions: $perm"
 # A changed default with a known effect is asked as that effect ("pre-commit in
 # go.yml will use the runner's Python 3.12 ..."), and the others by name.
 # Fields are joined with the unit separator, not a tab. Tab is IFS whitespace,
@@ -64,12 +67,11 @@ perm=$(jq -r '[.permissions_changes[] | "\(.where): \(.from) → \(.to)"] | join
 while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted used effects plain composite; do
   [ -n "$name" ] || continue
   ev="$name $change: inputs and outputs that the repo uses are unchanged; runtime $runtime${defaults:+; changed defaults: $defaults}${selfhosted:+; non-standard runner labels: $selfhosted}${composite:+; $composite}"
-  evidence+=("$ev")
   if [ -n "$untested" ]; then
-    questions+=("accept $name $to in workflows that PR CI does not run ($untested)")
+    add_question "Accept $name $to in workflows that PR CI does not run ($untested)?" "$ev"
   else
-    [ -n "$effects" ] && questions+=("accept that $effects")
-    [ -n "$plain" ] && questions+=("accept the changed input defaults of $name in $used ($plain)")
+    [ -n "$effects" ] && add_question "Accept that $effects?" "$ev"
+    [ -n "$plain" ] && add_question "Accept the changed input defaults of $name in $used ($plain)?" "$ev"
   fi
 done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking_effective or (.upstream.defaults_changed | length) > 0) |
   [.name, .change, .to,
@@ -84,19 +86,17 @@ done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking
   | map(. // "" | tostring) | join("\u001f")' "$R")
 
 while IFS=$'\x1f' read -r q ev; do
-  [ -n "$q" ] || continue
-  questions+=("$q")
-  evidence+=("$ev")
+  [ -n "$q" ] && add_question "$q" "$ev"
 done < <(jq -r '.actions[] | .name as $n | .stale_pins | select(length > 0)
-  | ["accept the exact pin \($n)@\(.[0].pin), which is older than "
-       + (map("\(.resolves_to) that @\(.floating) \(if .kind == "replaced" then "(replaced by the PR) " else "" end)resolves to today") | join(" and ")),
+  | ["Accept the exact pin \($n)@\(.[0].pin), which is older than "
+       + (map("\(.resolves_to) that @\(.floating) \(if .kind == "replaced" then "(replaced by the PR) " else "" end)resolves to today") | join(" and ")) + "?",
      "\($n)@\(.[0].pin) is an exact pin; " + (map("@\(.floating) resolves to \(.resolves_to)") | join(", "))]
   | join("\u001f")' "$R")
 
 if [ ${#questions[@]} -gt 0 ]; then
   fingerprint "${questions[*]}"
-  q="$(join_by '; and ' "${questions[@]}")"
-  decide "${q^}?" "$(join_by ' | ' "${evidence[@]}")"
+  for i in "${!questions[@]}"; do ask "${questions[$i]}" "${evidence[$i]}"; done
+  decide_asked "${#questions[@]} decision(s): $(join_by ' | ' "${evidence[@]}")"
 fi
 
 untested_minor=$(jq -r '[.actions[] | select(.breaking_effective | not) | .usages[] | select(.runs_on_pr | not) | .workflows[]] | unique | join(", ")' "$R")

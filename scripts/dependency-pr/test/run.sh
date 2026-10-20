@@ -519,9 +519,15 @@ esac"
 out=$(BASE_WT="$tmp/co-b" run_check actions-coverage "$tmp/co-p" PATH="$tmp/bin-co:$PATH" CLASSIFICATION="$tmp/cls-co.json")
 check "actions-coverage resolves the floating old ref to the exact release" 1 \
   "$(grep -c '| `actions/checkout` | v4 (v4.4.0) → v6.0.3 |' "$(ls -dt "$tmp"/art.* | head -n1)/details.md")"
-check "actions-coverage flags an exact pin that is older than its floating major" \
-  "decide|Accept actions/checkout v6.0.3 in workflows that PR CI does not run (r.yml); and accept the exact pin actions/checkout@v6.0.3, which is older than v6.1.0 that @v6 resolves to today?" \
+check "actions-coverage asks about the release workflows and the exact pin as two questions (#719)" \
+  "decide|Accept actions/checkout v6.0.3 in workflows that PR CI does not run (r.yml)?
+Accept the exact pin actions/checkout@v6.0.3, which is older than v6.1.0 that @v6 resolves to today?" \
   "${out%%|*}|${out##*|}"
+q2=$(jq -c --arg s "$(cat "$(ls -dt "$tmp"/art.* | head -n1)/questions.jsonl")" '($s | split("\n") | map(select(length > 0) | fromjson)) as $q
+  | {id: "actions-coverage", title: "a", required: true, pr: {status: "decide", summary: "s", question: $q[0].question, questions: $q, recommendations: []}, base: null}' <<<'{}')
+out=$(verdict "[$q2]" '[]' high)
+check "each question of a check is its own decision, with its own evidence" "2|actions/checkout@v6.0.3 is an exact pin; @v6 resolves to v6.1.0" \
+  "$(v '"\(.decisions | length)|\(.decisions[1].evidence[0])"')"
 sed -i 's/@v6.0.3$/@v4.3.0/' "$tmp/co-p/.github/workflows/r.yml"
 "$LIB/classify.sh" "$tmp/co-b" "$tmp/co-p" "$tmp/co-changed.txt" "$tmp/pr0.json" "$tmp/cls-co.json" 2>>"$tmp/classify.err"
 out=$(BASE_WT="$tmp/co-b" run_check actions-coverage "$tmp/co-p" PATH="$tmp/bin-co:$PATH" CLASSIFICATION="$tmp/cls-co.json")

@@ -43,6 +43,7 @@ run_one() {
   jq -n --arg status "$status" --arg summary "$summary" \
     --arg log "${logf#"$OUT"/}" --argjson duration "$(($(now_s) - start))" \
     --arg question "$(cat "$art/question" 2>/dev/null)" \
+    --slurpfile questions <(cat "$art/questions.jsonl" 2>/dev/null) \
     --slurpfile fix <(cat "$art/fix.json" 2>/dev/null || echo null) \
     --arg fingerprint "$(cat "$art/fingerprint" 2>/dev/null)" \
     --rawfile findings <(cat "$art/findings.list" 2>/dev/null) \
@@ -50,6 +51,7 @@ run_one() {
     --rawfile recs <(cat "$art/recommendations" 2>/dev/null) '
     {status: $status, summary: $summary, log: $log, duration_s: $duration,
      question: (if $question == "" then null else $question end),
+     questions: (if ($questions | length) == 0 then null else $questions end),
      fix: $fix[0],
      fingerprint: (if $fingerprint == "" then null else $fingerprint end),
      findings: (if $findings == "" then null else ($findings | split("\n") | map(select(length > 0))) end),
