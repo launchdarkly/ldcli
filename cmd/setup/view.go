@@ -381,9 +381,9 @@ func (m wizardModel) planView() string {
 	}
 	add(fmt.Sprintf("Create a feature flag in %s / %s", m.selectedProject, m.selectedEnv))
 	if m.agentMode != agentOff && m.agentRunner != nil {
-		note := "(asks before it runs a command)"
+		note := "(asks you only when it needs information)"
 		if m.agentMode == agentAuto {
-			note = "(asks before it runs a command · uses the template if the agent cannot run)"
+			note = "(asks you only when it needs information · uses the template if the agent cannot run)"
 		}
 		add("Use the setup agent to add initialization code " + mutedStyle.Render(note))
 		add("Verify the SDK connects to LaunchDarkly")

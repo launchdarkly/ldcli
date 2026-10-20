@@ -109,7 +109,8 @@ func newAgentCmd(svc setup.Service, runner agent.Runner) *cobra.Command {
 		Long: `Runs only the agent step of setup.
 
 The setup agent uses OpenCode to edit the project. OpenCode must be installed.
-The agent asks before it runs a shell command. It never receives your
+The agent runs commands in the project without asking, and it asks you only
+when it needs information, such as where to store a key. It never receives your
 LaunchDarkly credentials: the code that it writes reads them from environment
 variables.`,
 		RunE: runAgent(svc, runner),

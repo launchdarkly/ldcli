@@ -69,18 +69,24 @@ func TestChildEnv_RemovesLDVariablesAndSetsOwn(t *testing.T) {
 	assert.ElementsMatch(t, []string{"PATH=/bin", "HOME=/home/me", "OPENCODE_SERVER_PASSWORD=new"}, env)
 }
 
-func TestOpenCodeConfig_AsksBeforeShellCommands(t *testing.T) {
+func TestOpenCodeConfig_RunsCommandsWithoutApprovals(t *testing.T) {
 	data, err := openCodeConfig()
 	require.NoError(t, err)
 
 	var cfg struct {
-		Permission map[string]string `json:"permission"`
+		Permission map[string]json.RawMessage `json:"permission"`
 	}
 	require.NoError(t, json.Unmarshal(data, &cfg))
-	assert.Equal(t, "ask", cfg.Permission["bash"])
-	assert.Equal(t, "allow", cfg.Permission["edit"])
-	assert.Equal(t, "deny", cfg.Permission["external_directory"])
-	assert.Equal(t, "deny", cfg.Permission["webfetch"])
+	assert.JSONEq(t, `"allow"`, string(cfg.Permission["edit"]))
+	assert.JSONEq(t, `"allow"`, string(cfg.Permission["question"]), "the agent can still ask for information")
+	assert.JSONEq(t, `"deny"`, string(cfg.Permission["external_directory"]))
+	assert.JSONEq(t, `"deny"`, string(cfg.Permission["webfetch"]))
+
+	bash := string(cfg.Permission["bash"])
+	assert.True(t, strings.HasPrefix(bash, `{"*":"allow",`), "the catch-all comes first, because the last matching rule wins: %s", bash)
+	for _, denied := range []string{"git push*", "git commit*", "git reset*", "sudo *", "rm -rf /*"} {
+		assert.Contains(t, bash, `"`+denied+`":"deny"`)
+	}
 }
 
 func TestVersionAtLeast(t *testing.T) {
