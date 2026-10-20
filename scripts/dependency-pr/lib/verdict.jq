@@ -99,40 +99,51 @@ def build_result($meta; $cls; $checks; $gen; $impact; $profile; $generated_at):
      then ($others | .[0].evidence += $nlp[0].evidence)
      else $decisions end) as $decisions
 
-  | [ ( $checks[] | select(.outcome == "error")
-        | {source: .id, reason: "\(.title): the check crashed (\(.pr.summary))"} ),
+  # Each incomplete item says what closes it. Most need a verify.sh rerun or
+  # agent work; a check can name another fix (ci-status: a rerun on GitHub).
+  | "Run `verify.sh` again where the missing tool or network is available." as $rerun_verify
+  | "Finish `agent/impact.json`, then run `verify.sh --phase render`." as $finish_impact
+  | "Fix the generated check, then run `verify.sh --phase generated`." as $fix_generated
+  | def own_fix: if ((.pr.recommendations // []) | length) > 0 then .pr.recommendations else [$rerun_verify] end;
+  [ ( $checks[] | select(.outcome == "error")
+        | {source: .id, reason: "\(.title): the check crashed (\(.pr.summary))",
+           fix: ["Read the check log, fix the cause, and run `verify.sh` again."]} ),
       ( $checks[] | select(.outcome == "incomplete" and .required)
-        | {source: .id, reason: "\(.title): \(.pr.summary)"} ),
+        | {source: .id, reason: "\(.title): \(.pr.summary)", fix: own_fix} ),
       ( $checks[] | select((.outcome == "incomplete" or (.pr.profile_skipped // false)) and (.required | not))
         | tag_required($cls) as $hit | select(($hit | length) > 0)
         | {source: .id,
-           reason: "\(.title): \(.pr.summary). This check is required for \($hit | join(", ")) updates."} ),
+           reason: "\(.title): \(.pr.summary). This check is required for \($hit | join(", ")) updates.",
+           fix: (if (.pr.profile_skipped // false) then ["Run `verify.sh --profile full`."] else own_fix end)} ),
       ( $checks[] | select(.outcome == "pre-existing" and ((.gate // false) or ((tag_required($cls) | length) > 0)))
         | {source: .id,
-           reason: "\(.title) failed the same way on base and on the PR, so this gate does not show that the update works (\(.pr.summary))"} ),
+           reason: "\(.title) failed the same way on base and on the PR, so this gate does not show that the update works (\(.pr.summary))",
+           fix: ["Find why the check fails on base. If the environment causes it, fix the environment and run `verify.sh` again."]} ),
       ( $gen[] | select(.outcome | IN("error", "incomplete", "fails-both", "invalid"))
         | {source: "generated:\(.id)",
            reason: (({"error": "the generated check crashed",
                      "incomplete": "the generated check could not run",
                      "fails-both": "the discriminating check fails on both versions; fix the check or the analysis",
-                     "invalid": "the guard fails on base; fix the check"}[.outcome]) + " (\(.title))")} ),
+                     "invalid": "the guard fails on base; fix the check"}[.outcome]) + " (\(.title))"),
+           fix: [$fix_generated]} ),
       ( if $tier != "low" then
           ( if $impact == null then
-              {source: "impact", reason: "The \($tier)-risk update needs an impact review (agent/impact.json): upstream notes, reach into ldcli, and breaking changes"}
+              {source: "impact", reason: "The \($tier)-risk update needs an impact review (agent/impact.json): upstream notes, reach into ldcli, and breaking changes", fix: [$finish_impact]}
             else
               ( [ $direct[] | select(. as $n | ($impact.changelog // []) | map(.package) | index($n) | not) ] as $missing
                 | if ($missing | length) > 0 then
-                    {source: "impact", reason: "The impact review does not cover these direct updates: \($missing | join(", "))"}
+                    {source: "impact", reason: "The impact review does not cover these direct updates: \($missing | join(", "))", fix: [$finish_impact]}
                   else empty end ),
               ( if ($impact | has("behavior_changes_reachable") | not) then
-                  {source: "impact", reason: "The impact review must state behavior_changes_reachable (true or false)"}
+                  {source: "impact", reason: "The impact review must state behavior_changes_reachable (true or false)", fix: [$finish_impact]}
                 # A guard regression or a failing gate (npm ci, build) already shows that the
                 # change reaches ldcli, and no discriminating check can pass on a PR that does not install.
                 elif $impact.behavior_changes_reachable == true and $proven == 0 and (($impact.no_local_proof // "") == "")
                      and ([$gen[] | select(.outcome == "regression")] | length) == 0
                      and ([$checks[] | select((.outcome | IN("regression", "changed"))
                                               and ((.gate // false) or ((tag_required($cls) | length) > 0)))] | length) == 0 then
-                  {source: "impact", reason: "The impact review found upstream behavior changes that reach ldcli, but no generated check proved one (it must fail on the old version and pass on the new one)"}
+                  {source: "impact", reason: "The impact review found upstream behavior changes that reach ldcli, but no generated check proved one (it must fail on the old version and pass on the new one)",
+                   fix: ["Write a discriminating check in `generated/`, then run `verify.sh --phase generated`."]}
                 else empty end )
             end )
         else empty end )

@@ -163,6 +163,13 @@ check "block comment shows the mechanical fix" 1 "$(grep -c 'Mechanical fix: `ma
 verdict "[$(chk a pass)]" '[]' low | render >"$tmp/c3.md"
 check "safe comment says no decision is necessary" 1 "$(grep -c 'No decision is necessary' "$tmp/c3.md")"
 
+# PR #719: the incomplete CI item said to run verify.sh again. Its fix is a
+# rerun on GitHub, which the check names.
+verdict "[$(chk ci-status incomplete "" "" "" '{"pr": {"status": "incomplete", "summary": "CI did not finish", "recommendations": ["Re-run the workflows on GitHub."]}}'), $(chk docker incomplete "" "" "" '{"pr": {"status": "incomplete", "summary": "no docker", "recommendations": []}}')]" '[]' low | render >"$tmp/c4.md"
+check "an incomplete CI item gives the rerun on GitHub as its fix" 1 "$(grep -A1 '^- ci-status: CI did not finish$' "$tmp/c4.md" | grep -c '^  - Fix: Re-run the workflows on GitHub.$')"
+check "an incomplete item without its own fix says to run verify.sh again" 1 "$(grep -A1 '^- docker: no docker$' "$tmp/c4.md" | grep -c 'Fix: Run `verify.sh` again')"
+check "the incomplete section does not tell every item to run verify.sh again" 0 "$(grep -c 'Run `verify.sh` again where the missing tool is available, or finish' "$tmp/c4.md")"
+
 # ---- findings subsets
 
 fnd() {

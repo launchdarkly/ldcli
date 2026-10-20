@@ -62,8 +62,8 @@ render() {
 
         (if ($r.incomplete | length) > 0 then
           "### Incomplete verification", "",
-          "These items did not run. Run `verify.sh` again where the missing tool is available, or finish the agent review. A person does not have to do these checks.", "",
-          ($r.incomplete[] | "- \(.reason)"),
+          "These items are not verified yet. The fix under each item closes it. A person does not have to repeat a check.", "",
+          ($r.incomplete[] | "- \(.reason)", ((.fix // [])[] | "  - Fix: \(.)")),
           ""
          else empty end),
 
