@@ -68,6 +68,89 @@ func TestPromptAddWithNoAdoptKeepsSyncSettings(t *testing.T) {
 	assert.True(t, exists)
 }
 
+func TestPromptSourceOfTruthChangesRuleAndKeepsFile(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline)}
+
+	stdout, _, err := runPrompt(t, root, api, "source-of-truth", "code-only", "production/support/default")
+
+	require.NoError(t, err)
+	require.Len(t, api.settingsPatches, 1)
+	assert.JSONEq(t, `{
+		"upserts": [{"resourceKind":"variation","resourcePattern":"support/default","direction":"code_canonical"}],
+		"deletions": []
+	}`, api.settingsPatches[0])
+	assert.Contains(t, stdout, "The local files are now the source of truth for these variations.")
+	assert.Empty(t, api.reports, "source-of-truth does not sync")
+	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
+
+func TestPromptSourceOfTruthNeedsSyncedVariation(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err := runPrompt(t, root, api, "source-of-truth", "ui-and-code", "production/support/other")
+
+	require.ErrorContains(t, err, "variation production/support/other does not sync in this workspace.")
+	assert.Empty(t, api.settingsPatches)
+}
+
+func TestPromptSourceOfTruthRejectsDuplicateAndUnknownValue(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline)}
+
+	_, _, err := runPrompt(t, root, api, "source-of-truth", "both", "production/support/default")
+	require.ErrorContains(t, err, `the source of truth must be ui-and-code or code-only, not "both"`)
+
+	_, _, err = runPrompt(t, root, api, "source-of-truth", "code-only", "production/support/default", "production/support/default")
+	require.ErrorContains(t, err, "variation production/support/default was selected more than once")
+	assert.Empty(t, api.settingsPatches)
+}
+
+func TestPromptSourceOfTruthFailsWhenSyncSettingsAreUnavailable(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{
+		variation:        pointer(baseline),
+		settingsPatchErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
+	}
+
+	_, _, err := runPrompt(t, root, api, "source-of-truth", "code-only", "production/support/default")
+
+	require.ErrorContains(t, err, "sync settings are not available for project production, so the source of truth did not change")
+}
+
+func TestPromptSourceOfTruthOverridesWildcardWithUIAndCode(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{variation: pointer(baseline)}
+
+	stdout, _, err := runPrompt(t, root, api, "source-of-truth", "ui-and-code", "production/support/default")
+
+	require.NoError(t, err)
+	require.Len(t, api.settingsPatches, 1)
+	assert.JSONEq(t, `{
+		"upserts": [{"resourceKind":"variation","resourcePattern":"support/default","direction":"both"}],
+		"deletions": []
+	}`, api.settingsPatches[0])
+	assert.Contains(t, stdout, "The LaunchDarkly UI and the local files can now both change these variations.")
+}
+
 func TestPromptAddWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	root := initRepository(t)
 	api := &directAPI{

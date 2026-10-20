@@ -31,6 +31,14 @@ type AddAction struct {
 	NoAdopt bool
 }
 
+// SourceOfTruthAction changes the source of truth of variations that the
+// workspace already syncs. It writes an exact sync settings rule with
+// Direction for each variation and keeps the local files.
+type SourceOfTruthAction struct {
+	Variations []syncdomain.ResourceID
+	Direction  syncdomain.Direction
+}
+
 // AttachAction adds a tool or a skill to a local variation, and then syncs.
 type AttachAction struct {
 	Kind   syncdomain.AttachmentKind
@@ -61,6 +69,16 @@ func (action SyncAction) validate() error {
 
 func (AddAction) validate() error    { return nil }
 func (DetachAction) validate() error { return nil }
+
+func (action SourceOfTruthAction) validate() error {
+	if action.Direction != syncdomain.DirectionBoth && action.Direction != syncdomain.DirectionCodeCanonical {
+		return errors.New("the source of truth must be " + syncdomain.SourceOfTruthValues)
+	}
+	if len(action.Variations) == 0 {
+		return errors.New("source-of-truth needs at least one variation")
+	}
+	return nil
+}
 
 func (action AttachAction) validate() error {
 	if !action.Kind.Valid() {

@@ -72,6 +72,7 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
 		newAttachCmd(client),
 		newDetachCmd(client),
 		newLinkCmd(client),
+		newSourceOfTruthCmd(client),
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -298,6 +299,36 @@ func validatedArgs(validate cobra.PositionalArgs) cobra.PositionalArgs {
 		}
 		return validators.Validate()(cmd, args)
 	}
+}
+
+func newSourceOfTruthCmd(client resources.Client) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "source-of-truth <ui-and-code|code-only> <project-key/config-key/variation-key>...",
+		Short: "Change the source of truth of synced prompt variations",
+		Long: "Change the source of truth of prompt variations that already sync. " +
+			"The command writes the sync settings rule of each variation and keeps the local files. " +
+			"With ui-and-code, the LaunchDarkly UI and the local file can both change the variation. " +
+			"With code-only, LaunchDarkly rejects each change to the variation that does not come from sync. " +
+			"To add a variation that does not sync yet, use add.",
+		Example: `  # Make the local file the only source of truth
+  ldcli sync prompts source-of-truth code-only production/support/default
+
+  # Let the UI and the local file both change two variations
+  ldcli sync prompts source-of-truth ui-and-code production/support/default production/chat/concise`,
+		Args: validatedArgs(cobra.MinimumNArgs(2)),
+		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+			direction, err := syncdomain.ParseSourceOfTruth(args[0])
+			if err != nil {
+				return nil, err
+			}
+			variations, err := parseVariationSelectors(args[1:])
+			if err != nil {
+				return nil, err
+			}
+			return syncprompt.SourceOfTruthAction{Variations: variations, Direction: direction}, nil
+		}),
+	}
+	return cmd
 }
 
 func parseVariationSelectors(values []string) ([]syncdomain.ResourceID, error) {
