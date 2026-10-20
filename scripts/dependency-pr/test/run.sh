@@ -428,7 +428,7 @@ run_json() {
   # run_json <name> <file> <event> <status> <conclusion|null> <jobs> [head]
   jq -nc --arg n "$1" --arg f "$2" --arg e "$3" --arg s "$4" --argjson c "$5" --argjson j "$6" --arg h "${7:-$H}" \
     '{id: ($f | length), name: $n, path: ".github/workflows/\($f)", event: $e, status: $s, conclusion: $c,
-      jobs_count: $j, head_sha: $h, created_at: "2026-10-07T16:52:53Z", run_attempt: 1}'
+      jobs_count: $j, head_sha: $h, created_at: (env.CREATED // "2026-10-07T16:52:53Z"), run_attempt: 1}'
 }
 rollup='[{"name": "Cursor Bugbot", "status": "COMPLETED", "conclusion": "SUCCESS", "workflow": ""},
          {"name": "semgrep-cloud-platform/scan", "status": "COMPLETED", "conclusion": "SUCCESS", "workflow": ""},
@@ -439,8 +439,11 @@ ci_meta() {
     '{head_sha: $h, base_ref: "main", ci: $ci, ci_head: $rh, ci_runs: $runs}' >"$tmp/ci-meta.json"
 }
 ci_check() { BASE_WT="$ci" run_check ci-status "$ci" PR_META="$tmp/ci-meta.json" CLASSIFICATION="$tmp/cls-ci.json"; }
+# Green runs from today, so that the age of the runs does not change the summary.
+export CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 green="[$(run_json Go go.yml pull_request completed '"success"' 1), $(run_json 'dev-server UI' dev-server-ui.yml pull_request completed '"success"' 1),
         $(run_json 'Dependency Scan' dependency-scan.yml pull_request completed '"success"' 2), $(run_json 'Lint PR title' lint-pr-title.yml pull_request_target completed '"success"' 1)]"
+unset CREATED
 
 ci_meta "[$(run_json Go go.yml pull_request completed '"failure"' 0), $(run_json 'dev-server UI' dev-server-ui.yml pull_request completed '"failure"' 0),
           $(run_json 'Dependency Scan' dependency-scan.yml pull_request queued null 0), $(run_json 'Lint PR title' lint-pr-title.yml pull_request_target queued null 0)]"
@@ -615,6 +618,45 @@ check "ui-build-drift: an npm crash is incomplete" "incomplete" "$(run_check ui-
 check "ui-npm-ls: an npm crash is incomplete" "incomplete" "$(run_check ui-npm-ls "$tmp/uiwt" PATH="$tmp/bin-crash:$PATH" | cut -d'|' -f1)"
 stub "$tmp/bin-lintfail" npm 'printf "/w/src/App.tsx\n  3:1  error  x is unused  no-unused-vars\n\n✖ 1 problem (1 error, 0 warnings)\n"; exit 1'
 check "ui-lint: an eslint finding is still a failure" "fail" "$(run_check ui-lint "$tmp/uiwt" PATH="$tmp/bin-lintfail:$PATH" | cut -d'|' -f1)"
+
+# Posting log, 2026-10-17 (#869): the npm-only PR got "block" because the Go
+# job failed in `go test` (the flaky TestStreamClientV2Handler on main). A
+# failure in steps that read none of the changed files needs a rerun.
+printf 'name: Go\non:\n  pull_request:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: build\n        run: go build .\n      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd\n      - name: test\n        run: go test ./...\n' >"$ci/.github/workflows/go.yml"
+jq -n '{ecosystems: ["npm-ui"], changed_files: ["internal/dev_server/ui/package.json", "internal/dev_server/ui/package-lock.json"], updates: []}' >"$tmp/cls-ci-npm.json"
+flaky() { jq -c --argjson steps "$1" 'map(if .name == "Go" then .conclusion = "failure" | .failed_jobs = [{name: "build", conclusion: "failure", steps: $steps}] else . end)' <<<"$green"; }
+rollup_go_fail='[{"name": "build", "status": "COMPLETED", "conclusion": "FAILURE", "workflow": "Go"}]'
+ci_meta "$(flaky '["test"]')"
+jq --argjson r "$rollup_go_fail" '.ci += $r' "$tmp/ci-meta.json" >"$tmp/ci-meta2.json" && mv "$tmp/ci-meta2.json" "$tmp/ci-meta.json"
+out=$(BASE_WT="$ci" run_check ci-status "$ci" PR_META="$tmp/ci-meta.json" CLASSIFICATION="$tmp/cls-ci-npm.json")
+check "ci-status: a go test failure on an npm-only PR is incomplete with a rerun, not a block (#869)" "incomplete" "${out%%|*}"
+check "ci-status names the failed job and step" 1 "$(grep -c 'Go (`failure` in 1 job(s), only in job build, step test (`go test ./...`, gomod), which this PR does not change)' <<<"$out")"
+check "ci-status recommends a rerun of the failed job" 1 \
+  "$(grep -c 'Re-run the failed job (Go: build)' "$(ls -dt "$tmp"/art.* | head -n1)/recommendations")"
+out=$(BASE_WT="$ci" run_check ci-status "$ci" PR_META="$tmp/ci-meta.json" CLASSIFICATION="$tmp/cls-ci.json")
+check "ci-status: the same failure is a block when the PR changes the workflow" "fail" "${out%%|*}"
+jq '.ecosystems = ["gomod"] | .changed_files = ["go.mod", "go.sum"]' "$tmp/cls-ci-npm.json" >"$tmp/cls-ci-go.json"
+out=$(BASE_WT="$ci" run_check ci-status "$ci" PR_META="$tmp/ci-meta.json" CLASSIFICATION="$tmp/cls-ci-go.json")
+check "ci-status: a go test failure on a Go update is a block" "fail" "${out%%|*}"
+ci_meta "$(flaky '["Run pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd"]')"
+out=$(BASE_WT="$ci" run_check ci-status "$ci" PR_META="$tmp/ci-meta.json" CLASSIFICATION="$tmp/cls-ci-npm.json")
+check "ci-status: a failed action step (pre-commit runs the UI hooks) is a block" "fail" "${out%%|*}"
+ci_meta "$(jq -c 'map(if .name == "Go" then .conclusion = "failure" else . end)' <<<"$green")"
+out=$(BASE_WT="$ci" run_check ci-status "$ci" PR_META="$tmp/ci-meta.json" CLASSIFICATION="$tmp/cls-ci-npm.json")
+check "ci-status: a failure without job details is a block" "fail" "${out%%|*}"
+
+# PR #719: CI that ran before the base branch changed its workflows did not
+# test the workflows that a merge uses.
+cg="$tmp/ci-git" && cp -r "$ci" "$cg" && git -C "$cg" init -q && git -C "$cg" add -A &&
+  GIT_COMMITTER_DATE="2026-08-01T00:00:00Z" git -C "$cg" -c user.name=t -c user.email=t@t commit -q --date=2026-08-01T00:00:00Z -m base
+ci_meta "$(CREATED=2026-09-01T16:52:53Z && export CREATED && jq -c --arg c "$CREATED" 'map(.created_at = $c)' <<<"$green")"
+out=$(BASE_WT="$cg" run_check ci-status "$ci" PR_META="$tmp/ci-meta.json" CLASSIFICATION="$tmp/cls-ci-npm.json")
+check "ci-status: green CI with no later workflow change passes and gives the age" 1 "$(grep -c '^pass|.*(the oldest run is [0-9]* days old)' <<<"$out")"
+echo '# changed' >>"$cg/.github/workflows/go.yml"
+GIT_COMMITTER_DATE="2026-09-10T00:00:00Z" git -C "$cg" -c user.name=t -c user.email=t@t commit -qam "ci: bump setup-go"
+out=$(BASE_WT="$cg" run_check ci-status "$ci" PR_META="$tmp/ci-meta.json" CLASSIFICATION="$tmp/cls-ci-npm.json")
+check "ci-status: a workflow change on the base branch after the run is incomplete (#719)" "incomplete" "${out%%|*}"
+check "ci-status names the commit that changed the workflow" 1 "$(grep -c 'ran before the base branch changed its workflows ([0-9a-f]\{7\})' <<<"$out")"
 
 # Bug 3: a generated check inherited the global git configuration, and an
 # `insteadOf` rule with an access token showed up in its log. The tokens are

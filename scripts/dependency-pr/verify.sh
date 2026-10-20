@@ -18,7 +18,8 @@
 #   --no-pr-meta        do not read PR metadata (title, CI results) from GitHub
 #   --pr-meta FILE      read PR metadata from FILE (the `gh pr view --json` shape) instead
 #                       of GitHub; without statusCheckRollup, ci-status does not apply.
-#                       workflowRuns (runs on the head, each with jobs_count) is optional
+#                       workflowRuns (runs on the head, each with jobs_count and
+#                       failed_jobs) is optional
 #   -h, --help
 #
 # Outputs (in the out dir): result.json, comment.md, logs/<side>/<check>.log,
@@ -167,9 +168,15 @@ fetch_ci_runs() {
     jq '.workflowRuns = null' "$gh_json" >"$gh_json.tmp" && mv "$gh_json.tmp" "$gh_json"
     return 0
   fi
+  # For each run: the job count, and the failed jobs with their failed steps, so
+  # that ci-status can tell a failure in code that the PR changes from one in
+  # code that it does not change.
   for id in $(jq -r '.[].id' <<<"$runs"); do
-    jobs=$(gh api "repos/$REPO/actions/runs/$id/jobs?per_page=1" --jq '.total_count' 2>/dev/null) || jobs=null
-    runs=$(jq --argjson id "$id" --argjson n "${jobs:-null}" 'map(if .id == $id then . + {jobs_count: $n} else . end)' <<<"$runs")
+    jobs=$(gh api "repos/$REPO/actions/runs/$id/jobs?per_page=100" --jq '{n: .total_count,
+      failed: [.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out")
+               | {name, conclusion, steps: [(.steps // [])[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .name]}]}' 2>/dev/null) ||
+      jobs='{"n": null, "failed": null}'
+    runs=$(jq --argjson id "$id" --argjson j "$jobs" 'map(if .id == $id then . + {jobs_count: $j.n, failed_jobs: $j.failed} else . end)' <<<"$runs")
   done
   jq --argjson r "$runs" '.workflowRuns = $r' "$gh_json" >"$gh_json.tmp" && mv "$gh_json.tmp" "$gh_json"
 }
