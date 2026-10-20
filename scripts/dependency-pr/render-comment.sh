@@ -140,7 +140,13 @@ render() {
           | if ($d | length) > 0 then
               "<details><summary>Check details</summary>",
               "",
-              ($d[] | "#### \(.id)", "", (.pr.details // .base.details), ""),
+              # A generated check runs on both versions. A discriminating check is
+              # proven by the difference, so show both sides when they differ.
+              ($d[] | "#### \(.id)", "",
+                (if (.kind // null) != null and (.base.details // null) != null and (.pr.details // null) != null
+                     and .base.details != .pr.details
+                 then "Base (\(.base.status)):", "", .base.details, "", "PR (\(.pr.status)):", "", .pr.details
+                 else (.pr.details // .base.details) end), ""),
               "</details>",
               ""
             else empty end

@@ -166,6 +166,9 @@ verdict "[$(chk tidy fail pass fp1)]" '[]' low | render >"$tmp/c2.md"
 check "block comment shows the mechanical fix" 1 "$(grep -c 'Mechanical fix: `make tidy`' "$tmp/c2.md")"
 verdict "[$(chk a pass)]" '[]' low | render >"$tmp/c3.md"
 check "safe comment says no decision is necessary" 1 "$(grep -c 'No decision is necessary' "$tmp/c3.md")"
+verdict "[$(chk a pass)]" "[$(gen g1 discriminating fail pass | jq '.base.details = "fails in 8 ms" | .pr.details = "times out after 3011 ms"')]" low | render >"$tmp/c5.md"
+check "the comment shows the base side of a discriminating check too (Oct 16 bug 7)" "1 1" \
+  "$(grep -c '^fails in 8 ms$' "$tmp/c5.md") $(grep -c '^times out after 3011 ms$' "$tmp/c5.md")"
 out=$(verdict "[$(chk a pass)]" '[]' medium '{"tier": "high", "tier_reasons": ["release-only step"], "findings": []}')
 check "the impact review's tier reasons reach result.json (Oct 16 bug 6)" '["test","impact review: release-only step"]' "$(v '.tier_reasons | tostring')"
 check "the comment says why the impact review raised the tier" 1 \
