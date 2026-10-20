@@ -14,12 +14,37 @@ import (
 // tool, when it needs information such as where a key is stored. Rules deny
 // files outside the project, web access, sub-agents, and a few commands that
 // the agent must never run, such as git push.
-func openCodeConfig() ([]byte, error) {
+// OpenCode's Bedrock provider settings for a managed model.
+const (
+	bedrockProviderID = "amazon-bedrock"
+	// bedrockRegion is a US region, so OpenCode uses the US inference profile
+	// (us.anthropic...). The relay decides where the call really runs.
+	bedrockRegion = "us-east-1"
+	// bedrockTokenEnv is OpenCode's Bedrock bearer token. It takes priority
+	// over every AWS credential, so OpenCode never signs with the user's AWS
+	// keys. ldcli sets it to RelayPlaceholderKey, which the proxy removes.
+	bedrockTokenEnv = "AWS_BEARER_TOKEN_BEDROCK"
+)
+
+// managedModel is a model that LaunchDarkly runs on Bedrock for the agent.
+// OpenCode calls it through the loopback proxy and the gonfalon model relay,
+// so no model key is on the user's machine.
+type managedModel struct {
+	// Endpoint is the proxy address for OpenCode's Bedrock provider.
+	Endpoint string
+	// ModelID is the Bedrock model ID from the config, such as
+	// anthropic.claude-sonnet-4-6.
+	ModelID string
+}
+
+// openCodeConfig returns the configuration. If model is set, Bedrock is the
+// only provider, and every call, including title generation, uses that model.
+func openCodeConfig(model *managedModel) ([]byte, error) {
 	bash, err := orderedRules(bashRules)
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(map[string]any{
+	cfg := map[string]any{
 		"$schema": "https://opencode.ai/config.json",
 		"permission": map[string]any{
 			"read":               "allow",
@@ -33,7 +58,21 @@ func openCodeConfig() ([]byte, error) {
 			"websearch":          "deny",
 			"task":               "deny",
 		},
-	})
+	}
+	if model != nil {
+		id := bedrockProviderID + "/" + model.ModelID
+		cfg["enabled_providers"] = []string{bedrockProviderID}
+		cfg["model"] = id
+		// OpenCode's default small model is a global inference profile, which
+		// the relay refuses and which can run outside the US.
+		cfg["small_model"] = id
+		cfg["provider"] = map[string]any{
+			bedrockProviderID: map[string]any{
+				"options": map[string]any{"region": bedrockRegion, "endpoint": model.Endpoint},
+			},
+		}
+	}
+	return json.Marshal(cfg)
 }
 
 // bashRules are the shell command rules, in order. OpenCode applies the last

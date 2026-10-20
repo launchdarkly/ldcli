@@ -62,7 +62,7 @@ func TestInstallDir(t *testing.T) {
 }
 
 func TestOpenCodeConfig_DeniesLDCLIAndSkillsInstalls(t *testing.T) {
-	data, err := openCodeConfig()
+	data, err := openCodeConfig(nil)
 	require.NoError(t, err)
 
 	assert.Contains(t, string(data), `"ldcli*":"deny"`)

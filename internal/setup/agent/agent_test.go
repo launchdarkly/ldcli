@@ -70,7 +70,7 @@ func TestChildEnv_RemovesLDVariablesAndSetsOwn(t *testing.T) {
 }
 
 func TestOpenCodeConfig_RunsCommandsWithoutApprovals(t *testing.T) {
-	data, err := openCodeConfig()
+	data, err := openCodeConfig(nil)
 	require.NoError(t, err)
 
 	var cfg struct {
