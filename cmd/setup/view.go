@@ -37,16 +37,6 @@ func (m wizardModel) View() string {
 		return titleStyle.Render("Error") + "\n\n" + m.err.Error() + "\n\nPress ctrl+c to quit."
 	}
 
-	view := m.stepView()
-	// Say why setup used a template on every screen that follows, so the user
-	// knows that the agent did not run.
-	if m.agentNote != "" && (m.step == stepWaitForApp || m.step == stepDone) {
-		view = mutedStyle.Render(m.wrap("Note: "+m.agentNote)) + "\n\n" + view
-	}
-	return view
-}
-
-func (m wizardModel) stepView() string {
 	switch m.step {
 	case stepSelectProject:
 		if !m.projectsLoaded {
@@ -87,9 +77,6 @@ func (m wizardModel) stepView() string {
 
 	case stepCreateFlag:
 		return m.spinner.View() + " Creating feature flag..."
-
-	case stepInit:
-		return m.spinner.View() + " Injecting initialization code..."
 
 	case stepAgent:
 		return m.agentView()
@@ -380,12 +367,8 @@ func (m wizardModel) planView() string {
 		add(fmt.Sprintf("Add the %s SDK %s", name, mutedStyle.Render("(manual install)")))
 	}
 	add(fmt.Sprintf("Create a feature flag in %s / %s", m.selectedProject, m.selectedEnv))
-	if m.agentMode != agentOff && m.agentRunner != nil {
-		note := "(asks you only when it needs information)"
-		if m.agentMode == agentAuto {
-			note = "(asks you only when it needs information · uses the template if the agent cannot run)"
-		}
-		add("Use the setup agent to add initialization code " + mutedStyle.Render(note))
+	if m.agentRunner != nil {
+		add("Use the setup agent to add initialization code " + mutedStyle.Render("(asks you only when it needs information)"))
 		add("Verify the SDK connects to LaunchDarkly")
 	} else if setup.InjectsInPlace(m.detectResult.SDKID) {
 		// Say when the entry file does not exist yet: a file we create is not loaded
