@@ -41,8 +41,12 @@ def semver(a, b):
         return "none" if a == b else "prerelease"
     if x > y:
         return "downgrade"
-    if x[0] != y[0] or (x[0] == 0 and x[1] != y[1]):
+    if x[0] != y[0]:
         return "major"
+    # Semver allows breaking changes here, but it is a minor update. The comment
+    # uses the same label for it in each section.
+    if x[0] == 0 and x[1] != y[1]:
+        return "0.x minor"
     return "minor" if x[1] != y[1] else "patch"
 
 

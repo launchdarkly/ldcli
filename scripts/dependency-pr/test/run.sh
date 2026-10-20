@@ -744,6 +744,13 @@ PATH="$tmp/bin-lo:$PATH" "$LIB/classify.sh" "$tmp/lo-b" "$tmp/lo-p" "$tmp/lo-cha
 check "classify: a Go module outside the binary is test-only and low tier (Oct 16 bug 11)" "true low" \
   "$(jq -r '.updates[] | select(.name == "github.com/samber/lo") | "\(.test_only) \(.tier)"' "$tmp/cls-lo.json")"
 
+# Oct 16 bug 12 and #621: x/sys v0.41.0 → v0.45.0 was "major" in
+# transitive-changes and "minor" in the comment. Both sections say 0.x minor.
+check "transitive-changes labels a 0.x minor update as 0.x minor, not major" "0.x minor major minor" \
+  "$(python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import deps; print(deps.semver("v0.41.0", "v0.45.0"), deps.semver("v1.2.0", "v2.0.0"), deps.semver("v1.2.0", "v1.3.0"))' "$LIB")"
+verdict "[$(chk a pass)]" '[]' low null '[]' '[{"name": "golang.org/x/sys", "direct": false, "from": "v0.41.0", "to": "v0.45.0", "semver": "minor", "breaking": true, "ecosystem": "gomod"}]' | render >"$tmp/c6.md"
+check "the comment labels the transitive 0.x minor update the same way" 1 "$(grep -c '^- `golang.org/x/sys` v0.41.0 → v0.45.0 (0.x minor)$' "$tmp/c6.md")"
+
 # Posting log, 2026-10-17 (#869): the npm-only PR got "block" because the Go
 # job failed in `go test` (the flaky TestStreamClientV2Handler on main). A
 # failure in steps that read none of the changed files needs a rerun.

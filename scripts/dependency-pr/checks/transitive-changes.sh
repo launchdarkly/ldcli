@@ -13,8 +13,10 @@ for eco in gomod npm-ui npm-wrapper; do
     incomplete "could not compare the $eco dependency graph: $(tail -n1 "$ARTIFACTS/$eco.err" | cut -c1-160)"
   fi
   cat "$ARTIFACTS/$eco.json"
-  read -r n_add n_rm n_chg n_major < <(jq -r '"\(.added | length) \(.removed | length) \(.changed | length) \([.changed[] | select(.semver == "major")] | length)"' "$ARTIFACTS/$eco.json")
-  summaries+=("$eco: $n_chg changed ($n_major major), $n_add added, $n_rm removed")
+  read -r n_add n_rm n_chg n_major n_zero < <(jq -r '"\(.added | length) \(.removed | length) \(.changed | length) \([.changed[] | select(.semver == "major")] | length) \([.changed[] | select(.semver == "0.x minor")] | length)"' "$ARTIFACTS/$eco.json")
+  zero=""
+  [ "$n_zero" -gt 0 ] && zero=", $n_zero 0.x minor"
+  summaries+=("$eco: $n_chg changed ($n_major major$zero), $n_add added, $n_rm removed")
   {
     printf -- '- %s (%s): %s changed, %s added, %s removed\n' "$eco" "$(jq -r .scope "$ARTIFACTS/$eco.json")" "$n_chg" "$n_add" "$n_rm"
     jq -r '.changed[] | "  - `\(.name)` \(.from) → \(.to) (\(.semver))"' "$ARTIFACTS/$eco.json" | head -n 30

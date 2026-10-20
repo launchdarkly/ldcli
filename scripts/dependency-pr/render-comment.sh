@@ -81,7 +81,7 @@ render() {
             "",
             "<details><summary>\($transitive | length) transitive update(s)</summary>",
             "",
-            ($transitive[0:60][] | "- `\(.name)` \(.from // "∅") → \(.to // "∅") (\(.semver))"),
+            ($transitive[0:60][] | "- `\(.name)` \(.from // "∅") → \(.to // "∅") (\(if .breaking and .semver == "minor" then "0.x minor" else .semver end))"),
             (if ($transitive | length) > 60 then "- …" else empty end),
             "</details>"
            else empty end),

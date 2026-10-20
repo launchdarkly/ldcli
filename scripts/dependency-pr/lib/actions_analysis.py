@@ -237,7 +237,7 @@ def nested_change(old, new):
     if lo[0] != hi[0]:
         return "major"
     if len(lo) > 1 and len(hi) > 1 and lo[1] != hi[1]:
-        return "minor (0.x)" if lo[0] == 0 else "minor"
+        return "0.x minor" if lo[0] == 0 else "minor"
     return "patch"
 
 
@@ -278,7 +278,7 @@ def composite_diff(name, old_ref, old, new_ref, new):
     run_changes = [{"step": k, "change": "added" if k not in ro else "removed" if k not in rn else "changed"}
                    for k in sorted(set(ro) | set(rn)) if ro.get(k) != rn.get(k)]
     files = action_dir_files(name, old_ref, new_ref)
-    breaking = [c for c in uses_changes if c["change"] in ("major", "minor (0.x)", "unknown", "added", "removed")]
+    breaking = [c for c in uses_changes if c["change"] in ("major", "0.x minor", "unknown", "added", "removed")]
     parts = [f"{c['action']} {c['from']} → {c['to']} ({c['change']})" if c["change"] not in ("added", "removed")
              else f"{c['action']} {c['change']}" + (f" ({c['from'] or c['to']})") for c in uses_changes]
     parts += [f"run step \"{c['step']}\" {c['change']}" for c in run_changes]
