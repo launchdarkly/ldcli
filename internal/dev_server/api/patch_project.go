@@ -21,10 +21,10 @@ func (s server) PatchProject(ctx context.Context, request PatchProjectRequestObj
 	}
 
 	response := ProjectJSONResponse{
-		LastSyncedFromSource: project.LastSyncTime.Unix(),
-		Context:              project.Context,
-		SourceEnvironmentKey: project.SourceEnvironmentKey,
-		FlagsState:           &project.AllFlagsState,
+		UnderscoreLastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:                        project.Context,
+		SourceEnvironmentKey:           project.SourceEnvironmentKey,
+		FlagsState:                     &project.AllFlagsState,
 	}
 
 	if request.Params.Expand != nil {

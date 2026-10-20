@@ -35,10 +35,10 @@ func (s server) PostAddProject(ctx context.Context, request PostAddProjectReques
 	}
 
 	response := ProjectJSONResponse{
-		LastSyncedFromSource: project.LastSyncTime.Unix(),
-		Context:              project.Context,
-		SourceEnvironmentKey: project.SourceEnvironmentKey,
-		FlagsState:           &project.AllFlagsState,
+		UnderscoreLastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:                        project.Context,
+		SourceEnvironmentKey:           project.SourceEnvironmentKey,
+		FlagsState:                     &project.AllFlagsState,
 	}
 
 	if request.Params.Expand != nil {

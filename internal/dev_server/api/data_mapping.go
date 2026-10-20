@@ -8,10 +8,10 @@ func availableVariationsToResponseFormat(availableVariations map[string][]model.
 		respVariationsForFlag := make([]Variation, 0, len(variationsForFlag))
 		for _, variation := range variationsForFlag {
 			respVariationsForFlag = append(respVariationsForFlag, Variation{
-				Id:          variation.Id,
-				Description: variation.Description,
-				Name:        variation.Name,
-				Value:       variation.Value,
+				UnderscoreId: variation.Id,
+				Description:  variation.Description,
+				Name:         variation.Name,
+				Value:        variation.Value,
 			})
 		}
 		respAvailableVariations[flagKey] = respVariationsForFlag

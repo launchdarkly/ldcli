@@ -42,7 +42,7 @@ func (s server) PostImportProject(ctx context.Context, request PostImportProject
 		for flagKey, vars := range *request.Body.AvailableVariations {
 			for _, v := range vars {
 				variations[flagKey] = append(variations[flagKey], model.ImportVariation{
-					Id:          v.Id,
+					Id:          v.UnderscoreId,
 					Name:        v.Name,
 					Description: v.Description,
 					Value:       v.Value,
@@ -72,10 +72,10 @@ func (s server) PostImportProject(ctx context.Context, request PostImportProject
 	}
 
 	response := ProjectJSONResponse{
-		LastSyncedFromSource: project.LastSyncTime.Unix(),
-		Context:              project.Context,
-		SourceEnvironmentKey: project.SourceEnvironmentKey,
-		FlagsState:           &project.AllFlagsState,
+		UnderscoreLastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:                        project.Context,
+		SourceEnvironmentKey:           project.SourceEnvironmentKey,
+		FlagsState:                     &project.AllFlagsState,
 	}
 
 	return PostImportProject201JSONResponse{response}, nil

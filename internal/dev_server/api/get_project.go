@@ -17,10 +17,10 @@ func (s server) GetProject(ctx context.Context, request GetProjectRequestObject)
 	}
 
 	response := ProjectJSONResponse{
-		LastSyncedFromSource: project.LastSyncTime.Unix(),
-		Context:              project.Context,
-		SourceEnvironmentKey: project.SourceEnvironmentKey,
-		FlagsState:           &project.AllFlagsState,
+		UnderscoreLastSyncedFromSource: project.LastSyncTime.Unix(),
+		Context:                        project.Context,
+		SourceEnvironmentKey:           project.SourceEnvironmentKey,
+		FlagsState:                     &project.AllFlagsState,
 	}
 
 	if request.Params.Expand != nil {
