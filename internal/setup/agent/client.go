@@ -116,6 +116,16 @@ func (c *client) replyPermission(ctx context.Context, req PermissionRequest, all
 	return c.do(ctx, http.MethodPost, "/permission/"+url.PathEscape(req.ID)+"/reply", map[string]string{"reply": reply}, nil)
 }
 
+// answerQuestion replies to a question request, or dismisses it when answers
+// is nil.
+func (c *client) answerQuestion(ctx context.Context, req QuestionRequest, answers [][]string) error {
+	path := "/question/" + url.PathEscape(req.ID)
+	if answers == nil {
+		return c.do(ctx, http.MethodPost, path+"/reject", map[string]any{}, nil)
+	}
+	return c.do(ctx, http.MethodPost, path+"/reply", map[string]any{"answers": answers}, nil)
+}
+
 // subscribe opens the event stream. The caller must close the body.
 func (c *client) subscribe(ctx context.Context) (io.ReadCloser, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, "/event", nil)

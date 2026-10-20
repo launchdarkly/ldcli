@@ -203,6 +203,10 @@ func (r *openCodeRun) Reply(ctx context.Context, req PermissionRequest, allow bo
 	return r.client.replyPermission(ctx, req, allow)
 }
 
+func (r *openCodeRun) Answer(ctx context.Context, req QuestionRequest, answers [][]string) error {
+	return r.client.answerQuestion(ctx, req, answers)
+}
+
 func (r *openCodeRun) Close() error {
 	r.closeOnce.Do(func() {
 		close(r.closed)

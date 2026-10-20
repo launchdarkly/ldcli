@@ -56,6 +56,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.agentPermissions = m.agentPermissions[1:]
 				return m, replyAgent(m.agentRun, req, msg.String() == "y")
 			}
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9", "s":
+			if m.step == stepAgent && len(m.agentPermissions) == 0 && len(m.agentQuestions) > 0 && m.agentRun != nil {
+				return m.answerAgentQuestion(msg.String())
+			}
 		case "left", "h":
 			if m.isFiltering() {
 				break // let the list receive the key as filter input
@@ -274,6 +278,8 @@ func (m wizardModel) handleAgentEvent(msg agentEventMsg) (tea.Model, tea.Cmd) {
 	case agent.EventPermission:
 		req := ev.Permission
 		m.agentPermissions = append(m.agentPermissions, req)
+	case agent.EventQuestion:
+		m.agentQuestions = append(m.agentQuestions, ev.Question)
 	case agent.EventDone:
 		m.agentDone = true
 		m.closeAgent()
@@ -297,6 +303,8 @@ func (m wizardModel) agentFailed(err error) (tea.Model, tea.Cmd) {
 	m.closeAgent()
 	m.agentRun = nil
 	m.agentPermissions = nil
+	m.agentQuestions = nil
+	m.agentAnswers = nil
 	if m.agentMode == agentOn || len(m.agentFiles) > 0 {
 		m.err = errors.New("The setup agent failed: " + err.Error())
 		return m, nil
@@ -305,6 +313,32 @@ func (m wizardModel) agentFailed(err error) (tea.Model, tea.Cmd) {
 	m.agentLog = nil
 	m.step = stepInit
 	return m, m.runInit()
+}
+
+// answerAgentQuestion records the user's choice for the current question. A
+// number picks an option, and s skips the whole request, so the agent goes on
+// without answers. When every question of the request has an answer, the
+// wizard sends them.
+func (m wizardModel) answerAgentQuestion(key string) (tea.Model, tea.Cmd) {
+	req := m.agentQuestions[0]
+	if key == "s" {
+		m.agentQuestions = m.agentQuestions[1:]
+		m.agentAnswers = nil
+		return m, answerAgent(m.agentRun, req, nil)
+	}
+	question := req.Questions[len(m.agentAnswers)]
+	choice := int(key[0] - '1')
+	if choice >= len(question.Options) {
+		return m, nil
+	}
+	m.agentAnswers = append(m.agentAnswers, []string{question.Options[choice].Label})
+	if len(m.agentAnswers) < len(req.Questions) {
+		return m, nil
+	}
+	answers := m.agentAnswers
+	m.agentQuestions = m.agentQuestions[1:]
+	m.agentAnswers = nil
+	return m, answerAgent(m.agentRun, req, answers)
 }
 
 // closeAgent stops OpenCode if a run is active.

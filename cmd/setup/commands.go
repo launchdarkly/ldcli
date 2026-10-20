@@ -240,6 +240,12 @@ func waitForAgentEvent(run agent.Run) tea.Cmd {
 	}
 }
 
+func answerAgent(run agent.Run, req agent.QuestionRequest, answers [][]string) tea.Cmd {
+	return func() tea.Msg {
+		return agentRepliedMsg{err: run.Answer(context.Background(), req, answers)}
+	}
+}
+
 func replyAgent(run agent.Run, req agent.PermissionRequest, allow bool) tea.Cmd {
 	return func() tea.Msg {
 		return agentRepliedMsg{err: run.Reply(context.Background(), req, allow)}

@@ -21,11 +21,17 @@ type fakeReply struct {
 	allow bool
 }
 
+type fakeAnswer struct {
+	id      string
+	answers [][]string
+}
+
 type fakeRun struct {
 	events chan agent.Event
 
 	mu      sync.Mutex
 	replies []fakeReply
+	answers []fakeAnswer
 	closed  int
 }
 
@@ -43,6 +49,13 @@ func (r *fakeRun) Reply(_ context.Context, req agent.PermissionRequest, allow bo
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.replies = append(r.replies, fakeReply{id: req.ID, allow: allow})
+	return nil
+}
+
+func (r *fakeRun) Answer(_ context.Context, req agent.QuestionRequest, answers [][]string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.answers = append(r.answers, fakeAnswer{id: req.ID, answers: answers})
 	return nil
 }
 
@@ -354,4 +367,78 @@ func TestWizard_AgentPermissions_AreQueued(t *testing.T) {
 	assert.Equal(t, []fakeReply{{id: "per1", allow: true}, {id: "per2", allow: false}, {id: "per3", allow: true}}, run.replies)
 	assert.Empty(t, m.agentPermissions)
 	assert.Contains(t, m.View(), "The agent is working")
+}
+
+func secretQuestion() agent.QuestionRequest {
+	return agent.QuestionRequest{ID: "que1", Questions: []agent.Question{{
+		Header: "Secret storage",
+		Text:   "Where should LAUNCHDARKLY_SDK_KEY live?",
+		Options: []agent.QuestionOption{
+			{Label: ".env (Recommended)", Description: "Added to .env."},
+			{Label: "Shell profile", Description: "You export it yourself."},
+		},
+	}}}
+}
+
+func TestWizard_AgentQuestion_NumberAnswers(t *testing.T) {
+	run := newFakeRun()
+	m := startedAgent(t, agentAuto, run)
+	m, _ = update(t, m, agentEventMsg{run: run, ev: agent.Event{Kind: agent.EventQuestion, Question: secretQuestion()}})
+	view := m.View()
+	assert.Contains(t, view, "Where should LAUNCHDARKLY_SDK_KEY live?")
+	assert.Contains(t, view, "1. .env (Recommended)")
+	assert.Contains(t, view, "1-2 choose · s skip")
+
+	_, none := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+	assert.Nil(t, none, "a number without an option does nothing")
+
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	require.NotNil(t, cmd)
+	cmd()
+
+	assert.Equal(t, []fakeAnswer{{id: "que1", answers: [][]string{{"Shell profile"}}}}, run.answers)
+	assert.Empty(t, m.agentQuestions)
+}
+
+func TestWizard_AgentQuestion_SSkips(t *testing.T) {
+	run := newFakeRun()
+	m := startedAgent(t, agentAuto, run)
+	m, _ = update(t, m, agentEventMsg{run: run, ev: agent.Event{Kind: agent.EventQuestion, Question: secretQuestion()}})
+
+	_, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	require.NotNil(t, cmd)
+	cmd()
+
+	assert.Equal(t, []fakeAnswer{{id: "que1", answers: nil}}, run.answers)
+}
+
+func TestWizard_AgentQuestion_SeveralQuestionsAnsweredInOrder(t *testing.T) {
+	run := newFakeRun()
+	m := startedAgent(t, agentAuto, run)
+	req := secretQuestion()
+	req.Questions = append(req.Questions, agent.Question{Header: "Flag", Text: "Log the value?", Options: []agent.QuestionOption{{Label: "Yes"}, {Label: "No"}}})
+	m, _ = update(t, m, agentEventMsg{run: run, ev: agent.Event{Kind: agent.EventQuestion, Question: req}})
+
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	assert.Nil(t, cmd, "the wizard waits for the second answer")
+	assert.Contains(t, m.View(), "question 2 of 2")
+	_, cmd = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	require.NotNil(t, cmd)
+	cmd()
+
+	assert.Equal(t, []fakeAnswer{{id: "que1", answers: [][]string{{".env (Recommended)"}, {"No"}}}}, run.answers)
+}
+
+func TestStreamAgent_AnswersQuestion(t *testing.T) {
+	run := newFakeRun(
+		agent.Event{Kind: agent.EventQuestion, Question: secretQuestion()},
+		agent.Event{Kind: agent.EventDone},
+	)
+	var out bytes.Buffer
+
+	_, err := streamAgent(context.Background(), run, &out, bufio.NewReader(strings.NewReader("9\n1\n")))
+
+	require.NoError(t, err)
+	assert.Equal(t, []fakeAnswer{{id: "que1", answers: [][]string{{".env (Recommended)"}}}}, run.answers, "an invalid number asks again")
+	assert.Contains(t, out.String(), "The agent asks: Where should LAUNCHDARKLY_SDK_KEY live?")
 }

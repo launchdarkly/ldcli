@@ -60,6 +60,8 @@ func (d *decoder) decode(data []byte) []Event {
 		out = d.permissionAsked(ev.Properties)
 	case "permission.updated":
 		out = d.legacyPermission(ev.Properties)
+	case "question.asked":
+		out = d.questionAsked(ev.Properties)
 	case "file.edited":
 		var p struct {
 			File string `json:"file"`
@@ -198,6 +200,34 @@ func (d *decoder) permissionAsked(props json.RawMessage) []Event {
 		Permission: p.Permission,
 		Patterns:   p.Patterns,
 	}}}
+}
+
+func (d *decoder) questionAsked(props json.RawMessage) []Event {
+	var p struct {
+		ID        string `json:"id"`
+		SessionID string `json:"sessionID"`
+		Questions []struct {
+			Question string `json:"question"`
+			Header   string `json:"header"`
+			Multiple bool   `json:"multiple"`
+			Options  []struct {
+				Label       string `json:"label"`
+				Description string `json:"description"`
+			} `json:"options"`
+		} `json:"questions"`
+	}
+	if json.Unmarshal(props, &p) != nil || p.SessionID != d.sessionID || len(p.Questions) == 0 {
+		return nil
+	}
+	req := QuestionRequest{ID: p.ID, SessionID: p.SessionID}
+	for _, q := range p.Questions {
+		question := Question{Header: q.Header, Text: q.Question, Multiple: q.Multiple}
+		for _, o := range q.Options {
+			question.Options = append(question.Options, QuestionOption{Label: o.Label, Description: o.Description})
+		}
+		req.Questions = append(req.Questions, question)
+	}
+	return []Event{{Kind: EventQuestion, Question: req}}
 }
 
 // legacyPermission reads the permission event of OpenCode versions before
