@@ -31,6 +31,6 @@ updates:
     cooldown:
       default-days: 7
     ignore:
-      # @launchpad-ui/core 0.57+ requires React 19; the UI is on React 18.3.1.
+      # Frozen: 0.52+ removes exports the UI uses; 0.57+ also needs React 19.
       - dependency-name: "@launchpad-ui/core"
-        versions: [">=0.57"]
+        versions: [">0.49.22"]
