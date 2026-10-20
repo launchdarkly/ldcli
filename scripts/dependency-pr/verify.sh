@@ -9,7 +9,8 @@
 #   --remote NAME       git remote to fetch from (default: origin)
 #   --base BRANCH       base branch for --branch mode (default: main; --pr uses the PR's base)
 #   --out-dir DIR       output directory (default: .verify-out/pr-N or .verify-out/branch-NAME)
-#   --profile P         fast (default) | full (adds govulncheck, golangci-lint)
+#   --profile P         fast (default) | full (adds release-snapshot, golangci-lint;
+#                       govulncheck runs in both profiles)
 #   --phase P           all (default) | generated (re-run generated checks only, reusing
 #                       the worktrees and baseline results) | render (recompute verdict and comment)
 #   --only IDS          comma-separated baseline check ids to run (debugging)

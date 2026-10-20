@@ -767,6 +767,10 @@ check "an upstream #N in a changelog entry links to the upstream repository" 1 \
 check "text that is already code stays as it is" 1 "$(grep -c 'Comment `@dependabot rebase`.' "$tmp/c7.md")"
 check "raw angle text from a tool goes in backticks" 1 "$(grep -c 'flags:`<NOUNDEFS|PIE>`' "$tmp/c7.md")"
 
+check "verify.sh help names the checks that only the full profile adds" \
+  "$(jq -r '[.checks[] | select(.profile == "full") | .id] | join(", ")' "$ROOT/checks/registry.json")" \
+  "$(sed -n 's/.*full (adds \([^;)]*\).*/\1/p' "$ROOT/verify.sh")"
+
 # Posting log, 2026-10-17 (#869): the npm-only PR got "block" because the Go
 # job failed in `go test` (the flaky TestStreamClientV2Handler on main). A
 # failure in steps that read none of the changed files needs a rerun.
