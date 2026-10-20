@@ -62,6 +62,7 @@ paths:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -94,6 +95,7 @@ paths:
         - $ref: "#/components/parameters/projectKey"
         - $ref: "#/components/parameters/projectExpand"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
