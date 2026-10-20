@@ -27,6 +27,11 @@ import (
 const testAccountID = "123456789012"
 
 type fakeAgent struct {
+	// tags holds tags by resource ARN.
+	tags    map[string]map[string]string
+	tagsErr error
+	// operatorApps holds enabled apps by space.
+	operatorApps      map[string]*devopsagent.GetOperatorAppOutput
 	calls             []string
 	services          []agenttypes.RegisteredService
 	associationInputs []*devopsagent.AssociateServiceInput
@@ -101,6 +106,25 @@ func (f *fakeAgent) DisassociateService(_ context.Context, in *devopsagent.Disas
 	return &devopsagent.DisassociateServiceOutput{}, nil
 }
 
+func (f *fakeAgent) GetOperatorApp(_ context.Context, in *devopsagent.GetOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetOperatorAppOutput, error) {
+	f.calls = append(f.calls, "GetOperatorApp")
+	app, ok := f.operatorApps[aws.ToString(in.AgentSpaceId)]
+	if !ok {
+		return nil, &agenttypes.ResourceNotFoundException{}
+	}
+
+	return app, nil
+}
+
+func (f *fakeAgent) ListTagsForResource(_ context.Context, in *devopsagent.ListTagsForResourceInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListTagsForResourceOutput, error) {
+	f.calls = append(f.calls, "ListTagsForResource")
+	if f.tagsErr != nil {
+		return nil, f.tagsErr
+	}
+
+	return &devopsagent.ListTagsForResourceOutput{Tags: f.tags[aws.ToString(in.ResourceArn)]}, nil
+}
+
 func (f *fakeAgent) EnableOperatorApp(_ context.Context, _ *devopsagent.EnableOperatorAppInput, _ ...func(*devopsagent.Options)) (*devopsagent.EnableOperatorAppOutput, error) {
 	f.calls = append(f.calls, "EnableOperatorApp")
 
@@ -110,11 +134,18 @@ func (f *fakeAgent) EnableOperatorApp(_ context.Context, _ *devopsagent.EnableOp
 }
 
 func (f *fakeAgent) GetAgentSpace(_ context.Context, in *devopsagent.GetAgentSpaceInput, _ ...func(*devopsagent.Options)) (*devopsagent.GetAgentSpaceOutput, error) {
+	id := aws.ToString(in.AgentSpaceId)
+	name := "launchdarkly"
+	var description *string
+	for _, space := range f.agentSpaces {
+		if aws.ToString(space.AgentSpaceId) == id && space.Name != nil {
+			name = aws.ToString(space.Name)
+			description = space.Description
+		}
+	}
+
 	return &devopsagent.GetAgentSpaceOutput{
-		AgentSpace: &agenttypes.AgentSpace{
-			AgentSpaceId: in.AgentSpaceId,
-			Name:         aws.String("launchdarkly"),
-		},
+		AgentSpace: &agenttypes.AgentSpace{AgentSpaceId: in.AgentSpaceId, Name: aws.String(name), Description: description},
 	}, nil
 }
 

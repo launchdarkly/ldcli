@@ -92,7 +92,11 @@ func printStatus(out io.Writer, status awsdevops.Status) {
 	}
 	for _, space := range status.AgentSpaces {
 		_, _ = fmt.Fprintf(out, "\nAgent space %s (%s)\n", space.Name, space.AgentSpaceID)
-		_, _ = fmt.Fprintf(out, "  Operator app: %s\n", space.OperatorAppURL)
+		app := space.OperatorAppURL
+		if !space.OperatorAppEnabled {
+			app = "off"
+		}
+		_, _ = fmt.Fprintf(out, "  Operator app: %s\n", app)
 		if len(space.Associations) > 0 {
 			_, _ = fmt.Fprintln(out, "  Connected to:")
 		}

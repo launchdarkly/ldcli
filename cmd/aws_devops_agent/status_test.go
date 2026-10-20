@@ -285,3 +285,15 @@ func TestStatusServicesListLabelsBlankService(t *testing.T) {
 		}
 	}
 }
+
+// An app that is off has no working URL.
+func TestStatusShowsAnOperatorAppThatIsOff(t *testing.T) {
+	status := realisticStatus()
+	status.AgentSpaces[0].OperatorAppEnabled = false
+	status.AgentSpaces[0].OperatorAppURL = ""
+
+	out := renderStatus(status)
+
+	assert.Contains(t, out, "Operator app: off")
+	assert.NotContains(t, out, "aidevops.global.app.aws")
+}

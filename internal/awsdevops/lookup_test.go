@@ -2,10 +2,12 @@ package awsdevops_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,4 +74,109 @@ func TestFindMCPServerMatchesOnTheEndpointInTheServiceDetails(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "mcp-2", serviceID)
+}
+
+const space1ARN = "arn:aws:aidevops:us-east-1:" + testAccountID + ":agentspace/space-1"
+
+var spaceTags = map[string]string{awsdevops.ManagedTagKey: awsdevops.ManagedTagValue}
+
+func TestAgentSpacesListsEveryPage(t *testing.T) {
+	agent := &fakeAgent{
+		paginate: true,
+		agentSpaces: []agenttypes.AgentSpace{
+			{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly"), Description: aws.String("Managed by the LaunchDarkly CLI")},
+			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform"), Description: aws.String("Team space")},
+		},
+		tags: map[string]map[string]string{space1ARN: spaceTags},
+	}
+
+	spaces, err := awsdevops.AgentSpaces(context.Background(), newTestClients(agent, newFakeIAM()))
+	require.NoError(t, err)
+
+	assert.Equal(t, []awsdevops.AgentSpaceSummary{
+		{AgentSpaceID: "space-1", Name: "launchdarkly", Description: "Managed by the LaunchDarkly CLI", ManagedByLDCLI: true},
+		{AgentSpaceID: "space-2", Name: "platform", Description: "Team space"},
+	}, spaces)
+}
+
+// A user can change the description, so only the tag counts.
+func TestAgentSpacesCountsOnlyTheTag(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{
+		{AgentSpaceId: aws.String("space-1"), Name: aws.String("copy"), Description: aws.String("Managed by the LaunchDarkly CLI")},
+		{AgentSpaceId: aws.String("space-2"), Name: aws.String("tagged"), Description: aws.String("Renamed by a user")},
+	}}
+	agent.tags = map[string]map[string]string{
+		"arn:aws:aidevops:us-east-1:" + testAccountID + ":agentspace/space-2": spaceTags,
+	}
+
+	spaces, err := awsdevops.AgentSpaces(context.Background(), newTestClients(agent, newFakeIAM()))
+	require.NoError(t, err)
+
+	assert.False(t, spaces[0].ManagedByLDCLI)
+	assert.True(t, spaces[1].ManagedByLDCLI)
+	assert.Equal(t, 2, countCalls(agent.calls, "ListTagsForResource"))
+}
+
+func TestAgentSpacesReportsATagError(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{
+			{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly"), Description: aws.String("Managed by the LaunchDarkly CLI")},
+		},
+		tagsErr: errors.New("AccessDeniedException"),
+	}
+
+	_, err := awsdevops.AgentSpaces(context.Background(), newTestClients(agent, newFakeIAM()))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tags of agent space space-1")
+	assert.Contains(t, err.Error(), "aidevops:ListTagsForResource")
+}
+
+func countCalls(calls []string, name string) int {
+	n := 0
+	for _, call := range calls {
+		if call == name {
+			n++
+		}
+	}
+
+	return n
+}
+
+func TestStatusReadsTheOperatorApp(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "on"), namedSpace("space-2", "off")},
+		operatorApps: map[string]*devopsagent.GetOperatorAppOutput{
+			"space-1": {Iam: &agenttypes.IamAuthConfiguration{}},
+		},
+	}
+
+	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
+	require.NoError(t, err)
+
+	require.Len(t, status.AgentSpaces, 2)
+	assert.True(t, status.AgentSpaces[0].OperatorAppEnabled)
+	assert.Equal(t, awsdevops.OperatorAppURL("space-1"), status.AgentSpaces[0].OperatorAppURL)
+	assert.False(t, status.AgentSpaces[1].OperatorAppEnabled)
+	assert.Empty(t, status.AgentSpaces[1].OperatorAppURL)
+}
+
+func TestAgentSpaceReadsTheTagOfOneSpace(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{
+			{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly"), Description: aws.String("Managed by the LaunchDarkly CLI")},
+		},
+		tags: map[string]map[string]string{space1ARN: spaceTags},
+	}
+
+	space, err := awsdevops.AgentSpace(context.Background(), newTestClients(agent, newFakeIAM()), "space-1")
+	require.NoError(t, err)
+
+	assert.True(t, space.ManagedByLDCLI)
+	assert.Equal(t, "launchdarkly", space.Name)
+	assert.NotContains(t, agent.calls, "ListAgentSpaces")
+}
+
+func namedSpace(id, name string) agenttypes.AgentSpace {
+	return agenttypes.AgentSpace{AgentSpaceId: aws.String(id), Name: aws.String(name)}
 }

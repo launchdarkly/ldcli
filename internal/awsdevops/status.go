@@ -36,10 +36,12 @@ type ServiceStatus struct {
 }
 
 type AgentSpaceStatus struct {
-	AgentSpaceID   string              `json:"agentSpaceId"`
-	Name           string              `json:"name"`
-	OperatorAppURL string              `json:"operatorAppUrl"`
-	Associations   []AssociationStatus `json:"associations,omitempty"`
+	AgentSpaceID   string `json:"agentSpaceId"`
+	Name           string `json:"name"`
+	OperatorAppURL string `json:"operatorAppUrl"`
+	// OperatorAppEnabled is false if the app is off. The URL is then empty.
+	OperatorAppEnabled bool                `json:"operatorAppEnabled"`
+	Associations       []AssociationStatus `json:"associations,omitempty"`
 }
 
 type AssociationStatus struct {
@@ -107,9 +109,16 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 			return status, fmt.Errorf("unable to read agent space %s: %w", id, err)
 		}
 		spaceStatus := AgentSpaceStatus{
-			AgentSpaceID:   id,
-			Name:           aws.ToString(space.AgentSpace.Name),
-			OperatorAppURL: OperatorAppURL(id),
+			AgentSpaceID: id,
+			Name:         aws.ToString(space.AgentSpace.Name),
+		}
+		app, err := appState(ctx, clients, id)
+		if err != nil {
+			return status, err
+		}
+		if app.Flow != "" {
+			spaceStatus.OperatorAppEnabled = true
+			spaceStatus.OperatorAppURL = OperatorAppURL(id)
 		}
 
 		associations, err := listAssociations(ctx, clients, id)
