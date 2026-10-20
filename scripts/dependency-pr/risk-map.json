@@ -16,10 +16,10 @@
     { "match": "^launchdarkly-js-client-sdk$", "tags": ["ld-sdk", "dev-server-ui"], "tier": "medium", "why": "UI evaluates flags against the dev server." },
     { "match": "^(vite|vite-plugin-singlefile|@vitejs/plugin-react|typescript)$", "tags": ["ui-build"], "tier": "medium", "why": "Changes the embedded single-file dist/index.html." },
     { "match": "^googleapis/release-please-action$", "tags": ["release-tooling"], "tier": "high", "why": "Release workflow never runs on pull_request." },
-    { "match": "^launchdarkly/gh-actions", "tags": ["release-tooling"], "tier": "medium", "why": "Release secrets / shared org workflows." },
-    { "match": "^actions/(attest|upload-artifact|setup-node)$", "tags": ["release-tooling"], "tier": "medium", "why": "Used by publish/attestation steps that only run at release." },
-    { "match": "^docker/", "tags": ["release-tooling"], "tier": "medium", "why": "Image build happens only at release." },
-    { "match": "^alpine$", "tags": ["docker-base-image", "release-tooling"], "tier": "medium", "why": "Base of the published Docker image; never built on PRs." },
+    { "match": "^launchdarkly/gh-actions", "tags": ["release-tooling"], "tier": "high", "why": "Release secrets / shared org workflows." },
+    { "match": "^actions/(attest|upload-artifact|setup-node)$", "tags": ["release-tooling"], "tier": "high", "why": "Used by publish/attestation steps that only run at release." },
+    { "match": "^docker/", "tags": ["release-tooling"], "tier": "high", "why": "Image build happens only at release." },
+    { "match": "^alpine$", "tags": ["docker-base-image", "release-tooling"], "tier": "high", "why": "Base of the published Docker image; never built on PRs." },
     { "match": "^@go-task/go-npm$", "tags": ["npm-wrapper", "release-tooling"], "tier": "high", "why": "postinstall downloads the release binary for every npm user." }
   ]
 }

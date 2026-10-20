@@ -564,6 +564,7 @@ printf 'on: push\njobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n   
 sed 's/v1.2.0$/v1.2.1/' "$tmp/rs-b/.github/workflows/release.yml" >"$tmp/rs-p/.github/workflows/release.yml"
 printf '.github/workflows/release.yml\n' >"$tmp/rs-changed.txt"
 "$LIB/classify.sh" "$tmp/rs-b" "$tmp/rs-p" "$tmp/rs-changed.txt" "$tmp/pr0.json" "$tmp/cls-rs.json" 2>>"$tmp/classify.err"
+check "risk map: release tooling (launchdarkly/gh-actions) is high tier, as SKILL.md says" "high" "$(jq -r '.updates[0].tier' "$tmp/cls-rs.json")"
 mkdir -p "$tmp/rs-api"
 cat >"$tmp/rs-api/release-secrets-v1.2.0" <<'YML'
 inputs:
