@@ -123,6 +123,11 @@ func seatbeltProfile(p sandboxPaths) string {
 	// Tools read the metadata of the home folder itself, for example to
 	// resolve a path, without reading what is in it.
 	fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", sbString(p.Home))
+	// A cache or OpenCode folder can be missing on first use. Its missing
+	// parents can be created, but nothing else can be written in them.
+	for _, parent := range writeParents(p) {
+		fmt.Fprintf(&b, "(allow file-read-metadata file-write-create (literal %s))\n", sbString(parent))
+	}
 	for _, path := range p.ReadOnly {
 		fmt.Fprintf(&b, "(allow file-read* (subpath %s))\n", sbString(path))
 	}
@@ -130,6 +135,22 @@ func seatbeltProfile(p sandboxPaths) string {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", sbString(path))
 	}
 	return b.String()
+}
+
+// writeParents returns the folders between each read-write folder and the
+// home folder, without the home folder and without repeats.
+func writeParents(p sandboxPaths) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, path := range p.ReadWrite {
+		for dir := filepath.Dir(path); dir != p.Home && strings.HasPrefix(dir, p.Home+"/"); dir = filepath.Dir(dir) {
+			if !seen[dir] {
+				seen[dir] = true
+				out = append(out, dir)
+			}
+		}
+	}
+	return out
 }
 
 // sbString quotes a path for a Seatbelt profile.
