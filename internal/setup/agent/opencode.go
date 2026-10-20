@@ -375,11 +375,10 @@ func (r *openCodeRun) Close() error {
 	return nil
 }
 
-// end gives a run that Close stopped before its last event a final error
-// event, and closes the channel and the tap, so a reader of Events and the
-// OpenCode handler do not wait forever.
-// A send that waits on a full channel returns when r.closed closes, so end
-// does not block.
+// end sends a final error event when Close stops an unfinished run.
+// It closes the event channel and the tap, so readers do not wait forever. A
+// send that waits on a full channel returns when r.closed closes, so end does
+// not block.
 func (r *openCodeRun) end() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -387,7 +386,7 @@ func (r *openCodeRun) end() {
 		return
 	}
 	r.finished = true
-	ev := Event{Kind: EventError, Text: "The run was closed before it finished."}
+	ev := Event{Kind: EventError, Text: "The run stopped before it finished."}
 	select {
 	case r.events <- ev:
 	default:

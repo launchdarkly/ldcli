@@ -41,6 +41,10 @@ var (
 	}
 )
 
+// flutterSDK reads the mobile key on mobile platforms and the client-side ID on
+// the web. The SDK ID does not give the platform, so the prompt names both.
+const flutterSDK = "flutter-client-sdk"
+
 // CredentialEnvVar returns the environment variable that the agent's code
 // must read for the SDK.
 func CredentialEnvVar(sdkID string) string {
@@ -119,6 +123,9 @@ func BuildPrompt(t Task) string {
 	}
 	fmt.Fprintf(&b, "Evaluate the boolean flag %q once after the SDK initializes, and print or log its value.\n", t.FlagKey)
 	fmt.Fprintf(&b, "Read the credential from the environment variable %s.\n", CredentialEnvVar(t.SDKID))
+	if t.SDKID == flutterSDK {
+		fmt.Fprintf(&b, "If the app runs on the web, read the client-side ID from %s instead.\n", ClientSideIDEnvVar)
+	}
 	if t.EntryPoint == "" {
 		b.WriteString("ldcli did not find an entry point. Find where the application starts before you edit.\n")
 	}
