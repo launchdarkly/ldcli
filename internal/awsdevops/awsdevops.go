@@ -144,58 +144,79 @@ func (c Clients) AccountID(ctx context.Context) (string, error) {
 	return *out.Account, nil
 }
 
-// noCredsErr wraps a formatted message while still satisfying
-// errors.Is(err, ErrNoCredentials). Callers get an actionable message
-// without losing the ability to branch on the sentinel.
+// noCredsErr hides its cause from Error.
 type noCredsErr struct {
 	msg   string
 	cause error
 }
 
-func (e *noCredsErr) Error() string {
-	if e.cause == nil {
-		return e.msg
-	}
-
-	return fmt.Sprintf("%s: %s", e.msg, e.cause)
-}
-
+func (e *noCredsErr) Error() string        { return e.msg }
 func (e *noCredsErr) Unwrap() error        { return e.cause }
 func (e *noCredsErr) Is(target error) bool { return target == ErrNoCredentials }
+
+// maxListedProfiles caps the profile names in an error.
+const maxListedProfiles = 5
 
 // noCredentialsError builds the surfaced message for a credential-resolution
 // failure. profile is the value passed via --profile; cause is the underlying
 // SDK error, which may be nil when credentials simply had no keys.
 func noCredentialsError(profile string, cause error) error {
-	active := profile
-	if active == "" {
-		active = os.Getenv("AWS_PROFILE")
+	selected, chosen := SelectedProfile(profile)
+	profiles := knownProfiles()
+	// The default profile counts only if it exists.
+	named := chosen || slices.Contains(profiles, selected)
+	// Only a cause that is not from IMDS tells what failed, for example a
+	// credential_process.
+	useful := cause != nil && !fromIMDS(cause)
+	sso := SSOProfile(ConfigFilePath(), profile)
+
+	var msg string
+	switch {
+	case sso != "" && (cause == nil || SSOTokenInvalid(cause)):
+		msg = fmt.Sprintf(
+			"no AWS credentials for profile %q. Run `aws sso login --profile %s`, then run this command again",
+			sso, sso,
+		)
+	case useful && named:
+		msg = fmt.Sprintf("unable to get AWS credentials for profile %q: %v", selected, cause)
+	case useful:
+		msg = fmt.Sprintf("unable to get AWS credentials: %v", cause)
+	case chosen:
+		msg = fmt.Sprintf(
+			"profile %q has no AWS credentials. Add credentials to it, or pass --profile with another profile",
+			selected,
+		)
+	case len(profiles) > 0:
+		msg = fmt.Sprintf(
+			"no AWS profile selected. Pass --profile <name> or set AWS_PROFILE. Profiles: %s. Run `aws configure list-profiles` to see all",
+			summarizeProfiles(profiles),
+		)
+	default:
+		msg = "no AWS credentials found. Run `aws sso login --profile <name>` or set AWS_ACCESS_KEY_ID"
 	}
 
-	switch {
-	case active != "":
-		return &noCredsErr{
-			msg: fmt.Sprintf(
-				"no AWS credentials found for profile %q. Run `aws sso login --profile %s` (or refresh the profile's credentials), then re-run this command",
-				active, active,
-			),
-			cause: cause,
-		}
-	case len(knownProfiles()) > 0:
-		profiles := knownProfiles()
-		return &noCredsErr{
-			msg: fmt.Sprintf(
-				"no AWS credentials found and no AWS profile selected. Pass --profile <name> or set AWS_PROFILE, then re-run. Profiles configured on this machine: %s",
-				strings.Join(profiles, ", "),
-			),
-			cause: cause,
-		}
-	default:
-		return &noCredsErr{
-			msg:   "no AWS credentials found. Authenticate first (for example `aws sso login --profile my-profile` or exporting AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN), then re-run this command",
-			cause: cause,
-		}
+	return &noCredsErr{msg: msg, cause: cause}
+}
+
+// fromIMDS reports a cause from the EC2 metadata service. The SDK tries it
+// last, so its error only says that no other source had credentials.
+func fromIMDS(err error) bool {
+	var op interface{ Service() string }
+
+	return errors.As(err, &op) && op.Service() == "ec2imds"
+}
+
+// summarizeProfiles lists the first few names.
+func summarizeProfiles(profiles []string) string {
+	if len(profiles) <= maxListedProfiles {
+		return strings.Join(profiles, ", ")
 	}
+
+	return fmt.Sprintf(
+		"%s and %d more",
+		strings.Join(profiles[:maxListedProfiles], ", "),
+		len(profiles)-maxListedProfiles,
+	)
 }
 
 // knownProfiles returns the profile names configured in the shared AWS
