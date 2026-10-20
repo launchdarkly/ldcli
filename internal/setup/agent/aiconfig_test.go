@@ -112,7 +112,12 @@ func TestAIConfigSource_AgentMode(t *testing.T) {
 	cfg, err := s.Resolve(context.Background(), Task{SDKID: "node-server", Language: "JavaScript", Framework: "nextjs", EntryPoint: "app/layout.tsx", Dir: "/home/me/secret-project"})
 
 	require.NoError(t, err)
-	assert.Equal(t, Config{ProviderID: "anthropic", ModelID: "claude-sonnet-5", Instructions: "Edit the entry point."}, cfg)
+	assert.Equal(t, "anthropic", cfg.ProviderID)
+	assert.Equal(t, "claude-sonnet-5", cfg.ModelID)
+	assert.Equal(t, "Edit the entry point.", cfg.Instructions, "the config's instructions are the system prompt")
+	assert.Contains(t, cfg.Task, "Follow your instructions", "the first message gives facts, not a task")
+	assert.Contains(t, cfg.Task, "- SDK: node-server")
+	assert.NotContains(t, cfg.Task, "Evaluate the boolean flag", "the CLI's own task is not sent")
 	require.Len(t, *calls, 1)
 	call := (*calls)[0]
 	assert.Equal(t, "setup", call.key)
@@ -154,7 +159,7 @@ func TestAIConfigSource_ModelWithoutProvider_UsesOpenCodeDefault(t *testing.T) {
 	cfg, err := s.Resolve(context.Background(), Task{})
 
 	require.NoError(t, err)
-	assert.Equal(t, Config{Instructions: DefaultInstructions}, cfg)
+	assert.Equal(t, Config{Instructions: DefaultInstructions}, cfg, "no instructions: the built-in task applies")
 }
 
 func TestAIConfigSource_FallsBack(t *testing.T) {

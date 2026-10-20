@@ -57,7 +57,8 @@ func TestAIConfigSource_RealSDKThroughTheProxy(t *testing.T) {
 	cfg, err := source.Resolve(context.Background(), Task{SDKID: "node-server"})
 
 	require.NoError(t, err)
-	assert.Equal(t, Config{ProviderID: "anthropic", ModelID: "claude-sonnet-5", Instructions: "From AgentControl."}, cfg)
+	assert.Equal(t, "anthropic/claude-sonnet-5", cfg.ProviderID+"/"+cfg.ModelID)
+	assert.Equal(t, "From AgentControl.", cfg.Instructions)
 	assert.Equal(t, "catfood-client-id", os.Getenv(environmentIDEnv), "the ID from the relay header reaches the SDK")
 	require.NoError(t, closer.Close(context.Background()))
 	mu.Lock()

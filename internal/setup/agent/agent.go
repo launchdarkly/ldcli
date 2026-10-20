@@ -32,6 +32,9 @@ type Config struct {
 	ProviderID   string
 	ModelID      string
 	Instructions string
+	// Task is the first user message. If it is empty, the run sends the
+	// CLI's own task message from BuildPrompt.
+	Task string
 }
 
 // ConfigSource gives the agent configuration for a task.

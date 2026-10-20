@@ -198,7 +198,7 @@ func (s *AIConfigSource) Resolve(ctx context.Context, task Task) (Config, error)
 	if !res.Enabled || res.Config == nil {
 		return s.fallback(ctx, task)
 	}
-	return configFromAI(res.Config), nil
+	return configFromAI(res.Config, task), nil
 }
 
 func (s *AIConfigSource) fallback(ctx context.Context, task Task) (Config, error) {
@@ -258,7 +258,11 @@ var openCodeProviders = map[string]string{
 // configFromAI turns an AI Config variation into an agent configuration. An
 // agent-mode config has instructions. A completion-mode config has messages,
 // and its system messages become the instructions.
-func configFromAI(c *aiserver.AiConfig) Config {
+//
+// The config's instructions decide the task. The first user message gives
+// only the facts from setup. If the variation has no instructions, the
+// built-in instructions and the CLI's own task message apply.
+func configFromAI(c *aiserver.AiConfig, task Task) Config {
 	cfg := Config{Instructions: c.Instructions, ModelID: c.Model.Name}
 	if cfg.Instructions == "" {
 		var system []string
@@ -271,6 +275,8 @@ func configFromAI(c *aiserver.AiConfig) Config {
 	}
 	if cfg.Instructions == "" {
 		cfg.Instructions = DefaultInstructions
+	} else {
+		cfg.Task = BuildFacts(task)
 	}
 	provider := strings.ToLower(strings.TrimSpace(c.Provider.Name))
 	if mapped, ok := openCodeProviders[provider]; ok {
