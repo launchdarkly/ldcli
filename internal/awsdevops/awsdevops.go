@@ -168,11 +168,20 @@ func noCredentialsError(profile string, cause error) error {
 
 	var msg string
 	profiles := knownProfiles()
+	sso := SSOProfile(ConfigFilePath(), profile)
 	switch {
-	case active != "":
+	case sso != "":
 		msg = fmt.Sprintf(
 			"no AWS credentials for profile %q. Run `aws sso login --profile %s`, then run this command again",
-			active, active,
+			sso, sso,
+		)
+	case active != "" && cause != nil && !fromIMDS(cause):
+		// Only the cause tells what failed, for example a credential_process.
+		msg = fmt.Sprintf("unable to get AWS credentials for profile %q: %v", active, cause)
+	case active != "":
+		msg = fmt.Sprintf(
+			"profile %q has no AWS credentials. Add credentials to it, or pass --profile with another profile",
+			active,
 		)
 	case len(profiles) > 0:
 		msg = fmt.Sprintf(
@@ -184,6 +193,14 @@ func noCredentialsError(profile string, cause error) error {
 	}
 
 	return &noCredsErr{msg: msg, cause: cause}
+}
+
+// fromIMDS reports a cause from the EC2 metadata service. The SDK tries it
+// last, so its error only says that no other source had credentials.
+func fromIMDS(err error) bool {
+	var op interface{ Service() string }
+
+	return errors.As(err, &op) && op.Service() == "ec2imds"
 }
 
 // summarizeProfiles lists the first few names.
