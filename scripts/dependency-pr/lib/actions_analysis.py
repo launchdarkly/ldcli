@@ -388,6 +388,12 @@ def main():
                         "summary": "; ".join(dict.fromkeys(d["summary"] for d in diffs)),
                     }
                 old_runtimes = sorted({str((o.get("runs") or {}).get("using")) for o in olds})
+                new_runtime = str((new.get("runs") or {}).get("using"))
+                # A new input that the repo does not set and that turns a behavior
+                # on by default (setup-node v5 package-manager-cache: true).
+                new_on = sorted(k for k, v in new_in.items()
+                                if k not in provided and all(k not in (o.get("inputs") or {}) for o in olds)
+                                and str(default(v)).strip().lower() == "true")
                 entry["upstream"] = {
                     "status": "ok",
                     "compared_refs": old_refs,
@@ -400,7 +406,11 @@ def main():
                     "outputs_read": sorted(read),
                     "outputs_undeclared": sorted(o for o in read if o not in new_out and all(o not in (x.get("outputs") or {}) for x in olds)),
                     "outputs_missing": sorted(outputs_missing),
-                    "runs_using": [", ".join(old_runtimes), str((new.get("runs") or {}).get("using"))],
+                    "runs_using": [", ".join(old_runtimes), new_runtime],
+                    # GitHub-hosted runners already run node16 and node20 actions on node24.
+                    "runtime_note": ("runners already run node20 actions on node24, so this changes nothing"
+                                     if new_runtime == "node24" and set(old_runtimes) <= {"node16", "node20"} else None),
+                    "new_inputs_on": new_on,
                 }
         entry["self_hosted_runners"] = sorted({r for us in usages for r in us["runners"] if not GITHUB_HOSTED.match(r)})
         entry["breaking_effective"] = entry["breaking"] or bool((entry.get("composite") or {}).get("breaking"))

@@ -632,6 +632,22 @@ check "ui-npm-ls: an npm crash is incomplete" "incomplete" "$(run_check ui-npm-l
 stub "$tmp/bin-lintfail" npm 'printf "/w/src/App.tsx\n  3:1  error  x is unused  no-unused-vars\n\n✖ 1 problem (1 error, 0 warnings)\n"; exit 1'
 check "ui-lint: an eslint finding is still a failure" "fail" "$(run_check ui-lint "$tmp/uiwt" PATH="$tmp/bin-lintfail:$PATH" | cut -d'|' -f1)"
 
+# PR #719 and #865: node20 → node24 changes nothing, because runners already
+# run node20 actions on node24. setup-node v5 adds package-manager-cache with
+# the default true, which turns on caching, and the check did not report it.
+for side in b p; do mkdir -p "$tmp/sn-$side/.github/workflows"; done
+printf 'on: push\njobs:\n  r:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-node@v4\n        with:\n          fetch-depth: 1\n' >"$tmp/sn-b/.github/workflows/r.yml"
+sed 's/@v4$/@v5/' "$tmp/sn-b/.github/workflows/r.yml" >"$tmp/sn-p/.github/workflows/r.yml"
+"$LIB/classify.sh" "$tmp/sn-b" "$tmp/sn-p" "$tmp/co-changed.txt" "$tmp/pr0.json" "$tmp/cls-sn.json" 2>>"$tmp/classify.err"
+printf 'inputs:\n  fetch-depth:\n    default: 1\n  package-manager-cache:\n    default: true\n  cache:\n    default: ""\nruns:\n  using: node24\n' | base64 -w0 >"$tmp/co-api/v5"
+out=$(BASE_WT="$tmp/sn-b" run_check actions-coverage "$tmp/sn-p" PATH="$tmp/bin-co:$PATH" CLASSIFICATION="$tmp/cls-sn.json")
+details=$(cat "$(ls -dt "$tmp"/art.* | head -n1)/details.md")
+check "actions-coverage: node20 → node24 says that runners already use node24" 1 \
+  "$(grep -c 'runtime node20 → node24 (runners already run node20 actions on node24, so this changes nothing)' <<<"$details")"
+check "actions-coverage reports a new input that defaults to true (#865)" 1 \
+  "$(grep -c 'adds the input `package-manager-cache`, which defaults to `true`' <<<"$details")"
+check "the question evidence names the new on-by-default input" 1 "$(grep -c 'new inputs on by default: package-manager-cache' <<<"$out")"
+
 # Posting log, 2026-10-17 (#869): the npm-only PR got "block" because the Go
 # job failed in `go test` (the flaky TestStreamClientV2Handler on main). A
 # failure in steps that read none of the changed files needs a rerun.

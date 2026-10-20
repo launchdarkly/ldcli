@@ -25,7 +25,8 @@ jq -r '.actions[] |
     elif .upstream.status != "ok" then "could not fetch"
     else ("inputs used: " + (if (.upstream.inputs_used | length) > 0 then (.upstream.inputs_used | join(", ")) else "none" end)
           + "; outputs read: " + (if (.upstream.outputs_read | length) > 0 then (.upstream.outputs_read | join(", ")) else "none" end)
-          + "; runtime " + (.upstream.runs_using | join(" → "))
+          + "; runtime " + (.upstream.runs_using | join(" → ")) + (if .upstream.runtime_note then " (" + .upstream.runtime_note + ")" else "" end)
+          + (if ((.upstream.new_inputs_on // []) | length) > 0 then "; new inputs on by default: " + (.upstream.new_inputs_on | join(", ")) else "" end)
           + (if (.upstream.defaults_changed | length) > 0 then "; changed defaults: " + ([.upstream.defaults_changed[] | "\(.input) \(.from // "none") → \(.to // "none")"] | join(", ")) else "" end)) end) |"' "$R" >>"$ARTIFACTS/details.md"
 jq -r '.actions[] | select(.upstream.status == "ok" and ((.upstream.outputs_undeclared // []) | length) > 0)
   | "- `\(.name)` does not declare the outputs \(.upstream.outputs_undeclared | join(", ")) in either version. The action sets them at run time, so this check cannot compare them."' "$R" >>"$ARTIFACTS/details.md"
@@ -33,6 +34,8 @@ jq -r '.actions[] | select(.upstream.status == "ok" and ((.upstream.defaults_sam
   | "- `\(.name)`: the default of \([.upstream.defaults_same_on_github_com[].input] | join(", ")) changed only for GitHub Enterprise Server. It gives the same value on github.com."' "$R" >>"$ARTIFACTS/details.md"
 jq -r '.actions[] | select(.composite != null)
   | "- `\(.name)` is a composite action. \(.composite.summary | sub("^composite steps: "; "Its steps changed: "))\(if .composite.breaking and (.breaking | not) then ". A nested action changed by a major version or was added or removed, so this update counts as breaking" else "" end)."' "$R" >>"$ARTIFACTS/details.md"
+jq -r '.actions[] | select(((.upstream.new_inputs_on // []) | length) > 0)
+  | "- `\(.name)` adds the input\(if (.upstream.new_inputs_on | length) > 1 then "s" else "" end) \(.upstream.new_inputs_on | map("`\(.)`") | join(", ")), which \(if (.upstream.new_inputs_on | length) > 1 then "default" else "defaults" end) to `true`. The repo does not set \(if (.upstream.new_inputs_on | length) > 1 then "them" else "it" end), so the behavior turns on."' "$R" >>"$ARTIFACTS/details.md"
 jq -r '.permissions_changes[] | "- permissions changed in \(.where): `\(.from)` → `\(.to)`"' "$R" >>"$ARTIFACTS/details.md"
 jq -r '.actions[] | .name as $n | .stale_pins[]
   | "- `\($n)@\(.pin)` is an exact pin. `@\(.floating)`\(if .kind == "replaced" then ", which the PR replaces," else "" end) resolves to the newer \(.resolves_to) today, so the pin \(if .kind == "replaced" then "moves the workflows back to an older release" else "does not get the later releases" end)."' "$R" >>"$ARTIFACTS/details.md"
@@ -64,9 +67,9 @@ perm=$(jq -r '[.permissions_changes[] | "\(.where): \(.from) → \(.to)"] | join
 # go.yml will use the runner's Python 3.12 ..."), and the others by name.
 # Fields are joined with the unit separator, not a tab. Tab is IFS whitespace,
 # so read would merge empty fields and shift the later fields left.
-while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted used effects plain composite; do
+while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted used effects plain composite newon; do
   [ -n "$name" ] || continue
-  ev="$name $change: inputs and outputs that the repo uses are unchanged; runtime $runtime${defaults:+; changed defaults: $defaults}${selfhosted:+; non-standard runner labels: $selfhosted}${composite:+; $composite}"
+  ev="$name $change: inputs and outputs that the repo uses are unchanged; runtime $runtime${defaults:+; changed defaults: $defaults}${newon:+; new inputs on by default: $newon}${selfhosted:+; non-standard runner labels: $selfhosted}${composite:+; $composite}"
   if [ -n "$untested" ]; then
     add_question "Accept $name $to in workflows that PR CI does not run ($untested)?" "$ev"
   else
@@ -76,13 +79,14 @@ while IFS=$'\x1f' read -r name change to untested runtime defaults selfhosted us
 done < <(jq -r '.actions[] | select(.upstream.status == "ok") | select(.breaking_effective or (.upstream.defaults_changed | length) > 0) |
   [.name, .change, .to,
    ([.usages[] | select(.runs_on_pr | not) | .workflows[]] | unique | map(sub("^\\.github/workflows/"; "")) | join(", ")),
-   (.upstream.runs_using | join(" → ")),
+   ((.upstream.runs_using | join(" → ")) + (if .upstream.runtime_note then " (" + .upstream.runtime_note + ")" else "" end)),
    ([.upstream.defaults_changed[] | "\(.input): \(.from // "none") → \(.to // "none")"] | join(", ")),
    (.self_hosted_runners | join(", ")),
    ([.usages[].workflows[]] | unique | map(sub("^\\.github/workflows/"; "")) | join(", ")),
    ([.upstream.defaults_changed[] | (.effects // [])[]] | join(" and ")),
    ([.upstream.defaults_changed[] | select((.effects // []) | length == 0) | "\(.input): \(.from // "none") → \(.to // "none")"] | join(", ")),
-   (.composite.summary // "")]
+   (.composite.summary // ""),
+   ((.upstream.new_inputs_on // []) | join(", "))]
   | map(. // "" | tostring) | join("\u001f")' "$R")
 
 while IFS=$'\x1f' read -r q ev; do
