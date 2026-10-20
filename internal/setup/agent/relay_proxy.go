@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -72,6 +74,9 @@ func startRelayProxy(relayBase, accessToken string) (*relayProxy, error) {
 		// Send each part of a response as it arrives. The flag stream is a
 		// long-lived event stream, and a buffer would hold its events back.
 		FlushInterval: -1,
+		// The proxy logs to stderr by default, which writes into the wizard's
+		// screen. A failed request reaches the SDK as an error anyway.
+		ErrorLog: log.New(io.Discard, "", 0),
 	}
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != prefix && !strings.HasPrefix(r.URL.Path, prefix+"/") {
@@ -85,6 +90,7 @@ func startRelayProxy(relayBase, accessToken string) (*relayProxy, error) {
 		server: &http.Server{
 			Handler:           handler,
 			ReadHeaderTimeout: 10 * time.Second,
+			ErrorLog:          log.New(io.Discard, "", 0),
 		},
 		listener: listener,
 		baseURL:  "http://" + listener.Addr().String() + prefix,
