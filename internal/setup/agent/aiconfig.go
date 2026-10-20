@@ -175,14 +175,27 @@ func initQuietClient(ctx context.Context, opts aiserver.InitOptions) error {
 	return nil
 }
 
-func (s *AIConfigSource) Resolve(ctx context.Context, task Task) (Config, error) {
+// Ready starts the SDK behind the relay proxy, once, and reports whether it
+// started.
+func (s *AIConfigSource) Ready(ctx context.Context) error {
 	s.once.Do(func() {
 		s.initErr = s.start(ctx)
 		if s.initErr != nil {
 			s.closeProxy(ctx)
 		}
 	})
-	if s.initErr != nil {
+	return s.initErr
+}
+
+func (s *AIConfigSource) key() string {
+	if s.Key == "" {
+		return SetupAgentConfigKey
+	}
+	return s.Key
+}
+
+func (s *AIConfigSource) Resolve(ctx context.Context, task Task) (Config, error) {
+	if s.Ready(ctx) != nil {
 		return s.fallback(ctx, task)
 	}
 
@@ -190,11 +203,7 @@ func (s *AIConfigSource) Resolve(ctx context.Context, task Task) (Config, error)
 	if inspect == nil {
 		inspect = aiserver.InspectConfig
 	}
-	key := s.Key
-	if key == "" {
-		key = SetupAgentConfigKey
-	}
-	res := inspect(ctx, key, setupContext(task))
+	res := inspect(ctx, s.key(), setupContext(task))
 	if !res.Enabled || res.Config == nil {
 		return s.fallback(ctx, task)
 	}
@@ -278,17 +287,23 @@ func configFromAI(c *aiserver.AiConfig, task Task) Config {
 	} else {
 		cfg.Task = BuildFacts(task)
 	}
-	provider := strings.ToLower(strings.TrimSpace(c.Provider.Name))
-	if mapped, ok := openCodeProviders[provider]; ok {
-		provider = mapped
-	}
-	cfg.ProviderID = provider
-	// OpenCode needs both values to pick a model. With only one, OpenCode
-	// uses its default model.
-	if cfg.ProviderID == "" || cfg.ModelID == "" {
-		cfg.ProviderID, cfg.ModelID = "", ""
-	}
+	cfg.ProviderID, cfg.ModelID = openCodeModel(*c)
 	return cfg
+}
+
+// openCodeModel returns the OpenCode provider ID and model ID for a config.
+// OpenCode needs both values to pick a model, so if the config has only one,
+// both are empty and OpenCode uses its default model.
+func openCodeModel(c aiserver.AiConfig) (providerID, modelID string) {
+	providerID = strings.ToLower(strings.TrimSpace(c.Provider.Name))
+	if mapped, ok := openCodeProviders[providerID]; ok {
+		providerID = mapped
+	}
+	modelID = c.Model.Name
+	if providerID == "" || modelID == "" {
+		return "", ""
+	}
+	return providerID, modelID
 }
 
 // RelayError is a refusal from the relay, for example because the kill switch
