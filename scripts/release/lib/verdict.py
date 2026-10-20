@@ -187,7 +187,7 @@ def unit_checks(out_dir, manifest, judgement, items):
                 items.decisions.append({"source": src, "unit": uid, "question": f"Is this a bug in the release: {title} ({summary})?",
                                         "evidence": (j or {}).get("reason")})
             else:
-                items.incomplete.append({"source": src, "unit": uid, "text": f"Check {cid} fails on the last release and on the candidate. Fix the check, or the judge must confirm a bug."})
+                items.incomplete.append({"source": src, "unit": uid, "text": f"Check {cid} fails on the candidate and does not pass on the last release. The judge must confirm a bug, or the check needs a fix."})
         if assessment == "unsafe":
             counts = False
             items.incomplete.append({"source": src, "unit": uid, "text": f"The judge found check {cid} unsafe: {(j or {}).get('reason', '')}. Rewrite it."})
