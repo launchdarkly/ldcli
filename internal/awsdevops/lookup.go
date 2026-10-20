@@ -209,6 +209,22 @@ func FindAgentSpace(ctx context.Context, clients Clients, name string) (string, 
 	return "", nil
 }
 
+// spacesNamed lists IDs of spaces named name.
+func spacesNamed(ctx context.Context, clients Clients, name string) ([]string, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, space := range spaces {
+		if strings.EqualFold(aws.ToString(space.Name), name) {
+			ids = append(ids, aws.ToString(space.AgentSpaceId))
+		}
+	}
+
+	return ids, nil
+}
+
 // FindAssociation returns the ID of an existing association between an agent
 // space and a service, so setup can be re-run without AWS rejecting duplicates.
 func FindAssociation(ctx context.Context, clients Clients, agentSpaceID, serviceID string) (string, error) {
