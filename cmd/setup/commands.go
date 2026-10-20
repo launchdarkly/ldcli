@@ -206,13 +206,13 @@ func isRemoteSession() bool {
 func (m wizardModel) startAgent() tea.Cmd {
 	runner, tracker := m.agentRunner, m.agentRuns
 	sdkInstalled := m.installResult != nil && !m.installResult.Failed
-	task := agentTask("", m.detectResult, m.flagKey, sdkInstalled)
+	detection, flagKey, project, env := m.detectResult, m.flagKey, m.selectedProject, m.selectedEnv
 	return func() tea.Msg {
 		dir, err := os.Getwd()
 		if err != nil {
 			return agentFailedMsg{err: err}
 		}
-		task.Dir = dir
+		task := agentTask(dir, detection, flagKey, sdkInstalled, project, env)
 		ctx := context.Background()
 		if err := runner.Check(ctx); err != nil {
 			return agentFailedMsg{err: err}

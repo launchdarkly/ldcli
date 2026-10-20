@@ -64,9 +64,20 @@ func BuildFacts(t Task) string {
 		installed = "yes"
 	}
 	writeFact(&b, "SDK package installed", installed)
+	writeFact(&b, "LaunchDarkly project", t.ProjectKey)
+	writeFact(&b, "LaunchDarkly environment", t.EnvironmentKey)
 	writeFact(&b, "Flag created by setup", t.FlagKey)
 	writeFact(&b, "Environment variable for the SDK credential", CredentialEnvVar(t.SDKID))
+	writeFact(&b, "Model provider keys that are set", providerKeysFact(t.ProviderKeys))
+	b.WriteString("\nldcli gives the user the SDK credential. Do not look for keys, print the environment, or ask the user for a key. Use your temporary folder in $TMPDIR, not /tmp.\n")
 	return b.String()
+}
+
+func providerKeysFact(names []string) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, ", ") + " (names only)"
 }
 
 // BuildPrompt returns the task message for one run.
