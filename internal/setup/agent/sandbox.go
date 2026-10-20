@@ -230,6 +230,9 @@ func sandboxCommand(binary string, args []string, dir string, env []string) (str
 	if err != nil {
 		return "", nil, noop, fmt.Errorf("could not find the home folder for the agent sandbox: %w", err)
 	}
+	// Resolve the home folder first, so installDir compares it with the
+	// resolved program path.
+	home = realPath(home)
 	opencodeDir := ""
 	if path, err := exec.LookPath(binary); err == nil {
 		if real, err := filepath.EvalSymlinks(path); err == nil {
@@ -238,7 +241,7 @@ func sandboxCommand(binary string, args []string, dir string, env []string) (str
 	}
 	// Seatbelt matches the real path, so a folder behind a symlink, such as
 	// /var/folders on macOS, must be written as the folder it points to.
-	paths := buildSandboxPaths(realPath(home), realPath(dir), opencodeDir, env)
+	paths := buildSandboxPaths(home, realPath(dir), opencodeDir, env)
 	paths.ReadWrite = mapPaths(paths.ReadWrite, realPath)
 	paths.ReadOnly = mapPaths(paths.ReadOnly, realPath)
 	profile := seatbeltProfile(paths)
