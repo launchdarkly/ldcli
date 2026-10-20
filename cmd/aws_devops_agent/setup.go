@@ -1,7 +1,6 @@
 package awsdevopsagent
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -282,10 +281,10 @@ func nameNewSpace(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary, opts
 // askSpaceName asks until the answer is a name that no space uses.
 func askSpaceName(cmd *cobra.Command, spaces []awsdevops.AgentSpaceSummary) (string, error) {
 	out := cmd.ErrOrStderr()
-	reader := bufio.NewReader(sharedStdin(cmd))
+	in := sharedStdin(cmd)
 	for {
 		_, _ = fmt.Fprint(out, "Name for the new agent space: ")
-		line, err := reader.ReadString('\n')
+		line, err := nextLine(in)
 		if err != nil && line == "" {
 			return "", fmt.Errorf("no agent space name was given; pass --%s", agentSpaceNameFlag)
 		}
@@ -377,8 +376,7 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	}
 	_, _ = fmt.Fprint(out, "Continue? [y/N]: ")
 
-	line, _ := bufio.NewReader(sharedStdin(cmd)).ReadString('\n')
-	switch strings.ToLower(strings.TrimSpace(line)) {
+	switch strings.ToLower(readLine(sharedStdin(cmd))) {
 	case "y", "yes":
 		return nil
 	}
@@ -448,12 +446,10 @@ func selectAgentSpace(
 		question += fmt.Sprintf("[%d] ", defaultIndex+1)
 	}
 
-	// One reader for the whole prompt, so a retry does not lose input the
-	// previous read already buffered.
-	reader := bufio.NewReader(sharedStdin(cmd))
+	in := sharedStdin(cmd)
 	for {
 		_, _ = fmt.Fprint(out, question)
-		line, err := reader.ReadString('\n')
+		line, err := nextLine(in)
 		if err != nil && line == "" {
 			return spaceChoice{}, fmt.Errorf("no agent space was chosen; pass --%s or --%s", agentSpaceIDFlag, newAgentSpaceFlag)
 		}

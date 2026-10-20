@@ -82,6 +82,14 @@ func TestCredentialErrorNamesTheProfileAndLogin(t *testing.T) {
 	assert.Contains(t, err.Error(), "aws sso login --profile dev")
 }
 
+func TestCredentialErrorNamesTheDefaultSSOProfile(t *testing.T) {
+	writeConfig(t, "[default]\nsso_session = corp\n")
+
+	err := noCredentialsError("", imdsFailure())
+
+	assert.Contains(t, err.Error(), "aws sso login --profile default")
+}
+
 // Only SSO profiles get the SSO advice.
 func TestCredentialErrorShowsTheCauseForOtherProfiles(t *testing.T) {
 	writeConfig(t, "[profile ci]\ncredential_process = /usr/local/bin/get-creds\n")

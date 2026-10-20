@@ -169,11 +169,12 @@ func noCredentialsError(profile string, cause error) error {
 
 	var msg string
 	profiles := knownProfiles()
+	sso := SSOProfile(ConfigFilePath(), profile)
 	switch {
-	case active != "" && HasSSOConfig(ConfigFilePath(), active):
+	case sso != "":
 		msg = fmt.Sprintf(
 			"no AWS credentials for profile %q. Run `aws sso login --profile %s`, then run this command again",
-			active, active,
+			sso, sso,
 		)
 	case active != "" && cause != nil && !fromIMDS(cause):
 		// Only the cause tells what failed, for example a credential_process.

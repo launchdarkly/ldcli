@@ -190,6 +190,17 @@ func TestLoginSkipsWithoutProfile(t *testing.T) {
 	assert.Empty(t, f.runs)
 }
 
+// Without --profile or AWS_PROFILE, the SDK uses the default profile.
+func TestLoginOffersTheDefaultSSOProfile(t *testing.T) {
+	f, l := newLoginTest(t, "y\n", errCreds, nil)
+	require.NoError(t, os.WriteFile(l.configPath, []byte("[default]\nsso_session = corp\n"), 0o600))
+
+	_, err := l.clients(context.Background(), "", "")
+
+	require.NoError(t, err)
+	assert.Equal(t, [][]string{{"aws", "sso", "login", "--profile", "default"}}, f.runs)
+}
+
 func TestLoginUsesAWSProfileVariable(t *testing.T) {
 	f, l := newLoginTest(t, "y\n", errCreds, nil)
 	t.Setenv("AWS_PROFILE", "sso")

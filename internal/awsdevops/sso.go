@@ -20,6 +20,22 @@ func ConfigFilePath() string {
 	return filepath.Join(home, ".aws", "config")
 }
 
+// SSOProfile returns the profile that the SDK uses, if that profile uses SSO.
+// Without --profile or AWS_PROFILE, the SDK uses the default profile.
+func SSOProfile(path, profile string) string {
+	if profile == "" {
+		profile = os.Getenv("AWS_PROFILE")
+	}
+	if profile == "" {
+		profile = "default"
+	}
+	if !HasSSOConfig(path, profile) {
+		return ""
+	}
+
+	return profile
+}
+
 // HasSSOConfig reports whether the profile uses SSO.
 func HasSSOConfig(path, profile string) bool {
 	file, err := os.Open(path)

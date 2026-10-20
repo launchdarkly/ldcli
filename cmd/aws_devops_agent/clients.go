@@ -51,11 +51,8 @@ func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevop
 		return clients, err
 	}
 
-	name := profile
-	if name == "" {
-		name = os.Getenv("AWS_PROFILE")
-	}
-	if name == "" || !awsdevops.HasSSOConfig(l.configPath, name) || !l.interactive() {
+	name := awsdevops.SSOProfile(l.configPath, profile)
+	if name == "" || !l.interactive() {
 		return clients, err
 	}
 	if _, lookErr := l.lookPath("aws"); lookErr != nil {
