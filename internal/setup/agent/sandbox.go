@@ -135,6 +135,11 @@ func seatbeltProfile(p sandboxPaths) string {
 	for _, parent := range parentFolders(p) {
 		fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", sbString(parent))
 	}
+	// A cache or OpenCode folder can be missing on first use. Its missing
+	// parents can be created, but nothing else can be written in them.
+	for _, parent := range writeParents(p) {
+		fmt.Fprintf(&b, "(allow file-write-create (literal %s))\n", sbString(parent))
+	}
 	if p.RunTemp != "" {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", sbString(p.RunTemp))
 	}
@@ -165,6 +170,22 @@ func parentFolders(p sandboxPaths) []string {
 		}
 		for dir := filepath.Dir(path); dir != p.Home && strings.HasPrefix(dir, p.Home+"/"); dir = filepath.Dir(dir) {
 			add(dir)
+		}
+	}
+	return out
+}
+
+// writeParents returns the folders between each read-write folder and the
+// home folder, without the home folder and without repeats.
+func writeParents(p sandboxPaths) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, path := range p.ReadWrite {
+		for dir := filepath.Dir(path); dir != p.Home && strings.HasPrefix(dir, p.Home+"/"); dir = filepath.Dir(dir) {
+			if !seen[dir] {
+				seen[dir] = true
+				out = append(out, dir)
+			}
 		}
 	}
 	return out

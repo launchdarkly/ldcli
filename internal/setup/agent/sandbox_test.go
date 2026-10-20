@@ -165,3 +165,34 @@ func TestSeatbeltProfile_OpensParentMetadataOnly(t *testing.T) {
 	assert.Contains(t, profile, `(deny file-read* file-write* (subpath "/private/tmp"))`)
 	assert.Contains(t, profile, `(allow file-read* file-write* (subpath "/private/tmp/ldcli-agent-run-1"))`)
 }
+
+func TestSandboxCommand_CreatesMissingCacheFolders(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	project := filepath.Join(home, "app")
+	require.NoError(t, os.MkdirAll(project, 0o700))
+	realHome, err := filepath.EvalSymlinks(home)
+	require.NoError(t, err)
+
+	sandboxed := func(binary string, args ...string) (string, error) {
+		box, err := sandboxCommand(binary, args, project, os.Environ())
+		require.NoError(t, err)
+		defer box.Cleanup()
+		out, err := exec.Command(box.Name, box.Args...).CombinedOutput()
+		return string(out), err
+	}
+
+	out, err := sandboxed("/bin/mkdir", "-p", filepath.Join(realHome, ".local", "share", "opencode"))
+	require.NoError(t, err, out)
+	assert.DirExists(t, filepath.Join(home, ".local", "share", "opencode"), "a missing OpenCode folder and its parents can be created")
+
+	out, err = sandboxed("/usr/bin/touch", filepath.Join(realHome, ".local", "notes.txt"))
+	assert.Error(t, err, "a parent folder opens for the create only")
+	assert.Contains(t, out, "Operation not permitted")
+}
