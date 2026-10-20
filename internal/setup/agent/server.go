@@ -48,6 +48,9 @@ func startServer(ctx context.Context, binary, dir string, config []byte) (*serve
 
 	set := map[string]string{
 		"OPENCODE_SERVER_PASSWORD": password,
+		// Set the user name too, so a value in the user's shell does not
+		// make OpenCode refuse the client's basic auth.
+		"OPENCODE_SERVER_USERNAME": serverUsername,
 		"OPENCODE_CONFIG_CONTENT":  string(config),
 	}
 	box, err := sandboxCommand(binary, []string{"serve", "--hostname", "127.0.0.1", "--port", strconv.Itoa(port)}, dir, os.Environ())
