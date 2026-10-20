@@ -91,7 +91,8 @@ if [ "$rc" -ne 0 ]; then
 fi
 targets=$(grep -cE '^dist/' "$ARTIFACTS/goreleaser.out")
 [ "$targets" -gt 0 ] || incomplete "goreleaser exited 0, but no binary was found under dist/"
-grep -E '^dist/' "$ARTIFACTS/goreleaser.out" | sed 's/^/- /' >>"$ARTIFACTS/details.md"
+# `file` prints text such as flags:<NOUNDEFS|DYLDLINK>, which GitHub reads as HTML.
+grep -E '^dist/' "$ARTIFACTS/goreleaser.out" | sed -E 's/^([^:]+): (.*)$/- `\1`: `\2`/' >>"$ARTIFACTS/details.md"
 if [ "$image" != "$release_image" ]; then
   detail "- Fidelity gap: the public image plus musl.cc replace the LaunchDarkly image, which can have extras that this build does not have."
 fi
