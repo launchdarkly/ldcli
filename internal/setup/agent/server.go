@@ -57,8 +57,11 @@ func startServer(ctx context.Context, binary, dir string, config []byte) (*serve
 	if err != nil {
 		return nil, err
 	}
+	// The prompt tells the agent to use $TMPDIR, so OpenCode always gets it.
 	if box.TempDir != "" {
 		set["TMPDIR"] = box.TempDir
+	} else if os.Getenv("TMPDIR") == "" {
+		set["TMPDIR"] = os.TempDir()
 	}
 	cleanup := box.Cleanup
 
