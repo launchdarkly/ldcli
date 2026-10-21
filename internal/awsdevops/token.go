@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 // ErrInvalidAccessToken is the sentinel for a token LaunchDarkly rejects.
@@ -32,6 +34,7 @@ func ValidateAccessToken(ctx context.Context, baseURI, token string) error {
 		return err
 	}
 	req.Header.Set("Authorization", token)
+	req.Header.Set("LD-API-Version", resources.APIVersion)
 
 	res, err := ldHTTPClient.Do(req)
 	if err != nil {
