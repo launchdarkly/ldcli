@@ -16,7 +16,8 @@
     {
       "agentSpaceId": "as-prod01",
       "name": "Production",
-      "operatorAppUrl": "https://as-prod01.aidevops.global.app.aws"
+      "operatorAppUrl": "https://as-prod01.aidevops.global.app.aws",
+      "operatorAppEnabled": false
     }
   ],
   "missingSetup": [
