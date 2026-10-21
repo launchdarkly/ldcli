@@ -285,6 +285,9 @@ func checkApp(ctx context.Context, clients Clients, plan SetupPlan) error {
 	case !on && plan.App.Action != AppEnable:
 		return planChanged("the operator app was disabled after the plan")
 	case on && state.Flow != plan.App.Flow:
+		// This also stops a run if someone else made the planned change, for
+		// example IAM to IdC, after the plan. EnableOperatorApp would work then,
+		// but a new plan is safe and finds that nothing is left to change.
 		return planChanged("the operator app sign-in changed after the plan")
 	}
 
@@ -788,9 +791,14 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 	if err != nil {
 		return result, err
 	}
-	if result.AWSAssociationID != "" {
+	switch {
+	case result.AWSAssociationID != "":
 		logf("AWS account %s is already associated with the agent space", accountID)
-	} else {
+	case plan.Link.Exists:
+		// The plan keeps the association, and the role steps can take
+		// minutes. Someone removed it in that time, so do not create one.
+		return result, planChanged("the AWS account association disappeared after the plan")
+	default:
 		awsAssociation, err := associateAWSAccount(ctx, clients, accountID, result, logf)
 		if err != nil {
 			return result, fmt.Errorf("unable to associate the AWS account with the agent space: %w", err)
@@ -821,6 +829,12 @@ func RunPlan(ctx context.Context, clients Clients, opts SetupOptions, plan Setup
 		result.OperatorAppURL = OperatorAppURL(result.AgentSpaceID)
 	}
 
+	// The role and association steps can take minutes. A server that appeared
+	// or went in that time makes AWS reject the step with an error that does
+	// not say that the plan changed, so check the server again.
+	if err := checkMCP(ctx, clients, opts, plan.MCP); err != nil {
+		return result, err
+	}
 	if err := registerMCPServer(ctx, clients, opts, plan.MCP, &result, logf); err != nil {
 		return result, err
 	}

@@ -890,6 +890,64 @@ func TestRunPlanReplaceIgnoresListOrder(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// The role writes can take minutes. A kept association that goes in that
+// time stops the run, so setup does not create a new one.
+func TestRunPlanStopsWhenKeptAssociationGoesDuringRoleWrites(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces:  []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")},
+		associations: awsLink(),
+	}
+	iamClient := newFakeIAM()
+	clients := newTestClients(agent, iamClient)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+	iamClient.onCreateRole = func(string) { agent.associations = nil }
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "AssociateService")
+}
+
+// A server that appears during the role writes stops a register plan.
+func TestRunPlanStopsWhenMCPServerAppearsDuringRoleWrites(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")}}
+	iamClient := newFakeIAM()
+	clients := newTestClients(agent, iamClient)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPRegister, plan.MCP.Action)
+	iamClient.onCreateRole = func(string) {
+		agent.services = []agenttypes.RegisteredService{launchDarklyMCPService("mcp-new")}
+	}
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	assert.NotContains(t, agent.calls, "RegisterService")
+}
+
+// A reused server that goes during the role writes stops the run.
+func TestRunPlanStopsWhenReusedMCPServerGoesDuringRoleWrites(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")},
+		services:    []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")},
+	}
+	iamClient := newFakeIAM()
+	clients := newTestClients(agent, iamClient)
+	plan, err := awsdevops.PlanSetup(context.Background(), clients, runPlanOptions(), true)
+	require.NoError(t, err)
+	require.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+	iamClient.onCreateRole = func(string) { agent.services = nil }
+
+	_, err = awsdevops.RunPlan(context.Background(), clients, runPlanOptions(), plan)
+
+	require.ErrorIs(t, err, awsdevops.ErrPlanChanged)
+	for _, in := range agent.associationInputs {
+		assert.NotEqual(t, "mcp-1", aws.ToString(in.ServiceId))
+	}
+}
+
 // A link added during writes stops replace.
 func TestRunPlanStopsWhenSpaceLinksDuringRoles(t *testing.T) {
 	agent, iamClient := replaceAcrossSpaces(), newFakeIAM()
