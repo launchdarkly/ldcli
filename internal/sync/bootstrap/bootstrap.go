@@ -42,13 +42,15 @@ type Options struct {
 	Attachments AttachmentReader
 	Store       synclocal.Store
 	Baselines   syncmanifest.Baselines
-	// Settings makes each added variation code canonical. Code canonical
-	// means that the local file is the source of truth for the prompt, and
-	// LaunchDarkly rejects a prompt change that does not come from sync. If
-	// Settings is nil, add does not change the sync settings.
+	// Settings writes an exact rule with Direction for each added variation.
+	// If Settings is nil, add does not change the sync settings.
 	Settings SettingsWriter
-	Input    io.Reader
-	Output   io.Writer
+	// Direction is the source of truth of the added variations:
+	// DirectionBoth or DirectionCodeCanonical. If it is empty, Run asks the
+	// user.
+	Direction syncdomain.Direction
+	Input     io.Reader
+	Output    io.Writer
 	// ErrorOutput gets the warnings. If it is nil, the warnings go to Output.
 	ErrorOutput io.Writer
 	// Initial is true when the workspace has no .launchdarkly directory.
@@ -61,6 +63,9 @@ type Options struct {
 
 // Run writes the files of the selected variations and records their baseline.
 func Run(options Options) error {
+	if err := validateDirection(options); err != nil {
+		return err
+	}
 	var files []synclocal.VariationFile
 	var err error
 	if len(options.Selections) != 0 {
@@ -80,7 +85,60 @@ func Run(options Options) error {
 	if err != nil {
 		return err
 	}
+	if len(files) != 0 && !options.DryRun && options.Settings != nil && options.Direction == "" {
+		direction, canceled, err := promptForDirection(options)
+		if err != nil || canceled {
+			return err
+		}
+		options.Direction = direction
+	}
 	return finishSelection(options, files)
+}
+
+// validateDirection makes sure that add knows the source of truth before it
+// writes a rule. A dry run writes no rule, so it needs no source of truth.
+// Without selections and with NoInput, the variation prompt fails first.
+func validateDirection(options Options) error {
+	switch options.Direction {
+	case "":
+		if options.NoInput && !options.DryRun && options.Settings != nil && len(options.Selections) != 0 {
+			return missingSourceOfTruth()
+		}
+		return nil
+	case syncdomain.DirectionBoth, syncdomain.DirectionCodeCanonical:
+		return nil
+	default:
+		return fmt.Errorf("add cannot make a variation %s. Use --source-of-truth %s", options.Direction, syncdomain.SourceOfTruthValues)
+	}
+}
+
+func missingSourceOfTruth() error {
+	return fmt.Errorf(
+		"add needs a source of truth. Use --source-of-truth %s. "+
+			"With %s, the LaunchDarkly UI and the local files can both change the variations. "+
+			"With %s, only the local files can change the prompts",
+		syncdomain.SourceOfTruthValues, syncdomain.SourceOfTruthUIAndCode, syncdomain.SourceOfTruthCodeOnly,
+	)
+}
+
+// promptForDirection asks the user for the source of truth of the added
+// variations. The bool result is true when the user cancels.
+func promptForDirection(options Options) (syncdomain.Direction, bool, error) {
+	if !syncinteractive.StreamsAreTerminal(options.Input, options.Output) {
+		return "", false, missingSourceOfTruth()
+	}
+	return syncinteractive.Select(options.Input, options.Output, "Choose the source of truth", []syncinteractive.Choice[syncdomain.Direction]{
+		{
+			Title:       "UI and code",
+			Description: "The LaunchDarkly UI and the local files can both change the variations.",
+			Value:       syncdomain.DirectionBoth,
+		},
+		{
+			Title:       "Code only",
+			Description: "Only the local files can change the prompts. LaunchDarkly rejects other prompt changes.",
+			Value:       syncdomain.DirectionCodeCanonical,
+		},
+	})
 }
 
 // selectedVariations reads each variation that the user named.
@@ -278,19 +336,28 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 
 	writeSummary(options.Output, options.Initial, len(creation.VariationPaths))
 	if adopted {
-		_ = syncconsole.New(options.Output).Line(
-			"The local files are now the source of truth for the prompts of these variations. " +
-				"LaunchDarkly rejects a prompt change that does not come from sync. The other settings sync both ways.",
-		)
+		_ = syncconsole.New(options.Output).Line(SourceOfTruthSummary(options.Direction))
 	}
 	return nil
 }
 
-// adoptVariations writes an exact code canonical rule for each file, with one
-// request group for each project. It reports whether every project has the
-// rules. If a project has no sync settings, it writes a warning and continues.
+// SourceOfTruthSummary tells the user what the source of truth of the
+// variations now is.
+func SourceOfTruthSummary(direction syncdomain.Direction) string {
+	if direction == syncdomain.DirectionCodeCanonical {
+		return "The local files are now the source of truth for the prompts of these variations. " +
+			"LaunchDarkly rejects a prompt change that does not come from sync. The other settings sync both ways."
+	}
+	return "The LaunchDarkly UI and the local files can now both change these variations. " +
+		"If both sides change a variation, sync asks which side to keep."
+}
+
+// adoptVariations writes an exact rule with options.Direction for each file,
+// with one request group for each project. It reports whether every project
+// has the rules. If a project has no sync settings, it writes a warning and
+// continues.
 func adoptVariations(options Options, files []synclocal.VariationFile) (bool, error) {
-	if options.Settings == nil {
+	if options.Settings == nil || options.Direction == "" {
 		return false, nil
 	}
 	byProject := make(map[string][]syncdomain.ResourceID)
@@ -311,14 +378,14 @@ func adoptVariations(options Options, files []synclocal.VariationFile) (bool, er
 	}
 	adopted := true
 	for _, projectKey := range projectKeys {
-		rules := syncapi.ExactVariationRules(byProject[projectKey], syncdomain.DirectionCodeCanonical)
+		rules := syncapi.ExactVariationRules(byProject[projectKey], options.Direction)
 		err := options.Settings.PatchSyncSettings(projectKey, rules, nil)
 		switch {
 		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
 			adopted = false
 			_ = syncconsole.New(errorOutput).Printf(
 				"Warning: sync settings are not available for project %s. "+
-					"Add did not make the local files the source of truth.\n", projectKey,
+					"Add did not set the source of truth of the variations.\n", projectKey,
 			)
 		case err != nil:
 			return false, err

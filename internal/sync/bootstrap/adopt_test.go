@@ -47,29 +47,68 @@ func adoptFiles() []synclocal.VariationFile {
 }
 
 func TestFinishSelectionAdoptsEachVariation(t *testing.T) {
-	root := t.TempDir()
-	var output bytes.Buffer
+	tests := []struct {
+		direction syncdomain.Direction
+		summary   string
+	}{
+		{syncdomain.DirectionCodeCanonical, "The local files are now the source of truth for the prompts of these variations."},
+		{syncdomain.DirectionBoth, "The LaunchDarkly UI and the local files can now both change these variations."},
+	}
+	for _, test := range tests {
+		t.Run(string(test.direction), func(t *testing.T) {
+			root := t.TempDir()
+			var output bytes.Buffer
+			settings := &recordingSettings{}
+
+			err := finishSelection(Options{
+				Store:     synclocal.NewStore(root),
+				Baselines: &memoryManifestStore{manifest: syncmanifest.New()},
+				Settings:  settings,
+				Direction: test.direction,
+				Output:    &output,
+				Initial:   true,
+			}, adoptFiles())
+
+			require.NoError(t, err)
+			rule := func(lookupKey string) syncapi.SyncSettingRule {
+				return syncapi.SyncSettingRule{
+					ResourceKind: syncdomain.KindVariation, ResourcePattern: lookupKey, Direction: test.direction,
+				}
+			}
+			assert.Equal(t, []settingsPatch{
+				{projectKey: "alpha", upserts: []syncapi.SyncSettingRule{rule("support-bot/default"), rule("support-bot/short")}},
+				{projectKey: "beta", upserts: []syncapi.SyncSettingRule{rule("support-bot/default")}},
+			}, settings.patches)
+			assert.Contains(t, output.String(), test.summary)
+		})
+	}
+}
+
+func TestRunNeedsSourceOfTruthWithNoInput(t *testing.T) {
 	settings := &recordingSettings{}
 
-	err := finishSelection(Options{
-		Store:     synclocal.NewStore(root),
-		Baselines: &memoryManifestStore{manifest: syncmanifest.New()},
-		Settings:  settings,
-		Output:    &output,
-		Initial:   true,
-	}, adoptFiles())
+	err := Run(Options{
+		Store:      synclocal.NewStore(t.TempDir()),
+		Settings:   settings,
+		Output:     &bytes.Buffer{},
+		NoInput:    true,
+		Selections: []syncdomain.ResourceID{syncdomain.VariationID("alpha", "support-bot", "default")},
+	})
 
-	require.NoError(t, err)
-	rule := func(lookupKey string) syncapi.SyncSettingRule {
-		return syncapi.SyncSettingRule{
-			ResourceKind: syncdomain.KindVariation, ResourcePattern: lookupKey, Direction: syncdomain.DirectionCodeCanonical,
-		}
-	}
-	assert.Equal(t, []settingsPatch{
-		{projectKey: "alpha", upserts: []syncapi.SyncSettingRule{rule("support-bot/default"), rule("support-bot/short")}},
-		{projectKey: "beta", upserts: []syncapi.SyncSettingRule{rule("support-bot/default")}},
-	}, settings.patches)
-	assert.Contains(t, output.String(), "The local files are now the source of truth for the prompts of these variations.")
+	require.ErrorContains(t, err, "add needs a source of truth. Use --source-of-truth ui-and-code or code-only.")
+	assert.Empty(t, settings.patches)
+}
+
+func TestRunRejectsServerCanonicalDirection(t *testing.T) {
+	err := Run(Options{
+		Store:     synclocal.NewStore(t.TempDir()),
+		Settings:  &recordingSettings{},
+		Direction: syncdomain.DirectionServerCanonical,
+		Output:    &bytes.Buffer{},
+		NoInput:   true,
+	})
+
+	require.ErrorContains(t, err, "add cannot make a variation server_canonical")
 }
 
 func TestFinishSelectionWithoutSettingsWriterWritesNoRule(t *testing.T) {
@@ -110,6 +149,7 @@ func TestFinishSelectionWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 		Store:       store,
 		Baselines:   &memoryManifestStore{manifest: syncmanifest.New()},
 		Settings:    settings,
+		Direction:   syncdomain.DirectionCodeCanonical,
 		Output:      &output,
 		ErrorOutput: &errorOutput,
 		Initial:     true,
@@ -134,6 +174,7 @@ func TestFinishSelectionStopsBeforeFilesWhenRuleWriteFails(t *testing.T) {
 		Store:     store,
 		Baselines: &memoryManifestStore{manifest: syncmanifest.New()},
 		Settings:  settings,
+		Direction: syncdomain.DirectionCodeCanonical,
 		Output:    &bytes.Buffer{},
 		Initial:   true,
 	}, adoptFiles())

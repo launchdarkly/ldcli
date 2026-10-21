@@ -40,7 +40,7 @@ func TestPromptAddMakesVariationCodeCanonical(t *testing.T) {
 	root := initRepository(t)
 	api := &directAPI{variation: pointer(variation("Server"))}
 
-	stdout, _, err := runPrompt(t, root, api, "add", "production/support/default", "--no-input")
+	stdout, _, err := runPrompt(t, root, api, "add", "production/support/default", "--source-of-truth", "code-only", "--no-input")
 
 	require.NoError(t, err)
 	require.Len(t, api.settingsPatches, 1)
@@ -54,18 +54,62 @@ func TestPromptAddMakesVariationCodeCanonical(t *testing.T) {
 	assert.True(t, exists)
 }
 
-func TestPromptAddWithNoAdoptKeepsSyncSettings(t *testing.T) {
+func TestPromptAddWithUIAndCodeMakesVariationBoth(t *testing.T) {
 	root := initRepository(t)
 	api := &directAPI{variation: pointer(variation("Server"))}
 
-	stdout, _, err := runPrompt(t, root, api, "add", "production/support/default", "--no-input", "--no-adopt")
+	stdout, _, err := runPrompt(t, root, api, "add", "production/support/default", "--source-of-truth", "ui-and-code", "--no-input")
 
 	require.NoError(t, err)
-	assert.Empty(t, api.settingsPatches)
-	assert.NotContains(t, stdout, "source of truth")
+	require.Len(t, api.settingsPatches, 1)
+	assert.JSONEq(t, `{
+		"upserts": [{"resourceKind":"variation","resourcePattern":"support/default","direction":"both"}],
+		"deletions": []
+	}`, api.settingsPatches[0])
+	assert.Contains(t, stdout, "The LaunchDarkly UI and the local files can now both change these variations.")
 	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
 	require.NoError(t, err)
 	assert.True(t, exists)
+}
+
+func TestPromptAddNeedsSourceOfTruth(t *testing.T) {
+	tests := map[string][]string{
+		"with no input":    {"--no-input"},
+		"without terminal": {},
+	}
+	for name, flags := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := initRepository(t)
+			api := &directAPI{variation: pointer(variation("Server"))}
+
+			_, _, err := runPrompt(t, root, api, append([]string{"add", "production/support/default"}, flags...)...)
+
+			require.ErrorContains(t, err, "add needs a source of truth. Use --source-of-truth ui-and-code or code-only.")
+			assert.Empty(t, api.settingsPatches)
+			exists, err := synclocal.NewStore(root).Exists()
+			require.NoError(t, err)
+			assert.False(t, exists)
+		})
+	}
+}
+
+func TestPromptAddRejectsUnknownSourceOfTruth(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{variation: pointer(variation("Server"))}
+
+	_, _, err := runPrompt(t, root, api, "add", "production/support/default", "--source-of-truth", "launchdarkly", "--no-input")
+
+	require.ErrorContains(t, err, `the source of truth must be ui-and-code or code-only, not "launchdarkly"`)
+	assert.Empty(t, api.requests)
+}
+
+func TestPromptAddRemovedNoAdopt(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{variation: pointer(variation("Server"))}
+
+	_, _, err := runPrompt(t, root, api, "add", "production/support/default", "--no-adopt", "--no-input")
+
+	require.ErrorContains(t, err, "unknown flag: --no-adopt")
 }
 
 func TestPromptSourceOfTruthChangesRuleAndKeepsFile(t *testing.T) {
@@ -160,7 +204,7 @@ func TestPromptAddWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 		),
 	}
 
-	stdout, stderr, err := runPrompt(t, root, api, "add", "production/support/default", "--no-input")
+	stdout, stderr, err := runPrompt(t, root, api, "add", "production/support/default", "--source-of-truth", "code-only", "--no-input")
 
 	require.NoError(t, err)
 	assert.Len(t, api.settingsPatches, 1)

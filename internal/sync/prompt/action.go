@@ -23,12 +23,13 @@ type SyncAction struct {
 }
 
 // AddAction writes selected LaunchDarkly variations as local files. It also
-// makes each variation code canonical, unless NoAdopt is set.
+// writes an exact sync settings rule with Direction for each variation.
 type AddAction struct {
 	Variations []syncdomain.ResourceID
 	DryRun     bool
-	// NoAdopt keeps the sync settings of the variations as they are.
-	NoAdopt bool
+	// Direction is the source of truth of the variations. If it is empty, add
+	// asks the user.
+	Direction syncdomain.Direction
 }
 
 // SourceOfTruthAction changes the source of truth of variations that the

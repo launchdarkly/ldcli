@@ -26,9 +26,9 @@ const (
 	formatFlag         = "format"
 	modelConfigKeyFlag = "model-config-key"
 	nameFlag           = "name"
-	noAdoptFlag        = "no-adopt"
 	noInputFlag        = "no-input"
 	resolveFlag        = "resolve"
+	sourceOfTruthFlag  = "source-of-truth"
 	toFlag             = "to"
 	yesFlag            = "yes"
 )
@@ -46,7 +46,7 @@ func NewPromptCmd(client resources.Client) *cobra.Command {
   ldcli sync prompts --dry-run
 
   # Add the first variation without prompting
-  ldcli sync prompts add production/support/default --no-input
+  ldcli sync prompts add production/support/default --source-of-truth code-only --no-input
 
   # Apply changes in an existing workspace without prompting
   ldcli sync prompts --yes --no-input
@@ -143,22 +143,25 @@ func newAddCmd(client resources.Client) *cobra.Command {
 		Use:   "add [project-key/config-key/variation-key...]",
 		Short: "Add prompt variations from LaunchDarkly",
 		Long: "Write LaunchDarkly prompt variations as local files, and start to sync them. " +
-			"Add also makes each variation code canonical. " +
-			"Code canonical means that the local file is the source of truth for the prompt. " +
-			"LaunchDarkly then rejects each prompt change that does not come from sync. " +
+			"Add also sets the source of truth of each variation with --source-of-truth. " +
+			"With ui-and-code, the LaunchDarkly UI and the local file can both change the variation, " +
+			"and sync asks which side to keep when both change it. " +
+			"With code-only, the local file is the source of truth for the prompt, " +
+			"and LaunchDarkly rejects each prompt change that does not come from sync. " +
 			"The other settings, such as the model and the tools, sync both ways. " +
-			"To keep the sync settings of the variations as they are, use --no-adopt.",
-		Example: `  # Choose variations interactively
+			"If you do not give --source-of-truth, add asks for it. With --no-input, add fails without it. " +
+			"A dry run does not need it.",
+		Example: `  # Choose variations and the source of truth interactively
   ldcli sync prompts add
 
-  # Add one variation by its full selector
-  ldcli sync prompts add production/support/default
+  # Add one variation whose prompt only the local file can change
+  ldcli sync prompts add production/support/default --source-of-truth code-only
+
+  # Add one variation that the UI and the local file can both change
+  ldcli sync prompts add production/support/default --source-of-truth ui-and-code
 
   # Add multiple variations without prompting
-  ldcli sync prompts add production/support/default production/chat/concise --no-input
-
-  # Add one variation and keep its sync settings
-  ldcli sync prompts add production/support/default --no-adopt`,
+  ldcli sync prompts add production/support/default production/chat/concise --source-of-truth code-only --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
 		RunE: runPrompt(client, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
@@ -166,12 +169,15 @@ func newAddCmd(client resources.Client) *cobra.Command {
 				return nil, err
 			}
 			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-			noAdopt, _ := cmd.Flags().GetBool(noAdoptFlag)
-			return syncprompt.AddAction{Variations: variations, DryRun: dryRun, NoAdopt: noAdopt}, nil
+			direction, err := sourceOfTruthFlagValue(cmd)
+			if err != nil {
+				return nil, err
+			}
+			return syncprompt.AddAction{Variations: variations, DryRun: dryRun, Direction: direction}, nil
 		}),
 	}
 	cmd.Flags().Bool(dryRunFlag, false, "Preview local files without creating them")
-	cmd.Flags().Bool(noAdoptFlag, false, "Do not make the variations code canonical in the sync settings")
+	cmd.Flags().String(sourceOfTruthFlag, "", "The source of truth of the variations: "+syncdomain.SourceOfTruthValues)
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
 }
@@ -330,6 +336,16 @@ func newSourceOfTruthCmd(client resources.Client) *cobra.Command {
 		}),
 	}
 	return cmd
+}
+
+// sourceOfTruthFlagValue returns the direction of --source-of-truth, or an
+// empty direction when the flag is not set.
+func sourceOfTruthFlagValue(cmd *cobra.Command) (syncdomain.Direction, error) {
+	value, _ := cmd.Flags().GetString(sourceOfTruthFlag)
+	if value == "" {
+		return "", nil
+	}
+	return syncdomain.ParseSourceOfTruth(value)
 }
 
 func parseVariationSelectors(values []string) ([]syncdomain.ResourceID, error) {

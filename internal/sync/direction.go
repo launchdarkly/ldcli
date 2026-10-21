@@ -37,7 +37,8 @@ func ParseDirection(value string) (Direction, error) {
 	}
 }
 
-// The two values that "ldcli sync prompts source-of-truth" accepts.
+// The two values that "ldcli sync prompts source-of-truth" and the
+// --source-of-truth flag of add accept.
 const (
 	// SourceOfTruthUIAndCode lets the LaunchDarkly UI and the local file both
 	// change a variation. It is DirectionBoth.

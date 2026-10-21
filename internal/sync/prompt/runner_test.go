@@ -61,6 +61,8 @@ func TestRunnerBootstrapsMissingWorkspaceAndAddsToExistingWorkspace(t *testing.T
 				assert.Equal(t, test.wantInitial, options.Initial)
 				assert.Equal(t, test.wantDryRun, options.DryRun)
 				assert.NotNil(t, options.Catalog)
+				assert.NotNil(t, options.Settings, "add writes a source of truth rule")
+				assert.Empty(t, options.Direction, "add asks for the source of truth")
 				assert.NotNil(t, options.Input)
 				assert.NotNil(t, options.Output)
 				return nil

@@ -7,6 +7,7 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
 
@@ -52,16 +53,5 @@ func (runner Runner) runSourceOfTruth(options Options, workspace syncWorkspace, 
 			return err
 		}
 	}
-	return syncconsole.New(options.Output).Line(sourceOfTruthSummary(action.Direction))
-}
-
-// sourceOfTruthSummary tells the user what the source of truth of the
-// variations now is.
-func sourceOfTruthSummary(direction syncdomain.Direction) string {
-	if direction == syncdomain.DirectionCodeCanonical {
-		return "The local files are now the source of truth for the prompts of these variations. " +
-			"LaunchDarkly rejects a prompt change that does not come from sync. The other settings sync both ways."
-	}
-	return "The LaunchDarkly UI and the local files can now both change these variations. " +
-		"If both sides change a variation, sync asks which side to keep."
+	return syncconsole.New(options.Output).Line(syncbootstrap.SourceOfTruthSummary(action.Direction))
 }

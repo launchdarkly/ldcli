@@ -121,7 +121,7 @@ func (runner Runner) runSync(options Options, workspace syncWorkspace, action Sy
 		return err
 	}
 	if !exists && len(projectKeys) == 0 {
-		if err := runner.bootstrap(runner.bootstrapOptions(options, workspace, true, action.DryRun, true, nil)); err != nil {
+		if err := runner.bootstrap(runner.bootstrapOptions(options, workspace, true, action.DryRun, "", nil)); err != nil {
 			return err
 		}
 		if !action.Watch {
@@ -151,7 +151,7 @@ func (runner Runner) runAdd(options Options, workspace syncWorkspace, action Add
 	if err != nil {
 		return err
 	}
-	return runner.bootstrap(runner.bootstrapOptions(options, workspace, !exists, action.DryRun, !action.NoAdopt, action.Variations))
+	return runner.bootstrap(runner.bootstrapOptions(options, workspace, !exists, action.DryRun, action.Direction, action.Variations))
 }
 
 func (runner Runner) runDetach(options Options, workspace syncWorkspace, action DetachAction) error {
@@ -232,16 +232,14 @@ func (runner Runner) runAttach(options Options, workspace syncWorkspace, action 
 func (runner Runner) bootstrapOptions(
 	options Options,
 	workspace syncWorkspace,
-	initial, dryRun, adopt bool,
+	initial, dryRun bool,
+	direction syncdomain.Direction,
 	selections []syncdomain.ResourceID,
 ) syncbootstrap.Options {
 	api := runner.api(options)
-	var settings syncbootstrap.SettingsWriter
-	if adopt {
-		settings = api
-	}
 	return syncbootstrap.Options{
-		Settings:    settings,
+		Settings:    api,
+		Direction:   direction,
 		ErrorOutput: options.ErrorOutput,
 		Catalog:     api,
 		Attachments: api,
