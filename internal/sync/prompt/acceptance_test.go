@@ -1145,18 +1145,33 @@ func TestPromptUsesUIAndCodeWhenSyncSettingsAreUnavailable(t *testing.T) {
 	writeVariation(t, root, local, false)
 	writeManifest(t, root, baseline)
 	api := &directAPI{
-		variation: pointer(baseline),
-		settingsErr: lderrors.NewError(
-			`{"code":"forbidden","message":"Plan does not allow this operation","statusCode":403}`,
-		),
+		variation:   pointer(baseline),
+		settingsErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
 	}
 
 	_, stderr, err := runPrompt(t, root, api, "--yes")
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, strings.Count(stderr, "Sync settings are not available for project production. Sync uses ui-and-code."))
+	assert.Equal(t, 1, strings.Count(stderr, "Warning: sync settings are not available for project production. Sync uses ui-and-code."))
 	assert.Equal(t, local.Name, api.variation.Name)
 	assertManifestFingerprint(t, root, local)
+}
+
+func TestPromptFailsWhenSyncSettingsAreForbidden(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, variation("Local"), false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{
+		variation:   pointer(baseline),
+		settingsErr: lderrors.NewError(`{"code":"forbidden","message":"Access denied","statusCode":403}`),
+	}
+
+	_, _, err := runPrompt(t, root, api, "--yes")
+
+	require.ErrorContains(t, err, "Access denied")
+	requireOnlyReads(t, api.requests)
+	assert.Equal(t, baseline.Name, api.variation.Name)
 }
 
 func TestPromptStopsWhenSourceOfTruthChangesAfterReview(t *testing.T) {

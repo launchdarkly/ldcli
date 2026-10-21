@@ -354,9 +354,8 @@ func adoptVariations(options Options, files []synclocal.VariationFile) (bool, er
 		switch {
 		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
 			adopted = false
-			_ = syncconsole.New(errorOutput).Printf(
-				"Warning: sync settings are not available for project %s. "+
-					"Add did not set the source of truth of the variations.\n", projectKey,
+			_ = syncconsole.New(errorOutput).Write(
+				syncapi.SettingsUnavailableWarning(projectKey, "Add did not set the source of truth of the variations."),
 			)
 		case err != nil:
 			return false, err

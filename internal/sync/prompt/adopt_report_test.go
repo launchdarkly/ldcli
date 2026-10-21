@@ -2,6 +2,8 @@ package prompt_test
 
 import (
 	"encoding/json"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +12,7 @@ import (
 	lderrors "github.com/launchdarkly/ldcli/internal/errors"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
 
@@ -150,6 +153,35 @@ func TestPromptSourceOfTruthRejectsDuplicateAndUnknownValue(t *testing.T) {
 	assert.Empty(t, api.settingsPatches)
 }
 
+// failingProjectSettingsAPI fails each sync settings write of one project.
+type failingProjectSettingsAPI struct {
+	*directAPI
+	projectKey string
+}
+
+func (api failingProjectSettingsAPI) serve(request apitest.Request) ([]byte, error) {
+	if request.Method == http.MethodPatch && strings.HasPrefix(request.Path, "/api/v2/projects/"+api.projectKey+"/configs/sync/settings") {
+		return nil, lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)
+	}
+	return api.directAPI.serve(request)
+}
+
+func TestPromptSourceOfTruthNamesChangedProjectsWhenLaterProjectFails(t *testing.T) {
+	root := initRepository(t)
+	_, err := synclocal.NewStore(root).Add([]synclocal.VariationFile{
+		{ProjectKey: "production", ConfigKey: "support", Variation: variation("Production")},
+		{ProjectKey: "staging", ConfigKey: "support", Variation: variation("Staging")},
+	})
+	require.NoError(t, err)
+	api := failingProjectSettingsAPI{directAPI: &directAPI{}, projectKey: "staging"}
+
+	_, stderr, err := runPrompt(t, root, api, "source-of-truth", "code-only", "production/support/default", "staging/support/default")
+
+	require.ErrorContains(t, err, "boom")
+	assert.Contains(t, stderr, "The source of truth changed for project production only.")
+	assert.Len(t, api.settingsPatches, 1)
+}
+
 func TestPromptSourceOfTruthFailsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
@@ -162,7 +194,7 @@ func TestPromptSourceOfTruthFailsWhenSyncSettingsAreUnavailable(t *testing.T) {
 
 	_, _, err := runPrompt(t, root, api, "source-of-truth", "code-only", "production/support/default")
 
-	require.ErrorContains(t, err, "sync settings are not available for project production, so the source of truth did not change")
+	require.ErrorContains(t, err, `update sync settings for project "production": sync settings are not available`)
 }
 
 func TestPromptSourceOfTruthOverridesWildcardWithUIAndCode(t *testing.T) {
@@ -186,10 +218,8 @@ func TestPromptSourceOfTruthOverridesWildcardWithUIAndCode(t *testing.T) {
 func TestPromptAddWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	root := initRepository(t)
 	api := &directAPI{
-		variation: pointer(variation("Server")),
-		settingsPatchErr: lderrors.NewError(
-			`{"code":"forbidden","message":"Plan does not allow this operation","statusCode":403}`,
-		),
+		variation:        pointer(variation("Server")),
+		settingsPatchErr: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`),
 	}
 
 	stdout, stderr, err := runPrompt(t, root, api, "add", "production/support/default", "--source-of-truth", "code-only", "--no-input")
@@ -201,6 +231,21 @@ func TestPromptAddWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
 	require.NoError(t, err)
 	assert.True(t, exists)
+}
+
+func TestPromptAddFailsWhenSyncSettingsAreForbidden(t *testing.T) {
+	root := initRepository(t)
+	api := &directAPI{
+		variation:        pointer(variation("Server")),
+		settingsPatchErr: lderrors.NewError(`{"code":"forbidden","message":"Access denied","statusCode":403}`),
+	}
+
+	_, _, err := runPrompt(t, root, api, "add", "production/support/default", "--source-of-truth", "code-only", "--no-input")
+
+	require.ErrorContains(t, err, "Access denied")
+	exists, err := synclocal.NewStore(root).Exists()
+	require.NoError(t, err)
+	assert.False(t, exists)
 }
 
 func TestPromptAddDryRunWritesNoRule(t *testing.T) {

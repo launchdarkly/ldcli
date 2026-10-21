@@ -50,12 +50,13 @@ func (workspace syncWorkspace) loadState(client syncapi.Client) (workspaceState,
 	}, nil
 }
 
-// writeSettingsWarnings tells the user about each project without sync
-// settings.
-func (state workspaceState) writeSettingsWarnings(output io.Writer) {
-	console := syncconsole.New(output)
+// warnUnavailableSettings warns once in a run about each project without sync settings.
+func (workspace syncWorkspace) warnUnavailableSettings(output io.Writer, state workspaceState) {
 	for _, projectKey := range state.noSettings {
-		_ = console.Printf("Sync settings are not available for project %s. Sync uses ui-and-code.\n", projectKey)
+		if !workspace.warnedSettings[projectKey] {
+			workspace.warnedSettings[projectKey] = true
+			_ = syncconsole.New(output).Write(syncapi.SettingsUnavailableWarning(projectKey, "Sync uses ui-and-code."))
+		}
 	}
 }
 

@@ -13,9 +13,20 @@ import (
 // settings request can ask for.
 const maxSettingsResources = 100
 
-// ErrSyncSettingsUnavailable means that the project has no sync settings API.
-// For example, the plan of the account does not include the feature.
+// ErrSyncSettingsUnavailable means that the sync settings API of a project
+// returned 404. For example, the plan of the account does not include the feature.
 var ErrSyncSettingsUnavailable = errors.New("sync settings are not available")
+
+// SettingsUnavailableWarning returns the warning for a project without sync
+// settings. The effect tells the user what the command did instead.
+func SettingsUnavailableWarning(projectKey, effect string) string {
+	return fmt.Sprintf("Warning: sync settings are not available for project %s. %s\n", projectKey, effect)
+}
+
+func settingsUnavailable(err error) bool {
+	status, ok := responseStatusCode(err)
+	return ok && status == http.StatusNotFound
+}
 
 type syncSetting struct {
 	ResourceKind      syncdomain.Kind `json:"resourceKind"`
@@ -24,7 +35,7 @@ type syncSetting struct {
 }
 
 // ResolveSourceOfTruth returns the source of truth of each resource in one
-// project. If the API returns 403 or 404, the error wraps ErrSyncSettingsUnavailable.
+// project. If the API returns 404, the error wraps ErrSyncSettingsUnavailable.
 func (client Client) ResolveSourceOfTruth(
 	projectKey string,
 	ids []syncdomain.ResourceID,
@@ -60,7 +71,7 @@ func (client Client) resolveSourceOfTruthBatch(
 	}
 	response, err := client.do(http.MethodGet, endpoint, query, nil)
 	if err != nil {
-		if status, ok := responseStatusCode(err); ok && (status == http.StatusForbidden || status == http.StatusNotFound) {
+		if settingsUnavailable(err) {
 			return fmt.Errorf("%s: %w", description, ErrSyncSettingsUnavailable)
 		}
 		return contextualAPIError(err, description, projectKey)
@@ -127,7 +138,7 @@ type SyncSettingPattern struct {
 
 // PatchSyncSettings creates or replaces each rule in upserts, and deletes each
 // rule in deletions. A deletion of a rule that does not exist does not fail.
-// If the API returns 403 or 404, the error wraps ErrSyncSettingsUnavailable.
+// If the API returns 404, the error wraps ErrSyncSettingsUnavailable.
 // Each request sends at most 100 upserts and 100 deletions.
 func (client Client) PatchSyncSettings(
 	projectKey string,
@@ -144,7 +155,7 @@ func (client Client) PatchSyncSettings(
 				Deletions []SyncSettingPattern `json:"deletions"`
 			}{Upserts: batchUpserts, Deletions: batchDeletions},
 		}, settingsPath(projectKey)...)
-		if status, ok := responseStatusCode(err); ok && (status == http.StatusForbidden || status == http.StatusNotFound) {
+		if settingsUnavailable(err) {
 			return fmt.Errorf("update sync settings for project %q: %w", projectKey, ErrSyncSettingsUnavailable)
 		}
 		if err != nil {

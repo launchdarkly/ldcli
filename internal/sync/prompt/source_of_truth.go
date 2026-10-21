@@ -1,9 +1,9 @@
 package prompt
 
 import (
-	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
@@ -42,13 +42,14 @@ func (runner Runner) runSourceOfTruth(options Options, workspace syncWorkspace, 
 	slices.Sort(projectKeys)
 
 	api := runner.api(options)
-	for _, projectKey := range projectKeys {
+	for index, projectKey := range projectKeys {
 		rules := syncapi.ExactVariationRules(byProject[projectKey], action.SourceOfTruth)
-		err := api.PatchSyncSettings(projectKey, rules, nil)
-		switch {
-		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
-			return fmt.Errorf("sync settings are not available for project %s, so the source of truth did not change", projectKey)
-		case err != nil:
+		if err := api.PatchSyncSettings(projectKey, rules, nil); err != nil {
+			if index > 0 {
+				_ = syncconsole.New(options.ErrorOutput).Printf(
+					"The source of truth changed for project %s only.\n", strings.Join(projectKeys[:index], ", "),
+				)
+			}
 			return err
 		}
 	}

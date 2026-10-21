@@ -230,9 +230,8 @@ func releaseVariations(options Options, selected []syncdomain.ResourceID) error 
 		err := options.Settings.PatchSyncSettings(projectKey, nil, syncapi.ExactVariationPatterns(byProject[projectKey]))
 		switch {
 		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
-			_ = syncconsole.New(errorOutput).Printf(
-				"Warning: sync settings are not available for project %s. "+
-					"Detach did not delete the sync settings rules of the variations.\n", projectKey,
+			_ = syncconsole.New(errorOutput).Write(
+				syncapi.SettingsUnavailableWarning(projectKey, "Detach did not delete the sync settings rules of the variations."),
 			)
 		case err != nil:
 			return err

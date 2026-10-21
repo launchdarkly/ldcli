@@ -29,6 +29,8 @@ type syncWorkspace struct {
 	local synclocal.Store
 	// baselines keeps the sync.lock file and the remote manifest.
 	baselines syncmanifest.Baselines
+	// warnedSettings are the projects without sync settings that the run reported.
+	warnedSettings map[string]bool
 }
 
 // Runner runs the prompt sync commands. Tests replace its function fields.
@@ -73,9 +75,10 @@ func (runner Runner) Run(options Options) error {
 	options.syncSource = resolved.Source
 	local := synclocal.NewStore(resolved.Root)
 	workspace := syncWorkspace{
-		root:      resolved.Root,
-		local:     local,
-		baselines: syncmanifest.NewBaselineStore(syncmanifest.NewStore(runner.api(options), resolved.Source), local),
+		root:           resolved.Root,
+		local:          local,
+		baselines:      syncmanifest.NewBaselineStore(syncmanifest.NewStore(runner.api(options), resolved.Source), local),
+		warnedSettings: make(map[string]bool),
 	}
 
 	switch action := options.Action.(type) {

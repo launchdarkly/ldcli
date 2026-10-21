@@ -85,29 +85,27 @@ func TestClientResolveSourceOfTruthSendsNoRequestWithoutResources(t *testing.T) 
 	assert.Empty(t, transport.Requests)
 }
 
-func TestClientResolveSourceOfTruthReturnsSentinelWhenUnavailable(t *testing.T) {
-	for _, body := range []string{
-		`{"code":"forbidden","message":"Plan does not allow this operation","statusCode":403}`,
-		`{"code":"not_found","message":"Not found","statusCode":404}`,
-	} {
-		transport := &recordingServer{Err: lderrors.NewError(body)}
-		client := transport.client(t)
+func TestClientResolveSourceOfTruthReturnsSentinelWhenNotFound(t *testing.T) {
+	transport := &recordingServer{Err: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`)}
 
-		_, err := client.ResolveSourceOfTruth("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
+	_, err := transport.client(t).ResolveSourceOfTruth("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
-		require.ErrorIs(t, err, ErrSyncSettingsUnavailable, body)
-	}
+	require.ErrorIs(t, err, ErrSyncSettingsUnavailable)
 }
 
 func TestClientResolveSourceOfTruthReturnsOtherErrors(t *testing.T) {
-	transport := &recordingServer{Err: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)}
-	client := transport.client(t)
+	for _, body := range []string{
+		`{"code":"forbidden","message":"Access denied","statusCode":403}`,
+		`{"code":"internal","message":"boom","statusCode":500}`,
+	} {
+		transport := &recordingServer{Err: lderrors.NewError(body)}
 
-	_, err := client.ResolveSourceOfTruth("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
+		_, err := transport.client(t).ResolveSourceOfTruth("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
-	require.Error(t, err)
-	assert.NotErrorIs(t, err, ErrSyncSettingsUnavailable)
-	assert.ErrorContains(t, err, "get sync settings for project")
+		require.Error(t, err, body)
+		assert.NotErrorIs(t, err, ErrSyncSettingsUnavailable, body)
+		assert.ErrorContains(t, err, "get sync settings for project", body)
+	}
 }
 
 func TestClientResolveSourceOfTruthRejectsUnknownDirection(t *testing.T) {
@@ -177,29 +175,26 @@ func TestClientPatchSyncSettingsSendsAtMostOneHundredRulesInEachList(t *testing.
 	assert.NotNil(t, second.Deletions)
 }
 
-func TestClientPatchSyncSettingsReturnsSentinelWhenUnavailable(t *testing.T) {
-	for _, body := range []string{
-		`{"code":"forbidden","message":"Plan does not allow this operation","statusCode":403}`,
-		`{"code":"not_found","message":"Not found","statusCode":404}`,
-	} {
-		transport := &recordingServer{Err: lderrors.NewError(body)}
-		client := transport.client(t)
-		ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
+func TestClientPatchSyncSettingsReturnsSentinelWhenNotFound(t *testing.T) {
+	transport := &recordingServer{Err: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`)}
+	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
-		err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil)
+	err := transport.client(t).PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil)
 
-		require.ErrorIs(t, err, ErrSyncSettingsUnavailable, body)
-	}
+	require.ErrorIs(t, err, ErrSyncSettingsUnavailable)
 }
 
 func TestClientPatchSyncSettingsReturnsOtherErrors(t *testing.T) {
-	transport := &recordingServer{Err: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)}
-	client := transport.client(t)
-	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
+	for _, body := range []string{
+		`{"code":"forbidden","message":"Access denied","statusCode":403}`,
+		`{"code":"internal","message":"boom","statusCode":500}`,
+	} {
+		transport := &recordingServer{Err: lderrors.NewError(body)}
+		ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
-	err := client.PatchSyncSettings("project", nil, ExactVariationPatterns(ids))
+		err := transport.client(t).PatchSyncSettings("project", nil, ExactVariationPatterns(ids))
 
-	require.Error(t, err)
-	assert.NotErrorIs(t, err, ErrSyncSettingsUnavailable)
-	assert.ErrorContains(t, err, "boom")
+		require.Error(t, err, body)
+		assert.NotErrorIs(t, err, ErrSyncSettingsUnavailable, body)
+	}
 }
