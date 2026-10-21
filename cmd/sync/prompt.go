@@ -42,7 +42,8 @@ func NewPromptCmd(transport syncapi.Transport) *cobra.Command {
 		Long: "Bootstrap local prompt variations from LaunchDarkly, add more variations, or synchronize changes using the LaunchDarkly manifest. " +
 			"Sync rechecks state before every write, rerun sync after a change. " +
 			"Each variation has a source of truth, ui-and-code or code-only. " +
-			"A code-only variation keeps the prompt of its local file, and its other settings sync both ways.",
+			"A code-only variation keeps the prompt of its local file, and its other settings sync both ways. " +
+			"To change the source of truth later, use the variation menu in LaunchDarkly.",
 		Example: `  # Preview synchronization changes
   ldcli sync prompts --dry-run
 
@@ -73,7 +74,6 @@ func NewPromptCmd(transport syncapi.Transport) *cobra.Command {
 		newAttachCmd(transport),
 		newDetachCmd(transport),
 		newLinkCmd(transport),
-		newSourceOfTruthCmd(transport),
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -290,34 +290,6 @@ func validatedArgs(validate cobra.PositionalArgs) cobra.PositionalArgs {
 		}
 		return validators.Validate()(cmd, args)
 	}
-}
-
-func newSourceOfTruthCmd(transport syncapi.Transport) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "source-of-truth <ui-and-code|code-only> <project-key/config-key/variation-key>...",
-		Short: "Change the source of truth of synced prompt variations",
-		Long: "Change the source of truth of prompt variations that already sync. " +
-			"The command writes the sync settings rule of each variation and keeps the local files. " +
-			"To add a variation that does not sync yet, use add.",
-		Example: `  # Make the local file the only source of truth
-  ldcli sync prompts source-of-truth code-only production/support/default
-
-  # Let the UI and the local file both change two variations
-  ldcli sync prompts source-of-truth ui-and-code production/support/default production/chat/concise`,
-		Args: validatedArgs(cobra.MinimumNArgs(2)),
-		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
-			sourceOfTruth, err := syncdomain.ParseSourceOfTruth(args[0])
-			if err != nil {
-				return nil, err
-			}
-			variations, err := parseVariationSelectors(args[1:])
-			if err != nil {
-				return nil, err
-			}
-			return syncprompt.SourceOfTruthAction{Variations: variations, SourceOfTruth: sourceOfTruth}, nil
-		}),
-	}
-	return cmd
 }
 
 func addAction(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {

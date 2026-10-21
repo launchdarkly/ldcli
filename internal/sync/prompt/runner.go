@@ -89,8 +89,6 @@ func (runner Runner) Run(options Options) error {
 		return runner.runAdd(options, workspace, action)
 	case DetachAction:
 		return runner.runDetach(options, workspace, action)
-	case SourceOfTruthAction:
-		return runSourceOfTruth(options, workspace, action)
 	case LinkAction:
 		linked, err := runner.runLink(options, workspace, action)
 		if err != nil || !linked {

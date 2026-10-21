@@ -33,7 +33,8 @@ func ParseSourceOfTruth(value string) (SourceOfTruth, error) {
 func (source SourceOfTruth) Summary() string {
 	if source == SourceOfTruthCodeOnly {
 		return "The local files are now the source of truth for the prompts of these variations. " +
-			"LaunchDarkly rejects a prompt change that does not come from sync. The other settings sync both ways."
+			"LaunchDarkly rejects a prompt change that does not come from sync. The other settings sync both ways. " +
+			"To let the LaunchDarkly UI change a prompt again, change the source of truth in the variation menu in LaunchDarkly."
 	}
 	return "The LaunchDarkly UI and the local files can now both change these variations. " +
 		"If both sides change a variation, sync asks which side to keep."

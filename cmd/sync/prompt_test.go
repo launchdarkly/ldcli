@@ -15,7 +15,7 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 	command := NewPromptCmd(syncapi.NewTransport("test"))
 
 	assert.Equal(t, "prompts", command.Use)
-	for _, name := range []string{"watch", "add", "attach", "detach", "link", "source-of-truth"} {
+	for _, name := range []string{"watch", "add", "attach", "detach", "link"} {
 		child, _, err := command.Find([]string{name})
 		require.NoError(t, err)
 		assert.Equal(t, name, child.Name())
@@ -32,6 +32,15 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 	assert.Nil(t, link.Flags().Lookup("model-config"))
 }
 
+func TestPromptCommandHasNoSourceOfTruthSubcommand(t *testing.T) {
+	command := NewPromptCmd(syncapi.NewTransport("test"))
+
+	child, _, err := command.Find([]string{"source-of-truth"})
+	require.NoError(t, err)
+	assert.Equal(t, "prompts", child.Name())
+	assert.Contains(t, command.Long, "To change the source of truth later, use the variation menu in LaunchDarkly.")
+}
+
 func TestSyncCommandIncludesExamples(t *testing.T) {
 	command := NewSyncCmd(syncapi.NewTransport("test"), nil)
 
@@ -41,15 +50,14 @@ func TestSyncCommandIncludesExamples(t *testing.T) {
 func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 	command := NewPromptCmd(syncapi.NewTransport("test"))
 	tests := map[string][]string{
-		"prompts":         {},
-		"watch":           {"watch"},
-		"add":             {"add"},
-		"attach":          {"attach"},
-		"attach tool":     {"attach", "tool"},
-		"attach skill":    {"attach", "skill"},
-		"detach":          {"detach"},
-		"link":            {"link"},
-		"source-of-truth": {"source-of-truth"},
+		"prompts":      {},
+		"watch":        {"watch"},
+		"add":          {"add"},
+		"attach":       {"attach"},
+		"attach tool":  {"attach", "tool"},
+		"attach skill": {"attach", "skill"},
+		"detach":       {"detach"},
+		"link":         {"link"},
 	}
 
 	for name, path := range tests {

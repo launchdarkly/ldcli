@@ -28,12 +28,6 @@ type AddAction struct {
 	SourceOfTruth syncdomain.SourceOfTruth
 }
 
-// SourceOfTruthAction changes the source of truth of variations that the workspace syncs.
-type SourceOfTruthAction struct {
-	Variations    []syncdomain.ResourceID
-	SourceOfTruth syncdomain.SourceOfTruth
-}
-
 // AttachAction adds a tool or a skill to a local variation, and then syncs.
 type AttachAction struct {
 	Kind   syncdomain.AttachmentKind
@@ -62,9 +56,8 @@ func (action SyncAction) validate() error {
 	return nil
 }
 
-func (AddAction) validate() error           { return nil }
-func (DetachAction) validate() error        { return nil }
-func (SourceOfTruthAction) validate() error { return nil }
+func (AddAction) validate() error    { return nil }
+func (DetachAction) validate() error { return nil }
 
 func (action AttachAction) validate() error {
 	if !action.Kind.Valid() {
