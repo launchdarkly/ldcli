@@ -72,7 +72,7 @@ for --access-token.`,
 	cmd.Flags().String(mcpServiceIDFlag, "", "Registered MCP server to use, instead of the one registered at --mcp-endpoint")
 	cmd.Flags().String(mcpEndpointFlag, "", "MCP endpoint to register and look the server up by. Defaults to "+awsdevops.MCPServerEndpoint)
 
-	cmd.Flags().Bool(yesFlag, false, "Ask no questions, as in a run without a terminal")
+	cmd.Flags().Bool(yesFlag, false, "Ask no questions and accept every step")
 
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
