@@ -35,7 +35,17 @@ func (recorder *recordingServer) client(t *testing.T) Client {
 		}
 		return recorder.Responses[len(recorder.Requests)-1], nil
 	})
-	return NewClient(Options{BaseURI: server.URL, AccessToken: "token", CLIVersion: "test"})
+	return NewTransport("test").Client(Options{BaseURI: server.URL, AccessToken: "token"})
+}
+
+func TestTransportSharesOneHTTPClientWithEachClient(t *testing.T) {
+	transport := NewTransport("test")
+
+	first := transport.Client(Options{BaseURI: "https://one.example.com", AccessToken: "one"})
+	second := transport.Client(Options{BaseURI: "https://two.example.com", AccessToken: "two"})
+
+	require.NotNil(t, first.transport.httpClient)
+	assert.Same(t, first.transport.httpClient, second.transport.httpClient)
 }
 
 func TestClientVariationReadsParentConfig(t *testing.T) {
@@ -599,7 +609,7 @@ func TestClientReportsErrorResponsesAsTheResourcesClientDoes(t *testing.T) {
 				_, _ = writer.Write([]byte(test.body))
 			}))
 			t.Cleanup(server.Close)
-			client := NewClient(Options{BaseURI: server.URL, AccessToken: "token", CLIVersion: "test"})
+			client := NewTransport("test").Client(Options{BaseURI: server.URL, AccessToken: "token"})
 
 			_, err := client.do(http.MethodGet, server.URL+"/api/v2/projects", nil, nil)
 

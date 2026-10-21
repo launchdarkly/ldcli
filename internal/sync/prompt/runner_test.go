@@ -54,7 +54,7 @@ func TestRunnerBootstrapsMissingWorkspaceAndAddsToExistingWorkspace(t *testing.T
 			}
 
 			called := false
-			runner := NewRunner("test")
+			runner := NewRunner(syncapi.NewTransport("test"))
 			runner.bootstrap = func(options syncbootstrap.Options) error {
 				called = true
 				assert.Equal(t, test.wantInitial, options.Initial)
@@ -84,7 +84,7 @@ func TestRunnerBootstrapsMissingWorkspaceAndAddsToExistingWorkspace(t *testing.T
 }
 
 func TestRunnerRequiresGit(t *testing.T) {
-	runner := NewRunner("test")
+	runner := NewRunner(syncapi.NewTransport("test"))
 	called := false
 	runner.bootstrap = func(syncbootstrap.Options) error {
 		called = true
@@ -105,7 +105,7 @@ func TestRunnerRequiresGit(t *testing.T) {
 func TestRunnerWatchDoesNotRunInitialSync(t *testing.T) {
 	root := initGitRepository(t)
 	require.NoError(t, os.Mkdir(filepath.Join(root, syncdomain.RootDir), 0o755))
-	runner := NewRunner("test")
+	runner := NewRunner(syncapi.NewTransport("test"))
 	watchCalled := false
 	runner.watch = func(
 		_ context.Context,
@@ -135,7 +135,7 @@ func TestRunnerWatchDoesNotRunInitialSync(t *testing.T) {
 
 func TestRunnerLinksPrompt(t *testing.T) {
 	root := initGitRepository(t)
-	runner := NewRunner("test")
+	runner := NewRunner(syncapi.NewTransport("test"))
 	linkCalled := false
 	runner.link = func(options synclink.Options) (string, error) {
 		linkCalled = true
@@ -160,7 +160,7 @@ func TestRunnerLinksPrompt(t *testing.T) {
 
 func TestRunnerDetachesWithoutCallingTheAPI(t *testing.T) {
 	root := initGitRepository(t)
-	runner := NewRunner("test")
+	runner := NewRunner(syncapi.NewTransport("test"))
 	called := false
 	runner.detach = func(options syncdetach.Options) error {
 		called = true
@@ -190,7 +190,7 @@ func TestRunnerChecksAttachmentTerminalOnOutput(t *testing.T) {
 	var output, errorOutput strings.Builder
 	var checkedInput io.Reader
 	var checkedOutput io.Writer
-	runner := NewRunner("test")
+	runner := NewRunner(syncapi.NewTransport("test"))
 	runner.isTerminal = func(input io.Reader, output io.Writer) bool {
 		checkedInput = input
 		checkedOutput = output
@@ -320,7 +320,7 @@ func TestAttachPreservesOtherKinds(t *testing.T) {
 func newTestClient(t *testing.T, handler apitest.Handler) syncapi.Client {
 	t.Helper()
 	server := apitest.NewServer(t, handler)
-	return syncapi.NewClient(syncapi.Options{BaseURI: server.URL, AccessToken: "token", CLIVersion: "test"})
+	return syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL, AccessToken: "token"})
 }
 
 type emptyAttachmentClient struct{}

@@ -33,8 +33,8 @@ type syncWorkspace struct {
 
 // Runner runs the prompt sync commands. Tests replace its function fields.
 type Runner struct {
-	// cliVersion is the ldcli version that each LaunchDarkly request names.
-	cliVersion string
+	// transport sends each LaunchDarkly request.
+	transport  syncapi.Transport
 	bootstrap  func(syncbootstrap.Options) error
 	detach     func(syncdetach.Options) error
 	link       func(synclink.Options) (string, error)
@@ -42,11 +42,11 @@ type Runner struct {
 	isTerminal func(io.Reader, io.Writer) bool
 }
 
-// NewRunner creates a runner. Each LaunchDarkly request names cliVersion in
-// its User-Agent header.
-func NewRunner(cliVersion string) Runner {
+// NewRunner creates a runner. The runner sends each LaunchDarkly request
+// with transport.
+func NewRunner(transport syncapi.Transport) Runner {
 	return Runner{
-		cliVersion: cliVersion,
+		transport:  transport,
 		bootstrap:  syncbootstrap.Run,
 		detach:     syncdetach.Run,
 		link:       synclink.Run,
@@ -249,10 +249,9 @@ func (runner Runner) bootstrapOptions(
 
 // api returns the LaunchDarkly client for the command.
 func (runner Runner) api(options Options) syncapi.Client {
-	return syncapi.NewClient(syncapi.Options{
+	return runner.transport.Client(syncapi.Options{
 		BaseURI:     options.BaseURI,
 		AccessToken: options.AccessToken,
-		CLIVersion:  runner.cliVersion,
 		SyncSource:  options.syncSource,
 	})
 }

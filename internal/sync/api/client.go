@@ -21,13 +21,28 @@ const SyncSourceHeader = "LD-Sync-Source"
 // It is the same version that the resources client sends.
 const apiVersion = "20240415"
 
-// Options configure a Client.
+// Transport keeps the HTTP client and the User-Agent header that each sync
+// request uses. Create one Transport for each run of ldcli. Then create a
+// Client from it for each command.
+type Transport struct {
+	httpClient *http.Client
+	userAgent  string
+}
+
+// NewTransport creates a transport. The User-Agent header names cliVersion.
+// The HTTP client has no timeout, as the resources client does.
+func NewTransport(cliVersion string) Transport {
+	return Transport{
+		httpClient: &http.Client{},
+		userAgent:  fmt.Sprintf("launchdarkly-cli/v%s", cliVersion),
+	}
+}
+
+// Options are the values of one command that a Client uses.
 type Options struct {
 	// BaseURI is the LaunchDarkly URL, for example "https://app.launchdarkly.com".
 	BaseURI     string
 	AccessToken string
-	// CLIVersion is the ldcli version in the User-Agent header.
-	CLIVersion string
 	// SyncSource is the sync source of the repository, for example
 	// "git:github.com/acme/app". Each write sends it in SyncSourceHeader. If
 	// SyncSource is empty, a write sends no sync header.
@@ -36,21 +51,19 @@ type Options struct {
 
 // Client calls the LaunchDarkly REST API with one access token.
 type Client struct {
-	httpClient  *http.Client
+	transport   Transport
 	baseURI     string
 	accessToken string
-	userAgent   string
 	syncSource  string
 }
 
-// NewClient creates a client for the API at options.BaseURI. The HTTP client
-// has no timeout, as the resources client does.
-func NewClient(options Options) Client {
+// Client creates a client for the API at options.BaseURI. The client uses
+// the HTTP client of the transport.
+func (transport Transport) Client(options Options) Client {
 	return Client{
-		httpClient:  &http.Client{},
+		transport:   transport,
 		baseURI:     options.BaseURI,
 		accessToken: options.AccessToken,
-		userAgent:   fmt.Sprintf("launchdarkly-cli/v%s", options.CLIVersion),
 		syncSource:  options.SyncSource,
 	}
 }
@@ -117,7 +130,7 @@ func (client Client) do(method, endpoint string, query url.Values, body []byte) 
 		return nil, fmt.Errorf("build request: %w", err)
 	}
 	request.Header.Set("Authorization", client.accessToken)
-	request.Header.Set("User-Agent", client.userAgent)
+	request.Header.Set("User-Agent", client.transport.userAgent)
 	request.Header.Set("LD-API-Version", apiVersion)
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
@@ -127,7 +140,7 @@ func (client Client) do(method, endpoint string, query url.Values, body []byte) 
 	}
 	request.URL.RawQuery = query.Encode()
 
-	response, err := client.httpClient.Do(request)
+	response, err := client.transport.httpClient.Do(request)
 	if err != nil {
 		return nil, err
 	}

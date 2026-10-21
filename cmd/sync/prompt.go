@@ -13,6 +13,7 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/validators"
 	"github.com/launchdarkly/ldcli/internal/output"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	syncprompt "github.com/launchdarkly/ldcli/internal/sync/prompt"
 )
@@ -33,7 +34,7 @@ const (
 )
 
 // NewPromptCmd creates the prompt synchronization command.
-func NewPromptCmd(cliVersion string) *cobra.Command {
+func NewPromptCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prompts",
 		Short: "Synchronize local prompt variations with LaunchDarkly",
@@ -58,7 +59,7 @@ func NewPromptCmd(cliVersion string) *cobra.Command {
 			}
 			return validators.Validate()(cmd, args)
 		},
-		RunE: runPrompt(cliVersion, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, _ []string) (syncprompt.CommandAction, error) {
 			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
 			return syncprompt.SyncAction{DryRun: dryRun}, nil
 		}),
@@ -66,12 +67,12 @@ func NewPromptCmd(cliVersion string) *cobra.Command {
 
 	addApplyFlags(cmd, true)
 	cmd.AddCommand(
-		newWatchCmd(cliVersion),
-		newAddCmd(cliVersion),
-		newAttachCmd(cliVersion),
-		newDetachCmd(cliVersion),
-		newLinkCmd(cliVersion),
-		newSourceOfTruthCmd(cliVersion),
+		newWatchCmd(transport),
+		newAddCmd(transport),
+		newAttachCmd(transport),
+		newDetachCmd(transport),
+		newLinkCmd(transport),
+		newSourceOfTruthCmd(transport),
 	)
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
@@ -80,7 +81,7 @@ func NewPromptCmd(cliVersion string) *cobra.Command {
 
 type actionBuilder func(*cobra.Command, []string) (syncprompt.CommandAction, error)
 
-func runPrompt(cliVersion string, buildAction actionBuilder) func(*cobra.Command, []string) error {
+func runPrompt(transport syncapi.Transport, buildAction actionBuilder) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		workingDirectory, err := os.Getwd()
 		if err != nil {
@@ -98,7 +99,7 @@ func runPrompt(cliVersion string, buildAction actionBuilder) func(*cobra.Command
 		noInput, _ := cmd.Flags().GetBool(noInputFlag)
 		outputKind := cliflags.GetOutputKind(cmd)
 
-		err = syncprompt.NewRunner(cliVersion).Run(syncprompt.Options{
+		err = syncprompt.NewRunner(transport).Run(syncprompt.Options{
 			WorkingDirectory: workingDirectory,
 			AccessToken:      viper.GetString(cliflags.AccessTokenFlag),
 			BaseURI:          viper.GetString(cliflags.BaseURIFlag),
@@ -119,7 +120,7 @@ func runPrompt(cliVersion string, buildAction actionBuilder) func(*cobra.Command
 	}
 }
 
-func newWatchCmd(cliVersion string) *cobra.Command {
+func newWatchCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "watch",
 		Short: "Synchronize when managed files change",
@@ -129,7 +130,7 @@ func newWatchCmd(cliVersion string) *cobra.Command {
   # Apply watched changes without prompting and report unresolved conflicts
   ldcli sync prompts watch --yes --no-input`,
 		Args: validatedArgs(cobra.NoArgs),
-		RunE: runPrompt(cliVersion, func(*cobra.Command, []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(*cobra.Command, []string) (syncprompt.CommandAction, error) {
 			return syncprompt.SyncAction{Watch: true}, nil
 		}),
 	}
@@ -137,7 +138,7 @@ func newWatchCmd(cliVersion string) *cobra.Command {
 	return cmd
 }
 
-func newAddCmd(cliVersion string) *cobra.Command {
+func newAddCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add [project-key/config-key/variation-key...]",
 		Short: "Add prompt variations from LaunchDarkly",
@@ -162,7 +163,7 @@ func newAddCmd(cliVersion string) *cobra.Command {
   # Add multiple variations without prompting
   ldcli sync prompts add production/support/default production/chat/concise --source-of-truth code-only --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
-		RunE: runPrompt(cliVersion, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
 			if err != nil {
 				return nil, err
@@ -181,7 +182,7 @@ func newAddCmd(cliVersion string) *cobra.Command {
 	return cmd
 }
 
-func newAttachCmd(cliVersion string) *cobra.Command {
+func newAttachCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "attach",
 		Short: "Attach a tool or skill to a synced variation",
@@ -192,13 +193,13 @@ func newAttachCmd(cliVersion string) *cobra.Command {
   ldcli sync prompts attach skill summarize --to production/support/default --yes`,
 	}
 	cmd.AddCommand(
-		newAttachKindCmd(cliVersion, syncdomain.AttachmentTool),
-		newAttachKindCmd(cliVersion, syncdomain.AttachmentSkill),
+		newAttachKindCmd(transport, syncdomain.AttachmentTool),
+		newAttachKindCmd(transport, syncdomain.AttachmentSkill),
 	)
 	return cmd
 }
 
-func newAttachKindCmd(cliVersion string, kind syncdomain.AttachmentKind) *cobra.Command {
+func newAttachKindCmd(transport syncapi.Transport, kind syncdomain.AttachmentKind) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   string(kind) + " [key]",
 		Short: "Attach a " + string(kind) + " to a synced variation",
@@ -210,7 +211,7 @@ func newAttachKindCmd(cliVersion string, kind syncdomain.AttachmentKind) *cobra.
     --to production/support/default \
     --yes --no-input`, kind, kind, kind, kind),
 		Args: validatedArgs(cobra.MaximumNArgs(1)),
-		RunE: runPrompt(cliVersion, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			target, err := optionalVariationFlag(cmd, toFlag)
 			if err != nil {
 				return nil, err
@@ -227,7 +228,7 @@ func newAttachKindCmd(cliVersion string, kind syncdomain.AttachmentKind) *cobra.
 	return cmd
 }
 
-func newDetachCmd(cliVersion string) *cobra.Command {
+func newDetachCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "detach [project-key/config-key/variation-key...]",
 		Short: "Stop syncing local prompt variations",
@@ -243,7 +244,7 @@ func newDetachCmd(cliVersion string) *cobra.Command {
   # Stop syncing one variation and archive it in LaunchDarkly
   ldcli sync prompts detach production/support/default --archive --yes --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
-		RunE: runPrompt(cliVersion, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			variations, err := parseVariationSelectors(args)
 			if err != nil {
 				return nil, err
@@ -258,7 +259,7 @@ func newDetachCmd(cliVersion string) *cobra.Command {
 	return cmd
 }
 
-func newLinkCmd(cliVersion string) *cobra.Command {
+func newLinkCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "link <file>",
 		Short: "Link an external prompt file",
@@ -269,7 +270,7 @@ func newLinkCmd(cliVersion string) *cobra.Command {
     --model-config-key claude \
     --yes --no-input`,
 		Args: validatedArgs(cobra.ExactArgs(1)),
-		RunE: runPrompt(cliVersion, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			format, _ := cmd.Flags().GetString(formatFlag)
 			target, err := linkTarget(cmd)
 			if err != nil {
@@ -307,7 +308,7 @@ func validatedArgs(validate cobra.PositionalArgs) cobra.PositionalArgs {
 	}
 }
 
-func newSourceOfTruthCmd(cliVersion string) *cobra.Command {
+func newSourceOfTruthCmd(transport syncapi.Transport) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "source-of-truth <ui-and-code|code-only> <project-key/config-key/variation-key>...",
 		Short: "Change the source of truth of synced prompt variations",
@@ -322,7 +323,7 @@ func newSourceOfTruthCmd(cliVersion string) *cobra.Command {
   # Let the UI and the local file both change two variations
   ldcli sync prompts source-of-truth ui-and-code production/support/default production/chat/concise`,
 		Args: validatedArgs(cobra.MinimumNArgs(2)),
-		RunE: runPrompt(cliVersion, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
 			direction, err := syncdomain.ParseSourceOfTruth(args[0])
 			if err != nil {
 				return nil, err

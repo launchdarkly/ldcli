@@ -8,11 +8,12 @@ import (
 	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	resourcescmd "github.com/launchdarkly/ldcli/cmd/resources"
 	"github.com/launchdarkly/ldcli/internal/analytics"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 )
 
 // NewSyncCmd creates the parent command for synchronization workflows.
-// The cliVersion is the ldcli version that each LaunchDarkly request names.
-func NewSyncCmd(cliVersion string, analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
+// The transport sends each LaunchDarkly request of the sync commands.
+func NewSyncCmd(transport syncapi.Transport, analyticsTrackerFn analytics.TrackerFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Synchronize local resources with LaunchDarkly",
@@ -36,7 +37,7 @@ func NewSyncCmd(cliVersion string, analyticsTrackerFn analytics.TrackerFn) *cobr
 		},
 	}
 
-	cmd.AddCommand(NewPromptCmd(cliVersion))
+	cmd.AddCommand(NewPromptCmd(transport))
 	cmd.SetUsageTemplate(resourcescmd.SubcommandUsageTemplate())
 
 	return cmd

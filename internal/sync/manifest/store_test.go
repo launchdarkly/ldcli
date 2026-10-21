@@ -159,7 +159,7 @@ func uncertainPatchError(t *testing.T) error {
 	server := apitest.NewServer(t, func(apitest.Request) ([]byte, error) {
 		return nil, errors.New("connection reset")
 	})
-	client := syncapi.NewClient(syncapi.Options{BaseURI: server.URL, AccessToken: "token", CLIVersion: "test"})
+	client := syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL, AccessToken: "token"})
 	_, err := client.PatchSyncManifest("project", "source", nil, nil)
 	require.True(t, syncapi.MutationMayHaveSucceeded(err))
 	return err

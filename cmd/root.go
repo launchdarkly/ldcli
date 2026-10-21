@@ -42,6 +42,7 @@ import (
 	"github.com/launchdarkly/ldcli/internal/projects"
 	"github.com/launchdarkly/ldcli/internal/resources"
 	"github.com/launchdarkly/ldcli/internal/setup"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	"github.com/launchdarkly/ldcli/internal/update"
 )
 
@@ -52,6 +53,7 @@ type APIClients struct {
 	MembersClient      members.Client
 	ProjectsClient     projects.Client
 	ResourcesClient    resources.Client
+	SyncTransport      syncapi.Transport
 	Detector           setup.Detector
 	Installer          setup.Installer
 }
@@ -305,7 +307,7 @@ func NewRootCommand(
 	cmd.AddCommand(awsdevopsagentcmd.NewAWSDevOpsAgentCmd(analyticsTrackerFn))
 	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	cmd.AddCommand(symbolscmd.NewSymbolsCmd(clients.ResourcesClient, analyticsTrackerFn))
-	cmd.AddCommand(synccmd.NewSyncCmd(version, analyticsTrackerFn))
+	cmd.AddCommand(synccmd.NewSyncCmd(clients.SyncTransport, analyticsTrackerFn))
 	cmd.AddCommand(whoamicmd.NewWhoAmICmd(clients.ResourcesClient))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 
@@ -337,6 +339,7 @@ func Execute(version string) {
 		MembersClient:      members.NewClient(version),
 		ProjectsClient:     projects.NewClient(version),
 		ResourcesClient:    resources.NewClient(version),
+		SyncTransport:      syncapi.NewTransport(version),
 	}
 	configService := config.NewService(resources.NewClient(version))
 	trackerFn := analytics.ClientFn{

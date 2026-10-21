@@ -39,7 +39,7 @@ func newHeaderServer(t *testing.T) *headerServer {
 }
 
 func (recorder *headerServer) client(syncSource string) Client {
-	return NewClient(Options{BaseURI: recorder.url, AccessToken: "token", CLIVersion: "1.2.3", SyncSource: syncSource})
+	return NewTransport("1.2.3").Client(Options{BaseURI: recorder.url, AccessToken: "token", SyncSource: syncSource})
 }
 
 func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {

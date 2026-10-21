@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
@@ -256,7 +257,7 @@ func TestRunWorkspaceSyncAppliesConflictChoiceAfterRevalidation(t *testing.T) {
 	baseline, local, server := testVariation("baseline"), testVariation("local"), testVariation("server")
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server}
-	runner := NewRunner("test")
+	runner := NewRunner(syncapi.NewTransport("test"))
 	input := strings.NewReader("\x1b[B\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
@@ -281,7 +282,7 @@ func TestRunWorkspaceSyncAbortsConflictWithoutWriting(t *testing.T) {
 	baseline, local, server := testVariation("baseline"), testVariation("local"), testVariation("server")
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server}
-	runner := NewRunner("test")
+	runner := NewRunner(syncapi.NewTransport("test"))
 	input := strings.NewReader("\x1b[B\x1b[B\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
@@ -307,7 +308,7 @@ func TestRunWorkspaceSyncAbortsAttachmentConflictWithoutWriting(t *testing.T) {
 	baseline, local, server := attachmentConflictVariations()
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server, tool: server.Attachments[0]}
-	runner := NewRunner("test")
+	runner := NewRunner(syncapi.NewTransport("test"))
 	input := strings.NewReader("\x1b[B\x1b[B\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
@@ -338,7 +339,7 @@ func TestRunWorkspaceSyncUsesLaunchDarklyForAttachmentConflict(t *testing.T) {
 	baseline, local, server := attachmentConflictVariations()
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server, tool: server.Attachments[0]}
-	runner := NewRunner("test")
+	runner := NewRunner(syncapi.NewTransport("test"))
 	input := strings.NewReader("\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer

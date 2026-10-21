@@ -1386,7 +1386,7 @@ func runPrompt(t *testing.T, root string, client fakeAPI, arguments ...string) (
 	args = append(args, arguments...)
 	stdout, stderr, err := cmd.CallCmdCapturingStderr(
 		t,
-		cmd.APIClients{},
+		cmd.APIClients{SyncTransport: syncapi.NewTransport("test")},
 		analytics.NoopClientFn{}.Tracker(),
 		args,
 	)
