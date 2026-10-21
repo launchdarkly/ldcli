@@ -58,19 +58,23 @@ func (c countingReader) Read(p []byte) (int, error) {
 // errCreds acts like NewClients on an expired SSO token.
 var errCreds = fmt.Errorf("wrapped: %w: %w", awsdevops.ErrNoCredentials, &ssocreds.InvalidTokenError{})
 
-const ssoConfig = "[profile dev]\nregion = us-east-1\n\n[profile dev-admin]\nsso_session = corp\n\n[profile sso]\nsso_session = corp\n"
+const ssoSession = "\n[sso-session corp]\nsso_start_url = https://example.awsapps.com/start\nsso_region = us-east-1\n"
+
+const ssoConfig = "[profile dev]\nregion = us-east-1\n\n[profile dev-admin]\nsso_session = corp\n\n[profile sso]\nsso_session = corp\n\n" +
+	"[profile app]\nrole_arn = arn:aws:iam::123456789012:role/App\nsource_profile = sso\n" + ssoSession
 
 func newLoginTest(t *testing.T, answer string, results ...error) (*loginFake, ssoLogin) {
 	t.Helper()
 	t.Setenv("AWS_PROFILE", "")
 	t.Setenv("AWS_DEFAULT_PROFILE", "")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
 	path := filepath.Join(t.TempDir(), "config")
 	require.NoError(t, os.WriteFile(path, []byte(ssoConfig), 0o600))
+	t.Setenv("AWS_CONFIG_FILE", path)
 	f := &loginFake{results: results, prompted: &bytes.Buffer{}}
 
 	return f, ssoLogin{
 		newClients: f.newClients,
-		configPath: path,
 		in:         countingReader{f: f, r: strings.NewReader(answer)},
 		out:        f.prompted,
 		tty:        func() bool { return true },
@@ -218,12 +222,23 @@ func TestLoginSkipsWithoutProfile(t *testing.T) {
 // Without --profile or AWS_PROFILE, the SDK uses the default profile.
 func TestLoginOffersTheDefaultSSOProfile(t *testing.T) {
 	f, l := newLoginTest(t, "y\n", errCreds, nil)
-	require.NoError(t, os.WriteFile(l.configPath, []byte("[default]\nsso_session = corp\n"), 0o600))
+	require.NoError(t, os.WriteFile(os.Getenv("AWS_CONFIG_FILE"), []byte("[default]\nsso_session = corp\n"+ssoSession), 0o600))
 
 	_, err := l.clients(context.Background(), "", "")
 
 	require.NoError(t, err)
 	assert.Equal(t, [][]string{{"aws", "sso", "login", "--profile", "default"}}, f.runs)
+}
+
+// A role profile gets its credentials from its source profile, so the login
+// uses the source profile.
+func TestLoginUsesTheSourceProfile(t *testing.T) {
+	f, l := newLoginTest(t, "y\n", errCreds, nil)
+
+	_, err := l.clients(context.Background(), "", "app")
+
+	require.NoError(t, err)
+	assert.Equal(t, [][]string{{"aws", "sso", "login", "--profile", "sso"}}, f.runs)
 }
 
 func TestLoginUsesAWSProfileVariable(t *testing.T) {
@@ -316,7 +331,6 @@ func TestLoginAsksForARealSSOSessionProfile(t *testing.T) {
 	prompted := &bytes.Buffer{}
 	l := ssoLogin{
 		newClients: awsdevops.NewClients,
-		configPath: path,
 		in:         strings.NewReader("n\n"),
 		out:        prompted,
 		tty:        func() bool { return true },
