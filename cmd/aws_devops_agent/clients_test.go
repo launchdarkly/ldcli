@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -257,8 +258,8 @@ func TestLoginSkipsWhenFirstCallWorks(t *testing.T) {
 	assert.Equal(t, 1, f.calls)
 }
 
-// JSON runs never ask, like the setup plan.
-// The prompt goes to stderr, so stdout keeps only the JSON.
+// A JSON run in a terminal asks. The prompt goes to stderr, so stdout keeps
+// only the JSON.
 func TestLoginAsksInJSONModeInATerminal(t *testing.T) {
 	viper.Set(cliflags.OutputFlag, "json")
 	t.Cleanup(func() { viper.Set(cliflags.OutputFlag, "") })
@@ -267,6 +268,17 @@ func TestLoginAsksInJSONModeInATerminal(t *testing.T) {
 	l := newSSOLogin(cmd, func() bool { return true })
 
 	assert.True(t, l.interactive())
+}
+
+// --yes means no questions, so a run with it does not offer the login.
+func TestLoginDoesNotAskWithYes(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().Bool(yesFlag, false, "")
+	require.NoError(t, cmd.Flags().Set(yesFlag, "true"))
+
+	l := newSSOLogin(cmd, func() bool { return true })
+
+	assert.False(t, l.interactive())
 }
 
 // aws configure sso writes an sso_session profile. The real SDK error for a

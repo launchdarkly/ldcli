@@ -283,3 +283,37 @@ func TestSSOTokenInvalidIgnoresOtherErrors(t *testing.T) {
 	assert.False(t, SSOTokenInvalid(nil))
 	assert.False(t, SSOTokenInvalid(errors.New("ForbiddenException: No access")))
 }
+
+// A credential_process that prints a line before the JSON makes the SDK copy
+// all of its output, with the secret key, into the cause.
+func TestCredentialErrorHidesTheProcessOutput(t *testing.T) {
+	dir := t.TempDir()
+	helper := filepath.Join(dir, "get-creds")
+	require.NoError(t, os.WriteFile(helper, []byte("#!/bin/sh\n"+
+		"echo 'warning: token cache refreshed'\n"+
+		`echo '{"Version":1,"AccessKeyId":"AKIAFAKEEXAMPLE","SecretAccessKey":"FAKE-SECRET-DO-NOT-USE"}'`+"\n"), 0o700))
+	writeConfig(t, "[profile leak]\nregion = us-east-1\ncredential_process = "+helper+"\n")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
+	_, err := NewClients(context.Background(), "", "leak")
+
+	require.ErrorIs(t, err, ErrNoCredentials)
+	assert.NotContains(t, err.Error(), "FAKE-SECRET-DO-NOT-USE")
+	assert.NotContains(t, err.Error(), "AKIAFAKEEXAMPLE")
+	assert.Contains(t, err.Error(), `profile "leak"`)
+	assert.Contains(t, err.Error(), "credential_process output is not valid JSON")
+}
+
+// Other process errors do not hold the output, so the message keeps them.
+func TestCredentialErrorKeepsAProcessExitError(t *testing.T) {
+	dir := t.TempDir()
+	helper := filepath.Join(dir, "get-creds")
+	require.NoError(t, os.WriteFile(helper, []byte("#!/bin/sh\nexit 3\n"), 0o700))
+	writeConfig(t, "[profile ci]\nregion = us-east-1\ncredential_process = "+helper+"\n")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
+	_, err := NewClients(context.Background(), "", "ci")
+
+	require.ErrorIs(t, err, ErrNoCredentials)
+	assert.Contains(t, err.Error(), "exit status 3")
+}

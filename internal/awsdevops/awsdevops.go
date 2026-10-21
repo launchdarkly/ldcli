@@ -6,6 +6,7 @@ package awsdevops
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"strings"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/processcreds"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -178,9 +180,9 @@ func noCredentialsError(profile string, cause error) error {
 			sso, sso,
 		)
 	case useful && named:
-		msg = fmt.Sprintf("unable to get AWS credentials for profile %q: %v", selected, cause)
+		msg = fmt.Sprintf("unable to get AWS credentials for profile %q: %s", selected, causeText(cause))
 	case useful:
-		msg = fmt.Sprintf("unable to get AWS credentials: %v", cause)
+		msg = fmt.Sprintf("unable to get AWS credentials: %s", causeText(cause))
 	case chosen:
 		msg = fmt.Sprintf(
 			"profile %q has no AWS credentials. Add credentials to it, or pass --profile with another profile",
@@ -196,6 +198,25 @@ func noCredentialsError(profile string, cause error) error {
 	}
 
 	return &noCredsErr{msg: msg, cause: cause}
+}
+
+// causeText gives the cause for the message. If a credential_process prints
+// output that is not valid JSON, the SDK puts all of the output in the cause.
+// That output can contain the secret key, so the message does not show it.
+func causeText(cause error) string {
+	var process *processcreds.ProviderError
+	if !errors.As(cause, &process) {
+		return cause.Error()
+	}
+
+	var syntax *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(cause, &syntax) || errors.As(cause, &typeErr) ||
+		strings.Contains(cause.Error(), "process output:") {
+		return "the credential_process output is not valid JSON"
+	}
+
+	return cause.Error()
 }
 
 // fromIMDS reports a cause from the EC2 metadata service. The SDK tries it

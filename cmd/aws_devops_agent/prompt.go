@@ -69,6 +69,8 @@ func readSecret(in io.Reader) string {
 	return strings.TrimSpace(string(typed))
 }
 
-var canPrompt = func() bool {
-	return term.IsTerminal(int(os.Stdin.Fd()))
+// canPrompt reports a terminal on stdin and stderr. The prompts go to stderr,
+// so a run with stderr sent to a file does not wait for an answer.
+func canPrompt() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stderr.Fd()))
 }
