@@ -145,6 +145,8 @@ func TestBuildPlanSourceOfTruthMatrix(t *testing.T) {
 			expectation{action: ActionUpdateLocal}},
 		{"LaunchDarkly changed the prompt and other settings, code", true, &baseline, &serverPromptAndSettings, false, code,
 			expectation{action: ActionUpdateBoth, reverts: true}},
+		{"local changed the prompt and other settings, LaunchDarkly unchanged, code", true, &localPromptAndSettings, &baseline, false, code,
+			expectation{action: ActionUpdateServer}},
 		{"local changed the prompt, LaunchDarkly changed other settings, code", true, &localChange, &serverSettings, false, code,
 			expectation{action: ActionUpdateBoth}},
 		{"local changed other settings, LaunchDarkly changed the prompt, code", true, &localSettings, &serverChange, false, code,

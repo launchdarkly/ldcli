@@ -259,6 +259,8 @@ func revertsServer(resource PlannedResource) bool {
 		return false
 	case resource.Server == nil:
 		return resource.BaselineFingerprint != ""
+	case resource.ServerFingerprint == resource.BaselineFingerprint:
+		return false
 	default:
 		// When the swapped variation matches the baseline, LaunchDarkly did not change the prompt.
 		return resource.MergedFingerprint != resource.ServerFingerprint &&
