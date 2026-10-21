@@ -642,6 +642,12 @@ func setupOptions(cmd *cobra.Command) (awsdevops.SetupOptions, error) {
 	default:
 		return opts, fmt.Errorf("--%s must be iam, idc or idp", authFlowFlag)
 	}
+	// The replacement token comes from the flag, LD_ACCESS_TOKEN, or the ldcli
+	// configuration. Setup does not ask for one, so without one the flag does
+	// nothing.
+	if opts.ReplaceMCPToken && opts.LDAccessToken == "" {
+		return opts, fmt.Errorf("--%s needs a token. Pass --%s", replaceMCPTokenFlag, cliflags.AccessTokenFlag)
+	}
 
 	return opts, nil
 }
