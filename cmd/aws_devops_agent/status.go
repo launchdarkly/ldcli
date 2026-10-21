@@ -125,7 +125,10 @@ func associationLabel(status awsdevops.Status, serviceID string) string {
 
 func serviceLabel(service awsdevops.ServiceStatus) string {
 	kind := service.ServiceType
-	if kind == "mcpserver" {
+	// The SDK has one type for each MCP server vendor, for example
+	// mcpserverdatadog. The name tells the vendor, so all of them are
+	// "MCP server".
+	if strings.HasPrefix(kind, "mcpserver") {
 		kind = "MCP server"
 	}
 

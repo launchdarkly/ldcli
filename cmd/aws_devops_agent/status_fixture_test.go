@@ -24,3 +24,22 @@ func realisticStatus() awsdevops.Status {
 		}},
 	}
 }
+
+// partialStatus is a setup that did not finish. It sets the fields that
+// realisticStatus leaves empty, so the JSON test covers them.
+func partialStatus() awsdevops.Status {
+	return awsdevops.Status{
+		AccountID: "123456789012",
+		Region:    "us-east-1",
+		Roles: []awsdevops.RoleStatus{
+			{Name: awsdevops.AgentSpaceRoleName, ARN: "arn:aws:iam::123456789012:role/" + awsdevops.AgentSpaceRoleName, Exists: true},
+			{Name: awsdevops.OperatorAppRoleName},
+		},
+		AgentSpaces: []awsdevops.AgentSpaceStatus{{
+			AgentSpaceID:   "as-prod01",
+			Name:           "Production",
+			OperatorAppURL: awsdevops.OperatorAppURL("as-prod01"),
+		}},
+		MissingSetup: []string{"IAM role " + awsdevops.OperatorAppRoleName + " does not exist"},
+	}
+}

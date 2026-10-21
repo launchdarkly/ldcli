@@ -70,8 +70,23 @@ func TestStatusAssociationShowsPlainState(t *testing.T) {
 
 	assert.Contains(t, lineWith(t, section, "AWS account"), "ready")
 	mcp := lineWith(t, section, "LaunchDarkly")
+	assert.Contains(t, mcp, "waiting for confirmation")
 	assert.NotContains(t, mcp, "pending-confirmation")
-	assert.NotContains(t, mcp, "ready")
+}
+
+func TestStatusPlainStateNamesEachState(t *testing.T) {
+	cases := map[string]string{
+		"valid":                "ready",
+		"invalid":              "not valid",
+		"pending-confirmation": "waiting for confirmation",
+		"":                     "state unknown",
+		"new-state":            "new-state",
+	}
+	for raw, want := range cases {
+		t.Run(raw, func(t *testing.T) {
+			assert.Equal(t, want, plainState(raw))
+		})
+	}
 }
 
 func TestStatusPlaintextHasNoARN(t *testing.T) {
@@ -127,7 +142,8 @@ func TestStatusEmptyNamesSetupCommand(t *testing.T) {
 	}
 	out := renderStatus(empty)
 
-	assert.Contains(t, out, "ldcli aws-devops-agent setup")
+	assert.Contains(t, out, "Nothing is set up. Run ldcli aws-devops-agent setup.")
+	assert.NotContains(t, out, "IAM roles:")
 	assert.Contains(t, out, "123456789012")
 	assert.True(t, strings.HasSuffix(strings.TrimSpace(out), awsdevops.ConsoleURL("us-east-1")))
 }
@@ -148,6 +164,36 @@ func TestStatusOnlyServiceShowsService(t *testing.T) {
 	assert.Contains(t, out, "No agent spaces")
 }
 
+// One ready role is a setup that did not finish, not "nothing".
+func TestStatusOneRoleShowsTheRoles(t *testing.T) {
+	status := awsdevops.Status{
+		AccountID: "123456789012",
+		Region:    "us-east-1",
+		Roles: []awsdevops.RoleStatus{
+			{Name: awsdevops.AgentSpaceRoleName, Exists: true},
+			{Name: awsdevops.OperatorAppRoleName},
+		},
+	}
+	out := renderStatus(status)
+	lines := strings.Split(out, "\n")
+
+	assert.NotContains(t, out, "Nothing is set up")
+	assert.Contains(t, lineWith(t, lines, awsdevops.AgentSpaceRoleName), "ready")
+	assert.Contains(t, lineWith(t, lines, awsdevops.OperatorAppRoleName), "missing")
+	assert.Contains(t, out, "No agent spaces")
+}
+
+// Each MCP server type of a vendor is an MCP server.
+func TestStatusVendorMCPServerHasPlainLabel(t *testing.T) {
+	status := realisticStatus()
+	status.Services[0].ServiceType = "mcpserverdatadog"
+	status.Services[0].Name = "Datadog"
+	out := renderStatus(status)
+
+	assert.Contains(t, out, "Datadog MCP server (s-ld01)")
+	assert.NotContains(t, out, "mcpserverdatadog")
+}
+
 func TestStatusNoSpacesNamesSetupCommand(t *testing.T) {
 	status := realisticStatus()
 	status.AgentSpaces = nil
@@ -160,15 +206,23 @@ func TestStatusFullSetupOmitsSetupHint(t *testing.T) {
 }
 
 func TestStatusJSONUnchanged(t *testing.T) {
-	want, err := os.ReadFile("testdata/status.json")
-	require.NoError(t, err)
+	cases := map[string]awsdevops.Status{
+		"testdata/status.json":         realisticStatus(),
+		"testdata/status-partial.json": partialStatus(),
+	}
+	for path, status := range cases {
+		t.Run(path, func(t *testing.T) {
+			want, err := os.ReadFile(path)
+			require.NoError(t, err)
 
-	cmd := &cobra.Command{}
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	require.NoError(t, printJSON(cmd, realisticStatus()))
+			cmd := &cobra.Command{}
+			var out bytes.Buffer
+			cmd.SetOut(&out)
+			require.NoError(t, printJSON(cmd, status))
 
-	assert.JSONEq(t, string(want), out.String())
+			assert.JSONEq(t, string(want), out.String())
+		})
+	}
 }
 
 // A nameless service still gets a label.
