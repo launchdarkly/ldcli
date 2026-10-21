@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -57,7 +58,9 @@ type SetupOptions struct {
 	AgentSpaceName string
 	NewAgentSpace  bool
 
-	AuthFlow        string
+	AuthFlow string
+	// AuthFlowSet: the user passed --auth-flow.
+	AuthFlowSet     bool
 	IdcInstanceARN  string
 	IssuerURL       string
 	IdpClientID     string
@@ -92,6 +95,74 @@ type SetupResult struct {
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 }
 
+// RoleAction is what setup does to a role.
+type RoleAction int
+
+const (
+	RoleCreate RoleAction = iota
+	RoleUpdate
+	RoleLeave
+)
+
+// RoleStep is one planned role change.
+type RoleStep struct {
+	Name   string
+	Action RoleAction
+}
+
+func (s RoleStep) describe() string {
+	switch s.Action {
+	case RoleCreate:
+		return "Create role " + s.Name
+	case RoleUpdate:
+		return fmt.Sprintf("Update the trust policy and permissions of role %s", s.Name)
+	default:
+		return fmt.Sprintf("Leave role %s unchanged because it has no %s tag", s.Name, ManagedTagKey)
+	}
+}
+
+// SpaceAction is the planned space action.
+type SpaceAction int
+
+const (
+	SpaceCreate SpaceAction = iota
+	SpaceReuse
+	SpaceConnect
+)
+
+// SpaceStep is the planned agent space action.
+type SpaceStep struct {
+	Action SpaceAction
+	ID     string
+	Name   string
+}
+
+func (s SpaceStep) describe() string {
+	label := fmt.Sprintf("%s (%s)", s.Name, s.ID)
+	switch s.Action {
+	case SpaceCreate:
+		return "Create agent space " + s.Name
+	case SpaceConnect:
+		return "Connect to agent space " + label
+	default:
+		return "Reuse agent space " + label
+	}
+}
+
+// LinkStep is the planned account association.
+type LinkStep struct {
+	// Exists means the association was there.
+	Exists bool
+}
+
+func (l LinkStep) describe(accountID string) string {
+	if l.Exists {
+		return fmt.Sprintf("Keep the AWS account %s association", accountID)
+	}
+
+	return fmt.Sprintf("Associate AWS account %s with the agent space", accountID)
+}
+
 // AppAction is the planned operator app action.
 type AppAction int
 
@@ -107,6 +178,37 @@ type AppStep struct {
 	URL    string
 	// Flow is the sign-in at plan time.
 	Flow string
+}
+
+func (a AppStep) describe(flow string) string {
+	switch a.Action {
+	case AppKeep:
+		return "Keep the operator app and its sign-in"
+	case AppChange:
+		switch {
+		case a.Flow == flow && flow == "iam":
+			return "Set the operator app sign-in to IAM again"
+		case a.Flow == flow:
+			return fmt.Sprintf("Update the operator app %s sign-in settings", flowLabel(flow))
+		}
+
+		// Name the current sign-in, so a change to a sign-in that someone
+		// else set up is visible in the plan.
+		return fmt.Sprintf("Change the operator app sign-in from %s to %s", flowLabel(a.Flow), flowLabel(flow))
+	default:
+		return fmt.Sprintf("Enable the operator app with %s sign-in", flowLabel(flow))
+	}
+}
+
+func flowLabel(flow string) string {
+	switch flow {
+	case "idc":
+		return "IdC"
+	case "idp":
+		return "IdP"
+	default:
+		return "IAM"
+	}
 }
 
 // appState reads the app. Flow "" means off. The space must exist. AWS sends
@@ -132,6 +234,315 @@ func appState(ctx context.Context, clients Clients, spaceID string) (AppStep, er
 	}
 
 	return state, nil
+}
+
+func planApp(ctx context.Context, clients Clients, opts SetupOptions, space SpaceStep) (AppStep, error) {
+	if space.Action == SpaceCreate {
+		return AppStep{Action: AppEnable}, nil
+	}
+	state, err := appState(ctx, clients, space.ID)
+	switch {
+	case err != nil:
+		return AppStep{}, err
+	case state.Flow == "":
+		return AppStep{Action: AppEnable}, nil
+	case opts.AuthFlowSet:
+		state.Action = AppChange
+	default:
+		state.Action = AppKeep
+	}
+
+	return state, nil
+}
+
+// MCPAction is the planned MCP server action.
+type MCPAction int
+
+const (
+	MCPRegister MCPAction = iota
+	MCPReuse
+	MCPReplace
+	MCPAsk
+	// MCPSkip means that the user gave no token, so the run skips the server.
+	MCPSkip
+)
+
+// MCPStep is the planned MCP server step.
+type MCPStep struct {
+	Action    MCPAction
+	ServiceID string
+	// Endpoint is the URL that the server serves.
+	Endpoint string
+	// Name is the name of an existing server in AWS. The customer can change
+	// it, so it can differ from MCPServerName.
+	Name string
+	// Spaces lists spaces linked to the server.
+	Spaces []string
+}
+
+// SetupPlan describes what setup will change. It holds only the steps. Text
+// describes them, so the printed plan cannot disagree with the steps.
+type SetupPlan struct {
+	AccountID string
+	Region    string
+	Space     SpaceStep
+	// Link is set only in a full setup plan. A connect plan does not read or
+	// change the account association.
+	Link      LinkStep
+	RoleSteps []RoleStep
+	// App is the operator app at plan time. In a connect plan, its Action is
+	// AppKeep and its Flow is the current sign-in, which the run reports.
+	App AppStep
+	// AuthFlow is the sign-in that a full setup sets.
+	AuthFlow string
+	MCP      MCPStep
+}
+
+// PlanText is the plan as lines for a person to read.
+type PlanText struct {
+	AgentSpace  string
+	Association string
+	Roles       []string
+	OperatorApp string
+	MCPServer   string
+}
+
+// Text describes each step of the plan.
+func (p SetupPlan) Text() PlanText {
+	text := PlanText{AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe()}
+	if p.Space.Action == SpaceConnect {
+		text.Association = "No change"
+		text.Roles = []string{"No change"}
+		text.OperatorApp = "No change"
+		if p.App.Flow == "" {
+			text.OperatorApp = "No change. The operator app is off"
+		}
+
+		return text
+	}
+	text.Association = p.Link.describe(p.AccountID)
+	for _, step := range p.RoleSteps {
+		text.Roles = append(text.Roles, step.describe())
+	}
+	text.OperatorApp = p.App.describe(p.AuthFlow)
+
+	return text
+}
+
+// PlanSetup describes a run without changing AWS.
+func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (SetupPlan, error) {
+	accountID, err := clients.AccountID(ctx)
+	if err != nil {
+		return SetupPlan{}, err
+	}
+	plan := SetupPlan{AccountID: accountID, Region: clients.Region}
+
+	plan.Space, err = planAgentSpace(ctx, clients, opts, provision)
+	if err != nil {
+		return plan, err
+	}
+
+	plan.MCP, err = planMCPStep(ctx, clients, opts)
+	if err != nil {
+		return plan, err
+	}
+
+	if !provision {
+		// Read the app, so the run does not print a URL that does not work.
+		plan.App, err = appState(ctx, clients, plan.Space.ID)
+		if err != nil {
+			return plan, err
+		}
+		plan.App.Action = AppKeep
+
+		return plan, nil
+	}
+	plan.AuthFlow = opts.AuthFlow
+	if plan.Space.Action != SpaceCreate {
+		id, err := FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
+		if err != nil {
+			return plan, err
+		}
+		plan.Link.Exists = id != ""
+	}
+	for _, name := range []string{AgentSpaceRoleName, OperatorAppRoleName} {
+		step, err := planRole(ctx, clients.IAM, name)
+		if err != nil {
+			return plan, err
+		}
+		plan.RoleSteps = append(plan.RoleSteps, step)
+	}
+	plan.App, err = planApp(ctx, clients, opts, plan.Space)
+	if err != nil {
+		return plan, err
+	}
+
+	return plan, nil
+}
+
+// planRole says what setup will do to a role.
+func planRole(ctx context.Context, client IAMAPI, name string) (RoleStep, error) {
+	_, err := client.GetRole(ctx, &iam.GetRoleInput{RoleName: aws.String(name)})
+	var missing *iamtypes.NoSuchEntityException
+	switch {
+	case errors.As(err, &missing):
+		return RoleStep{Name: name, Action: RoleCreate}, nil
+	case err != nil:
+		return RoleStep{}, fmt.Errorf("unable to read the %s role: %w", name, err)
+	}
+
+	managed, err := isManagedRole(ctx, client, name)
+	if err != nil {
+		return RoleStep{}, err
+	}
+	if !managed {
+		return RoleStep{Name: name, Action: RoleLeave}, nil
+	}
+
+	return RoleStep{Name: name, Action: RoleUpdate}, nil
+}
+
+func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, provision bool) (SpaceStep, error) {
+	id := opts.AgentSpaceID
+	if id == "" {
+		seen, err := spacesNamed(ctx, clients, opts.AgentSpaceName)
+		switch {
+		case err != nil:
+			return SpaceStep{}, err
+		case len(seen) > 0 && opts.NewAgentSpace && provision:
+			// Two spaces with one name make the next run unable to pick.
+			return SpaceStep{}, fmt.Errorf(
+				"an agent space named %s already exists (%s). Pass --agent-space-name with another name",
+				opts.AgentSpaceName, strings.Join(seen, ", "),
+			)
+		case len(seen) > 1:
+			return SpaceStep{}, fmt.Errorf(
+				"%d agent spaces are named %s (%s). Pass --agent-space-id",
+				len(seen), opts.AgentSpaceName, strings.Join(seen, ", "),
+			)
+		case len(seen) == 1:
+			id = seen[0]
+		}
+	}
+	if id == "" && !provision {
+		// A connect run never creates a space.
+		if opts.AgentSpaceName == "" {
+			return SpaceStep{}, errors.New("no agent space to connect to. Pass --agent-space-id")
+		}
+
+		return SpaceStep{}, fmt.Errorf("no agent space named %s to connect to. Pass --agent-space-id", opts.AgentSpaceName)
+	}
+	if id == "" && opts.AgentSpaceName == "" {
+		return SpaceStep{}, errors.New("a new agent space needs a name. Pass --agent-space-name")
+	}
+	if id == "" {
+		return SpaceStep{Action: SpaceCreate, Name: opts.AgentSpaceName}, nil
+	}
+
+	space, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(id)})
+	if err != nil {
+		return SpaceStep{}, fmt.Errorf("unable to read agent space %s: %w", id, err)
+	}
+	step := SpaceStep{Action: SpaceReuse, ID: id, Name: aws.ToString(space.AgentSpace.Name)}
+	if !provision {
+		step.Action = SpaceConnect
+	}
+
+	return step, nil
+}
+
+func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions) (MCPStep, error) {
+	step, err := planMCPAction(ctx, clients, opts)
+	step.Endpoint = opts.mcpEndpoint()
+
+	return step, err
+}
+
+func planMCPAction(ctx context.Context, clients Clients, opts SetupOptions) (MCPStep, error) {
+	existing := opts.MCPServiceID
+	var name string
+	var err error
+	if existing != "" {
+		name, err = checkMCPServiceID(ctx, clients, existing, opts.mcpEndpoint())
+	} else {
+		existing, name, err = findMCPService(ctx, clients, opts.mcpEndpoint())
+	}
+	if err != nil {
+		return MCPStep{}, err
+	}
+
+	switch {
+	case existing != "" && opts.ReplaceMCPToken && opts.LDAccessToken != "":
+		spaces, err := spacesWith(ctx, clients, existing)
+		if err != nil {
+			return MCPStep{}, err
+		}
+
+		return MCPStep{Action: MCPReplace, ServiceID: existing, Name: name, Spaces: spaces}, nil
+	case existing != "":
+		return MCPStep{Action: MCPReuse, ServiceID: existing, Name: name}, nil
+	case opts.LDAccessToken != "":
+		return MCPStep{Action: MCPRegister}, nil
+	default:
+		return MCPStep{Action: MCPAsk}, nil
+	}
+}
+
+// checkMCPServiceID needs a registered MCP server at the LaunchDarkly
+// endpoint. Setup finds a LaunchDarkly MCP server by its endpoint, because the
+// name is the choice of the customer. A server at another endpoint is not one,
+// so setup does not connect it to the agent space.
+// It returns the name of the server.
+func checkMCPServiceID(ctx context.Context, clients Clients, id, endpoint string) (string, error) {
+	services, err := listServices(ctx, clients)
+	if err != nil {
+		return "", err
+	}
+	for _, service := range services {
+		if aws.ToString(service.ServiceId) != id || service.ServiceType != agenttypes.ServiceMcpServer {
+			continue
+		}
+		if served := mcpEndpointOf(service); served != endpoint {
+			return "", fmt.Errorf(
+				"MCP server %s serves %s, not the LaunchDarkly MCP server at %s. "+
+					"If it is a LaunchDarkly MCP server that you host, pass --mcp-endpoint %s",
+				id, served, endpoint, served,
+			)
+		}
+
+		return serviceName(service), nil
+	}
+
+	return "", fmt.Errorf("ID %s names no registered MCP server", id)
+}
+
+// name is the name of the server in AWS, or the name that setup registers.
+func (m MCPStep) name() string {
+	if m.Name != "" {
+		return m.Name
+	}
+
+	return MCPServerName
+}
+
+func (m MCPStep) describe() string {
+	switch m.Action {
+	case MCPReplace:
+		line := fmt.Sprintf("Replace the token of MCP server %s (%s)", m.name(), m.ServiceID)
+		if len(m.Spaces) > 0 {
+			line += ", reconnecting " + strings.Join(m.Spaces, ", ")
+		}
+
+		return line
+	case MCPReuse:
+		return fmt.Sprintf("Reuse MCP server %s (%s)", m.name(), m.ServiceID)
+	case MCPRegister:
+		return fmt.Sprintf("Register MCP server %s at %s", MCPServerName, m.Endpoint)
+	case MCPSkip:
+		return fmt.Sprintf("Skip MCP server %s, because no token was given", MCPServerName)
+	default:
+		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName)
+	}
 }
 
 // Setup provisions the IAM roles, agent space, service associations and the
@@ -445,6 +856,28 @@ func registerMCPServer(
 	}
 
 	return nil
+}
+
+// spacesWith lists spaces associated with serviceID.
+func spacesWith(ctx context.Context, clients Clients, serviceID string) ([]string, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, space := range spaces {
+		id := aws.ToString(space.AgentSpaceId)
+		link, err := FindAssociation(ctx, clients, id, serviceID)
+		if err != nil {
+			return nil, err
+		}
+		if link != "" {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+
+	return ids, nil
 }
 
 // disassociateEverywhere removes a service from every agent space that uses
