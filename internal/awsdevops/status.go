@@ -6,8 +6,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
+	agenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 )
+
+// AWSServiceID identifies the AWS account association.
+const AWSServiceID = awsServiceID
 
 // Status is a read-only view of what setup has provisioned so far.
 type Status struct {
@@ -42,6 +46,11 @@ type AssociationStatus struct {
 	AssociationID string `json:"associationId"`
 	ServiceID     string `json:"serviceId"`
 	Status        string `json:"status,omitempty"`
+	// AccountID and AccountType are set for an AWS account association.
+	// AccountType is "monitor" for the account of the agent space, and
+	// "source" for another account that the agent space can read.
+	AccountID   string `json:"accountId,omitempty"`
+	AccountType string `json:"accountType,omitempty"`
 }
 
 // GetStatus reports the IAM roles and agent spaces in the caller's account. It
@@ -108,10 +117,13 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 			return status, err
 		}
 		for _, association := range associations {
+			accountID, accountType := associationAccount(association.Configuration)
 			spaceStatus.Associations = append(spaceStatus.Associations, AssociationStatus{
 				AssociationID: aws.ToString(association.AssociationId),
 				ServiceID:     aws.ToString(association.ServiceId),
 				Status:        string(association.Status),
+				AccountID:     accountID,
+				AccountType:   accountType,
 			})
 		}
 
@@ -119,4 +131,18 @@ func GetStatus(ctx context.Context, clients Clients, agentSpaceID string) (Statu
 	}
 
 	return status, nil
+}
+
+// associationAccount returns the AWS account of an association. Each AWS
+// account association has the service ID "aws", so only the configuration
+// tells the accounts apart.
+func associationAccount(configuration agenttypes.ServiceConfiguration) (accountID, accountType string) {
+	switch c := configuration.(type) {
+	case *agenttypes.ServiceConfigurationMemberAws:
+		return aws.ToString(c.Value.AccountId), string(c.Value.AccountType)
+	case *agenttypes.ServiceConfigurationMemberSourceAws:
+		return aws.ToString(c.Value.AccountId), string(c.Value.AccountType)
+	}
+
+	return "", ""
 }
