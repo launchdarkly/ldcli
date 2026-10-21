@@ -406,10 +406,7 @@ func TestSetupReusesAgentSpaceAndAssociations(t *testing.T) {
 			AgentSpaceId: aws.String("space-existing"),
 			Name:         aws.String("launchdarkly"),
 		}},
-		associations: []agenttypes.Association{{
-			AssociationId: aws.String("assoc-aws"),
-			ServiceId:     aws.String("aws"),
-		}},
+		associations: []agenttypes.Association{monitorAssociation("assoc-aws", testAccountID)},
 	}
 
 	result, err := awsdevops.Setup(context.Background(), newTestClients(agent, newFakeIAM()), awsdevops.SetupOptions{

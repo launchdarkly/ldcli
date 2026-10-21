@@ -351,7 +351,77 @@ func TestPlanStopsOnTwoSpacesWithTheName(t *testing.T) {
 }
 
 func awsLink() []agenttypes.Association {
-	return []agenttypes.Association{{AssociationId: aws.String("assoc-aws"), ServiceId: aws.String("aws")}}
+	return []agenttypes.Association{monitorAssociation("assoc-aws", testAccountID)}
+}
+
+// monitorAssociation links an agent space to its own AWS account.
+func monitorAssociation(id, accountID string) agenttypes.Association {
+	return agenttypes.Association{
+		AssociationId: aws.String(id),
+		ServiceId:     aws.String("aws"),
+		Configuration: &agenttypes.ServiceConfigurationMemberAws{Value: agenttypes.AWSConfiguration{
+			AccountId:   aws.String(accountID),
+			AccountType: agenttypes.MonitorAccountTypeMonitor,
+		}},
+	}
+}
+
+// sourceAssociation links an agent space to another AWS account that it can
+// read. It has the service ID "aws" too.
+func sourceAssociation(id, accountID string) agenttypes.Association {
+	return agenttypes.Association{
+		AssociationId: aws.String(id),
+		ServiceId:     aws.String("aws"),
+		Configuration: &agenttypes.ServiceConfigurationMemberSourceAws{Value: agenttypes.SourceAwsConfiguration{
+			AccountId:   aws.String(accountID),
+			AccountType: agenttypes.SourceAccountTypeSource,
+		}},
+	}
+}
+
+// A link to another account is not the link to this account.
+func TestPlanAssociatesBesideAnotherAccount(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces:  []agenttypes.AgentSpace{namedSpace("space-7", "launchdarkly")},
+		associations: []agenttypes.Association{sourceAssociation("assoc-source", "210987654321")},
+	}
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), runPlanOptions(), true)
+
+	require.NoError(t, err)
+	assert.False(t, plan.Link.Exists)
+	assert.Equal(t, "Associate AWS account "+testAccountID+" with the agent space", plan.Text().Association)
+}
+
+func TestFindAWSAssociationMatchesOnlyTheMonitorOfTheAccount(t *testing.T) {
+	cases := map[string]struct {
+		associations []agenttypes.Association
+		want         string
+	}{
+		"monitor of this account": {
+			associations: []agenttypes.Association{
+				sourceAssociation("assoc-source", "210987654321"),
+				monitorAssociation("assoc-aws", testAccountID),
+			},
+			want: "assoc-aws",
+		},
+		"only another account":       {associations: []agenttypes.Association{sourceAssociation("assoc-source", testAccountID)}},
+		"monitor of another account": {associations: []agenttypes.Association{monitorAssociation("assoc-other", "210987654321")}},
+		"no configuration": {
+			associations: []agenttypes.Association{{AssociationId: aws.String("assoc-bare"), ServiceId: aws.String("aws")}},
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			agent := &fakeAgent{associations: tc.associations}
+
+			id, err := awsdevops.FindAWSAssociation(
+				context.Background(), newTestClients(agent, newFakeIAM()), "space-7", testAccountID)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, id)
+		})
+	}
 }
 
 func runPlanOptions() awsdevops.SetupOptions {
