@@ -430,13 +430,14 @@ func confirmSetup(cmd *cobra.Command, plan awsdevops.SetupPlan, ask bool) error 
 	_, _ = fmt.Fprintf(out, "  AWS account:   %s\n", plan.AccountID)
 	_, _ = fmt.Fprintf(out, "  Region:        %s\n", plan.Region)
 	_, _ = fmt.Fprintf(out, "  AWS profile:   %s\n", profileLabel(cmd))
-	for _, role := range plan.Roles {
+	text := plan.Text()
+	for _, role := range text.Roles {
 		_, _ = fmt.Fprintf(out, "  IAM role:      %s\n", role)
 	}
-	_, _ = fmt.Fprintf(out, "  Agent space:   %s\n", plan.AgentSpace)
-	_, _ = fmt.Fprintf(out, "  Association:   %s\n", plan.Association)
-	_, _ = fmt.Fprintf(out, "  Operator app:  %s\n", plan.OperatorApp)
-	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n\n", plan.MCPServer)
+	_, _ = fmt.Fprintf(out, "  Agent space:   %s\n", text.AgentSpace)
+	_, _ = fmt.Fprintf(out, "  Association:   %s\n", text.Association)
+	_, _ = fmt.Fprintf(out, "  Operator app:  %s\n", text.OperatorApp)
+	_, _ = fmt.Fprintf(out, "  MCP server:    %s\n\n", text.MCPServer)
 	if !ask {
 		return nil
 	}
@@ -578,7 +579,7 @@ func planWithToken(
 			"setup did not change AWS: without a token, there is nothing to do on agent space %s (%s). Pass --access-token",
 			plan.Space.Name, plan.Space.ID)
 	}
-	plan.MCPServer = fmt.Sprintf("Skip MCP server %s, because no token was given", awsdevops.MCPServerName)
+	plan.MCP.Action = awsdevops.MCPSkip
 
 	return plan, nil
 }
