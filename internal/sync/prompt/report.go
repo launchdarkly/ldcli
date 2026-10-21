@@ -1,9 +1,9 @@
 package prompt
 
 import (
-	"maps"
-	"slices"
+	"io"
 
+	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
@@ -15,21 +15,21 @@ const maxReportErrorLength = 1000
 // sendSyncReports sends one sync report for each project in outcomes. If a
 // report fails, it writes a warning to the error output. A failed report does
 // not change the result of the sync, so it returns nothing.
-func sendSyncReports(options Options, client syncapi.Client, outcomes []ResourceOutcome) {
-	if options.syncSource == "" {
-		return
-	}
-	byProject := make(map[string][]syncapi.SyncReportResource)
+func (workspace syncWorkspace) sendSyncReports(errorOutput io.Writer, outcomes []ResourceOutcome) {
+	ids := make([]ResourceID, 0, len(outcomes))
+	resources := make(map[ResourceID]syncapi.SyncReportResource, len(outcomes))
 	for _, outcome := range outcomes {
-		byProject[outcome.ID.ProjectKey] = append(byProject[outcome.ID.ProjectKey], reportResource(outcome))
+		ids = append(ids, outcome.ID)
+		resources[outcome.ID] = reportResource(outcome)
 	}
 
-	console := syncconsole.New(options.ErrorOutput)
-	for _, projectKey := range slices.Sorted(maps.Keys(byProject)) {
-		err := client.PostSyncReport(projectKey, syncapi.SyncReport{
-			Source:    options.syncSource,
-			Resources: byProject[projectKey],
-		})
+	console := syncconsole.New(errorOutput)
+	for projectKey, projectIDs := range syncdomain.GroupByProject(ids) {
+		report := syncapi.SyncReport{Source: workspace.source}
+		for _, id := range projectIDs {
+			report.Resources = append(report.Resources, resources[id])
+		}
+		err := workspace.api.PostSyncReport(projectKey, report)
 		if err != nil {
 			_ = console.Printf(
 				"Warning: sync did not send its report to LaunchDarkly for project %s: %s\n",

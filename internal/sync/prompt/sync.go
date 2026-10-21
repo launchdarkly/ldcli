@@ -20,7 +20,7 @@ import (
 // errRefreshWatchPlan, so that the watch loop builds a new plan.
 func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, watcher *sourceWatcher) error {
 	options = options.withDefaults()
-	client := runner.api(options)
+	client := workspace.api
 
 	var watched *watchedSources
 	if watcher != nil {
@@ -63,7 +63,7 @@ func (runner Runner) runWorkspaceSync(options Options, workspace syncWorkspace, 
 		if !resolved.HasChanges() {
 			// Every resource is already in sync. The report records that the
 			// repository still matches LaunchDarkly.
-			sendSyncReports(options, client, inSyncOutcomes(resolved))
+			workspace.sendSyncReports(options.ErrorOutput, inSyncOutcomes(resolved))
 			return cleanupOrphanedAttachments(options, workspace.local, interactive)
 		}
 		return nil
@@ -114,7 +114,7 @@ func (runner Runner) applyPlan(
 	}
 	// Send the report also when a write failed, so that LaunchDarkly shows
 	// the failure. A failed report does not change the result.
-	sendSyncReports(options, client, outcomes)
+	workspace.sendSyncReports(options.ErrorOutput, outcomes)
 	if err := workspace.local.RemoveEmptyDirectories(); err != nil {
 		failures = append(failures, err)
 	}

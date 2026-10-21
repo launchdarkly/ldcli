@@ -13,6 +13,7 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
@@ -73,11 +74,12 @@ func TestVariationChoicesReturnsLocalInspectionError(t *testing.T) {
 
 func TestRunRequiresTerminal(t *testing.T) {
 	err := Run(Options{
-		Catalog: &fakeCatalog{},
-		Store:   synclocal.NewStore(t.TempDir()),
-		Input:   bytes.NewBuffer(nil),
-		Output:  bytes.NewBuffer(nil),
-		Initial: true,
+		Settings: settingsAPI(t),
+		Catalog:  &fakeCatalog{},
+		Store:    synclocal.NewStore(t.TempDir()),
+		Input:    bytes.NewBuffer(nil),
+		Output:   bytes.NewBuffer(nil),
+		Initial:  true,
 	})
 
 	require.ErrorContains(
@@ -99,12 +101,13 @@ func TestRunUsesExplicitVariationSelectorsWithoutTerminal(t *testing.T) {
 	}}
 
 	err := Run(Options{
-		Catalog: catalog,
-		Store:   synclocal.NewStore(root),
-		Input:   bytes.NewBuffer(nil),
-		Output:  &output,
-		Initial: true,
-		DryRun:  true,
+		Settings: settingsAPI(t),
+		Catalog:  catalog,
+		Store:    synclocal.NewStore(root),
+		Input:    bytes.NewBuffer(nil),
+		Output:   &output,
+		Initial:  true,
+		DryRun:   true,
 		Selections: []syncdomain.ResourceID{{
 			Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
 		}},
@@ -119,10 +122,11 @@ func TestFinishSelectionDryRunDoesNotCreateFiles(t *testing.T) {
 	var output bytes.Buffer
 
 	err := finishSelection(Options{
-		Store:   synclocal.NewStore(root),
-		Output:  &output,
-		Initial: true,
-		DryRun:  true,
+		Settings: settingsAPI(t),
+		Store:    synclocal.NewStore(root),
+		Output:   &output,
+		Initial:  true,
+		DryRun:   true,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project",
 		ConfigKey:  "config",
@@ -176,6 +180,7 @@ func TestFinishSelectionWritesInitialManifest(t *testing.T) {
 	secondVariation.Name = "Variation 2"
 
 	err := finishSelection(Options{
+		Settings:  settingsAPI(t),
 		Store:     synclocal.NewStore(root),
 		Baselines: manifestStore,
 		Output:    &output,
@@ -222,7 +227,8 @@ func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 		Tools: []syncdomain.AttachmentRef{{Key: "search"}}, Attachments: []syncdomain.Attachment{localAttachment},
 	}
 	require.NoError(t, finishSelection(Options{
-		Store: store, Baselines: manifestStore, Output: io.Discard, Initial: true,
+		Settings: settingsAPI(t),
+		Store:    store, Baselines: manifestStore, Output: io.Discard, Initial: true,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project", ConfigKey: "config", Variation: first,
 	}}))
@@ -242,7 +248,8 @@ func TestFinishSelectionFingerprintsExistingAttachmentContent(t *testing.T) {
 		Tools: []syncdomain.AttachmentRef{{Key: "search"}}, Attachments: []syncdomain.Attachment{serverAttachment},
 	}
 	require.NoError(t, finishSelection(Options{
-		Store: store, Baselines: manifestStore, Output: io.Discard,
+		Settings: settingsAPI(t),
+		Store:    store, Baselines: manifestStore, Output: io.Discard,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project", ConfigKey: "config", Variation: second,
 	}}))
@@ -287,13 +294,15 @@ func TestFinishSelectionAddsMultipleVersionedVariationsToExistingManifest(t *tes
 		ModelConfigKey: "model", ModelConfigVersion: 3,
 	}
 	require.NoError(t, finishSelection(Options{
-		Store: store, Baselines: manifestStore, Output: io.Discard, Initial: true,
+		Settings: settingsAPI(t),
+		Store:    store, Baselines: manifestStore, Output: io.Discard, Initial: true,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project", ConfigKey: "config", Variation: first,
 	}}))
 
 	require.NoError(t, finishSelection(Options{
-		Store: store, Baselines: manifestStore, Output: io.Discard,
+		Settings: settingsAPI(t),
+		Store:    store, Baselines: manifestStore, Output: io.Discard,
 	}, []synclocal.VariationFile{
 		{ProjectKey: "project", ConfigKey: "config", Variation: second},
 		{ProjectKey: "project", ConfigKey: "config", Variation: third},
@@ -320,6 +329,7 @@ func TestFinishSelectionRollsBackFilesWhenManifestWriteFails(t *testing.T) {
 	}
 
 	err := finishSelection(Options{
+		Settings:  settingsAPI(t),
 		Store:     synclocal.NewStore(root),
 		Baselines: failingManifestStore{},
 		Output:    io.Discard,
@@ -353,7 +363,8 @@ func TestFinishSelectionRollsBackNewAttachmentWithoutRemovingExistingWorkspace(t
 	}
 
 	err = finishSelection(Options{
-		Store: store, Baselines: failingManifestStore{}, Output: io.Discard,
+		Settings: settingsAPI(t),
+		Store:    store, Baselines: failingManifestStore{}, Output: io.Discard,
 	}, []synclocal.VariationFile{{
 		ProjectKey: "project", ConfigKey: "config", Variation: variation,
 	}})
@@ -452,4 +463,10 @@ func (store *memoryManifestStore) Save(_ syncmanifest.Baseline, next syncmanifes
 	next.Sort()
 	store.manifest = next
 	return syncmanifest.Baseline{Lock: next}, nil
+}
+
+// settingsAPI is a sync settings API that accepts each write.
+func settingsAPI(t *testing.T) syncapi.Client {
+	server := apitest.NewServer(t, func(apitest.Request) ([]byte, error) { return []byte(`{}`), nil })
+	return syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL})
 }

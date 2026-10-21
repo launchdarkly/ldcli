@@ -119,12 +119,11 @@ func TestClientResolveSourceOfTruthRejectsUnknownDirection(t *testing.T) {
 	require.ErrorContains(t, err, `unsupported sync direction "sideways"`)
 }
 
-func TestClientPatchSyncSettingsUpsertsExactRule(t *testing.T) {
+func TestClientSetSourceOfTruthUpsertsExactRule(t *testing.T) {
 	transport := &recordingServer{}
-	client := transport.client(t)
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support-bot", "default")}
 
-	err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil)
+	err := transport.client(t).SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthCodeOnly)
 
 	require.NoError(t, err)
 	require.Len(t, transport.Requests, 1)
@@ -138,12 +137,11 @@ func TestClientPatchSyncSettingsUpsertsExactRule(t *testing.T) {
 	}`, string(request.Body))
 }
 
-func TestClientPatchSyncSettingsDeletesExactRule(t *testing.T) {
+func TestClientDeleteSourceOfTruthDeletesExactRule(t *testing.T) {
 	transport := &recordingServer{}
-	client := transport.client(t)
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support-bot", "default")}
 
-	require.NoError(t, client.PatchSyncSettings("project", nil, ExactVariationPatterns(ids)))
+	require.NoError(t, transport.client(t).DeleteSourceOfTruth("project", ids))
 
 	require.Len(t, transport.Requests, 1)
 	assert.JSONEq(t, `{
@@ -152,39 +150,36 @@ func TestClientPatchSyncSettingsDeletesExactRule(t *testing.T) {
 	}`, string(transport.Requests[0].Body))
 }
 
-func TestClientPatchSyncSettingsSendsAtMostOneHundredRulesInEachList(t *testing.T) {
+func TestClientSetSourceOfTruthSendsAtMostOneHundredRules(t *testing.T) {
 	ids := make([]syncdomain.ResourceID, 0, 150)
 	for index := range 150 {
 		ids = append(ids, syncdomain.VariationID("project", "support", fmt.Sprintf("v%03d", index)))
 	}
 	transport := &recordingServer{}
-	client := transport.client(t)
 
-	require.NoError(t, client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil))
+	require.NoError(t, transport.client(t).SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthUIAndCode))
 
 	require.Len(t, transport.Requests, 2)
 	var first, second struct {
-		Upserts   []SyncSettingRule    `json:"upserts"`
-		Deletions []SyncSettingPattern `json:"deletions"`
+		Upserts []settingRule `json:"upserts"`
 	}
 	require.NoError(t, json.Unmarshal(transport.Requests[0].Body, &first))
 	require.NoError(t, json.Unmarshal(transport.Requests[1].Body, &second))
 	assert.Len(t, first.Upserts, 100)
 	assert.Len(t, second.Upserts, 50)
-	assert.Equal(t, "support/v100", second.Upserts[0].ResourcePattern)
-	assert.NotNil(t, second.Deletions)
+	assert.Equal(t, settingRule{ResourceKind: syncdomain.KindVariation, ResourcePattern: "support/v100", Direction: "both"}, second.Upserts[0])
 }
 
-func TestClientPatchSyncSettingsReturnsSentinelWhenNotFound(t *testing.T) {
+func TestClientSetSourceOfTruthReturnsSentinelWhenNotFound(t *testing.T) {
 	transport := &recordingServer{Err: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`)}
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
-	err := transport.client(t).PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil)
+	err := transport.client(t).SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthCodeOnly)
 
 	require.ErrorIs(t, err, ErrSyncSettingsUnavailable)
 }
 
-func TestClientPatchSyncSettingsReturnsOtherErrors(t *testing.T) {
+func TestClientDeleteSourceOfTruthReturnsOtherErrors(t *testing.T) {
 	for _, body := range []string{
 		`{"code":"forbidden","message":"Access denied","statusCode":403}`,
 		`{"code":"internal","message":"boom","statusCode":500}`,
@@ -192,7 +187,7 @@ func TestClientPatchSyncSettingsReturnsOtherErrors(t *testing.T) {
 		transport := &recordingServer{Err: lderrors.NewError(body)}
 		ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
-		err := transport.client(t).PatchSyncSettings("project", nil, ExactVariationPatterns(ids))
+		err := transport.client(t).DeleteSourceOfTruth("project", ids)
 
 		require.Error(t, err, body)
 		assert.NotErrorIs(t, err, ErrSyncSettingsUnavailable, body)

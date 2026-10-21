@@ -15,7 +15,7 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 	command := NewPromptCmd(syncapi.NewTransport("test"))
 
 	assert.Equal(t, "prompts", command.Use)
-	for _, name := range []string{"watch", "add", "attach", "detach", "link"} {
+	for _, name := range []string{"watch", "add", "attach", "detach", "link", "source-of-truth"} {
 		child, _, err := command.Find([]string{name})
 		require.NoError(t, err)
 		assert.Equal(t, name, child.Name())
@@ -41,14 +41,15 @@ func TestSyncCommandIncludesExamples(t *testing.T) {
 func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 	command := NewPromptCmd(syncapi.NewTransport("test"))
 	tests := map[string][]string{
-		"prompts":      {},
-		"watch":        {"watch"},
-		"add":          {"add"},
-		"attach":       {"attach"},
-		"attach tool":  {"attach", "tool"},
-		"attach skill": {"attach", "skill"},
-		"detach":       {"detach"},
-		"link":         {"link"},
+		"prompts":         {},
+		"watch":           {"watch"},
+		"add":             {"add"},
+		"attach":          {"attach"},
+		"attach tool":     {"attach", "tool"},
+		"attach skill":    {"attach", "skill"},
+		"detach":          {"detach"},
+		"link":            {"link"},
+		"source-of-truth": {"source-of-truth"},
 	}
 
 	for name, path := range tests {
@@ -77,6 +78,26 @@ func TestAttachSubcommandsAcceptOptionalKeyAndTarget(t *testing.T) {
 	assert.Equal(t, syncdomain.ResourceID{
 		Kind: syncdomain.KindVariation, ProjectKey: "project", LookupKey: "config/variation",
 	}, *target)
+}
+
+func TestAddNeedsSourceOfTruthWithNoInput(t *testing.T) {
+	command := NewPromptCmd(syncapi.NewTransport("test"))
+	add, _, err := command.Find([]string{"add"})
+	require.NoError(t, err)
+	require.NoError(t, add.ParseFlags([]string{"--no-input"}))
+
+	_, err = addAction(add, []string{"production/support/default"})
+	require.ErrorContains(t, err, "add needs a source of truth. Use --source-of-truth ui-and-code or code-only.")
+
+	require.NoError(t, add.ParseFlags([]string{"--dry-run"}))
+	_, err = addAction(add, []string{"production/support/default"})
+	require.NoError(t, err)
+}
+
+func TestParseVariationSelectorsRejectsDuplicates(t *testing.T) {
+	_, err := parseVariationSelectors([]string{"project/config/first", "project/config/first"})
+
+	require.ErrorContains(t, err, "variation project/config/first was selected more than once")
 }
 
 func TestParseVariationSelectorsRejectsAmbiguousValues(t *testing.T) {

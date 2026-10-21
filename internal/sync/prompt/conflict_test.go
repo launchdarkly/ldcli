@@ -264,10 +264,10 @@ func TestRunWorkspaceSyncAppliesConflictChoiceAfterRevalidation(t *testing.T) {
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: apitest.NewServer(t, api.serve).URL, Yes: true, Input: input,
+			Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
+		conflictWorkspace(t, root, localStore, manifestStore, api),
 		nil,
 	)
 
@@ -289,10 +289,10 @@ func TestRunWorkspaceSyncAbortsConflictWithoutWriting(t *testing.T) {
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: apitest.NewServer(t, api.serve).URL, Yes: true, Input: input,
+			Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
+		conflictWorkspace(t, root, localStore, manifestStore, api),
 		nil,
 	)
 
@@ -315,10 +315,10 @@ func TestRunWorkspaceSyncAbortsAttachmentConflictWithoutWriting(t *testing.T) {
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: apitest.NewServer(t, api.serve).URL, Yes: true, Input: input,
+			Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
+		conflictWorkspace(t, root, localStore, manifestStore, api),
 		nil,
 	)
 
@@ -346,10 +346,10 @@ func TestRunWorkspaceSyncUsesLaunchDarklyForAttachmentConflict(t *testing.T) {
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: apitest.NewServer(t, api.serve).URL, Yes: true, Input: input,
+			Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
-		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
+		conflictWorkspace(t, root, localStore, manifestStore, api),
 		nil,
 	)
 
@@ -491,6 +491,11 @@ func writeConflictWorkspace(t *testing.T, root string, baseline, local syncdomai
 		}},
 	}}
 	return localStore, manifestStore
+}
+
+func conflictWorkspace(t *testing.T, root string, local synclocal.Store, baselines syncmanifest.Baselines, api *conflictAPI) syncWorkspace {
+	client := syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: apitest.NewServer(t, api.serve).URL, AccessToken: "token"})
+	return syncWorkspace{root: root, api: client, local: local, baselines: baselines, warnedSettings: make(map[string]bool)}
 }
 
 type memoryManifestStore struct {

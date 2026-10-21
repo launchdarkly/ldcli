@@ -58,7 +58,7 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 	require.NoError(t, client.UpdateAttachment("project", tool))
 	_, err := client.PatchSyncManifest("project", source, nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil))
+	require.NoError(t, client.SetSourceOfTruth("project", ids, syncdomain.SourceOfTruthCodeOnly))
 	require.NoError(t, client.PostSyncReport("project", SyncReport{Source: source, Resources: []SyncReportResource{
 		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/helpful", Status: ReportStatusSucceeded},
 	}}))
@@ -99,13 +99,4 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 		assert.Equal(t, "launchdarkly-cli/v1.2.3", headers.Get("User-Agent"), read)
 		assert.Equal(t, "20240415", headers.Get("LD-API-Version"), read)
 	}
-}
-
-func TestClientSendsNoSyncHeaderWithoutSyncSource(t *testing.T) {
-	recorder := newHeaderServer(t)
-	update := "PATCH /api/v2/projects/project/ai-configs/support/variations/helpful"
-	variation := testVariation(syncdomain.VariationModeAgent)
-
-	require.NoError(t, discardVersion(recorder.client("").UpdateVariation("project", "support", variation)))
-	assert.Empty(t, recorder.headers[update].Values(SyncSourceHeader))
 }

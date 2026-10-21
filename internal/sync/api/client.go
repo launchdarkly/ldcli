@@ -135,7 +135,7 @@ func (client Client) do(method, endpoint string, query url.Values, body []byte) 
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
-	if method != http.MethodGet && client.syncSource != "" {
+	if method != http.MethodGet {
 		request.Header.Set(SyncSourceHeader, client.syncSource)
 	}
 	request.URL.RawQuery = query.Encode()

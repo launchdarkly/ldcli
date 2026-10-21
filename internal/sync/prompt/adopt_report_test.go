@@ -296,6 +296,24 @@ func TestPromptDetachWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	assert.False(t, exists)
 }
 
+func TestPromptDetachKeepsFilesWhenRuleDeleteFails(t *testing.T) {
+	root := initRepository(t)
+	baseline := variation("Baseline")
+	writeVariation(t, root, baseline, false)
+	writeManifest(t, root, baseline)
+	api := &directAPI{
+		variation:        pointer(baseline),
+		settingsPatchErr: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`),
+	}
+
+	_, _, err := runPrompt(t, root, api, "detach", "production/support/default", "--no-input")
+
+	require.ErrorContains(t, err, "boom")
+	exists, err := synclocal.NewStore(root).VariationExists("production", "support", "default")
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
+
 func TestPromptReportsWrittenVersion(t *testing.T) {
 	root := initRepository(t)
 	baseline, local := variation("Baseline"), variation("Local")

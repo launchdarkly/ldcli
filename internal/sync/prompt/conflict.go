@@ -294,10 +294,7 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 		resource := &resolved.Resources[index]
 		if resolution, ok := resolutions[resource.ID]; ok {
 			resource.Action = resolvedConflictAction(*resource, resolution)
-			if resource.Merged != nil {
-				resource.RevertsServer = resource.Action.changesServer() &&
-					resource.MergedFingerprint != resource.ServerFingerprint
-			}
+			resource.RevertsServer = revertsServer(*resource)
 		}
 	}
 	return resolved

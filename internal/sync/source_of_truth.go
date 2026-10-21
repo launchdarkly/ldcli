@@ -1,6 +1,9 @@
 package sync
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // SourceOfTruth is the side that can change the prompt of a synced variation.
 type SourceOfTruth string
@@ -11,6 +14,11 @@ const (
 	// SourceOfTruthCodeOnly lets only the local file change the prompt. The other settings sync both ways.
 	SourceOfTruthCodeOnly SourceOfTruth = "code-only"
 )
+
+// ErrNoSourceOfTruth means that add needs a source of truth and cannot ask for it.
+var ErrNoSourceOfTruth = errors.New("add needs a source of truth. Use --source-of-truth ui-and-code or code-only. " +
+	"With ui-and-code, the LaunchDarkly UI and the local files can both change the variations. " +
+	"With code-only, only the local files can change the prompts")
 
 // ParseSourceOfTruth returns the source of truth that value names.
 func ParseSourceOfTruth(value string) (SourceOfTruth, error) {

@@ -171,22 +171,22 @@ func planResource(
 
 	if resource.CodeOnly && resource.Local != nil && server.Variation != nil {
 		merged := server.Variation.WithPromptOf(*resource.Local)
-		if resource.MergedFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, merged); err != nil {
+		swapped := resource.Local.WithPromptOf(*server.Variation)
+		resource.MergedFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, merged)
+		if err == nil {
+			resource.swappedFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, swapped)
+		}
+		if err != nil {
 			return fail(fmt.Sprintf("invalid merged variation: %s", err))
 		}
 		resource.Merged = &merged
-		// The local settings with the LaunchDarkly prompt. When it matches the
-		// baseline, the local file changed only the prompt and LaunchDarkly
-		// changed only the other settings.
-		swapped := resource.Local.WithPromptOf(*server.Variation)
-		if resource.swappedFingerprint, err = syncdomain.FingerprintVariation(id.ProjectKey, id.LookupKey, swapped); err != nil {
-			return fail(fmt.Sprintf("invalid merged variation: %s", err))
-		}
 	}
 
-	choice := chooseAction(tracked, resource)
-	resource.Action, resource.Error = choice.action, choice.err
-	resource.RevertsServer = choice.revertsServer
+	resource.Action = chooseAction(tracked, resource)
+	if resource.Action == ActionError {
+		resource.Error = "variation does not exist in LaunchDarkly; set upsert: true to create it"
+	}
+	resource.RevertsServer = revertsServer(resource)
 	// The fingerprints do not include versions. If LaunchDarkly pins an older
 	// attachment version, sync updates the pin even when the content matches.
 	currentPins, latestPins, stalePins := attachmentPinDiff(resource.Server)
@@ -216,42 +216,23 @@ func planResource(
 	return resource
 }
 
-// actionChoice is the action for one resource and the reason for it.
-type actionChoice struct {
-	action        Action
-	err           string
-	revertsServer bool
-}
-
 // chooseAction finds which side changed, and then applies the source of
 // truth of the resource.
-func chooseAction(tracked bool, resource PlannedResource) actionChoice {
+func chooseAction(tracked bool, resource PlannedResource) Action {
 	action := chooseUIAndCodeAction(tracked, resource)
-	if resource.CodeOnly {
-		return chooseCodeOnlyAction(action, resource)
+	if !resource.CodeOnly {
+		return action
 	}
-	return withMissingServerError(actionChoice{action: action})
-}
-
-// chooseCodeOnlyAction makes the local prompt win. The other settings
-// sync in both directions. A missing local file is still restored, because
-// the working copy does not have it yet. A variation that is missing in
-// LaunchDarkly is created again from the local file.
-func chooseCodeOnlyAction(action Action, resource PlannedResource) actionChoice {
 	switch {
 	case action == ActionUpdateLocal && resource.Local != nil:
-		// Only LaunchDarkly changed.
 		return chooseCodeOnlyMerge(resource, false)
-	case action == ActionDeleteLocal:
+	case action == ActionDeleteLocal, action == ActionConflict && resource.Server == nil:
 		// The variation was archived in LaunchDarkly, so sync creates it again.
-		return actionChoice{action: ActionCreateServer, revertsServer: true}
-	case action == ActionConflict && resource.Server == nil:
-		return actionChoice{action: ActionCreateServer, revertsServer: true}
+		return ActionCreateServer
 	case action == ActionConflict:
-		// Both sides changed, or sync has no baseline.
 		return chooseCodeOnlyMerge(resource, true)
 	default:
-		return withMissingServerError(actionChoice{action: action})
+		return action
 	}
 }
 
@@ -260,41 +241,45 @@ func chooseCodeOnlyAction(action Action, resource PlannedResource) actionChoice 
 // from the local file when the other settings differ. bothChanged is true
 // when the local file also changed, so a difference in the other settings
 // is a conflict.
-func chooseCodeOnlyMerge(resource PlannedResource, bothChanged bool) actionChoice {
+func chooseCodeOnlyMerge(resource PlannedResource, bothChanged bool) Action {
 	promptDiffers := resource.MergedFingerprint != resource.ServerFingerprint
 	settingsDiffer := resource.MergedFingerprint != resource.LocalFingerprint
 	tracked := resource.BaselineFingerprint != ""
 	switch {
 	case bothChanged && tracked && resource.MergedFingerprint == resource.BaselineFingerprint:
 		// LaunchDarkly changed only the prompt, and the local file changed only
-		// the other settings. The local file has the result.
-		return actionChoice{action: ActionUpdateServer, revertsServer: true}
+		// the other settings.
+		return ActionUpdateServer
 	case bothChanged && tracked && resource.swappedFingerprint == resource.BaselineFingerprint:
 		// The local file changed only the prompt, and LaunchDarkly changed only
-		// the other settings. The merge has both changes.
-		return actionChoice{action: ActionUpdateBoth}
+		// the other settings.
+		return ActionUpdateBoth
 	case settingsDiffer && bothChanged:
-		// Both sides changed the other settings. The prompt is still decided:
-		// each conflict choice keeps the local prompt.
-		return actionChoice{action: ActionConflict}
+		return ActionConflict
 	case promptDiffers && settingsDiffer:
-		return actionChoice{action: ActionUpdateBoth, revertsServer: true}
+		return ActionUpdateBoth
 	case promptDiffers:
-		return actionChoice{action: ActionUpdateServer, revertsServer: true}
+		return ActionUpdateServer
 	case settingsDiffer:
-		// Only the other settings changed in LaunchDarkly, so the file follows.
-		return actionChoice{action: ActionUpdateLocal}
+		return ActionUpdateLocal
 	default:
-		return actionChoice{action: ActionUpdateManifest}
+		return ActionUpdateManifest
 	}
 }
 
-// withMissingServerError adds the error message to an ActionError choice.
-func withMissingServerError(choice actionChoice) actionChoice {
-	if choice.action == ActionError {
-		choice.err = "variation does not exist in LaunchDarkly; set upsert: true to create it"
+// revertsServer reports whether the action undoes a change that LaunchDarkly made
+// to a code-only variation: an archive or a prompt change.
+func revertsServer(resource PlannedResource) bool {
+	switch {
+	case !resource.CodeOnly || !resource.Action.changesServer():
+		return false
+	case resource.Server == nil:
+		return resource.BaselineFingerprint != ""
+	default:
+		// When the swapped variation matches the baseline, LaunchDarkly did not change the prompt.
+		return resource.MergedFingerprint != resource.ServerFingerprint &&
+			resource.swappedFingerprint != resource.BaselineFingerprint
 	}
-	return choice
 }
 
 // chooseUIAndCodeAction compares each fingerprint with the baseline to find which

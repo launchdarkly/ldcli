@@ -3,6 +3,7 @@ package sync
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -143,14 +144,8 @@ func newAddCmd(transport syncapi.Transport) *cobra.Command {
 		Use:   "add [project-key/config-key/variation-key...]",
 		Short: "Add prompt variations from LaunchDarkly",
 		Long: "Write LaunchDarkly prompt variations as local files, and start to sync them. " +
-			"Add also sets the source of truth of each variation with --source-of-truth. " +
-			"With ui-and-code, the LaunchDarkly UI and the local file can both change the variation, " +
-			"and sync asks which side to keep when both change it. " +
-			"With code-only, the local file is the source of truth for the prompt, " +
-			"and LaunchDarkly rejects each prompt change that does not come from sync. " +
-			"The other settings, such as the model and the tools, sync both ways. " +
-			"If you do not give --source-of-truth, add asks for it. With --no-input, add fails without it. " +
-			"A dry run does not need it.",
+			"With --source-of-truth ui-and-code, the LaunchDarkly UI and the local file can both change a variation. " +
+			"With code-only, only the local file can change the prompt, and the other settings sync both ways.",
 		Example: `  # Choose variations and the source of truth interactively
   ldcli sync prompts add
 
@@ -163,18 +158,7 @@ func newAddCmd(transport syncapi.Transport) *cobra.Command {
   # Add multiple variations without prompting
   ldcli sync prompts add production/support/default production/chat/concise --source-of-truth code-only --no-input`,
 		Args: validatedArgs(cobra.MinimumNArgs(0)),
-		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
-			variations, err := parseVariationSelectors(args)
-			if err != nil {
-				return nil, err
-			}
-			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-			sourceOfTruth, err := sourceOfTruthFlagValue(cmd)
-			if err != nil {
-				return nil, err
-			}
-			return syncprompt.AddAction{Variations: variations, DryRun: dryRun, SourceOfTruth: sourceOfTruth}, nil
-		}),
+		RunE: runPrompt(transport, addAction),
 	}
 	cmd.Flags().Bool(dryRunFlag, false, "Preview local files without creating them")
 	cmd.Flags().String(sourceOfTruthFlag, "", "The source of truth of the variations: ui-and-code or code-only")
@@ -338,12 +322,22 @@ func newSourceOfTruthCmd(transport syncapi.Transport) *cobra.Command {
 	return cmd
 }
 
-func sourceOfTruthFlagValue(cmd *cobra.Command) (syncdomain.SourceOfTruth, error) {
-	value, _ := cmd.Flags().GetString(sourceOfTruthFlag)
-	if value == "" {
-		return "", nil
+func addAction(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
+	variations, err := parseVariationSelectors(args)
+	if err != nil {
+		return nil, err
 	}
-	return syncdomain.ParseSourceOfTruth(value)
+	dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
+	noInput, _ := cmd.Flags().GetBool(noInputFlag)
+	action := syncprompt.AddAction{Variations: variations, DryRun: dryRun}
+	if value, _ := cmd.Flags().GetString(sourceOfTruthFlag); value != "" {
+		if action.SourceOfTruth, err = syncdomain.ParseSourceOfTruth(value); err != nil {
+			return nil, err
+		}
+	} else if noInput && !dryRun {
+		return nil, syncdomain.ErrNoSourceOfTruth
+	}
+	return action, nil
 }
 
 func parseVariationSelectors(values []string) ([]syncdomain.ResourceID, error) {
@@ -352,6 +346,9 @@ func parseVariationSelectors(values []string) ([]syncdomain.ResourceID, error) {
 		variation, err := syncdomain.ParseVariationSelector(value)
 		if err != nil {
 			return nil, err
+		}
+		if slices.Contains(variations, variation) {
+			return nil, fmt.Errorf("variation %s was selected more than once", variation)
 		}
 		variations = append(variations, variation)
 	}

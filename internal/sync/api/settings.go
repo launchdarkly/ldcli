@@ -9,8 +9,7 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-// maxSettingsResources is the largest number of resources that one sync
-// settings request can ask for.
+// maxSettingsResources is the largest number of resources in one sync settings request.
 const maxSettingsResources = 100
 
 // ErrSyncSettingsUnavailable means that the sync settings API of a project
@@ -57,9 +56,6 @@ func (client Client) resolveSourceOfTruthBatch(
 ) error {
 	query := url.Values{}
 	for _, id := range ids {
-		if id.ProjectKey != projectKey {
-			return fmt.Errorf("resource %s is not in project %q", id, projectKey)
-		}
 		query.Add("resources", string(id.Kind)+":"+id.LookupKey)
 		sources[id] = syncdomain.SourceOfTruthUIAndCode
 	}
@@ -117,43 +113,50 @@ func settingsPath(projectKey string) []string {
 	return projectPath(projectKey, "configs/sync/settings")
 }
 
-// maxSettingsPatchItems is the largest number of upserts, and also of
-// deletions, that one sync settings patch can send.
-const maxSettingsPatchItems = 100
-
-// SyncSettingRule is one explicit source of truth rule. ResourcePattern is a lookup
-// key, for example "support-bot/default", or a pattern such as
-// "support-bot/*".
-type SyncSettingRule struct {
-	ResourceKind    syncdomain.Kind `json:"resourceKind"`
-	ResourcePattern string          `json:"resourcePattern"`
-	Direction       string          `json:"direction"`
+// SettingsWriter writes the source of truth rules of variations.
+type SettingsWriter interface {
+	SetSourceOfTruth(projectKey string, ids []syncdomain.ResourceID, source syncdomain.SourceOfTruth) error
+	DeleteSourceOfTruth(projectKey string, ids []syncdomain.ResourceID) error
 }
 
-// SyncSettingPattern names one explicit rule to delete.
-type SyncSettingPattern struct {
+type settingRule struct {
 	ResourceKind    syncdomain.Kind `json:"resourceKind"`
 	ResourcePattern string          `json:"resourcePattern"`
+	Direction       string          `json:"direction,omitempty"`
 }
 
-// PatchSyncSettings creates or replaces each rule in upserts, and deletes each
-// rule in deletions. A deletion of a rule that does not exist does not fail.
-// If the API returns 404, the error wraps ErrSyncSettingsUnavailable.
-// Each request sends at most 100 upserts and 100 deletions.
-func (client Client) PatchSyncSettings(
-	projectKey string,
-	upserts []SyncSettingRule,
-	deletions []SyncSettingPattern,
-) error {
-	for start := 0; start < max(len(upserts), len(deletions)); start += maxSettingsPatchItems {
-		batchUpserts := batch(upserts, start, maxSettingsPatchItems)
-		batchDeletions := batch(deletions, start, maxSettingsPatchItems)
+// SetSourceOfTruth writes an exact sync settings rule with source for each
+// variation of one project. If the API returns 404, the error wraps
+// ErrSyncSettingsUnavailable.
+func (client Client) SetSourceOfTruth(projectKey string, ids []syncdomain.ResourceID, source syncdomain.SourceOfTruth) error {
+	return client.patchSettings(projectKey, ids, wireDirection(source))
+}
+
+// DeleteSourceOfTruth deletes the exact sync settings rule of each variation
+// of one project. A rule that does not exist is not an error. If the API
+// returns 404, the error wraps ErrSyncSettingsUnavailable.
+func (client Client) DeleteSourceOfTruth(projectKey string, ids []syncdomain.ResourceID) error {
+	return client.patchSettings(projectKey, ids, "")
+}
+
+// patchSettings upserts an exact rule with direction for each resource. If
+// direction is empty, it deletes the rule.
+func (client Client) patchSettings(projectKey string, ids []syncdomain.ResourceID, direction string) error {
+	for start := 0; start < len(ids); start += maxSettingsResources {
+		body := struct {
+			Upserts   []settingRule `json:"upserts"`
+			Deletions []settingRule `json:"deletions"`
+		}{Upserts: []settingRule{}, Deletions: []settingRule{}}
+		for _, id := range ids[start:min(start+maxSettingsResources, len(ids))] {
+			rule := settingRule{ResourceKind: id.Kind, ResourcePattern: id.LookupKey, Direction: direction}
+			if direction == "" {
+				body.Deletions = append(body.Deletions, rule)
+			} else {
+				body.Upserts = append(body.Upserts, rule)
+			}
+		}
 		_, err := client.mutate(mutation{
-			method: http.MethodPatch, action: "update", resource: "sync settings for project", key: projectKey,
-			body: struct {
-				Upserts   []SyncSettingRule    `json:"upserts"`
-				Deletions []SyncSettingPattern `json:"deletions"`
-			}{Upserts: batchUpserts, Deletions: batchDeletions},
+			method: http.MethodPatch, action: "update", resource: "sync settings for project", key: projectKey, body: body,
 		}, settingsPath(projectKey)...)
 		if settingsUnavailable(err) {
 			return fmt.Errorf("update sync settings for project %q: %w", projectKey, ErrSyncSettingsUnavailable)
@@ -163,34 +166,4 @@ func (client Client) PatchSyncSettings(
 		}
 	}
 	return nil
-}
-
-// ExactVariationRules returns one rule for each variation, with source.
-// The pattern of each rule is the lookup key of the variation, so that the
-// rule matches only that variation.
-func ExactVariationRules(ids []syncdomain.ResourceID, source syncdomain.SourceOfTruth) []SyncSettingRule {
-	rules := make([]SyncSettingRule, 0, len(ids))
-	for _, id := range ids {
-		rules = append(rules, SyncSettingRule{ResourceKind: id.Kind, ResourcePattern: id.LookupKey, Direction: wireDirection(source)})
-	}
-	return rules
-}
-
-// ExactVariationPatterns returns the pattern of the exact rule of each
-// variation.
-func ExactVariationPatterns(ids []syncdomain.ResourceID) []SyncSettingPattern {
-	patterns := make([]SyncSettingPattern, 0, len(ids))
-	for _, id := range ids {
-		patterns = append(patterns, SyncSettingPattern{ResourceKind: id.Kind, ResourcePattern: id.LookupKey})
-	}
-	return patterns
-}
-
-// batch returns the items from start, at most size items. It returns an
-// empty list, not nil, so that the JSON body has a list.
-func batch[T any](items []T, start, size int) []T {
-	if start >= len(items) {
-		return []T{}
-	}
-	return items[start:min(start+size, len(items))]
 }

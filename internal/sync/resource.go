@@ -6,6 +6,9 @@ package sync
 import (
 	"errors"
 	"fmt"
+	"iter"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -75,6 +78,22 @@ func CompareResourceIDs(left, right ResourceID) int {
 		return result
 	}
 	return strings.Compare(left.LookupKey, right.LookupKey)
+}
+
+// GroupByProject returns the resources of each project, in project key order.
+// The resources of a project keep their order.
+func GroupByProject(ids []ResourceID) iter.Seq2[string, []ResourceID] {
+	groups := make(map[string][]ResourceID)
+	for _, id := range ids {
+		groups[id.ProjectKey] = append(groups[id.ProjectKey], id)
+	}
+	return func(yield func(string, []ResourceID) bool) {
+		for _, projectKey := range slices.Sorted(maps.Keys(groups)) {
+			if !yield(projectKey, groups[projectKey]) {
+				return
+			}
+		}
+	}
 }
 
 // ValidateKey makes sure that a project, config, variation, or attachment key

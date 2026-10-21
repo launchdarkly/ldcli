@@ -128,17 +128,10 @@ func resolveCodeOnly(
 	client syncapi.Client,
 	ids map[ResourceID]struct{},
 ) (map[ResourceID]bool, []string, error) {
-	byProject := make(map[string][]ResourceID)
-	for id := range ids {
-		byProject[id.ProjectKey] = append(byProject[id.ProjectKey], id)
-	}
-	projectKeys := slices.Sorted(maps.Keys(byProject))
-
 	codeOnly := make(map[ResourceID]bool)
 	var noSettings []string
-	for _, projectKey := range projectKeys {
-		projectIDs := byProject[projectKey]
-		slices.SortFunc(projectIDs, syncdomain.CompareResourceIDs)
+	sorted := slices.SortedFunc(maps.Keys(ids), syncdomain.CompareResourceIDs)
+	for projectKey, projectIDs := range syncdomain.GroupByProject(sorted) {
 		sources, err := client.ResolveSourceOfTruth(projectKey, projectIDs)
 		switch {
 		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):

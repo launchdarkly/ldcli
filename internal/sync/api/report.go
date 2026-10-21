@@ -42,7 +42,7 @@ type SyncReportResource struct {
 func (client Client) PostSyncReport(projectKey string, report SyncReport) error {
 	for start := 0; start < len(report.Resources); start += MaxReportResources {
 		part := report
-		part.Resources = batch(report.Resources, start, MaxReportResources)
+		part.Resources = report.Resources[start:min(start+MaxReportResources, len(report.Resources))]
 		if _, err := client.mutate(mutation{
 			method: http.MethodPost, action: "send", resource: "sync report for project", key: projectKey, body: part,
 		}, projectPath(projectKey, "configs/sync/reports")...); err != nil {

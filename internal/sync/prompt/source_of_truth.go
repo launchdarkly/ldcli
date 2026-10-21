@@ -2,20 +2,15 @@ package prompt
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
-	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
 
-// runSourceOfTruth writes an exact sync settings rule for each selected
-// variation. Each variation must already have a local file, because the
-// source of truth applies only to a variation that the workspace syncs.
-func (runner Runner) runSourceOfTruth(options Options, workspace syncWorkspace, action SourceOfTruthAction) error {
-	byProject := make(map[string][]syncdomain.ResourceID)
-	var projectKeys []string
+// runSourceOfTruth writes the source of truth rule of each selected variation.
+// Each variation must already sync in the workspace.
+func runSourceOfTruth(options Options, workspace syncWorkspace, action SourceOfTruthAction) error {
 	for _, variation := range action.Variations {
 		configKey, variationKey, err := variation.VariationKeys()
 		if err != nil {
@@ -31,27 +26,19 @@ func (runner Runner) runSourceOfTruth(options Options, workspace syncWorkspace, 
 				variation, variation,
 			)
 		}
-		if slices.Contains(byProject[variation.ProjectKey], variation) {
-			return fmt.Errorf("variation %s was selected more than once", variation)
-		}
-		if _, ok := byProject[variation.ProjectKey]; !ok {
-			projectKeys = append(projectKeys, variation.ProjectKey)
-		}
-		byProject[variation.ProjectKey] = append(byProject[variation.ProjectKey], variation)
 	}
-	slices.Sort(projectKeys)
 
-	api := runner.api(options)
-	for index, projectKey := range projectKeys {
-		rules := syncapi.ExactVariationRules(byProject[projectKey], action.SourceOfTruth)
-		if err := api.PatchSyncSettings(projectKey, rules, nil); err != nil {
-			if index > 0 {
+	var changed []string
+	for projectKey, ids := range syncdomain.GroupByProject(action.Variations) {
+		if err := workspace.api.SetSourceOfTruth(projectKey, ids, action.SourceOfTruth); err != nil {
+			if len(changed) != 0 {
 				_ = syncconsole.New(options.ErrorOutput).Printf(
-					"The source of truth changed for project %s only.\n", strings.Join(projectKeys[:index], ", "),
+					"The source of truth changed for project %s only.\n", strings.Join(changed, ", "),
 				)
 			}
 			return err
 		}
+		changed = append(changed, projectKey)
 	}
 	return syncconsole.New(options.Output).Line(action.SourceOfTruth.Summary())
 }

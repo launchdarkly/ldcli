@@ -107,9 +107,6 @@ type Options struct {
 	Input       io.Reader
 	Output      io.Writer
 	ErrorOutput io.Writer
-	// syncSource is the repository that the command syncs. Run sets it, and
-	// each write to LaunchDarkly sends it.
-	syncSource string
 }
 
 // validateOptions rejects an action whose flags conflict.
