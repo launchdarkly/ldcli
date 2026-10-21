@@ -269,9 +269,10 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	if err != nil {
 		return err
 	}
-	// Write the rules before the files, so that add can run again after a failure.
-	written, err := writeSourceOfTruthRules(options, files)
+	// Write the rules before the files. If a later step fails, add deletes the rules again.
+	rules, written, err := writeSourceOfTruthRules(options, files)
 	if err != nil {
+		deleteSourceOfTruthRules(options, rules)
 		return err
 	}
 
@@ -282,6 +283,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 		creation, err = options.Store.Add(files)
 	}
 	if err != nil {
+		deleteSourceOfTruthRules(options, rules)
 		return err
 	}
 	next, err := recordCreatedVariations(baseline.Lock, options.Store, files)
@@ -289,6 +291,7 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 		_, err = options.Baselines.Save(baseline, next)
 	}
 	if err != nil {
+		deleteSourceOfTruthRules(options, rules)
 		return errors.Join(err, options.Store.RollbackCreation(creation))
 	}
 
@@ -299,12 +302,13 @@ func finishSelection(options Options, files []synclocal.VariationFile) error {
 	return nil
 }
 
-// writeSourceOfTruthRules reports whether every project has the rules.
-func writeSourceOfTruthRules(options Options, files []synclocal.VariationFile) (bool, error) {
+// writeSourceOfTruthRules returns the rules that it wrote, by project, and reports whether every project has the rules.
+func writeSourceOfTruthRules(options Options, files []synclocal.VariationFile) (map[string][]syncdomain.ResourceID, bool, error) {
 	ids := make([]syncdomain.ResourceID, 0, len(files))
 	for _, file := range files {
 		ids = append(ids, syncdomain.VariationID(file.ProjectKey, file.ConfigKey, file.Variation.Key))
 	}
+	rules := map[string][]syncdomain.ResourceID{}
 	written := true
 	for projectKey, projectIDs := range syncdomain.GroupByProject(ids) {
 		err := options.Settings.SetSourceOfTruth(projectKey, projectIDs, options.SourceOfTruth)
@@ -315,10 +319,30 @@ func writeSourceOfTruthRules(options Options, files []synclocal.VariationFile) (
 				syncapi.SettingsUnavailableWarning(projectKey, "Add did not set the source of truth of the variations."),
 			)
 		case err != nil:
-			return false, err
+			return rules, false, err
+		default:
+			rules[projectKey] = projectIDs
 		}
 	}
-	return written, nil
+	return rules, written, nil
+}
+
+// deleteSourceOfTruthRules removes the rules of a failed add. A failed delete only prints a warning,
+// so that the error of the add stays the error that the user sees.
+func deleteSourceOfTruthRules(options Options, rules map[string][]syncdomain.ResourceID) {
+	for projectKey, ids := range rules {
+		if err := options.Settings.DeleteSourceOfTruth(projectKey, ids); err != nil {
+			names := make([]string, 0, len(ids))
+			for _, id := range ids {
+				names = append(names, id.String())
+			}
+			_ = syncconsole.New(options.ErrorOutput).Printf(
+				"Add failed, and it could not remove the source of truth of %s: %v. "+
+					"To change the source of truth, use the variation menu in LaunchDarkly.\n",
+				strings.Join(names, ", "), err,
+			)
+		}
+	}
 }
 
 // recordCreatedVariations returns a copy of the manifest with a baseline for

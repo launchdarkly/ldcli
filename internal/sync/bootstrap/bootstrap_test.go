@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -469,4 +470,74 @@ func (store *memoryManifestStore) Save(_ syncmanifest.Baseline, next syncmanifes
 func settingsAPI(t *testing.T) syncapi.Client {
 	server := apitest.NewServer(t, func(apitest.Request) (int, []byte) { return http.StatusOK, []byte(`{}`) })
 	return syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL})
+}
+
+type settingsRecorder struct {
+	failProject string
+	bodies      map[string][]string
+}
+
+func (recorder *settingsRecorder) client(t *testing.T) syncapi.Client {
+	recorder.bodies = map[string][]string{}
+	server := apitest.NewServer(t, func(request apitest.Request) (int, []byte) {
+		projectKey := strings.Split(strings.TrimPrefix(request.Path, "/api/v2/projects/"), "/")[0]
+		if request.Method == http.MethodPatch && projectKey == recorder.failProject {
+			return http.StatusInternalServerError, []byte(`{"code":"internal","message":"boom"}`)
+		}
+		recorder.bodies[projectKey] = append(recorder.bodies[projectKey], string(request.Body))
+		return http.StatusOK, []byte(`{}`)
+	})
+	return syncapi.NewTransport("test").Client(syncapi.Options{BaseURI: server.URL})
+}
+
+func codeOnlyVariation(key string) syncdomain.Variation {
+	return syncdomain.Variation{Mode: syncdomain.VariationModeAgent, Key: key, Name: key, Instructions: "Be helpful."}
+}
+
+func TestFinishSelectionDeletesRulesWhenManifestWriteFails(t *testing.T) {
+	recorder := &settingsRecorder{}
+
+	err := finishSelection(Options{
+		Settings:      recorder.client(t),
+		Store:         synclocal.NewStore(t.TempDir()),
+		Baselines:     failingManifestStore{},
+		Output:        io.Discard,
+		ErrorOutput:   io.Discard,
+		Initial:       true,
+		SourceOfTruth: syncdomain.SourceOfTruthCodeOnly,
+	}, []synclocal.VariationFile{{ProjectKey: "project", ConfigKey: "config", Variation: codeOnlyVariation("variation")}})
+
+	require.ErrorContains(t, err, "write manifest")
+	require.Len(t, recorder.bodies["project"], 2)
+	assert.JSONEq(t, `{
+		"upserts": [],
+		"deletions": [{"resourceKind":"variation","resourcePattern":"config/variation"}]
+	}`, recorder.bodies["project"][1])
+}
+
+func TestFinishSelectionDeletesWrittenRulesWhenAnotherProjectFails(t *testing.T) {
+	recorder := &settingsRecorder{failProject: "staging"}
+	root := t.TempDir()
+
+	err := finishSelection(Options{
+		Settings:      recorder.client(t),
+		Store:         synclocal.NewStore(root),
+		Baselines:     &memoryManifestStore{manifest: syncmanifest.New()},
+		Output:        io.Discard,
+		ErrorOutput:   io.Discard,
+		Initial:       true,
+		SourceOfTruth: syncdomain.SourceOfTruthCodeOnly,
+	}, []synclocal.VariationFile{
+		{ProjectKey: "production", ConfigKey: "config", Variation: codeOnlyVariation("variation")},
+		{ProjectKey: "staging", ConfigKey: "config", Variation: codeOnlyVariation("variation")},
+	})
+
+	require.ErrorContains(t, err, "boom")
+	require.Len(t, recorder.bodies["production"], 2)
+	assert.JSONEq(t, `{
+		"upserts": [],
+		"deletions": [{"resourceKind":"variation","resourcePattern":"config/variation"}]
+	}`, recorder.bodies["production"][1])
+	_, statErr := os.Stat(filepath.Join(root, syncdomain.RootDir))
+	require.ErrorIs(t, statErr, os.ErrNotExist)
 }
