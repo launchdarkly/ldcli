@@ -92,6 +92,48 @@ type SetupResult struct {
 	MCPAssociationID   string `json:"mcpAssociationId,omitempty"`
 }
 
+// AppAction is the planned operator app action.
+type AppAction int
+
+const (
+	AppEnable AppAction = iota
+	AppKeep
+	AppChange
+)
+
+// AppStep is the planned operator app step.
+type AppStep struct {
+	Action AppAction
+	URL    string
+	// Flow is the sign-in at plan time.
+	Flow string
+}
+
+// appState reads the app. Flow "" means off. The space must exist. AWS sends
+// ResourceNotFoundException for an app that is off and for a space that does
+// not exist, so appState cannot tell the two apart.
+func appState(ctx context.Context, clients Clients, spaceID string) (AppStep, error) {
+	app, err := clients.Agent.GetOperatorApp(ctx, &devopsagent.GetOperatorAppInput{AgentSpaceId: aws.String(spaceID)})
+	var missing *agenttypes.ResourceNotFoundException
+	switch {
+	case errors.As(err, &missing):
+		return AppStep{}, nil
+	case err != nil:
+		return AppStep{}, fmt.Errorf("unable to read the operator app of agent space %s: %w", spaceID, err)
+	}
+	state := AppStep{URL: aws.ToString(app.OperatorAppUrl)}
+	switch {
+	case app.Idc != nil:
+		state.Flow = "idc"
+	case app.Idp != nil:
+		state.Flow = "idp"
+	case app.Iam != nil:
+		state.Flow = "iam"
+	}
+
+	return state, nil
+}
+
 // Setup provisions the IAM roles, agent space, service associations and the
 // MCP server the AWS DevOps Agent needs to manage LaunchDarkly flags.
 func Setup(ctx context.Context, clients Clients, opts SetupOptions) (SetupResult, error) {

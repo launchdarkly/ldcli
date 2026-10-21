@@ -16,7 +16,9 @@
     {
       "agentSpaceId": "as-prod01",
       "name": "Production",
-      "operatorAppUrl": "https://as-prod01.aidevops.global.app.aws"
+      "operatorAppUrl": "",
+      "operatorAppEnabled": false,
+      "operatorAppError": "AccessDeniedException"
     }
   ],
   "missingSetup": [

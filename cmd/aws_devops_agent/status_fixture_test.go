@@ -14,9 +14,10 @@ func realisticStatus() awsdevops.Status {
 			{ServiceID: "s-ld01", ServiceType: "mcpserver", Name: "LaunchDarkly"},
 		},
 		AgentSpaces: []awsdevops.AgentSpaceStatus{{
-			AgentSpaceID:   "as-prod01",
-			Name:           "Production",
-			OperatorAppURL: awsdevops.OperatorAppURL("as-prod01"),
+			AgentSpaceID:       "as-prod01",
+			Name:               "Production",
+			OperatorAppURL:     awsdevops.OperatorAppURL("as-prod01"),
+			OperatorAppEnabled: true,
 			Associations: []awsdevops.AssociationStatus{
 				{AssociationID: "a-001", ServiceID: "aws", Status: "valid", AccountID: "123456789012", AccountType: "monitor"},
 				{AssociationID: "a-002", ServiceID: "s-ld01", Status: "valid"},
@@ -36,9 +37,9 @@ func partialStatus() awsdevops.Status {
 			{Name: awsdevops.OperatorAppRoleName},
 		},
 		AgentSpaces: []awsdevops.AgentSpaceStatus{{
-			AgentSpaceID:   "as-prod01",
-			Name:           "Production",
-			OperatorAppURL: awsdevops.OperatorAppURL("as-prod01"),
+			AgentSpaceID:     "as-prod01",
+			Name:             "Production",
+			OperatorAppError: "AccessDeniedException",
 		}},
 		MissingSetup: []string{"IAM role " + awsdevops.OperatorAppRoleName + " does not exist"},
 	}

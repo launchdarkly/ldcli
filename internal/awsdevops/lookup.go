@@ -70,6 +70,112 @@ func listAssociations(ctx context.Context, clients Clients, agentSpaceID string)
 	}
 }
 
+// AgentSpaceSummary identifies an agent space the account already has, for a
+// caller that has to pick one.
+type AgentSpaceSummary struct {
+	AgentSpaceID string `json:"agentSpaceId"`
+	Name         string `json:"name"`
+	Description  string `json:"description,omitempty"`
+	// ManagedByLDCLI means that setup made the space.
+	ManagedByLDCLI bool `json:"managedByLdcli"`
+	// TagErr is set if setup could not read the tags of the space. The owner
+	// of the space is then unknown, and ManagedByLDCLI is false.
+	TagErr error `json:"-"`
+}
+
+// AgentSpaces lists the agent spaces in the account and region. A space that
+// setup made has the ldcli:managed tag. A user can change the description, so
+// only the tag counts. Each space costs one tag lookup.
+//
+// If a tag lookup fails, the summary of that space has TagErr, and the other
+// spaces stay in the list. Setup uses the tag to decide if it can change the
+// roles and the operator app of a space, so a caller must not use a space with
+// TagErr as if its owner is known. If every lookup fails, for example without
+// aidevops:ListTagsForResource, AgentSpaces returns the first error. The
+// status command does not call AgentSpaces.
+func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, error) {
+	spaces, err := listAgentSpaces(ctx, clients)
+	if err != nil || len(spaces) == 0 {
+		return nil, err
+	}
+	accountID, err := clients.AccountID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]AgentSpaceSummary, 0, len(spaces))
+	var firstErr error
+	failed := 0
+	for _, space := range spaces {
+		summary := AgentSpaceSummary{
+			AgentSpaceID: aws.ToString(space.AgentSpaceId),
+			Name:         aws.ToString(space.Name),
+			Description:  aws.ToString(space.Description),
+		}
+		summary.ManagedByLDCLI, summary.TagErr = hasManagedTag(ctx, clients, accountID, summary.AgentSpaceID)
+		if summary.TagErr != nil {
+			failed++
+			if firstErr == nil {
+				firstErr = summary.TagErr
+			}
+		}
+		summaries = append(summaries, summary)
+	}
+	if failed == len(summaries) {
+		return nil, firstErr
+	}
+
+	return summaries, nil
+}
+
+// AgentSpace reads one agent space, with the same ownership check as
+// AgentSpaces, for a caller that already has the space ID. If setup cannot
+// read the tags, the summary has TagErr.
+func AgentSpace(ctx context.Context, clients Clients, spaceID string) (AgentSpaceSummary, error) {
+	out, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(spaceID)})
+	if err != nil {
+		return AgentSpaceSummary{}, fmt.Errorf("unable to read agent space %s: %w", spaceID, err)
+	}
+	accountID, err := clients.AccountID(ctx)
+	if err != nil {
+		return AgentSpaceSummary{}, err
+	}
+	summary := AgentSpaceSummary{
+		AgentSpaceID: spaceID,
+		Name:         aws.ToString(out.AgentSpace.Name),
+		Description:  aws.ToString(out.AgentSpace.Description),
+	}
+	// A tag error goes on the summary, as in AgentSpaces. The caller decides
+	// what to do with a space whose owner is unknown.
+	summary.ManagedByLDCLI, summary.TagErr = hasManagedTag(ctx, clients, accountID, spaceID)
+
+	return summary, nil
+}
+
+// hasManagedTag reports the ldcli:managed tag on an agent space.
+func hasManagedTag(ctx context.Context, clients Clients, accountID, spaceID string) (bool, error) {
+	out, err := clients.Agent.ListTagsForResource(ctx, &devopsagent.ListTagsForResourceInput{
+		ResourceArn: aws.String(agentSpaceARN(clients.Region, accountID, spaceID)),
+	})
+	// The SDK retries a throttle or a server error before it returns. Only an
+	// access error points to the permission.
+	if err != nil && errorCode(err) == "AccessDeniedException" {
+		return false, fmt.Errorf(
+			"unable to read the tags of agent space %s. Setup needs aidevops:ListTagsForResource: %w", spaceID, err)
+	}
+	if err != nil {
+		return false, fmt.Errorf("unable to read the tags of agent space %s: %w", spaceID, err)
+	}
+
+	return out.Tags[ManagedTagKey] == ManagedTagValue, nil
+}
+
+// agentSpaceARN builds the ARN that the tag API needs. An agent space does not
+// report its ARN.
+func agentSpaceARN(region, accountID, spaceID string) string {
+	return fmt.Sprintf("arn:aws:aidevops:%s:%s:agentspace/%s", region, accountID, spaceID)
+}
+
 // FindMCPServer returns the ID of the MCP server registered at endpoint, if the
 // account has one. AWS keeps MCP servers at the account level, so a second
 // agent space reuses the existing registration.
