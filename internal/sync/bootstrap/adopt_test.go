@@ -48,11 +48,11 @@ func adoptFiles() []synclocal.VariationFile {
 
 func TestFinishSelectionAdoptsEachVariation(t *testing.T) {
 	tests := []struct {
-		direction syncdomain.Direction
+		direction syncdomain.SourceOfTruth
 		summary   string
 	}{
-		{syncdomain.DirectionCodeCanonical, "The local files are now the source of truth for the prompts of these variations."},
-		{syncdomain.DirectionBoth, "The LaunchDarkly UI and the local files can now both change these variations."},
+		{syncdomain.SourceOfTruthCodeOnly, "The local files are now the source of truth for the prompts of these variations."},
+		{syncdomain.SourceOfTruthUIAndCode, "The LaunchDarkly UI and the local files can now both change these variations."},
 	}
 	for _, test := range tests {
 		t.Run(string(test.direction), func(t *testing.T) {
@@ -61,19 +61,18 @@ func TestFinishSelectionAdoptsEachVariation(t *testing.T) {
 			settings := &recordingSettings{}
 
 			err := finishSelection(Options{
-				Store:     synclocal.NewStore(root),
-				Baselines: &memoryManifestStore{manifest: syncmanifest.New()},
-				Settings:  settings,
-				Direction: test.direction,
-				Output:    &output,
-				Initial:   true,
+				Store:         synclocal.NewStore(root),
+				Baselines:     &memoryManifestStore{manifest: syncmanifest.New()},
+				Settings:      settings,
+				SourceOfTruth: test.direction,
+				Output:        &output,
+				Initial:       true,
 			}, adoptFiles())
 
 			require.NoError(t, err)
 			rule := func(lookupKey string) syncapi.SyncSettingRule {
-				return syncapi.SyncSettingRule{
-					ResourceKind: syncdomain.KindVariation, ResourcePattern: lookupKey, Direction: test.direction,
-				}
+				id := syncdomain.ResourceID{Kind: syncdomain.KindVariation, LookupKey: lookupKey}
+				return syncapi.ExactVariationRules([]syncdomain.ResourceID{id}, test.direction)[0]
 			}
 			assert.Equal(t, []settingsPatch{
 				{projectKey: "alpha", upserts: []syncapi.SyncSettingRule{rule("support-bot/default"), rule("support-bot/short")}},
@@ -97,18 +96,6 @@ func TestRunNeedsSourceOfTruthWithNoInput(t *testing.T) {
 
 	require.ErrorContains(t, err, "add needs a source of truth. Use --source-of-truth ui-and-code or code-only.")
 	assert.Empty(t, settings.patches)
-}
-
-func TestRunRejectsServerCanonicalDirection(t *testing.T) {
-	err := Run(Options{
-		Store:     synclocal.NewStore(t.TempDir()),
-		Settings:  &recordingSettings{},
-		Direction: syncdomain.DirectionServerCanonical,
-		Output:    &bytes.Buffer{},
-		NoInput:   true,
-	})
-
-	require.ErrorContains(t, err, "add cannot make a variation server_canonical")
 }
 
 func TestFinishSelectionWithoutSettingsWriterWritesNoRule(t *testing.T) {
@@ -146,13 +133,13 @@ func TestFinishSelectionWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	settings := &recordingSettings{err: fmt.Errorf("update sync settings: %w", syncapi.ErrSyncSettingsUnavailable)}
 
 	err := finishSelection(Options{
-		Store:       store,
-		Baselines:   &memoryManifestStore{manifest: syncmanifest.New()},
-		Settings:    settings,
-		Direction:   syncdomain.DirectionCodeCanonical,
-		Output:      &output,
-		ErrorOutput: &errorOutput,
-		Initial:     true,
+		Store:         store,
+		Baselines:     &memoryManifestStore{manifest: syncmanifest.New()},
+		Settings:      settings,
+		SourceOfTruth: syncdomain.SourceOfTruthCodeOnly,
+		Output:        &output,
+		ErrorOutput:   &errorOutput,
+		Initial:       true,
 	}, adoptFiles())
 
 	require.NoError(t, err)
@@ -171,12 +158,12 @@ func TestFinishSelectionStopsBeforeFilesWhenRuleWriteFails(t *testing.T) {
 	settings := &recordingSettings{err: errors.New("boom")}
 
 	err := finishSelection(Options{
-		Store:     store,
-		Baselines: &memoryManifestStore{manifest: syncmanifest.New()},
-		Settings:  settings,
-		Direction: syncdomain.DirectionCodeCanonical,
-		Output:    &bytes.Buffer{},
-		Initial:   true,
+		Store:         store,
+		Baselines:     &memoryManifestStore{manifest: syncmanifest.New()},
+		Settings:      settings,
+		SourceOfTruth: syncdomain.SourceOfTruthCodeOnly,
+		Output:        &bytes.Buffer{},
+		Initial:       true,
 	}, adoptFiles())
 
 	require.ErrorContains(t, err, "boom")

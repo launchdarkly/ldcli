@@ -84,82 +84,62 @@ func TestBuildPlanFirstSync(t *testing.T) {
 	}
 }
 
-func TestBuildPlanDirectionMatrix(t *testing.T) {
+func TestBuildPlanSourceOfTruthMatrix(t *testing.T) {
 	baseline := testVariation("baseline")
-	// localChange and serverChange change the prompt. A code_canonical
-	// direction decides the prompt.
 	localChange, serverChange := baseline, baseline
 	localChange.Instructions, serverChange.Instructions = "Local prompt", "Server prompt"
-	// The settings changes change the name, which is not part of the prompt.
 	localSettings, serverSettings := baseline, baseline
 	localSettings.Name, serverSettings.Name = "local", "server"
 	localPromptAndSettings := localChange
 	localPromptAndSettings.Name = "local"
 	serverPromptAndSettings := serverChange
 	serverPromptAndSettings.Name = "server"
-	both, code, server := syncdomain.DirectionBoth, syncdomain.DirectionCodeCanonical, syncdomain.DirectionServerCanonical
+	both, code := false, true
 
 	type expectation struct {
-		action   Action
-		reverts  bool
-		discards bool
-		decided  bool
-		err      string
+		action  Action
+		reverts bool
+		err     string
 	}
 	tests := []struct {
-		name      string
-		tracked   bool
-		local     *syncdomain.Variation
-		server    *syncdomain.Variation
-		upsert    bool
-		direction syncdomain.Direction
-		expected  expectation
+		name     string
+		tracked  bool
+		local    *syncdomain.Variation
+		server   *syncdomain.Variation
+		upsert   bool
+		codeOnly bool
+		expected expectation
 	}{
 		{"only local changed, both", true, &localChange, &baseline, false, both, expectation{action: ActionUpdateServer}},
 		{"only local changed, code", true, &localChange, &baseline, false, code, expectation{action: ActionUpdateServer}},
-		{"only local changed, server", true, &localChange, &baseline, false, server,
-			expectation{action: ActionUpdateLocal, discards: true}},
 
 		{"only LaunchDarkly changed, both", true, &baseline, &serverChange, false, both, expectation{action: ActionUpdateLocal}},
 		{"only LaunchDarkly changed, code", true, &baseline, &serverChange, false, code,
 			expectation{action: ActionUpdateServer, reverts: true}},
-		{"only LaunchDarkly changed, server", true, &baseline, &serverChange, false, server, expectation{action: ActionUpdateLocal}},
 
 		{"both changed, both", true, &localChange, &serverChange, false, both, expectation{action: ActionConflict}},
 		{"both changed, code", true, &localChange, &serverChange, false, code,
-			expectation{action: ActionUpdateServer, reverts: true, decided: true}},
-		{"both changed, server", true, &localChange, &serverChange, false, server,
-			expectation{action: ActionUpdateLocal, discards: true, decided: true}},
+			expectation{action: ActionUpdateServer, reverts: true}},
 
 		{"new local file with upsert, both", false, &localChange, nil, true, both, expectation{action: ActionCreateServer}},
 		{"new local file with upsert, code", false, &localChange, nil, true, code, expectation{action: ActionCreateServer}},
-		{"new local file with upsert, server", false, &localChange, nil, true, server,
-			expectation{action: ActionError, err: "sync direction is server_canonical"}},
 		{"new local file without upsert, both", false, &localChange, nil, false, both,
 			expectation{action: ActionError, err: "set upsert: true"}},
 		{"new local file without upsert, code", false, &localChange, nil, false, code,
 			expectation{action: ActionError, err: "set upsert: true"}},
-		{"new local file without upsert, server", false, &localChange, nil, false, server,
-			expectation{action: ActionError, err: "sync direction is server_canonical"}},
 
 		{"server deletion, both", true, &baseline, nil, false, both, expectation{action: ActionDeleteLocal}},
 		{"server deletion, code", true, &baseline, nil, false, code, expectation{action: ActionCreateServer, reverts: true}},
-		{"server deletion, server", true, &baseline, nil, false, server, expectation{action: ActionDeleteLocal}},
 
 		{"local edit after server deletion, code", true, &localChange, nil, false, code,
-			expectation{action: ActionCreateServer, reverts: true, decided: true}},
-		{"local edit after server deletion, server", true, &localChange, nil, false, server,
-			expectation{action: ActionDeleteLocal, discards: true, decided: true}},
+			expectation{action: ActionCreateServer, reverts: true}},
 
 		{"missing local file, both", true, nil, &serverChange, false, both, expectation{action: ActionUpdateLocal}},
 		{"missing local file, code", true, nil, &serverChange, false, code, expectation{action: ActionUpdateLocal}},
-		{"missing local file, server", true, nil, &serverChange, false, server, expectation{action: ActionUpdateLocal}},
 
 		{"no baseline and different, both", false, &localChange, &serverChange, false, both, expectation{action: ActionConflict}},
 		{"no baseline and different, code", false, &localChange, &serverChange, false, code,
-			expectation{action: ActionUpdateServer, reverts: true, decided: true}},
-		{"no baseline and different, server", false, &localChange, &serverChange, false, server,
-			expectation{action: ActionUpdateLocal, discards: true, decided: true}},
+			expectation{action: ActionUpdateServer, reverts: true}},
 
 		{"only LaunchDarkly changed other settings, code", true, &baseline, &serverSettings, false, code,
 			expectation{action: ActionUpdateLocal}},
@@ -168,7 +148,7 @@ func TestBuildPlanDirectionMatrix(t *testing.T) {
 		{"local changed the prompt, LaunchDarkly changed other settings, code", true, &localChange, &serverSettings, false, code,
 			expectation{action: ActionUpdateBoth}},
 		{"local changed other settings, LaunchDarkly changed the prompt, code", true, &localSettings, &serverChange, false, code,
-			expectation{action: ActionUpdateServer, reverts: true, decided: true}},
+			expectation{action: ActionUpdateServer, reverts: true}},
 		{"both changed the prompt and other settings differently, code", true, &localPromptAndSettings, &serverPromptAndSettings, false, code,
 			expectation{action: ActionConflict}},
 		{"both changed other settings differently, code", true, &localSettings, &serverSettings, false, code,
@@ -177,9 +157,7 @@ func TestBuildPlanDirectionMatrix(t *testing.T) {
 			expectation{action: ActionConflict}},
 
 		{"unchanged, code", true, &baseline, &baseline, false, code, expectation{action: ActionInSync}},
-		{"unchanged, server", true, &baseline, &baseline, false, server, expectation{action: ActionInSync}},
 		{"same edit, code", true, &localChange, &localChange, false, code, expectation{action: ActionUpdateManifest}},
-		{"same edit, server", true, &localChange, &localChange, false, server, expectation{action: ActionUpdateManifest}},
 	}
 
 	for _, test := range tests {
@@ -193,16 +171,14 @@ func TestBuildPlanDirectionMatrix(t *testing.T) {
 			}
 
 			plan := BuildPlan(manifest, localResources(test.local, test.upsert), map[ResourceID]ServerResource{
-				id: {Variation: test.server, ConfigMode: syncdomain.VariationModeAgent, Direction: test.direction},
+				id: {Variation: test.server, ConfigMode: syncdomain.VariationModeAgent, CodeOnly: test.codeOnly},
 			})
 
 			require.Len(t, plan.Resources, 1)
 			resource := plan.Resources[0]
 			assert.Equal(t, test.expected.action, resource.Action)
-			assert.Equal(t, test.direction, resource.Direction)
+			assert.Equal(t, test.codeOnly, resource.CodeOnly)
 			assert.Equal(t, test.expected.reverts, resource.RevertsServer, "reverts")
-			assert.Equal(t, test.expected.discards, resource.DiscardsLocal, "discards")
-			assert.Equal(t, test.expected.decided, resource.directionDecided, "decided by direction")
 			if test.expected.err == "" {
 				assert.Empty(t, resource.Error)
 			} else {
@@ -212,17 +188,7 @@ func TestBuildPlanDirectionMatrix(t *testing.T) {
 	}
 }
 
-func TestBuildPlanTreatsEmptyDirectionAsBoth(t *testing.T) {
-	local := testVariation("local")
-	plan := BuildPlan(syncmanifest.New(), localResources(&local, true), map[ResourceID]ServerResource{
-		testResourceID(): {ConfigMode: syncdomain.VariationModeAgent},
-	})
-
-	assert.Equal(t, syncdomain.DirectionBoth, plan.Resources[0].Direction)
-	assert.Equal(t, ActionCreateServer, plan.Resources[0].Action)
-}
-
-func TestBuildPlanUpdatesStalePinsOfCodeCanonicalRevert(t *testing.T) {
+func TestBuildPlanUpdatesStalePinsOfCodeOnlyRevert(t *testing.T) {
 	tool := syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}}
 	baseline := testVariation("baseline")
 	baseline.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
@@ -239,7 +205,7 @@ func TestBuildPlanUpdatesStalePinsOfCodeCanonicalRevert(t *testing.T) {
 	manifest.SetFingerprint(id, fingerprint)
 
 	plan := BuildPlan(manifest, localResources(&baseline, false), map[ResourceID]ServerResource{
-		id: {Variation: &server, ConfigMode: syncdomain.VariationModeAgent, Direction: syncdomain.DirectionCodeCanonical},
+		id: {Variation: &server, ConfigMode: syncdomain.VariationModeAgent, CodeOnly: true},
 	})
 
 	resource := plan.Resources[0]
@@ -252,7 +218,6 @@ func TestBuildPlanUpdatesStalePinsOfCodeCanonicalRevert(t *testing.T) {
 func TestPlanHasOverwrites(t *testing.T) {
 	assert.False(t, Plan{Resources: []PlannedResource{{Action: ActionUpdateServer}}}.HasOverwrites())
 	assert.True(t, Plan{Resources: []PlannedResource{{Action: ActionUpdateServer, RevertsServer: true}}}.HasOverwrites())
-	assert.True(t, Plan{Resources: []PlannedResource{{Action: ActionUpdateLocal, DiscardsLocal: true}}}.HasOverwrites())
 }
 
 func TestBuildPlanDoesNotTreatManifestAttachmentsAsIndependentTargets(t *testing.T) {

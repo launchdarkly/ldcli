@@ -13,7 +13,7 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 )
 
-func TestClientResolveSyncSettingsSendsAtMostOneHundredResources(t *testing.T) {
+func TestClientResolveSourceOfTruthSendsAtMostOneHundredResources(t *testing.T) {
 	ids := make([]syncdomain.ResourceID, 0, 150)
 	for index := range 150 {
 		ids = append(ids, syncdomain.VariationID("project", "support", fmt.Sprintf("v%03d", index)))
@@ -33,7 +33,7 @@ func TestClientResolveSyncSettingsSendsAtMostOneHundredResources(t *testing.T) {
 	transport := &recordingServer{Responses: [][]byte{response(0, 100), response(100, 150)}}
 	client := transport.client(t)
 
-	directions, err := client.ResolveSyncSettings("project", ids)
+	sources, err := client.ResolveSourceOfTruth("project", ids)
 
 	require.NoError(t, err)
 	require.Len(t, transport.Requests, 2)
@@ -46,34 +46,46 @@ func TestClientResolveSyncSettingsSendsAtMostOneHundredResources(t *testing.T) {
 	assert.Len(t, transport.Requests[1].Query["resources"], 50)
 	assert.Equal(t, "variation:support/v000", transport.Requests[0].Query["resources"][0])
 	assert.Equal(t, "variation:support/v100", transport.Requests[1].Query["resources"][0])
-	require.Len(t, directions, 150)
-	assert.Equal(t, syncdomain.DirectionCodeCanonical, directions[ids[0]])
-	assert.Equal(t, syncdomain.DirectionBoth, directions[ids[1]])
-	assert.Equal(t, syncdomain.DirectionCodeCanonical, directions[ids[100]])
+	require.Len(t, sources, 150)
+	assert.Equal(t, syncdomain.SourceOfTruthCodeOnly, sources[ids[0]])
+	assert.Equal(t, syncdomain.SourceOfTruthUIAndCode, sources[ids[1]])
+	assert.Equal(t, syncdomain.SourceOfTruthCodeOnly, sources[ids[100]])
 }
 
-func TestClientResolveSyncSettingsUsesBothForMissingItems(t *testing.T) {
+func TestClientResolveSourceOfTruthUsesUIAndCodeForMissingItems(t *testing.T) {
 	id := syncdomain.VariationID("project", "support", "default")
 	transport := &recordingServer{Responses: [][]byte{[]byte(`{"items":[]}`)}}
 	client := transport.client(t)
 
-	directions, err := client.ResolveSyncSettings("project", []syncdomain.ResourceID{id})
+	sources, err := client.ResolveSourceOfTruth("project", []syncdomain.ResourceID{id})
 
 	require.NoError(t, err)
-	assert.Equal(t, map[syncdomain.ResourceID]syncdomain.Direction{id: syncdomain.DirectionBoth}, directions)
+	assert.Equal(t, map[syncdomain.ResourceID]syncdomain.SourceOfTruth{id: syncdomain.SourceOfTruthUIAndCode}, sources)
 }
 
-func TestClientResolveSyncSettingsSendsNoRequestWithoutResources(t *testing.T) {
-	transport := &recordingServer{}
+func TestClientResolveSourceOfTruthTreatsServerCanonicalAsUIAndCode(t *testing.T) {
+	id := syncdomain.VariationID("project", "support", "default")
+	transport := &recordingServer{Responses: [][]byte{[]byte(
+		`{"items":[{"resourceKind":"variation","resourceLookupKey":"support/default","direction":"server_canonical"}]}`,
+	)}}
 
-	directions, err := transport.client(t).ResolveSyncSettings("project", nil)
+	sources, err := transport.client(t).ResolveSourceOfTruth("project", []syncdomain.ResourceID{id})
 
 	require.NoError(t, err)
-	assert.Empty(t, directions)
+	assert.Equal(t, syncdomain.SourceOfTruthUIAndCode, sources[id])
+}
+
+func TestClientResolveSourceOfTruthSendsNoRequestWithoutResources(t *testing.T) {
+	transport := &recordingServer{}
+
+	sources, err := transport.client(t).ResolveSourceOfTruth("project", nil)
+
+	require.NoError(t, err)
+	assert.Empty(t, sources)
 	assert.Empty(t, transport.Requests)
 }
 
-func TestClientResolveSyncSettingsReturnsSentinelWhenUnavailable(t *testing.T) {
+func TestClientResolveSourceOfTruthReturnsSentinelWhenUnavailable(t *testing.T) {
 	for _, body := range []string{
 		`{"code":"forbidden","message":"Plan does not allow this operation","statusCode":403}`,
 		`{"code":"not_found","message":"Not found","statusCode":404}`,
@@ -81,30 +93,30 @@ func TestClientResolveSyncSettingsReturnsSentinelWhenUnavailable(t *testing.T) {
 		transport := &recordingServer{Err: lderrors.NewError(body)}
 		client := transport.client(t)
 
-		_, err := client.ResolveSyncSettings("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
+		_, err := client.ResolveSourceOfTruth("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
 		require.ErrorIs(t, err, ErrSyncSettingsUnavailable, body)
 	}
 }
 
-func TestClientResolveSyncSettingsReturnsOtherErrors(t *testing.T) {
+func TestClientResolveSourceOfTruthReturnsOtherErrors(t *testing.T) {
 	transport := &recordingServer{Err: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)}
 	client := transport.client(t)
 
-	_, err := client.ResolveSyncSettings("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
+	_, err := client.ResolveSourceOfTruth("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrSyncSettingsUnavailable)
 	assert.ErrorContains(t, err, "get sync settings for project")
 }
 
-func TestClientResolveSyncSettingsRejectsUnknownDirection(t *testing.T) {
+func TestClientResolveSourceOfTruthRejectsUnknownDirection(t *testing.T) {
 	transport := &recordingServer{Responses: [][]byte{[]byte(
 		`{"items":[{"resourceKind":"variation","resourceLookupKey":"support/default","direction":"sideways"}]}`,
 	)}}
 	client := transport.client(t)
 
-	_, err := client.ResolveSyncSettings("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
+	_, err := client.ResolveSourceOfTruth("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
 	require.ErrorContains(t, err, `unsupported sync direction "sideways"`)
 }
@@ -114,7 +126,7 @@ func TestClientPatchSyncSettingsUpsertsExactRule(t *testing.T) {
 	client := transport.client(t)
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support-bot", "default")}
 
-	err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil)
+	err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil)
 
 	require.NoError(t, err)
 	require.Len(t, transport.Requests, 1)
@@ -150,7 +162,7 @@ func TestClientPatchSyncSettingsSendsAtMostOneHundredRulesInEachList(t *testing.
 	transport := &recordingServer{}
 	client := transport.client(t)
 
-	require.NoError(t, client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil))
+	require.NoError(t, client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil))
 
 	require.Len(t, transport.Requests, 2)
 	var first, second struct {
@@ -174,7 +186,7 @@ func TestClientPatchSyncSettingsReturnsSentinelWhenUnavailable(t *testing.T) {
 		client := transport.client(t)
 		ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
-		err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil)
+		err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil)
 
 		require.ErrorIs(t, err, ErrSyncSettingsUnavailable, body)
 	}

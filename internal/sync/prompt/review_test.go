@@ -227,7 +227,6 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 		wantError    string
 		wantPrompt   bool
 		reverts      bool
-		discards     bool
 	}{
 		{name: "updates apply automatically", action: ActionUpdateServer, wantContinue: true},
 		{
@@ -241,10 +240,6 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 		{
 			name: "explicit yes applies revert", action: ActionUpdateServer, reverts: true,
 			yes: true, wantContinue: true,
-		},
-		{
-			name: "discard requires confirmation", action: ActionUpdateLocal, discards: true, input: "no\n",
-			interactive: true, wantPrompt: true,
 		},
 		{
 			name: "local deletion requires confirmation", action: ActionDeleteLocal, input: "yes\n",
@@ -268,7 +263,7 @@ func TestReviewAndConfirmPlanWatchPolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var output bytes.Buffer
 			plan := Plan{Resources: []PlannedResource{{
-				ID: testResourceID(), Action: test.action, RevertsServer: test.reverts, DiscardsLocal: test.discards,
+				ID: testResourceID(), Action: test.action, RevertsServer: test.reverts,
 			}}}
 			continued, err := reviewAndConfirmPlan(Options{
 				Action: SyncAction{Watch: true}, Yes: test.yes, Input: strings.NewReader(test.input), ErrorOutput: &output,

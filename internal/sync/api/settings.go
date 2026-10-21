@@ -17,37 +17,32 @@ const maxSettingsResources = 100
 // For example, the plan of the account does not include the feature.
 var ErrSyncSettingsUnavailable = errors.New("sync settings are not available")
 
-// syncSetting is the direction that LaunchDarkly resolves for one resource.
 type syncSetting struct {
 	ResourceKind      syncdomain.Kind `json:"resourceKind"`
 	ResourceLookupKey string          `json:"resourceLookupKey"`
 	Direction         string          `json:"direction"`
 }
 
-// ResolveSyncSettings returns the sync direction of each resource in one
-// project. A resource without a rule has DirectionBoth. If the API returns
-// 403 or 404, the error wraps ErrSyncSettingsUnavailable.
-func (client Client) ResolveSyncSettings(
+// ResolveSourceOfTruth returns the source of truth of each resource in one
+// project. If the API returns 403 or 404, the error wraps ErrSyncSettingsUnavailable.
+func (client Client) ResolveSourceOfTruth(
 	projectKey string,
 	ids []syncdomain.ResourceID,
-) (map[syncdomain.ResourceID]syncdomain.Direction, error) {
-	directions := make(map[syncdomain.ResourceID]syncdomain.Direction, len(ids))
+) (map[syncdomain.ResourceID]syncdomain.SourceOfTruth, error) {
+	sources := make(map[syncdomain.ResourceID]syncdomain.SourceOfTruth, len(ids))
 	for start := 0; start < len(ids); start += maxSettingsResources {
 		batch := ids[start:min(start+maxSettingsResources, len(ids))]
-		if err := client.resolveSyncSettingsBatch(projectKey, batch, directions); err != nil {
+		if err := client.resolveSourceOfTruthBatch(projectKey, batch, sources); err != nil {
 			return nil, err
 		}
 	}
-	return directions, nil
+	return sources, nil
 }
 
-// resolveSyncSettingsBatch sends one request and adds its directions to
-// directions. A resource that the response does not include has
-// DirectionBoth.
-func (client Client) resolveSyncSettingsBatch(
+func (client Client) resolveSourceOfTruthBatch(
 	projectKey string,
 	ids []syncdomain.ResourceID,
-	directions map[syncdomain.ResourceID]syncdomain.Direction,
+	sources map[syncdomain.ResourceID]syncdomain.SourceOfTruth,
 ) error {
 	query := url.Values{}
 	for _, id := range ids {
@@ -55,7 +50,7 @@ func (client Client) resolveSyncSettingsBatch(
 			return fmt.Errorf("resource %s is not in project %q", id, projectKey)
 		}
 		query.Add("resources", string(id.Kind)+":"+id.LookupKey)
-		directions[id] = syncdomain.DirectionBoth
+		sources[id] = syncdomain.SourceOfTruthUIAndCode
 	}
 
 	description := fmt.Sprintf("get sync settings for project %q", projectKey)
@@ -79,16 +74,32 @@ func (client Client) resolveSyncSettingsBatch(
 	}
 	for _, item := range settings.Items {
 		id := syncdomain.ResourceID{Kind: item.ResourceKind, ProjectKey: projectKey, LookupKey: item.ResourceLookupKey}
-		if _, requested := directions[id]; !requested {
+		if _, requested := sources[id]; !requested {
 			continue
 		}
-		direction, err := syncdomain.ParseDirection(item.Direction)
-		if err != nil {
-			return fmt.Errorf("%s: resource %s: %w", description, id, err)
+		switch item.Direction {
+		case directionCodeCanonical:
+			sources[id] = syncdomain.SourceOfTruthCodeOnly
+		// The server still accepts server_canonical rules. ldcli syncs them as ui-and-code.
+		case directionBoth, "server_canonical":
+		default:
+			return fmt.Errorf("%s: resource %s: unsupported sync direction %q", description, id, item.Direction)
 		}
-		directions[id] = direction
 	}
 	return nil
+}
+
+// The sync settings API names a source of truth with a direction.
+const (
+	directionCodeCanonical = "code_canonical"
+	directionBoth          = "both"
+)
+
+func wireDirection(source syncdomain.SourceOfTruth) string {
+	if source == syncdomain.SourceOfTruthCodeOnly {
+		return directionCodeCanonical
+	}
+	return directionBoth
 }
 
 func settingsPath(projectKey string) []string {
@@ -99,16 +110,16 @@ func settingsPath(projectKey string) []string {
 // deletions, that one sync settings patch can send.
 const maxSettingsPatchItems = 100
 
-// SyncSettingRule is one explicit direction rule. ResourcePattern is a lookup
+// SyncSettingRule is one explicit source of truth rule. ResourcePattern is a lookup
 // key, for example "support-bot/default", or a pattern such as
 // "support-bot/*".
 type SyncSettingRule struct {
-	ResourceKind    syncdomain.Kind      `json:"resourceKind"`
-	ResourcePattern string               `json:"resourcePattern"`
-	Direction       syncdomain.Direction `json:"direction"`
+	ResourceKind    syncdomain.Kind `json:"resourceKind"`
+	ResourcePattern string          `json:"resourcePattern"`
+	Direction       string          `json:"direction"`
 }
 
-// SyncSettingPattern names one explicit direction rule to delete.
+// SyncSettingPattern names one explicit rule to delete.
 type SyncSettingPattern struct {
 	ResourceKind    syncdomain.Kind `json:"resourceKind"`
 	ResourcePattern string          `json:"resourcePattern"`
@@ -143,13 +154,13 @@ func (client Client) PatchSyncSettings(
 	return nil
 }
 
-// ExactVariationRules returns one rule for each variation, with direction.
+// ExactVariationRules returns one rule for each variation, with source.
 // The pattern of each rule is the lookup key of the variation, so that the
 // rule matches only that variation.
-func ExactVariationRules(ids []syncdomain.ResourceID, direction syncdomain.Direction) []SyncSettingRule {
+func ExactVariationRules(ids []syncdomain.ResourceID, source syncdomain.SourceOfTruth) []SyncSettingRule {
 	rules := make([]SyncSettingRule, 0, len(ids))
 	for _, id := range ids {
-		rules = append(rules, SyncSettingRule{ResourceKind: id.Kind, ResourcePattern: id.LookupKey, Direction: direction})
+		rules = append(rules, SyncSettingRule{ResourceKind: id.Kind, ResourcePattern: id.LookupKey, Direction: wireDirection(source)})
 	}
 	return rules
 }

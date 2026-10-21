@@ -7,7 +7,6 @@ import (
 	"io"
 	"slices"
 
-	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 	syncinteractive "github.com/launchdarkly/ldcli/internal/sync/interactive"
 )
@@ -17,7 +16,7 @@ type ConflictResolution string
 
 const (
 	// ConflictUseLaunchDarkly writes the LaunchDarkly state to the local file.
-	// A code_canonical variation keeps its local prompt.
+	// A code-only variation keeps its local prompt.
 	ConflictUseLaunchDarkly ConflictResolution = "launchdarkly"
 	// ConflictUseLocal writes the local state to LaunchDarkly.
 	ConflictUseLocal ConflictResolution = "local"
@@ -74,45 +73,6 @@ func (policy ConflictPolicy) resolve(group conflictGroup) (ConflictResolution, b
 	return selected, true, nil
 }
 
-// checkDirections returns an error when the policy chooses the losing side
-// of a variation whose sync direction decides the conflict.
-func (policy ConflictPolicy) checkDirections(plan Plan) error {
-	for _, resource := range plan.Resources {
-		if !resource.directionDecided {
-			continue
-		}
-		selected, ok := policy.Overrides[resource.ID]
-		flag := "--resolve"
-		if !ok {
-			selected, flag = policy.Default, "--conflict"
-		}
-		winner := directionWinner(resource.Direction)
-		if winner == "" || selected == "" || selected == ConflictAbort || selected == winner {
-			continue
-		}
-		return fmt.Errorf(
-			"%s %s does not agree with the sync direction of %s. The direction is %s, so LaunchDarkly wins",
-			flag, selected, resource.ID, resource.Direction,
-		)
-	}
-	return nil
-}
-
-// directionWinner returns the side that a direction makes win, or an empty
-// resolution when the direction does not choose a side. Only
-// DirectionServerCanonical chooses a side. DirectionBoth does not choose.
-// DirectionCodeCanonical decides only the prompt, and every conflict choice
-// keeps the local prompt, so it does not choose a side for the other
-// settings.
-func directionWinner(direction syncdomain.Direction) ConflictResolution {
-	switch direction {
-	case syncdomain.DirectionServerCanonical:
-		return ConflictUseLaunchDarkly
-	default:
-		return ""
-	}
-}
-
 var errConflictAborted = errors.New("sync conflict left unresolved")
 
 // conflictGroup is one conflict choice. Variations that share a changed
@@ -120,18 +80,6 @@ var errConflictAborted = errors.New("sync conflict left unresolved")
 type conflictGroup struct {
 	resources  []PlannedResource
 	attachment bool
-}
-
-// directionResolution returns the side that the sync directions in the
-// group choose, or an empty resolution when no direction chooses a side.
-// Only one direction chooses a side, so two directions cannot disagree.
-func (group conflictGroup) directionResolution() ConflictResolution {
-	for _, resource := range group.resources {
-		if winner := directionWinner(resource.Direction); winner != "" {
-			return winner
-		}
-	}
-	return ""
 }
 
 type conflictResolutionResult struct {
@@ -155,9 +103,6 @@ func resolveConflicts(
 	interactive bool,
 	watched *watchedSources,
 ) (conflictResolutionResult, error) {
-	if err := options.ConflictPolicy.checkDirections(plan); err != nil {
-		return conflictResolutionResult{}, err
-	}
 	groups := groupConflicts(plan)
 	if len(groups) == 0 {
 		return conflictResolutionResult{}, nil
@@ -173,18 +118,8 @@ func resolveConflicts(
 		if err != nil {
 			return conflictResolutionResult{}, err
 		}
-		directed := group.directionResolution()
 		var choice conflictChoice
 		switch {
-		case directed != "" && fromPolicy && resolution != directed:
-			return conflictResolutionResult{}, fmt.Errorf(
-				"the conflict choice %q does not agree with the sync direction of a variation that shares the attachment. "+
-					"Use %q, or change the sync direction", resolution, directed,
-			)
-		case directed != "":
-			// A variation in the group has a sync direction, so its side wins.
-			choice = conflictChoice{resolution: directed}
-			writeConflictChoice(options.ErrorOutput, choice)
 		case fromPolicy:
 			choice = conflictChoice{resolution: resolution, aborted: resolution == ConflictAbort}
 			writeConflictChoice(options.ErrorOutput, choice)
@@ -360,8 +295,6 @@ func applyConflictResolutions(plan Plan, resolutions map[ResourceID]ConflictReso
 		if resolution, ok := resolutions[resource.ID]; ok {
 			resource.Action = resolvedConflictAction(*resource, resolution)
 			if resource.Merged != nil {
-				// A code_canonical choice writes the local prompt to LaunchDarkly
-				// when the prompts differ.
 				resource.RevertsServer = resource.Action.changesServer() &&
 					resource.MergedFingerprint != resource.ServerFingerprint
 			}
@@ -378,8 +311,7 @@ func resolvedConflictAction(resource PlannedResource, resolution ConflictResolut
 		case resource.Server == nil:
 			return ActionDeleteLocal
 		case resource.Merged != nil && resource.MergedFingerprint != resource.ServerFingerprint:
-			// A code_canonical variation keeps the local prompt. LaunchDarkly
-			// gets it back, and the local file gets the other settings.
+			// A code-only variation keeps the local prompt.
 			return ActionUpdateBoth
 		default:
 			return ActionUpdateLocal

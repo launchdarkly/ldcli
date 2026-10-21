@@ -39,13 +39,13 @@ type directAPI struct {
 	headers []http.Header
 	// directions maps a variation lookup key to its sync direction. A
 	// variation without an entry uses the direction "both".
-	directions map[string]syncdomain.Direction
+	directions map[string]string
 	// settingsErr is the error that the sync settings API returns.
 	settingsErr error
 	// settingsReads counts the sync settings requests. After the first
 	// request, directionsAfterFirstRead replaces directions when it is set.
 	settingsReads            int
-	directionsAfterFirstRead map[string]syncdomain.Direction
+	directionsAfterFirstRead map[string]string
 	// settingsPatches are the bodies of the sync settings patches.
 	settingsPatches []string
 	// settingsPatchErr is the error that a sync settings patch returns.
@@ -70,16 +70,16 @@ func (api *directAPI) handleSettingsRequest(query url.Values) ([]byte, error) {
 		directions = api.directionsAfterFirstRead
 	}
 	type setting struct {
-		ResourceKind      string               `json:"resourceKind"`
-		ResourceLookupKey string               `json:"resourceLookupKey"`
-		Direction         syncdomain.Direction `json:"direction"`
+		ResourceKind      string `json:"resourceKind"`
+		ResourceLookupKey string `json:"resourceLookupKey"`
+		Direction         string `json:"direction"`
 	}
 	items := []setting{}
 	for _, resource := range query["resources"] {
 		kind, lookupKey, _ := strings.Cut(resource, ":")
 		direction, ok := directions[lookupKey]
 		if !ok {
-			direction = syncdomain.DirectionBoth
+			direction = "both"
 		}
 		items = append(items, setting{ResourceKind: kind, ResourceLookupKey: lookupKey, Direction: direction})
 	}
@@ -1081,7 +1081,7 @@ func TestPromptAcceptsConfirmedWriteAfterAmbiguousError(t *testing.T) {
 	assertManifestFingerprint(t, root, local)
 }
 
-func TestPromptCodeCanonicalRevertsChangeMadeInLaunchDarkly(t *testing.T) {
+func TestPromptCodeOnlyRevertsChangeMadeInLaunchDarkly(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
 	writeVariation(t, root, baseline, false)
@@ -1090,27 +1090,27 @@ func TestPromptCodeCanonicalRevertsChangeMadeInLaunchDarkly(t *testing.T) {
 	changed.Instructions = "Changed in the UI"
 	api := &directAPI{
 		variation:  pointer(changed),
-		directions: map[string]syncdomain.Direction{"support/default": syncdomain.DirectionCodeCanonical},
+		directions: map[string]string{"support/default": "code_canonical"},
 	}
 
 	stdout, _, err := runPrompt(t, root, api, "--dry-run", "--output", "json")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, `"action": "update_server"`)
-	assert.Contains(t, stdout, `"direction": "code_canonical"`)
+	assert.Contains(t, stdout, `"sourceOfTruth": "code-only"`)
 	assert.Contains(t, stdout, `"reverts": true`)
 	assert.Equal(t, "Changed in the UI", api.variation.Instructions)
 
 	stdout, stderr, err := runPrompt(t, root, api, "--yes", "--output", "json")
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Direction: code_canonical (the local prompt wins, and the other settings sync both ways)")
+	assert.Contains(t, stderr, "Source of truth: code-only (the local prompt wins, and the other settings sync both ways)")
 	assert.Contains(t, stderr, "Reverts a prompt change made in LaunchDarkly")
 	assert.Contains(t, stdout, `"reverts": true`)
 	assert.Equal(t, baseline.Instructions, api.variation.Instructions)
 	assertManifestFingerprint(t, root, baseline)
 }
 
-func TestPromptCodeCanonicalRevertsPromptAndPullsOtherSettings(t *testing.T) {
+func TestPromptCodeOnlyRevertsPromptAndPullsOtherSettings(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
 	writeVariation(t, root, baseline, false)
@@ -1120,7 +1120,7 @@ func TestPromptCodeCanonicalRevertsPromptAndPullsOtherSettings(t *testing.T) {
 	changed.Model = map[string]any{"name": "gpt-5"}
 	api := &directAPI{
 		variation:  pointer(changed),
-		directions: map[string]syncdomain.Direction{"support/default": syncdomain.DirectionCodeCanonical},
+		directions: map[string]string{"support/default": "code_canonical"},
 	}
 
 	stdout, stderr, err := runPrompt(t, root, api, "--yes", "--output", "json")
@@ -1139,44 +1139,7 @@ func TestPromptCodeCanonicalRevertsPromptAndPullsOtherSettings(t *testing.T) {
 	assertManifestFingerprint(t, root, merged)
 }
 
-func TestPromptServerCanonicalDiscardsLocalChange(t *testing.T) {
-	root := initRepository(t)
-	baseline := variation("Baseline")
-	writeVariation(t, root, variation("Local edit"), false)
-	writeManifest(t, root, baseline)
-	api := &directAPI{
-		variation:  pointer(baseline),
-		directions: map[string]syncdomain.Direction{"support/default": syncdomain.DirectionServerCanonical},
-	}
-
-	_, stderr, err := runPrompt(t, root, api, "--yes")
-
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Direction: server_canonical (LaunchDarkly wins)")
-	assert.Contains(t, stderr, "Discards a local change")
-	requireOnlyReads(t, api.requests)
-	resources, err := synclocal.CompileWorkspace(root)
-	require.NoError(t, err)
-	require.Len(t, resources, 1)
-	assert.Equal(t, baseline.Name, resources[0].Variation.Name)
-	assertManifestFingerprint(t, root, baseline)
-}
-
-func TestPromptServerCanonicalDoesNotCreateVariation(t *testing.T) {
-	root := initRepository(t)
-	writeVariation(t, root, variation("New"), true)
-	api := &directAPI{
-		directions: map[string]syncdomain.Direction{"support/default": syncdomain.DirectionServerCanonical},
-	}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
-	require.ErrorContains(t, err, "sync direction is server_canonical")
-	requireOnlyReads(t, api.requests)
-	assert.Nil(t, api.variation)
-}
-
-func TestPromptUsesBothDirectionsWhenSyncSettingsAreUnavailable(t *testing.T) {
+func TestPromptUsesUIAndCodeWhenSyncSettingsAreUnavailable(t *testing.T) {
 	root := initRepository(t)
 	baseline, local := variation("Baseline"), variation("Local")
 	writeVariation(t, root, local, false)
@@ -1191,19 +1154,19 @@ func TestPromptUsesBothDirectionsWhenSyncSettingsAreUnavailable(t *testing.T) {
 	_, stderr, err := runPrompt(t, root, api, "--yes")
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, strings.Count(stderr, "Sync settings are not available for project production. Sync uses both directions."))
+	assert.Equal(t, 1, strings.Count(stderr, "Sync settings are not available for project production. Sync uses ui-and-code."))
 	assert.Equal(t, local.Name, api.variation.Name)
 	assertManifestFingerprint(t, root, local)
 }
 
-func TestPromptStopsWhenSyncDirectionChangesAfterReview(t *testing.T) {
+func TestPromptStopsWhenSourceOfTruthChangesAfterReview(t *testing.T) {
 	root := initRepository(t)
 	baseline := variation("Baseline")
 	writeVariation(t, root, variation("Local"), false)
 	writeManifest(t, root, baseline)
 	api := &directAPI{
 		variation:                pointer(baseline),
-		directionsAfterFirstRead: map[string]syncdomain.Direction{"support/default": syncdomain.DirectionCodeCanonical},
+		directionsAfterFirstRead: map[string]string{"support/default": "code_canonical"},
 	}
 
 	_, _, err := runPrompt(t, root, api, "--yes")

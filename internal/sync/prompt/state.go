@@ -23,8 +23,7 @@ type workspaceState struct {
 	baseline    syncmanifest.Baseline
 	plan        Plan
 	localFiles  map[ResourceID]syncdomain.SyncedResource
-	// noSettings are the projects without sync settings. Each variation of
-	// these projects uses DirectionBoth.
+	// noSettings are the projects without sync settings.
 	noSettings []string
 }
 
@@ -56,7 +55,7 @@ func (workspace syncWorkspace) loadState(client syncapi.Client) (workspaceState,
 func (state workspaceState) writeSettingsWarnings(output io.Writer) {
 	console := syncconsole.New(output)
 	for _, projectKey := range state.noSettings {
-		_ = console.Printf("Sync settings are not available for project %s. Sync uses both directions.\n", projectKey)
+		_ = console.Printf("Sync settings are not available for project %s. Sync uses ui-and-code.\n", projectKey)
 	}
 }
 
@@ -68,7 +67,7 @@ type loadedPlan struct {
 }
 
 // loadWorkspacePlan reads the local variations, their LaunchDarkly versions,
-// and their sync directions, and compares both sides with the lock. It also
+// and their sources of truth, and compares both sides with the lock. It also
 // returns the local variations as their files store them.
 func loadWorkspacePlan(
 	repositoryRoot string,
@@ -105,13 +104,13 @@ func loadWorkspacePlan(
 		}
 		server[id] = resource
 	}
-	directions, noSettings, err := resolveDirections(client, ids)
+	codeOnly, noSettings, err := resolveCodeOnly(client, ids)
 	if err != nil {
 		return loadedPlan{}, err
 	}
-	for id, direction := range directions {
+	for id := range codeOnly {
 		resource := server[id]
-		resource.Direction = direction
+		resource.CodeOnly = true
 		server[id] = resource
 	}
 	plan := BuildPlan(baseline.Lock, local, server)
@@ -122,38 +121,37 @@ func loadWorkspacePlan(
 	return loadedPlan{plan: plan, localFiles: localFilesByID, noSettings: noSettings}, nil
 }
 
-// resolveDirections reads the sync direction of each variation, with one
-// request group for each project. It also returns the projects that have no
-// sync settings. Each variation of these projects uses DirectionBoth.
-func resolveDirections(
+// resolveCodeOnly returns the code-only variations. It also returns the
+// projects that have no sync settings.
+func resolveCodeOnly(
 	client syncapi.Client,
 	ids map[ResourceID]struct{},
-) (map[ResourceID]syncdomain.Direction, []string, error) {
+) (map[ResourceID]bool, []string, error) {
 	byProject := make(map[string][]ResourceID)
 	for id := range ids {
 		byProject[id.ProjectKey] = append(byProject[id.ProjectKey], id)
 	}
 	projectKeys := slices.Sorted(maps.Keys(byProject))
 
-	directions := make(map[ResourceID]syncdomain.Direction, len(ids))
+	codeOnly := make(map[ResourceID]bool)
 	var noSettings []string
 	for _, projectKey := range projectKeys {
 		projectIDs := byProject[projectKey]
 		slices.SortFunc(projectIDs, syncdomain.CompareResourceIDs)
-		resolved, err := client.ResolveSyncSettings(projectKey, projectIDs)
+		sources, err := client.ResolveSourceOfTruth(projectKey, projectIDs)
 		switch {
 		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
 			noSettings = append(noSettings, projectKey)
-			for _, id := range projectIDs {
-				directions[id] = syncdomain.DirectionBoth
-			}
 		case err != nil:
 			return nil, nil, err
-		default:
-			maps.Copy(directions, resolved)
+		}
+		for id, source := range sources {
+			if source == syncdomain.SourceOfTruthCodeOnly {
+				codeOnly[id] = true
+			}
 		}
 	}
-	return directions, noSettings, nil
+	return codeOnly, noSettings, nil
 }
 
 // planRestore checks a variation whose local file is missing. The restored
@@ -288,7 +286,7 @@ func samePlannedResourceState(reviewed, current PlannedResource) bool {
 		reviewed.ServerFingerprint == current.ServerFingerprint &&
 		reviewed.MergedFingerprint == current.MergedFingerprint &&
 		reviewed.ServerMode == current.ServerMode &&
-		reviewed.Direction == current.Direction &&
+		reviewed.CodeOnly == current.CodeOnly &&
 		reviewed.Upsert == current.Upsert &&
 		reviewed.ServerHasStaleAttachmentPins == current.ServerHasStaleAttachmentPins &&
 		sameAttachmentPins(reviewed.Server, current.Server)

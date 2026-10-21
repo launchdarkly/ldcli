@@ -58,7 +58,7 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 	require.NoError(t, client.UpdateAttachment("project", tool))
 	_, err := client.PatchSyncManifest("project", source, nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil))
+	require.NoError(t, client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.SourceOfTruthCodeOnly), nil))
 	require.NoError(t, client.PostSyncReport("project", SyncReport{Source: source, Resources: []SyncReportResource{
 		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/helpful", Status: ReportStatusSucceeded},
 	}}))
@@ -88,7 +88,7 @@ func TestClientSendsSyncHeadersOnEveryWriteAndNotOnReads(t *testing.T) {
 	require.NoError(t, err)
 	_, err = client.GetSyncManifest("project", source)
 	require.NoError(t, err)
-	_, err = client.ResolveSyncSettings("project", ids)
+	_, err = client.ResolveSourceOfTruth("project", ids)
 	require.NoError(t, err)
 	_, err = client.ReadAttachment("project", syncdomain.AttachmentTool, "search")
 	require.NoError(t, err)

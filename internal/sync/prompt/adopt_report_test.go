@@ -24,7 +24,7 @@ func decodeReports(t *testing.T, bodies []string) []syncapi.SyncReport {
 	return reports
 }
 
-func TestPromptAddMakesVariationCodeCanonical(t *testing.T) {
+func TestPromptAddMakesVariationCodeOnly(t *testing.T) {
 	root := initRepository(t)
 	api := &directAPI{variation: pointer(variation("Server"))}
 

@@ -144,7 +144,7 @@ func (runner Runner) runAdd(options Options, workspace syncWorkspace, action Add
 	if err != nil {
 		return err
 	}
-	return runner.bootstrap(runner.bootstrapOptions(options, workspace, !exists, action.DryRun, action.Direction, action.Variations))
+	return runner.bootstrap(runner.bootstrapOptions(options, workspace, !exists, action.DryRun, action.SourceOfTruth, action.Variations))
 }
 
 func (runner Runner) runDetach(options Options, workspace syncWorkspace, action DetachAction) error {
@@ -226,24 +226,24 @@ func (runner Runner) bootstrapOptions(
 	options Options,
 	workspace syncWorkspace,
 	initial, dryRun bool,
-	direction syncdomain.Direction,
+	sourceOfTruth syncdomain.SourceOfTruth,
 	selections []syncdomain.ResourceID,
 ) syncbootstrap.Options {
 	api := runner.api(options)
 	return syncbootstrap.Options{
-		Settings:    api,
-		Direction:   direction,
-		ErrorOutput: options.ErrorOutput,
-		Catalog:     api,
-		Attachments: api,
-		Store:       workspace.local,
-		Baselines:   workspace.baselines,
-		Input:       options.Input,
-		Output:      options.Output,
-		Initial:     initial,
-		DryRun:      dryRun,
-		Selections:  selections,
-		NoInput:     options.NoInput,
+		Settings:      api,
+		SourceOfTruth: sourceOfTruth,
+		ErrorOutput:   options.ErrorOutput,
+		Catalog:       api,
+		Attachments:   api,
+		Store:         workspace.local,
+		Baselines:     workspace.baselines,
+		Input:         options.Input,
+		Output:        options.Output,
+		Initial:       initial,
+		DryRun:        dryRun,
+		Selections:    selections,
+		NoInput:       options.NoInput,
 	}
 }
 

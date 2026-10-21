@@ -40,8 +40,8 @@ func NewPromptCmd(transport syncapi.Transport) *cobra.Command {
 		Short: "Synchronize local prompt variations with LaunchDarkly",
 		Long: "Bootstrap local prompt variations from LaunchDarkly, add more variations, or synchronize changes using the LaunchDarkly manifest. " +
 			"Sync rechecks state before every write, rerun sync after a change. " +
-			"The sync settings of a project can make the local file or LaunchDarkly win for a variation. " +
-			"A code canonical variation keeps the prompt of its local file, and its other settings sync both ways.",
+			"Each variation has a source of truth, ui-and-code or code-only. " +
+			"A code-only variation keeps the prompt of its local file, and its other settings sync both ways.",
 		Example: `  # Preview synchronization changes
   ldcli sync prompts --dry-run
 
@@ -169,15 +169,15 @@ func newAddCmd(transport syncapi.Transport) *cobra.Command {
 				return nil, err
 			}
 			dryRun, _ := cmd.Flags().GetBool(dryRunFlag)
-			direction, err := sourceOfTruthFlagValue(cmd)
+			sourceOfTruth, err := sourceOfTruthFlagValue(cmd)
 			if err != nil {
 				return nil, err
 			}
-			return syncprompt.AddAction{Variations: variations, DryRun: dryRun, Direction: direction}, nil
+			return syncprompt.AddAction{Variations: variations, DryRun: dryRun, SourceOfTruth: sourceOfTruth}, nil
 		}),
 	}
 	cmd.Flags().Bool(dryRunFlag, false, "Preview local files without creating them")
-	cmd.Flags().String(sourceOfTruthFlag, "", "The source of truth of the variations: "+syncdomain.SourceOfTruthValues)
+	cmd.Flags().String(sourceOfTruthFlag, "", "The source of truth of the variations: ui-and-code or code-only")
 	cmd.Flags().Bool(noInputFlag, false, "Fail instead of prompting for missing input")
 	return cmd
 }
@@ -324,7 +324,7 @@ func newSourceOfTruthCmd(transport syncapi.Transport) *cobra.Command {
   ldcli sync prompts source-of-truth ui-and-code production/support/default production/chat/concise`,
 		Args: validatedArgs(cobra.MinimumNArgs(2)),
 		RunE: runPrompt(transport, func(cmd *cobra.Command, args []string) (syncprompt.CommandAction, error) {
-			direction, err := syncdomain.ParseSourceOfTruth(args[0])
+			sourceOfTruth, err := syncdomain.ParseSourceOfTruth(args[0])
 			if err != nil {
 				return nil, err
 			}
@@ -332,15 +332,13 @@ func newSourceOfTruthCmd(transport syncapi.Transport) *cobra.Command {
 			if err != nil {
 				return nil, err
 			}
-			return syncprompt.SourceOfTruthAction{Variations: variations, Direction: direction}, nil
+			return syncprompt.SourceOfTruthAction{Variations: variations, SourceOfTruth: sourceOfTruth}, nil
 		}),
 	}
 	return cmd
 }
 
-// sourceOfTruthFlagValue returns the direction of --source-of-truth, or an
-// empty direction when the flag is not set.
-func sourceOfTruthFlagValue(cmd *cobra.Command) (syncdomain.Direction, error) {
+func sourceOfTruthFlagValue(cmd *cobra.Command) (syncdomain.SourceOfTruth, error) {
 	value, _ := cmd.Flags().GetString(sourceOfTruthFlag)
 	if value == "" {
 		return "", nil

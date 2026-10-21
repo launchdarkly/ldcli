@@ -7,7 +7,6 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
-	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
 	syncconsole "github.com/launchdarkly/ldcli/internal/sync/console"
 )
 
@@ -44,7 +43,7 @@ func (runner Runner) runSourceOfTruth(options Options, workspace syncWorkspace, 
 
 	api := runner.api(options)
 	for _, projectKey := range projectKeys {
-		rules := syncapi.ExactVariationRules(byProject[projectKey], action.Direction)
+		rules := syncapi.ExactVariationRules(byProject[projectKey], action.SourceOfTruth)
 		err := api.PatchSyncSettings(projectKey, rules, nil)
 		switch {
 		case errors.Is(err, syncapi.ErrSyncSettingsUnavailable):
@@ -53,5 +52,5 @@ func (runner Runner) runSourceOfTruth(options Options, workspace syncWorkspace, 
 			return err
 		}
 	}
-	return syncconsole.New(options.Output).Line(syncbootstrap.SourceOfTruthSummary(action.Direction))
+	return syncconsole.New(options.Output).Line(action.SourceOfTruth.Summary())
 }
