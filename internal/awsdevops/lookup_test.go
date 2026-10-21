@@ -154,6 +154,21 @@ func TestAgentSpacesKeepsTheSpacesWithATag(t *testing.T) {
 	assert.ErrorContains(t, spaces[1].TagErr, "tags of agent space space-2")
 }
 
+// A caller with a space ID gets the space even if its tags cannot be read.
+func TestAgentSpaceReportsATagErrorOnTheSummary(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")},
+		tagsErr:     apiError{code: "AccessDeniedException"},
+	}
+
+	space, err := awsdevops.AgentSpace(context.Background(), newTestClients(agent, newFakeIAM()), "space-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, "launchdarkly", space.Name)
+	assert.False(t, space.ManagedByLDCLI)
+	assert.ErrorContains(t, space.TagErr, "aidevops:ListTagsForResource")
+}
+
 // Another error does not blame a missing permission.
 func TestAgentSpacesReportsAnotherTagErrorWithoutThePermission(t *testing.T) {
 	agent := &fakeAgent{

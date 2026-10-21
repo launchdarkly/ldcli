@@ -129,7 +129,8 @@ func AgentSpaces(ctx context.Context, clients Clients) ([]AgentSpaceSummary, err
 }
 
 // AgentSpace reads one agent space, with the same ownership check as
-// AgentSpaces, for a caller that already has the space ID.
+// AgentSpaces, for a caller that already has the space ID. If setup cannot
+// read the tags, the summary has TagErr.
 func AgentSpace(ctx context.Context, clients Clients, spaceID string) (AgentSpaceSummary, error) {
 	out, err := clients.Agent.GetAgentSpace(ctx, &devopsagent.GetAgentSpaceInput{AgentSpaceId: aws.String(spaceID)})
 	if err != nil {
@@ -144,10 +145,9 @@ func AgentSpace(ctx context.Context, clients Clients, spaceID string) (AgentSpac
 		Name:         aws.ToString(out.AgentSpace.Name),
 		Description:  aws.ToString(out.AgentSpace.Description),
 	}
-	summary.ManagedByLDCLI, err = hasManagedTag(ctx, clients, accountID, spaceID)
-	if err != nil {
-		return AgentSpaceSummary{}, err
-	}
+	// A tag error goes on the summary, as in AgentSpaces. The caller decides
+	// what to do with a space whose owner is unknown.
+	summary.ManagedByLDCLI, summary.TagErr = hasManagedTag(ctx, clients, accountID, spaceID)
 
 	return summary, nil
 }
