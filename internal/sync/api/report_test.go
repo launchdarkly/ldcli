@@ -14,8 +14,8 @@ import (
 )
 
 func TestClientPostSyncReport(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 
 	err := client.PostSyncReport("project", SyncReport{
 		Source:      "git:github.com/acme/support-app",
@@ -32,8 +32,8 @@ func TestClientPostSyncReport(t *testing.T) {
 	require.Len(t, transport.Requests, 1)
 	request := transport.Requests[0]
 	assert.Equal(t, http.MethodPost, request.Method)
-	assert.Equal(t, "https://example.com/api/v2/projects/project/configs/sync/reports", request.Path)
-	assert.Equal(t, "application/json", request.ContentType)
+	assert.Equal(t, "/api/v2/projects/project/configs/sync/reports", request.Path)
+	assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
 	assert.JSONEq(t, `{
 		"source": "git:github.com/acme/support-app",
 		"commit": "3f9c2ae8d1",
@@ -47,8 +47,8 @@ func TestClientPostSyncReport(t *testing.T) {
 }
 
 func TestClientPostSyncReportOmitsUnknownRevision(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 
 	require.NoError(t, client.PostSyncReport("project", SyncReport{
 		Source: "git:github.com/acme/support-app",
@@ -70,8 +70,8 @@ func TestClientPostSyncReportSendsAtMostOneThousandResources(t *testing.T) {
 			Status: ReportStatusSucceeded,
 		})
 	}
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 
 	require.NoError(t, client.PostSyncReport("project", SyncReport{Source: "git:example.com/acme/app", Commit: "abc", Resources: resources}))
 
@@ -87,16 +87,16 @@ func TestClientPostSyncReportSendsAtMostOneThousandResources(t *testing.T) {
 }
 
 func TestClientPostSyncReportWithoutResourcesSendsNoRequest(t *testing.T) {
-	transport := &recordingClient{}
+	transport := &recordingServer{}
 
-	require.NoError(t, NewClient(transport, "token", "https://example.com").PostSyncReport("project", SyncReport{Source: "git:x/y"}))
+	require.NoError(t, transport.client(t).PostSyncReport("project", SyncReport{Source: "git:x/y"}))
 
 	assert.Empty(t, transport.Requests)
 }
 
 func TestClientPostSyncReportReturnsError(t *testing.T) {
-	transport := &recordingClient{Err: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`)}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{Err: lderrors.NewError(`{"code":"not_found","message":"Not found","statusCode":404}`)}
+	client := transport.client(t)
 
 	err := client.PostSyncReport("project", SyncReport{Source: "git:x/y", Resources: []SyncReportResource{
 		{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support/default", Status: ReportStatusSucceeded},

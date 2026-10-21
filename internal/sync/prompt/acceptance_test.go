@@ -19,9 +19,9 @@ import (
 	"github.com/launchdarkly/ldcli/cmd"
 	"github.com/launchdarkly/ldcli/internal/analytics"
 	lderrors "github.com/launchdarkly/ldcli/internal/errors"
-	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
@@ -35,6 +35,8 @@ type directAPI struct {
 	skills         map[string]versionedSkill
 	manifest       *syncapi.SyncManifest
 	requests       []string
+	// headers are the headers of each request, in the order of requests.
+	headers []http.Header
 	// directions maps a variation lookup key to its sync direction. A
 	// variation without an entry uses the direction "both".
 	directions map[string]syncdomain.Direction
@@ -86,15 +88,11 @@ func (api *directAPI) handleSettingsRequest(query url.Values) ([]byte, error) {
 
 type notFoundAPI struct{}
 
-func (notFoundAPI) MakeRequest(string, string, string, string, url.Values, []byte, bool) ([]byte, error) {
+func (notFoundAPI) serve(apitest.Request) ([]byte, error) {
 	return nil, lderrors.NewError(
 		`{"code":"not_found","message":"AI config not found","statusCode":404,` +
 			`"suggestion":"Resource not found. Verify the selected project."}`,
 	)
-}
-
-func (notFoundAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
 }
 
 type versionedTool struct {
@@ -112,18 +110,10 @@ type directAPIVariation struct {
 	State string `json:"state,omitempty"`
 }
 
-var _ resources.Client = &directAPI{}
-
-func (api *directAPI) MakeRequest(
-	_ string,
-	method string,
-	path string,
-	_ string,
-	query url.Values,
-	body []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *directAPI) serve(request apitest.Request) ([]byte, error) {
+	method, path, query, body := request.Method, request.Path, request.Query, request.Body
 	api.requests = append(api.requests, method+" "+path)
+	api.headers = append(api.headers, request.Header)
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
 		return handleManifestRequest(api.manifest, method, query, body)
 	}
@@ -263,10 +253,6 @@ func (api *directAPI) MakeRequest(
 		return json.Marshal(map[string]any{"key": key, "version": api.version})
 	}
 	return []byte(`{}`), nil
-}
-
-func (*directAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
 }
 
 func TestPromptDryRunUsesOnlyExistingReadAPI(t *testing.T) {
@@ -1233,70 +1219,33 @@ func TestPromptMarksEachWriteWithSyncSource(t *testing.T) {
 	baseline, local := variation("Baseline"), variation("Local")
 	writeVariation(t, root, local, false)
 	writeManifest(t, root, baseline)
-	api := &headerRecordingAPI{directAPI: &directAPI{variation: pointer(baseline)}}
+	api := &directAPI{variation: pointer(baseline)}
 
 	_, _, err := runPrompt(t, root, api, "--yes")
 
 	require.NoError(t, err)
 	assert.Equal(t, local.Name, api.variation.Name)
-	require.NotEmpty(t, api.sources)
+	require.Len(t, api.headers, len(api.requests))
 	writes := 0
-	for _, request := range api.requests {
-		source, sent := api.sources[request]
+	for index, request := range api.requests {
+		source := api.headers[index].Values(syncapi.SyncSourceHeader)
 		if strings.HasPrefix(request, "GET ") {
-			assert.False(t, sent, "read %s used the header client", request)
+			assert.Empty(t, source, "read %s sent the sync source header", request)
 			continue
 		}
 		writes++
-		assert.Equal(t, "git:example/repo", source, request)
+		assert.Equal(t, []string{"git:example/repo"}, source, request)
 	}
 	assert.Equal(t, 3, writes, "sync updates the variation and the manifest, and sends the report")
-}
-
-// headerRecordingAPI is a transport that can send extra headers. It records
-// the sync source header of each request that sends headers.
-type headerRecordingAPI struct {
-	*directAPI
-	sources map[string]string
-	commits map[string]string
-}
-
-var _ resources.HeaderClient = &headerRecordingAPI{}
-
-func (api *headerRecordingAPI) MakeRequestWithHeaders(
-	accessToken string,
-	method string,
-	path string,
-	contentType string,
-	query url.Values,
-	body []byte,
-	beta bool,
-	headers http.Header,
-) ([]byte, error) {
-	if api.sources == nil {
-		api.sources = map[string]string{}
-		api.commits = map[string]string{}
-	}
-	api.sources[method+" "+path] = headers.Get(syncapi.SyncSourceHeader)
-	api.commits[method+" "+path] = headers.Get(syncapi.SyncCommitHeader)
-	return api.MakeRequest(accessToken, method, path, contentType, query, body, beta)
 }
 
 type ambiguousWriteAPI struct {
 	directAPI
 }
 
-func (api *ambiguousWriteAPI) MakeRequest(
-	accessToken string,
-	method string,
-	path string,
-	contentType string,
-	query url.Values,
-	body []byte,
-	beta bool,
-) ([]byte, error) {
-	response, err := api.directAPI.MakeRequest(accessToken, method, path, contentType, query, body, beta)
-	if err == nil && (method == "POST" || method == "PATCH") {
+func (api *ambiguousWriteAPI) serve(request apitest.Request) ([]byte, error) {
+	response, err := api.directAPI.serve(request)
+	if err == nil && (request.Method == "POST" || request.Method == "PATCH") {
 		return nil, fmt.Errorf("connection closed after write")
 	}
 	return response, err
@@ -1307,22 +1256,14 @@ type changingReadAPI struct {
 	reads int
 }
 
-func (api *changingReadAPI) MakeRequest(
-	accessToken string,
-	method string,
-	path string,
-	contentType string,
-	query url.Values,
-	body []byte,
-	beta bool,
-) ([]byte, error) {
-	if method == "GET" && !strings.Contains(path, "/configs/sync/manifests") {
+func (api *changingReadAPI) serve(request apitest.Request) ([]byte, error) {
+	if request.Method == "GET" && !strings.Contains(request.Path, "/configs/sync/manifests") {
 		api.reads++
 		if api.reads == 2 {
 			api.variation = pointer(variation("Concurrent"))
 		}
 	}
-	return api.directAPI.MakeRequest(accessToken, method, path, contentType, query, body, beta)
+	return api.directAPI.serve(request)
 }
 
 func TestPromptRecordsPartialSuccessAndConvergesOnNextRun(t *testing.T) {
@@ -1365,15 +1306,8 @@ type multiDirectAPI struct {
 	reports    []string
 }
 
-func (api *multiDirectAPI) MakeRequest(
-	_ string,
-	method string,
-	path string,
-	_ string,
-	query url.Values,
-	body []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *multiDirectAPI) serve(request apitest.Request) ([]byte, error) {
+	method, path, query, body := request.Method, request.Path, request.Query, request.Body
 	api.requests = append(api.requests, method+" "+path)
 	if strings.HasSuffix(path, "/configs/sync/manifests") {
 		return handleManifestRequest(api.manifest, method, query, body)
@@ -1394,7 +1328,7 @@ func (api *multiDirectAPI) MakeRequest(
 
 	key := path[strings.LastIndex(path, "/")+1:]
 	if key == api.failKey {
-		return nil, fmt.Errorf("write failed for %s", key)
+		return nil, fmt.Errorf("write failed for %s", key) // The server closes the connection.
 	}
 	switch method {
 	case "PATCH":
@@ -1417,13 +1351,14 @@ func (api *multiDirectAPI) MakeRequest(
 	return []byte(`{}`), nil
 }
 
-func (*multiDirectAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
-}
-
 var manifestsByRoot = map[string]*syncapi.SyncManifest{}
 
-func runPrompt(t *testing.T, root string, client resources.Client, arguments ...string) (string, string, error) {
+// fakeAPI is an in-memory LaunchDarkly API. A test serves it over HTTP.
+type fakeAPI interface {
+	serve(apitest.Request) ([]byte, error)
+}
+
+func runPrompt(t *testing.T, root string, client fakeAPI, arguments ...string) (string, string, error) {
 	t.Helper()
 	t.Chdir(root)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -1441,18 +1376,17 @@ func runPrompt(t *testing.T, root string, client resources.Client, arguments ...
 		api.manifest = manifest
 	case *changingReadAPI:
 		api.manifest = manifest
-	case *headerRecordingAPI:
-		api.manifest = manifest
 	}
+	server := apitest.NewServer(t, client.serve)
 	args := []string{
 		"sync", "prompts",
 		"--access-token", "token",
-		"--base-uri", "https://example.test",
+		"--base-uri", server.URL,
 	}
 	args = append(args, arguments...)
 	stdout, stderr, err := cmd.CallCmdCapturingStderr(
 		t,
-		cmd.APIClients{ResourcesClient: client},
+		cmd.APIClients{},
 		analytics.NoopClientFn{}.Tracker(),
 		args,
 	)

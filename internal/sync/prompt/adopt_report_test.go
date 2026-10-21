@@ -347,7 +347,7 @@ func TestPromptReportsFailedWrites(t *testing.T) {
 	failed := reports[0].Resources[1]
 	assert.Equal(t, "support/second", failed.ResourceLookupKey)
 	assert.Equal(t, syncapi.ReportStatusFailed, failed.Status)
-	assert.Contains(t, failed.Error, "write failed for second")
+	assert.Contains(t, failed.Error, `update config variation "second"`)
 	assert.Zero(t, failed.Version)
 }
 
@@ -405,19 +405,22 @@ func TestPromptSendsCommitAndPullRequest(t *testing.T) {
 	baseline, local := variation("Baseline"), variation("Local")
 	writeVariation(t, root, local, false)
 	writeManifest(t, root, baseline)
-	api := &headerRecordingAPI{directAPI: &directAPI{variation: pointer(baseline)}}
+	api := &directAPI{variation: pointer(baseline)}
 
 	_, _, err := runPrompt(t, root, api, "--yes")
 
 	require.NoError(t, err)
+	require.Len(t, api.headers, len(api.requests))
 	writes := 0
-	for request, source := range api.sources {
+	for index, request := range api.requests {
+		headers := api.headers[index]
 		if strings.HasPrefix(request, "GET ") {
+			assert.Empty(t, headers.Values(syncapi.SyncCommitHeader), "read %s sent the sync commit header", request)
 			continue
 		}
 		writes++
-		assert.Equal(t, "git:example/repo", source, request)
-		assert.Equal(t, commit, api.commits[request], request)
+		assert.Equal(t, []string{"git:example/repo"}, headers.Values(syncapi.SyncSourceHeader), request)
+		assert.Equal(t, []string{commit}, headers.Values(syncapi.SyncCommitHeader), request)
 	}
 	assert.Equal(t, 3, writes, "sync updates the variation and the manifest, and sends the report")
 	reports := decodeReports(t, api.reports)

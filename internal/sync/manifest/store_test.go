@@ -2,7 +2,6 @@ package manifest
 
 import (
 	"errors"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -11,6 +10,7 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 )
 
 type patchCall struct {
@@ -156,22 +156,13 @@ func TestStoreReadsBackAnUncertainPatchThatSucceeded(t *testing.T) {
 // patch fails before LaunchDarkly sends a response.
 func uncertainPatchError(t *testing.T) error {
 	t.Helper()
-	transport := &failingTransport{err: errors.New("connection reset")}
-	_, err := syncapi.NewClient(transport, "token", "https://example.com").PatchSyncManifest("project", "source", nil, nil)
+	server := apitest.NewServer(t, func(apitest.Request) ([]byte, error) {
+		return nil, errors.New("connection reset")
+	})
+	client := syncapi.NewClient(syncapi.Options{BaseURI: server.URL, AccessToken: "token", CLIVersion: "test"})
+	_, err := client.PatchSyncManifest("project", "source", nil, nil)
 	require.True(t, syncapi.MutationMayHaveSucceeded(err))
 	return err
-}
-
-type failingTransport struct {
-	err error
-}
-
-func (transport *failingTransport) MakeRequest(string, string, string, string, url.Values, []byte, bool) ([]byte, error) {
-	return nil, transport.err
-}
-
-func (transport *failingTransport) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, transport.err
 }
 
 func TestManifestValidation(t *testing.T) {

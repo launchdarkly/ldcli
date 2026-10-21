@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/launchdarkly/ldcli/internal/resources"
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	syncbootstrap "github.com/launchdarkly/ldcli/internal/sync/bootstrap"
@@ -35,7 +34,8 @@ type syncWorkspace struct {
 
 // Runner runs the prompt sync commands. Tests replace its function fields.
 type Runner struct {
-	client     resources.Client
+	// cliVersion is the ldcli version that each LaunchDarkly request names.
+	cliVersion string
 	bootstrap  func(syncbootstrap.Options) error
 	detach     func(syncdetach.Options) error
 	link       func(synclink.Options) (string, error)
@@ -45,10 +45,11 @@ type Runner struct {
 	revisions syncrepository.RevisionReader
 }
 
-// NewRunner creates a runner that calls LaunchDarkly through client.
-func NewRunner(client resources.Client) Runner {
+// NewRunner creates a runner. Each LaunchDarkly request names cliVersion in
+// its User-Agent header.
+func NewRunner(cliVersion string) Runner {
 	return Runner{
-		client:     client,
+		cliVersion: cliVersion,
 		bootstrap:  syncbootstrap.Run,
 		detach:     syncdetach.Run,
 		link:       synclink.Run,
@@ -256,9 +257,12 @@ func (runner Runner) bootstrapOptions(
 
 // api returns the LaunchDarkly client for the command.
 func (runner Runner) api(options Options) syncapi.Client {
-	return syncapi.NewClient(runner.client, options.AccessToken, options.BaseURI).
-		WithSyncSource(options.syncSource).
-		WithSyncCommit(options.revision.Commit)
+	return syncapi.NewClient(syncapi.Options{
+		BaseURI:     options.BaseURI,
+		AccessToken: options.AccessToken,
+		CLIVersion:  runner.cliVersion,
+		Sync:        syncapi.SyncIdentity{Source: options.syncSource, Commit: options.revision.Commit},
+	})
 }
 
 // revision returns the commit and the pull request of the repository at root.

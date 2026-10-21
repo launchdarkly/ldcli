@@ -12,14 +12,14 @@ import (
 )
 
 func TestCatalogClientSearchProjectsFiltersAndReturnsOnePage(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{
+	transport := &recordingServer{Responses: [][]byte{
 		mustCatalogJSON(t, Page[Project]{
 			Items:      []Project{{Key: "support", Name: "Support"}},
 			TotalCount: 1,
 		}),
 	}}
 
-	page, err := NewClient(transport, "token", "https://example.com").SearchProjects("supp", 10, 20)
+	page, err := transport.client(t).SearchProjects("supp", 10, 20)
 
 	require.NoError(t, err)
 	require.Equal(t, []Project{{Key: "support", Name: "Support"}}, page.Items)
@@ -33,7 +33,7 @@ func TestCatalogClientSearchProjectsFiltersAndReturnsOnePage(t *testing.T) {
 }
 
 func TestCatalogClientSearchConfigsFiltersAndAppliesMode(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{
+	transport := &recordingServer{Responses: [][]byte{
 		mustCatalogJSON(t, Page[Config]{
 			Items: []Config{{
 				Key:  "support",
@@ -48,11 +48,7 @@ func TestCatalogClientSearchConfigsFiltersAndAppliesMode(t *testing.T) {
 		}),
 	}}
 
-	page, err := NewClient(
-		transport,
-		"token",
-		"https://example.com",
-	).SearchConfigs("project", "support", []syncdomain.VariationMode{syncdomain.VariationModeAgent}, 10, 20)
+	page, err := transport.client(t).SearchConfigs("project", "support", []syncdomain.VariationMode{syncdomain.VariationModeAgent}, 10, 20)
 
 	require.NoError(t, err)
 	require.Len(t, page.Items, 1)
@@ -67,7 +63,7 @@ func TestCatalogClientSearchConfigsFiltersAndAppliesMode(t *testing.T) {
 	request := transport.Requests[0]
 	assert.Equal(
 		t,
-		"https://example.com/api/v2/projects/project/ai-configs",
+		"/api/v2/projects/project/ai-configs",
 		request.Path,
 	)
 	assert.Equal(t, "name", request.Query.Get("sort"))
@@ -78,11 +74,11 @@ func TestCatalogClientSearchConfigsFiltersAndAppliesMode(t *testing.T) {
 	)
 	assert.Equal(t, "10", request.Query.Get("limit"))
 	assert.Equal(t, "20", request.Query.Get("offset"))
-	assert.False(t, request.IsBeta)
+	assert.Equal(t, apiVersion, request.Header.Get("LD-API-Version"))
 }
 
 func TestCatalogClientConfigsDefaultsCompletionMode(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{
+	transport := &recordingServer{Responses: [][]byte{
 		mustCatalogJSON(t, Page[Config]{
 			Items: []Config{{
 				Key:        "completion",
@@ -93,11 +89,7 @@ func TestCatalogClientConfigsDefaultsCompletionMode(t *testing.T) {
 		}),
 	}}
 
-	page, err := NewClient(
-		transport,
-		"token",
-		"https://example.com",
-	).SearchConfigs("project", "", nil, 25, 0)
+	page, err := transport.client(t).SearchConfigs("project", "", nil, 25, 0)
 
 	require.NoError(t, err)
 	require.Len(t, page.Items, 1)
@@ -111,7 +103,7 @@ func TestCatalogClientConfigsDefaultsCompletionMode(t *testing.T) {
 }
 
 func TestCatalogClientConfigsRejectsJudgeMode(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{
+	transport := &recordingServer{Responses: [][]byte{
 		mustCatalogJSON(t, Page[Config]{
 			Items: []Config{{
 				Key:  "config",
@@ -122,17 +114,13 @@ func TestCatalogClientConfigsRejectsJudgeMode(t *testing.T) {
 		}),
 	}}
 
-	_, err := NewClient(
-		transport,
-		"token",
-		"https://example.com",
-	).SearchConfigs("project", "", nil, 25, 0)
+	_, err := transport.client(t).SearchConfigs("project", "", nil, 25, 0)
 
 	require.ErrorContains(t, err, `unsupported mode "judge"`)
 }
 
 func TestCatalogClientConfigGetsExactConfigAndAppliesMode(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{
+	transport := &recordingServer{Responses: [][]byte{
 		mustCatalogJSON(t, Config{
 			Key:  "support",
 			Name: "Support agent",
@@ -145,11 +133,7 @@ func TestCatalogClientConfigGetsExactConfigAndAppliesMode(t *testing.T) {
 		}),
 	}}
 
-	config, err := NewClient(
-		transport,
-		"token",
-		"https://example.com",
-	).Config("project", "support")
+	config, err := transport.client(t).Config("project", "support")
 
 	require.NoError(t, err)
 	require.Len(t, config.Variations, 1)
@@ -160,19 +144,15 @@ func TestCatalogClientConfigGetsExactConfigAndAppliesMode(t *testing.T) {
 	assert.Equal(t, "GET", request.Method)
 	assert.Equal(
 		t,
-		"https://example.com/api/v2/projects/project/ai-configs/support",
+		"/api/v2/projects/project/ai-configs/support",
 		request.Path,
 	)
 	assert.Empty(t, request.Query)
-	assert.False(t, request.IsBeta)
+	assert.Equal(t, apiVersion, request.Header.Get("LD-API-Version"))
 }
 
 func TestCatalogClientConfigRejectsInvalidResponse(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Responses: [][]byte{[]byte(`not json`)}},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Responses: [][]byte{[]byte(`not json`)}}).client(t)
 
 	_, err := client.Config("project", "support")
 
@@ -180,11 +160,7 @@ func TestCatalogClientConfigRejectsInvalidResponse(t *testing.T) {
 }
 
 func TestCatalogClientSearchProjectsRejectsInvalidResponse(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Responses: [][]byte{[]byte(`not json`)}},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Responses: [][]byte{[]byte(`not json`)}}).client(t)
 
 	_, err := client.SearchProjects("", 25, 0)
 
@@ -192,7 +168,7 @@ func TestCatalogClientSearchProjectsRejectsInvalidResponse(t *testing.T) {
 }
 
 func TestCatalogClientModelConfigsGetsBareArray(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(`[
+	transport := &recordingServer{Responses: [][]byte{[]byte(`[
 		{
 			"key":"claude-sonnet",
 			"id":"claude-3-5-sonnet-20241022",
@@ -205,11 +181,7 @@ func TestCatalogClientModelConfigsGetsBareArray(t *testing.T) {
 		{"key":"gpt-5","id":"gpt-5-2025-08-07","name":"GPT-5","provider":"openai"}
 	]`)}}
 
-	modelConfigs, err := NewClient(
-		transport,
-		"token",
-		"https://example.com",
-	).ModelConfigs("project")
+	modelConfigs, err := transport.client(t).ModelConfigs("project")
 
 	require.NoError(t, err)
 	assert.Equal(t, []ModelConfig{
@@ -231,34 +203,26 @@ func TestCatalogClientModelConfigsGetsBareArray(t *testing.T) {
 	require.Len(t, transport.Requests, 1)
 	request := transport.Requests[0]
 	assert.Equal(t, "GET", request.Method)
-	assert.Equal(t, "token", request.AccessToken)
+	assert.Equal(t, "token", request.Header.Get("Authorization"))
 	assert.Equal(
 		t,
-		"https://example.com/api/v2/projects/project/ai-configs/model-configs",
+		"/api/v2/projects/project/ai-configs/model-configs",
 		request.Path,
 	)
 	assert.Empty(t, request.Query)
-	assert.False(t, request.IsBeta)
+	assert.Equal(t, apiVersion, request.Header.Get("LD-API-Version"))
 }
 
 func TestCatalogClientModelConfigsReturnsRequestError(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Err: errors.New("unavailable")},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Err: errors.New("connection closed")}).client(t)
 
 	_, err := client.ModelConfigs("project")
 
-	require.ErrorContains(t, err, `list model configs in project "project": unavailable`)
+	require.ErrorContains(t, err, `list model configs in project "project": Get "`)
 }
 
 func TestCatalogClientModelConfigsRejectsInvalidResponse(t *testing.T) {
-	client := NewClient(
-		&recordingClient{Responses: [][]byte{[]byte(`{"items":[]}`)}},
-		"token",
-		"https://example.com",
-	)
+	client := (&recordingServer{Responses: [][]byte{[]byte(`{"items":[]}`)}}).client(t)
 
 	_, err := client.ModelConfigs("project")
 

@@ -11,7 +11,7 @@ import (
 )
 
 func TestPromptCommandUsesActionSubcommands(t *testing.T) {
-	command := NewPromptCmd(nil)
+	command := NewPromptCmd("test")
 
 	assert.Equal(t, "prompts", command.Use)
 	for _, name := range []string{"watch", "add", "attach", "detach", "link"} {
@@ -32,13 +32,13 @@ func TestPromptCommandUsesActionSubcommands(t *testing.T) {
 }
 
 func TestSyncCommandIncludesExamples(t *testing.T) {
-	command := NewSyncCmd(nil, nil)
+	command := NewSyncCmd("test", nil)
 
 	assert.Contains(t, command.Example, "ldcli sync prompts")
 }
 
 func TestPromptCommandHelpIncludesExamples(t *testing.T) {
-	command := NewPromptCmd(nil)
+	command := NewPromptCmd("test")
 	tests := map[string][]string{
 		"prompts":      {},
 		"watch":        {"watch"},
@@ -65,7 +65,7 @@ func TestPromptCommandHelpIncludesExamples(t *testing.T) {
 }
 
 func TestAttachSubcommandsAcceptOptionalKeyAndTarget(t *testing.T) {
-	command := NewPromptCmd(nil)
+	command := NewPromptCmd("test")
 	tool, _, err := command.Find([]string{"attach", "tool"})
 	require.NoError(t, err)
 	require.NoError(t, tool.ParseFlags([]string{"--to", "project/config/variation"}))
@@ -95,7 +95,7 @@ func TestParseVariationSelectorsRejectsAmbiguousValues(t *testing.T) {
 }
 
 func TestConflictPolicyParsesDefaultAndOverrides(t *testing.T) {
-	command := NewPromptCmd(nil)
+	command := NewPromptCmd("test")
 	require.NoError(t, command.ParseFlags([]string{
 		"--conflict=launchdarkly",
 		"--resolve=project/config/variation=local",

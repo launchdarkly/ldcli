@@ -63,7 +63,7 @@ func (client Client) resolveSyncSettingsBatch(
 	if err != nil {
 		return err
 	}
-	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", query, nil, false)
+	response, err := client.do(http.MethodGet, endpoint, query, nil)
 	if err != nil {
 		if status, ok := responseStatusCode(err); ok && (status == http.StatusForbidden || status == http.StatusNotFound) {
 			return fmt.Errorf("%s: %w", description, ErrSyncSettingsUnavailable)

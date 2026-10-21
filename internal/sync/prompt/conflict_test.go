@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"net/url"
 	"os/exec"
 	"strings"
 	"testing"
@@ -13,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
@@ -256,14 +256,14 @@ func TestRunWorkspaceSyncAppliesConflictChoiceAfterRevalidation(t *testing.T) {
 	baseline, local, server := testVariation("baseline"), testVariation("local"), testVariation("server")
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server}
-	runner := NewRunner(api)
+	runner := NewRunner("test")
 	input := strings.NewReader("\x1b[B\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
+			AccessToken: "token", BaseURI: apitest.NewServer(t, api.serve).URL, Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
 		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
@@ -281,14 +281,14 @@ func TestRunWorkspaceSyncAbortsConflictWithoutWriting(t *testing.T) {
 	baseline, local, server := testVariation("baseline"), testVariation("local"), testVariation("server")
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server}
-	runner := NewRunner(api)
+	runner := NewRunner("test")
 	input := strings.NewReader("\x1b[B\x1b[B\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
+			AccessToken: "token", BaseURI: apitest.NewServer(t, api.serve).URL, Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
 		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
@@ -307,14 +307,14 @@ func TestRunWorkspaceSyncAbortsAttachmentConflictWithoutWriting(t *testing.T) {
 	baseline, local, server := attachmentConflictVariations()
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server, tool: server.Attachments[0]}
-	runner := NewRunner(api)
+	runner := NewRunner("test")
 	input := strings.NewReader("\x1b[B\x1b[B\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
+			AccessToken: "token", BaseURI: apitest.NewServer(t, api.serve).URL, Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
 		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
@@ -338,14 +338,14 @@ func TestRunWorkspaceSyncUsesLaunchDarklyForAttachmentConflict(t *testing.T) {
 	baseline, local, server := attachmentConflictVariations()
 	localStore, manifestStore := writeConflictWorkspace(t, root, baseline, local)
 	api := &conflictAPI{variation: &server, tool: server.Attachments[0]}
-	runner := NewRunner(api)
+	runner := NewRunner("test")
 	input := strings.NewReader("\r")
 	runner.isTerminal = func(actual io.Reader, _ io.Writer) bool { return actual == input }
 	var output bytes.Buffer
 
 	err := runner.runWorkspaceSync(
 		Options{
-			AccessToken: "token", BaseURI: "https://example.test", Yes: true, Input: input,
+			AccessToken: "token", BaseURI: apitest.NewServer(t, api.serve).URL, Yes: true, Input: input,
 			Output: &output, ErrorOutput: &output,
 		},
 		syncWorkspace{root: root, local: localStore, baselines: manifestStore},
@@ -632,15 +632,8 @@ type conflictAPI struct {
 	requests  []string
 }
 
-func (api *conflictAPI) MakeRequest(
-	_ string,
-	method string,
-	path string,
-	_ string,
-	_ url.Values,
-	body []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *conflictAPI) serve(request apitest.Request) ([]byte, error) {
+	method, path, body := request.Method, request.Path, request.Body
 	api.requests = append(api.requests, method)
 	if strings.Contains(path, "/ai-tools/") {
 		if method == "PATCH" {
@@ -671,8 +664,4 @@ func (api *conflictAPI) MakeRequest(
 		api.variation = &update
 	}
 	return []byte(`{}`), nil
-}
-
-func (*conflictAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
 }

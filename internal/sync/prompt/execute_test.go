@@ -3,7 +3,6 @@ package prompt
 import (
 	"encoding/json"
 	"errors"
-	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +10,7 @@ import (
 
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
+	"github.com/launchdarkly/ldcli/internal/sync/api/apitest"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 	syncmanifest "github.com/launchdarkly/ldcli/internal/sync/manifest"
 )
@@ -47,7 +47,7 @@ func TestApplyServerChangeDoesNotRereadAfterDefinitiveAPIError(t *testing.T) {
 		Local:  &variation,
 	}
 
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 	_, err := applyServerChange(client, newAttachmentResolver(client), resource)
 
 	require.ErrorContains(t, err, `"statusCode":400`)
@@ -59,7 +59,7 @@ func TestExecutePlanDoesNotMutateWhileConflictIsUnresolved(t *testing.T) {
 		current: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
 		version: 2,
 	}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 	variation := testVariation("local")
 	variation.Tools = []syncdomain.AttachmentRef{{Key: "search"}}
 	variation.Attachments = []syncdomain.Attachment{{
@@ -91,7 +91,7 @@ func TestExecutePlanSkipsEveryConsumerWhenSharedAttachmentFails(t *testing.T) {
 		version:   2,
 		updateErr: errors.New(`{"code":"invalid_request","statusCode":400}`),
 	}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 	description := "Search all documentation"
 	variation := syncdomain.Variation{
 		Mode: syncdomain.VariationModeAgent, Key: "default", Name: "Support",
@@ -136,7 +136,7 @@ func TestAttachmentVersioningDoesNotMutateReviewedVariation(t *testing.T) {
 		current: syncdomain.Tool{Key: "search", Schema: map[string]any{"type": "object"}},
 		version: 2,
 	}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 	variation := testVariation("local")
 	variation.Tools = []syncdomain.AttachmentRef{{Key: "search", Version: 1}}
 	variation.Attachments = []syncdomain.Attachment{{
@@ -189,7 +189,7 @@ func TestApplyResourceChangeRefreshesPinsWithCompleteServerModel(t *testing.T) {
 		ServerHasStaleAttachmentPins: true,
 	}
 	transport := &variationUpdateAPI{}
-	client := syncapi.NewClient(transport, "token", "https://example.com")
+	client := newTestClient(t, transport.serve)
 
 	_, err = applyResourceChange(
 		root,
@@ -217,23 +217,12 @@ type variationUpdateAPI struct {
 	body []byte
 }
 
-func (api *variationUpdateAPI) MakeRequest(
-	_ string,
-	method string,
-	_ string,
-	_ string,
-	_ url.Values,
-	body []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *variationUpdateAPI) serve(request apitest.Request) ([]byte, error) {
+	method, body := request.Method, request.Body
 	if method == "PATCH" {
 		api.body = body
 	}
 	return []byte(`{}`), nil
-}
-
-func (*variationUpdateAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
 }
 
 type attachmentMutationAPI struct {
@@ -244,15 +233,8 @@ type attachmentMutationAPI struct {
 	updateErr error
 }
 
-func (api *attachmentMutationAPI) MakeRequest(
-	_ string,
-	method string,
-	_ string,
-	_ string,
-	_ url.Values,
-	body []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *attachmentMutationAPI) serve(request apitest.Request) ([]byte, error) {
+	method, body := request.Method, request.Body
 	switch method {
 	case "GET":
 		api.reads++
@@ -273,30 +255,15 @@ func (api *attachmentMutationAPI) MakeRequest(
 	}{Tool: api.current, Version: api.version})
 }
 
-func (*attachmentMutationAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
-}
-
 type definitiveMutationAPI struct {
 	reads int
 }
 
-func (api *definitiveMutationAPI) MakeRequest(
-	_ string,
-	method string,
-	_ string,
-	_ string,
-	_ url.Values,
-	_ []byte,
-	_ bool,
-) ([]byte, error) {
+func (api *definitiveMutationAPI) serve(request apitest.Request) ([]byte, error) {
+	method := request.Method
 	if method == "GET" {
 		api.reads++
 		return []byte(`{"key":"support","mode":"agent","variations":[]}`), nil
 	}
 	return nil, errors.New(`{"code":"invalid_request","statusCode":400}`)
-}
-
-func (*definitiveMutationAPI) MakeUnauthenticatedRequest(string, string, []byte) ([]byte, error) {
-	return nil, nil
 }

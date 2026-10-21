@@ -305,7 +305,7 @@ func NewRootCommand(
 	cmd.AddCommand(awsdevopsagentcmd.NewAWSDevOpsAgentCmd(analyticsTrackerFn))
 	cmd.AddCommand(sourcemapscmd.NewSourcemapsCmd(clients.ResourcesClient, analyticsTrackerFn))
 	cmd.AddCommand(symbolscmd.NewSymbolsCmd(clients.ResourcesClient, analyticsTrackerFn))
-	cmd.AddCommand(synccmd.NewSyncCmd(clients.ResourcesClient, analyticsTrackerFn))
+	cmd.AddCommand(synccmd.NewSyncCmd(version, analyticsTrackerFn))
 	cmd.AddCommand(whoamicmd.NewWhoAmICmd(clients.ResourcesClient))
 	resourcecmd.AddAllResourceCmds(cmd, clients.ResourcesClient, analyticsTrackerFn)
 

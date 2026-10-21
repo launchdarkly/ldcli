@@ -30,8 +30,8 @@ func TestClientResolveSyncSettingsSendsAtMostOneHundredResources(t *testing.T) {
 		require.NoError(t, err)
 		return data
 	}
-	transport := &recordingClient{Responses: [][]byte{response(0, 100), response(100, 150)}}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{Responses: [][]byte{response(0, 100), response(100, 150)}}
+	client := transport.client(t)
 
 	directions, err := client.ResolveSyncSettings("project", ids)
 
@@ -39,7 +39,7 @@ func TestClientResolveSyncSettingsSendsAtMostOneHundredResources(t *testing.T) {
 	require.Len(t, transport.Requests, 2)
 	for _, request := range transport.Requests {
 		assert.Equal(t, http.MethodGet, request.Method)
-		assert.Equal(t, "https://example.com/api/v2/projects/project/configs/sync/settings", request.Path)
+		assert.Equal(t, "/api/v2/projects/project/configs/sync/settings", request.Path)
 		assert.Empty(t, request.Body)
 	}
 	assert.Len(t, transport.Requests[0].Query["resources"], 100)
@@ -54,8 +54,8 @@ func TestClientResolveSyncSettingsSendsAtMostOneHundredResources(t *testing.T) {
 
 func TestClientResolveSyncSettingsUsesBothForMissingItems(t *testing.T) {
 	id := syncdomain.VariationID("project", "support", "default")
-	transport := &recordingClient{Responses: [][]byte{[]byte(`{"items":[]}`)}}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{Responses: [][]byte{[]byte(`{"items":[]}`)}}
+	client := transport.client(t)
 
 	directions, err := client.ResolveSyncSettings("project", []syncdomain.ResourceID{id})
 
@@ -64,9 +64,9 @@ func TestClientResolveSyncSettingsUsesBothForMissingItems(t *testing.T) {
 }
 
 func TestClientResolveSyncSettingsSendsNoRequestWithoutResources(t *testing.T) {
-	transport := &recordingClient{}
+	transport := &recordingServer{}
 
-	directions, err := NewClient(transport, "token", "https://example.com").ResolveSyncSettings("project", nil)
+	directions, err := transport.client(t).ResolveSyncSettings("project", nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, directions)
@@ -78,8 +78,8 @@ func TestClientResolveSyncSettingsReturnsSentinelWhenUnavailable(t *testing.T) {
 		`{"code":"forbidden","message":"Plan does not allow this operation","statusCode":403}`,
 		`{"code":"not_found","message":"Not found","statusCode":404}`,
 	} {
-		transport := &recordingClient{Err: lderrors.NewError(body)}
-		client := NewClient(transport, "token", "https://example.com")
+		transport := &recordingServer{Err: lderrors.NewError(body)}
+		client := transport.client(t)
 
 		_, err := client.ResolveSyncSettings("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
@@ -88,8 +88,8 @@ func TestClientResolveSyncSettingsReturnsSentinelWhenUnavailable(t *testing.T) {
 }
 
 func TestClientResolveSyncSettingsReturnsOtherErrors(t *testing.T) {
-	transport := &recordingClient{Err: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{Err: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)}
+	client := transport.client(t)
 
 	_, err := client.ResolveSyncSettings("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
@@ -99,10 +99,10 @@ func TestClientResolveSyncSettingsReturnsOtherErrors(t *testing.T) {
 }
 
 func TestClientResolveSyncSettingsRejectsUnknownDirection(t *testing.T) {
-	transport := &recordingClient{Responses: [][]byte{[]byte(
+	transport := &recordingServer{Responses: [][]byte{[]byte(
 		`{"items":[{"resourceKind":"variation","resourceLookupKey":"support/default","direction":"sideways"}]}`,
 	)}}
-	client := NewClient(transport, "token", "https://example.com")
+	client := transport.client(t)
 
 	_, err := client.ResolveSyncSettings("project", []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")})
 
@@ -110,8 +110,8 @@ func TestClientResolveSyncSettingsRejectsUnknownDirection(t *testing.T) {
 }
 
 func TestClientPatchSyncSettingsUpsertsExactRule(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support-bot", "default")}
 
 	err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil)
@@ -120,8 +120,8 @@ func TestClientPatchSyncSettingsUpsertsExactRule(t *testing.T) {
 	require.Len(t, transport.Requests, 1)
 	request := transport.Requests[0]
 	assert.Equal(t, http.MethodPatch, request.Method)
-	assert.Equal(t, "https://example.com/api/v2/projects/project/configs/sync/settings", request.Path)
-	assert.Equal(t, "application/json", request.ContentType)
+	assert.Equal(t, "/api/v2/projects/project/configs/sync/settings", request.Path)
+	assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
 	assert.JSONEq(t, `{
 		"upserts": [{"resourceKind":"variation","resourcePattern":"support-bot/default","direction":"code_canonical"}],
 		"deletions": []
@@ -129,8 +129,8 @@ func TestClientPatchSyncSettingsUpsertsExactRule(t *testing.T) {
 }
 
 func TestClientPatchSyncSettingsDeletesExactRule(t *testing.T) {
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support-bot", "default")}
 
 	require.NoError(t, client.PatchSyncSettings("project", nil, ExactVariationPatterns(ids)))
@@ -147,8 +147,8 @@ func TestClientPatchSyncSettingsSendsAtMostOneHundredRulesInEachList(t *testing.
 	for index := range 150 {
 		ids = append(ids, syncdomain.VariationID("project", "support", fmt.Sprintf("v%03d", index)))
 	}
-	transport := &recordingClient{}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{}
+	client := transport.client(t)
 
 	require.NoError(t, client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil))
 
@@ -170,8 +170,8 @@ func TestClientPatchSyncSettingsReturnsSentinelWhenUnavailable(t *testing.T) {
 		`{"code":"forbidden","message":"Plan does not allow this operation","statusCode":403}`,
 		`{"code":"not_found","message":"Not found","statusCode":404}`,
 	} {
-		transport := &recordingClient{Err: lderrors.NewError(body)}
-		client := NewClient(transport, "token", "https://example.com")
+		transport := &recordingServer{Err: lderrors.NewError(body)}
+		client := transport.client(t)
 		ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
 		err := client.PatchSyncSettings("project", ExactVariationRules(ids, syncdomain.DirectionCodeCanonical), nil)
@@ -181,8 +181,8 @@ func TestClientPatchSyncSettingsReturnsSentinelWhenUnavailable(t *testing.T) {
 }
 
 func TestClientPatchSyncSettingsReturnsOtherErrors(t *testing.T) {
-	transport := &recordingClient{Err: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)}
-	client := NewClient(transport, "token", "https://example.com")
+	transport := &recordingServer{Err: lderrors.NewError(`{"code":"internal","message":"boom","statusCode":500}`)}
+	client := transport.client(t)
 	ids := []syncdomain.ResourceID{syncdomain.VariationID("project", "support", "default")}
 
 	err := client.PatchSyncSettings("project", nil, ExactVariationPatterns(ids))

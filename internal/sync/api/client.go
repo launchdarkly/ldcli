@@ -3,13 +3,13 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
-
-	"github.com/launchdarkly/ldcli/internal/resources"
 )
 
 // SyncSourceHeader is the request header that marks a write by sync. Its
@@ -21,38 +21,51 @@ const SyncSourceHeader = "LD-Sync-Source"
 // write. A write sends it only with SyncSourceHeader.
 const SyncCommitHeader = "LD-Sync-Commit"
 
+// apiVersion is the LaunchDarkly REST API version that each request asks for.
+// It is the same version that the resources client sends.
+const apiVersion = "20240415"
+
+// SyncIdentity names the repository and the commit that sync runs at. Each
+// write sends them in the sync headers.
+type SyncIdentity struct {
+	// Source is the sync source of the repository, for example
+	// "git:github.com/acme/app". If Source is empty, a write sends no sync
+	// header.
+	Source string
+	// Commit is the full SHA of the commit. A write sends it only with
+	// Source. If Commit is empty, a write sends no commit header.
+	Commit string
+}
+
+// Options configure a Client.
+type Options struct {
+	// BaseURI is the LaunchDarkly URL, for example "https://app.launchdarkly.com".
+	BaseURI     string
+	AccessToken string
+	// CLIVersion is the ldcli version in the User-Agent header.
+	CLIVersion string
+	Sync       SyncIdentity
+}
+
 // Client calls the LaunchDarkly REST API with one access token.
 type Client struct {
-	transport   resources.Client
-	accessToken string
+	httpClient  *http.Client
 	baseURI     string
-	// syncSource is the repository that sync runs in. Each write sends it in
-	// the SyncSourceHeader header. An empty value sends no header.
-	syncSource string
-	// syncCommit is the full SHA of the commit that sync runs at. Each write
-	// that sends syncSource also sends it in the SyncCommitHeader header. An
-	// empty value sends no header.
-	syncCommit string
+	accessToken string
+	userAgent   string
+	sync        SyncIdentity
 }
 
-// NewClient creates a client for the API at baseURI.
-func NewClient(transport resources.Client, accessToken, baseURI string) Client {
-	return Client{transport: transport, accessToken: accessToken, baseURI: baseURI}
-}
-
-// WithSyncSource returns a copy of the client that sends source with each
-// write. If the transport cannot send extra headers, the client sends the
-// write without the header.
-func (client Client) WithSyncSource(source string) Client {
-	client.syncSource = source
-	return client
-}
-
-// WithSyncCommit returns a copy of the client that sends commit with each
-// write that sends the sync source.
-func (client Client) WithSyncCommit(commit string) Client {
-	client.syncCommit = commit
-	return client
+// NewClient creates a client for the API at options.BaseURI. The HTTP client
+// has no timeout, as the resources client does.
+func NewClient(options Options) Client {
+	return Client{
+		httpClient:  &http.Client{},
+		baseURI:     options.BaseURI,
+		accessToken: options.AccessToken,
+		userAgent:   fmt.Sprintf("launchdarkly-cli/v%s", options.CLIVersion),
+		sync:        options.Sync,
+	}
 }
 
 // Page is one server-filtered page of catalog items.
@@ -78,7 +91,7 @@ func (client Client) read(description, projectKey string, query url.Values, path
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.transport.MakeRequest(client.accessToken, http.MethodGet, endpoint, "", query, nil, false)
+	response, err := client.do(http.MethodGet, endpoint, query, nil)
 	if err != nil {
 		return nil, contextualAPIError(err, description, projectKey)
 	}
@@ -96,27 +109,53 @@ func (client Client) mutate(request mutation, path ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.write(request.method, endpoint, body)
+	response, err := client.do(request.method, endpoint, nil, body)
 	if err != nil {
 		return nil, newMutationError(request.action, request.resource, request.key, err)
 	}
 	return response, nil
 }
 
-// write sends one JSON write request with the sync source header and, when
-// the commit is known, the sync commit header. If the transport cannot send
-// extra headers, it sends the request without them.
-func (client Client) write(method, endpoint string, body []byte) ([]byte, error) {
-	transport, sendsHeaders := client.transport.(resources.HeaderClient)
-	if client.syncSource == "" || !sendsHeaders {
-		return client.transport.MakeRequest(client.accessToken, method, endpoint, "application/json", nil, body, false)
+// do sends one request and returns the response body. A request with a body
+// sends it as JSON. A request that is not a GET is a write. A write sends the
+// sync headers when the client has a sync source. If LaunchDarkly sends a
+// status of 400 or more, the error text is the JSON API error.
+func (client Client) do(method, endpoint string, query url.Values, body []byte) ([]byte, error) {
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
 	}
-	headers := http.Header{}
-	headers.Set(SyncSourceHeader, client.syncSource)
-	if client.syncCommit != "" {
-		headers.Set(SyncCommitHeader, client.syncCommit)
+	request, err := http.NewRequest(method, endpoint, reader)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
 	}
-	return transport.MakeRequestWithHeaders(client.accessToken, method, endpoint, "application/json", nil, body, false, headers)
+	request.Header.Set("Authorization", client.accessToken)
+	request.Header.Set("User-Agent", client.userAgent)
+	request.Header.Set("LD-API-Version", apiVersion)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if method != http.MethodGet && client.sync.Source != "" {
+		request.Header.Set(SyncSourceHeader, client.sync.Source)
+		if client.sync.Commit != "" {
+			request.Header.Set(SyncCommitHeader, client.sync.Commit)
+		}
+	}
+	request.URL.RawQuery = query.Encode()
+
+	response, err := client.httpClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode >= http.StatusBadRequest {
+		return nil, statusError(response.StatusCode, responseBody, endpoint)
+	}
+	return responseBody, nil
 }
 
 func (client Client) endpoint(path ...string) (string, error) {
