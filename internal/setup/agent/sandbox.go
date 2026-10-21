@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 )
@@ -32,6 +33,9 @@ type sandboxPaths struct {
 	ReadWrite []string
 	// ReadOnly are folders that commands must read but not change.
 	ReadOnly []string
+	// Project is the project folder. Its .env files stay closed, because they
+	// hold the user's keys and the agent's model must never see them.
+	Project string
 }
 
 // readWriteUnderHome are package caches and OpenCode's own folders, relative to
@@ -148,6 +152,14 @@ func seatbeltProfile(p sandboxPaths) string {
 	}
 	for _, path := range p.ReadWrite {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", sbString(path))
+	}
+	// These rules come last, so they apply inside the open project folder.
+	// Every .env and .env.* file in the project is closed, in any subfolder.
+	// Example files hold no keys, so they stay open.
+	if p.Project != "" {
+		root := regexp.QuoteMeta(p.Project)
+		fmt.Fprintf(&b, "(deny file-read* file-write* (regex #\"^%s/(.*/)?\\.env(\\.[^/]*)?$\"))\n", root)
+		fmt.Fprintf(&b, "(allow file-read* file-write* (regex #\"^%s/(.*/)?\\.env\\.(example|sample|template)$\"))\n", root)
 	}
 	return b.String()
 }
@@ -305,6 +317,7 @@ func sandboxCommand(binary string, args []string, dir string, env []string) (san
 		return sandbox{}, fmt.Errorf("could not create the agent's temporary folder: %w", err)
 	}
 	paths.Temp, paths.RunTemp = realPath(sharedTemp), realPath(runTemp)
+	paths.Project = realPath(dir)
 	removeTemp := func() { _ = os.RemoveAll(runTemp) }
 	f, err := os.CreateTemp("", "ldcli-agent-*.sb")
 	if err != nil {

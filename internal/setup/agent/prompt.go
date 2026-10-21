@@ -102,7 +102,7 @@ func BuildFacts(t Task) string {
 
 // setupRules ends both prompts, so the agent gets the same rules with or
 // without the AI Config.
-const setupRules = "ldcli gives the user the SDK credential. Do not look for keys, print the environment, or ask the user for a key. Use your temporary folder in $TMPDIR, not /tmp.\n"
+const setupRules = "ldcli gives the user the SDK credential. Do not look for keys, print the environment, or ask the user for a key. The project's .env files are closed to you, so do not read them or run the app with them. Write variable names in .env.example. Use your temporary folder in $TMPDIR, not /tmp.\n"
 
 func providerKeysFact(names []string) string {
 	if len(names) == 0 {
