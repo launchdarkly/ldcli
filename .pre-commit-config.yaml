@@ -1,7 +1,7 @@
-# Cache bust: force rebuild for Go 1.26.0 compatibility
+# Cache bust: golangci-lint v2.9.0 for Go 1.26.10
 repos:
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.63.4
+    rev: v2.9.0
     hooks:
       - id: golangci-lint
         entry: golangci-lint run

@@ -2,6 +2,8 @@ module github.com/launchdarkly/ldcli
 
 go 1.25.0
 
+toolchain go1.26.10
+
 require (
 	github.com/adrg/frontmatter v0.2.0
 	github.com/adrg/xdg v0.5.3
