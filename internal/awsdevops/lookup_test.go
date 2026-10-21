@@ -99,6 +99,35 @@ func TestAgentSpacesListsEveryPage(t *testing.T) {
 	}, spaces)
 }
 
+func TestConnectExistingOnlyConnectsTheMCPServer(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{
+			{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
+		},
+		operatorApps: map[string]*devopsagent.GetOperatorAppOutput{
+			"space-2": {Iam: &agenttypes.IamAuthConfiguration{}},
+		},
+	}
+	iamClient := newFakeIAM()
+
+	result, err := awsdevops.ConnectExisting(context.Background(), newTestClients(agent, iamClient), awsdevops.SetupOptions{
+		AgentSpaceID:  "space-2",
+		AuthFlow:      "iam",
+		LDAccessToken: "api-token",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "space-2", result.AgentSpaceID)
+	assert.Equal(t, awsdevops.OperatorAppURL("space-2"), result.OperatorAppURL)
+	assert.Equal(t, "mcp-1", result.MCPServiceID)
+	assert.Equal(t, "assoc-mcp-1", result.MCPAssociationID)
+	assert.Empty(t, iamClient.createdRoles)
+	assert.NotContains(t, agent.calls, "CreateAgentSpace")
+	assert.NotContains(t, agent.calls, "EnableOperatorApp")
+	require.Len(t, agent.associationInputs, 1)
+	assert.Equal(t, "space-2", aws.ToString(agent.associationInputs[0].AgentSpaceId))
+}
+
 // A user can change the description, so only the tag counts.
 func TestAgentSpacesCountsOnlyTheTag(t *testing.T) {
 	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{

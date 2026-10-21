@@ -201,22 +201,6 @@ func findMCPService(ctx context.Context, clients Clients, endpoint string) (id, 
 	return "", "", nil
 }
 
-// FindAgentSpace returns the ID of the agent space with the given name, or an
-// empty string when the account has none.
-func FindAgentSpace(ctx context.Context, clients Clients, name string) (string, error) {
-	spaces, err := listAgentSpaces(ctx, clients)
-	if err != nil {
-		return "", err
-	}
-	for _, space := range spaces {
-		if strings.EqualFold(aws.ToString(space.Name), name) {
-			return aws.ToString(space.AgentSpaceId), nil
-		}
-	}
-
-	return "", nil
-}
-
 // spacesNamed lists IDs of spaces named name.
 func spacesNamed(ctx context.Context, clients Clients, name string) ([]string, error) {
 	// An empty name names no space, even a space without a name.
