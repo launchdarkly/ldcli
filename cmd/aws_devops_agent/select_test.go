@@ -20,6 +20,8 @@ import (
 type stubAgent struct {
 	spaces   []agenttypes.AgentSpace
 	services []agenttypes.RegisteredService
+	// unreadTags fails the tag lookup of these space IDs.
+	unreadTags map[string]bool
 }
 
 func (s stubAgent) AssociateService(context.Context, *devopsagent.AssociateServiceInput, ...func(*devopsagent.Options)) (*devopsagent.AssociateServiceOutput, error) {
@@ -45,6 +47,11 @@ func (s stubAgent) GetOperatorApp(context.Context, *devopsagent.GetOperatorAppIn
 // ListTagsForResource tags each space with the setup description, as setup
 // does when it creates one.
 func (s stubAgent) ListTagsForResource(_ context.Context, in *devopsagent.ListTagsForResourceInput, _ ...func(*devopsagent.Options)) (*devopsagent.ListTagsForResourceOutput, error) {
+	for id := range s.unreadTags {
+		if strings.HasSuffix(aws.ToString(in.ResourceArn), ":agentspace/"+id) {
+			return nil, errors.New("InternalServerException")
+		}
+	}
 	for _, space := range s.spaces {
 		managed := aws.ToString(space.Description) == "Managed by the LaunchDarkly CLI"
 		if managed && strings.HasSuffix(aws.ToString(in.ResourceArn), ":agentspace/"+aws.ToString(space.AgentSpaceId)) {
@@ -396,4 +403,147 @@ func TestResolveAgentSpaceIDSkipsTheList(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, provision)
+}
+
+// unreadSpace is a space whose tags setup could not read.
+func unreadSpace(id, name string) awsdevops.AgentSpaceSummary {
+	return awsdevops.AgentSpaceSummary{AgentSpaceID: id, Name: name, TagErr: errors.New("InternalServerException")}
+}
+
+// A space with an unknown owner is not a choice, and a note names it.
+func TestSelectAgentSpaceLeavesOutASpaceWithUnreadTags(t *testing.T) {
+	cmd, out := testCmd("2\n")
+	spaces := append(testSpaces(), unreadSpace("space-3", "sandbox"))
+
+	chosen, err := selectAgentSpace(cmd, spaces, "us-east-1", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, spaceChoice{id: "space-2"}, chosen)
+	assert.Contains(t, out.String(), "3) provision a new agent space\n")
+	assert.NotContains(t, out.String(), "sandbox (space-3)")
+	assert.Contains(t, out.String(),
+		"1 agent space is not listed, because setup could not read the tags: sandbox space-3. "+
+			"To use one, pass --agent-space-id <id>.")
+}
+
+func TestSelectAgentSpaceCountsEachSpaceWithUnreadTags(t *testing.T) {
+	cmd, out := testCmd("1\n")
+	spaces := append(testSpaces(), unreadSpace("space-3", "sandbox"), unreadSpace("space-4", "old"))
+
+	_, err := selectAgentSpace(cmd, spaces, "us-east-1", "")
+	require.NoError(t, err)
+
+	assert.Contains(t, out.String(), "2 agent spaces are not listed, because setup could not read the tags: sandbox space-3, old space-4.")
+}
+
+// The name of a hidden space is not free, and it is not a default.
+func TestSelectAgentSpaceDoesNotOfferTheNameOfAHiddenSpace(t *testing.T) {
+	cmd, out := testCmd("1\n")
+	spaces := append(testSpaces(), unreadSpace("space-3", "sandbox"))
+
+	_, err := selectAgentSpace(cmd, spaces, "us-east-1", "Sandbox")
+	require.NoError(t, err)
+
+	assert.NotContains(t, out.String(), "named Sandbox")
+	assert.NotContains(t, out.String(), "[")
+}
+
+// A hidden space with the same name makes the name ambiguous.
+func TestSelectAgentSpaceHasNoDefaultIfAHiddenSpaceSharesTheName(t *testing.T) {
+	cmd, out := testCmd("1\n")
+	spaces := append(testSpaces(), unreadSpace("space-3", "platform"))
+
+	_, err := selectAgentSpace(cmd, spaces, "us-east-1", "platform")
+	require.NoError(t, err)
+
+	assert.NotContains(t, out.String(), "[")
+}
+
+func TestPickWithoutAskingStopsAroundAHiddenSpace(t *testing.T) {
+	cases := map[string]string{
+		"without a name":             "",
+		"with the hidden space name": "sandbox",
+	}
+	for name, spaceName := range cases {
+		t.Run(name, func(t *testing.T) {
+			spaces := []awsdevops.AgentSpaceSummary{
+				{AgentSpaceID: "space-1", Name: "launchdarkly", ManagedByLDCLI: true},
+				unreadSpace("space-3", "sandbox"),
+			}
+			opts := awsdevops.SetupOptions{AgentSpaceName: spaceName}
+
+			_, err := pickWithoutAsking(spaces, &opts, "us-east-1")
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "could not read the tags")
+			assert.ErrorContains(t, err, "sandbox space-3")
+			assert.ErrorContains(t, err, "--agent-space-id")
+			assert.Empty(t, opts.AgentSpaceID)
+			assert.False(t, opts.NewAgentSpace)
+		})
+	}
+}
+
+// A name that no hidden space has is still safe to use.
+func TestPickWithoutAskingUsesANameBesideAHiddenSpace(t *testing.T) {
+	spaces := []awsdevops.AgentSpaceSummary{
+		{AgentSpaceID: "space-1", Name: "launchdarkly", ManagedByLDCLI: true},
+		unreadSpace("space-3", "sandbox"),
+	}
+
+	opts := awsdevops.SetupOptions{AgentSpaceName: "launchdarkly"}
+	provision, err := pickWithoutAsking(spaces, &opts, "us-east-1")
+	require.NoError(t, err)
+	assert.True(t, provision)
+	assert.Equal(t, "space-1", opts.AgentSpaceID)
+
+	opts = awsdevops.SetupOptions{AgentSpaceName: "new-space"}
+	provision, err = pickWithoutAsking(spaces, &opts, "us-east-1")
+	require.NoError(t, err)
+	assert.True(t, provision)
+	assert.True(t, opts.NewAgentSpace)
+}
+
+// One failed tag lookup leaves the other spaces in the list.
+func TestResolveAgentSpaceListsTheSpacesWithReadTags(t *testing.T) {
+	cmd, out := testCmd("1\n")
+	opts := awsdevops.SetupOptions{}
+	clients := awsdevops.Clients{
+		Agent: stubAgent{
+			spaces: []agenttypes.AgentSpace{
+				ldcliSpace("space-1", "launchdarkly"),
+				{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")},
+			},
+			unreadTags: map[string]bool{"space-2": true},
+		},
+		STS:    accountSTS{},
+		Region: "us-east-1",
+	}
+
+	provision, err := resolveAgentSpace(cmd, clients, &opts, true)
+	require.NoError(t, err)
+
+	assert.True(t, provision)
+	assert.Equal(t, "space-1", opts.AgentSpaceID)
+	assert.Contains(t, out.String(), "1) launchdarkly (space-1), made by ldcli")
+	assert.Contains(t, out.String(), "1 agent space is not listed")
+	assert.Contains(t, out.String(), "platform space-2")
+}
+
+// If every lookup fails, setup stops.
+func TestResolveAgentSpaceFailsIfNoTagCanBeRead(t *testing.T) {
+	cmd, _ := testCmd("1\n")
+	opts := awsdevops.SetupOptions{}
+	clients := awsdevops.Clients{
+		Agent: stubAgent{
+			spaces:     []agenttypes.AgentSpace{{AgentSpaceId: aws.String("space-2"), Name: aws.String("platform")}},
+			unreadTags: map[string]bool{"space-2": true},
+		},
+		STS:    accountSTS{},
+		Region: "us-east-1",
+	}
+
+	_, err := resolveAgentSpace(cmd, clients, &opts, true)
+
+	assert.ErrorContains(t, err, "unable to read the tags of agent space space-2")
 }

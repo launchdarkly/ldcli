@@ -236,8 +236,25 @@ func resolveAgentSpace(
 // creates the space when no space has the name. Without a name, it reuses the
 // one space that setup made, so an unattended re-run stays idempotent. It never
 // guesses between spaces that setup did not make.
-func pickWithoutAsking(spaces []awsdevops.AgentSpaceSummary, opts *awsdevops.SetupOptions, region string) (bool, error) {
+//
+// A space whose tags setup could not read has an unknown owner. A run that
+// cannot ask stops rather than pick around such a space.
+func pickWithoutAsking(all []awsdevops.AgentSpaceSummary, opts *awsdevops.SetupOptions, region string) (bool, error) {
+	spaces, unread := splitByTag(all)
 	name := opts.AgentSpaceName
+	if name != "" && hasSpaceNamed(unread, name) {
+		return false, fmt.Errorf(
+			"setup could not read the tags of the agent space named %s in %s (%s); pass --%s to pick a space",
+			name, region, strings.Join(agentSpaceLabels(unread), ", "), agentSpaceIDFlag,
+		)
+	}
+	if name == "" && len(unread) > 0 {
+		return false, fmt.Errorf(
+			"setup could not read the tags of %s in %s (%s); pass --%s or --%s to pick a space",
+			spaceCount(len(unread)), region, strings.Join(agentSpaceLabels(unread), ", "),
+			agentSpaceIDFlag, agentSpaceNameFlag,
+		)
+	}
 	if name != "" {
 		if i := spaceNamed(spaces, name); i >= 0 {
 			opts.AgentSpaceID = spaces[i].AgentSpaceID
@@ -277,6 +294,38 @@ func pickWithoutAsking(spaces []awsdevops.AgentSpaceSummary, opts *awsdevops.Set
 		agentSpaceIDFlag,
 		agentSpaceNameFlag,
 	)
+}
+
+// splitByTag splits the spaces into those with a known owner and those whose
+// tags setup could not read.
+func splitByTag(spaces []awsdevops.AgentSpaceSummary) (read, unread []awsdevops.AgentSpaceSummary) {
+	for _, space := range spaces {
+		if space.TagErr != nil {
+			unread = append(unread, space)
+		} else {
+			read = append(read, space)
+		}
+	}
+
+	return read, unread
+}
+
+// notListed starts the note about the spaces that the list leaves out.
+func notListed(n int) string {
+	if n == 1 {
+		return "1 agent space is"
+	}
+
+	return fmt.Sprintf("%d agent spaces are", n)
+}
+
+// spaceCount names a number of agent spaces.
+func spaceCount(n int) string {
+	if n == 1 {
+		return "1 agent space"
+	}
+
+	return fmt.Sprintf("%d agent spaces", n)
 }
 
 // nameNewSpace makes sure that a new space has a name, and asks for one in a
@@ -422,12 +471,17 @@ type spaceChoice struct {
 // selectAgentSpace asks which agent space to connect LaunchDarkly to. With a
 // name, Enter picks the space with that name, or a new space with that name
 // when no space has it. Without a name, there is no default.
+//
+// The list leaves out a space whose tags setup could not read, because its
+// owner is unknown. A note names each of those spaces. The name checks still
+// count them, so setup does not offer a new space with the name of one.
 func selectAgentSpace(
 	cmd *cobra.Command,
-	spaces []awsdevops.AgentSpaceSummary,
+	all []awsdevops.AgentSpaceSummary,
 	region string,
 	name string,
 ) (spaceChoice, error) {
+	spaces, unread := splitByTag(all)
 	choices := make([]spaceChoice, 0, len(spaces)+2)
 	labels := make([]string, 0, len(spaces)+2)
 	for _, space := range spaces {
@@ -440,7 +494,10 @@ func selectAgentSpace(
 	}
 
 	defaultIndex := spaceNamed(spaces, name)
-	if name != "" && !hasSpaceNamed(spaces, name) {
+	if hasSpaceNamed(unread, name) {
+		defaultIndex = -1
+	}
+	if name != "" && !hasSpaceNamed(all, name) {
 		defaultIndex = len(choices)
 		choices = append(choices, spaceChoice{newSpace: true, name: name})
 		labels = append(labels, "provision a new agent space named "+name)
@@ -454,6 +511,11 @@ func selectAgentSpace(
 		_, _ = fmt.Fprintf(out, "  %d) %s\n", i+1, label)
 	}
 	_, _ = fmt.Fprintln(out)
+	if len(unread) > 0 {
+		_, _ = fmt.Fprintf(out,
+			"%s not listed, because setup could not read the tags: %s. To use one, pass --%s <id>.\n\n",
+			notListed(len(unread)), strings.Join(agentSpaceLabels(unread), ", "), agentSpaceIDFlag)
+	}
 
 	question := "Which one should LaunchDarkly connect to? "
 	if defaultIndex >= 0 {
