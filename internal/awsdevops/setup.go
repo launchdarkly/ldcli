@@ -115,7 +115,7 @@ func (s RoleStep) describe() string {
 	case RoleCreate:
 		return "Create role " + s.Name
 	case RoleUpdate:
-		return fmt.Sprintf("Update the trust policy of role %s", s.Name)
+		return fmt.Sprintf("Update the trust policy and permissions of role %s", s.Name)
 	default:
 		return fmt.Sprintf("Leave role %s unchanged because it has no %s tag", s.Name, ManagedTagKey)
 	}
