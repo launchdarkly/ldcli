@@ -29,7 +29,9 @@
         {
           "associationId": "a-001",
           "serviceId": "aws",
-          "status": "valid"
+          "status": "valid",
+          "accountId": "123456789012",
+          "accountType": "monitor"
         },
         {
           "associationId": "a-002",

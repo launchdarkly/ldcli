@@ -194,6 +194,54 @@ func TestStatusVendorMCPServerHasPlainLabel(t *testing.T) {
 	assert.NotContains(t, out, "mcpserverdatadog")
 }
 
+// Each AWS account association has the service ID "aws". The label names
+// the account of the association, not the account that runs the command.
+func TestStatusNamesEachAWSAccount(t *testing.T) {
+	status := realisticStatus()
+	space := &status.AgentSpaces[0]
+	space.Associations = append(space.Associations,
+		awsdevops.AssociationStatus{
+			AssociationID: "a-003", ServiceID: "aws", Status: "valid",
+			AccountID: "210987654321", AccountType: "source",
+		},
+		awsdevops.AssociationStatus{
+			AssociationID: "a-004", ServiceID: "aws", Status: "pending-confirmation",
+			AccountID: "333333333333", AccountType: "source",
+		},
+	)
+	section := spaceSection(t, renderStatus(status), "Production")
+
+	assert.Equal(t, "    AWS account 123456789012: ready", lineWith(t, section, "AWS account 123456789012"))
+	assert.Equal(t, "    Source AWS account 210987654321: ready", lineWith(t, section, "210987654321"))
+	assert.Equal(t, "    Source AWS account 333333333333: waiting for confirmation", lineWith(t, section, "333333333333"))
+}
+
+// An AWS association without a known configuration names the account of
+// the command, as before.
+func TestStatusAWSAssociationWithoutAccountUsesTheCallerAccount(t *testing.T) {
+	status := realisticStatus()
+	status.AgentSpaces[0].Associations[0].AccountID = ""
+	status.AgentSpaces[0].Associations[0].AccountType = ""
+	section := spaceSection(t, renderStatus(status), "Production")
+
+	assert.Contains(t, lineWith(t, section, "AWS account"), "AWS account 123456789012")
+}
+
+func TestStatusServiceTypesHavePlainLabels(t *testing.T) {
+	cases := map[string]string{
+		"github":           "acme GitHub",
+		"pagerduty":        "acme PagerDuty",
+		"remoteagentsigv4": "acme remote agent",
+		"mcpserversigv4":   "acme MCP server",
+		"newtype":          "acme newtype",
+	}
+	for kind, want := range cases {
+		t.Run(kind, func(t *testing.T) {
+			assert.Equal(t, want, serviceLabel(awsdevops.ServiceStatus{ServiceType: kind, Name: "acme"}))
+		})
+	}
+}
+
 func TestStatusNoSpacesNamesSetupCommand(t *testing.T) {
 	status := realisticStatus()
 	status.AgentSpaces = nil

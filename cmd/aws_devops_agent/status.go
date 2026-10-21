@@ -98,7 +98,7 @@ func printStatus(out io.Writer, status awsdevops.Status) {
 		}
 		for _, association := range space.Associations {
 			_, _ = fmt.Fprintf(out, "    %s: %s\n",
-				associationLabel(status, association.ServiceID), plainState(association.Status))
+				associationLabel(status, association), plainState(association.Status))
 		}
 	}
 
@@ -109,18 +109,45 @@ func printConsoleURL(out io.Writer, region string) {
 	_, _ = fmt.Fprintf(out, "\nAWS DevOps Agent console: %s\n", awsdevops.ConsoleURL(region))
 }
 
-// associationLabel names the service by ID.
-func associationLabel(status awsdevops.Status, serviceID string) string {
-	if serviceID == awsdevops.AWSServiceID {
-		return "AWS account " + status.AccountID
+// associationLabel names the service of an association.
+func associationLabel(status awsdevops.Status, association awsdevops.AssociationStatus) string {
+	if association.ServiceID == awsdevops.AWSServiceID {
+		// An agent space can read other AWS accounts. Each of them is an
+		// association with the service ID "aws" and its own account ID.
+		accountID := association.AccountID
+		if accountID == "" {
+			accountID = status.AccountID
+		}
+		if association.AccountType == "source" {
+			return "Source AWS account " + accountID
+		}
+
+		return "AWS account " + accountID
 	}
 	for _, service := range status.Services {
-		if service.ServiceID == serviceID && serviceLabel(service) != "" {
+		if service.ServiceID == association.ServiceID && serviceLabel(service) != "" {
 			return serviceLabel(service)
 		}
 	}
 
-	return "Service " + serviceID
+	return "Service " + association.ServiceID
+}
+
+// serviceKinds gives a plain name for each SDK service type. A type that is
+// not in the map shows as AWS sends it.
+var serviceKinds = map[string]string{
+	"github":           "GitHub",
+	"gitlab":           "GitLab",
+	"slack":            "Slack",
+	"azure":            "Azure",
+	"azureidentity":    "Azure",
+	"azuredevops":      "Azure DevOps",
+	"dynatrace":        "Dynatrace",
+	"servicenow":       "ServiceNow",
+	"pagerduty":        "PagerDuty",
+	"eventChannel":     "event channel",
+	"remoteagent":      "remote agent",
+	"remoteagentsigv4": "remote agent",
 }
 
 func serviceLabel(service awsdevops.ServiceStatus) string {
@@ -130,6 +157,8 @@ func serviceLabel(service awsdevops.ServiceStatus) string {
 	// "MCP server".
 	if strings.HasPrefix(kind, "mcpserver") {
 		kind = "MCP server"
+	} else if plain, ok := serviceKinds[kind]; ok {
+		kind = plain
 	}
 
 	return strings.TrimSpace(service.Name + " " + kind)

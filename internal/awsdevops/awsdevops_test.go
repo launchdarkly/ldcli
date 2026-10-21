@@ -653,6 +653,41 @@ func TestStatusReportsMissingRoles(t *testing.T) {
 	assert.Equal(t, "aws", status.AgentSpaces[0].Associations[0].ServiceID)
 }
 
+// The primary account and another account both have the service ID "aws".
+// Only the configuration tells them apart.
+func TestStatusReadsTheAccountOfEachAWSAssociation(t *testing.T) {
+	agent := &fakeAgent{
+		associations: []agenttypes.Association{
+			{
+				AssociationId: aws.String("assoc-1"), ServiceId: aws.String("aws"),
+				Configuration: &agenttypes.ServiceConfigurationMemberAws{Value: agenttypes.AWSConfiguration{
+					AccountId: aws.String(testAccountID), AccountType: agenttypes.MonitorAccountTypeMonitor,
+				}},
+			},
+			{
+				AssociationId: aws.String("assoc-2"), ServiceId: aws.String("aws"),
+				Configuration: &agenttypes.ServiceConfigurationMemberSourceAws{Value: agenttypes.SourceAwsConfiguration{
+					AccountId: aws.String("210987654321"), AccountType: agenttypes.SourceAccountTypeSource,
+				}},
+			},
+			{AssociationId: aws.String("assoc-3"), ServiceId: aws.String("mcp-1")},
+		},
+	}
+
+	status, err := awsdevops.GetStatus(context.Background(), newTestClients(agent, newFakeIAM()), "")
+	require.NoError(t, err)
+
+	require.Len(t, status.AgentSpaces, 1)
+	associations := status.AgentSpaces[0].Associations
+	require.Len(t, associations, 3)
+	assert.Equal(t, testAccountID, associations[0].AccountID)
+	assert.Equal(t, "monitor", associations[0].AccountType)
+	assert.Equal(t, "210987654321", associations[1].AccountID)
+	assert.Equal(t, "source", associations[1].AccountType)
+	assert.Empty(t, associations[2].AccountID)
+	assert.Empty(t, associations[2].AccountType)
+}
+
 func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {
 	assert.Equal(
 		t,

@@ -18,7 +18,7 @@ func realisticStatus() awsdevops.Status {
 			Name:           "Production",
 			OperatorAppURL: awsdevops.OperatorAppURL("as-prod01"),
 			Associations: []awsdevops.AssociationStatus{
-				{AssociationID: "a-001", ServiceID: "aws", Status: "valid"},
+				{AssociationID: "a-001", ServiceID: "aws", Status: "valid", AccountID: "123456789012", AccountType: "monitor"},
 				{AssociationID: "a-002", ServiceID: "s-ld01", Status: "valid"},
 			},
 		}},
