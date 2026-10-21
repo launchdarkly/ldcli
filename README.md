@@ -121,7 +121,7 @@ export AWS_PROFILE=my-profile AWS_REGION=us-east-1
 ldcli aws-devops-agent setup
 ```
 
-The AWS DevOps Agent is available in `us-east-1`, `us-west-2`, `ca-central-1`, `sa-east-1`, `ap-south-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `eu-central-1`, `eu-west-1` and `eu-west-2`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
+The AWS DevOps Agent is available in `us-east-1`, `us-east-2`, `us-west-2`, `ca-central-1`, `sa-east-1`, `ap-south-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ap-northeast-2`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3` and `eu-north-1`, and requires AWS CLI 2.36 or later if you also use the AWS CLI directly. `setup` warns when the `aws` binary on your PATH is missing or older than that; the command itself uses the AWS SDK, so it still runs.
 
 `setup` is safe to re-run: it reuses the IAM roles, the agent space matching `--agent-space-name`, the account and MCP associations on it, and any LaunchDarkly MCP server already registered on the account. Pass `--new-agent-space` to create an additional agent space instead. The IAM roles are account-wide and trust the agent spaces in every region, so running `setup` in a second region leaves the first one working; a role named `DevOpsAgentRole-AgentSpace` or `DevOpsAgentRole-WebappAdmin` that `setup` did not create is reused untouched, and it has to trust `aidevops.amazonaws.com` itself.
 
