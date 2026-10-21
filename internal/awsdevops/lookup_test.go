@@ -122,7 +122,7 @@ func TestAgentSpacesReportsATagError(t *testing.T) {
 		agentSpaces: []agenttypes.AgentSpace{
 			{AgentSpaceId: aws.String("space-1"), Name: aws.String("launchdarkly"), Description: aws.String("Managed by the LaunchDarkly CLI")},
 		},
-		tagsErr: errors.New("AccessDeniedException"),
+		tagsErr: apiError{code: "AccessDeniedException"},
 	}
 
 	_, err := awsdevops.AgentSpaces(context.Background(), newTestClients(agent, newFakeIAM()))
@@ -130,6 +130,19 @@ func TestAgentSpacesReportsATagError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tags of agent space space-1")
 	assert.Contains(t, err.Error(), "aidevops:ListTagsForResource")
+}
+
+// Another error does not blame a missing permission.
+func TestAgentSpacesReportsAnotherTagErrorWithoutThePermission(t *testing.T) {
+	agent := &fakeAgent{
+		agentSpaces: []agenttypes.AgentSpace{namedSpace("space-1", "launchdarkly")},
+		tagsErr:     apiError{code: "InternalServerException"},
+	}
+
+	_, err := awsdevops.AgentSpaces(context.Background(), newTestClients(agent, newFakeIAM()))
+
+	require.Error(t, err)
+	assert.Equal(t, "unable to read the tags of agent space space-1: api error InternalServerException", err.Error())
 }
 
 func countCalls(calls []string, name string) int {
@@ -164,7 +177,7 @@ func TestStatusReadsTheOperatorApp(t *testing.T) {
 // apiError acts like an AWS API error with a code.
 type apiError struct{ code string }
 
-func (e apiError) Error() string     { return "api error " + e.code + ": not allowed" }
+func (e apiError) Error() string     { return "api error " + e.code }
 func (e apiError) ErrorCode() string { return e.code }
 
 // A policy without aidevops:GetOperatorApp must not hide the rest of status.

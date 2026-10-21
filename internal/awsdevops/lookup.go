@@ -142,9 +142,14 @@ func hasManagedTag(ctx context.Context, clients Clients, accountID, spaceID stri
 	out, err := clients.Agent.ListTagsForResource(ctx, &devopsagent.ListTagsForResourceInput{
 		ResourceArn: aws.String(agentSpaceARN(clients.Region, accountID, spaceID)),
 	})
-	if err != nil {
+	// The SDK retries a throttle or a server error before it returns. Only an
+	// access error points to the permission.
+	if err != nil && errorCode(err) == "AccessDeniedException" {
 		return false, fmt.Errorf(
 			"unable to read the tags of agent space %s. Setup needs aidevops:ListTagsForResource: %w", spaceID, err)
+	}
+	if err != nil {
+		return false, fmt.Errorf("unable to read the tags of agent space %s: %w", spaceID, err)
 	}
 
 	return out.Tags[ManagedTagKey] == ManagedTagValue, nil
