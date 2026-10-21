@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
+	ssotypes "github.com/aws/aws-sdk-go-v2/service/sso/types"
 )
 
 // ConfigFilePath returns the shared AWS config file path.
@@ -51,13 +52,18 @@ func SSOProfile(path, profile string) string {
 // Only then does aws sso login help.
 func SSOTokenInvalid(err error) bool {
 	var invalid *ssocreds.InvalidTokenError
+	var unauthorized *ssotypes.UnauthorizedException
 	switch {
 	case err == nil:
 		return false
 	case errors.As(err, &invalid):
 		// A legacy profile with sso_start_url.
 		return true
-	case errors.Is(err, fs.ErrNotExist):
+	case errors.As(err, &unauthorized):
+		// A cached token that is not expired, but that AWS no longer accepts,
+		// for example after a sign-out in the access portal.
+		return true
+	case missingCachedToken(err):
 		// An sso_session profile with no cached token.
 		return true
 	}
@@ -72,6 +78,17 @@ func SSOTokenInvalid(err error) bool {
 	}
 
 	return false
+}
+
+// missingCachedToken reports a missing file in the SSO token cache. Another
+// missing file, such as a credential_process binary, is not a token problem.
+func missingCachedToken(err error) bool {
+	var pathErr *fs.PathError
+	if !errors.As(err, &pathErr) || !errors.Is(pathErr.Err, fs.ErrNotExist) {
+		return false
+	}
+
+	return strings.HasSuffix(filepath.Dir(pathErr.Path), filepath.Join(".aws", "sso", "cache"))
 }
 
 // HasSSOConfig reports whether the profile uses SSO.
