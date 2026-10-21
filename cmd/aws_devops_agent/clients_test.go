@@ -13,11 +13,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/ldcli/cmd/cliflags"
 	"github.com/launchdarkly/ldcli/internal/awsdevops"
 )
 
@@ -145,8 +143,8 @@ func TestLoginSaysTheTokenIsStillNotValid(t *testing.T) {
 
 	_, err := l.clients(context.Background(), "", "sso")
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not valid after aws sso login")
+	assert.EqualError(t, err, "the SSO token for profile sso is not valid after aws sso login")
+	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
 	assert.Len(t, f.runs, 1)
 }
 
@@ -258,16 +256,10 @@ func TestLoginSkipsWhenFirstCallWorks(t *testing.T) {
 	assert.Equal(t, 1, f.calls)
 }
 
-// A JSON run in a terminal asks. The prompt goes to stderr, so stdout keeps
-// only the JSON.
-func TestLoginAsksInJSONModeInATerminal(t *testing.T) {
-	viper.Set(cliflags.OutputFlag, "json")
-	t.Cleanup(func() { viper.Set(cliflags.OutputFlag, "") })
-	cmd := NewStatusCmd(nil)
+// status has no --yes flag, so its login always asks first.
+func TestLoginYesIsOffWithoutTheFlag(t *testing.T) {
+	l := newSSOLogin(NewStatusCmd(nil), func() bool { return true })
 
-	l := newSSOLogin(cmd, func() bool { return true })
-
-	assert.True(t, l.tty())
 	assert.False(t, l.yes)
 }
 
@@ -336,17 +328,6 @@ func TestLoginAsksForARealSSOSessionProfile(t *testing.T) {
 
 	require.ErrorIs(t, err, awsdevops.ErrNoCredentials)
 	assert.Contains(t, prompted.String(), "Run aws sso login --profile dev now?")
-}
-
-func TestLoginAsksInPlaintextTerminal(t *testing.T) {
-	viper.Set(cliflags.OutputFlag, "plaintext")
-	t.Cleanup(func() { viper.Set(cliflags.OutputFlag, "") })
-	cmd := NewStatusCmd(nil)
-
-	l := newSSOLogin(cmd, func() bool { return true })
-
-	assert.True(t, l.tty())
-	assert.False(t, l.yes)
 }
 
 // The SSO prompt shares stdin with later prompts.

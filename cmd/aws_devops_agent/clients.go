@@ -80,12 +80,25 @@ func (l ssoLogin) clients(ctx context.Context, region, profile string) (awsdevop
 
 	clients, err = l.newClients(ctx, region, profile)
 	if awsdevops.SSOTokenInvalid(err) {
-		return clients, fmt.Errorf(
-			"the SSO token for profile %s is not valid after aws sso login: %w", name, errors.Unwrap(err))
+		return clients, &stillInvalidErr{profile: name, err: err}
 	}
 
 	return clients, err
 }
+
+// stillInvalidErr reports an SSO token that is not valid after a login. Its
+// message does not include err. The text of err tells the user to run aws sso
+// login, which the user just did, and the SDK cause can contain secrets.
+type stillInvalidErr struct {
+	profile string
+	err     error
+}
+
+func (e *stillInvalidErr) Error() string {
+	return fmt.Sprintf("the SSO token for profile %s is not valid after aws sso login", e.profile)
+}
+
+func (e *stillInvalidErr) Unwrap() error { return e.err }
 
 // yesSet reports a passed --yes flag.
 func yesSet(cmd *cobra.Command) bool {
