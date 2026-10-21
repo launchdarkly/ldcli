@@ -19,13 +19,8 @@ const (
 // SyncReport is the result of one sync for one project and one repository
 // source.
 type SyncReport struct {
-	Source string `json:"source"`
-	// Commit is the full SHA of the commit that sync ran at. It is empty when
-	// sync does not know the commit.
-	Commit string `json:"commit,omitempty"`
-	// PullRequest is the number of the pull request of the commit, or 0.
-	PullRequest int                  `json:"pullRequest,omitempty"`
-	Resources   []SyncReportResource `json:"resources"`
+	Source    string               `json:"source"`
+	Resources []SyncReportResource `json:"resources"`
 }
 
 // SyncReportResource is the result of one resource in a sync report.

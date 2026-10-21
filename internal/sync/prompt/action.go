@@ -8,7 +8,6 @@ import (
 	syncdomain "github.com/launchdarkly/ldcli/internal/sync"
 	synclink "github.com/launchdarkly/ldcli/internal/sync/link"
 	syncreference "github.com/launchdarkly/ldcli/internal/sync/reference"
-	syncrepository "github.com/launchdarkly/ldcli/internal/sync/repository"
 )
 
 // CommandAction is one prompt sync operation.
@@ -123,10 +122,6 @@ type Options struct {
 	// syncSource is the repository that the command syncs. Run sets it, and
 	// each write to LaunchDarkly sends it.
 	syncSource string
-	// revision is the commit that the command runs at, and its pull request.
-	// Run sets it. Each write sends the commit, and each sync report sends
-	// both.
-	revision syncrepository.Revision
 }
 
 // validateOptions rejects an action whose flags conflict.

@@ -18,9 +18,7 @@ func TestClientPostSyncReport(t *testing.T) {
 	client := transport.client(t)
 
 	err := client.PostSyncReport("project", SyncReport{
-		Source:      "git:github.com/acme/support-app",
-		Commit:      "3f9c2ae8d1",
-		PullRequest: 142,
+		Source: "git:github.com/acme/support-app",
 		Resources: []SyncReportResource{
 			{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support-bot/default", Status: ReportStatusSucceeded, Version: 7},
 			{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support-bot/short", Status: ReportStatusSucceeded},
@@ -36,30 +34,12 @@ func TestClientPostSyncReport(t *testing.T) {
 	assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
 	assert.JSONEq(t, `{
 		"source": "git:github.com/acme/support-app",
-		"commit": "3f9c2ae8d1",
-		"pullRequest": 142,
 		"resources": [
 			{"resourceKind":"variation","resourceLookupKey":"support-bot/default","status":"succeeded","version":7},
 			{"resourceKind":"variation","resourceLookupKey":"support-bot/short","status":"succeeded"},
 			{"resourceKind":"variation","resourceLookupKey":"support-bot/long","status":"failed","error":"Invalid key ''"}
 		]
 	}`, string(request.Body))
-}
-
-func TestClientPostSyncReportOmitsUnknownRevision(t *testing.T) {
-	transport := &recordingServer{}
-	client := transport.client(t)
-
-	require.NoError(t, client.PostSyncReport("project", SyncReport{
-		Source: "git:github.com/acme/support-app",
-		Resources: []SyncReportResource{
-			{ResourceKind: syncdomain.KindVariation, ResourceLookupKey: "support-bot/default", Status: ReportStatusSucceeded},
-		},
-	}))
-
-	require.Len(t, transport.Requests, 1)
-	assert.NotContains(t, string(transport.Requests[0].Body), "commit")
-	assert.NotContains(t, string(transport.Requests[0].Body), "pullRequest")
 }
 
 func TestClientPostSyncReportSendsAtMostOneThousandResources(t *testing.T) {
@@ -73,7 +53,7 @@ func TestClientPostSyncReportSendsAtMostOneThousandResources(t *testing.T) {
 	transport := &recordingServer{}
 	client := transport.client(t)
 
-	require.NoError(t, client.PostSyncReport("project", SyncReport{Source: "git:example.com/acme/app", Commit: "abc", Resources: resources}))
+	require.NoError(t, client.PostSyncReport("project", SyncReport{Source: "git:example.com/acme/app", Resources: resources}))
 
 	require.Len(t, transport.Requests, 3)
 	for index, expected := range []int{1000, 1000, 500} {
@@ -81,7 +61,6 @@ func TestClientPostSyncReportSendsAtMostOneThousandResources(t *testing.T) {
 		require.NoError(t, json.Unmarshal(transport.Requests[index].Body, &report))
 		assert.Len(t, report.Resources, expected)
 		assert.Equal(t, "git:example.com/acme/app", report.Source)
-		assert.Equal(t, "abc", report.Commit)
 		assert.Equal(t, fmt.Sprintf("support/v%04d", index*1000), report.Resources[0].ResourceLookupKey)
 	}
 }

@@ -2,10 +2,6 @@ package prompt_test
 
 import (
 	"encoding/json"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,14 +12,6 @@ import (
 	syncapi "github.com/launchdarkly/ldcli/internal/sync/api"
 	synclocal "github.com/launchdarkly/ldcli/internal/sync/local"
 )
-
-// clearGitHubEnvironment makes the pull request rules use only the commit,
-// also when the tests run in GitHub Actions.
-func clearGitHubEnvironment(t *testing.T) {
-	t.Helper()
-	t.Setenv("GITHUB_EVENT_NAME", "")
-	t.Setenv("GITHUB_REF", "")
-}
 
 func decodeReports(t *testing.T, bodies []string) []syncapi.SyncReport {
 	t.Helper()
@@ -264,7 +252,6 @@ func TestPromptDetachWarnsWhenSyncSettingsAreUnavailable(t *testing.T) {
 }
 
 func TestPromptReportsWrittenVersion(t *testing.T) {
-	clearGitHubEnvironment(t)
 	root := initRepository(t)
 	baseline, local := variation("Baseline"), variation("Local")
 	writeVariation(t, root, local, false)
@@ -286,7 +273,6 @@ func TestPromptReportsWrittenVersion(t *testing.T) {
 }
 
 func TestPromptReportsInSyncResourceWithoutVersion(t *testing.T) {
-	clearGitHubEnvironment(t)
 	root := initRepository(t)
 	baseline := variation("Baseline")
 	writeVariation(t, root, baseline, false)
@@ -395,64 +381,4 @@ func TestPromptCanceledSyncSendsNoReport(t *testing.T) {
 	_, _, _ = runPrompt(t, root, api, "--yes", "--no-input", "--conflict=abort")
 
 	assert.Empty(t, api.reports)
-}
-
-func TestPromptSendsCommitAndPullRequest(t *testing.T) {
-	t.Setenv("GITHUB_EVENT_NAME", "pull_request")
-	t.Setenv("GITHUB_REF", "refs/pull/142/merge")
-	root := initRepository(t)
-	commit := commitAll(t, root, "Add the support prompt (#58)")
-	baseline, local := variation("Baseline"), variation("Local")
-	writeVariation(t, root, local, false)
-	writeManifest(t, root, baseline)
-	api := &directAPI{variation: pointer(baseline)}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
-	require.NoError(t, err)
-	require.Len(t, api.headers, len(api.requests))
-	for index, request := range api.requests {
-		assert.Empty(t, api.headers[index].Values("LD-Sync-Commit"), request)
-	}
-	reports := decodeReports(t, api.reports)
-	require.Len(t, reports, 1)
-	assert.Equal(t, commit, reports[0].Commit)
-	assert.Equal(t, 142, reports[0].PullRequest)
-}
-
-func TestPromptFindsPullRequestInCommitSubject(t *testing.T) {
-	clearGitHubEnvironment(t)
-	root := initRepository(t)
-	commit := commitAll(t, root, "Add the support prompt (#58)")
-	baseline := variation("Baseline")
-	writeVariation(t, root, baseline, false)
-	writeManifest(t, root, baseline)
-	api := &directAPI{variation: pointer(baseline)}
-
-	_, _, err := runPrompt(t, root, api, "--yes")
-
-	require.NoError(t, err)
-	reports := decodeReports(t, api.reports)
-	require.Len(t, reports, 1)
-	assert.Equal(t, commit, reports[0].Commit)
-	assert.Equal(t, 58, reports[0].PullRequest)
-}
-
-// commitAll makes a commit with subject in the repository, and returns its
-// full SHA.
-func commitAll(t *testing.T, root, subject string) string {
-	t.Helper()
-	git := func(args ...string) string {
-		command := exec.Command("git", append([]string{
-			"-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false",
-		}, args...)...)
-		command.Dir = root
-		output, err := command.CombinedOutput()
-		require.NoError(t, err, "%s", output)
-		return strings.TrimSpace(string(output))
-	}
-	require.NoError(t, os.WriteFile(filepath.Join(root, "README.md"), []byte("test\n"), 0o644))
-	git("add", "README.md")
-	git("commit", "--quiet", "-m", subject)
-	return git("rev-parse", "HEAD")
 }

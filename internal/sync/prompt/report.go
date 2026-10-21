@@ -27,10 +27,8 @@ func sendSyncReports(options Options, client syncapi.Client, outcomes []Resource
 	console := syncconsole.New(options.ErrorOutput)
 	for _, projectKey := range slices.Sorted(maps.Keys(byProject)) {
 		err := client.PostSyncReport(projectKey, syncapi.SyncReport{
-			Source:      options.syncSource,
-			Commit:      options.revision.Commit,
-			PullRequest: options.revision.PullRequest,
-			Resources:   byProject[projectKey],
+			Source:    options.syncSource,
+			Resources: byProject[projectKey],
 		})
 		if err != nil {
 			_ = console.Printf(
