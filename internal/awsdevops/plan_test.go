@@ -31,12 +31,12 @@ func planWith(t *testing.T, iamClient *fakeIAM, provision bool) awsdevops.SetupP
 // roleLine returns the plan line naming role.
 func roleLine(t *testing.T, plan awsdevops.SetupPlan, role string) string {
 	t.Helper()
-	for _, line := range plan.Roles {
+	for _, line := range plan.Text().Roles {
 		if strings.Contains(line, role+" ") || strings.HasSuffix(line, role) {
 			return strings.ToLower(line)
 		}
 	}
-	t.Fatalf("no plan line names role %s in %q", role, plan.Roles)
+	t.Fatalf("no plan line names role %s in %q", role, plan.Text().Roles)
 
 	return ""
 }
@@ -88,21 +88,21 @@ func TestPlanSetupLeavesUnmanagedRoles(t *testing.T) {
 func TestPlanSetupEnablesTheOperatorApp(t *testing.T) {
 	plan := planWith(t, newFakeIAM(), true)
 
-	assert.Contains(t, strings.ToLower(plan.OperatorApp), "enable")
+	assert.Contains(t, strings.ToLower(plan.Text().OperatorApp), "enable")
 }
 
 // Connecting never touches roles or the app.
 func TestPlanConnectLeavesRolesAndAppAlone(t *testing.T) {
 	plan := planWith(t, newFakeIAM(), false)
 
-	require.NotEmpty(t, plan.Roles)
-	for _, line := range plan.Roles {
+	require.NotEmpty(t, plan.Text().Roles)
+	for _, line := range plan.Text().Roles {
 		lower := strings.ToLower(line)
 		assert.NotContains(t, lower, "create")
 		assert.NotContains(t, lower, "update")
 	}
-	require.NotEmpty(t, plan.OperatorApp)
-	assert.NotContains(t, strings.ToLower(plan.OperatorApp), "enable")
+	require.NotEmpty(t, plan.Text().OperatorApp)
+	assert.NotContains(t, strings.ToLower(plan.Text().OperatorApp), "enable")
 }
 
 func TestPlanSetupMakesNoIAMWrites(t *testing.T) {
@@ -128,8 +128,8 @@ func TestPlanNamesTheAccountAssociation(t *testing.T) {
 			plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), runPlanOptions(), true)
 
 			require.NoError(t, err)
-			assert.Contains(t, strings.ToLower(plan.Association), name)
-			assert.Contains(t, plan.Association, testAccountID)
+			assert.Contains(t, strings.ToLower(plan.Text().Association), name)
+			assert.Contains(t, plan.Text().Association, testAccountID)
 		})
 	}
 }
@@ -142,8 +142,8 @@ func TestPlanConnectChangesNothingElse(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, false)
 
 	require.NoError(t, err)
-	assert.Equal(t, "No change", plan.Association)
-	assert.Equal(t, "No change", plan.OperatorApp)
+	assert.Equal(t, "No change", plan.Text().Association)
+	assert.Equal(t, "No change", plan.Text().OperatorApp)
 	assert.Contains(t, agent.calls, "GetOperatorApp")
 	assert.NotContains(t, agent.calls, "EnableOperatorApp")
 }
@@ -155,7 +155,7 @@ func TestPlanEnablesAppWithNoSignIn(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), runPlanOptions(), true)
 
 	require.NoError(t, err)
-	assert.Contains(t, strings.ToLower(plan.OperatorApp), "enable")
+	assert.Contains(t, strings.ToLower(plan.Text().OperatorApp), "enable")
 }
 
 // The same flow is not a change.
@@ -170,8 +170,8 @@ func TestPlanSameFlowIsNotAChange(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
 
 	require.NoError(t, err)
-	assert.NotContains(t, strings.ToLower(plan.OperatorApp), "change")
-	assert.Contains(t, plan.OperatorApp, "IAM")
+	assert.NotContains(t, strings.ToLower(plan.Text().OperatorApp), "change")
+	assert.Contains(t, plan.Text().OperatorApp, "IAM")
 }
 
 // Same IdC or IdP flow changes settings.
@@ -189,8 +189,8 @@ func TestPlanSameIdcFlowSaysUpdate(t *testing.T) {
 			plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
 
 			require.NoError(t, err)
-			assert.NotContains(t, plan.OperatorApp, "again")
-			assert.Contains(t, strings.ToLower(plan.OperatorApp), "update")
+			assert.NotContains(t, plan.Text().OperatorApp, "again")
+			assert.Contains(t, strings.ToLower(plan.Text().OperatorApp), "update")
 		})
 	}
 }
@@ -206,6 +206,71 @@ func TestPlanAcceptsRegisteredMCPServiceID(t *testing.T) {
 	assert.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
 }
 
+// An ID of a server at another endpoint is not a LaunchDarkly MCP server.
+func TestPlanStopsOnAnMCPServiceIDAtAnotherEndpoint(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{
+		mcpService("mcp-9", "Datadog", "https://mcp.datadoghq.com/mcp"),
+	}}
+	opts := runPlanOptions()
+	opts.MCPServiceID = "mcp-9"
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "MCP server mcp-9 serves https://mcp.datadoghq.com/mcp")
+	assert.ErrorContains(t, err, "--mcp-endpoint https://mcp.datadoghq.com/mcp")
+}
+
+// A LaunchDarkly MCP server that the customer hosts needs --mcp-endpoint.
+func TestPlanAcceptsAnMCPServiceIDWithItsEndpoint(t *testing.T) {
+	agent := &fakeAgent{services: []agenttypes.RegisteredService{
+		mcpService("mcp-9", "LaunchDarkly", "https://mcp.example.internal/mcp"),
+	}}
+	opts := runPlanOptions()
+	opts.MCPServiceID = "mcp-9"
+	opts.MCPEndpoint = "https://mcp.example.internal/mcp"
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+	require.NoError(t, err)
+	assert.Equal(t, awsdevops.MCPReuse, plan.MCP.Action)
+	assert.Equal(t, "mcp-9", plan.MCP.ServiceID)
+}
+
+// The text of a connect plan comes from its steps.
+func TestPlanTextOfAConnectPlan(t *testing.T) {
+	for name, tc := range map[string]struct {
+		flow string
+		want string
+	}{
+		"app on":  {flow: "iam", want: "No change"},
+		"app off": {want: "No change. The operator app is off"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			plan := awsdevops.SetupPlan{
+				AccountID: testAccountID,
+				Space:     awsdevops.SpaceStep{Action: awsdevops.SpaceConnect, ID: "space-7", Name: "platform"},
+				App:       awsdevops.AppStep{Action: awsdevops.AppKeep, Flow: tc.flow},
+				MCP:       awsdevops.MCPStep{Action: awsdevops.MCPRegister, Endpoint: awsdevops.MCPServerEndpoint},
+			}
+
+			text := plan.Text()
+
+			assert.Equal(t, "Connect to agent space platform (space-7)", text.AgentSpace)
+			assert.Equal(t, "No change", text.Association)
+			assert.Equal(t, []string{"No change"}, text.Roles)
+			assert.Equal(t, tc.want, text.OperatorApp)
+			assert.Equal(t, "Register MCP server "+awsdevops.MCPServerName+" at "+awsdevops.MCPServerEndpoint, text.MCPServer)
+		})
+	}
+}
+
+func TestPlanTextOfASkippedMCPServer(t *testing.T) {
+	plan := awsdevops.SetupPlan{MCP: awsdevops.MCPStep{Action: awsdevops.MCPSkip}}
+
+	assert.Equal(t, "Skip MCP server "+awsdevops.MCPServerName+", because no token was given", plan.Text().MCPServer)
+}
+
 // The replace plan names touched spaces.
 func TestPlanReplaceNamesEachSpace(t *testing.T) {
 	opts := runPlanOptions()
@@ -214,9 +279,9 @@ func TestPlanReplaceNamesEachSpace(t *testing.T) {
 	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(replaceAcrossSpaces(), newFakeIAM()), opts, true)
 
 	require.NoError(t, err)
-	assert.Contains(t, plan.MCPServer, "space-1")
-	assert.Contains(t, plan.MCPServer, "space-3")
-	assert.NotContains(t, plan.MCPServer, "space-2")
+	assert.Contains(t, plan.Text().MCPServer, "space-1")
+	assert.Contains(t, plan.Text().MCPServer, "space-3")
+	assert.NotContains(t, plan.Text().MCPServer, "space-2")
 }
 
 // Two spaces with one name leave no safe choice.

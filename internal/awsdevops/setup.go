@@ -261,32 +261,67 @@ const (
 	MCPReuse
 	MCPReplace
 	MCPAsk
+	// MCPSkip means that the user gave no token, so the run skips the server.
+	MCPSkip
 )
 
 // MCPStep is the planned MCP server step.
 type MCPStep struct {
 	Action    MCPAction
 	ServiceID string
+	// Endpoint is the URL that the server serves.
+	Endpoint string
 	// Spaces lists spaces linked to the server.
 	Spaces []string
 }
 
-// SetupPlan describes what setup will change.
+// SetupPlan describes what setup will change. It holds only the steps. Text
+// describes them, so the printed plan cannot disagree with the steps.
 type SetupPlan struct {
-	MCP         MCPStep
-	App         AppStep
-	AccountID   string
-	Region      string
-	AgentSpace  string
-	Space       SpaceStep
-	Association string
+	AccountID string
+	Region    string
+	Space     SpaceStep
 	// Link is set only in a full setup plan. A connect plan does not read or
 	// change the account association.
-	Link        LinkStep
-	MCPServer   string
+	Link      LinkStep
+	RoleSteps []RoleStep
+	// App is the operator app at plan time. In a connect plan, its Action is
+	// AppKeep and its Flow is the current sign-in, which the run reports.
+	App AppStep
+	// AuthFlow is the sign-in that a full setup sets.
+	AuthFlow string
+	MCP      MCPStep
+}
+
+// PlanText is the plan as lines for a person to read.
+type PlanText struct {
+	AgentSpace  string
+	Association string
 	Roles       []string
-	RoleSteps   []RoleStep
 	OperatorApp string
+	MCPServer   string
+}
+
+// Text describes each step of the plan.
+func (p SetupPlan) Text() PlanText {
+	text := PlanText{AgentSpace: p.Space.describe(), MCPServer: p.MCP.describe()}
+	if p.Space.Action == SpaceConnect {
+		text.Association = "No change"
+		text.Roles = []string{"No change"}
+		text.OperatorApp = "No change"
+		if p.App.Flow == "" {
+			text.OperatorApp = "No change. The operator app is off"
+		}
+
+		return text
+	}
+	text.Association = p.Link.describe(p.AccountID)
+	for _, step := range p.RoleSteps {
+		text.Roles = append(text.Roles, step.describe())
+	}
+	text.OperatorApp = p.App.describe(p.AuthFlow)
+
+	return text
 }
 
 // PlanSetup describes a run without changing AWS.
@@ -301,13 +336,11 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 	if err != nil {
 		return plan, err
 	}
-	plan.AgentSpace = plan.Space.describe()
 
 	plan.MCP, err = planMCPStep(ctx, clients, opts)
 	if err != nil {
 		return plan, err
 	}
-	plan.MCPServer = plan.MCP.describe(opts.mcpEndpoint())
 
 	if !provision {
 		// Read the app, so the run does not print a URL that does not work.
@@ -316,15 +349,10 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 			return plan, err
 		}
 		plan.App.Action = AppKeep
-		plan.Roles = []string{"No change"}
-		plan.OperatorApp = "No change"
-		if plan.App.Flow == "" {
-			plan.OperatorApp = "No change. The operator app is off"
-		}
-		plan.Association = "No change"
 
 		return plan, nil
 	}
+	plan.AuthFlow = opts.AuthFlow
 	if plan.Space.Action != SpaceCreate {
 		id, err := FindAssociation(ctx, clients, plan.Space.ID, awsServiceID)
 		if err != nil {
@@ -332,20 +360,17 @@ func PlanSetup(ctx context.Context, clients Clients, opts SetupOptions, provisio
 		}
 		plan.Link.Exists = id != ""
 	}
-	plan.Association = plan.Link.describe(accountID)
 	for _, name := range []string{AgentSpaceRoleName, OperatorAppRoleName} {
 		step, err := planRole(ctx, clients.IAM, name)
 		if err != nil {
 			return plan, err
 		}
 		plan.RoleSteps = append(plan.RoleSteps, step)
-		plan.Roles = append(plan.Roles, step.describe())
 	}
 	plan.App, err = planApp(ctx, clients, opts, plan.Space)
 	if err != nil {
 		return plan, err
 	}
-	plan.OperatorApp = plan.App.describe(opts.AuthFlow)
 
 	return plan, nil
 }
@@ -418,9 +443,16 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 }
 
 func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions) (MCPStep, error) {
+	step, err := planMCPAction(ctx, clients, opts)
+	step.Endpoint = opts.mcpEndpoint()
+
+	return step, err
+}
+
+func planMCPAction(ctx context.Context, clients Clients, opts SetupOptions) (MCPStep, error) {
 	existing := opts.MCPServiceID
 	if existing != "" {
-		if err := checkMCPServiceID(ctx, clients, existing); err != nil {
+		if err := checkMCPServiceID(ctx, clients, existing, opts.mcpEndpoint()); err != nil {
 			return MCPStep{}, err
 		}
 	}
@@ -449,22 +481,34 @@ func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions) (MCPSt
 	}
 }
 
-// checkMCPServiceID needs a registered MCP server.
-func checkMCPServiceID(ctx context.Context, clients Clients, id string) error {
+// checkMCPServiceID needs a registered MCP server at the LaunchDarkly
+// endpoint. Setup finds a LaunchDarkly MCP server by its endpoint, because the
+// name is the choice of the customer. A server at another endpoint is not one,
+// so setup does not connect it to the agent space.
+func checkMCPServiceID(ctx context.Context, clients Clients, id, endpoint string) error {
 	services, err := listServices(ctx, clients)
 	if err != nil {
 		return err
 	}
 	for _, service := range services {
-		if aws.ToString(service.ServiceId) == id && service.ServiceType == agenttypes.ServiceMcpServer {
-			return nil
+		if aws.ToString(service.ServiceId) != id || service.ServiceType != agenttypes.ServiceMcpServer {
+			continue
 		}
+		if served := mcpEndpointOf(service); served != endpoint {
+			return fmt.Errorf(
+				"MCP server %s serves %s, not the LaunchDarkly MCP server at %s. "+
+					"If it is a LaunchDarkly MCP server that you host, pass --mcp-endpoint %s",
+				id, served, endpoint, served,
+			)
+		}
+
+		return nil
 	}
 
 	return fmt.Errorf("ID %s names no registered MCP server", id)
 }
 
-func (m MCPStep) describe(endpoint string) string {
+func (m MCPStep) describe() string {
 	switch m.Action {
 	case MCPReplace:
 		line := fmt.Sprintf("Replace the token of MCP server %s (%s)", MCPServerName, m.ServiceID)
@@ -476,7 +520,9 @@ func (m MCPStep) describe(endpoint string) string {
 	case MCPReuse:
 		return fmt.Sprintf("Reuse MCP server %s (%s)", MCPServerName, m.ServiceID)
 	case MCPRegister:
-		return fmt.Sprintf("Register MCP server %s at %s", MCPServerName, endpoint)
+		return fmt.Sprintf("Register MCP server %s at %s", MCPServerName, m.Endpoint)
+	case MCPSkip:
+		return fmt.Sprintf("Skip MCP server %s, because no token was given", MCPServerName)
 	default:
 		return fmt.Sprintf("Ask for a token, then register MCP server %s", MCPServerName)
 	}
