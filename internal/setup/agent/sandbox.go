@@ -154,12 +154,13 @@ func seatbeltProfile(p sandboxPaths) string {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", sbString(path))
 	}
 	// These rules come last, so they apply inside the open project folder.
-	// Every .env and .env.* file in the project is closed, in any subfolder.
-	// Example files hold no keys, so they stay open.
+	// The sandbox closes every .env and .env.* file in each project
+	// subfolder. Example files hold no keys, so they stay open. The regex is
+	// a quoted profile string, so sbString escapes a quote in the path.
 	if p.Project != "" {
 		root := regexp.QuoteMeta(p.Project)
-		fmt.Fprintf(&b, "(deny file-read* file-write* (regex #\"^%s/(.*/)?\\.env(\\.[^/]*)?$\"))\n", root)
-		fmt.Fprintf(&b, "(allow file-read* file-write* (regex #\"^%s/(.*/)?\\.env\\.(example|sample|template)$\"))\n", root)
+		fmt.Fprintf(&b, "(deny file-read* file-write* (regex %s))\n", sbString("^"+root+`/(.*/)?\.env(\.[^/]*)?$`))
+		fmt.Fprintf(&b, "(allow file-read* file-write* (regex %s))\n", sbString("^"+root+`/(.*/)?\.env\.(example|sample|template)$`))
 	}
 	return b.String()
 }

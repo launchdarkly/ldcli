@@ -272,7 +272,8 @@ func TestSandboxCommand_ClosesTheProjectsEnvFiles(t *testing.T) {
 		t.Skip("sandbox-exec is not available")
 	}
 	t.Setenv("HOME", t.TempDir())
-	project := filepath.Join(t.TempDir(), "app")
+	// The quote checks that the profile escapes the path in its regex.
+	project := filepath.Join(t.TempDir(), `app"demo`)
 	write := func(rel, content string) string {
 		path := filepath.Join(project, rel)
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
@@ -301,11 +302,11 @@ func TestSandboxCommand_ClosesTheProjectsEnvFiles(t *testing.T) {
 		assert.Contains(t, out, "Operation not permitted", path)
 		assert.NotContains(t, out, "secret", path)
 	}
-	out, err := sandboxed("/bin/sh", "-c", "echo X=1 >> "+closed[0])
+	out, err := sandboxed("/bin/sh", "-c", `echo X=1 >> "$1"`, "sh", closed[0])
 	assert.Error(t, err, "the agent cannot write .env either")
 	assert.Contains(t, out, "Operation not permitted")
 
-	out, err = sandboxed("/bin/sh", "-c", "echo LAUNCHDARKLY_SDK_KEY= >> "+example+" && cat "+example+" "+source)
+	out, err = sandboxed("/bin/sh", "-c", `echo LAUNCHDARKLY_SDK_KEY= >> "$1" && cat "$1" "$2"`, "sh", example, source)
 	require.NoError(t, err, out)
 	assert.Contains(t, out, "LAUNCHDARKLY_SDK_KEY=", "example files stay open")
 	assert.Contains(t, out, "print('hi')", "other project files stay open")
