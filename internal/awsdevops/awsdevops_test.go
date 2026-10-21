@@ -667,9 +667,9 @@ func TestManualStepURLsPointAtRegistrationPages(t *testing.T) {
 }
 
 func TestNewClientsRejectsUnsupportedRegion(t *testing.T) {
-	_, err := awsdevops.NewClients(context.Background(), "us-east-2", "")
+	_, err := awsdevops.NewClients(context.Background(), "us-east-3", "")
 
-	assert.ErrorContains(t, err, "AWS DevOps Agent is not available in us-east-2")
+	assert.ErrorContains(t, err, "AWS DevOps Agent is not available in us-east-3")
 }
 
 func TestNewClientsRequiresCredentials(t *testing.T) {
@@ -677,6 +677,7 @@ func TestNewClientsRequiresCredentials(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 	t.Setenv("AWS_SESSION_TOKEN", "")
 	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_DEFAULT_PROFILE", "")
 	t.Setenv("AWS_CONFIG_FILE", "/dev/null")
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
@@ -684,7 +685,7 @@ func TestNewClientsRequiresCredentials(t *testing.T) {
 	_, err := awsdevops.NewClients(context.Background(), "us-east-1", "")
 
 	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
-	assert.ErrorContains(t, err, "Authenticate first")
+	assert.ErrorContains(t, err, "aws sso login")
 }
 
 func TestNewClientsSuggestsSelectingAProfile(t *testing.T) {
@@ -698,6 +699,7 @@ func TestNewClientsSuggestsSelectingAProfile(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 	t.Setenv("AWS_SESSION_TOKEN", "")
 	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_DEFAULT_PROFILE", "")
 	t.Setenv("AWS_CONFIG_FILE", configPath)
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
@@ -725,6 +727,7 @@ func TestNewClientsNamesTheSelectedProfile(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 	t.Setenv("AWS_SESSION_TOKEN", "")
 	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_DEFAULT_PROFILE", "")
 	t.Setenv("AWS_CONFIG_FILE", configPath)
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
@@ -732,6 +735,7 @@ func TestNewClientsNamesTheSelectedProfile(t *testing.T) {
 	_, err := awsdevops.NewClients(context.Background(), "us-east-1", "my-profile")
 
 	assert.ErrorIs(t, err, awsdevops.ErrNoCredentials)
-	assert.ErrorContains(t, err, `profile "my-profile"`)
-	assert.ErrorContains(t, err, "aws sso login --profile my-profile")
+	assert.ErrorContains(t, err, `profile "my-profile" has no AWS credentials`)
+	assert.NotContains(t, err.Error(), "sso login")
+	assert.NotContains(t, err.Error(), "ec2imds")
 }

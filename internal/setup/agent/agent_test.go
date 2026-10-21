@@ -77,7 +77,7 @@ func TestOpenCodeConfig_RunsCommandsWithoutApprovals(t *testing.T) {
 		Permission map[string]json.RawMessage `json:"permission"`
 	}
 	require.NoError(t, json.Unmarshal(data, &cfg))
-	assert.JSONEq(t, `"allow"`, string(cfg.Permission["edit"]))
+	assert.True(t, strings.HasPrefix(string(cfg.Permission["edit"]), `{"*":"allow",`), "edits run without approval, except on .env files")
 	assert.JSONEq(t, `"allow"`, string(cfg.Permission["question"]), "the agent can still ask for information")
 	assert.JSONEq(t, `"deny"`, string(cfg.Permission["external_directory"]))
 	assert.JSONEq(t, `"deny"`, string(cfg.Permission["webfetch"]))
@@ -448,5 +448,22 @@ func TestBuildPrompt_HasTheSameFactsAsBuildFacts(t *testing.T) {
 		assert.Contains(t, p, "LaunchDarkly environment: prod")
 		assert.Contains(t, p, "ANTHROPIC_API_KEY (names only)")
 		assert.Contains(t, p, "$TMPDIR")
+	}
+}
+
+func TestOpenCodeConfig_ReadAndEditRefuseEnvFiles(t *testing.T) {
+	data, err := openCodeConfig(nil)
+	require.NoError(t, err)
+	var cfg struct {
+		Permission map[string]json.RawMessage `json:"permission"`
+	}
+	require.NoError(t, json.Unmarshal(data, &cfg))
+
+	for _, tool := range []string{"read", "edit"} {
+		raw := string(cfg.Permission[tool])
+		assert.Contains(t, raw, `"*.env":"deny"`, tool)
+		assert.Contains(t, raw, `"*.env.*":"deny"`, tool)
+		assert.Contains(t, raw, `"*.env.example":"allow"`, tool)
+		assert.Less(t, strings.Index(raw, `"*.env.*":"deny"`), strings.Index(raw, `"*.env.example":"allow"`), "the last match wins, so the example rule comes after the deny")
 	}
 }

@@ -44,13 +44,19 @@ func openCodeConfig(model *managedModel) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The read and edit tools refuse .env files, which hold the user's keys.
+	// The sandbox closes them for every other command too.
+	envFiles, err := orderedRules(envFileRules)
+	if err != nil {
+		return nil, err
+	}
 	cfg := map[string]any{
 		"$schema": "https://opencode.ai/config.json",
 		"permission": map[string]any{
-			"read":               "allow",
+			"read":               envFiles,
 			"glob":               "allow",
 			"grep":               "allow",
-			"edit":               "allow",
+			"edit":               envFiles,
 			"bash":               bash,
 			"question":           "allow",
 			"external_directory": "deny",
@@ -94,6 +100,17 @@ var bashRules = [][2]string{
 
 // orderedRules encodes rules as a JSON object with the keys in the given
 // order. A Go map would sort the keys.
+// envFileRules allow every file except .env files. The last matching rule
+// wins, so the example files stay open.
+var envFileRules = [][2]string{
+	{"*", "allow"},
+	{"*.env", "deny"},
+	{"*.env.*", "deny"},
+	{"*.env.example", "allow"},
+	{"*.env.sample", "allow"},
+	{"*.env.template", "allow"},
+}
+
 func orderedRules(rules [][2]string) (json.RawMessage, error) {
 	var b strings.Builder
 	b.WriteByte('{')

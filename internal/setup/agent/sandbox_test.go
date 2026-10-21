@@ -263,3 +263,51 @@ func TestSandboxCommand_SymlinkedHomeKeepsSharedBinFolderClosed(t *testing.T) {
 	assert.NotContains(t, string(profile), "(subpath "+sbString(filepath.Join(realHome, ".local"))+")", "the shared ~/.local folder stays closed")
 	assert.Contains(t, string(profile), "(subpath "+sbString(filepath.Join(realHome, ".local", "bin"))+")")
 }
+
+func TestSandboxCommand_ClosesTheProjectsEnvFiles(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the sandbox is macOS only")
+	}
+	if _, err := os.Stat(sandboxExec); err != nil {
+		t.Skip("sandbox-exec is not available")
+	}
+	t.Setenv("HOME", t.TempDir())
+	// The quote checks that the profile escapes the path in its regex.
+	project := filepath.Join(t.TempDir(), `app"demo`)
+	write := func(rel, content string) string {
+		path := filepath.Join(project, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		return path
+	}
+	closed := []string{
+		write(".env", "ANTHROPIC_API_KEY=secret"),
+		write(".env.local", "LD_SDK_KEY=secret"),
+		write(filepath.Join("services", "api", ".env"), "OPENAI_API_KEY=secret"),
+	}
+	example := write(".env.example", "ANTHROPIC_API_KEY=")
+	source := write("main.py", "print('hi')")
+
+	sandboxed := func(binary string, args ...string) (string, error) {
+		box, err := sandboxCommand(binary, args, project, os.Environ())
+		require.NoError(t, err)
+		defer box.Cleanup()
+		out, err := exec.Command(box.Name, box.Args...).CombinedOutput()
+		return string(out), err
+	}
+
+	for _, path := range closed {
+		out, err := sandboxed("/bin/cat", path)
+		assert.Error(t, err, "read %s", path)
+		assert.Contains(t, out, "Operation not permitted", path)
+		assert.NotContains(t, out, "secret", path)
+	}
+	out, err := sandboxed("/bin/sh", "-c", `echo X=1 >> "$1"`, "sh", closed[0])
+	assert.Error(t, err, "the agent cannot write .env either")
+	assert.Contains(t, out, "Operation not permitted")
+
+	out, err = sandboxed("/bin/sh", "-c", `echo LAUNCHDARKLY_SDK_KEY= >> "$1" && cat "$1" "$2"`, "sh", example, source)
+	require.NoError(t, err, out)
+	assert.Contains(t, out, "LAUNCHDARKLY_SDK_KEY=", "example files stay open")
+	assert.Contains(t, out, "print('hi')", "other project files stay open")
+}
