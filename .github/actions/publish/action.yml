@@ -63,6 +63,7 @@ runs:
       run: docker exec
         --env GITHUB_TOKEN
         --env HOMEBREW_DEPLOY_KEY
+        --env GOTOOLCHAIN=auto
         --workdir "$PWD"
         --tty
         "$CONTAINER_ID"
