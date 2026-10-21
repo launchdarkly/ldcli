@@ -192,7 +192,9 @@ func (a AppStep) describe(flow string) string {
 			return fmt.Sprintf("Update the operator app %s sign-in settings", flowLabel(flow))
 		}
 
-		return "Change the operator app sign-in to " + flowLabel(flow)
+		// Name the current sign-in, so a change to a sign-in that someone
+		// else set up is visible in the plan.
+		return fmt.Sprintf("Change the operator app sign-in from %s to %s", flowLabel(a.Flow), flowLabel(flow))
 	default:
 		return fmt.Sprintf("Enable the operator app with %s sign-in", flowLabel(flow))
 	}

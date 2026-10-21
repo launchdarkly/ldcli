@@ -195,6 +195,18 @@ func TestPlanSameIdcFlowSaysUpdate(t *testing.T) {
 	}
 }
 
+// A change names the current sign-in, so a reader sees what it replaces.
+func TestPlanNamesTheCurrentSignInOfAChange(t *testing.T) {
+	agent := reuseWithApp(&devopsagent.GetOperatorAppOutput{Iam: &agenttypes.IamAuthConfiguration{}})
+	opts := runPlanOptions()
+	opts.AuthFlow, opts.AuthFlowSet = "idp", true
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Change the operator app sign-in from IAM to IdP", plan.Text().OperatorApp)
+}
+
 func TestPlanAcceptsRegisteredMCPServiceID(t *testing.T) {
 	agent := &fakeAgent{services: []agenttypes.RegisteredService{launchDarklyMCPService("mcp-1")}}
 	opts := runPlanOptions()
