@@ -271,6 +271,46 @@ func TestPlanTextOfASkippedMCPServer(t *testing.T) {
 	assert.Equal(t, "Skip MCP server "+awsdevops.MCPServerName+", because no token was given", plan.Text().MCPServer)
 }
 
+// The plan names the server by its name in AWS, which the customer can change.
+func TestPlanNamesTheReusedMCPServerByItsName(t *testing.T) {
+	for name, id := range map[string]string{"found by endpoint": "", "given by ID": "mcp-1"} {
+		t.Run(name, func(t *testing.T) {
+			agent := &fakeAgent{services: []agenttypes.RegisteredService{
+				mcpService("mcp-1", "LaunchDarkly (prod)", awsdevops.MCPServerEndpoint),
+			}}
+			opts := runPlanOptions()
+			opts.MCPServiceID = id
+
+			plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, true)
+
+			require.NoError(t, err)
+			assert.Equal(t, "Reuse MCP server LaunchDarkly (prod) (mcp-1)", plan.Text().MCPServer)
+		})
+	}
+}
+
+// A connect plan never creates a space, so a used name is not a clash.
+func TestPlanConnectIgnoresNewAgentSpace(t *testing.T) {
+	agent := &fakeAgent{agentSpaces: []agenttypes.AgentSpace{namedSpace("space-7", "platform")}}
+	opts := runPlanOptions()
+	opts.AgentSpaceName = "platform"
+	opts.NewAgentSpace = true
+
+	plan, err := awsdevops.PlanSetup(context.Background(), newTestClients(agent, newFakeIAM()), opts, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, awsdevops.SpaceStep{Action: awsdevops.SpaceConnect, ID: "space-7", Name: "platform"}, plan.Space)
+}
+
+func TestPlanConnectWithoutANameAsksForTheID(t *testing.T) {
+	opts := runPlanOptions()
+	opts.AgentSpaceName = ""
+
+	_, err := awsdevops.PlanSetup(context.Background(), newTestClients(&fakeAgent{}, newFakeIAM()), opts, false)
+
+	assert.EqualError(t, err, "no agent space to connect to. Pass --agent-space-id")
+}
+
 // The replace plan names touched spaces.
 func TestPlanReplaceNamesEachSpace(t *testing.T) {
 	opts := runPlanOptions()

@@ -180,17 +180,25 @@ func agentSpaceARN(region, accountID, spaceID string) string {
 // account has one. AWS keeps MCP servers at the account level, so a second
 // agent space reuses the existing registration.
 func FindMCPServer(ctx context.Context, clients Clients, endpoint string) (string, error) {
+	id, _, err := findMCPService(ctx, clients, endpoint)
+
+	return id, err
+}
+
+// findMCPService returns the ID and the name of the MCP server registered at
+// endpoint, if the account has one.
+func findMCPService(ctx context.Context, clients Clients, endpoint string) (id, name string, err error) {
 	services, err := listServices(ctx, clients)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	for _, service := range services {
 		if mcpEndpointOf(service) == endpoint {
-			return aws.ToString(service.ServiceId), nil
+			return aws.ToString(service.ServiceId), serviceName(service), nil
 		}
 	}
 
-	return "", nil
+	return "", "", nil
 }
 
 // FindAgentSpace returns the ID of the agent space with the given name, or an
@@ -211,6 +219,10 @@ func FindAgentSpace(ctx context.Context, clients Clients, name string) (string, 
 
 // spacesNamed lists IDs of spaces named name.
 func spacesNamed(ctx context.Context, clients Clients, name string) ([]string, error) {
+	// An empty name names no space, even a space without a name.
+	if name == "" {
+		return nil, nil
+	}
 	spaces, err := listAgentSpaces(ctx, clients)
 	if err != nil {
 		return nil, err

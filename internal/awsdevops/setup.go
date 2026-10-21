@@ -271,6 +271,9 @@ type MCPStep struct {
 	ServiceID string
 	// Endpoint is the URL that the server serves.
 	Endpoint string
+	// Name is the name of an existing server in AWS. The customer can change
+	// it, so it can differ from MCPServerName.
+	Name string
 	// Spaces lists spaces linked to the server.
 	Spaces []string
 }
@@ -404,7 +407,7 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 		switch {
 		case err != nil:
 			return SpaceStep{}, err
-		case len(seen) > 0 && opts.NewAgentSpace:
+		case len(seen) > 0 && opts.NewAgentSpace && provision:
 			// Two spaces with one name make the next run unable to pick.
 			return SpaceStep{}, fmt.Errorf(
 				"an agent space named %s already exists (%s). Pass --agent-space-name with another name",
@@ -421,6 +424,10 @@ func planAgentSpace(ctx context.Context, clients Clients, opts SetupOptions, pro
 	}
 	if id == "" && !provision {
 		// A connect run never creates a space.
+		if opts.AgentSpaceName == "" {
+			return SpaceStep{}, errors.New("no agent space to connect to. Pass --agent-space-id")
+		}
+
 		return SpaceStep{}, fmt.Errorf("no agent space named %s to connect to. Pass --agent-space-id", opts.AgentSpaceName)
 	}
 	if id == "" && opts.AgentSpaceName == "" {
@@ -451,17 +458,15 @@ func planMCPStep(ctx context.Context, clients Clients, opts SetupOptions) (MCPSt
 
 func planMCPAction(ctx context.Context, clients Clients, opts SetupOptions) (MCPStep, error) {
 	existing := opts.MCPServiceID
+	var name string
+	var err error
 	if existing != "" {
-		if err := checkMCPServiceID(ctx, clients, existing, opts.mcpEndpoint()); err != nil {
-			return MCPStep{}, err
-		}
+		name, err = checkMCPServiceID(ctx, clients, existing, opts.mcpEndpoint())
+	} else {
+		existing, name, err = findMCPService(ctx, clients, opts.mcpEndpoint())
 	}
-	if existing == "" {
-		found, err := FindMCPServer(ctx, clients, opts.mcpEndpoint())
-		if err != nil {
-			return MCPStep{}, err
-		}
-		existing = found
+	if err != nil {
+		return MCPStep{}, err
 	}
 
 	switch {
@@ -471,9 +476,9 @@ func planMCPAction(ctx context.Context, clients Clients, opts SetupOptions) (MCP
 			return MCPStep{}, err
 		}
 
-		return MCPStep{Action: MCPReplace, ServiceID: existing, Spaces: spaces}, nil
+		return MCPStep{Action: MCPReplace, ServiceID: existing, Name: name, Spaces: spaces}, nil
 	case existing != "":
-		return MCPStep{Action: MCPReuse, ServiceID: existing}, nil
+		return MCPStep{Action: MCPReuse, ServiceID: existing, Name: name}, nil
 	case opts.LDAccessToken != "":
 		return MCPStep{Action: MCPRegister}, nil
 	default:
@@ -485,40 +490,50 @@ func planMCPAction(ctx context.Context, clients Clients, opts SetupOptions) (MCP
 // endpoint. Setup finds a LaunchDarkly MCP server by its endpoint, because the
 // name is the choice of the customer. A server at another endpoint is not one,
 // so setup does not connect it to the agent space.
-func checkMCPServiceID(ctx context.Context, clients Clients, id, endpoint string) error {
+// It returns the name of the server.
+func checkMCPServiceID(ctx context.Context, clients Clients, id, endpoint string) (string, error) {
 	services, err := listServices(ctx, clients)
 	if err != nil {
-		return err
+		return "", err
 	}
 	for _, service := range services {
 		if aws.ToString(service.ServiceId) != id || service.ServiceType != agenttypes.ServiceMcpServer {
 			continue
 		}
 		if served := mcpEndpointOf(service); served != endpoint {
-			return fmt.Errorf(
+			return "", fmt.Errorf(
 				"MCP server %s serves %s, not the LaunchDarkly MCP server at %s. "+
 					"If it is a LaunchDarkly MCP server that you host, pass --mcp-endpoint %s",
 				id, served, endpoint, served,
 			)
 		}
 
-		return nil
+		return serviceName(service), nil
 	}
 
-	return fmt.Errorf("ID %s names no registered MCP server", id)
+	return "", fmt.Errorf("ID %s names no registered MCP server", id)
+}
+
+// name is the name of the server in AWS, or the name that setup registers.
+func (m MCPStep) name() string {
+	if m.Name != "" {
+		return m.Name
+	}
+
+	return MCPServerName
 }
 
 func (m MCPStep) describe() string {
 	switch m.Action {
 	case MCPReplace:
-		line := fmt.Sprintf("Replace the token of MCP server %s (%s)", MCPServerName, m.ServiceID)
+		line := fmt.Sprintf("Replace the token of MCP server %s (%s)", m.name(), m.ServiceID)
 		if len(m.Spaces) > 0 {
 			line += ", reconnecting " + strings.Join(m.Spaces, ", ")
 		}
 
 		return line
 	case MCPReuse:
-		return fmt.Sprintf("Reuse MCP server %s (%s)", MCPServerName, m.ServiceID)
+		return fmt.Sprintf("Reuse MCP server %s (%s)", m.name(), m.ServiceID)
 	case MCPRegister:
 		return fmt.Sprintf("Register MCP server %s at %s", MCPServerName, m.Endpoint)
 	case MCPSkip:
