@@ -38,14 +38,14 @@ func (recorder *recordingServer) client(t *testing.T) Client {
 	return NewTransport("test").Client(Options{BaseURI: server.URL, AccessToken: "token"})
 }
 
-func TestTransportSharesOneHTTPClientWithEachClient(t *testing.T) {
-	transport := NewTransport("test")
+func TestZeroTransportSendsRequests(t *testing.T) {
+	server := apitest.NewServer(t, func(apitest.Request) ([]byte, error) {
+		return []byte(`{"key":"support","mode":"agent","variations":[]}`), nil
+	})
 
-	first := transport.Client(Options{BaseURI: "https://one.example.com", AccessToken: "one"})
-	second := transport.Client(Options{BaseURI: "https://two.example.com", AccessToken: "two"})
+	_, err := Transport{}.Client(Options{BaseURI: server.URL}).ReadVariation("project", "support", "default")
 
-	require.NotNil(t, first.transport.httpClient)
-	assert.Same(t, first.transport.httpClient, second.transport.httpClient)
+	require.NoError(t, err)
 }
 
 func TestClientVariationReadsParentConfig(t *testing.T) {

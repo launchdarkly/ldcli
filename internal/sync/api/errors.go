@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	lderrors "github.com/launchdarkly/ldcli/internal/errors"
@@ -82,28 +81,20 @@ func responseStatusCode(err error) (int, bool) {
 	return int(status), ok && status != 0
 }
 
-// statusError returns the error for a response with a status of 400 or more.
-// The error text is a JSON object with the fields of the response body and
-// the "statusCode" field. If the body is not JSON, the "code" and "message"
-// fields describe the status. The error has the same form as an error of the
-// resources client, so that the other ldcli output code can show it.
-func statusError(status int, body []byte, endpoint string) error {
-	var baseURI string
-	if parsed, err := url.Parse(endpoint); err == nil && parsed.Scheme != "" {
-		baseURI = parsed.Scheme + "://" + parsed.Host
-	}
-	code := strings.ToLower(strings.ReplaceAll(http.StatusText(status), " ", "_"))
-
+// statusError returns an error with the form of a resources client error, so
+// that the ldcli output can show it.
+func statusError(status int, body []byte, baseURI string) error {
 	var response map[string]any
-	switch {
-	case len(body) == 0:
-		response = map[string]any{"code": code, "message": http.StatusText(status), "statusCode": status}
-	case json.Unmarshal(body, &response) != nil || response == nil:
-		response = map[string]any{"code": code, "message": string(body), "statusCode": status}
-	default:
-		if _, exists := response["statusCode"]; !exists {
-			response["statusCode"] = status
+	if json.Unmarshal(body, &response) != nil || response == nil {
+		message := string(body)
+		if message == "" {
+			message = http.StatusText(status)
 		}
+		code := strings.ToLower(strings.ReplaceAll(http.StatusText(status), " ", "_"))
+		response = map[string]any{"code": code, "message": message}
+	}
+	if _, exists := response["statusCode"]; !exists {
+		response["statusCode"] = status
 	}
 	if suggestion := lderrors.SuggestionForStatus(status, baseURI); suggestion != "" {
 		response["suggestion"] = suggestion

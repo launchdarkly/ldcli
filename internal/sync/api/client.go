@@ -17,25 +17,17 @@ import (
 // "git:github.com/acme/app".
 const SyncSourceHeader = "LD-Sync-Source"
 
-// apiVersion is the LaunchDarkly REST API version that each request asks for.
-// It is the same version that the resources client sends.
 const apiVersion = "20240415"
 
-// Transport keeps the HTTP client and the User-Agent header that each sync
-// request uses. Create one Transport for each run of ldcli. Then create a
-// Client from it for each command.
+// Transport keeps the User-Agent header of each sync request. The zero value
+// sends no User-Agent header.
 type Transport struct {
-	httpClient *http.Client
-	userAgent  string
+	userAgent string
 }
 
-// NewTransport creates a transport. The User-Agent header names cliVersion.
-// The HTTP client has no timeout, as the resources client does.
+// NewTransport creates a transport whose User-Agent header names cliVersion.
 func NewTransport(cliVersion string) Transport {
-	return Transport{
-		httpClient: &http.Client{},
-		userAgent:  fmt.Sprintf("launchdarkly-cli/v%s", cliVersion),
-	}
+	return Transport{userAgent: fmt.Sprintf("launchdarkly-cli/v%s", cliVersion)}
 }
 
 // Options are the values of one command that a Client uses.
@@ -140,17 +132,17 @@ func (client Client) do(method, endpoint string, query url.Values, body []byte) 
 	}
 	request.URL.RawQuery = query.Encode()
 
-	response, err := client.transport.httpClient.Do(request)
+	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}
 	if response.StatusCode >= http.StatusBadRequest {
-		return nil, statusError(response.StatusCode, responseBody, endpoint)
+		return nil, statusError(response.StatusCode, responseBody, request.URL.Scheme+"://"+request.URL.Host)
 	}
 	return responseBody, nil
 }
